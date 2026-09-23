@@ -177,18 +177,25 @@ const Map<String, DungeonSkyConfig> kDungeonSkyConfigs = {
   ),
   // Dark (Eclipse Vault) — totality: black disc, corona, shadow bands.
   'Dark': DungeonSkyConfig(
-    colorA: Color(0xFF040407), // void
-    colorB: Color(0xFF2A2450), // umbral indigo
-    colorC: Color(0xFFFFF3D0), // corona
-    intensity: 1.0,
+    // A LOT DARKER (2026-09-19, from the author): the vault's sky read as a
+    // blue dusk. The horizon is a bruise now, not indigo, and the corona is
+    // a dim violet rather than cream — nothing behind Nythralor is lit.
+    colorA: Color(0xFF020204), // void
+    colorB: Color(0xFF110D22), // the bruise at the horizon
+    colorC: Color(0xFF6A5A96), // a corona seen through cloth
+    intensity: 0.55,
     noiseScale: 2.0,
     flowSpeed: 0.4,
     seed: 119.0,
   ),
   // Light (Beacon Archive) — soft volumetric god-rays and dust in the beams.
   'Light': DungeonSkyConfig(
-    colorA: Color(0xFF14100A), // hall shadow
-    colorB: Color(0xFF8A7248), // warm stone
+    // LESS BROWN (2026-09-19, from the author). The hall's shadow was a
+    // brown-black and its stone a warm tan, and the whole planet read as
+    // mud. A shadowed hall is COOL: slate in the dark, bone and gilt where
+    // the beams land, and the beam itself stays white.
+    colorA: Color(0xFF151A26), // hall shadow, cool
+    colorB: Color(0xFFB9AE93), // bone limestone
     colorC: Color(0xFFFFF6DC), // beam white
     intensity: 1.0,
     noiseScale: 2.0,

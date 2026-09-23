@@ -30,9 +30,11 @@
 //    rule. It rides a rolling sandstorm that shovels the hollow's bank back
 //    into your open cut and reaches out into the city to re-bury one of your
 //    digs. Its lull exists only while the excavation is held open.
-//  • Lost Maxim — NOTHING PERISHES: sweep away (Air) EVERY ancient footprint.
-//    A print only shows while its mound is bared, and conservation caps you at
-//    two bared mounds at once, so the four of them cannot be done in one pass.
+//  • Lost Maxim — NOTHING PERISHES: THE TALLY. The granary's five pits hold
+//    the dead's last count of the city, one pit per mound, marked with the
+//    mound's own survey glyph. Lay the streets back to that count — the
+//    observatory's roof DRIFTED, the state Star 1 forbids — and Air blown
+//    across each pit lights it. Five lit at once, and the cist opens.
 //
 // NON-STRANDABILITY (the design's one real danger — see `solveBuriedCity`):
 // every dig takes TWO street crossings away and gives one cellar back, which
@@ -151,8 +153,8 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
   String _ruinsDoorHint(DungeonRoom room, DungeonDoor door) {
     final (mound, _) = _moundLeg(room, door)!;
     return switch (ruins.stateOf(mound.id)) {
-      MoundState.bared => 'Open trench, the paving that crossed here is gone',
-      MoundState.drifted => 'A dune stands over the street, crest to crest',
+      MoundState.bared => 'This street was dug out into a trench',
+      MoundState.drifted => 'A dune blocks this street',
       MoundState.buried => 'The way is clear',
     };
   }
@@ -165,7 +167,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     return _tryGateSilt(a) ||
         _tryHollowCut(a) ||
         _tryWindVane(a) ||
-        _tryFootprint(a) ||
+        _tryTally(a) ||
         _tryArmillary(a) ||
         _tryGlassCourt(a) ||
         _tryMoundDig(a) ||
@@ -178,11 +180,12 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if (pos == null || entryDoorRevealed) return false;
     if ((a.position - pos).distance > _kRuinsReach) return false;
     if (a.member.element != 'Dust') {
-      _setBlockedHint('Only Dust parts its own drift');
+      _setBlockedHint('Only Dust can clear this sand');
       return true;
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
+    _cue(SoundCue.dungeonGateOpen);
     _setHint('The silt runs off the arch, Sablis opens its mouths');
     _spawnAlchemyBurst(
       pos,
@@ -204,29 +207,33 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kRuinsReach) return false;
     if (a.member.element != 'Air') {
-      _setBlockedHint('Only Air turns this vane');
+      _setBlockedHint('Only Air can turn this vane');
       return true;
     }
     if (ruins.isLevelled) {
-      _setBlockedHint('The vane swings free, the city already lies even');
+      _setBlockedHint('Nothing to reset. The city is as it started');
       return true;
     }
     if (ruins.armedVaneRoom != currentRoomId) {
       ruins.armedVaneRoom = currentRoomId;
       ruins.armedVaneTimer = _kVaneArmSeconds;
       // Attempt-edged and explicit: the most expensive verb on the planet
-      // never fires on one careless press.
-      _setHint(
-        'The vane winds up. Touch it again and the sirocco takes back every '
-        'spadeful you have moved',
+      // never fires on one careless press. SPOKEN, not held for the hint
+      // button — a warning nobody is shown is not a warning (§5.7).
+      _cue(SoundCue.dungeonSwitch);
+      speakConsequence(
+        'The vane is wound. Touch it again to reset every dig in the city',
         _kVaneArmSeconds,
       );
       return true;
     }
     ruins.levelCity();
-    _setHint(
-      'The sirocco comes down the streets, every trench filled, every dune '
-      'gone, the city as its dead left it',
+    _cue(SoundCue.dungeonWallBreak);
+    _cue(SoundCue.elementAir);
+    // A closing announces itself (§5.7): this one takes back the whole city.
+    speakConsequence(
+      'The wind resets the city. Every trench and dune is back as it '
+      'started',
       4.6,
     );
     _spawnAlchemyBurst(
@@ -248,20 +255,18 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     for (final m in dustMoundsIn(currentRoomId)) {
       if ((a.position - m.streetPos).distance > _kRuinsReach) continue;
       if (!_ruinsHasSpade(a)) {
-        _setBlockedHint('Only Dust or Earth shifts a mound');
+        _setBlockedHint('Only Dust or Earth can dig here');
         return true;
       }
       switch (ruins.stateOf(m.id)) {
         case MoundState.bared:
           _setBlockedHint(
-            'Scraped to the flags already, there is nothing '
-            'here to move',
+            'Already dug down to the paving',
           );
           return true;
         case MoundState.drifted:
           _setBlockedHint(
-            'Packed hard under its own weight, no spade bites '
-            'this',
+            'Too packed to dig. Only Air can move a dune',
           );
           return true;
         case MoundState.buried:
@@ -269,15 +274,19 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       }
       final target = _facingMound(a, m);
       if (target == null) {
-        _setBlockedHint('Nowhere to throw it that way');
+        _setBlockedHint('No room to throw the sand that way');
         return true;
       }
       if (!ruins.canDig(m.id, target.id)) {
-        _setBlockedHint('That heap will not take another load');
+        _setBlockedHint('That heap is full');
         return true;
       }
       ruins.dig(m.id, target.id);
-      _setHint(_moundDigLine(m, target));
+      _cue(SoundCue.elementDust);
+      // A CONSEQUENCE, not narration: one spadeful has just shut two street
+      // crossings and opened a cellar, and the player may never find that
+      // out by walking into it (§5.7).
+      speakConsequence(_moundDigLine(m, target));
       _spawnAlchemyBurst(
         m.streetPos,
         producedElement: 'Dust',
@@ -354,17 +363,16 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
 
   String _moundDigLine(DustMound from, DustMound to) {
     if (to.pressedRoomId != null) {
-      return 'The bump takes the spoil and settles. Somewhere below, old '
-          'brick gives';
+      return 'The sand piles on the bump. Somewhere below, a wall gives '
+          'way';
     }
     if (to.rampRoomId != null) {
-      return 'The heap crests over the street, and leans against the terrace '
-          'wall';
+      return 'The heap rises over the street into a ramp';
     }
     if (from.cellarRoomId != null) {
-      return 'The flags come up, and a dark room opens under your feet';
+      return 'The street is dug out, and a cellar opens below';
     }
-    return 'The trench opens, and the street beyond it goes under';
+    return 'A trench opens, and the next street gets buried';
   }
 
   // ── Star 0 · THE THREE SEALS ─────────────────────────────
@@ -405,7 +413,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     final here = _yardCellAt(g, a.position);
     if (here == null) return false;
     if (!g.isGround(here.$1, here.$2)) {
-      _setBlockedHint('Broken column, nothing rests here');
+      _setBlockedHint('Broken column. Nothing to do here');
       return true;
     }
     final step = _yardFacing(a);
@@ -419,7 +427,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     // on the planet that takes the crest off a dune.
     if (el == 'Air') {
       if (!g.isGround(fc, fr)) {
-        _setBlockedHint('The gust has nowhere to lay it');
+        _setBlockedHint('No room to blow the sand that way');
         return true;
       }
       final from = here.$2 * g.cols + here.$1;
@@ -427,11 +435,12 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       if (!ruins.scourDrift(from, to)) {
         _setBlockedHint(
           ruins.driftAt(from) < 1
-              ? 'Bare flags, the wind finds nothing to lift'
-              : 'That square is heaped as high as it goes',
+              ? 'No sand here to blow'
+              : 'That square is already full',
         );
         return true;
       }
+      _cue(SoundCue.elementAir);
       // THE CONSEQUENCE (§7, one per star): a spade is quiet, a gust is not.
       spawnWispWave(
         element: 'Dust',
@@ -453,11 +462,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     // DIG (Dust or Earth): bite the cell in front, throw over the shoulder.
     if (!_ruinsHasSpade(a)) return false;
     if (!g.isGround(fc, fr)) {
-      _setBlockedHint('Nothing to bite there');
+      _setBlockedHint('Nothing to dig there');
       return true;
     }
     if (!g.isGround(bc, br)) {
-      _setBlockedHint('No room behind you for the spoil');
+      _setBlockedHint('No room behind you for the sand');
       return true;
     }
     final from = fr * g.cols + fc;
@@ -465,13 +474,14 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if (!ruins.digDrift(from, to)) {
       _setBlockedHint(
         ruins.driftAt(from) == 0
-            ? 'Bare flags already'
+            ? 'Already clear'
             : ruins.driftAt(from) > 1
-            ? 'Packed hard, a spade will not bite a dune'
-            : 'The square behind you will not take another load',
+            ? 'Too packed to dig. Only Air can move a heap'
+            : 'The square behind you is full',
       );
       return true;
     }
+    _cue(SoundCue.elementDust);
     _spawnAlchemyBurst(
       g.centerAt(fc, fr),
       producedElement: 'Dust',
@@ -504,7 +514,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kRuinsReach) return false;
     if (ruins.stateOf('m_roof') != MoundState.bared) {
       // A GOAL, not a method (§5.6): what is missing, in one clause.
-      _setBlockedHint('The rings turn on nothing, this room has no sky');
+      _setBlockedHint('The roof is still on. The armillary can\'t see the sky');
       return true;
     }
     // VERB-ONLY: the rings turn on a bared roof, and what this asks for is
@@ -517,6 +527,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     switch (evaluateInteraction(a.member, req)) {
       case InteractionResult.passed:
       case InteractionResult.passedViaRecipe:
+        _cue(SoundCue.dungeonSwitch);
         _setHint('The rings come round to the open roof, and hold there');
         _spawnAlchemyBurst(
           pos,
@@ -532,11 +543,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         if (gate != null) {
           _stampFamilyGate(gate);
         } else {
-          _setBlockedHint('Only Air borne on wings crosses a roofless span');
+          _setBlockedHint('Only an Air Wing can fly across this gap');
         }
       case InteractionResult.blockedElement:
       case InteractionResult.blockedStat:
-        _setBlockedHint('The rings are seized with grit, they answer Air');
+        _setBlockedHint('Grit jams the rings. Only Air can blow it out');
     }
     return true;
   }
@@ -551,17 +562,18 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kRuinsReach) return false;
     if ((conduitEnergy['B'] ?? 0) > 0) return false;
     if (a.member.element != 'Dust') {
-      _setBlockedHint('The glass answers Dust alone');
+      _setBlockedHint('Only Dust can turn the great glass');
       return true;
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The glass will not turn, it answers only a bearer of the '
-        '${layout.starName(0)} and ${layout.starName(1)}',
+        'The glass needs the ${layout.starName(0)} and '
+        '${layout.starName(1)} first',
       );
       return true;
     }
     conduitEnergy['B'] = double.infinity;
+    _cue(SoundCue.dungeonSwitch);
     _setHint('The great glass turns over, and the court begins to run');
     _spawnAlchemyBurst(
       pos,
@@ -582,14 +594,15 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kRuinsReach) return false;
     if (ruins.hollowOpen) return false;
     if (_hollowSettle > 0) {
-      _setBlockedHint('The sand is still running back in');
+      _setBlockedHint('Sand is still pouring back in. Wait a moment');
       return true;
     }
     if (!_ruinsHasSpade(a)) {
-      _setBlockedHint('Only Dust or Earth clears this cut');
+      _setBlockedHint('Only Dust or Earth can clear this cut');
       return true;
     }
     ruins.clearHollow();
+    _cue(SoundCue.elementDust);
     _setHint(
       ruins.hollowOpen
           ? 'The cut is open again, and the djinn slows to look into it'
@@ -625,54 +638,126 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       ruins.buryHollow();
       _hollowSettle = _kHollowSettle;
       final undone = ruins.undoOneDig();
-      _setHint(
+      _cue(SoundCue.dungeonHazardTrigger);
+      // A closing announces itself (§5.7). This runs from update, where an
+      // ordinary line is dropped unasked — and a dig the storm has just
+      // filled back in is exactly the thing a player must never discover by
+      // walking into it.
+      speakConsequence(
         undone == null
-            ? 'The storm rolls over the cut and fills it'
-            : 'The storm rolls out over the streets, and one of your trenches '
-                  'is street again',
+            ? 'The storm fills the cut back in'
+            : 'The storm fills in one of your trenches in the city',
       );
     }
   }
 
   // ── The Lost Maxim · NOTHING PERISHES ────────────────────
+  //
+  // THE TALLY (2026-09-19; the §7 maxim standard, and Mud's lesson that the
+  // best place to hide a secret is the state your own stars punish).
+  //
+  // It used to be four footprints swept with Air — one verb, N times, and no
+  // place. It is a CHAIN now, and every link is a thing this planet already
+  // taught:
+  //
+  //   1. READ THE COUNT. The granary's five pits hold grain to the dead's
+  //      last count of the city, one pit per mound, each marked with the
+  //      same survey glyph that is pegged on the mound's own square. No
+  //      verb; the room is the clue.
+  //   2. LAY THE STREETS TO IT — two spadefuls, the planet's whole grammar,
+  //      each a decision made with the body: the kiln onto the bump (the
+  //      vault cracks as a side effect), then the agora onto the roof. The
+  //      observatory's roof stands DRIFTED at the end of it — the one thing
+  //      Star 1 spends its whole room telling you never to do, and a state
+  //      that costs you that star for as long as you hold it. The order is
+  //      forced: bare the agora first and the terrace can never be reached.
+  //   3. COME DOWN. Three crossings are shut by then; the granary is reached
+  //      the way the buried city is always reached, through the undercity.
+  //   4. THE REPEATED BEAT: Air blown across each pit. A pit whose mound
+  //      stands at the count LIGHTS — the grain answers, nothing perishes.
+  //      One that does not answers with a puff and a sentence. Nothing is
+  //      spent, and the read is live: move the city and a lit pit goes dark.
+  //   5. Five lit at once, and the cist between them opens.
+  //
+  // Nothing here asks for a family the riddle did not name, and the star path
+  // never passes it: the authored descent throws the roof WEST, and no state
+  // on it matches the count.
 
-  /// The ancient footprints. Deliberately beyond what the stars demand
-  /// (§ "Easter eggs"): a print shows only while its mound is BARED, and
-  /// conservation caps you at two bared mounds at once, so the four of them
-  /// cannot be swept without spending at least one sirocco in between.
-  bool _tryFootprint(DungeonCreature a) {
+  /// Does mound [id] stand at the dead's count right now?
+  bool tallyMatches(String id) => ruins.loadsOn(id) == kDustTally[id];
+
+  /// Lit: blown across while it agreed, and still agreeing. Live, like the
+  /// ledger it reads.
+  bool tallyLit(String id) => ruins.tallyLit.contains(id) && tallyMatches(id);
+
+  /// Every pit lit at once — the secret.
+  bool get tallyComplete => kDustMounds.every((m) => tallyLit(m.id));
+
+  /// AIR across a pit's mouth. Lights it if the city agrees with it.
+  bool _tryTally(DungeonCreature a) {
+    final pits = currentRoom.ruins?.tallyPits;
+    if (pits == null) return false;
     if (discoveredClouds.contains(kDustNothingPerishesEggId)) return false;
-    for (final m in dustMoundsIn(currentRoomId)) {
-      final pos = m.footprintPos;
-      if (pos == null) continue;
-      if (ruins.sweptPrints.contains(m.id)) continue;
-      if (ruins.stateOf(m.id) != MoundState.bared) continue;
-      if ((a.position - pos).distance > _kRuinsReach) continue;
-      if (a.member.element != 'Air') {
-        _setBlockedHint('Only Air lifts a print off the flags');
-        return true;
+    var best = -1;
+    var bestD = _kRuinsReach;
+    for (var i = 0; i < pits.length && i < kDustMounds.length; i++) {
+      final d = (a.position - pits[i]).distance;
+      if (d <= bestD) {
+        bestD = d;
+        best = i;
       }
-      ruins.sweptPrints.add(m.id);
-      final total = kDustMounds.where((x) => x.footprintPos != null).length;
-      if (ruins.sweptPrints.length < total) {
-        _setHint(
-          'The print goes out from under the broom, and the flags are '
-          'blank',
-        );
-        return true;
-      }
-      // THE RITE OF THREE pays this out (see `beginMaximRite`).
-      beginMaximRite(kDustNothingPerishesEggId, pos);
+    }
+    if (best < 0) return false;
+    final m = kDustMounds[best];
+    final pit = pits[best];
+    if (a.member.element != 'Air') {
+      // A wrong hand: a small burst and a sentence about what it sees (§7).
       _spawnAlchemyBurst(
-        pos,
-        producedElement: 'Air',
-        reagentElements: const ['Dust', 'Earth'],
-        particleCount: 40,
-        intensity: 1.4,
+        pit,
+        producedElement: a.member.element,
+        particleCount: 8,
+        intensity: 0.5,
       );
+      _setBlockedHint('Old dry grain. Only Air can stir it');
       return true;
     }
-    return false;
+    if (!tallyMatches(m.id)) {
+      _cue(SoundCue.elementAir);
+      _spawnAlchemyBurst(
+        pit,
+        producedElement: 'Air',
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setHint('The grain lies still. The street above does not agree with it');
+      return true;
+    }
+    if (!ruins.tallyLit.add(m.id)) {
+      _setBlockedHint('This pit is already lit');
+      return true;
+    }
+    _cue(SoundCue.dungeonSwitch);
+    _spawnAlchemyBurst(
+      pit,
+      producedElement: 'Dust',
+      reagentElements: const ['Air'],
+      particleCount: 16,
+      intensity: 0.9,
+    );
+    if (!tallyComplete) return true;
+    // ── 5 · five pits agree, and the cist opens ──
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    final cist = currentRoom.ruins?.tallyCist ?? pit;
+    _cue(SoundCue.dungeonGateOpen);
+    beginMaximRite(kDustNothingPerishesEggId, cist);
+    _spawnAlchemyBurst(
+      cist,
+      producedElement: 'Dust',
+      reagentElements: const ['Air', 'Earth'],
+      particleCount: 40,
+      intensity: 1.4,
+    );
+    return true;
   }
 
   // ── Per-frame ────────────────────────────────────────────
@@ -723,34 +808,37 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _ruinsObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Ashdjinn\'s Hollow, the djinn keeps the last star';
+      return 'Ashdjinn\'s Hollow. The last star is here';
     }
     if (room.ruins?.glassCourt != null) {
-      return 'The Hourglass Court, the rite waits on the glass';
+      return 'The Hourglass Court. The rite happens here';
     }
     if (room.ruins?.armillary != null) {
       return hasStar(room.ruins!.starIndex!)
           ? null
-          : 'The Observatory, the great rings stand dark';
+          : 'The Observatory. The great armillary can\'t see the sky';
     }
     if (room.ruins?.field != null) {
       return hasStar(room.ruins!.starIndex!)
           ? null
-          : 'The Seal Street, three bronzes lie under the drift';
+          : 'The Seal Street. Three bronze seals are buried here';
     }
     if (room.vaultCache != null) {
-      return 'A house nobody dug out, something is bottled here';
+      return 'A buried house. Something is stored here';
     }
     if (room.id == 'undercity') {
-      return 'The Undercity, the drift tunnels run under every street';
+      return 'The Undercity, under the streets';
+    }
+    if (room.ruins?.tallyPits != null) {
+      return 'The Granary. Five marked pits';
     }
     if (room.ruins?.windVane != null && room.id == 'windcatch') {
-      return 'The Windcatch, the tower\'s throat, and it is still breathing';
+      return 'The Windcatch';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Ashen Gate, Sablis lies east, under itself'
-          : 'The Ashen Gate, the arch is silted to the springing';
+          ? 'The Ashen Gate. The city is to the east'
+          : 'The Ashen Gate. Sand fills the arch';
     }
     return null;
   }
@@ -769,6 +857,19 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     final vane = room.ruins?.windVane;
     if (vane != null && (a.position - vane).distance < 100) {
       _setAmbientHint('The iron turns a little, and stops');
+      return;
+    }
+    final pits = room.ruins?.tallyPits;
+    if (pits != null) {
+      for (var i = 0; i < pits.length && i < kDustMounds.length; i++) {
+        if ((a.position - pits[i]).distance > _kRuinsReach) continue;
+        _setAmbientHint(
+          tallyLit(kDustMounds[i].id)
+              ? 'The grain in this pit is warm to the hand'
+              : 'Grain, a thousand years dry, and still counted',
+        );
+        return;
+      }
     }
   }
 
@@ -778,51 +879,57 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     final tier = revealHintTier(a.member.statIntelligence);
     if (room.ruins?.field != null) {
       _setInsightHint(switch (tier) {
-        0 => 'Three bronzes under the drift, and all three must show at once',
+        0 => 'Uncover all three seals at the same time',
         1 =>
-          'A spade bites what is in front of you and throws it over your '
-              'shoulder; a gust takes the top off the square you stand on',
+          'Digging clears the square in front of you and throws the sand '
+              'behind you. Air blows sand off the square you stand on',
         _ =>
-          'The yard is one load short of full, so every throw lands on a '
-              'seal you cleared. A spade will not bite a heap, only wind lifts '
-              'a crest, and the west seal is boxed where no spade can reach it',
+          'There\'s almost no spare room, so sand keeps landing on seals you '
+              'cleared. Only Air can move a heap, and the west seal can only '
+              'be cleared by Air',
       });
       return;
     }
     if (room.ruins?.armillary != null) {
       _setInsightHint(switch (tier) {
-        0 => 'The rings are cut for a sky this room has not had in an age',
+        0 => 'The armillary needs to see the sky',
         1 =>
-          'It wants the roof off above it, and the island it stands on is '
-              'across a span with no floor',
+          'The roof above has to come off, and the armillary stands across a '
+              'gap with no floor',
         _ =>
-          'Strip the roof mound overhead and the sky comes down; then only '
-              'a thing the ground cannot keep reaches the island',
+          'Dig out the roof mound above this room. Then an Air Wing can fly '
+              'across to the armillary',
       });
+      return;
+    }
+    if (room.ruins?.tallyPits != null) {
+      // ONE OBLIQUE LINE and nothing after it (the §7 maxim standard). It
+      // does not tier and it does not track progress.
+      _setInsightHint(
+        'Each pit records how the city was left. Make the streets match, '
+        'and wind might wake what\'s in them',
+      );
       return;
     }
     if (room.vaultCache != null || room.id == 'undercity') {
       _setInsightHint(switch (tier) {
-        0 => 'Somewhere along this wall the brick is younger than the rest',
-        1 => 'There is a house on the far side that nobody ever dug out',
+        0 => 'Part of this wall is newer than the rest',
+        1 => 'There\'s a buried house on the other side',
         _ =>
-          'Its wall only gives under weight: heap the bump on the roof '
-              'walk, and the lintels press this partition open',
+          'The wall gives under weight. Pile sand onto the bump on the roof '
+              'walk and it pushes this wall open',
       });
       return;
     }
     // Anywhere in the ruins, insight reads the LEDGER — which is the planet.
     _setInsightHint(switch (tier) {
-      0 =>
-        'Nothing leaves Sablis. What comes off one square goes onto '
-            'another',
+      0 => 'Sand you dig up has to land somewhere else',
       1 =>
-        'A trench and a dune both stop a foot; a trench is a way down and '
-            'a dune is a way up. One spadeful makes one of each',
+        'Trenches and dunes both block streets. A trench opens a way down, '
+            'a dune a way up. Each dig makes one of each',
       _ =>
-        'Every dig costs you two crossings and buys one cellar, and no hand '
-            'undoes it. The tower\'s vanes are the only take-backs, and the '
-            'sirocco takes back all of it at once',
+        'Digs can\'t be undone by hand. Air at the tower vanes resets the '
+            'whole city if you get stuck',
     });
   }
 
@@ -1107,7 +1214,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       b,
       Paint()
         ..color = (g.under ? const Color(0xFF20180F) : const Color(0xFF6B573A))
-            .withValues(alpha: g.under ? 0.52 : 0.44),
+            .withValues(alpha: g.under ? 0.40 : 0.32),
     );
 
     // The observatory's floor is not the room: the instrument moat is cut out
@@ -2273,17 +2380,24 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
   }
 
   /// THE GRANARY. Sunk storage pits in the floor, most of them still capped.
+  /// THE GRANARY — the room that COUNTS.
+  ///
+  /// Five grain pits in a row, one per mound, each holding the dead's last
+  /// count of that square as grain (0 · 1 · 2), with the mound's survey mark
+  /// cut on a plate over it. A pit the wind has been blown across while the
+  /// city agreed with it is LIT — warm grain, motes rising — and goes dark
+  /// again the moment the street above it changes. Five lit and the cist
+  /// stands open. (It used to be five decorative pits at random and three
+  /// sacks; the sacks stay.)
   void _renderGranary(Canvas canvas, DungeonRoom room) {
-    const pits = [
-      (Offset(92, 118), 44.0, true),
-      (Offset(196, 232), 38.0, false),
-      (Offset(330, 128), 50.0, false),
-      (Offset(372, 252), 32.0, true),
-      (Offset(120, 268), 27.0, false),
-    ];
-    for (final p in pits) {
-      final at = p.$1;
-      final r = p.$2;
+    final pits = room.ruins?.tallyPits ?? const <Offset>[];
+    final found = discoveredClouds.contains(kDustNothingPerishesEggId);
+    for (var i = 0; i < pits.length && i < kDustMounds.length; i++) {
+      final at = pits[i];
+      final m = kDustMounds[i];
+      final count = kDustTally[m.id] ?? 1;
+      final lit = found || tallyLit(m.id);
+      const r = 30.0;
       // The collar of brick round the mouth of the pit.
       canvas.drawOval(
         Rect.fromCenter(center: at, width: r * 2.2, height: r * 1.7),
@@ -2293,56 +2407,151 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         Rect.fromCenter(center: at, width: r * 1.8, height: r * 1.34),
         Paint()..color = const Color(0xFF0B0805).withValues(alpha: 0.9),
       );
-      if (p.$3) {
-        // Still capped: a stone lid with its lifting slot.
+      // THE GRAIN, to the count. Empty is a black mouth; one is a level lying
+      // low in the pit; two is heaped over the lip. The count is the clue and
+      // it has to read from across the room.
+      if (count >= 1) {
         canvas.drawOval(
           Rect.fromCenter(
-            center: at.translate(0, -3),
-            width: r * 1.72,
-            height: r * 1.26,
+            center: at.translate(0, count >= 2 ? -2 : 6),
+            width: r * (count >= 2 ? 1.9 : 1.45),
+            height: r * (count >= 2 ? 1.5 : 0.9),
           ),
-          Paint()..color = _kDustStone.withValues(alpha: 0.72),
+          Paint()
+            ..color = (lit ? const Color(0xFFE2B85C) : _kDustOchre).withValues(
+              alpha: lit ? 0.92 : 0.8,
+            ),
         );
-        canvas.drawRect(
-          Rect.fromCenter(
-            center: at.translate(0, -3),
-            width: r * 0.5,
-            height: 5,
-          ),
-          Paint()..color = const Color(0xFF140E08).withValues(alpha: 0.8),
-        );
-      } else {
-        // Open: the grain went to chaff a thousand years ago, and what is
-        // left has spilled out over the lip in a fan.
-        canvas.drawArc(
-          Rect.fromCenter(
-            center: at.translate(0, 4),
-            width: r * 1.6,
-            height: r * 1.1,
-          ),
-          0,
-          pi,
-          true,
-          Paint()..color = _kDustOchre.withValues(alpha: 0.35),
-        );
+      }
+      if (count >= 2) {
+        // A heap, with its crest.
         canvas.drawPath(
           Path()
-            ..moveTo(at.dx - r * 0.6, at.dy + r * 0.6)
+            ..moveTo(at.dx - r * 0.9, at.dy)
             ..quadraticBezierTo(
-              at.dx,
-              at.dy + r * 1.9,
-              at.dx + r * 0.8,
-              at.dy + r * 0.7,
+              at.dx - r * 0.3,
+              at.dy - r * 1.1,
+              at.dx + r * 0.1,
+              at.dy - r * 0.95,
+            )
+            ..quadraticBezierTo(
+              at.dx + r * 0.7,
+              at.dy - r * 0.7,
+              at.dx + r * 0.9,
+              at.dy,
             )
             ..close(),
-          Paint()..color = _kDustOchre.withValues(alpha: 0.3),
+          Paint()
+            ..color = (lit ? const Color(0xFFF2D07A) : _kDustPale).withValues(
+              alpha: lit ? 0.95 : 0.85,
+            ),
+        );
+      }
+      if (lit) {
+        // WARM: nothing perishes, and the grain says so. A glow (geometry,
+        // never blur) and three motes rising off it.
+        for (var k = 3; k >= 1; k--) {
+          canvas.drawOval(
+            Rect.fromCenter(
+              center: at.translate(0, -4),
+              width: r * (1.9 + k * 0.35),
+              height: r * (1.5 + k * 0.28),
+            ),
+            Paint()..color = const Color(0xFFFFD27A).withValues(alpha: 0.06),
+          );
+        }
+        for (var k = 0; k < 3; k++) {
+          final t = (_time * 0.6 + k * 0.37 + i * 0.13) % 1.0;
+          canvas.drawCircle(
+            at +
+                Offset(
+                  sin((t + k) * 6.3) * 10 + (k - 1) * 8,
+                  -r * 0.6 - t * 40,
+                ),
+            2.2 - t * 1.4,
+            Paint()
+              ..color = const Color(
+                0xFFFFE9A8,
+              ).withValues(alpha: (1 - t) * 0.8),
+          );
+        }
+      }
+      // THE PLATE over the pit, with the square's survey mark cut in it — the
+      // same mark as the tag on the mound's peg. Bronze when lit.
+      final plate = Rect.fromCenter(
+        center: at.translate(0, -52),
+        width: 30,
+        height: 26,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(plate, const Radius.circular(3)),
+        Paint()
+          ..color = (lit ? _kDustBronze : _kDustStone).withValues(
+            alpha: lit ? 0.9 : 0.8,
+          ),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(plate, const Radius.circular(3)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = (lit ? const Color(0xFFFFE9A8) : _kDustUmber).withValues(
+            alpha: 0.7,
+          ),
+      );
+      _drawSurveyGlyph(
+        canvas,
+        plate.center,
+        7,
+        m.glyph,
+        lit ? const Color(0xFF2A1E0C) : _kDustPale,
+      );
+    }
+
+    // THE CIST: a stone measuring box in the floor, lidded until the five
+    // agree, then standing open with the light of the rite in it.
+    final cist = room.ruins?.tallyCist;
+    if (cist != null) {
+      final open = found || tallyComplete;
+      final box = Rect.fromCenter(center: cist, width: 44, height: 30);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(box.inflate(4), const Radius.circular(3)),
+        Paint()..color = _kDustStone.withValues(alpha: 0.85),
+      );
+      canvas.drawRect(
+        box,
+        Paint()
+          ..color = (open ? const Color(0xFF2A1E0C) : const Color(0xFF4A3F30))
+              .withValues(alpha: 0.95),
+      );
+      if (open) {
+        canvas.drawRect(
+          box.deflate(5),
+          Paint()
+            ..color = const Color(
+              0xFFE2B85C,
+            ).withValues(alpha: 0.35 + 0.15 * sin(_time * 3)),
+        );
+        // The lid, slid aside.
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            box.translate(30, 6),
+            const Radius.circular(2),
+          ),
+          Paint()..color = _kDustStone.withValues(alpha: 0.75),
+        );
+      } else {
+        canvas.drawRect(
+          Rect.fromCenter(center: cist, width: 14, height: 3),
+          Paint()..color = const Color(0xFF140E08).withValues(alpha: 0.8),
         );
       }
     }
+
     // SACKS against the wall, slumped and long since split. Three, at three
     // sizes, leaning on each other the way sacks do.
     for (var i = 0; i < 3; i++) {
-      final at = Offset(230 + i * 34.0 + (i % 2) * 9, 62 + (i % 3) * 11.0);
+      final at = Offset(60 + i * 34.0 + (i % 2) * 9, 92 + (i % 3) * 11.0);
       final w = 26 + (i % 3) * 8.0;
       canvas.drawPath(
         Path()
@@ -2958,42 +3167,86 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
             );
           }
       }
-      // An unswept print, showing only while the ground is open.
-      final print = m.footprintPos;
-      if (print != null &&
-          ruins.stateOf(m.id) == MoundState.bared &&
-          !ruins.sweptPrints.contains(m.id) &&
-          !discoveredClouds.contains(kDustNothingPerishesEggId)) {
-        _drawFootprints(canvas, print);
-      }
+      // THE SURVEY PEG'S TAG. Every measured square carries its mark, in
+      // every state — a chalked tag on a stake at the near corner, the same
+      // mark that is cut over its pit in the granary. A rule you cannot see
+      // is a secret, not a puzzle; the mark is what makes the tally readable.
+      _drawSurveyTag(canvas, Offset(r.left + 10, r.top - 8), m.glyph);
     }
   }
 
-  /// A bare foot pressed into a floor, twice, walking. It used to be two
-  /// plain ovals, which read as stones.
-  void _drawFootprints(Canvas canvas, Offset at) {
-    for (var i = 0; i < 2; i++) {
-      final c = at + Offset(i * 18.0 - 9, i * 13.0);
-      final ink = Paint()..color = _kDustDeep.withValues(alpha: 0.55);
-      canvas.save();
-      canvas.translate(c.dx, c.dy);
-      canvas.rotate(i == 0 ? -0.16 : 0.14);
-      canvas.drawOval(
-        Rect.fromCenter(center: const Offset(0, 4), width: 13, height: 19),
-        ink,
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: const Offset(0, -8), width: 10, height: 8),
-        ink,
-      );
-      for (var t = 0; t < 4; t++) {
-        canvas.drawCircle(
-          Offset(-4.0 + t * 2.8, -13.5 - (t == 0 ? 1 : 0)),
-          1.5,
+  /// A stake with a chalked tag on it, carrying one survey mark.
+  void _drawSurveyTag(Canvas canvas, Offset at, int glyph) {
+    canvas.drawLine(
+      at + const Offset(0, 14),
+      at + const Offset(0, -6),
+      Paint()
+        ..strokeWidth = 2.4
+        ..color = const Color(0xFF4A3C22),
+    );
+    final tag = Rect.fromCenter(
+      center: at + const Offset(0, -14),
+      width: 22,
+      height: 18,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(tag, const Radius.circular(2)),
+      Paint()..color = _kDustPale.withValues(alpha: 0.82),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(tag, const Radius.circular(2)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = _kDustUmber.withValues(alpha: 0.7),
+    );
+    _drawSurveyGlyph(canvas, tag.center, 5.5, glyph, _kDustDeep);
+  }
+
+  /// FIVE SURVEY MARKS, one per mound, cut the same way on a mound's tag and
+  /// on its pit's plate. Chalk-simple, legible at phone size: a ring, a bar, a
+  /// triangle, a cross, a lozenge.
+  void _drawSurveyGlyph(
+    Canvas canvas,
+    Offset c,
+    double r,
+    int glyph,
+    Color color,
+  ) {
+    final ink = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    switch (glyph % 5) {
+      case 0:
+        canvas.drawCircle(c, r, ink);
+      case 1:
+        canvas.drawLine(c + Offset(-r, 0), c + Offset(r, 0), ink);
+        canvas.drawLine(c + Offset(0, -r * 0.5), c + Offset(0, r * 0.5), ink);
+      case 2:
+        canvas.drawPath(
+          Path()
+            ..moveTo(c.dx, c.dy - r)
+            ..lineTo(c.dx + r, c.dy + r * 0.8)
+            ..lineTo(c.dx - r, c.dy + r * 0.8)
+            ..close(),
           ink,
         );
-      }
-      canvas.restore();
+      case 3:
+        canvas.drawLine(c + Offset(-r, -r), c + Offset(r, r), ink);
+        canvas.drawLine(c + Offset(-r, r), c + Offset(r, -r), ink);
+      default:
+        canvas.drawPath(
+          Path()
+            ..moveTo(c.dx, c.dy - r)
+            ..lineTo(c.dx + r * 0.8, c.dy)
+            ..lineTo(c.dx, c.dy + r)
+            ..lineTo(c.dx - r * 0.8, c.dy)
+            ..close(),
+          ink,
+        );
     }
   }
 
@@ -3120,6 +3373,49 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         }
         if (f.isSeal(c, r)) {
           _drawSeal(canvas, rect.center, loads);
+        }
+      }
+    }
+
+    // WHERE YOU STAND TELLS YOU WHAT THE PRESS WILL DO (Ice's orrery
+    // precedent, §9.11). Both yard verbs act on the cell in FRONT of you and a
+    // spade throws BEHIND you, and nothing on the floor said which cells
+    // those were until the load had moved. Now the bite is ringed bright and
+    // the square the spoil will land on is ringed in ochre — shown before
+    // anything is spent, so the ledger can be planned rather than discovered.
+    final a = active;
+    final idx = room.ruins?.starIndex;
+    if (a != null && idx != null && !hasStar(idx)) {
+      final here = _yardCellAt(f, a.position);
+      if (here != null && f.isGround(here.$1, here.$2)) {
+        final step = _yardFacing(a);
+        final spade = a.member.element != 'Air';
+        final fc = here.$1 + step.$1, fr = here.$2 + step.$2;
+        final bc = here.$1 - step.$1, br = here.$2 - step.$2;
+        final pulse = 0.55 + 0.25 * sin(_time * 4);
+        void ring(int c, int r, Color col, double alpha) {
+          if (!f.isGround(c, r)) return;
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              f.rectAt(c, r).deflate(7),
+              const Radius.circular(8),
+            ),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.4
+              ..color = col.withValues(alpha: alpha),
+          );
+        }
+
+        // The bite (spade) or the lay (wind): in front.
+        ring(fc, fr, Colors.white, pulse);
+        // Where the load goes: behind for a spade; the wind lifts from
+        // UNDERFOOT and lays in front, so its source ring is the cell you
+        // are standing on.
+        if (spade) {
+          ring(bc, br, _kDustOchre, pulse);
+        } else {
+          ring(here.$1, here.$2, _kDustOchre, pulse);
         }
       }
     }

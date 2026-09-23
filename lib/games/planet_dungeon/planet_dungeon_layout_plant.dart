@@ -558,9 +558,15 @@ class VerdantCrypt {
   /// physics puts them in, never because a plaque said so.
   int bloomStep = 0;
 
-  /// Which elements have tended the hidden seed under the giant root (the
-  /// Lost Maxim). Needs all three, at tiny, and then a look from above.
-  final Set<String> tendedBy = {};
+  /// How far the seed nobody planted has been tended (the Lost Maxim): the
+  /// altar's own three steps — loam, seed, sun — done small, in the SHADE the
+  /// giant root's trunk throws, and then looked at from your own size.
+  int shadeStep = 0;
+
+  /// The three tendings, in the order the ground puts them in (the altar's).
+  static const List<String> shadeWants = ['Mud', 'Plant', 'Light'];
+
+  bool get shadeTended => shadeStep >= shadeWants.length;
 
   /// The unseen shade, once it has towered.
   bool shadeRisen = false;
@@ -582,7 +588,7 @@ class VerdantCrypt {
     }
     lampsLit.clear();
     bloomStep = 0;
-    tendedBy.clear();
+    shadeStep = 0;
     shadeRisen = false;
     witherings = 0;
     armedPitRoom = null;
@@ -753,14 +759,12 @@ const DungeonLayout plantLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Lamp Star',
       earnAnnouncement:
-          'The Lamp Star is yours, three graves lit, and none of them by the '
-          'same body',
+          'The Lamp Star is yours. All three grave-lamps are lit',
     ),
     DungeonStarSpec(
       name: 'Bloom Star',
       earnAnnouncement:
-          'The Bloom Star is yours, the heart-seed wakes, loam and dark and '
-          'a borrowed sun',
+          'The Bloom Star is yours. The heart-seed is growing',
     ),
     DungeonStarSpec(name: 'Shade Star'),
   ],
@@ -768,12 +772,11 @@ const DungeonLayout plantLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('root_porch', 'mosswalk'),
   finaleDoor: DungeonDoorRef('bloom_hall', 'botanica_heart'),
   riteAnnouncement:
-      'Lamp and Bloom are won, the clay cracks off the sepulchre in the hall',
+      'Lamp and Bloom are won. The clay on the sepulchre cracks open',
   finaleSealedHint:
-      'The rood door is shut, it answers only the Lamp and Bloom stars',
+      'The rood door stays shut until you have the Lamp and Bloom stars',
   guardianSealedHint:
-      'The heart lies under a mat of root, nothing in there stirs until the '
-      'sepulchre is opened',
+      'Botanica won\'t wake until the sepulchre is opened',
   mercyShrineRoomId: 'mosswalk',
   // Ideal: Plantmane · Lightmask · Mudpip — hinted by VERB, never body part
   // (§4): the green that follows a wild thing's passing, the sight that
@@ -784,8 +787,9 @@ const DungeonLayout plantLayout = DungeonLayout(
     'and Mud, because half of me was never built for you.',
   ],
   primer: [
-    'The crypt is one place at two sizes, and every passage was cut for one of them.',
-    'What you plant becomes a road for the size you were not.',
+    'Every passage here is cut for either small or full size. Seed-galls '
+        'switch your size.',
+    'What you plant becomes a path for the other size.',
   ],
   // §4 budget: TWO hard gates, on two different stars/objects and two
   // different entry slots. Star 0 (the grave-lamps) is deliberately UNGATED
@@ -799,15 +803,13 @@ const DungeonLayout plantLayout = DungeonLayout(
       objectId: 'altar_sun',
       element: 'Light',
       family: 'Mask',
-      hintLine: 'Only a Light that can show what is not there passes for a sun',
+      hintLine: 'Only a Light Mask can stand in for the sun',
     ),
     DungeonFamilyGate(
       objectId: 'A',
       element: 'Plant',
       family: 'Mane',
-      hintLine:
-          'Only green that follows a wild thing\'s passing wakes this '
-          'screen',
+      hintLine: 'Only a Plant Mane can wake this screen',
     ),
   ],
   rooms: {
@@ -831,7 +833,7 @@ const DungeonLayout plantLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(140, 436, 110, 24),
           targetRoomId: 'pollen_stair',
-          targetSpawn: Offset(255, 120),
+          targetSpawn: Offset(315, 120),
         ),
       ],
       grove: CryptGrove(
@@ -906,7 +908,7 @@ const DungeonLayout plantLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(330, 0, 110, 24),
           targetRoomId: 'crypt_niche',
-          targetSpawn: Offset(385, 300),
+          targetSpawn: Offset(305, 300),
         ),
         // The root's own bough over the gallery wall (huge; b_root trunk).
         DungeonDoor(
@@ -936,7 +938,7 @@ const DungeonLayout plantLayout = DungeonLayout(
       doors: [
         // The flagstone gap up to the porch (tiny; b_tread fissure).
         DungeonDoor(
-          rect: Rect.fromLTWH(200, 0, 110, 24),
+          rect: Rect.fromLTWH(260, 0, 110, 24),
           targetRoomId: 'root_porch',
           targetSpawn: Offset(195, 400),
         ),
@@ -951,11 +953,15 @@ const DungeonLayout plantLayout = DungeonLayout(
           targetRoomId: 'lantern_court',
           targetSpawn: Offset(60, 290),
         ),
-        // The thread up the stair wall into the niche (tiny; b_tread creeper).
+        // The thread UP the stair wall into the niche (tiny; b_tread
+        // creeper). North, because the niche is above: it sat on this room's
+        // WEST wall and arrived on the niche's west side, while the niche's
+        // way back ALSO left west and arrived on this room's west side — so
+        // walking one way through it twice put you back where you started.
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 195, 24, 110),
+          rect: Rect.fromLTWH(40, 0, 110, 24),
           targetRoomId: 'crypt_niche',
-          targetSpawn: Offset(60, 190),
+          targetSpawn: Offset(85, 300),
         ),
         // The tread's bough across to the moss walk (huge; b_tread trunk).
         DungeonDoor(
@@ -976,19 +982,20 @@ const DungeonLayout plantLayout = DungeonLayout(
       bounds: Rect.fromLTWH(0, 0, 520, 380),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(200, 356, 110, 24),
+          rect: Rect.fromLTWH(250, 356, 110, 24),
           targetRoomId: 'fern_gallery',
-          targetSpawn: Offset(255, 90),
+          targetSpawn: Offset(385, 90),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(496, 135, 24, 110),
           targetRoomId: 'lantern_court',
           targetSpawn: Offset(195, 70),
         ),
+        // Down the stair-wall thread to the pollen stair, below.
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 135, 24, 110),
+          rect: Rect.fromLTWH(30, 356, 110, 24),
           targetRoomId: 'pollen_stair',
-          targetSpawn: Offset(60, 250),
+          targetSpawn: Offset(95, 90),
         ),
       ],
       grove: CryptGrove(lampId: 'lamp_niche', mulchPit: Offset(260, 310)),

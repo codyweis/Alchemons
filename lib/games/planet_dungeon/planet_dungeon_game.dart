@@ -688,6 +688,10 @@ class PlanetDungeonGame extends FlameGame {
   final List<double> _firstWindWordPhase = [];
 
   final Set<String> discoveredClouds = {}; // cloud ids (kept across death)
+
+  /// Every room the party has stood in this run, for the expanded map: a
+  /// visited room is drawn lit, one you have not reached yet stays dim.
+  final Set<String> visitedRooms = {};
   String? carriedCloudId;
   String? carriedCloudType;
   final Map<String, String> filledAnchors = {}; // anchorId -> deposited type
@@ -1696,10 +1700,6 @@ class PlanetDungeonGame extends FlameGame {
   /// Whether the sump's melt-fall stands as the climb home.
   bool rimefallFrozen = false;
 
-  /// Ledge chutes that have been ridden. A chute is a ramp of snow into a
-  /// pocket; the snow goes down with you, and a bare slot is no ramp.
-  final Set<String> spentChutes = {};
-
   /// Which of the mouth's plates of black ice Light has drunk. EACH HOLE IS
   /// ITS OWN (2026-09-15, from play): one press used to open the whole floor,
   /// which taught that the holes were one thing when the planet's first
@@ -1732,7 +1732,7 @@ class PlanetDungeonGame extends FlameGame {
 
   bool lodestoneLit = false;
   double mirrorSweep = 0; // Air-sweep cooldown
-  double poolStill = 0; // an Air sweep's stilled water, while it lasts
+  double poolStill = 0; // an Air sweep's flash, hold then fade, while it lasts
 
   /// A star-block on the move: which block, the cells it is running from and
   /// to, and how far along it is (0..1). Render only — the board is already
@@ -1752,6 +1752,33 @@ class PlanetDungeonGame extends FlameGame {
   bool hoarfrostWhole = false;
   double _hoarfrostDown = 0;
   bool _frowyrmBitLastFrame = false;
+
+  /// THE STRANGER — the thirteenth star, and Ice's Lost Maxim. It hangs in
+  /// the water on one frame's bearing (rolled per run, never the lodestone's)
+  /// and shows only while the shaft above the pool is bare ice; once the
+  /// water has shown it the lens on the shelf can be turned to it.
+  int strangerFrame = 3;
+  bool strangerSeen = false;
+
+  /// Where the shelf's telescope is turned to, as a frame bearing (0 = the
+  /// lodestone's, straight up the ring), and the ease of its last swing.
+  int telescopeNotch = 0;
+  double telescopeSwing = 0;
+
+  /// THE ROOF OF THE HOLLOW (the rite room, 2026-09-20). The wyrm under the
+  /// roof as pane indices, HEAD FIRST, rolled per run; the panes Light has
+  /// bared; the panes that are open water; and the throat — the pane over
+  /// the head once its glass is gone, which is where the breath goes and,
+  /// once the wyrm is awake, where the party goes.
+  final List<int> roofWyrm = [];
+  final Set<int> roofBare = {};
+  final Set<int> roofWater = {};
+  int? roofThroat;
+
+  /// The roof's last refusal of a step, and the throttle that keeps a body
+  /// leaning on thin ice from saying the same line sixty times a second.
+  String? _roofBlockReason;
+  double _roofBlockCooldown = 0;
 
   bool get _isShaft => layout.element == 'Ice';
 
@@ -2369,8 +2396,8 @@ class PlanetDungeonGame extends FlameGame {
     if (!guardianRiteUnlocked) {
       // A refused offering — the attempt is the edge (§5.6 BLOCKED).
       _setBlockedHint(
-        'The pylon refuses the offering, it answers only a bearer of the '
-        '${layout.starName(0)} and ${layout.starName(1)}',
+        'The pylon needs the ${layout.starName(0)} and '
+        '${layout.starName(1)} first',
       );
       return;
     }
@@ -2584,6 +2611,9 @@ class PlanetDungeonGame extends FlameGame {
     for (var i = 0; i < 3; i++) {
       if ((starMask & (1 << i)) != 0) _earnedStars.add(i);
     }
+    // The fen was seeded in the constructor, before the banked stars were
+    // known; seed it again now so a won star's stone and basins stay done.
+    _resetBogState();
     entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
     _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
     _entryRevealPrev = _entryReveal;
@@ -2891,6 +2921,7 @@ class PlanetDungeonGame extends FlameGame {
   void update(double dt) {
     super.update(dt);
     _time += dt;
+    visitedRooms.add(currentRoomId);
     if (_doorCooldown > 0) _doorCooldown -= dt;
     if (_hintTtl > 0) {
       _hintTtl -= dt;
@@ -3587,8 +3618,8 @@ class PlanetDungeonGame extends FlameGame {
           // about, an untagged one is lost entirely, so the mis-tag matters.
           _setBlockedHint(
             an.clue.isNotEmpty
-                ? 'Incorrect placement, this anchor calls for “${an.clue}”'
-                : 'Incorrect placement, this anchor calls for a different echo',
+                ? 'Wrong cloud. This anchor wants “${an.clue}”'
+                : 'Wrong cloud. This anchor wants a different one',
             3.2,
           );
           _spawnAlchemyBurst(
@@ -3757,7 +3788,7 @@ class PlanetDungeonGame extends FlameGame {
         } else {
           // A refusal says WHY it refused, not what to do instead — the
           // second clause here was the answer, handed over on a failed press.
-          _setBlockedHint('The reagents are scattered');
+          _setBlockedHint('The reagents aren\'t together yet');
         }
         return true;
 
@@ -3783,7 +3814,7 @@ class PlanetDungeonGame extends FlameGame {
         if (nearShell || inCurrent) {
           // A refused strike — the method itself is Mask-insight content
           // (see _wonderInsight), so the refusal only names what's missing.
-          _setBlockedHint('The shell answers only storm-charge');
+          _setBlockedHint('Only a storm charge can crack the shell');
           return true;
         }
         return false;
@@ -4037,12 +4068,22 @@ class PlanetDungeonGame extends FlameGame {
     for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
       final creature = creatures[i];
       final comp = combatCompanions[i];
-      if (comp.currentHp <= 0 &&
-          comp.member.family.toLowerCase() == 'kin' &&
-          comp.member.element == 'Fire' &&
-          !comp.kinFireOrbitalFlameActive) {
+      CosmicSurvivalCompanion? phoenix;
+      if (comp.currentHp <= 0) {
+        for (final candidate in combatCompanions) {
+          if (!candidate.isDead &&
+              candidate.currentHp > 0 &&
+              candidate.member.family.toLowerCase() == 'kin' &&
+              candidate.member.element == 'Fire' &&
+              !candidate.kinFireOrbitalFlameActive) {
+            phoenix = candidate;
+            break;
+          }
+        }
+      }
+      if (phoenix != null) {
         comp.currentHp = max(1, (comp.maxHp * 0.25).round());
-        comp.kinFireOrbitalFlameActive = true;
+        phoenix.kinFireOrbitalFlameActive = true;
         comp.invincibleTimer = max(comp.invincibleTimer, 1.0);
         _spawnAlchemyBurst(
           creature.position,
@@ -4133,9 +4174,6 @@ class PlanetDungeonGame extends FlameGame {
       if (comp.damageAmpTimer > 0) comp.damageAmpTimer -= dt;
       if (comp.pipSpiritEmpowerTimer > 0) comp.pipSpiritEmpowerTimer -= dt;
       if (comp.hornSpecialActiveWindow > 0) comp.hornSpecialActiveWindow -= dt;
-      if (comp.kinLightningChargeTimer > 0) {
-        comp.kinLightningChargeTimer -= dt;
-      }
       if (comp.pipSteamWindowTimer > 0) {
         comp.pipSteamWindowTimer -= dt;
       }
@@ -4150,6 +4188,7 @@ class PlanetDungeonGame extends FlameGame {
         _updateDungeonFamilyPassives(comp, creatures[i], dt);
       }
     }
+    _updateDungeonKinSupports(dt);
     _updateHornCasts(dt);
     _updateKinAutoCharges(dt);
     for (final beam in _kinBeams) {
@@ -4466,7 +4505,7 @@ class PlanetDungeonGame extends FlameGame {
           targetIndex < combatCompanions.length &&
           enemy.attackCooldown <= 0) {
         final comp = combatCompanions[targetIndex];
-        if (comp.invincibleTimer <= 0) {
+        if (comp.invincibleTimer <= 0 && !_dungeonKinCloakActive) {
           // Dive damage is a FRACTION of the victim's pool (survival enemy
           // damage numbers are sized for survival HP pools and round to
           // nothing against dungeon companions): a wisp dive takes ~9%,
@@ -4497,6 +4536,11 @@ class PlanetDungeonGame extends FlameGame {
             comp.currentHp = (comp.currentHp - remainingDamage).clamp(
               0,
               comp.maxHp,
+            );
+            _reactDungeonKinToDamage(
+              targetIndex,
+              remainingDamage.toDouble(),
+              enemy,
             );
             // Lightning horn reactive guard: damage taken during the dash
             // or storm brew is absorbed into the coming chain discharge.
@@ -5469,6 +5513,319 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
+  void _activateDungeonKinSupport(
+    CosmicSurvivalCompanion comp,
+    DungeonCreature creature,
+    double angle,
+    Offset target,
+  ) {
+    final intel = comp.member.statIntelligence;
+    final beauty = comp.member.statBeauty;
+    switch (comp.member.element) {
+      case 'Lava':
+        comp.kinLavaPlateTimer =
+            9.0 * _effStatScale(intel, perPoint: 0.10, min: 0.85, max: 1.40);
+        break;
+      case 'Ice':
+        final duration =
+            4.0 * _effStatScale(intel, perPoint: -0.06, min: 0.70, max: 1.15);
+        comp.kinIceChargeTimer = duration;
+        comp.kinIceChargeTotal = duration;
+        break;
+      case 'Steam':
+        comp.kinSteamBoilerTimer =
+            10.0 * _effStatScale(intel, perPoint: 0.12, min: 0.80, max: 1.60);
+        comp.kinSteamBoilerStacks = 0;
+        comp.kinSteamStackCarry = 0;
+        comp.kinSteamStackDecayTimer = 2.0;
+        break;
+      case 'Lightning':
+        comp.kinLightningChargeTimer =
+            10.0 * _effStatScale(intel, perPoint: 0.10, min: 0.85, max: 1.40);
+        break;
+      case 'Dark':
+        comp.kinDarkCloakTimer =
+            7.0 * _effStatScale(intel, perPoint: 0.10, min: 0.85, max: 1.50);
+        break;
+      case 'Blood':
+        comp.kinBloodPactTimer =
+            9.0 * _effStatScale(intel, perPoint: 0.10, min: 0.85, max: 1.50);
+        break;
+      case 'Mud':
+        comp.kinMudShipEnchantTimer =
+            5.0 * _effStatScale(intel, perPoint: 0.10, min: 0.85, max: 1.40);
+        comp.kinSteamStackDecayTimer = 0;
+        break;
+      case 'Dust':
+        final activeClouds = combatProjectiles
+            .where(
+              (p) =>
+                  p.abilityFamily == 'kin' &&
+                  p.element == 'Dust' &&
+                  p.sourceSlotIndex == comp.slotIndex,
+            )
+            .length;
+        if (activeClouds < 10) {
+          combatProjectiles.add(
+            Projectile(
+              position: _clampToBounds(target, currentRoom),
+              angle: 0,
+              element: 'Dust',
+              damage: 0,
+              life: 18.0,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              visualStyle: ProjectileVisualStyle.sigil,
+              sourceSlotIndex: comp.slotIndex,
+              abilityFamily: 'kin',
+              tickEffect: AbilityEffectKind.suppressShooting,
+              effectRadius: 82 + beauty * 5,
+              effectDuration: 1.2,
+              visualScale: 1.8,
+            ),
+          );
+        }
+        break;
+      case 'Earth':
+        final count =
+            7 + (AlchemonStatSystem.combatProgress(beauty) * 4).round();
+        for (var i = 0; i < count; i++) {
+          final t = count == 1 ? 0.5 : i / (count - 1);
+          final a = angle - 1.047 + 2.094 * t;
+          combatProjectiles.add(
+            Projectile(
+              position: creature.position + Offset(cos(a), sin(a)) * 90,
+              angle: a,
+              element: 'Earth',
+              damage: 0,
+              life: 12.0,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              decoy: true,
+              decoyHp: 1e9,
+              tauntRadius: 75,
+              tauntStrength: 1.0,
+              interceptRadius: 22,
+              interceptCharges: 999,
+              visualStyle: ProjectileVisualStyle.sigil,
+              sourceSlotIndex: comp.slotIndex,
+              abilityFamily: 'kin',
+              tickEffect: AbilityEffectKind.knockback,
+              effectRadius: 30,
+              effectPower: comp.abilityAtk * 0.2,
+              effectDuration: 0.2,
+              visualScale: 1.35,
+            ),
+          );
+        }
+        break;
+      case 'Spirit':
+        final existing = combatProjectiles.where(
+          (p) =>
+              p.abilityFamily == 'kin' &&
+              p.element == 'Spirit' &&
+              p.sourceSlotIndex == comp.slotIndex &&
+              p.decoy,
+        );
+        if (existing.isEmpty) {
+          combatProjectiles.add(
+            Projectile(
+              position: creature.position,
+              angle: angle,
+              element: 'Spirit',
+              damage: comp.abilityAtk * 0.25,
+              life: 9999,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              decoy: true,
+              decoyHp: max(20.0, comp.maxHp * 0.35),
+              tauntRadius: 0,
+              tauntStrength: 0.8,
+              visualStyle: ProjectileVisualStyle.kinOrbital,
+              sourceSlotIndex: comp.slotIndex,
+              abilityFamily: 'kin',
+              tickEffect: AbilityEffectKind.zoneDamage,
+              effectRadius: 55,
+              effectPower: comp.abilityAtk * 0.18,
+              effectDuration: 0.7,
+              effectStacks: 1,
+              visualScale: 1.1,
+            ),
+          );
+        } else {
+          existing.first.life = 9999;
+          existing.first.decoyHp = max(
+            existing.first.decoyHp,
+            comp.maxHp * 0.35,
+          );
+        }
+        break;
+    }
+  }
+
+  void _updateDungeonKinSupports(double dt) {
+    for (var i = 0; i < combatCompanions.length; i++) {
+      final comp = combatCompanions[i];
+      if (comp.member.family.toLowerCase() != 'kin' || comp.isDead) continue;
+      final creature = i < creatures.length ? creatures[i] : null;
+
+      if (comp.kinLavaPlateTimer > 0) comp.kinLavaPlateTimer -= dt;
+      if (comp.kinDarkCloakTimer > 0) comp.kinDarkCloakTimer -= dt;
+      if (comp.kinBloodPactTimer > 0) comp.kinBloodPactTimer -= dt;
+      if (comp.kinLightningChargeTimer > 0) {
+        comp.kinLightningChargeTimer -= dt;
+      }
+
+      if (comp.kinIceChargeTimer > 0) {
+        comp.kinIceChargeTimer = max(0, comp.kinIceChargeTimer - dt);
+        if (comp.kinIceChargeTimer == 0 && creature != null) {
+          final radius =
+              220.0 *
+              _effStatScale(
+                comp.member.statBeauty,
+                perPoint: 0.40,
+                min: 0.85,
+                max: 6.0,
+              );
+          final duration =
+              4.0 *
+              _effStatScale(
+                comp.member.statIntelligence,
+                perPoint: 0.18,
+                min: 0.90,
+                max: 2.0,
+              );
+          for (final enemy in combatEnemies) {
+            if (enemy.isDead ||
+                (enemy.position - creature.position).distance > radius) {
+              continue;
+            }
+            enemy.slowTimer = max(enemy.slowTimer, duration);
+            enemy.slowMultiplier = min(enemy.slowMultiplier, 0.10);
+          }
+          _spawnAlchemyBurst(
+            creature.position,
+            producedElement: 'Ice',
+            particleCount: 28,
+            intensity: 1.15,
+          );
+        }
+      }
+
+      if (comp.kinSteamBoilerTimer > 0) {
+        comp.kinSteamBoilerTimer = max(0, comp.kinSteamBoilerTimer - dt);
+        if (comp.kinSteamBoilerStacks > 0) {
+          comp.kinSteamStackDecayTimer -= dt;
+          if (comp.kinSteamStackDecayTimer <= 0) {
+            comp.kinSteamBoilerStacks--;
+            comp.kinSteamStackDecayTimer = 2.0;
+          }
+        }
+        final perStack =
+            0.05 *
+            _effStatScale(
+              comp.member.statBeauty,
+              perPoint: 0.10,
+              min: 0.85,
+              max: 1.40,
+            );
+        final multiplier = (1 - comp.kinSteamBoilerStacks * perStack)
+            .clamp(0.5, 1.0)
+            .toDouble();
+        for (final ally in combatCompanions) {
+          ally.basicHasteTimer = max(ally.basicHasteTimer, 0.5);
+          ally.basicHasteMultiplier = min(
+            ally.basicHasteMultiplier,
+            multiplier,
+          );
+        }
+      }
+
+      if (comp.kinMudShipEnchantTimer > 0 && creature != null) {
+        comp.kinMudShipEnchantTimer -= dt;
+        comp.kinSteamStackDecayTimer -= dt;
+        if (comp.kinSteamStackDecayTimer <= 0) {
+          comp.kinSteamStackDecayTimer = 0.35;
+          combatProjectiles.add(
+            Projectile(
+              position: creature.position,
+              angle: 0,
+              element: 'Mud',
+              damage: 0,
+              life: 5.0,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              visualStyle: ProjectileVisualStyle.sigil,
+              sourceSlotIndex: comp.slotIndex,
+              abilityFamily: 'kin',
+              tickEffect: AbilityEffectKind.slow,
+              effectRadius: 48,
+              effectDuration: 1.6,
+              visualScale: 1.4,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  bool get _dungeonKinCloakActive => combatCompanions.any(
+    (comp) =>
+        !comp.isDead &&
+        comp.member.family.toLowerCase() == 'kin' &&
+        comp.member.element == 'Dark' &&
+        comp.kinDarkCloakTimer > 0,
+  );
+
+  void _reactDungeonKinToDamage(
+    int targetIndex,
+    double damage,
+    CosmicSurvivalEnemy attacker,
+  ) {
+    for (final kin in combatCompanions) {
+      if (kin.isDead || kin.member.family.toLowerCase() != 'kin') continue;
+      if (kin.member.element == 'Lava' && kin.kinLavaPlateTimer > 0) {
+        _damageEnemiesNear(
+          attacker.position,
+          90,
+          max(
+            damage * 1.4,
+            kin.abilityAtk * 0.8,
+          ).clamp(0.0, kin.abilityAtk * 3.0).toDouble(),
+          sourceSlot: kin.slotIndex,
+        );
+        _spawnHitSpark(attacker.position, elementColor('Lava'));
+      }
+      if (kin.member.element == 'Steam' && kin.kinSteamBoilerTimer > 0) {
+        final victimMaxHp = targetIndex < combatCompanions.length
+            ? combatCompanions[targetIndex].maxHp
+            : kin.maxHp;
+        kin.kinSteamStackCarry += damage / max(2.0, victimMaxHp * 0.08);
+        final gained = kin.kinSteamStackCarry.floor();
+        if (gained > 0) {
+          kin.kinSteamStackCarry -= gained;
+          kin.kinSteamBoilerStacks = min(10, kin.kinSteamBoilerStacks + gained);
+          kin.kinSteamStackDecayTimer = 2.0;
+        }
+      }
+      if (kin.member.element == 'Blood' && kin.kinBloodPactTimer > 0) {
+        final recipients = <int>[
+          for (var i = 0; i < creatures.length; i++)
+            if (i != targetIndex && creatures[i].alive) i,
+        ];
+        if (recipients.isEmpty) continue;
+        final share = damage * 0.60 / recipients.length;
+        for (final i in recipients) {
+          _healCreature(creatures[i], combatCompanions[i], share);
+        }
+      }
+    }
+  }
+
   bool _isAnyKinLightningChargeActive() {
     for (final comp in combatCompanions) {
       if (comp.kinLightningChargeTimer > 0 &&
@@ -6081,6 +6438,9 @@ class PlanetDungeonGame extends FlameGame {
     // support-flavoured specials (horn shields, kin blessings, the haste
     // surge baked into manes like Fire) silently do nothing in dungeons.
     _applySpecialSupportEffects(comp, creature, result);
+    if (comp.member.family.toLowerCase() == 'kin') {
+      _activateDungeonKinSupport(comp, creature, angle, targetPoint);
+    }
 
     // Mane+Spirit: each cast adds another shot to a tight machine-gun
     // stream up to 10, then resets (ported from survival; abilityKillStacks
@@ -6187,18 +6547,6 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (comp.member.family.toLowerCase() == 'kin' &&
         comp.member.element == 'Lightning') {
-      // Tesla charge window: while live, every party hit chains lightning
-      // (the trigger in the hit loop reads this timer). Survival locks the
-      // AI kin in place; dungeon creatures are player-driven, so movement
-      // stays free.
-      comp.kinLightningChargeTimer =
-          10.0 *
-          _effStatScale(
-            comp.member.statIntelligence,
-            perPoint: 0.10,
-            min: 0.85,
-            max: 1.40,
-          );
       _setHint('The kin hums with storm-charge. Strikes now chain', 3.0);
     }
     if (isHornCharge) {
@@ -7338,6 +7686,31 @@ class PlanetDungeonGame extends FlameGame {
           elementColor('Spirit'),
           burstRadius * 0.6,
         );
+      }
+    }
+
+    if (family == 'kin' && companion.member.element == 'Spirit') {
+      companion.kinSpiritWispKills++;
+      final tier = companion.kinSpiritWispKills >= 12
+          ? 4
+          : companion.kinSpiritWispKills >= 7
+          ? 3
+          : companion.kinSpiritWispKills >= 3
+          ? 2
+          : 1;
+      for (final wisp in combatProjectiles.where(
+        (p) =>
+            p.abilityFamily == 'kin' &&
+            p.element == 'Spirit' &&
+            p.sourceSlotIndex == companion.slotIndex &&
+            p.decoy,
+      )) {
+        wisp.effectStacks = tier;
+        wisp.tauntRadius = tier >= 2 ? 115 : 0;
+        wisp.effectPower = tier >= 3 ? companion.abilityAtk * 0.30 : 0;
+        if (tier >= 4) {
+          _healSourceCreature(sourceSlot, companion.abilityAtk * 0.12);
+        }
       }
     }
   }
@@ -8597,17 +8970,35 @@ class PlanetDungeonGame extends FlameGame {
     final a = active;
     if (a == null) return;
     _hintAsked = true;
+    // A PRESS ALWAYS ANSWERS NOW. The capsule's priority rule (a live
+    // refusal outranks a reading) is for lines the WORLD produces; it was
+    // also applied to the player's own second press, so HINT → the refusal,
+    // HINT again → nothing at all until the refusal timed out, even though
+    // the room's reading was sitting right there. The player asking is the
+    // highest priority there is: the live line is cleared first, and the
+    // priority rule only arbitrates among lines emitted by THIS press.
+    final shown = hintText != null && _hintTtl > 0 ? hintText : null;
+    final shownChannel = hintChannel;
+    hintText = null;
+    _hintTtl = 0;
     try {
       // Whatever the world last had to say outranks the room's general
       // reading: they pressed this because something just refused them or
       // just told them something, and answering with the mural instead would
-      // be a non-sequitur.
+      // be a non-sequitur. Unless it is ALREADY on screen — then the press
+      // wants the next thing, which is the reading.
       final pending = _pendingAnswer;
-      if (pending != null) {
-        _pendingAnswer = null;
+      _pendingAnswer = null;
+      if (pending != null && pending != shown) {
         _emitHint(pending, _pendingChannel, 3.4);
       } else {
         _inHintChannel(DungeonHintChannel.insight, () => _doReveal(a));
+      }
+      // A reading that had nothing to say must not blank the capsule.
+      if (hintText == null && shown != null) {
+        hintText = shown;
+        hintChannel = shownChannel;
+        _hintTtl = 3.4;
       }
     } finally {
       _hintAsked = false;
@@ -8748,10 +9139,10 @@ class PlanetDungeonGame extends FlameGame {
     }
     _setInsightHint(
       revealTier >= 2
-          ? 'The anchors show ghost outlines'
+          ? 'The anchors show outlines of the clouds they want'
           : revealTier >= 1
-          ? 'The anchors hint at cloud types; more Intelligence would clarify them'
-          : 'Needs more Intelligence to read the hidden pattern clearly',
+          ? 'Each anchor wants a particular type of cloud'
+          : 'The anchors want clouds brought to them',
     );
   }
 
@@ -8761,24 +9152,23 @@ class PlanetDungeonGame extends FlameGame {
     'ring_cloud' =>
       tier >= 1
           ? 'Air, Fire and Lightning circle the orbit. Seal it the moment '
-                'all three gather'
-          : 'Three reagents wander the orbit, their meeting matters',
+                'all three meet'
+          : 'Three reagents circle the orbit. Watch for when they meet',
     'anvil_cloud' =>
       tier >= 1
-          ? 'Only storm-charge cracks the shell, Lightning\'s touch, or '
-                'Fire braided through the wind'
-          : 'The shell is deaf to all but the storm',
+          ? 'Only a storm charge cracks the shell: Lightning, or Fire '
+                'carried on Air'
+          : 'Only a storm charge can crack the shell',
     'feather_cloud' =>
       tier >= 1
-          ? 'Catch three falling plumes before they settle, the wind '
-                'favours Air'
-          : 'What falls here must be caught, not found',
+          ? 'Catch three falling plumes before they land. Air is best at it'
+          : 'Catch what falls here before it lands',
     'veil_cloud' =>
       tier >= 1
-          ? 'The folds breathe one at a time. Pin each while it shows. '
-                'Firelight bares them; Lightning pins from afar'
-          : 'The shroud hides in plain sight, breathing',
-    _ => 'Something here waits to be earned',
+          ? 'The folds show one at a time. Pin each while it shows. Fire '
+                'reveals them, Lightning pins from a distance'
+          : 'The folds of the shroud show and hide on a rhythm',
+    _ => 'There\'s a trial here',
   };
 
   /// Try to channel a conduit the active creature is standing on. Returns true
@@ -8819,7 +9209,7 @@ class PlanetDungeonGame extends FlameGame {
             _stampFamilyGate(gate);
           } else {
             _setBlockedHint(
-              'Only a ${c.requireElement} horn\'s grip holds this current',
+              'Only a ${c.requireElement} Horn can hold this current',
             );
           }
           _spawnAlchemyBurst(
@@ -8944,7 +9334,7 @@ class PlanetDungeonGame extends FlameGame {
     for (final c in room.conduits) {
       if (!c.struckByStorm) continue;
       if ((a.position - c.position).distance > 34) continue;
-      _setBlockedHint('This pylon answers the storm, not a hand');
+      _setBlockedHint('Only lightning from the storm can charge this pylon');
       return true;
     }
     // A carried Anvil: electrify the cloud directly, no wind needed.
@@ -8981,7 +9371,7 @@ class PlanetDungeonGame extends FlameGame {
     // herding the cell) stay live everywhere else while it comes down.
     if (guardianArriving) {
       // Also a refusal: the ground under a falling mystic answers nothing yet.
-      _setBlockedHint('It is still coming down. Brace');
+      _setBlockedHint('It\'s still coming down. Brace');
       return true;
     }
     final enc = g.encounter;
@@ -9325,7 +9715,7 @@ class PlanetDungeonGame extends FlameGame {
       final name = room.guardian?.encounter?.mysticId;
       return name == null
           ? 'The way out is shut while the guardian stands'
-          : 'The way out is shut, $name is not finished with you';
+          : 'The way out is shut until $name is beaten';
     }
     if (_isTemple && _tideDoorBlocked(room, door)) {
       return _tideDoorHint(room, door);
@@ -9371,18 +9761,17 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_guardianDoorSealed(door)) {
       return layout.guardianSealedHint ??
-          'The chamber is sealed, nothing in there wakes until this '
-              'planet\'s rite is done';
+          'The chamber stays sealed until this planet\'s rite is done';
     }
     final need0 = !hasStar(0);
     final need1 = !hasStar(1);
     if (need0 && need1) {
       return layout.finaleSealedHint ??
-          'The door is sealed, it parts only for both the '
-              '${layout.starName(0)} and ${layout.starName(1)}';
+          'This door stays shut until you have the ${layout.starName(0)} '
+              'and ${layout.starName(1)}';
     }
     final remaining = need0 ? layout.starName(0) : layout.starName(1);
-    return 'The seal holds, it wants only the $remaining now';
+    return 'This door still needs the $remaining';
   }
 
   /// Wisps pursue the party through doors: re-place them in a loose ring
@@ -9762,7 +10151,7 @@ class PlanetDungeonGame extends FlameGame {
     } else if (_isBarrow) {
       _drawBarrowFallbackSky(canvas, vp); // buried-strata gradient fallback
     } else {
-      drawSky(canvas, vp); // gradient fallback
+      _drawElementFallbackSky(canvas, vp);
     }
     if (_isCathedral) {
       // Incense smoke instead of sky clouds; embers instead of wind streaks.
@@ -9870,6 +10259,9 @@ class PlanetDungeonGame extends FlameGame {
     // the wisps and the glows stay readable in the dark.
     if (_isCircuit) _renderCircuitDarkness(canvas, room);
     _renderDoorRevealFx(canvas);
+    // Mud's heave and settling spill OUT of doorways (the wallows), so their
+    // top layer goes over the door frames.
+    if (_isBog) _renderBogOverDoors(canvas, room);
     if (_isSpire) _renderSpireWinds(canvas, room);
     _renderClouds(canvas, room);
     _renderAnchors(canvas, room);
@@ -13307,6 +13699,20 @@ class PlanetDungeonGame extends FlameGame {
       return;
     }
 
+    // A MOAT, not a band. A gap that does not run the room's full width is a
+    // hole IN the floor rather than a break ACROSS it, and slicing such a
+    // room into horizontal bands throws away the ground on either side of
+    // the gap and the island inside a ring of them (Dust's observatory stood
+    // on nothing, §7.10). Only rooms with a partial-width gap take this
+    // branch — every spire and cloud-platform room keeps its banded ledges
+    // exactly as they were, which the room render metrics pin.
+    if (room.gaps.any(
+      (g) => g.rect.left > b.left + 0.5 || g.rect.right < b.right - 0.5,
+    )) {
+      _renderIslandPath(canvas, _moatIsland(room), b);
+      return;
+    }
+
     // Spire-style rooms: open sky with solid island ledges between the gaps.
     final gaps = room.gaps.map((g) => g.rect).toList()
       ..sort((x, y) => x.top.compareTo(y.top));
@@ -13328,6 +13734,104 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
+  /// The sky when the shader is not there — in tests, in the room audit, and
+  /// on a device whose shader failed to load. It was one generic blue dusk
+  /// for every planet, which meant every audit render lied about the mood the
+  /// room actually plays in (Dark's "inside of a closed eye" rendered as a
+  /// summer evening). It is the planet's own palette now, shaped by the same
+  /// mood the shader would be, so a picture of a room is a picture of it.
+  void _drawElementFallbackSky(Canvas canvas, Size vp) {
+    final cfg = kDungeonSkyConfigs[layout.element];
+    if (cfg == null) {
+      drawSky(canvas, vp);
+      return;
+    }
+    Color shade(Color base) => _skyMood > 0.5
+        ? Color.lerp(base, const Color(0xFFFFFFFF), (_skyMood - 0.5) * 0.5)!
+        : Color.lerp(base, const Color(0xFF000000), (0.5 - _skyMood) * 0.75)!;
+    final rect = Offset.zero & vp;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          rect.topCenter,
+          rect.bottomCenter,
+          [
+            shade(cfg.colorA),
+            shade(Color.lerp(cfg.colorA, cfg.colorB, 0.6)!),
+            shade(cfg.colorB),
+          ],
+          const [0.0, 0.55, 1.0],
+        ),
+    );
+  }
+
+  /// The walkable ground of a moat room: the bounds with every gap cut out,
+  /// built once per room (a path subtraction per frame is not free).
+  final Map<String, Path> _moatIslandCache = {};
+
+  Path _moatIsland(DungeonRoom room) =>
+      _moatIslandCache.putIfAbsent(room.id, () {
+        var solid = Path()
+          ..addRRect(
+            RRect.fromRectAndRadius(
+              room.bounds.deflate(8),
+              const Radius.circular(_kStageRadius),
+            ),
+          );
+        for (final g in room.gaps) {
+          solid = Path.combine(
+            PathOperation.difference,
+            solid,
+            Path()..addRect(g.rect),
+          );
+        }
+        return solid;
+      });
+
+  /// A floating island of an arbitrary footprint — the same stone as
+  /// [_renderFloatingIsland], drawn round a path instead of a rect, so a room
+  /// whose ground is a ring (or any shape a rect cannot describe) still
+  /// stands on something.
+  void _renderIslandPath(Canvas canvas, Path solid, Rect b) {
+    final storm = _isStormRoom(currentRoom);
+    // Dark hanging underside, offset down so the top edge stays crisp.
+    canvas.drawPath(
+      solid.shift(const Offset(0, 6)),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          b.topCenter,
+          Offset(b.center.dx, b.bottom + b.height * 0.65),
+          storm
+              ? const [Color(0xFF0A0B12), Color(0xFF030407)]
+              : const [Color(0xFF111723), Color(0xFF05070D)],
+        ),
+    );
+    // Opaque stone body.
+    canvas.drawPath(
+      solid,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          b.topCenter,
+          b.bottomCenter,
+          storm
+              ? const [Color(0xFF1E2733), Color(0xFF111621), Color(0xFF06080D)]
+              : const [Color(0xFF2A3848), Color(0xFF18212D), Color(0xFF0B1017)],
+          const [0.0, 0.4, 1.0],
+        ),
+    );
+    // Rim catching the light, round every edge — the gaps' lips included,
+    // which is what makes a hole in the floor read as a hole.
+    canvas.drawPath(
+      solid,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3
+        ..color = (storm ? const Color(0xFF5BC8E8) : const Color(0xFFBFD2E6))
+            .withValues(alpha: storm ? 0.30 : 0.24),
+    );
+  }
+
   /// A whole-room sky-island for plain rooms (hub/loom/altar): heavily rounded,
   /// translucent so the elemental sky shows through, with cloud-feathered edges
   /// on all sides so it reads as land floating in air rather than a box.
@@ -13346,13 +13850,21 @@ class PlanetDungeonGame extends FlameGame {
     // Tinted from this planet's own sky palette, so the stage belongs to the
     // world it is in. Alphas hold the FLOOR TRANSLUCENCY RULE (§8): the
     // shader is the room's mood and must keep showing through the stone.
+    //
+    // THINNER (2026-09-19, from the author: "the stages are all starting to
+    // look too similar — more transparent, to show the background"). This
+    // slab sat UNDER every planet's own bed, and stage 0.52 plus a bed of
+    // 0.5 composited to three-quarters opaque: the shader that is the whole
+    // difference between one planet and the next was barely coming through
+    // anywhere. The stage is a tint now, not a floor; the planet's bed is
+    // the floor.
     final tint = dungeonFloorTint(layout.element);
     canvas.drawRRect(
       rr,
       Paint()
         ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, [
-          tint.top.withValues(alpha: 0.52),
-          tint.bottom.withValues(alpha: 0.60),
+          tint.top.withValues(alpha: 0.26),
+          tint.bottom.withValues(alpha: 0.32),
         ]),
     );
     // The perimeter used to be feathered with sprite puffs on all four sides —
@@ -13365,7 +13877,7 @@ class PlanetDungeonGame extends FlameGame {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 6
-        ..color = tint.bottom.withValues(alpha: 0.55),
+        ..color = tint.bottom.withValues(alpha: 0.42),
     );
     // Bright top rim catching the light from the sky above.
     canvas.drawRRect(
@@ -13373,7 +13885,7 @@ class PlanetDungeonGame extends FlameGame {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.4
-        ..color = tint.top.withValues(alpha: 0.55),
+        ..color = tint.top.withValues(alpha: 0.5),
     );
     if (showSigil) _drawSigil(canvas, b); // hub only — declutter trial rooms
   }
@@ -14903,8 +15415,17 @@ class PlanetDungeonGame extends FlameGame {
           element: chargingComp.member.element,
           color: ec,
           time: _time,
+          iceChargeProgress:
+              chargingComp.kinIceChargeTimer > 0 &&
+                  chargingComp.kinIceChargeTotal > 0
+              ? 1 -
+                    chargingComp.kinIceChargeTimer /
+                        chargingComp.kinIceChargeTotal
+              : 0,
           lightningActive: chargingComp.kinLightningChargeTimer > 0,
           fireOrbitalActive: chargingComp.kinFireOrbitalFlameActive,
+          lavaPlateActive: chargingComp.kinLavaPlateTimer > 0,
+          darkCloakActive: chargingComp.kinDarkCloakTimer > 0,
         );
       }
       if (chargingComp != null && chargingComp.chargeTimer > 0) {

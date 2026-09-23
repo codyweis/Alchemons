@@ -29,13 +29,23 @@
 //    the water at all. AIR's sweep off the cold vent stills the pool wide
 //    enough to read three quarters at once — it saves walking and can never
 //    fail you. Nothing in this room melts, and nothing in it is timed.
-//  • Rite (Star Font) — conduit A is Air+WING (the second gate), conduit B is
-//    the cold font, element-only Ice.
+//  • Rite (Star Font) — THE ROOF OF THE HOLLOW (2026-09-20). The room's floor
+//    is the ice over the wyrm's lair, in panes under snow. Snow bears all and
+//    shows nothing; Light bares a pane, and bare ice over the hollow bears
+//    ONE body. The wyrm sleeps under it (rolled per run) and every bared pane
+//    says which way its head lies. Open the glass over the head and that is
+//    the THROAT: Air+WING turns the last breath down it (the second gate),
+//    Ice sings the font on its pier (conduit 'B'), the wyrm wakes, and the
+//    party goes down the throat together.
 //  • Star 2 (Frost) — MYS09 FROWYRM. §7: the guardian fights WITH the
 //    planet's rule. Its lull only opens while the hollow's hoarfrost pillar
 //    stands, and every strike beat shatters the pillar AND SCOURS ONE OF YOUR
 //    STAIRS in the shaft above — it eats your way home while you fight it.
-//  • Lost Maxim — STAR-WALKER: the thirteenth telescope, on flue B's shelf.
+//  • Lost Maxim — STAR-WALKER: THE STRANGER. A shaft ridden bare is a
+//    mirror, and the pool under it sees the sky: one star hangs there that
+//    no frame charts, on a bearing. Carry the bearing down chute B, turn the
+//    lens to it with Air, and lock the sighting with Ice.
+//    Built on the state the primer tells you never to make.
 //
 // NON-STRANDABILITY (the design's one real danger — see `solveShaftDescent`):
 // one-way descent plus an unrepeatable slide is a stranding machine. The
@@ -48,6 +58,19 @@ part of 'planet_dungeon_game.dart';
 
 /// Ice's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kIceStarWalkerEggId = 'egg:ice_star_walker';
+
+/// How long the wyrm is, in panes of the roof.
+const int kIceWyrmLength = 5;
+
+/// How close to the throat's centre a body counts as AT ITS EDGE — on one of
+/// its neighbouring panes, wherever on that pane it stands.
+const double _kRoofEdge = 140.0;
+
+/// What a bared pane of the roof shows: what the ice lies on, wyrm included.
+enum IceRoofUnder { rock, pier, hollow, body, head }
+
+/// Said ONCE in a lifetime, the first time bare ice shows the hollow.
+const String kIceRoofTeachId = 'teach:ice_roof';
 
 /// How long the chart's light-up runs when the Mirror Star is banked.
 const double _kChartTriumphSeconds = 3.2;
@@ -65,11 +88,15 @@ const int kIceChartStars = 24;
 /// the font or the hoarfrost pillar to act on it.
 const double _kShaftReach = 66.0;
 
-/// Seconds an Air sweep takes to re-arm, and how long the water it stilled
-/// stays wide enough to hold a whole quarter of sky. The sweep only ever
-/// saves walking: nothing about the gallery can time out.
-const double _kMirrorSweepCooldown = 14.0;
-const double _kPoolStillSeconds = 12.0;
+/// Air's sweep off the vent is a FLASH, not a reveal (2026-09-20): the rime
+/// lifts, the whole chart shows for half a second, and it fades back to
+/// whatever the lamp was reading. It used to still the water for 12s, which
+/// made the sweep the way to read the room and the lamp a formality. The
+/// sweep re-arms quickly because a glimpse is all it gives; nothing about
+/// the gallery can time out.
+const double _kMirrorSweepCooldown = 4.0;
+const double _kPoolFlashHoldSeconds = 0.5;
+const double _kPoolFlashFadeSeconds = 1.2;
 
 /// How close a creature must stand to a mirror frame to work it.
 const double _kMirrorReach = 60.0;
@@ -104,7 +131,6 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (final f in kRimeFlues) {
       flueState[f.id] = RimeFlueState.drift;
     }
-    spentChutes.clear();
     // Knowledge, not run state: a plate Light has drunk stays drunk, across a
     // death and across a session (the engine's own entry reveal, per mouth).
     meltedCaps
@@ -129,6 +155,19 @@ extension FrozenObservatory on PlanetDungeonGame {
     _seedOrrery();
     hoarfrostWhole = false;
     _hoarfrostDown = 0;
+    // THE STRANGER hangs on a fresh bearing each run, never the lodestone's
+    // (the lens rests on that one, and a secret the rest position solves is
+    // no secret). The water has shown nobody anything yet.
+    final ring = _mirrorRingRoom?.rime?.mirrors;
+    final frames = ring?.count ?? 12;
+    final lode = ring?.lodestoneIndex ?? 0;
+    strangerFrame = (lode + 1 + Random().nextInt(frames - 1)) % frames;
+    strangerSeen = false;
+    telescopeNotch = lode;
+    telescopeSwing = 0;
+    _seedRoof();
+    _roofBlockReason = null;
+    _roofBlockCooldown = 0;
   }
 
   /// The shaft, back to the state it opened in. Called by THE THAW when the
@@ -143,7 +182,6 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (final f in kRimeFlues) {
       flueState[f.id] = RimeFlueState.drift;
     }
-    spentChutes.clear(); // the chutes fill with snow again, and are ramps
     rimefallFrozen = false;
     shaftThaws++;
     final orreryStar = _orreryRoom?.rime?.starIndex;
@@ -208,15 +246,22 @@ extension FrozenObservatory on PlanetDungeonGame {
   /// lip reads as a single hole that behaves differently depending on its
   /// snow. The whole head floor also stays shut until Light melts the cap.
   /// EVERY HOLE IS ITS OWN HOLE. A plate of black ice hides exactly the mouth
-  /// it froze over, and a ledge chute is shut once its snow has gone down
-  /// with you — which is the only reason a mouth ever stops existing.
+  /// it froze over, and that is the only reason a mouth is ever not there.
+  /// A ledge chute's snow HOLDS: ride it as often as you like (2026-09-20 —
+  /// the one-ride chute was a commitment that gated nothing, since a ledge's
+  /// only door scrambles back out anyway, and a niche you can set foot in
+  /// once a run made the lens a one-shot).
   bool _iceDoorHidden(DungeonRoom room, DungeonDoor door) {
     if (!_isShaft) return false;
+    // THE WAY INTO THE HOLLOW IS THROUGH THE ROOF, never a door on a wall:
+    // the module takes this door itself when the party goes down the throat.
+    if (room.rime?.roof != null &&
+        layout.rooms[door.targetRoomId]?.guardian != null) {
+      return true;
+    }
     final mouth = _mouthIdFor(room, door);
     if (mouth == null) return false;
-    if (room.rime?.iceCap != null && !_capMelted(mouth)) return true;
-    return mouth.endsWith(':chute') &&
-        spentChutes.contains(mouth.split(':').first);
+    return room.rime?.iceCap != null && !_capMelted(mouth);
   }
 
   /// The UP leg of a flue is the whole planet: it exists only if you made it.
@@ -235,11 +280,11 @@ extension FrozenObservatory on PlanetDungeonGame {
   String _iceDoorHint(DungeonRoom room, DungeonDoor door) {
     final (flue, _) = _flueLeg(room, door)!;
     if (flue.isThroat) {
-      return 'The melt-fall runs, nothing climbs running water';
+      return 'Running water. You can\'t climb it';
     }
     return switch (_flue(flue.id)) {
-      RimeFlueState.scoured => 'Bare glass, and no snow left to take frost',
-      _ => 'Loose snow, it will not hold a step',
+      RimeFlueState.scoured => 'Bare ice. This shaft can\'t be frozen into steps now',
+      _ => 'Loose snow. Freeze it into steps to climb',
     };
   }
 
@@ -259,26 +304,17 @@ extension FrozenObservatory on PlanetDungeonGame {
         // it was reporting on, and this planet's one world-scale act has
         // been silent since it was built.
         _announceTransit(
-          'The rimefall carries you out, and behind you the whole shaft '
-          'lets go: every stair you cut is water again, and the orrery '
-          'sits back down where it first stood',
+          'The rimefall carries you out. The whole shaft resets: every '
+          'stair is gone and the orrery is back as it started',
           7.0,
         );
       }
       return;
     }
+    // THE LEDGE CHUTE SPENDS NOTHING. Its snow holds under a rider and the
+    // pocket is a place you can go back to; only a SHAFT ride scours.
+    if (which == 'shelf') return;
     // A ride spends the snow of THE MOUTH YOU RODE, and nothing else.
-    if (which == 'shelf') {
-      if (spentChutes.add(flue.id)) {
-        _cue(SoundCue.dungeonHazardTrigger);
-        _announceTransit(
-          'The chute sets you down on the ledge, and its snow comes down '
-          'after you. There is no ramp in that slot now',
-          6.0,
-        );
-      }
-      return;
-    }
     if (_flue(flue.id) == RimeFlueState.drift) {
       flueState[flue.id] = RimeFlueState.scoured;
       _cue(SoundCue.dungeonHazardTrigger); // the snow going out from under you
@@ -286,12 +322,15 @@ extension FrozenObservatory on PlanetDungeonGame {
       // player learns that a ridden chute is a different chute, and it is the
       // one beat where the lesson cannot be missed.
       _announceTransit(
-        'The snow goes out from under you as you ride, and the shaft is bare '
-        'behind you. Nothing will take frost in it again',
+        'You ride the snow down. This shaft is bare now and can\'t be frozen '
+        'into steps',
         5.5,
       );
     }
   }
+
+  /// Test seam: what the roof (and the orrery) refuse a body at [p].
+  bool shaftBlocksAtForTest(Offset p) => _shaftBlocksAt(p, currentRoom);
 
   /// Test seam for the transit bookkeeping — the shaft's rules are proved
   /// against the same code the door loop calls, without having to walk a body
@@ -319,6 +358,7 @@ extension FrozenObservatory on PlanetDungeonGame {
         _tryRimefall(a) ||
         _tryFreezeFlue(a) ||
         _tryHoarfrost(a) ||
+        _tryRoofVerb(a) ||
         _tryColdFont(a) ||
         _tryMirrorFrame(a) ||
         _tryMirrorSweep(a) ||
@@ -347,7 +387,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (a.member.element != 'Light') {
       // WHAT is missing, in one clause (§5.6) — the WHY is the floor's own
       // one-time teach and Mask's to repeat.
-      _setBlockedHint('Frost only thickens this black ice, it wants Light');
+      _setBlockedHint('Frost only thickens black ice. It needs Light');
       return true;
     }
     meltedCaps.add(mouth);
@@ -382,18 +422,18 @@ extension FrozenObservatory on PlanetDungeonGame {
       if (f.headRoom != currentRoomId) continue;
       if ((a.position - f.headPos).distance > _kShaftReach) continue;
       if (!f.freezable) {
-        _setBlockedHint('The throat runs too hard to take frost from above');
+        _setBlockedHint('The water runs too hard to freeze from above');
         return true;
       }
       if (a.member.element != 'Ice') {
-        _setBlockedHint('Only Ice sets this fall into a stair');
+        _setBlockedHint('Only Ice can freeze this into steps');
         return true;
       }
       switch (_flue(f.id)) {
         case RimeFlueState.stair:
-          _setBlockedHint('This fall already stands');
+          _setBlockedHint('Already frozen into steps');
         case RimeFlueState.scoured:
-          _setBlockedHint('Bare glass. Frost finds nothing to hold');
+          _setBlockedHint('Bare ice. No snow left to freeze');
         case RimeFlueState.drift:
           flueState[f.id] = RimeFlueState.stair;
           _cue(SoundCue.elementIce);
@@ -417,11 +457,11 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kShaftReach) return false;
     if (a.member.element != 'Ice') {
-      _setBlockedHint('Only Ice will hold this fall');
+      _setBlockedHint('Only Ice can freeze this fall');
       return true;
     }
     if (rimefallFrozen) {
-      _setBlockedHint('The rimefall already stands');
+      _setBlockedHint('The rimefall is already frozen');
       return true;
     }
     rimefallFrozen = true;
@@ -437,21 +477,21 @@ extension FrozenObservatory on PlanetDungeonGame {
     return true;
   }
 
-  /// The rite's second half — element-only Ice, so a party missing the Wing
-  /// still meets exactly ONE refusal at the font rather than two.
+  /// The rite's second half — element-only Ice, on the roof's pier. The
+  /// first half is the breath down the throat (`_tryRoofBreath`).
   bool _tryColdFont(DungeonCreature a) {
     final pos = currentRoom.rime?.coldFont;
     if (pos == null) return false;
     if ((a.position - pos).distance > _kShaftReach) return false;
     if ((conduitEnergy['B'] ?? 0) > 0) return false;
     if (a.member.element != 'Ice') {
-      _setBlockedHint('The font answers Ice alone');
+      _setBlockedHint('Only Ice can sing the font');
       return true;
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The font refuses the offering, it answers only a bearer of the '
-        '${layout.starName(0)} and ${layout.starName(1)}',
+        'The font needs the ${layout.starName(0)} and '
+        '${layout.starName(1)} first',
       );
       return true;
     }
@@ -473,11 +513,11 @@ extension FrozenObservatory on PlanetDungeonGame {
     if ((a.position - pos).distance > _kShaftReach) return false;
     if (hoarfrostWhole) return false;
     if (_hoarfrostDown > 0) {
-      _setBlockedHint('The stump is still shivering');
+      _setBlockedHint('The pillar needs a moment to regrow');
       return true;
     }
     if (a.member.element != 'Ice') {
-      _setBlockedHint('Only Ice raises this pillar');
+      _setBlockedHint('Only Ice can raise this pillar');
       return true;
     }
     hoarfrostWhole = true;
@@ -606,8 +646,36 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (chartTriumph > 0) chartTriumph = max(0.0, chartTriumph - dt);
     final ring = room.rime?.mirrors;
     final idx = room.rime?.starIndex;
-    if (ring == null || idx == null || hasStar(idx)) return;
-    if (mirrorChart.isEmpty) _rollMirrorChart(ring);
+    if (ring == null || idx == null) return;
+    if (hasStar(idx)) {
+      // THE TROPHY STANDS ON RE-ENTRY. The banked chart used to stay lit only
+      // for the run it was won in: a later descent found the pool dead black
+      // and every frame dark, as if the room had never been solved. The
+      // water holds the whole chart now, true end to end, every frame in it.
+      if (mirrorChart.isEmpty) _restoreSolvedChart(ring);
+    } else if (mirrorChart.isEmpty) {
+      _rollMirrorChart(ring);
+    }
+    _watchForStranger(ring);
+  }
+
+  /// The chart as a finished thing: every frame hung true and in the water,
+  /// the lodestone lit. What a solved gallery looks like when you walk back
+  /// into it.
+  void _restoreSolvedChart(MirrorRing ring) {
+    final rng = Random();
+    mirrorChart
+      ..clear()
+      ..addAll([
+        for (var k = 0; k < kIceChartStars; k++) 0.42 + rng.nextDouble() * 0.46,
+      ]);
+    frameOffset.clear();
+    silveredFrames.clear();
+    for (var i = 0; i < ring.count; i++) {
+      frameOffset[i] = 0;
+      silveredFrames.add(i);
+    }
+    lodestoneLit = true;
   }
 
   /// THE LIGHT HAND IS A LAMP, AND THE LAMP IS WHERE YOU LEFT IT.
@@ -620,8 +688,19 @@ extension FrozenObservatory on PlanetDungeonGame {
   ///
   /// Returns how brightly star [k] is read, 0..1, easing off at the edge of
   /// the lamp's reach so the water does not snap open and shut as it walks.
-  double chartStarLight(MirrorRing ring, int k) {
-    if (poolStill > 0) return 1.0; // Air stilled the whole surface
+  /// An Air sweep's flash lays over the top of it, whole, and fades away.
+  double chartStarLight(MirrorRing ring, int k) =>
+      max(sweepLight, _lampStarLight(ring, k));
+
+  /// How much of the whole chart an Air sweep is showing right now, 0..1:
+  /// held for the flash, then fading back to nothing.
+  double get sweepLight {
+    if (poolStill <= 0) return 0;
+    if (poolStill >= _kPoolFlashFadeSeconds) return 1;
+    return poolStill / _kPoolFlashFadeSeconds;
+  }
+
+  double _lampStarLight(MirrorRing ring, int k) {
     // SOLVED, AND IT STAYS LIT. The chart you put together is the trophy, and
     // a trophy you have to keep walking a lamp round is not one.
     final idx = currentRoom.rime?.starIndex;
@@ -661,11 +740,11 @@ extension FrozenObservatory on PlanetDungeonGame {
       if ((a.position - ring.frameAt(i)).distance > _kMirrorReach) continue;
       if (i == ring.lodestoneIndex) return _strikeLodestone(a, ring, i);
       if (a.member.element != 'Ice') {
-        _setBlockedHint('Only Ice silvers a frame');
+        _setBlockedHint('Only Ice can silver a frame');
         return true;
       }
       if (!lodestoneLit) {
-        _setBlockedHint('The water is dead black, and holds nothing');
+        _setBlockedHint('The pool is dark. Wake it first');
         return true;
       }
       // NOTHING IS SPENT. The water is a workbench: put a stretch of chart in
@@ -721,8 +800,8 @@ extension FrozenObservatory on PlanetDungeonGame {
         _inHintChannel(
           DungeonHintChannel.insight,
           () => _forceHint(
-            'The water wakes, and this glass hangs true. Only the light '
-            'reads it, and only from across.',
+            'The pool wakes. It shows the part of the chart across from '
+            'where you stand.',
             5.0,
           ),
         );
@@ -738,34 +817,34 @@ extension FrozenObservatory on PlanetDungeonGame {
         if (gate != null) {
           _stampFamilyGate(gate);
         } else {
-          _setBlockedHint('Only Light\'s second sight strikes this glass');
+          _setBlockedHint('Only a Light Mask can strike this glass');
         }
       case InteractionResult.blockedElement:
       case InteractionResult.blockedStat:
-        _setBlockedHint('This glass takes no frost, it answers Light');
+        _setBlockedHint('Frost does nothing here. It needs Light');
     }
     return true;
   }
 
-  /// Air's sweep off the cold vent: the rime goes off the water and it lies
-  /// still, whole, for a while — the only way to see the entire chart from
-  /// one place. It saves walking and can never fail you.
+  /// Air's sweep off the cold vent: the rime lifts and the whole chart shows
+  /// at once, for a breath, then the water closes back to what the lamp
+  /// reads. A glimpse of where to walk the lamp, never a substitute for it.
   bool _tryMirrorSweep(DungeonCreature a) {
     final ring = _mirrorRing;
     if (ring == null || hasStar(currentRoom.rime!.starIndex!)) return false;
     if ((a.position - ring.vent).distance > _kShaftReach) return false;
     if (a.member.element != 'Air') {
-      _setBlockedHint('Only Air stirs this vent');
+      _setBlockedHint('Only Air can use this vent');
       return true;
     }
     if (mirrorSweep > 0) {
-      _setBlockedHint('The vent is still drawing breath');
+      _setBlockedHint('The vent needs a moment');
       return true;
     }
     mirrorSweep = _kMirrorSweepCooldown;
-    poolStill = _kPoolStillSeconds;
+    poolStill = _kPoolFlashHoldSeconds + _kPoolFlashFadeSeconds;
     _cue(SoundCue.elementAir);
-    _setHint('The rime goes off the water, and it lies still, whole');
+    _setHint('The rime lifts for a breath, and the whole sky shows at once');
     _spawnAlchemyBurst(
       ring.vent,
       producedElement: 'Air',
@@ -907,7 +986,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     final hub = _orreryCrankAt(g);
     if ((a.position - hub).distance > _kShaftReach) return false;
     if (a.member.element != 'Light') {
-      _setBlockedHint('The crank answers Light');
+      _setBlockedHint('Only Light can turn the crank');
       return true;
     }
     final seatedCells = {for (final id in orrerySeated) orreryBlocks[id]!};
@@ -962,8 +1041,8 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (_orreryPillar(g, c, r) || _orrerySocket(g, c, r)) {
       _setBlockedHint(
         _orreryPillar(g, c, r)
-            ? 'Old iron \u2014 nothing takes here'
-            : 'A socket\'s kerb, cut too deep for frost',
+            ? 'Iron pillar. Nothing to do here'
+            : 'A socket kerb. It can\'t be glazed',
       );
       return true;
     }
@@ -999,7 +1078,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     final key = r * g.cols + c;
     if (a.member.element == 'Light') {
       if (!orreryGlass.contains(key)) {
-        _setBlockedHint('Bare stone \u2014 there is nothing here to melt');
+        _setBlockedHint('Bare stone. Nothing to melt');
         return true;
       }
       // THE WHOLE SHEET GOES. Melting ONE cell let you lay any road at all
@@ -1048,6 +1127,11 @@ extension FrozenObservatory on PlanetDungeonGame {
   /// neighbour), and `solveOrreryBoards` is re-proved with bodies that cannot
   /// stand in a block.
   bool _shaftBlocksAt(Offset center, DungeonRoom room) {
+    final refusal = _roofRefusal(center, room);
+    if (refusal != null) {
+      if (refusal.isNotEmpty) _roofBlockReason = refusal;
+      return true;
+    }
     final g = room.rime?.orrery;
     if (g == null) return false;
     final reach = _kBlockHalf + PlanetDungeonGame._radius;
@@ -1134,7 +1218,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     final c = run.cell % g.cols;
     final r = run.cell ~/ g.cols;
     if (!moved) {
-      _setBlockedHint('Too heavy for bare stone');
+      _setBlockedHint('Too heavy to push on stone. It needs ice under it');
       return true;
     }
     orreryBlocks[id] = r * g.cols + c;
@@ -1199,44 +1283,819 @@ extension FrozenObservatory on PlanetDungeonGame {
     a.position = _moveWithCollision(a.position, push * _kGlideDrift * dt, room);
   }
 
-  // ── The Lost Maxim · STAR-WALKER ─────────────────────────
+  // ── THE ROOF OF THE HOLLOW · the rite (2026-09-20) ──────
+  //
+  // The rite used to be two presses on two plinths. It is a ROOM now, and
+  // the room is the ice over the wyrm's lair:
+  //
+  //   · SNOW bears all and shows nothing. LIGHT bares the pane ahead of it,
+  //     and bare ice shows what it lies on: stone is white and thick; the
+  //     hollow is black and THIN — it bears one body — and the black drifts
+  //     away from the wyrm's head, so every bared pane is a bearing.
+  //   · Under the wyrm's body the scales run one way: toward the head. Over
+  //     the head, an eye, and hoarfrost blooming on the glass above it.
+  //   · LIGHT melts bare ice over the hollow into water; over the head that
+  //     is THE THROAT. ICE freezes water ahead of it back to thin glass.
+  //   · The AIR WING turns the last breath down the open throat (the hard
+  //     gate); ICE sings the font on its pier; both, and the wyrm wakes.
+  //   · Awake, the throat is the way in — for the three of you together.
+  //
+  // Nothing here is timed, nothing cracks under you, nothing is spent: a
+  // pane bared stays bared, water can always be frozen back, and Ice can
+  // reach anything (it makes its own footing), so no body is ever stranded.
+  // The cost of looking is footing — every bared pane over the hollow is a
+  // pane only one of you can stand on — and the reward for reading the drift
+  // instead of baring everything is a roof you can still walk.
 
-  /// The unmarked thirteenth star. Deliberately beyond what the stars demand
-  /// (§ "Easter eggs"): the ring must already have been read whole, the niche
-  /// is on a shelf you can only fall onto, and the sighting itself wants the
-  /// one hand that lays cold behind it.
+  IceRoof? get _roof => currentRoom.rime?.roof;
+
+  DungeonRoom? get _roofRoom {
+    for (final r in layout.rooms.values) {
+      if (r.rime?.roof != null) return r;
+    }
+    return null;
+  }
+
+  /// Roll the wyrm under a fresh roof: every authored 'W' is water, nothing is
+  /// bared, and the body is a connected line of [kIceWyrmLength] hollow
+  /// panes, head first, never touching water or the pier.
+  void _seedRoof([Random? rnd]) {
+    roofWyrm.clear();
+    roofBare.clear();
+    roofWater.clear();
+    roofThroat = null;
+    final roof = _roofRoom?.rime?.roof;
+    if (roof == null) return;
+    final free = <int>[];
+    for (var c = 0; c < roof.count; c++) {
+      if (roof.waterAt(c)) {
+        roofWater.add(c);
+      } else if (roof.bedAt(c) == IceRoofBed.hollow) {
+        free.add(c);
+      }
+    }
+    final r = rnd ?? Random();
+    for (var attempt = 0; attempt < 400; attempt++) {
+      final path = <int>[free[r.nextInt(free.length)]];
+      while (path.length < kIceWyrmLength) {
+        final opts = roof
+            .neighbours(path.last)
+            .where((n) => free.contains(n) && !path.contains(n))
+            .toList();
+        if (opts.isEmpty) break;
+        path.add(opts[r.nextInt(opts.length)]);
+      }
+      if (path.length == kIceWyrmLength) {
+        roofWyrm.addAll(path);
+        return;
+      }
+    }
+    roofWyrm.addAll(free.take(kIceWyrmLength)); // cannot happen on this art
+  }
+
+  /// Test seam: lay the wyrm exactly here (head first).
+  void seedRoofForTest(List<int> cells) {
+    roofWyrm
+      ..clear()
+      ..addAll(cells);
+  }
+
+  /// What pane [c] lies on, wyrm included.
+  IceRoofUnder roofUnder(IceRoof roof, int c) {
+    if (roofWyrm.isNotEmpty && roofWyrm.first == c) return IceRoofUnder.head;
+    if (roofWyrm.contains(c)) return IceRoofUnder.body;
+    return switch (roof.bedAt(c)) {
+      IceRoofBed.rock => IceRoofUnder.rock,
+      IceRoofBed.pier => IceRoofUnder.pier,
+      IceRoofBed.hollow => IceRoofUnder.hollow,
+    };
+  }
+
+  bool roofIsWater(int c) => roofWater.contains(c);
+  bool roofIsThroat(int c) => roofThroat == c;
+  bool roofIsBare(int c) => roofBare.contains(c);
+
+  /// THIN: bare glass over the hollow (or the wyrm). It bears one body.
+  bool roofIsThin(IceRoof roof, int c) =>
+      roofIsBare(c) &&
+      !roofIsWater(c) &&
+      !roofIsThroat(c) &&
+      roof.bedAt(c) == IceRoofBed.hollow;
+
+  /// Which way the hollow's water drifts under pane [c] — AWAY from the head,
+  /// which is the whole tell. Zero when there is nothing to drift from.
+  Offset roofDrift(IceRoof roof, int c) {
+    if (roofWyrm.isEmpty) return Offset.zero;
+    final d = roof.centerAt(c) - roof.centerAt(roofWyrm.first);
+    return d.distance == 0 ? Offset.zero : d / d.distance;
+  }
+
+  /// Under a body pane, which way the scales run: toward the head.
+  Offset roofScaleRun(IceRoof roof, int c) {
+    final i = roofWyrm.indexOf(c);
+    if (i <= 0) return Offset.zero;
+    final d = roof.centerAt(roofWyrm[i - 1]) - roof.centerAt(c);
+    return d.distance == 0 ? Offset.zero : d / d.distance;
+  }
+
+  int _roofBodiesOn(IceRoof roof, int c, {DungeonCreature? except}) {
+    var n = 0;
+    for (final b in creatures) {
+      if (b.alive && b != except && roof.cellAt(b.position) == c) n++;
+    }
+    return n;
+  }
+
+  /// The four-way direction [a] is facing, as a unit step.
+  Offset _roofFacing(DungeonCreature a) {
+    final dx = cos(a.aimAngle), dy = sin(a.aimAngle);
+    return dx.abs() >= dy.abs()
+        ? Offset(dx.sign == 0 ? 1 : dx.sign, 0)
+        : Offset(0, dy.sign);
+  }
+
+  /// THE PANE AHEAD — what Light and Ice work on: the neighbour of the pane
+  /// you stand on in the direction you face (or, from a shore, the first
+  /// pane of the roof in front of you). Never the pane under your own feet.
+  int? roofTargetCell(DungeonCreature a) {
+    final roof = _roof;
+    if (roof == null) return null;
+    final dir = _roofFacing(a);
+    final under = roof.cellAt(a.position);
+    final probe = roof.cellAt(a.position + dir * 56);
+    if (probe != null && probe != under) return probe;
+    if (under == null) return null;
+    final x = under % roof.cols + dir.dx.round();
+    final y = under ~/ roof.cols + dir.dy.round();
+    if (x < 0 || y < 0 || x >= roof.cols || y >= roof.rows) return null;
+    return y * roof.cols + x;
+  }
+
+  /// Why the roof refuses a body at [p] — a line to say, '' to refuse in
+  /// silence (open water needs no announcing), or null when it bears you.
+  String? _roofRefusal(Offset p, DungeonRoom room) {
+    final roof = room.rime?.roof;
+    if (roof == null) return null;
+    final c = roof.cellAt(p);
+    if (c == null) return null;
+    final a = active;
+    if (a != null && roof.cellAt(a.position) == c) return null; // standing
+    if (roofIsThroat(c)) {
+      if (!guardianAwake && !hasStar(2)) return layout.guardianSealedHint;
+      if (a != null) {
+        for (final b in creatures) {
+          if (!b.alive || b == a) continue;
+          if ((b.position - roof.centerAt(c)).distance > _kRoofEdge) {
+            return 'Go down together. Gather the party at the edge first';
+          }
+        }
+      }
+      return null; // step in — the drop (see `_updateRoof`)
+    }
+    if (roofIsWater(c)) return '';
+    if (roofIsThin(roof, c) &&
+        a != null &&
+        _roofBodiesOn(roof, c, except: a) > 0) {
+      return 'This ice only holds one creature';
+    }
+    return null;
+  }
+
+  void _updateRoof(DungeonCreature a, DungeonRoom room, double dt) {
+    final roof = room.rime?.roof;
+    if (roof == null) return;
+    // One refusal at a time, and not sixty times a second.
+    if (_roofBlockCooldown > 0) _roofBlockCooldown -= dt;
+    final reason = _roofBlockReason;
+    _roofBlockReason = null;
+    if (reason != null && _roofBlockCooldown <= 0) {
+      _setBlockedHint(reason);
+      _roofBlockCooldown = 2.6;
+    }
+    // BOTH HALVES SUNG, AND THE WYRM WAKES UNDER YOU.
+    if (!altarOpen &&
+        (conduitEnergy['A'] ?? 0) > 0 &&
+        (conduitEnergy['B'] ?? 0) > 0) {
+      _wakeFrowyrm(roof);
+    }
+    // THE DROP: a body on the open throat, with the others at its edge (the
+    // refusal above is what keeps a lone body off it).
+    final t = roofThroat;
+    if (t != null &&
+        (guardianAwake || hasStar(2)) &&
+        _doorCooldown <= 0 &&
+        roof.cellAt(a.position) == t) {
+      _roofDrop(room);
+    }
+  }
+
+  /// The altar's own wake, done here because the rite's two halves are the
+  /// module's objects (the throat and the font), not authored Conduits.
+  void _wakeFrowyrm(IceRoof roof) {
+    altarOpen = true;
+    guardianAwake = true;
+    guardianHp = PlanetDungeonGame.maxGuardianHp;
+    _shake = PlanetDungeonGame._kArrivalShake;
+    _cue(SoundCue.dungeonGateOpen);
+    speakConsequence(
+      'The wyrm stirs under the ice',
+    );
+    final t = roofThroat;
+    _spawnAlchemyBurst(
+      t == null ? roof.bounds.center : roof.centerAt(t),
+      producedElement: 'Ice',
+      reagentElements: const ['Air'],
+      particleCount: 40,
+      intensity: 1.4,
+    );
+    onChanged();
+  }
+
+  /// Down the throat, all three together. The hidden door does the transit
+  /// (anchor, regroup point, arrival, the wyrm's own descent), so a fall
+  /// through the roof is bookkept exactly like every other way into a room.
+  void _roofDrop(DungeonRoom room) {
+    DungeonDoor? down;
+    for (final d in room.doors) {
+      if (layout.rooms[d.targetRoomId]?.guardian != null) down = d;
+    }
+    if (down == null) return;
+    _cue(SoundCue.dungeonWallBreak);
+    _announceTransit(
+      'The ice gives way and the party drops into the hollow',
+      6.0,
+    );
+    passThroughDoor(down);
+  }
+
+  /// Every roof verb, in priority order. Near the font it yields to the font
+  /// whenever it has nothing of its own to do, so Ice on the pier can both
+  /// freeze the water round it and sing.
+  bool _tryRoofVerb(DungeonCreature a) {
+    final roof = _roof;
+    if (roof == null) return false;
+    // A BODY STANDING ON THE PIER IS WORKING THE FONT (the orrery's lesson):
+    // the water round it is frozen from the roof, not from the plinth.
+    if (roof.cellAt(a.position) == roof.pierCell) return false;
+    final font = currentRoom.rime?.coldFont;
+    final nearFont =
+        font != null && (a.position - font).distance <= _kShaftReach;
+    final t = roofThroat;
+    final atThroat =
+        t != null && (a.position - roof.centerAt(t)).distance <= _kRoofEdge;
+    switch (a.member.element) {
+      case 'Air':
+        if (atThroat) return _tryRoofBreath(a, roof, t);
+        if (nearFont) return false;
+        _setBlockedHint('Open the ice over the wyrm\'s head first');
+        return true;
+      case 'Light':
+        return _tryRoofLight(a, roof, roofTargetCell(a), nearFont: nearFont);
+      case 'Ice':
+        return _tryRoofIce(a, roof, roofTargetCell(a), nearFont: nearFont);
+    }
+    return false;
+  }
+
+  /// THE BREATH — the planet's second hard gate, Air+WING, at the open
+  /// throat. A wrong family stamps the chip (§4: the seal remembers).
+  bool _tryRoofBreath(DungeonCreature a, IceRoof roof, int throat) {
+    if ((conduitEnergy['A'] ?? 0) > 0) return false;
+    final p = roof.centerAt(throat);
+    if (a.ability != DungeonAbility.aerialTraversal) {
+      final gate = layout.familyGateFor('A');
+      if (gate != null) {
+        _stampFamilyGate(gate);
+      } else {
+        _setBlockedHint('Only an Air Wing can turn this breath down');
+      }
+      _spawnAlchemyBurst(
+        p,
+        producedElement: 'Air',
+        reagentElements: [a.member.element],
+        unstable: true,
+      );
+      return true;
+    }
+    if (!guardianRiteUnlocked) {
+      _setBlockedHint(
+        'This needs the ${layout.starName(0)} and '
+        '${layout.starName(1)} first',
+      );
+      return true;
+    }
+    conduitEnergy['A'] = double.infinity;
+    _cue(SoundCue.elementAir);
+    _setHint('The last breath goes down the wyrm\'s throat, and holds');
+    _spawnAlchemyBurst(
+      p,
+      producedElement: 'Air',
+      reagentElements: const ['Ice'],
+      particleCount: 30,
+      intensity: 1.2,
+    );
+    return true;
+  }
+
+  /// LIGHT bares the pane ahead; bared, it melts it.
+  bool _tryRoofLight(
+    DungeonCreature a,
+    IceRoof roof,
+    int? target, {
+    required bool nearFont,
+  }) {
+    if (target == null) {
+      if (nearFont) return false;
+      _setBlockedHint('Nothing ahead but stone');
+      return true;
+    }
+    final p = roof.centerAt(target);
+    if (roofIsWater(target) || roofIsThroat(target)) {
+      if (nearFont) return false;
+      _setBlockedHint('Already open water');
+      return true;
+    }
+    final under = roofUnder(roof, target);
+    if (!roofIsBare(target)) {
+      // BARE IT, and the ice says what it lies on.
+      roofBare.add(target);
+      _cue(SoundCue.elementLight);
+      _spawnAlchemyBurst(
+        p,
+        producedElement: 'Light',
+        particleCount: 14,
+        intensity: 0.7,
+      );
+      // A READING: the line IS the payload, so it is remembered for the hint
+      // button (§5.6) — the picture under the glass says the same thing.
+      final read = switch (under) {
+        IceRoofUnder.rock ||
+        IceRoofUnder.pier => 'Stone under this ice',
+        IceRoofUnder.hollow =>
+          'Dark water under this ice, drifting away from something',
+        IceRoofUnder.body => 'The wyrm\'s body is under this ice',
+        IceRoofUnder.head =>
+          'The wyrm\'s head is under this ice',
+      };
+      if (under != IceRoofUnder.rock &&
+          under != IceRoofUnder.pier &&
+          !discoveredClouds.contains(kIceRoofTeachId)) {
+        // THE RULE, ONCE, the first time the hollow shows through.
+        _discoverCloud(kIceRoofTeachId);
+        _forceHint(
+          '$read. Bare ice over the hollow holds only one creature',
+          6.0,
+        );
+      } else {
+        _setInsightHint(read);
+      }
+      return true;
+    }
+    // BARE ALREADY: melt it.
+    if (under == IceRoofUnder.rock || under == IceRoofUnder.pier) {
+      _setBlockedHint('Stone under this ice. Nothing to open');
+      return true;
+    }
+    if (_roofBodiesOn(roof, target) > 0) {
+      _setBlockedHint('Someone is standing on that ice');
+      return true;
+    }
+    if (under == IceRoofUnder.head) {
+      roofThroat = target;
+      _cue(SoundCue.dungeonGateOpen);
+      _setHint('The glass goes over the wyrm\'s throat, and cold comes up it');
+      _spawnAlchemyBurst(
+        p,
+        producedElement: 'Ice',
+        reagentElements: const ['Light'],
+        particleCount: 26,
+        intensity: 1.1,
+      );
+      return true;
+    }
+    roofWater.add(target);
+    _cue(SoundCue.dungeonWallBreak);
+    _setHint('The glass goes, and black water takes its place');
+    _spawnAlchemyBurst(
+      p,
+      producedElement: 'Light',
+      reagentElements: const ['Ice'],
+      particleCount: 16,
+      intensity: 0.8,
+    );
+    return true;
+  }
+
+  /// ICE freezes the water ahead back into thin glass. Never the throat.
+  bool _tryRoofIce(
+    DungeonCreature a,
+    IceRoof roof,
+    int? target, {
+    required bool nearFont,
+  }) {
+    if (target != null && roofIsWater(target)) {
+      roofWater.remove(target);
+      roofBare.add(target);
+      _cue(SoundCue.elementIce);
+      _setHint('Frost takes the still water, thin, and one body\'s worth');
+      _spawnAlchemyBurst(
+        roof.centerAt(target),
+        producedElement: 'Ice',
+        particleCount: 18,
+        intensity: 0.8,
+      );
+      return true;
+    }
+    if (target != null && roofIsThroat(target)) {
+      _setBlockedHint('The wyrm\'s breath stops this from freezing');
+      return true;
+    }
+    if (nearFont) return false;
+    _setBlockedHint(
+      target == null ? 'Nothing ahead but stone' : 'Already frozen',
+    );
+    return true;
+  }
+
+  /// AMBIENT on the roof is what is under your feet (§5.6: flavour only).
+  void _roofAmbientHint(DungeonCreature a, IceRoof roof) {
+    final c = roof.cellAt(a.position);
+    if (c == null) {
+      _setAmbientHint('Stone, and the snow field starting at its edge');
+      return;
+    }
+    if (roofIsThin(roof, c)) {
+      _setAmbientHint('The glass creaks, and the dark moves under it');
+      return;
+    }
+    if (roofIsBare(c)) {
+      _setAmbientHint('Bare ice, white to the stone');
+      return;
+    }
+    for (final n in roof.neighbours(c)) {
+      if (roofIsWater(n) || roofIsThroat(n)) {
+        _setAmbientHint('Black water beside you, breathing');
+        return;
+      }
+    }
+    _setAmbientHint('Snow, deep and quiet, and no telling what is under it');
+  }
+
+  // ── The roof, drawn ──────────────────────────────────────
+
+  /// Every pane that is not snow (the snow is the static ground), and the
+  /// pane the active hand would work on. Flat fills and a few strokes; the
+  /// only motion is the drift under bared hollow — three dots a pane.
+  void _renderRoof(Canvas canvas, DungeonRoom room) {
+    final roof = room.rime?.roof;
+    if (roof == null) return;
+    final rim = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = _kIcePale.withValues(alpha: 0.35);
+    for (var c = 0; c < roof.count; c++) {
+      final r = roof.rectOf(c).deflate(3);
+      if (roofIsThroat(c)) {
+        _drawRoofThroat(canvas, r);
+        continue;
+      }
+      if (roofIsWater(c)) {
+        // OPEN WATER: a hole, pitch black, its edge broken where the glass
+        // went, and two slow rings on it so it never reads as glass.
+        canvas.drawRect(r, Paint()..color = const Color(0xFF020609));
+        final ring = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = _kIcePale.withValues(alpha: 0.28);
+        final ph = ((_time * 0.35 + c * 0.13) % 1.0);
+        canvas.drawCircle(r.center, 6 + ph * 22, ring);
+        canvas.drawCircle(
+          r.center,
+          6 + ((ph + 0.5) % 1.0) * 22,
+          ring..color = _kIcePale.withValues(alpha: 0.16),
+        );
+        canvas.drawRect(
+          r.inflate(1),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3
+            ..color = _kShaftMilk.withValues(alpha: 0.5),
+        );
+        continue;
+      }
+      if (!roofIsBare(c)) continue;
+      switch (roofUnder(roof, c)) {
+        case IceRoofUnder.rock:
+        case IceRoofUnder.pier:
+          canvas.drawRect(
+            r,
+            Paint()..color = _kShaftMilk.withValues(alpha: 0.5),
+          );
+          final crack = Path()
+            ..moveTo(r.left + 10, r.bottom - 12)
+            ..lineTo(r.center.dx - 6, r.center.dy + 4)
+            ..lineTo(r.right - 14, r.top + 10);
+          canvas.drawPath(
+            crack,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.2
+              ..color = Colors.white.withValues(alpha: 0.45),
+          );
+        case IceRoofUnder.hollow:
+          // GLASS over the hollow: dark, but blue and lit — never the black
+          // of open water beside it.
+          canvas.drawRect(
+            r,
+            Paint()..color = const Color(0xFF0E2A3C).withValues(alpha: 0.9),
+          );
+          _drawRoofSheen(canvas, r);
+          _drawRoofDrift(canvas, r, roofDrift(roof, c), c);
+          canvas.drawRect(r, rim);
+        case IceRoofUnder.body:
+          canvas.drawRect(
+            r,
+            Paint()..color = const Color(0xFF10263A).withValues(alpha: 0.92),
+          );
+          _drawRoofSheen(canvas, r);
+          _drawRoofScales(canvas, r, roofScaleRun(roof, c));
+          canvas.drawRect(r, rim);
+        case IceRoofUnder.head:
+          canvas.drawRect(
+            r,
+            Paint()..color = const Color(0xFF10263A).withValues(alpha: 0.92),
+          );
+          _drawRoofSheen(canvas, r);
+          _drawRoofHead(canvas, r);
+          canvas.drawRect(r, rim);
+      }
+    }
+    // WHAT THE HAND WOULD WORK ON, before it does (plan, then commit).
+    final a = active;
+    if (a != null &&
+        (a.member.element == 'Light' || a.member.element == 'Ice')) {
+      final t = roofTargetCell(a);
+      if (t != null) {
+        final want = a.member.element == 'Light'
+            ? !roofIsWater(t) && !roofIsThroat(t)
+            : roofIsWater(t);
+        canvas.drawRect(
+          roof.rectOf(t).deflate(6),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.2
+            ..color =
+                (a.member.element == 'Light'
+                        ? const Color(0xFFFFE9A8)
+                        : _kIceWhite)
+                    .withValues(alpha: want ? 0.7 : 0.22),
+        );
+      }
+    }
+  }
+
+  /// One diagonal of light across a pane of glass: what says GLASS rather
+  /// than hole, at any size.
+  void _drawRoofSheen(Canvas canvas, Rect r) {
+    canvas.drawLine(
+      Offset(r.left + 8, r.top + r.height * 0.62),
+      Offset(r.left + r.width * 0.5, r.top + 8),
+      Paint()
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..color = Colors.white.withValues(alpha: 0.16),
+    );
+  }
+
+  /// The hollow's water, drifting AWAY from the head: four motes a pane,
+  /// each with a tail behind it, wrapping along the drift. The direction is
+  /// the tell, so the motes are big enough to read on a phone.
+  void _drawRoofDrift(Canvas canvas, Rect r, Offset dir, int seed) {
+    if (dir == Offset.zero) return;
+    final perp = Offset(-dir.dy, dir.dx);
+    final span = r.width - 18;
+    final mote = Paint()..color = _kIceWhite.withValues(alpha: 0.85);
+    final tail = Paint()
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round
+      ..color = _kIcePale.withValues(alpha: 0.4);
+    for (var i = 0; i < 4; i++) {
+      final phase = (seed * 7 + i * 13) % 11 / 11.0;
+      final along = ((_time * 26 + phase * span) % span) - span / 2;
+      final off = (i - 1.5) * (r.width * 0.2);
+      final p = r.center + dir * along + perp * off;
+      canvas.drawLine(p - dir * 14, p, tail);
+      canvas.drawCircle(p, 2.6, mote);
+    }
+  }
+
+  /// The wyrm's flank: chevrons of scale, all pointing the same way — toward
+  /// the head.
+  void _drawRoofScales(Canvas canvas, Rect r, Offset dir) {
+    if (dir == Offset.zero) return;
+    final perp = Offset(-dir.dy, dir.dx);
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..color = _kShaftIce.withValues(alpha: 0.55);
+    final path = Path();
+    for (var i = -1; i <= 1; i++) {
+      final c = r.center + dir * (i * 16.0);
+      path
+        ..moveTo(
+          c.dx - dir.dx * 9 - perp.dx * 12,
+          c.dy - dir.dy * 9 - perp.dy * 12,
+        )
+        ..lineTo(c.dx, c.dy)
+        ..lineTo(
+          c.dx - dir.dx * 9 + perp.dx * 12,
+          c.dy - dir.dy * 9 + perp.dy * 12,
+        );
+    }
+    canvas.drawPath(path, p);
+  }
+
+  /// The head: one pale slit of an eye, and hoarfrost blooming on the glass
+  /// above it — the breath, frozen where it touched.
+  void _drawRoofHead(Canvas canvas, Rect r) {
+    final c = r.center;
+    canvas.drawOval(
+      Rect.fromCenter(center: c + const Offset(0, 6), width: 30, height: 9),
+      Paint()..color = const Color(0xFFE6F6FF).withValues(alpha: 0.85),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: c + const Offset(0, 6), width: 6, height: 9),
+      Paint()..color = _kShaftDark,
+    );
+    final breath = 0.5 + 0.5 * sin(_time * 1.4);
+    final fern = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.35 + 0.3 * breath);
+    final path = Path();
+    for (var i = 0; i < 6; i++) {
+      final a = -pi / 2 + (i - 2.5) * 0.42;
+      final tip = c + Offset(cos(a), sin(a)) * (14 + 12 * breath);
+      path
+        ..moveTo(c.dx, c.dy - 4)
+        ..lineTo(tip.dx, tip.dy);
+    }
+    canvas.drawPath(path, fern);
+  }
+
+  /// The open throat: black, and the cold coming up it.
+  void _drawRoofThroat(Canvas canvas, Rect r) {
+    canvas.drawRect(r, Paint()..color = const Color(0xFF010305));
+    final cold = Paint()
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..color = _kIceWhite.withValues(alpha: 0.35);
+    for (var i = 0; i < 3; i++) {
+      final x = r.left + r.width * (0.25 + i * 0.25);
+      final rise = ((_time * 30 + i * 21) % (r.height - 10));
+      final y = r.bottom - 5 - rise;
+      canvas.drawLine(Offset(x, y), Offset(x, y - 10), cold);
+    }
+    final awake = guardianAwake || hasStar(2);
+    canvas.drawRect(
+      r.deflate(1),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = awake ? 3 : 2
+        ..color = (awake ? Colors.white : _kIcePale).withValues(
+          alpha: awake ? 0.6 + 0.3 * sin(_time * 3) : 0.4,
+        ),
+    );
+  }
+
+  // ── The Lost Maxim · STAR-WALKER ─────────────────────────
+  //
+  // THE STRANGER, AND THE SHAFT YOU WERE TOLD NEVER TO MAKE (2026-09-19; the
+  // §7 maxim standard, and Mud's lesson that the best place to hide a secret
+  // is the state your own stars punish).
+  //
+  // Star-Walker used to be one press: a telescope on the shelf, gated on the
+  // Mirror Star, answering Ice. It is a CHAIN now, and every link is a thing
+  // this planet already taught:
+  //
+  //   1. RIDE FLUE A BARE. Snow shows the water nothing and cut steps show
+  //      it nothing; a shaft ridden to polished ice is a MIRROR, and the pool
+  //      under it sees past the mouth to the sky. That is the one state the
+  //      primer spends its first sentence steering you away from, and it
+  //      costs you the way back up until the rimefall.
+  //   2. WAKE THE WATER AND WALK THE LAMP. Read like everything else here —
+  //      the Light hand across the ring, or Air's sweep — and one star hangs
+  //      out past the chart that no frame puts anywhere. It hangs on a
+  //      BEARING, and the bearing is the whole secret.
+  //   3. RIDE CHUTE B. The niche is on a shelf you can only fall onto; you
+  //      carry the bearing down with you, and can come back for another go.
+  //   4. TURN THE WHEEL — Air, a notch a breath, twelve notches round. The
+  //      repeated beat, and the tube swings to say where it looks.
+  //   5. LOCK THE SIGHTING — Ice, on the stranger's bearing. Empty sky is a
+  //      sentence and a puff of frost; nothing is ever spent.
+  //
+  // Nothing here asks for a family the riddle did not name, and the star
+  // path never passes it: a clean three-star run freezes A and never sees
+  // the stranger at all.
+
+  /// Which chart-star index sits on frame [i]'s bearing (star k = 2i).
+  int strangerStarIndex() => 2 * strangerFrame;
+
+  /// The shaft over the gallery, as the water sees it: only BARE ICE is a
+  /// mirror. Drift is snow, a stair is cut steps; neither shows the sky.
+  bool get shaftAboveIsMirror {
+    final above = rimeFlueBetween(layout.entranceRoomId, 'mirror_gallery');
+    return above != null && _flue(above.id) == RimeFlueState.scoured;
+  }
+
+  /// How brightly the stranger is read in the water, 0..1 — the shaft above
+  /// must be a mirror, the water awake, and the lamp (or a sweep, or the
+  /// banked chart) reading that bearing.
+  double strangerLight(MirrorRing ring) {
+    if (!shaftAboveIsMirror || !lodestoneLit) return 0;
+    if (discoveredClouds.contains(kIceStarWalkerEggId)) return 0;
+    return chartStarLight(ring, strangerStarIndex());
+  }
+
+  /// Said ONCE in a lifetime, the first time the water shows the stranger.
+  static const String kIceStrangerTeachId = 'teach:ice_stranger';
+
+  /// The water has shown the stranger: from here the lens can be set on it.
+  void _watchForStranger(MirrorRing ring) {
+    if (strangerSeen || strangerLight(ring) <= 0.5) return;
+    strangerSeen = true;
+    _cue(SoundCue.cosmicDiscovery);
+    if (discoveredClouds.contains(kIceStrangerTeachId)) return;
+    _discoverCloud(kIceStrangerTeachId);
+    _forceHint(
+      'Through the bare shaft the pool shows the sky, with one star no '
+      'frame charts',
+      6.0,
+    );
+  }
+
+  /// The lens on the shelf. Air turns it a notch; Ice takes the sighting.
   bool _tryTelescope(DungeonCreature a) {
     final pos = currentRoom.rime?.telescope;
     if (pos == null) return false;
     if ((a.position - pos).distance > _kShaftReach) return false;
     if (discoveredClouds.contains(kIceStarWalkerEggId)) return false;
     final ring = _mirrorRingRoom?.rime?.mirrors;
-    final ringStar = _mirrorRingRoom?.rime?.starIndex;
-    if (ring == null || ringStar == null || !hasStar(ringStar)) {
-      _setBlockedHint('The lens shows only frost, nothing is charted yet');
-      return true;
+    if (ring == null) return false;
+    switch (a.member.element) {
+      case 'Air':
+        // THE REPEATED BEAT: a breath turns the wheel one notch, always the
+        // same way round, and the tube swings to show where it looks now.
+        telescopeNotch = (telescopeNotch + 1) % ring.count;
+        telescopeSwing = 1;
+        _cue(SoundCue.dungeonSwitch);
+        _spawnAlchemyBurst(
+          pos,
+          producedElement: 'Air',
+          particleCount: 8,
+          intensity: 0.5,
+        );
+        return true;
+      case 'Ice':
+        if (!strangerSeen) {
+          // WHAT is missing (§5.6), never how to get it.
+          _setBlockedHint('The lens shows nothing. Point it where the water saw a star');
+          return true;
+        }
+        if (telescopeNotch != strangerFrame) {
+          // Empty sky: a sentence and a puff of frost. Nothing is spent.
+          _spawnAlchemyBurst(
+            pos,
+            producedElement: 'Ice',
+            particleCount: 8,
+            intensity: 0.5,
+          );
+          _setHint('Frost on the glass, and empty sky behind it');
+          return true;
+        }
+        // THE RITE OF THREE pays this out (see `beginMaximRite`).
+        _cue(SoundCue.dungeonGateOpen);
+        beginMaximRite(kIceStarWalkerEggId, pos);
+        _spawnAlchemyBurst(
+          pos,
+          producedElement: 'Light',
+          reagentElements: const ['Ice', 'Air'],
+          particleCount: 40,
+          intensity: 1.4,
+        );
+        return true;
+      default:
+        _spawnAlchemyBurst(
+          pos,
+          producedElement: a.member.element,
+          particleCount: 8,
+          intensity: 0.5,
+        );
+        _setBlockedHint('Light in the lens just shows your reflection');
+        return true;
     }
-    // ELEMENT-ONLY. This wanted an Ice MANE, and nothing anywhere said so:
-    // the shaft declares two gates (the lodestone and the rite) and the
-    // entrance verse names neither a Mane nor a reason to bring one. A run
-    // must never need a creature the riddle did not ask for — least of all
-    // for optional treasure, where the player has no way to find out they
-    // were short until the lens refuses them.
-    final req = const DungeonInteractionRequirement(element: 'Ice');
-    if (!interactionSucceeded(evaluateInteraction(a.member, req))) {
-      _setBlockedHint('The mount will not hold, the sighting drifts');
-      return true;
-    }
-    // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    beginMaximRite(kIceStarWalkerEggId, pos);
-    _spawnAlchemyBurst(
-      pos,
-      producedElement: 'Light',
-      reagentElements: const ['Ice', 'Air'],
-      particleCount: 40,
-      intensity: 1.4,
-    );
-    return true;
   }
 
   DungeonRoom? get _mirrorRingRoom {
@@ -1272,8 +2131,8 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (!near) return;
     _discoverCloud(kIceBlackIceId);
     _forceHint(
-      'Every hole in this floor has its own plate of old black ice. Frost '
-      'only thickens them, and Light drinks them, one at a time.',
+      'Each hole in this floor is sealed with black ice. Frost only '
+      'thickens it. Light melts it, one hole at a time.',
       6.0,
     );
   }
@@ -1307,8 +2166,8 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (!standing && orreryGlass.isEmpty && orrerySeated.isEmpty) return;
     _discoverCloud(kIceRimefallPriceId);
     _forceHint(
-      'Climb here and the shaft lets go behind you: every stair you cut, and '
-      'the orrery with them.',
+      'Climbing out here resets the whole shaft: every stair, and the '
+      'orrery too.',
       6.0,
     );
   }
@@ -1332,7 +2191,9 @@ extension FrozenObservatory on PlanetDungeonGame {
     _warnRimefallPrice(a, room);
     _updateMirrors(room, dt);
     _updateGlideFooting(a, room, dt);
+    if (telescopeSwing > 0) telescopeSwing = max(0.0, telescopeSwing - dt * 3);
     if (_hoarfrostDown > 0) _hoarfrostDown = max(0.0, _hoarfrostDown - dt);
+    _updateRoof(a, room, dt);
     _updateFrowyrm(room, dt);
   }
 
@@ -1374,13 +2235,19 @@ extension FrozenObservatory on PlanetDungeonGame {
       if (_flue(f.id) != RimeFlueState.stair) continue;
       flueState[f.id] = RimeFlueState.scoured;
       _cue(SoundCue.elementIce);
-      _setHint('Frowyrm roars up the shaft, a stair goes out from under it');
+      // A closing announces itself (§5.7). This runs from update, where a
+      // plain line is dropped unasked — and the roar was therefore silent.
+      speakConsequence(
+        'Frowyrm roars, and one of your stairs in the shaft breaks',
+      );
       return;
     }
     if (rimefallFrozen) {
       rimefallFrozen = false;
       _cue(SoundCue.elementIce);
-      _setHint('Frowyrm roars, and far above the rimefall breaks and runs');
+      speakConsequence(
+        'Frowyrm roars, and the rimefall far above breaks',
+      );
     }
   }
 
@@ -1396,6 +2263,16 @@ extension FrozenObservatory on PlanetDungeonGame {
         label: 'CHART',
         value: '$chartStarsWhole/$kIceChartStars',
         fraction: chartStarsWhole / kIceChartStars,
+      );
+    }
+    if (room?.rime?.roof != null && !hasStar(2)) {
+      final sung =
+          ((conduitEnergy['A'] ?? 0) > 0 ? 1 : 0) +
+          ((conduitEnergy['B'] ?? 0) > 0 ? 1 : 0);
+      return DungeonProgressReadout(
+        label: 'RITE',
+        value: '$sung/2',
+        fraction: sung / 2,
       );
     }
     if (room?.rime?.orrery != null && !hasStar(room!.rime!.starIndex!)) {
@@ -1420,39 +2297,48 @@ extension FrozenObservatory on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _shaftObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Frowyrm\'s Hollow, the wyrm keeps the last star';
+      return 'Frowyrm\'s Hollow. The last star is here';
     }
-    if (room.rime?.coldFont != null) return 'The Star Font, the rite waits';
+    if (room.rime?.roof != null) {
+      return guardianAwake || hasStar(2)
+          ? 'The Star Font. The wyrm is awake below'
+          : 'The Star Font, on the ice over the wyrm\'s hollow';
+    }
     if (room.rime?.rimefall != null) {
-      return 'The Cold Sump, the shaft bottoms out here';
+      return 'The Cold Sump, the bottom of the shaft';
     }
     if (room.rime?.telescope != null) {
       return discoveredClouds.contains(kIceStarWalkerEggId)
           ? null
-          : 'A niche off the throat, an old lens, pointed at nothing';
+          : 'A niche with an old lens, pointed at nothing';
     }
     if (room.vaultCache != null) {
-      return 'A glass ledge, something is bottled here';
+      return 'A glass ledge. Something is stored here';
     }
     final ring = room.rime?.mirrors;
     if (ring != null) {
       if (hasStar(room.rime!.starIndex!)) return null;
-      return 'The Mirror Gallery. A chart in the water, and most of it gone';
+      return 'The Mirror Gallery. A star chart shows in the pool';
     }
     if (room.rime?.orrery != null) {
       if (hasStar(room.rime!.starIndex!)) return null;
-      return 'The Standing Orrery, its star-blocks sit off their sockets';
+      return 'The Standing Orrery. Its star-blocks are off their sockets';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Rime Head, the shaft drops away below'
-          : 'The Rime Head. Old ice has sealed the floor over';
+          ? 'The Rime Head. The shaft drops away below'
+          : 'The Rime Head. Old black ice seals the floor';
     }
     return null;
   }
 
   /// AMBIENT is flavour only (§5.6): no mechanics, no elements, no families.
   void _shaftAmbientHint(DungeonCreature a, DungeonRoom room) {
+    final roof = room.rime?.roof;
+    if (roof != null) {
+      _roofAmbientHint(a, roof);
+      return;
+    }
     final cap = room.rime?.iceCap;
     if (cap != null && !entryDoorRevealed) {
       final near =
@@ -1472,9 +2358,7 @@ extension FrozenObservatory on PlanetDungeonGame {
       final chute = f.chutePos;
       if (chute != null && (a.position - chute).distance <= _kShaftReach) {
         _setAmbientHint(
-          spentChutes.contains(f.id)
-              ? 'An empty slot, swept out to the bare ice'
-              : 'Snow banked to the lip, and spilling away over the side',
+          'Snow banked to the lip, and spilling away over the side',
         );
         return;
       }
@@ -1524,33 +2408,34 @@ extension FrozenObservatory on PlanetDungeonGame {
     final tier = revealHintTier(a.member.statIntelligence);
     if (room.rime?.orrery != null) {
       _setInsightHint(switch (tier) {
-        0 => 'The blocks are frozen sky. Stone will not carry them',
+        0 => 'The blocks only slide on ice. Ice glazes the floor, Light melts it',
         1 =>
-          'A kerb opens one way only, and the arrow cut beside it says '
-              'which way',
+          'A shoved block slides until the ice ends. Each kerb only opens '
+              'one way, shown by its arrow',
         _ =>
-          'Stand behind a block and the floor draws its run. The crank at '
-              'the east wall puts every loose block back on its standard',
+          'Stand behind a block to see where it would slide. The crank on '
+              'the east wall resets every block',
       });
       return;
     }
     if (room.rime?.mirrors != null) {
       _setInsightHint(switch (tier) {
-        0 => 'Black glass, and something under it that will not show',
+        0 => 'The pool is dark until the black glass is struck with Light',
         1 =>
-          'The water answers a light, and shows it the far side. Frost on a '
-              'glass puts a stretch of chart in the water',
+          'The pool shows the part of the chart across from where you stand. '
+              'Walk the rim to see it all',
         _ =>
-          'Build out from the black glass, which hangs true. Where the line '
-              'forks, one of the two frames over that star is false: take one '
-              'out and look again',
+          'Every figure on the chart appears twice except one. Find the odd '
+              'one out and have Ice silver its frame',
       });
       return;
     }
     if (room.rime?.telescope != null) {
+      // ONE OBLIQUE LINE and nothing after it (the §7 maxim standard). It
+      // does not tier and it does not track progress.
       _setInsightHint(
-        'The lens wants the chart read first, and a steady, '
-        'cold-laying hand on the mount',
+        'A shaft ridden bare of snow reflects the sky. The lens wants to '
+        'point where the water saw something',
       );
       return;
     }
@@ -1560,13 +2445,25 @@ extension FrozenObservatory on PlanetDungeonGame {
     // will nothing I do touch this?") went unanswered by the hint button too.
     if (room.rime?.iceCap != null && !entryDoorRevealed) {
       _setInsightHint(switch (tier) {
-        0 => 'The floor is plated over, and the plate is not new',
-        1 =>
-          'Black ice takes no frost — cold is what made it. It wants the '
-              'opposite',
+        0 => 'Old black ice covers the holes in this floor',
+        1 => 'Frost only thickens black ice. It needs Light to melt',
         _ =>
-          'Light drinks black ice, one plate at a time. Every hole in this '
-              'floor has its own, and no two of them go to the same place',
+          'Light melts one plate at a time. Each hole leads somewhere '
+              'different',
+      });
+      return;
+    }
+    // THE ROOF READS THE ROOF: snow, glass, and what the glass lies on.
+    if (room.rime?.roof != null) {
+      _setInsightHint(switch (tier) {
+        0 => 'The wyrm sleeps under this floor',
+        1 =>
+          'Light clears the snow to show what\'s under the ice. The dark '
+              'water drifts away from the wyrm\'s head',
+        _ =>
+          'Bare ice over the hollow holds one creature at a time. Follow the '
+              'drift to the head, open the ice there, then turn the breath '
+              'down and sing the font',
       });
       return;
     }
@@ -1575,29 +2472,23 @@ extension FrozenObservatory on PlanetDungeonGame {
     // the one room the hint button would not talk about.
     if (room.rime?.hoarfrost != null) {
       _setInsightHint(switch (tier) {
-        0 =>
-          'The cold thing in the corner is the only thing here that is not the wyrm',
-        1 =>
-          'The wyrm will not hold still in front of a standing pillar of '
-              'hoarfrost, and it knows it',
+        0 => 'The hoarfrost pillar is the key to this fight',
+        1 => 'Frowyrm can only be hit while the hoarfrost pillar stands',
         _ =>
-          'Raise the hoarfrost and the lull opens; every strike it lands '
-              'shatters the pillar again, and the roar goes up the shaft and '
-              'takes a stair — or, if you left none, the rimefall itself',
+          'Ice raises the pillar. Each hit Frowyrm lands shatters it and '
+              'destroys one of your stairs in the shaft above',
       });
       return;
     }
     // Anywhere in the shaft, insight reads the SHAFT — which is the planet.
     _setInsightHint(switch (tier) {
-      0 => 'What goes down here does not come back the same way',
+      0 => 'The shafts only go down unless you freeze steps into them',
       1 =>
-        'A shaft full of snow can be frozen into steps, and then it climbs '
-            'as well as drops. Ride it instead and that is gone',
+        'Ice freezes a snowy shaft into steps you can climb. Ride it down '
+            'instead and it\'s bare for good',
       _ =>
-        'A ridden shaft is bare for good and takes no frost, so the way '
-            'home is whatever you froze on the way down. The fall at the very '
-            'bottom is the exception: it freezes from below, climbs to the '
-            'mouth, and the whole shaft lets go behind you',
+        'Freeze steps before riding down, or you can\'t come back up. The '
+            'fall at the very bottom resets the whole shaft if you get stuck',
     });
   }
 
@@ -1634,8 +2525,10 @@ extension FrozenObservatory on PlanetDungeonGame {
   ///     not decoration, and if this ever drops to zero someone has quietly
   ///     made the descent two-way and the planet has lost its identity.
   ///  3. `shelfLosable` — states in which a shelf can no longer be entered
-  ///     WITHOUT paying a thaw. It must be non-zero, because that loss is the
-  ///     vault trick (§5.5: "enterable only from a slide you can't repeat").
+  ///     WITHOUT paying a thaw. It must be non-zero: a ledge is entered from
+  ///     the level above it, so once you are below with no stair back up,
+  ///     the ledge is gone until the rimefall. That is gravity, the planet's
+  ///     whole idea — not the chute, which is a ramp you may ride again.
   ({
     int states,
     int strandable,
@@ -1647,44 +2540,35 @@ extension FrozenObservatory on PlanetDungeonGame {
     final rooms = layout.rooms.keys.toList()..sort();
     final head = layout.entranceRoomId;
 
-    // A state is 'room|shaft states|chutes spent|rimefall'.
-    String enc(String room, List<RimeFlueState> st, List<bool> ch, bool fall) =>
-        '$room|${st.map((s) => s.index).join()}|'
-        '${ch.map((c) => c ? 1 : 0).join()}|${fall ? 1 : 0}';
+    // A state is 'room|shaft states|rimefall'. The ledge chutes carry no
+    // state: their snow holds, and riding one changes nothing but the room.
+    String enc(String room, List<RimeFlueState> st, bool fall) =>
+        '$room|${st.map((s) => s.index).join()}|${fall ? 1 : 0}';
 
     /// Every move out of one state. TWO MOUTHS PER HEAD and nothing couples
     /// them: the shaft always goes down (and its snow decides only whether
-    /// you can come back up), the chute always goes to its ledge, and riding
-    /// a chute spends that chute alone.
-    List<(String, List<RimeFlueState>, List<bool>, bool)> moves(
+    /// you can come back up), and the chute always goes to its ledge.
+    List<(String, List<RimeFlueState>, bool)> moves(
       String room,
       List<RimeFlueState> st,
-      List<bool> ch,
       bool fall, {
       required bool rimefallEnabled,
     }) {
-      final out = <(String, List<RimeFlueState>, List<bool>, bool)>[];
+      final out = <(String, List<RimeFlueState>, bool)>[];
       for (var i = 0; i < flues.length; i++) {
         final f = flues[i];
         if (f.headRoom == room) {
           // The shaft, down. Always possible; a drift is spent by the ride.
           if (st[i] == RimeFlueState.drift) {
-            out.add((
-              f.footRoom,
-              [...st]..[i] = RimeFlueState.scoured,
-              ch,
-              fall,
-            ));
+            out.add((f.footRoom, [...st]..[i] = RimeFlueState.scoured, fall));
             if (f.freezable) {
-              out.add((room, [...st]..[i] = RimeFlueState.stair, ch, fall));
+              out.add((room, [...st]..[i] = RimeFlueState.stair, fall));
             }
           } else {
-            out.add((f.footRoom, st, ch, fall));
+            out.add((f.footRoom, st, fall));
           }
-          // The ledge chute, while its snow is still in it.
-          if (f.shelfRoom != null && !ch[i]) {
-            out.add((f.shelfRoom!, st, [...ch]..[i] = true, fall));
-          }
+          // The ledge chute, a ramp every time.
+          if (f.shelfRoom != null) out.add((f.shelfRoom!, st, fall));
         }
         // Up, from the foot.
         if (f.footRoom == room) {
@@ -1694,19 +2578,18 @@ extension FrozenObservatory on PlanetDungeonGame {
               out.add((
                 f.headRoom,
                 List.filled(flues.length, RimeFlueState.drift),
-                List.filled(flues.length, false),
                 false,
               ));
             }
           } else if (st[i] == RimeFlueState.stair) {
-            out.add((f.headRoom, st, ch, fall));
+            out.add((f.headRoom, st, fall));
           }
         }
       }
       // Freeze the rimefall (Ice, at the sump — always available).
       if (rimefallEnabled && !fall) {
         for (final f in flues) {
-          if (f.isThroat && f.footRoom == room) out.add((room, st, ch, true));
+          if (f.isThroat && f.footRoom == room) out.add((room, st, true));
         }
       }
       // Plain doors that are not part of the shaft at all: the ledges'
@@ -1722,7 +2605,7 @@ extension FrozenObservatory on PlanetDungeonGame {
             isFlue = true;
           }
         }
-        if (!isFlue) out.add((d.targetRoomId, st, ch, fall));
+        if (!isFlue) out.add((d.targetRoomId, st, fall));
       }
       return out;
     }
@@ -1731,17 +2614,16 @@ extension FrozenObservatory on PlanetDungeonGame {
     Set<String> reach(
       String room,
       List<RimeFlueState> st,
-      List<bool> ch,
       bool fall, {
       required bool rimefallEnabled,
     }) {
-      final seen = <String>{enc(room, st, ch, fall)};
+      final seen = <String>{enc(room, st, fall)};
       final hit = <String>{room};
-      final queue = [(room, st, ch, fall)];
+      final queue = [(room, st, fall)];
       while (queue.isNotEmpty) {
-        final (rm, s, c, fl) = queue.removeLast();
-        for (final m in moves(rm, s, c, fl, rimefallEnabled: rimefallEnabled)) {
-          final k = enc(m.$1, m.$2, m.$3, m.$4);
+        final (rm, s, fl) = queue.removeLast();
+        for (final m in moves(rm, s, fl, rimefallEnabled: rimefallEnabled)) {
+          final k = enc(m.$1, m.$2, m.$3);
           if (!seen.add(k)) continue;
           hit.add(m.$1);
           queue.add(m);
@@ -1751,20 +2633,15 @@ extension FrozenObservatory on PlanetDungeonGame {
     }
 
     // Enumerate every state the player can actually get into from the mouth.
-    final start = (
-      head,
-      List.filled(flues.length, RimeFlueState.drift),
-      List.filled(flues.length, false),
-      false,
-    );
-    final live = <String, (String, List<RimeFlueState>, List<bool>, bool)>{
-      enc(start.$1, start.$2, start.$3, start.$4): start,
+    final start = (head, List.filled(flues.length, RimeFlueState.drift), false);
+    final live = <String, (String, List<RimeFlueState>, bool)>{
+      enc(start.$1, start.$2, start.$3): start,
     };
     final queue = [start];
     while (queue.isNotEmpty) {
-      final (rm, s, c, fl) = queue.removeLast();
-      for (final m in moves(rm, s, c, fl, rimefallEnabled: true)) {
-        final k = enc(m.$1, m.$2, m.$3, m.$4);
+      final (rm, s, fl) = queue.removeLast();
+      for (final m in moves(rm, s, fl, rimefallEnabled: true)) {
+        final k = enc(m.$1, m.$2, m.$3);
         if (live.containsKey(k)) continue;
         live[k] = m;
         queue.add(m);
@@ -1779,9 +2656,9 @@ extension FrozenObservatory on PlanetDungeonGame {
         if (f.shelfRoom != null) f.shelfRoom!,
     ];
     for (final st in live.values) {
-      final all = reach(st.$1, st.$2, st.$3, st.$4, rimefallEnabled: true);
+      final all = reach(st.$1, st.$2, st.$3, rimefallEnabled: true);
       if (all.length < rooms.length) strandable++;
-      final bare = reach(st.$1, st.$2, st.$3, st.$4, rimefallEnabled: false);
+      final bare = reach(st.$1, st.$2, st.$3, rimefallEnabled: false);
       if (bare.length < rooms.length) without++;
       if (shelves.any((s) => !bare.contains(s))) shelfLosable++;
     }
@@ -2006,6 +2883,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     _renderFlueMouths(canvas, room);
     _renderOrrery(canvas, room);
     _renderMirrorRing(canvas, room);
+    _renderRoof(canvas, room);
     _renderShaftObjects(canvas, room);
 
     canvas.save();
@@ -2067,7 +2945,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (final f in kRimeFlues) {
       if (f.headRoom != room.id || f.chutePos == null) continue;
       if (room.rime?.iceCap != null && !_capMelted('${f.id}:chute')) continue;
-      _drawLedgeChute(canvas, f.chutePos!, spentChutes.contains(f.id));
+      _drawLedgeChute(canvas, f.chutePos!);
     }
     for (final f in kRimeFlues) {
       if (f.headRoom != room.id) continue;
@@ -2284,57 +3162,38 @@ extension FrozenObservatory on PlanetDungeonGame {
   /// A LEDGE CHUTE. Deliberately not a shaft: narrower, canted, and with its
   /// snow visibly running OFF to one side into the pocket it feeds, so the
   /// two holes at a head can never be mistaken for one hole in two moods.
-  /// Spent, it is an empty slot with nothing in it to ride.
-  void _drawLedgeChute(Canvas canvas, Offset p, bool spent) {
+  /// The snow is always in it: a chute is a ramp every time.
+  void _drawLedgeChute(Canvas canvas, Offset p) {
     final r = Rect.fromCenter(center: p, width: 86, height: 58);
     canvas.drawOval(
       r.deflate(2),
       Paint()..color = const Color(0xFF050D14).withValues(alpha: 0.92),
     );
-    if (!spent) {
-      // The snow, heaped to the lip and spilling away downhill.
-      final ramp = Path()
-        ..moveTo(r.left + 6, r.bottom - 8)
-        ..quadraticBezierTo(
-          r.center.dx - 10,
-          r.top + 8,
-          r.right - 10,
-          r.top + 20,
-        )
-        ..lineTo(r.right - 6, r.bottom - 10)
-        ..close();
-      canvas.drawPath(ramp, Paint()..color = _kIceWhite.withValues(alpha: 0.6));
-      canvas.drawPath(
-        ramp,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = Colors.white.withValues(alpha: 0.7),
-      );
-      // The tongue of snow going over the lip, which is where you go.
-      final tongue = Path()
-        ..moveTo(r.right - 14, r.top + 22)
-        ..lineTo(r.right + 26, r.top + 34)
-        ..lineTo(r.right + 22, r.bottom - 4)
-        ..lineTo(r.right - 10, r.bottom - 10)
-        ..close();
-      canvas.drawPath(
-        tongue,
-        Paint()..color = _kIceWhite.withValues(alpha: 0.34),
-      );
-    } else {
-      // Bare. One cold highlight down the far wall and nothing to ride.
-      canvas.drawArc(
-        r.deflate(8),
-        0.6,
-        2.0,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4
-          ..color = _kIcePale.withValues(alpha: 0.45),
-      );
-    }
+    // The snow, heaped to the lip and spilling away downhill.
+    final ramp = Path()
+      ..moveTo(r.left + 6, r.bottom - 8)
+      ..quadraticBezierTo(r.center.dx - 10, r.top + 8, r.right - 10, r.top + 20)
+      ..lineTo(r.right - 6, r.bottom - 10)
+      ..close();
+    canvas.drawPath(ramp, Paint()..color = _kIceWhite.withValues(alpha: 0.6));
+    canvas.drawPath(
+      ramp,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = Colors.white.withValues(alpha: 0.7),
+    );
+    // The tongue of snow going over the lip, which is where you go.
+    final tongue = Path()
+      ..moveTo(r.right - 14, r.top + 22)
+      ..lineTo(r.right + 26, r.top + 34)
+      ..lineTo(r.right + 22, r.bottom - 4)
+      ..lineTo(r.right - 10, r.bottom - 10)
+      ..close();
+    canvas.drawPath(
+      tongue,
+      Paint()..color = _kIceWhite.withValues(alpha: 0.34),
+    );
     canvas.drawOval(
       r,
       Paint()
@@ -2915,15 +3774,12 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (ring == null) return;
     final ground = _shaftGround(room);
 
-    // THE POOL. It is a MIRROR, and what it shows is the whole clue layer for
-    // the vault: the shelf's glow hangs in the reflected shaft, though the
-    // wall itself is blank (§5.5 — "visible only in a mirror"). Wordless.
-    //
-    // It used to be a flat black disc with one cyan dot floating in it, which
-    // gave the glow nothing to hang IN. The reflection is built now — the
-    // chart of the ceiling this gallery exists to read, and the two walls of
-    // the shaft converging away above — so the dot reads as a light up there
-    // rather than as a marker down here.
+    // THE POOL. It is a MIRROR: the chart of the ceiling this gallery exists
+    // to read, and the two walls of the shaft converging away above. It used
+    // to also carry a cyan glow for the vault ledge ("visible only in a
+    // mirror"); that went on 2026-09-20 — played, it read as an unexplained
+    // blue star, and with the ledge chute a ramp every time the vault needs
+    // no tell.
     final pool = ring.radius - 34;
     canvas.drawCircle(
       ring.center,
@@ -2937,50 +3793,34 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (final s in ground.reflection) {
       canvas.drawPath(s.path, s.paint);
     }
-    if (!discoveredClouds.contains(_vaultCacheId)) {
-      // THE VAULT, AND IT IS THE ONLY PLACE IT IS EVER SHOWN. A 13px dot in
-      // a big dark pool is a speck; what has to read is a LEDGE up there
-      // with something lit standing on it, hanging in the reflected shaft.
-      final bob = sin(_time * 1.2) * 4;
-      final glow = ring.center + Offset(ring.radius * 0.52, -46 + bob);
-      canvas.drawPath(
-        Path()
-          ..moveTo(glow.dx - 46, glow.dy + 20)
-          ..lineTo(glow.dx - 30, glow.dy + 9)
-          ..lineTo(glow.dx + 32, glow.dy + 11)
-          ..lineTo(glow.dx + 44, glow.dy + 22)
-          ..close(),
-        Paint()..color = _kIcePale.withValues(alpha: 0.30),
+    // THE SHAFT ABOVE, AS THE WATER SEES IT. Snow and cut steps are dull;
+    // a shaft ridden to bare ice is a mirror, and the reflected mouth of it
+    // goes pale with sky — the one wordless tell that the stranger can be
+    // read here at all.
+    if (shaftAboveIsMirror) {
+      final c = ring.center;
+      final sky = Path()
+        ..moveTo(c.dx - 40, c.dy - 190)
+        ..lineTo(c.dx + 62, c.dy - 190)
+        ..lineTo(c.dx + 40, c.dy - 96)
+        ..lineTo(c.dx - 18, c.dy - 96)
+        ..close();
+      canvas.drawPath(sky, Paint()..color = _kIcePale.withValues(alpha: 0.24));
+      // The bare walls themselves, catching light all the way up.
+      canvas.drawLine(
+        Offset(c.dx - 40, c.dy - 190),
+        Offset(c.dx - 18, c.dy - 96),
+        Paint()
+          ..strokeWidth = 2.6
+          ..color = _kIceWhite.withValues(alpha: 0.5),
       );
-      for (var i = 3; i >= 1; i--) {
-        canvas.drawCircle(
-          glow,
-          10.0 + i * 7,
-          Paint()
-            ..color = const Color(
-              0xFF00E5FF,
-            ).withValues(alpha: 0.07 + i * 0.05),
-        );
-      }
-      canvas.drawCircle(
-        glow,
-        7,
-        Paint()..color = Colors.white.withValues(alpha: 0.82),
+      canvas.drawLine(
+        Offset(c.dx + 62, c.dy - 190),
+        Offset(c.dx + 40, c.dy - 96),
+        Paint()
+          ..strokeWidth = 2.6
+          ..color = _kIceWhite.withValues(alpha: 0.5),
       );
-      // Four short rays, so it reads as a LIGHT and not as a coin lying in
-      // the water (Water's moon-well lesson, §6).
-      final ray = Paint()
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 2
-        ..color = const Color(0xFF9FF4FF).withValues(alpha: 0.5);
-      for (var i = 0; i < 4; i++) {
-        final a = i * pi / 2 + 0.3;
-        canvas.drawLine(
-          glow + Offset(cos(a), sin(a)) * 11,
-          glow + Offset(cos(a), sin(a)) * (20 + sin(_time * 2 + i) * 3),
-          ray,
-        );
-      }
     }
     canvas.restore();
     // The water's own surface: one slow shear of light across the black.
@@ -3049,6 +3889,61 @@ extension FrozenObservatory on PlanetDungeonGame {
           );
         }
       }
+    }
+
+    // THE STRANGER. Out past the chart's band, on one frame's bearing, and
+    // nothing like a chart star: warm where they are cold, flared where they
+    // are points, and breathing. It is only ever here when the shaft above
+    // is bare ice and the water is reading that way (`strangerLight`).
+    final stranger = lodestoneLit ? strangerLight(ring) : 0.0;
+    if (stranger > 0.01) {
+      final ang = -pi / 2 + (2 * pi * strangerFrame) / ring.count;
+      final p = ring.center + Offset(cos(ang), sin(ang)) * (pool * 0.90);
+      final breath = 0.5 + 0.5 * sin(_time * 2.1);
+      // A spiked bloom, not a blur (the planet's rule): sixteen points.
+      final bloom = Path();
+      for (var i = 0; i < 16; i++) {
+        final a2 = i * pi / 8;
+        final r = i.isEven ? 22.0 + breath * 5 : 8.0;
+        final q = p + Offset(cos(a2), sin(a2)) * r;
+        if (i == 0) {
+          bloom.moveTo(q.dx, q.dy);
+        } else {
+          bloom.lineTo(q.dx, q.dy);
+        }
+      }
+      bloom.close();
+      canvas.drawPath(
+        bloom,
+        Paint()
+          ..color = const Color(
+            0xFFFFE9B0,
+          ).withValues(alpha: (0.30 + breath * 0.12) * stranger),
+      );
+      // Four long rays, so it reads as the brightest thing in the water.
+      final ray = Paint()
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 2.2
+        ..color = const Color(0xFFFFF3CC).withValues(alpha: 0.8 * stranger);
+      for (var i = 0; i < 4; i++) {
+        final a2 = i * pi / 2 + pi / 4;
+        canvas.drawLine(
+          p + Offset(cos(a2), sin(a2)) * 8,
+          p + Offset(cos(a2), sin(a2)) * (36 + breath * 8),
+          ray,
+        );
+      }
+      canvas.drawCircle(
+        p,
+        9,
+        Paint()
+          ..color = const Color(0xFFFFE9B0).withValues(alpha: 0.55 * stranger),
+      );
+      canvas.drawCircle(
+        p,
+        5.6,
+        Paint()..color = Colors.white.withValues(alpha: 0.97 * stranger),
+      );
     }
 
     // THE LIGHT-UP. The Mirror Star is a PICTURE you assembled out of
@@ -3557,40 +4452,63 @@ extension FrozenObservatory on PlanetDungeonGame {
       canvas.drawLine(p + Offset(dx, 62), p + const Offset(0, 4), wood);
     }
     canvas.drawCircle(p + const Offset(0, 4), 9, Paint()..color = _kShaftBrass);
-    // The declination arc: the instrument's graduations, which is what makes
-    // this an observatory's telescope and not a spyglass on a stand.
-    final arcRect = Rect.fromCircle(center: p + const Offset(0, 4), radius: 40);
-    canvas.drawArc(
-      arcRect,
-      -2.5,
-      1.5,
-      false,
+    final axis = p + const Offset(0, 4);
+    final ring = _mirrorRingRoom?.rime?.mirrors;
+    final notches = ring?.count ?? 12;
+
+    // THE AZIMUTH RING, cut into the floor round the mount: twelve notches,
+    // one for each frame's bearing on the gallery below, and the one the
+    // tube is set to lit. The instrument's whole question is WHICH WAY, so
+    // the graduations are laid flat where the tube's direction can be read
+    // against them (the old declination arc graded an angle nothing here
+    // ever changes).
+    const ringR = 46.0;
+    canvas.drawOval(
+      Rect.fromCenter(center: axis, width: ringR * 2, height: ringR * 1.44),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = _kShaftBrassLit.withValues(alpha: 0.8),
+        ..strokeWidth = 2.4
+        ..color = _kShaftBrassLit.withValues(alpha: 0.7),
     );
     final ticks = Paint()
-      ..color = _kShaftBrassLit.withValues(alpha: 0.7)
-      ..strokeWidth = 1.4;
-    for (var i = 0; i <= 10; i++) {
-      final a = -2.5 + 1.5 * i / 10;
-      final c = p + const Offset(0, 4);
-      final l = i % 5 == 0 ? 9.0 : 5.0;
-      canvas.drawLine(
-        c + Offset(cos(a) * 40, sin(a) * 40),
-        c + Offset(cos(a) * (40 - l), sin(a) * (40 - l)),
-        ticks,
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < notches; i++) {
+      final a = -pi / 2 + (2 * pi * i) / notches;
+      final set = i == telescopeNotch;
+      ticks.color = (set ? _kIceWhite : _kShaftBrassLit).withValues(
+        alpha: set ? 0.95 : 0.6,
       );
+      final out = Offset(cos(a) * ringR, sin(a) * ringR * 0.72);
+      final inn = Offset(
+        cos(a) * (ringR - (set ? 12 : 6)),
+        sin(a) * (ringR - (set ? 12 : 6)) * 0.72,
+      );
+      canvas.drawLine(axis + out, axis + inn, ticks);
     }
-    // The tube.
-    final axis = p + const Offset(0, 4);
-    const ang = -0.82;
+
+    // THE TUBE, swung to the notch. It eases through its last turn so the
+    // press is seen to do something, and the board is already at the new
+    // notch underneath (nothing can desync off the drawing).
+    final to = -pi / 2 + (2 * pi * telescopeNotch) / notches;
+    final from = -pi / 2 + (2 * pi * (telescopeNotch - 1)) / notches;
+    final ease = Curves.easeOutCubic.transform(1 - telescopeSwing);
+    final ang = from + (to - from) * ease;
+    Offset along(double d) => axis + Offset(cos(ang) * d, sin(ang) * d * 0.72);
+    Offset across(double d, double w) {
+      final n = Offset(-sin(ang), cos(ang) * 0.72);
+      return along(d) + n * w;
+    }
+
+    // Raised off the mount: the tube stands a little above the floor's
+    // ring, so it reads as an instrument on a tripod and not as a pointer
+    // painted on the ground.
+    const lift = Offset(0, -14);
     final tube = Path()
-      ..moveTo(axis.dx + cos(ang) * -44 + 9, axis.dy + sin(ang) * -44 + 6)
-      ..lineTo(axis.dx + cos(ang) * 52 + 7, axis.dy + sin(ang) * 52 + 5)
-      ..lineTo(axis.dx + cos(ang) * 52 - 11, axis.dy + sin(ang) * 52 - 8)
-      ..lineTo(axis.dx + cos(ang) * -44 - 7, axis.dy + sin(ang) * -44 - 5)
+      ..moveTo(across(-30, 7).dx + lift.dx, across(-30, 7).dy + lift.dy)
+      ..lineTo(across(54, 10).dx + lift.dx, across(54, 10).dy + lift.dy)
+      ..lineTo(across(54, -10).dx + lift.dx, across(54, -10).dy + lift.dy)
+      ..lineTo(across(-30, -7).dx + lift.dx, across(-30, -7).dy + lift.dy)
       ..close();
     canvas.drawPath(tube, Paint()..color = const Color(0xFF6E5A34));
     canvas.drawPath(
@@ -3601,18 +4519,24 @@ extension FrozenObservatory on PlanetDungeonGame {
         ..color = _kShaftBrassLit.withValues(alpha: 0.65),
     );
     // The objective, with a cold gleam in it.
+    final eye = along(54) + lift;
+    canvas.drawCircle(eye, 11, Paint()..color = const Color(0xFF0B2733));
     canvas.drawCircle(
-      axis + Offset(cos(ang) * 52, sin(ang) * 52),
-      11,
-      Paint()..color = const Color(0xFF0B2733),
-    );
-    canvas.drawCircle(
-      axis + Offset(cos(ang) * 52, sin(ang) * 52),
+      eye,
       11,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2
         ..color = _kIcePale.withValues(alpha: 0.7),
+    );
+    // A brass pointer from the axis to the set notch, so the tube and the
+    // ring agree to the eye even mid-swing.
+    canvas.drawLine(
+      axis,
+      axis + Offset(cos(to) * (ringR - 4), sin(to) * (ringR - 4) * 0.72),
+      Paint()
+        ..strokeWidth = 1.2
+        ..color = _kIceWhite.withValues(alpha: 0.35),
     );
   }
 }
@@ -4281,7 +5205,7 @@ _ShaftGround _buildShaftGround(DungeonRoom room) {
     case 'cold_sump':
       _groundColdSump(g, b, rnd);
     case 'star_font':
-      _groundStarFont(g, b, rnd);
+      _groundStarFont(g, b, rnd, room.rime!.roof!);
     case 'frowyrm_hollow':
       _groundFrowyrmHollow(g, b, rnd);
     case 'shelf_glass':
@@ -4695,138 +5619,135 @@ void _groundColdSump(_ShaftGround g, Rect b, _ShaftRnd rnd) {
   _shaftIcicles(g, b.deflate(10), rnd, n: 22, maxLen: 66);
 }
 
-/// THE STAR FONT — the rite room. Its floor carries an ANALEMMA: the figure
-/// the sun draws over a year, inlaid in brass with its own graduations. The
-/// two halves of the rite stand on its two lobes, which is why the room does
-/// not need a symmetry axis drawn down the middle to look composed.
-void _groundStarFont(_ShaftGround g, Rect b, _ShaftRnd rnd) {
-  _shaftFoliation(g, b, rnd, 0.26);
-  _shaftKerb(g, b, rnd, 24);
+/// THE STAR FONT — THE ROOF OF THE HOLLOW. Two stone shores, a glacier rim
+/// either side, and between them the roof: a field of snow over panes of
+/// ice, the seams of the panes just showing through, and the font's pier
+/// standing up out of it. Everything a pane SHOWS is drawn live by
+/// `_renderRoof`; this is only what never changes.
+void _groundStarFont(_ShaftGround g, Rect b, _ShaftRnd rnd, IceRoof roof) {
+  final field = roof.bounds;
+  _shaftFoliation(g, b, rnd, 0.16);
 
-  // THE FIRST DRAFT OF THIS FLOOR HAD A FACE ON IT. A wide brass lemniscate
-  // across the middle, an octagonal plinth inside each of its two lobes, and
-  // a graduated arc curving along below — which is a pair of SPECTACLES over
-  // a SMILE, and once seen it cannot be unseen. The analemma is upright and
-  // narrow now (which is what one actually looks like: tall and pinched, not
-  // a lazy eight), it runs down the room's noon line rather than across it,
-  // and the arc below it is gone. What carries the floor instead is the
-  // thing an observatory floor should carry: A DIAL.
-  final gnomon = Offset(b.left + 320, b.bottom - 46);
-
-  // Hour lines fanning up from the gnomon's socket to the graduated limb.
-  final hours = Path();
-  for (var i = 0; i <= 12; i++) {
-    final a = -pi * 0.93 + i * (pi * 0.86) / 12;
-    hours
-      ..moveTo(gnomon.dx + cos(a) * 58, gnomon.dy + sin(a) * 58)
-      ..lineTo(gnomon.dx + cos(a) * 292, gnomon.dy + sin(a) * 292);
-  }
-  g.stroke(hours, _kShaftBrass.withValues(alpha: 0.34), 1.6);
-  _shaftArc(
-    g,
-    gnomon,
-    300,
-    -pi * 0.95,
-    pi * 0.9,
-    ticks: 36,
-    width: 2.2,
-    tickLen: 12,
-  );
-  g.fill(
-    Path()..addOval(Rect.fromCenter(center: gnomon, width: 62, height: 30)),
-    _kShaftStone.withValues(alpha: 0.8),
-  );
-  g.fill(
-    Path()..addOval(Rect.fromCenter(center: gnomon, width: 26, height: 13)),
-    _kShaftDark.withValues(alpha: 0.85),
-  );
-
-  // THE ANALEMMA, upright: narrow, and laid along the dial's noon line.
-  final c = Offset(b.left + 320, b.top + 232);
-  final lem = Path();
-  final marks = Path();
-  for (var i = 0; i <= 96; i++) {
-    final t = i * pi * 2 / 96;
-    final d = 1 + sin(t) * sin(t);
-    final p = c + Offset(52 * sin(t) * cos(t) / d, 150 * cos(t) / d);
-    i == 0 ? lem.moveTo(p.dx, p.dy) : lem.lineTo(p.dx, p.dy);
-    if (i % 8 == 0) {
-      marks
-        ..moveTo(p.dx - 7, p.dy)
-        ..lineTo(p.dx + 7, p.dy);
-    }
-  }
-  g.stroke(lem, _kShaftBrassLit.withValues(alpha: 0.55), 2.4);
-  g.stroke(marks, _kShaftBrassLit.withValues(alpha: 0.4), 1.3);
-
-  // THE TWO PLINTHS THE RITE STANDS ON. They were flat rectangles with a
-  // bright outline round them, which is §7.10's index card: an outlined slab
-  // lying on a floor has no height, whatever it is made of. Each one is a
-  // BLOCK now — a top face you look slightly down onto, a near face below it
-  // in its own shade, courses cut across that face, and the only bright line
-  // on the whole thing along the front edge where the two faces meet.
-  for (final p in [
-    Offset(b.left + 200, b.top + 250),
-    Offset(b.left + 440, b.top + 250),
+  // THE SHORES: stone, the near one under the sump's door and the far one
+  // where the hollow's own way up comes out.
+  for (final shore in [
+    Rect.fromLTRB(b.left, b.top, b.right, field.top),
+    Rect.fromLTRB(b.left, field.bottom, b.right, b.bottom),
   ]) {
-    const w = 112.0, d = 30.0, h = 34.0;
-    final front = p.dy + d / 2;
-    g.fill(
-      Path()..addOval(
-        Rect.fromCenter(
-          center: Offset(p.dx, front + h + 4),
-          width: w + 22,
-          height: 20,
-        ),
-      ),
-      _kShaftDark.withValues(alpha: 0.34),
-    );
-    // The near face, and the courses in it.
-    g.fill(
-      Path()
-        ..addRect(Rect.fromLTRB(p.dx - w / 2, front, p.dx + w / 2, front + h)),
-      _kShaftStone.withValues(alpha: 0.72),
-    );
+    g.fill(Path()..addRect(shore), _kShaftStone.withValues(alpha: 0.55));
     final courses = Path();
-    for (final x in [-w / 6, w / 6]) {
+    for (var i = 0; i < 5; i++) {
+      final y = shore.top + rnd.range(8, shore.height - 8);
       courses
-        ..moveTo(p.dx + x, front + 2)
-        ..lineTo(p.dx + x, front + h - 2);
+        ..moveTo(shore.left + rnd.range(10, 60), y)
+        ..lineTo(shore.right - rnd.range(10, 60), y + rnd.range(-3, 3));
     }
-    g.stroke(courses, _kShaftDark.withValues(alpha: 0.30), 1.4);
-    // The top face: narrower at the back, because you are above it.
-    g.fill(
-      Path()
-        ..moveTo(p.dx - w / 2, front)
-        ..lineTo(p.dx - w / 2 + 14, front - d)
-        ..lineTo(p.dx + w / 2 - 14, front - d)
-        ..lineTo(p.dx + w / 2, front)
-        ..close(),
-      _kShaftStoneLit.withValues(alpha: 0.62),
-    );
-    g.stroke(
-      Path()
-        ..moveTo(p.dx - w / 2, front)
-        ..lineTo(p.dx + w / 2, front),
-      _kShaftMilk.withValues(alpha: 0.5),
-      2.0,
-    );
+    g.stroke(courses, _kShaftDark.withValues(alpha: 0.28), 1.3);
+  }
+  // Their kerbs, along the roof's edge, lit where they meet the snow.
+  g.stroke(
+    Path()
+      ..moveTo(field.left, field.top)
+      ..lineTo(field.right, field.top)
+      ..moveTo(field.left, field.bottom)
+      ..lineTo(field.right, field.bottom),
+    _kShaftStoneLit.withValues(alpha: 0.7),
+    3.0,
+  );
+
+  // THE RIMS: the glacier coming down to the roof's edge either side.
+  for (final rim in [
+    Rect.fromLTRB(b.left, field.top, field.left, field.bottom),
+    Rect.fromLTRB(field.right, field.top, b.right, field.bottom),
+  ]) {
+    g.fill(Path()..addRect(rim), _kShaftGlacier.withValues(alpha: 0.7));
+    final lit = Path();
+    final x = rim.left < field.left ? rim.right - 2 : rim.left + 2;
+    lit
+      ..moveTo(x, rim.top)
+      ..lineTo(x, rim.bottom);
+    g.stroke(lit, _kShaftIce.withValues(alpha: 0.6), 2.0);
   }
 
-  // The chart on the ceiling this font answers to, cut into its floor.
+  // THE SNOW FIELD. One sheet, drifted, with the pane seams under it — the
+  // seams are what let the roof be reasoned about as panes at all.
+  g.fill(Path()..addRect(field), _kShaftMilk.withValues(alpha: 0.26));
+  final drifts = Path();
+  for (var i = 0; i < 22; i++) {
+    drifts.addOval(
+      Rect.fromCenter(
+        center: Offset(
+          rnd.range(field.left + 20, field.right - 20),
+          rnd.range(field.top + 14, field.bottom - 14),
+        ),
+        width: rnd.range(40, 120),
+        height: rnd.range(14, 34),
+      ),
+    );
+  }
+  g.fill(drifts, _kShaftMilk.withValues(alpha: 0.12));
+  final seams = Path();
+  for (var c = 1; c < roof.cols; c++) {
+    final x = field.left + c * roof.cell;
+    seams
+      ..moveTo(x, field.top)
+      ..lineTo(x, field.bottom);
+  }
+  for (var r = 1; r < roof.rows; r++) {
+    final y = field.top + r * roof.cell;
+    seams
+      ..moveTo(field.left, y)
+      ..lineTo(field.right, y);
+  }
+  g.stroke(seams, _kShaftDark.withValues(alpha: 0.2), 1.2);
+  _shaftCraze(g, field, rnd, 5, 0.1);
+
+  // THE PIER: the one thing standing up out of the snow. A block, top face
+  // and near face, the bright line along the edge where they meet (§7.10).
+  final pier = roof.rectOf(roof.pierCell).deflate(8);
+  g.fill(
+    Path()..addOval(
+      Rect.fromCenter(
+        center: pier.bottomCenter + const Offset(0, 4),
+        width: pier.width + 16,
+        height: 18,
+      ),
+    ),
+    _kShaftDark.withValues(alpha: 0.32),
+  );
+  g.fill(
+    Path()..addRect(
+      Rect.fromLTRB(pier.left, pier.center.dy, pier.right, pier.bottom),
+    ),
+    _kShaftStone.withValues(alpha: 0.9),
+  );
+  g.fill(
+    Path()
+      ..moveTo(pier.left, pier.center.dy)
+      ..lineTo(pier.left + 8, pier.top)
+      ..lineTo(pier.right - 8, pier.top)
+      ..lineTo(pier.right, pier.center.dy)
+      ..close(),
+    _kShaftStoneLit.withValues(alpha: 0.85),
+  );
+  g.stroke(
+    Path()
+      ..moveTo(pier.left, pier.center.dy)
+      ..lineTo(pier.right, pier.center.dy),
+    _kShaftMilk.withValues(alpha: 0.6),
+    2.0,
+  );
+
+  // The chart this font answers to, cut into the near shore.
   _shaftStarfield(
     g,
-    Rect.fromLTRB(b.left + 40, b.top + 30, b.right - 40, b.top + 110),
+    Rect.fromLTRB(b.left + 60, b.top + 30, b.right - 60, field.top - 20),
     rnd,
-    18,
+    16,
     _ShaftLayer.base,
-    0.32,
+    0.3,
   );
-
-  _shaftCraze(g, b, rnd, 6, 0.12);
-  _shaftBlooms(g, b, rnd, 8, 70);
-  _shaftFerns(g, b, rnd, 12, 80);
-  _shaftIcicles(g, b.deflate(10), rnd, n: 13, maxLen: 36);
+  _shaftIcicles(g, b.deflate(10), rnd, n: 11, maxLen: 30);
 }
 
 /// FROWYRM'S HOLLOW — not a room at all, a cavity melted into the glacier and

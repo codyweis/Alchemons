@@ -850,11 +850,17 @@ class BeaconArchive {
   /// Slips drawn out of the dark (Star 1).
   final Set<String> slipsDrawn = {};
 
-  /// True while a crossing that has not shown a single lumen is still alive
-  /// (the Lost Maxim). Armed at the door in total darkness, killed by any
-  /// light at all, paid off at the reliquary.
-  bool hushWalk = false;
-  bool hushWalked = false;
+  /// THE INDEX (the Lost Maxim). The catalogue on the ledger walk is a case
+  /// of ten panes, one per cell of the hall, and it is whole only when EVERY
+  /// cell is lit — ten lumens, the state every star here forbids. Read whole,
+  /// it names the one slab in the oculus stair the archive's last volume was
+  /// filed under; the volume is drawn in TOTAL darkness, by the one hand
+  /// small enough to reach behind a shelf.
+  int indexSocket = 0;
+  bool indexRead = false;
+
+  /// How many slabs stand in the oculus stair for the index to name.
+  static const int indexSocketCount = 5;
 
   /// Seconds left on the last kindle's bloom. Purely visual, and named here so
   /// the render has nowhere else to keep it.
@@ -885,8 +891,7 @@ class BeaconArchive {
       ..['bc_ledger'] = 0;
     effigiesRead.clear();
     slipsDrawn.clear();
-    hushWalk = false;
-    hushWalked = false;
+    indexRead = false;
     bloom = 0;
     glare = 0;
     worstLumens = 0;
@@ -959,7 +964,6 @@ class BeaconArchive {
     lamp[beaconId] = next;
     final l = lumens;
     if (l > worstLumens) worstLumens = l;
-    if (l > 0) hushWalk = false;
     return settingOf(beaconId);
   }
 
@@ -1025,6 +1029,14 @@ class ArchiveHall {
   /// guardian fights WITH the planet's rule).
   final List<Offset> gazePillars;
 
+  /// The Lost Maxim's index-case, on the ledger walk: ten panes, one per cell
+  /// of the hall, whole only when the whole hall is lit.
+  final Offset? catalogue;
+
+  /// The Lost Maxim's five slabs in the oculus stair, one of which the index
+  /// names. In [BeaconArchive.indexSocketCount] order.
+  final List<Offset> indexSockets;
+
   const ArchiveHall({
     required this.sector,
     this.starIndex,
@@ -1032,6 +1044,8 @@ class ArchiveHall {
     this.balustrade,
     this.shutterRing,
     this.gazePillars = const [],
+    this.catalogue,
+    this.indexSockets = const [],
   });
 }
 
@@ -1057,14 +1071,12 @@ const DungeonLayout lightLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Shadow Star',
       earnAnnouncement:
-          'The Shadow Star is yours, four stones read by what they throw, '
-          'and never two of them in the same light',
+          'The Shadow Star is yours. All four effigies are read',
     ),
     DungeonStarSpec(
       name: 'Hush Star',
       earnAnnouncement:
-          'The Hush Star is yours, three slips drawn, and the archive never '
-          'saw you take one',
+          'The Hush Star is yours. All three slips are drawn',
     ),
     DungeonStarSpec(name: 'Corona Star'),
   ],
@@ -1073,13 +1085,12 @@ const DungeonLayout lightLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('lumen_threshold', 'shadow_court'),
   finaleDoor: DungeonDoorRef('reading_floor', 'solarin_oculus'),
   riteAnnouncement:
-      'Shadow and Hush are won, the oriel splits, and the stair under the '
-      'oculus stops being a stair down to nothing',
+      'Shadow and Hush are won. The stair to the Oculus opens',
   finaleSealedHint:
-      'The stair is shut, it answers only the Shadow and Hush stars',
+      'The stair stays shut until you have the Shadow and Hush stars',
   guardianSealedHint:
-      'Nothing under the oculus wakes while the reading floor is still half '
-      'in the dark',
+      'Solarin won\'t wake until the oriel and the ring on the Reading '
+      'Floor are both done',
   mercyShrineRoomId: 'moth_gallery',
   // Ideal: Lightmask · Crystalmask · Spiritpip — hinted by VERB, never body
   // part (§4): a light that can be small, second sight, and what my smallest
@@ -1090,8 +1101,8 @@ const DungeonLayout lightLayout = DungeonLayout(
     'and a Spirit Pip, because everything worth having lies behind my shelves.',
   ],
   primer: [
-    'Light is the floor on the rim and a wall into the heart.',
-    'The wardens count every lumen you spend.',
+    'Beacons decide which floors hold: glass holds when lit, mirror when dark.',
+    'The wardens wake if too much of the hall is lit.',
   ],
   // §4 budget: TWO hard gates, on two different objects and two different
   // entry slots, and never two on one star. Star 0 (the shadow court) is
@@ -1107,14 +1118,13 @@ const DungeonLayout lightLayout = DungeonLayout(
       objectId: 'hush_slip',
       element: 'Spirit',
       family: 'Pip',
-      hintLine:
-          'Only a Spirit small enough to go behind the shelves reaches this',
+      hintLine: 'Only a Spirit Pip can reach behind the shelves',
     ),
     DungeonFamilyGate(
       objectId: 'A',
       element: 'Crystal',
       family: 'Mask',
-      hintLine: 'Only a Crystal with second sight splits this oriel\'s beam',
+      hintLine: 'Only a Crystal Mask can split this oriel\'s beam',
     ),
   ],
   rooms: {
@@ -1267,7 +1277,8 @@ const DungeonLayout lightLayout = DungeonLayout(
           targetSpawn: Offset(120, 150),
         ),
       ],
-      hall: ArchiveHall(sector: HallSector.ledger),
+      // THE CATALOGUE stands against the walk's wall: the Lost Maxim's index.
+      hall: ArchiveHall(sector: HallSector.ledger, catalogue: Offset(400, 90)),
     ),
 
     // ── THE OCULUS STAIR (the heart · sector 0) ───────────
@@ -1298,7 +1309,18 @@ const DungeonLayout lightLayout = DungeonLayout(
           targetSpawn: Offset(400, 130),
         ),
       ],
-      hall: ArchiveHall(sector: HallSector.door),
+      // THE FIVE SLABS the index can name, in an arc under the oculus. The
+      // volume under one of them is drawn in total darkness only (the maxim).
+      hall: ArchiveHall(
+        sector: HallSector.door,
+        indexSockets: [
+          Offset(200, 310),
+          Offset(280, 215),
+          Offset(360, 180),
+          Offset(440, 215),
+          Offset(520, 310),
+        ],
+      ),
     ),
 
     // ── THE SUNLESS RELIQUARY (the vault · sector 1) ──────

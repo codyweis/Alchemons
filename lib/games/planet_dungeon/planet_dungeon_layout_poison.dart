@@ -639,21 +639,20 @@ const DungeonLayout poisonLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Physician\'s Star',
       earnAnnouncement:
-          'The Physician\'s Star is yours, three brews, three plagues woken',
+          'The Physician\'s Star is yours. All three plagues are woken',
     ),
     DungeonStarSpec(
       name: 'Triage Star',
       earnAnnouncement:
-          'The Triage Star is yours, and every ward of the house is quiet',
+          'The Triage Star is yours. Every ward is quiet',
     ),
     DungeonStarSpec(name: 'Blightfang\'s Star'),
   ],
   entranceRevealDoor: DungeonDoorRef('lazar_gate', 'ambulatory'),
   riteAnnouncement:
-      'The cross rots off the barred ward. What you gave up lies open',
+      'The cross rots off the barred ward. The ward you gave up is open',
   guardianSealedHint:
-      'The oubliette will not lift, the house keeps patient zero until all '
-      'three plagues are down',
+      'Blightfang won\'t wake until all three plagues are down',
   mercyShrineRoomId: 'apothecary',
   // Ideal: Poisonmask · Planthorn · Mudmane — hinted by VERB, never body part
   // (§4 THE DESCENT RIDDLE). These three are also THE POT'S WHOLE LARDER, so
@@ -673,7 +672,7 @@ const DungeonLayout poisonLayout = DungeonLayout(
       objectId: 'ward_squint',
       element: 'Mud',
       family: 'Mane',
-      hintLine: 'Only a Mud mane crosses a live ward clean',
+      hintLine: 'Only a Mud Mane can cross a live ward safely',
     ),
   ],
   rooms: {

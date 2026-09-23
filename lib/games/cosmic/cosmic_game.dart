@@ -16,6 +16,9 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/constants/element_resources.dart';
+import 'package:alchemons/widgets/portal_key_glyph.dart';
+import 'package:alchemons/widgets/inventory_item_artwork.dart';
 import 'package:flame/components.dart' show Anchor;
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
@@ -37,6 +40,31 @@ part 'cosmic_game_companions_contests.dart';
 part 'cosmic_game_world_systems.dart';
 part 'cosmic_game_home_visuals.dart';
 part 'cosmic_game_caches.dart';
+part 'cosmic_game_mask.dart';
+
+/// Cached icon-glyph painters for item loot drops — same shop icon set
+/// resolved via [InventoryItemArtwork.offerFor], baked once per (icon, color)
+/// rather than laid out every frame.
+final Map<String, TextPainter> _itemIconPainters = {};
+
+TextPainter _itemIconPainter(IconData icon, Color color) {
+  final key = '${icon.codePoint}:${icon.fontFamily}:${color.toARGB32()}';
+  return _itemIconPainters.putIfAbsent(
+    key,
+    () => TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+          color: color,
+          fontSize: 24,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(),
+  );
+}
 
 // ─────────────────────────────────────────────────────────
 // MAIN GAME
@@ -49,11 +77,13 @@ class _BeamFx {
     required this.color,
     required this.width,
     required this.life,
+    this.wingElement,
   }) : maxLife = life;
 
   Offset start;
   Offset end;
   final Color color;
+  final String? wingElement;
   final double width;
   double life;
   final double maxLife;
@@ -511,6 +541,13 @@ class CosmicGame extends FlameGame with PanDetector {
   // the identical landing survival and the dungeon do.
   final List<LetSkyfallImpact> _letSkyfallImpacts = [];
   final List<_BeamFx> _beamFx = [];
+  double _openKinPrevShipHealth = -1;
+  double _openKinLastShipDamage = 0;
+  final MaskTrapVisuals _maskTrapVisuals = MaskTrapVisuals();
+  final Set<CosmicEnemy> _maskBloodMarked = {};
+  final Map<int, int> _maskSpiritBank = {};
+  double _maskBloodTimer = 0;
+  double _maskBloodHealing = 0;
   final List<_ActiveWingBeam> _activeWingBeams = [];
   final List<_ActiveWingBeam> _pendingWingBeams = [];
   final Map<int, double> _wingFrostBuildup = {};
@@ -1384,11 +1421,19 @@ class CosmicGame extends FlameGame with PanDetector {
     Offset start,
     Offset end,
     Color color, {
+    String? wingElement,
     double width = 8,
     double life = 0.08,
   }) {
     _beamFx.add(
-      _BeamFx(start: start, end: end, color: color, width: width, life: life),
+      _BeamFx(
+        start: start,
+        end: end,
+        color: color,
+        width: width,
+        life: life,
+        wingElement: wingElement,
+      ),
     );
     if (_beamFx.length > 42) _beamFx.removeAt(0);
   }
@@ -1429,6 +1474,7 @@ class CosmicGame extends FlameGame with PanDetector {
         start: fx.start,
         end: fx.end,
         color: fx.color,
+        wingElement: fx.wingElement,
         width: fx.width,
         alpha: fx.alpha,
         time: _elapsed,
@@ -1709,6 +1755,24 @@ class CosmicGame extends FlameGame with PanDetector {
   }
 
   void _tickOpenGarrisonIdentity(_GarrisonCreature g, double dt) {
+    if (g.member.family.toLowerCase() == 'kin' &&
+        g.member.element == 'Fire' &&
+        g.kinFireOrbitalFlameActive) {
+      g.kinSteamStackDecayTimer -= dt;
+      if (g.kinSteamStackDecayTimer <= 0) {
+        g.kinSteamStackDecayTimer = 0.5;
+        for (final enemy in enemies) {
+          if (!enemy.dead && (enemy.position - g.position).distance <= 70) {
+            _damageOpenEnemy(
+              enemy,
+              max(4.0, g.specialDamage * 0.6),
+              element: 'Fire',
+            );
+          }
+        }
+        _spawnHitSpark(g.position, const Color(0xFFFFB060));
+      }
+    }
     if (g.pipSpiritEmpowerTimer > 0) {
       g.pipSpiritEmpowerTimer = max(0, g.pipSpiritEmpowerTimer - dt);
     }
@@ -2048,6 +2112,62 @@ class CosmicGame extends FlameGame with PanDetector {
         }
         _spawnHitSpark(enemy.position, elementColor('Water'));
       }
+    } else if (family == 'kin' && member.element == 'Spirit') {
+      final comp = _sourceCompanion(source);
+      final garrison = _sourceGarrison(source);
+      if (comp != null) {
+        comp.kinSpiritWispKills++;
+        final tier = comp.kinSpiritWispKills >= 12
+            ? 4
+            : comp.kinSpiritWispKills >= 7
+            ? 3
+            : comp.kinSpiritWispKills >= 3
+            ? 2
+            : 1;
+        for (final wisp in companionProjectiles.where(
+          (p) =>
+              p.abilityFamily == 'kin' &&
+              p.element == 'Spirit' &&
+              p.sourceSlotIndex == comp.member.slotIndex &&
+              p.decoy,
+        )) {
+          wisp.effectStacks = tier;
+          wisp.tauntRadius = tier >= 2 ? 115 : 0;
+          wisp.effectPower = tier >= 3 ? comp.abilityAtk * 0.30 : 0;
+          if (tier >= 4) {
+            comp.currentHp = min(
+              comp.maxHp,
+              comp.currentHp + max(1, (comp.abilityAtk * 0.12).round()),
+            );
+          }
+        }
+      } else if (garrison != null) {
+        garrison.kinSpiritWispKills++;
+        final tier = garrison.kinSpiritWispKills >= 12
+            ? 4
+            : garrison.kinSpiritWispKills >= 7
+            ? 3
+            : garrison.kinSpiritWispKills >= 3
+            ? 2
+            : 1;
+        for (final wisp in companionProjectiles.where(
+          (p) =>
+              p.abilityFamily == 'kin' &&
+              p.element == 'Spirit' &&
+              p.sourceSlotIndex == garrison.member.slotIndex &&
+              p.decoy,
+        )) {
+          wisp.effectStacks = tier;
+          wisp.tauntRadius = tier >= 2 ? 115 : 0;
+          wisp.effectPower = tier >= 3 ? garrison.specialDamage * 0.30 : 0;
+          if (tier >= 4) {
+            garrison.hp = min(
+              garrison.maxHp,
+              garrison.hp + max(1, (garrison.specialDamage * 0.12).round()),
+            );
+          }
+        }
+      }
     } else if (family == 'mask' && member.element == 'Spirit') {
       final comp = _sourceCompanion(source);
       final g = _sourceGarrison(source);
@@ -2161,6 +2281,697 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
     return target;
+  }
+
+  double _openKinScale(
+    num stat, {
+    required double perPoint,
+    required double minValue,
+    required double maxValue,
+  }) {
+    final value = AlchemonStatSystem.legacyGameplayRating(stat.toDouble());
+    return (1 + (value - 4) * perPoint).clamp(minValue, maxValue).toDouble();
+  }
+
+  bool get _openKinLightningActive =>
+      activeCompanions.values.any(
+        (comp) =>
+            comp.isAlive &&
+            comp.member.family.toLowerCase() == 'kin' &&
+            comp.member.element == 'Lightning' &&
+            comp.kinLightningChargeTimer > 0,
+      ) ||
+      _garrison.any(
+        (g) =>
+            g.hp > 0 &&
+            g.member.family.toLowerCase() == 'kin' &&
+            g.member.element == 'Lightning' &&
+            g.kinLightningChargeTimer > 0,
+      );
+
+  bool get _openKinDarkCloakActive =>
+      activeCompanions.values.any(
+        (comp) =>
+            comp.isAlive &&
+            comp.member.family.toLowerCase() == 'kin' &&
+            comp.member.element == 'Dark' &&
+            comp.kinDarkCloakTimer > 0,
+      ) ||
+      _garrison.any(
+        (g) =>
+            g.hp > 0 &&
+            g.member.family.toLowerCase() == 'kin' &&
+            g.member.element == 'Dark' &&
+            g.kinDarkCloakTimer > 0,
+      );
+
+  void _activateOpenKinSupport(CosmicCompanion comp, Offset target) {
+    final intel = comp.member.statIntelligence;
+    final beauty = comp.member.statBeauty;
+    switch (comp.member.element) {
+      case 'Lava':
+        comp.kinLavaPlateTimer =
+            _openKinScale(
+              intel,
+              perPoint: 0.10,
+              minValue: 0.85,
+              maxValue: 1.40,
+            ) *
+            9;
+        break;
+      case 'Ice':
+        final duration =
+            _openKinScale(
+              intel,
+              perPoint: -0.06,
+              minValue: 0.70,
+              maxValue: 1.15,
+            ) *
+            4;
+        comp.kinIceChargeTimer = duration;
+        comp.kinIceChargeTotal = duration;
+        break;
+      case 'Steam':
+        comp.kinSteamBoilerTimer =
+            _openKinScale(
+              intel,
+              perPoint: 0.12,
+              minValue: 0.80,
+              maxValue: 1.60,
+            ) *
+            10;
+        comp.kinSteamBoilerStacks = 0;
+        comp.kinSteamStackCarry = 0;
+        comp.kinSteamStackDecayTimer = 2;
+        break;
+      case 'Lightning':
+        comp.kinLightningChargeTimer =
+            _openKinScale(
+              intel,
+              perPoint: 0.10,
+              minValue: 0.85,
+              maxValue: 1.40,
+            ) *
+            10;
+        break;
+      case 'Dark':
+        comp.kinDarkCloakTimer =
+            _openKinScale(
+              intel,
+              perPoint: 0.10,
+              minValue: 0.85,
+              maxValue: 1.50,
+            ) *
+            7;
+        break;
+      case 'Blood':
+        comp.kinBloodPactTimer =
+            _openKinScale(
+              intel,
+              perPoint: 0.10,
+              minValue: 0.85,
+              maxValue: 1.50,
+            ) *
+            9;
+        break;
+      case 'Mud':
+        comp.kinMudShipEnchantTimer =
+            _openKinScale(
+              intel,
+              perPoint: 0.10,
+              minValue: 0.85,
+              maxValue: 1.40,
+            ) *
+            5;
+        comp.kinSteamStackDecayTimer = 0;
+        break;
+      case 'Dust':
+        final count = companionProjectiles
+            .where(
+              (p) =>
+                  p.abilityFamily == 'kin' &&
+                  p.element == 'Dust' &&
+                  p.sourceSlotIndex == comp.member.slotIndex,
+            )
+            .length;
+        if (count < 10) {
+          companionProjectiles.add(
+            Projectile(
+              position: target,
+              angle: 0,
+              element: 'Dust',
+              damage: 0,
+              life: 18,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              visualStyle: ProjectileVisualStyle.sigil,
+              sourceSlotIndex: comp.member.slotIndex,
+              abilityFamily: 'kin',
+              tickEffect: AbilityEffectKind.suppressShooting,
+              effectRadius: 82 + beauty * 5,
+              effectDuration: 1.2,
+              visualScale: 1.8,
+            ),
+          );
+        }
+        break;
+      case 'Earth':
+        final count =
+            7 +
+            (AlchemonStatSystem.combatProgress(beauty.toDouble()) * 4).round();
+        for (var i = 0; i < count; i++) {
+          final t = count == 1 ? 0.5 : i / (count - 1);
+          final angle = comp.angle - 1.047 + 2.094 * t;
+          companionProjectiles.add(
+            Projectile(
+              position: ship.pos + Offset(cos(angle), sin(angle)) * 110,
+              angle: angle,
+              element: 'Earth',
+              damage: 0,
+              life: 12,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              decoy: true,
+              decoyHp: 1e9,
+              tauntRadius: 75,
+              tauntStrength: 1,
+              interceptRadius: 22,
+              interceptCharges: 999,
+              visualStyle: ProjectileVisualStyle.sigil,
+              sourceSlotIndex: comp.member.slotIndex,
+              abilityFamily: 'kin',
+              tickEffect: AbilityEffectKind.knockback,
+              effectRadius: 30,
+              effectPower: comp.abilityAtk * 0.2,
+              effectDuration: 0.2,
+              visualScale: 1.35,
+            ),
+          );
+        }
+        break;
+      case 'Spirit':
+        final wisps = companionProjectiles.where(
+          (p) =>
+              p.abilityFamily == 'kin' &&
+              p.element == 'Spirit' &&
+              p.sourceSlotIndex == comp.member.slotIndex &&
+              p.decoy,
+        );
+        if (wisps.isEmpty) {
+          companionProjectiles.add(
+            Projectile(
+              position: comp.position,
+              angle: comp.angle,
+              element: 'Spirit',
+              damage: comp.abilityAtk * 0.25,
+              life: 9999,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              decoy: true,
+              decoyHp: max(20.0, comp.maxHp * 0.35),
+              visualStyle: ProjectileVisualStyle.kinOrbital,
+              sourceSlotIndex: comp.member.slotIndex,
+              abilityFamily: 'kin',
+              tickEffect: AbilityEffectKind.zoneDamage,
+              effectRadius: 55,
+              effectPower: comp.abilityAtk * 0.18,
+              effectDuration: 0.7,
+              effectStacks: 1,
+              visualScale: 1.1,
+            ),
+          );
+        } else {
+          wisps.first.life = 9999;
+        }
+        break;
+    }
+  }
+
+  void _activateOpenGarrisonKinSupport(_GarrisonCreature g, Offset target) {
+    final intel = g.member.statIntelligence;
+    final beauty = g.member.statBeauty;
+    switch (g.member.element) {
+      case 'Lava':
+        g.kinLavaPlateTimer =
+            9 *
+            _openKinScale(
+              intel,
+              perPoint: 0.10,
+              minValue: 0.85,
+              maxValue: 1.40,
+            );
+        break;
+      case 'Ice':
+        final duration =
+            4 *
+            _openKinScale(
+              intel,
+              perPoint: -0.06,
+              minValue: 0.70,
+              maxValue: 1.15,
+            );
+        g.kinIceChargeTimer = duration;
+        g.kinIceChargeTotal = duration;
+        break;
+      case 'Steam':
+        g.kinSteamBoilerTimer =
+            10 *
+            _openKinScale(
+              intel,
+              perPoint: 0.12,
+              minValue: 0.80,
+              maxValue: 1.60,
+            );
+        g.kinSteamBoilerStacks = 0;
+        g.kinSteamStackCarry = 0;
+        g.kinSteamStackDecayTimer = 2;
+        break;
+      case 'Lightning':
+        g.kinLightningChargeTimer =
+            10 *
+            _openKinScale(
+              intel,
+              perPoint: 0.10,
+              minValue: 0.85,
+              maxValue: 1.40,
+            );
+        break;
+      case 'Dark':
+        g.kinDarkCloakTimer =
+            7 *
+            _openKinScale(
+              intel,
+              perPoint: 0.10,
+              minValue: 0.85,
+              maxValue: 1.50,
+            );
+        break;
+      case 'Blood':
+        g.kinBloodPactTimer =
+            9 *
+            _openKinScale(
+              intel,
+              perPoint: 0.10,
+              minValue: 0.85,
+              maxValue: 1.50,
+            );
+        break;
+      case 'Mud':
+        g.kinMudShipEnchantTimer =
+            5 *
+            _openKinScale(
+              intel,
+              perPoint: 0.10,
+              minValue: 0.85,
+              maxValue: 1.40,
+            );
+        g.kinSteamStackDecayTimer = 0;
+        break;
+      case 'Dust':
+        final count = companionProjectiles
+            .where(
+              (p) =>
+                  p.abilityFamily == 'kin' &&
+                  p.element == 'Dust' &&
+                  p.sourceSlotIndex == g.member.slotIndex,
+            )
+            .length;
+        if (count < 10) {
+          companionProjectiles.add(
+            Projectile(
+              position: target,
+              angle: 0,
+              element: 'Dust',
+              damage: 0,
+              life: 18,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              visualStyle: ProjectileVisualStyle.sigil,
+              sourceSlotIndex: g.member.slotIndex,
+              abilityFamily: 'kin',
+              tickEffect: AbilityEffectKind.suppressShooting,
+              effectRadius: 82 + beauty * 5,
+              effectDuration: 1.2,
+              visualScale: 1.8,
+            ),
+          );
+        }
+        break;
+      case 'Earth':
+        final count =
+            7 +
+            (AlchemonStatSystem.combatProgress(beauty.toDouble()) * 4).round();
+        for (var i = 0; i < count; i++) {
+          final t = count == 1 ? 0.5 : i / (count - 1);
+          final angle = g.faceAngle - 1.047 + 2.094 * t;
+          companionProjectiles.add(
+            Projectile(
+              position: ship.pos + Offset(cos(angle), sin(angle)) * 110,
+              angle: angle,
+              element: 'Earth',
+              damage: 0,
+              life: 12,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              decoy: true,
+              decoyHp: 1e9,
+              tauntRadius: 75,
+              tauntStrength: 1,
+              interceptRadius: 22,
+              interceptCharges: 999,
+              visualStyle: ProjectileVisualStyle.sigil,
+              sourceSlotIndex: g.member.slotIndex,
+              abilityFamily: 'kin',
+              tickEffect: AbilityEffectKind.knockback,
+              effectRadius: 30,
+              effectPower: g.specialDamage * 0.2,
+              effectDuration: 0.2,
+              visualScale: 1.35,
+            ),
+          );
+        }
+        break;
+      case 'Spirit':
+        final wisps = companionProjectiles.where(
+          (p) =>
+              p.abilityFamily == 'kin' &&
+              p.element == 'Spirit' &&
+              p.sourceSlotIndex == g.member.slotIndex &&
+              p.decoy,
+        );
+        if (wisps.isEmpty) {
+          companionProjectiles.add(
+            Projectile(
+              position: g.position,
+              angle: g.faceAngle,
+              element: 'Spirit',
+              damage: g.specialDamage * 0.25,
+              life: 9999,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              decoy: true,
+              decoyHp: max(20.0, g.maxHp * 0.35),
+              visualStyle: ProjectileVisualStyle.kinOrbital,
+              sourceSlotIndex: g.member.slotIndex,
+              abilityFamily: 'kin',
+              tickEffect: AbilityEffectKind.zoneDamage,
+              effectRadius: 55,
+              effectPower: g.specialDamage * 0.18,
+              effectDuration: 0.7,
+              effectStacks: 1,
+              visualScale: 1.1,
+            ),
+          );
+        } else {
+          wisps.first.life = 9999;
+        }
+        break;
+    }
+  }
+
+  void _updateOpenKinSupports(double dt) {
+    final shipDelta = _openKinPrevShipHealth >= 0
+        ? max(0.0, _openKinPrevShipHealth - shipHealth)
+        : 0.0;
+    _openKinPrevShipHealth = shipHealth.toDouble();
+    _openKinLastShipDamage = shipDelta;
+    for (final comp in activeCompanions.values) {
+      if (!comp.isAlive || comp.member.family.toLowerCase() != 'kin') continue;
+      final companionDelta = comp.kinPrevHp > 0
+          ? max(0, comp.kinPrevHp - comp.currentHp).toDouble()
+          : 0.0;
+      comp.kinPrevHp = comp.currentHp;
+      final teamDamage = shipDelta + companionDelta;
+
+      if (comp.kinLavaPlateTimer > 0) {
+        comp.kinLavaPlateTimer = max(0, comp.kinLavaPlateTimer - dt);
+        if (teamDamage > 0) {
+          final enemy = _nearestOpenEnemy(comp.position, 320);
+          if (enemy != null) {
+            _damageOpenEnemy(
+              enemy,
+              max(
+                teamDamage * 1.4,
+                comp.abilityAtk * 0.8,
+              ).clamp(0.0, comp.abilityAtk * 3.0).toDouble(),
+              element: 'Lava',
+            );
+          }
+        }
+      }
+      if (comp.kinDarkCloakTimer > 0) {
+        comp.kinDarkCloakTimer = max(0, comp.kinDarkCloakTimer - dt);
+      }
+      if (comp.kinBloodPactTimer > 0) {
+        comp.kinBloodPactTimer = max(0, comp.kinBloodPactTimer - dt);
+        if (teamDamage > 0) {
+          final living = activeCompanions.values
+              .where((c) => c.isAlive)
+              .toList();
+          if (living.isNotEmpty) {
+            final heal = (teamDamage * 0.60 / living.length).round();
+            for (final ally in living) {
+              ally.currentHp = min(ally.maxHp, ally.currentHp + heal);
+            }
+          }
+        }
+      }
+      if (comp.kinLightningChargeTimer > 0) {
+        comp.kinLightningChargeTimer = max(
+          0,
+          comp.kinLightningChargeTimer - dt,
+        );
+      }
+      if (comp.kinIceChargeTimer > 0) {
+        comp.kinIceChargeTimer = max(0, comp.kinIceChargeTimer - dt);
+        if (comp.kinIceChargeTimer == 0) {
+          final radius =
+              220 *
+              _openKinScale(
+                comp.member.statBeauty,
+                perPoint: 0.40,
+                minValue: 0.85,
+                maxValue: 6.0,
+              );
+          final duration =
+              4 *
+              _openKinScale(
+                comp.member.statIntelligence,
+                perPoint: 0.18,
+                minValue: 0.90,
+                maxValue: 2.0,
+              );
+          for (final enemy in enemies) {
+            if (!enemy.dead &&
+                (enemy.position - comp.position).distance <= radius) {
+              _applyOpenWingEffect(
+                AbilityEffectKind.freeze,
+                enemy,
+                comp.position,
+                comp.abilityAtk.toDouble(),
+                radius,
+                duration,
+              );
+            }
+          }
+          _spawnHitSpark(comp.position, elementColor('Ice'));
+        }
+      }
+      if (comp.kinSteamBoilerTimer > 0) {
+        comp.kinSteamBoilerTimer = max(0, comp.kinSteamBoilerTimer - dt);
+        if (teamDamage > 0) {
+          comp.kinSteamStackCarry +=
+              teamDamage / max(2.0, shipMaxHealth * 0.08);
+          final gained = comp.kinSteamStackCarry.floor();
+          if (gained > 0) {
+            comp.kinSteamStackCarry -= gained;
+            comp.kinSteamBoilerStacks = min(
+              10,
+              comp.kinSteamBoilerStacks + gained,
+            );
+            comp.kinSteamStackDecayTimer = 2;
+          }
+        }
+        if (comp.kinSteamBoilerStacks > 0) {
+          comp.kinSteamStackDecayTimer -= dt;
+          if (comp.kinSteamStackDecayTimer <= 0) {
+            comp.kinSteamBoilerStacks--;
+            comp.kinSteamStackDecayTimer = 2;
+          }
+        }
+        final perStack =
+            0.05 *
+            _openKinScale(
+              comp.member.statBeauty,
+              perPoint: 0.10,
+              minValue: 0.85,
+              maxValue: 1.40,
+            );
+        final multiplier = (1 - comp.kinSteamBoilerStacks * perStack)
+            .clamp(0.5, 1.0)
+            .toDouble();
+        for (final ally in activeCompanions.values) {
+          ally.basicHasteTimer = max(ally.basicHasteTimer, 0.5);
+          ally.basicHasteMultiplier = min(
+            ally.basicHasteMultiplier,
+            multiplier,
+          );
+        }
+      }
+      if (comp.kinMudShipEnchantTimer > 0) {
+        comp.kinMudShipEnchantTimer = max(0, comp.kinMudShipEnchantTimer - dt);
+        comp.kinSteamStackDecayTimer -= dt;
+        if (comp.kinSteamStackDecayTimer <= 0) {
+          comp.kinSteamStackDecayTimer = 0.35;
+          companionProjectiles.add(
+            Projectile(
+              position: ship.pos,
+              angle: 0,
+              element: 'Mud',
+              damage: 0,
+              life: 5,
+              speedMultiplier: 0,
+              stationary: true,
+              piercing: true,
+              visualStyle: ProjectileVisualStyle.sigil,
+              sourceSlotIndex: comp.member.slotIndex,
+              abilityFamily: 'kin',
+              tickEffect: AbilityEffectKind.slow,
+              effectRadius: 48,
+              effectDuration: 1.6,
+              visualScale: 1.4,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _updateOpenGarrisonKinSupport(_GarrisonCreature g, double dt) {
+    if (g.member.family.toLowerCase() != 'kin' || g.hp <= 0) return;
+    final damage = _openKinLastShipDamage;
+    if (g.kinLavaPlateTimer > 0) {
+      g.kinLavaPlateTimer = max(0, g.kinLavaPlateTimer - dt);
+      if (damage > 0) {
+        final enemy = _nearestOpenEnemy(ship.pos, 320);
+        if (enemy != null) {
+          _damageOpenEnemy(
+            enemy,
+            max(
+              damage * 1.4,
+              g.specialDamage * 0.8,
+            ).clamp(0.0, g.specialDamage * 3.0).toDouble(),
+            element: 'Lava',
+          );
+        }
+      }
+    }
+    if (g.kinDarkCloakTimer > 0) {
+      g.kinDarkCloakTimer = max(0, g.kinDarkCloakTimer - dt);
+    }
+    if (g.kinBloodPactTimer > 0) {
+      g.kinBloodPactTimer = max(0, g.kinBloodPactTimer - dt);
+      if (damage > 0) {
+        shipHealth = min(shipMaxHealth, shipHealth + damage * 0.60);
+      }
+    }
+    if (g.kinLightningChargeTimer > 0) {
+      g.kinLightningChargeTimer = max(0, g.kinLightningChargeTimer - dt);
+    }
+    if (g.kinIceChargeTimer > 0) {
+      g.kinIceChargeTimer = max(0, g.kinIceChargeTimer - dt);
+      if (g.kinIceChargeTimer == 0) {
+        final radius =
+            220 *
+            _openKinScale(
+              g.member.statBeauty,
+              perPoint: 0.40,
+              minValue: 0.85,
+              maxValue: 6.0,
+            );
+        for (final enemy in enemies) {
+          if (!enemy.dead && (enemy.position - g.position).distance <= radius) {
+            _applyOpenWingEffect(
+              AbilityEffectKind.freeze,
+              enemy,
+              g.position,
+              g.specialDamage,
+              radius,
+              4 *
+                  _openKinScale(
+                    g.member.statIntelligence,
+                    perPoint: 0.18,
+                    minValue: 0.90,
+                    maxValue: 2.0,
+                  ),
+            );
+          }
+        }
+        _spawnHitSpark(g.position, elementColor('Ice'));
+      }
+    }
+    if (g.kinSteamBoilerTimer > 0) {
+      g.kinSteamBoilerTimer = max(0, g.kinSteamBoilerTimer - dt);
+      if (damage > 0) {
+        g.kinSteamStackCarry += damage / max(2.0, shipMaxHealth * 0.08);
+        final gained = g.kinSteamStackCarry.floor();
+        if (gained > 0) {
+          g.kinSteamStackCarry -= gained;
+          g.kinSteamBoilerStacks = min(10, g.kinSteamBoilerStacks + gained);
+          g.kinSteamStackDecayTimer = 2;
+        }
+      }
+      if (g.kinSteamBoilerStacks > 0) {
+        g.kinSteamStackDecayTimer -= dt;
+        if (g.kinSteamStackDecayTimer <= 0) {
+          g.kinSteamBoilerStacks--;
+          g.kinSteamStackDecayTimer = 2;
+        }
+      }
+      final multiplier = (1 - g.kinSteamBoilerStacks * 0.05)
+          .clamp(0.5, 1.0)
+          .toDouble();
+      for (final ally in activeCompanions.values) {
+        ally.basicHasteTimer = max(ally.basicHasteTimer, 0.5);
+        ally.basicHasteMultiplier = min(ally.basicHasteMultiplier, multiplier);
+      }
+      for (final ally in _garrison) {
+        ally.basicHasteTimer = max(ally.basicHasteTimer, 0.5);
+        ally.basicHasteMultiplier = min(ally.basicHasteMultiplier, multiplier);
+      }
+    }
+    if (g.kinMudShipEnchantTimer > 0) {
+      g.kinMudShipEnchantTimer = max(0, g.kinMudShipEnchantTimer - dt);
+      g.kinSteamStackDecayTimer -= dt;
+      if (g.kinSteamStackDecayTimer <= 0) {
+        g.kinSteamStackDecayTimer = 0.35;
+        companionProjectiles.add(
+          Projectile(
+            position: ship.pos,
+            angle: 0,
+            element: 'Mud',
+            damage: 0,
+            life: 5,
+            speedMultiplier: 0,
+            stationary: true,
+            piercing: true,
+            visualStyle: ProjectileVisualStyle.sigil,
+            sourceSlotIndex: g.member.slotIndex,
+            abilityFamily: 'kin',
+            tickEffect: AbilityEffectKind.slow,
+            effectRadius: 48,
+            effectDuration: 1.6,
+            visualScale: 1.4,
+          ),
+        );
+      }
+    }
   }
 
   Offset _openWingBeamEndpoint(_ActiveWingBeam beam) {
@@ -2493,6 +3304,7 @@ class CosmicGame extends FlameGame with PanDetector {
   }
 
   void _updateOpenWingBeams(double dt) {
+    _maskTrapVisuals.update(dt);
     for (final fx in _beamFx) {
       fx.update(dt);
     }
@@ -2527,12 +3339,14 @@ class CosmicGame extends FlameGame with PanDetector {
           ship.pos,
           elementColor(beam.descriptor.element).withValues(alpha: 0.55),
           width: beam.descriptor.width * 0.75,
+          wingElement: beam.descriptor.element,
         );
         _spawnBeamFx(
           ship.pos,
           end,
           elementColor(beam.descriptor.element),
           width: beam.descriptor.width,
+          wingElement: beam.descriptor.element,
         );
       } else if (beam.descriptor.targetPolicy != WingBeamTargetPolicy.ring) {
         final isHealing = beam.descriptor.healPerTick > 0;
@@ -2547,6 +3361,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 )!
               : elementColor(beam.descriptor.element),
           width: beam.descriptor.width,
+          wingElement: beam.descriptor.element,
         );
       }
 
@@ -2579,6 +3394,7 @@ class CosmicGame extends FlameGame with PanDetector {
     super.update(dt);
     _elapsed += dt;
     _updateOpenWingBeams(dt);
+    updateMaskRuntime(dt);
     updateLetSkyfallImpacts(_letSkyfallImpacts, dt);
 
     // ── zoom animation ──
@@ -3404,7 +4220,7 @@ class CosmicGame extends FlameGame with PanDetector {
               level: ammoUpgradeLevel,
               machineGun: isMachineGun,
             );
-            enemy.health -= eDmg;
+            enemy.health -= eDmg * maskShipDamageAmp;
             // Hit spark
             _spawnHitSpark(p.position, elementColor(enemy.element));
             // Provoke pack if passive enemy was hit
@@ -3502,7 +4318,7 @@ class CosmicGame extends FlameGame with PanDetector {
           );
           if (boss.shieldUp &&
               (boss.type == BossType.gunner || boss.type == BossType.bulwark)) {
-            boss.shieldHealth -= projBossDmg;
+            boss.shieldHealth -= projBossDmg * maskShipDamageAmp;
             _spawnHitSpark(p.position, Colors.cyanAccent);
             projectiles.removeAt(i);
             if (boss.shieldHealth <= 0) {
@@ -3510,7 +4326,7 @@ class CosmicGame extends FlameGame with PanDetector {
               boss.shieldTimer = CosmicBoss.shieldCooldown;
             }
           } else {
-            boss.health -= projBossDmg;
+            boss.health -= projBossDmg * maskShipDamageAmp;
             _spawnHitSpark(p.position, elementColor(boss.element));
             projectiles.removeAt(i);
             if (boss.health <= 0) {
@@ -3553,15 +4369,6 @@ class CosmicGame extends FlameGame with PanDetector {
           _companionVisualsBySlot.remove(slot);
           _companionSpriteScales.remove(slot);
         }
-      } else if (comp.currentHp <= 0 &&
-          comp.member.family.toLowerCase() == 'kin' &&
-          comp.member.element == 'Fire' &&
-          !comp.kinFireOrbitalFlameActive) {
-        comp.currentHp = max(1, (comp.maxHp * 0.25).round());
-        comp.kinFireOrbitalFlameActive = true;
-        comp.invincibleTimer = 1.0;
-        _spawnHitSpark(comp.position, const Color(0xFFFFB060));
-        _spawnHitSpark(comp.position, const Color(0xFFFFE7B0));
       } else if (comp.currentHp <= 0) {
         // Companion died — auto return
         _spawnKillVfx(
@@ -3838,6 +4645,14 @@ class CosmicGame extends FlameGame with PanDetector {
                 damage: comp.physAtk.toDouble() * comp.damageAmp,
               );
               _tagSource(basics, comp.member.slotIndex);
+              if (_openKinLightningActive) {
+                for (final projectile in basics) {
+                  projectile.chainLightningCharges = max(
+                    projectile.chainLightningCharges,
+                    3,
+                  );
+                }
+              }
               companionProjectiles.addAll(basics);
               if (comp.member.family.toLowerCase() == 'pip' &&
                   comp.member.element == 'Earth') {
@@ -3886,7 +4701,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 comp.pendingChargeBurst = result.projectiles;
                 comp.pendingChargeOrigin = comp.position;
                 comp.pendingChargeAngle = comp.angle;
-              } else {
+              } else if (!activateMaskPlacements(result.projectiles)) {
                 companionProjectiles.addAll(result.projectiles);
               }
               _activateWingBeamEffects(
@@ -3944,6 +4759,9 @@ class CosmicGame extends FlameGame with PanDetector {
                 comp.basicHasteTimer = result.basicHasteTimer;
                 comp.basicHasteMultiplier = result.basicHasteMultiplier;
               }
+              if (comp.member.family.toLowerCase() == 'kin') {
+                _activateOpenKinSupport(comp, targetPos);
+              }
               // VFX burst
               _spawnHitSpark(comp.position, elementColor(comp.member.element));
             }
@@ -3955,6 +4773,7 @@ class CosmicGame extends FlameGame with PanDetector {
           // Companion takes damage from enemies that touch it
           for (final e in enemies) {
             if (e.dead) continue;
+            if (_openKinDarkCloakActive) continue;
             final d = (e.position - comp.position).distance;
             if (d < e.radius + 15) {
               final contactDmg = CosmicBalance.enemyCompanionContactDamage(
@@ -3974,6 +4793,7 @@ class CosmicGame extends FlameGame with PanDetector {
     for (final slot in companionsToRemove) {
       activeCompanions.remove(slot);
     }
+    _updateOpenKinSupports(dt);
 
     // ── update battle ring opponent ──
     if (battleRingOpponent != null && battleRing.inBattle) {
@@ -4681,6 +5501,7 @@ class CosmicGame extends FlameGame with PanDetector {
     // converts it to party healing; every other effect routes through
     // resolveAbilityEffect for each enemy inside effectRadius.
     void applyKinAuraTick(Projectile p) {
+      if (tickMaskPlacement(p)) return;
       final radius = p.effectRadius;
       final power = p.effectPower > 0 ? p.effectPower : p.damage * 0.35;
       if (p.tickEffect == AbilityEffectKind.zoneHeal) {
@@ -4984,11 +5805,14 @@ class CosmicGame extends FlameGame with PanDetector {
       CosmicEnemy enemy, {
       required bool killed,
     }) {
+      _maskTrapVisuals.contact(projectile);
       if (projectile.abilityFamily == 'let') {
         resolveLetMeteorHit(projectile, enemy, killed: killed);
         return;
       }
-      resolveAbilityEffect(projectile.hitEffect, projectile, enemy);
+      if (!resolveMaskContact(projectile, enemy)) {
+        resolveAbilityEffect(projectile.hitEffect, projectile, enemy);
+      }
       if (killed) resolveAbilityKill(projectile, enemy);
     }
 
@@ -5532,16 +6356,14 @@ class CosmicGame extends FlameGame with PanDetector {
         continue;
       }
 
-      final isPlantTrap =
-          p.element == 'Plant' &&
-          (p.abilityFamily == 'mask' || p.abilityFamily == 'let');
+      final isPlantTrap = p.element == 'Plant' && p.abilityFamily == 'let';
       if (isPlantTrap &&
           (p.snareRadius > 0 || p.tickEffect != AbilityEffectKind.none)) {
         p.abilityGrowthTimer += dt;
         if (p.abilityGrowthTimer >= 1.2) {
           p.abilityGrowthTimer -= 1.2;
-          final snareCap = p.abilityFamily == 'mask' ? 82.0 : 220.0;
-          final effectCap = p.abilityFamily == 'mask' ? 72.0 : 160.0;
+          const snareCap = 220.0;
+          const effectCap = 160.0;
           if (p.snareRadius > 0) {
             p.snareRadius = min(p.snareRadius + 6, snareCap);
             p.snareMoveMultiplier = max(p.snareMoveMultiplier - 0.05, 0.30);
@@ -5562,14 +6384,22 @@ class CosmicGame extends FlameGame with PanDetector {
 
       // Hit enemies
       for (var ei = enemies.length - 1; ei >= 0; ei--) {
+        if (p.trapSpent) break;
+        if (p.abilityFamily == 'mask' && p.element == 'Spirit') break;
         final enemy = enemies[ei];
         if (enemy.dead) continue;
         final edx = p.position.dx - enemy.position.dx;
         final edy = p.position.dy - enemy.position.dy;
         final hitR = enemy.radius + hitRadius;
         if (edx * edx + edy * edy < hitR * hitR) {
+          if (p.abilityFamily == 'mask' && p.stationary) {
+            p.maxHitsPerEnemy = 1;
+            final id = identityHashCode(enemy);
+            if (!p.canHitEnemy(id)) continue;
+            p.noteEnemyHit(id);
+          }
           // Piercing projectiles deal reduced damage after first hit
-          final pierceFalloff = p.piercing
+          final pierceFalloff = p.piercing && p.abilityFamily != 'mask'
               ? pow(0.7, p.pierceCount).toDouble()
               : 1.0;
           final preRootForPlantKill =
@@ -5665,7 +6495,7 @@ class CosmicGame extends FlameGame with PanDetector {
           } else {
             consumed = true;
           }
-          if (enemy.health <= 0) {
+          if (enemy.health <= 0 && !enemy.dead) {
             enemy.dead = true;
             _spawnKillVfx(
               enemy.position,
@@ -5688,6 +6518,9 @@ class CosmicGame extends FlameGame with PanDetector {
         continue;
       }
 
+      if (p.trapSpent || (p.abilityFamily == 'mask' && p.element == 'Spirit')) {
+        continue;
+      }
       // Hit boss
       if (i < companionProjectiles.length && activeBoss != null) {
         final cp = companionProjectiles[i];
@@ -5715,6 +6548,9 @@ class CosmicGame extends FlameGame with PanDetector {
               _spawnHitSpark(boss.position, elementColor('Crystal'));
               companionProjectiles.removeAt(i);
               continue;
+            }
+            if (cp.abilityFamily == 'mask') {
+              _activateMaskContactPlacement(cp, boss.position);
             }
             final bossDamage = cp.damage * pierceFalloff;
             if (boss.shieldUp &&
@@ -5826,6 +6662,7 @@ class CosmicGame extends FlameGame with PanDetector {
           }
         }
         _tickOpenGarrisonIdentity(g, dt);
+        _updateOpenGarrisonKinSupport(g, dt);
         g.attackCooldown = (g.attackCooldown - dt).clamp(0.0, 100.0);
         g.specialCooldown = (g.specialCooldown - dt).clamp(0.0, 100.0);
 
@@ -5959,6 +6796,14 @@ class CosmicGame extends FlameGame with PanDetector {
               damage: g.attackDamage * _openGarrisonDamageAmp(g),
             );
             _tagSource(basics, g.member.slotIndex);
+            if (_openKinLightningActive) {
+              for (final projectile in basics) {
+                projectile.chainLightningCharges = max(
+                  projectile.chainLightningCharges,
+                  3,
+                );
+              }
+            }
             companionProjectiles.addAll(basics);
           }
 
@@ -6006,7 +6851,7 @@ class CosmicGame extends FlameGame with PanDetector {
               g.pendingChargeBurst = result.projectiles;
               g.pendingChargeOrigin = g.position;
               g.pendingChargeAngle = g.faceAngle;
-            } else {
+            } else if (!activateMaskPlacements(result.projectiles)) {
               companionProjectiles.addAll(result.projectiles);
             }
             _activateWingBeamEffects(
@@ -6053,6 +6898,9 @@ class CosmicGame extends FlameGame with PanDetector {
             if (result.basicHasteTimer > 0) {
               g.basicHasteTimer = result.basicHasteTimer;
               g.basicHasteMultiplier = result.basicHasteMultiplier;
+            }
+            if (g.member.family.toLowerCase() == 'kin') {
+              _activateOpenGarrisonKinSupport(g, targetPos);
             }
             _spawnHitSpark(g.position, elementColor(g.member.element));
           }
@@ -6331,6 +7179,7 @@ class CosmicGame extends FlameGame with PanDetector {
           if (ddy < -wh / 2) ddy += wh;
           final hitR = e.radius + Projectile.radius * decoy.radiusMultiplier;
           if (ddx * ddx + ddy * ddy < hitR * hitR) {
+            _maskTrapVisuals.contact(decoy);
             // Enemy damages the decoy
             final contactDmg = switch (e.tier) {
               EnemyTier.colossus => 5.0,
@@ -7195,6 +8044,7 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     _renderOpenWingBeams(canvas);
+    _maskTrapVisuals.render(canvas);
 
     if (_beautyContestCinematicActive) {
       final introFade = _beautyContestIntroActive
@@ -8798,6 +9648,23 @@ class CosmicGame extends FlameGame with PanDetector {
               ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
           );
 
+          if (g.member.family.toLowerCase() == 'kin') {
+            drawAdvancedKinSupportAura(
+              canvas: canvas,
+              element: g.member.element,
+              color: eColor,
+              time: _elapsed,
+              iceChargeProgress:
+                  g.kinIceChargeTimer > 0 && g.kinIceChargeTotal > 0
+                  ? 1 - g.kinIceChargeTimer / g.kinIceChargeTotal
+                  : 0,
+              lightningActive: g.kinLightningChargeTimer > 0,
+              fireOrbitalActive: g.kinFireOrbitalFlameActive,
+              lavaPlateActive: g.kinLavaPlateTimer > 0,
+              darkCloakActive: g.kinDarkCloakTimer > 0,
+            );
+          }
+
           // ── Shield bubble (Horn special) ──
           if (g.shieldHp > 0) {
             drawAdvancedCompanionShield(
@@ -9187,7 +10054,7 @@ class CosmicGame extends FlameGame with PanDetector {
           // Outer glow
           canvas.drawCircle(
             drawPos,
-            8,
+            9.6,
             Paint()
               ..color = const Color(
                 0xFF7C4DFF,
@@ -9199,10 +10066,10 @@ class CosmicGame extends FlameGame with PanDetector {
           canvas.translate(drawPos.dx, drawPos.dy);
           canvas.rotate(spin);
           final shardPath = Path()
-            ..moveTo(0, -5)
-            ..lineTo(3.5, 0)
-            ..lineTo(0, 5)
-            ..lineTo(-3.5, 0)
+            ..moveTo(0, -6)
+            ..lineTo(4.2, 0)
+            ..lineTo(0, 6)
+            ..lineTo(-4.2, 0)
             ..close();
           canvas.drawPath(
             shardPath,
@@ -9220,7 +10087,7 @@ class CosmicGame extends FlameGame with PanDetector {
           // Bright core
           canvas.drawCircle(
             Offset.zero,
-            1.5,
+            1.8,
             Paint()..color = Colors.white.withValues(alpha: 0.7 * fadeAlpha),
           );
           canvas.restore();
@@ -9295,57 +10162,116 @@ class CosmicGame extends FlameGame with PanDetector {
           );
           break;
         case LootType.item:
-          // Item drop — pulsing hexagonal capsule with bright glow
-          final pulse = 0.7 + 0.3 * sin(drop.life * 5.0);
-          final spin = drop.life * 1.8;
-          // Large outer glow
-          canvas.drawCircle(
-            drawPos,
-            14,
-            Paint()
-              ..color = drop.color.withValues(alpha: 0.3 * fadeAlpha * pulse)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
-          );
-          // Hexagonal shape
-          canvas.save();
-          canvas.translate(drawPos.dx, drawPos.dy);
-          canvas.rotate(spin);
-          final hexPath = Path();
-          for (var h = 0; h < 6; h++) {
-            final ha = h * pi / 3 - pi / 6;
-            final hp = Offset(cos(ha) * 6, sin(ha) * 6);
-            if (h == 0) {
-              hexPath.moveTo(hp.dx, hp.dy);
+          final itemKey = drop.itemKey;
+          final portalBiome = PortalKeyGlyph.biomeForInventoryKey(itemKey);
+          final offer = (itemKey != null && portalBiome == null)
+              ? InventoryItemArtwork.offerFor(itemKey)
+              : null;
+
+          if (portalBiome != null) {
+            // Real rift-key glyph — same art as the shop/inventory.
+            final tint =
+                ElementResources.byBiomeId[portalBiome]?.color ?? drop.color;
+            final pulse = 0.85 + 0.15 * sin(drop.life * 3.0);
+            canvas.drawCircle(
+              drawPos,
+              19.2,
+              Paint()
+                ..color = tint.withValues(alpha: 0.28 * fadeAlpha * pulse)
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+            );
+            PortalKeyGlyph.paintGlyph(
+              canvas,
+              drawPos,
+              31.2,
+              tint,
+              drop.life,
+              fade: fadeAlpha,
+            );
+          } else if (offer?.icon != null) {
+            // Real shop icon (harvesters etc.) — same glyph as the shop.
+            final tint = offer!.iconColor ?? drop.color;
+            final pulse = 0.85 + 0.15 * sin(drop.life * 3.0);
+            canvas.drawCircle(
+              drawPos,
+              16.8,
+              Paint()
+                ..color = tint.withValues(alpha: 0.28 * fadeAlpha * pulse)
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+            );
+            final tp = _itemIconPainter(offer.icon, tint);
+            if (fadeAlpha < 1.0) {
+              canvas.saveLayer(
+                Rect.fromCenter(
+                  center: drawPos,
+                  width: tp.width + 4,
+                  height: tp.height + 4,
+                ),
+                Paint()..color = Colors.black.withValues(alpha: fadeAlpha),
+              );
+              tp.paint(canvas, drawPos - Offset(tp.width / 2, tp.height / 2));
+              canvas.restore();
             } else {
-              hexPath.lineTo(hp.dx, hp.dy);
+              tp.paint(canvas, drawPos - Offset(tp.width / 2, tp.height / 2));
             }
-          }
-          hexPath.close();
-          canvas.drawPath(
-            hexPath,
-            Paint()
-              ..shader =
-                  ui.Gradient.linear(const Offset(-6, -6), const Offset(6, 6), [
+          } else {
+            // Fallback — pulsing hexagonal capsule with bright glow
+            final pulse = 0.7 + 0.3 * sin(drop.life * 5.0);
+            final spin = drop.life * 1.8;
+            // Large outer glow
+            canvas.drawCircle(
+              drawPos,
+              14,
+              Paint()
+                ..color = drop.color.withValues(alpha: 0.3 * fadeAlpha * pulse)
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+            );
+            // Hexagonal shape
+            canvas.save();
+            canvas.translate(drawPos.dx, drawPos.dy);
+            canvas.rotate(spin);
+            final hexPath = Path();
+            for (var h = 0; h < 6; h++) {
+              final ha = h * pi / 3 - pi / 6;
+              final hp = Offset(cos(ha) * 6, sin(ha) * 6);
+              if (h == 0) {
+                hexPath.moveTo(hp.dx, hp.dy);
+              } else {
+                hexPath.lineTo(hp.dx, hp.dy);
+              }
+            }
+            hexPath.close();
+            canvas.drawPath(
+              hexPath,
+              Paint()
+                ..shader = ui.Gradient.linear(
+                  const Offset(-6, -6),
+                  const Offset(6, 6),
+                  [
                     Colors.white.withValues(alpha: 0.9 * fadeAlpha),
                     drop.color.withValues(alpha: fadeAlpha),
-                  ]),
-          );
-          // Outline
-          canvas.drawPath(
-            hexPath,
-            Paint()
-              ..color = Colors.white.withValues(alpha: 0.5 * fadeAlpha)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.0,
-          );
-          // Bright center star
-          canvas.drawCircle(
-            Offset.zero,
-            2.5,
-            Paint()
-              ..color = Colors.white.withValues(alpha: 0.9 * fadeAlpha * pulse),
-          );
-          canvas.restore();
+                  ],
+                ),
+            );
+            // Outline
+            canvas.drawPath(
+              hexPath,
+              Paint()
+                ..color = Colors.white.withValues(alpha: 0.5 * fadeAlpha)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0,
+            );
+            // Bright center star
+            canvas.drawCircle(
+              Offset.zero,
+              2.5,
+              Paint()
+                ..color = Colors.white.withValues(
+                  alpha: 0.9 * fadeAlpha * pulse,
+                ),
+            );
+            canvas.restore();
+          }
           break;
       }
     }
@@ -10937,7 +11863,7 @@ class CosmicGame extends FlameGame with PanDetector {
       final auraPulse = 0.5 + 0.3 * sin(_elapsed * 3.0);
       canvas.drawCircle(
         Offset.zero,
-        28 * animScale,
+        33.6 * animScale,
         Paint()
           ..color = eColor.withValues(alpha: auraPulse * 0.3 * opacity)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
@@ -10950,7 +11876,14 @@ class CosmicGame extends FlameGame with PanDetector {
           element: comp.member.element,
           color: eColor,
           time: _elapsed,
+          iceChargeProgress:
+              comp.kinIceChargeTimer > 0 && comp.kinIceChargeTotal > 0
+              ? 1 - comp.kinIceChargeTimer / comp.kinIceChargeTotal
+              : 0,
+          lightningActive: comp.kinLightningChargeTimer > 0,
           fireOrbitalActive: comp.kinFireOrbitalFlameActive,
+          lavaPlateActive: comp.kinLavaPlateTimer > 0,
+          darkCloakActive: comp.kinDarkCloakTimer > 0,
         );
       }
       if (comp.hasShield) {
@@ -11031,12 +11964,12 @@ class CosmicGame extends FlameGame with PanDetector {
         // Fallback: colored circle
         canvas.drawCircle(
           Offset.zero,
-          14 * animScale,
+          16.8 * animScale,
           Paint()..color = eColor.withValues(alpha: 0.85 * opacity),
         );
         canvas.drawCircle(
           Offset.zero,
-          6 * animScale,
+          7.2 * animScale,
           Paint()..color = Colors.white.withValues(alpha: 0.9 * opacity),
         );
       }

@@ -255,14 +255,14 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   /// method. How the grave got this way is Mask's earned reading.
   String _graveDoorHint(DungeonRoom room, DungeonDoor door) {
     final x = _graveCrossingFor(room, door)!;
-    if (x.cut == GraveCut.livingOnly) return 'Salted, the dead do not cross';
+    if (x.cut == GraveCut.livingOnly) return 'Salted. Only the living can cross';
     if (x.cut == GraveCut.ghostOnly) {
-      return 'Only a memory of a road, and you are too warm for it';
+      return 'This road only exists in the world of the dead';
     }
     if (x.cut == GraveCut.revenant) {
       return _field.isGhost
-          ? 'Nothing holds this lintel up any more'
-          : 'The stone that killed somebody still lies across it';
+          ? 'This road has closed to the dead'
+          : 'A fallen stone blocks it. Lay its ghost to rest first';
     }
     return 'This way is shut';
   }
@@ -292,7 +292,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if (pos == null || entryDoorRevealed) return false;
     if ((a.position - pos).distance > _kGraveReach) return false;
     if (a.member.element != 'Water') {
-      _setBlockedHint('Only Water draws this off');
+      _setBlockedHint('Only Water can drain this');
       return true;
     }
     entryDoorRevealed = true;
@@ -323,7 +323,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kGraveReach) return false;
     if (a.member.element != 'Spirit') {
-      _setBlockedHint('Only Spirit passes anyone over this stone');
+      _setBlockedHint('Only Spirit can use this lych-stone');
       return true;
     }
     _passOver(pos);
@@ -382,15 +382,15 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       if ((a.position - r.seat).distance > _kGraveReach) continue;
       final f = _field;
       if (f.isRested(r.id)) {
-        _setBlockedHint('${r.name} is finished');
+        _setBlockedHint('${r.name} is at rest');
         return true;
       }
       if (!f.isGhost) {
-        _setBlockedHint('${r.name} does not speak to the warm');
+        _setBlockedHint('${r.name} only speaks in the world of the dead');
         return true;
       }
       if (a.member.element != 'Spirit') {
-        _setBlockedHint('Only Spirit hears one of these out');
+        _setBlockedHint('Only Spirit can hear a ghost out');
         return true;
       }
       f.tell(r.id);
@@ -426,13 +426,13 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kGraveReach) return false;
     final f = _field;
     if (f.cutFrozen) {
-      _setBlockedHint('The cut is already standing hard');
+      _setBlockedHint('The cut is already frozen');
       return true;
     }
     final direct = a.member.element == 'Ice';
     final braid = _graveBraidReady(a, 'Spirit', 'Water');
     if (!direct && !braid) {
-      _setBlockedHint('Only a cold this deep settles black water');
+      _setBlockedHint('This needs Ice, or Spirit and Water together');
       return true;
     }
     f.cutFrozen = true;
@@ -482,11 +482,11 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kGraveReach) return false;
     final f = _field;
     if (f.sigilStamped) {
-      _setBlockedHint('The ring is already closed');
+      _setBlockedHint('The sigil is already complete');
       return true;
     }
     if (f.isGhost) {
-      _setBlockedHint('A dead hand leaves no mark');
+      _setBlockedHint('Only the living can set the mark');
       return true;
     }
     final gate = layout.familyGateFor('grave_sigil');
@@ -499,7 +499,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     }
     f.stampsTried++;
     if (!graveSigilCloses(currentRoomId)) {
-      _setBlockedHint('The mark slides off, the halves do not close here');
+      _setBlockedHint('The halves don\'t add up here. Try another barrow');
       onChanged();
       return true;
     }
@@ -531,13 +531,13 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kGraveReach) return false;
     if ((conduitEnergy['B'] ?? 0) > 0) return false;
     if (a.member.element != 'Crystal') {
-      _setBlockedHint('The lamp answers Crystal alone');
+      _setBlockedHint('Only Crystal can light the lamp');
       return true;
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The lamp will not take, it answers only a bearer of the '
-        '${layout.starName(0)} and ${layout.starName(1)}',
+        'The lamp needs the ${layout.starName(0)} and '
+        '${layout.starName(1)} first',
       );
       return true;
     }
@@ -570,7 +570,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kGraveReach) return false;
     if (a.member.element != 'Spirit') {
-      _setBlockedHint('Only Spirit passes anyone over this stone');
+      _setBlockedHint('Only Spirit can use this lych-stone');
       return true;
     }
     _passOver(pos);
@@ -626,7 +626,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
           particleCount: 8,
           intensity: 0.5,
         );
-        _setBlockedHint('Black water, standing in a hole nobody finished');
+        _setBlockedHint('Black water fills this unfinished grave');
         return true;
       }
       wake.undugDrawn = true;
@@ -646,7 +646,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
           particleCount: 8,
           intensity: 0.5,
         );
-        _setBlockedHint('It is too dark in there to read anything');
+        _setBlockedHint('Too dark in there to read anything');
         return true;
       }
       wake.undugLit = true;
@@ -665,7 +665,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         particleCount: 8,
         intensity: 0.5,
       );
-      _setBlockedHint('The slot is uncut, there is no name here to tell');
+      _setBlockedHint('There\'s no name here to tell');
       return true;
     }
     // THREE NAMES, ONE PER BODY — but the TELLING is Spirit's verb, as it is
@@ -679,7 +679,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         if (c.alive && (c.position - pos).distance <= _kGraveReach * 2.2) c,
     ];
     if (here.length < 3) {
-      _setBlockedHint('A name apiece, and there are not three of you here');
+      _setBlockedHint('It needs one name from each of your three');
       return true;
     }
     final next = here
@@ -753,26 +753,26 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   String? _graveObjectiveHint(DungeonRoom room) {
     final f = _field;
     if (room.id == layout.entranceRoomId) {
-      if (!entryDoorRevealed) return 'The gate arch stands full of water';
+      if (!entryDoorRevealed) return 'The gate arch is full of black water';
       return hasStar(_graveVigil?.roadStarIndex ?? 0)
-          ? 'The bier is gone up, and the field is quiet'
-          : 'The bier has never left this gate';
+          ? 'The Lych Gate. The bier has gone'
+          : 'The Lych Gate. The bier needs a living road to the cairn';
     }
     if (room.grave?.graveLamp != null) {
-      return 'The mourners\' walk waits on a name and a light';
+      return 'The Mourners\' Walk. The rite happens here';
     }
     if (room.guardian != null) {
-      return 'Wraithord is here, and is not always here';
+      return 'Wraithord\'s grave. The last star is here';
     }
-    if (room.vaultCache != null) return 'A grave that was cut and never used';
+    if (room.vaultCache != null) return 'An unused grave. Something is stored here';
     if (room.grave?.barrow != true) return null;
     if (graveRevenantsIn(room.id).any((r) => !f.isRested(r.id))) {
       return f.isGhost
-          ? 'Somebody here is still dying'
-          : 'Somebody died here, and it did not take';
+          ? 'A ghost here is still reliving its death'
+          : 'Someone died here. Their ghost is still here';
     }
     if (!f.sigilStamped && room.grave?.sigilStone != null) {
-      return 'Half a sigil, cut in the floor';
+      return 'Half a sigil is cut into the floor';
     }
     return null;
   }
@@ -820,42 +820,37 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         (a.position - undug).distance < 150 &&
         !discoveredClouds.contains(kSpiritStuffOfDreamsEgg)) {
       _setHint(
-        'Six were buried here and told. This one was never cut a name, so '
-        'nobody can tell it but the one it was dug for.',
+        'Six were buried and named here. This grave has no name, so only '
+        'whoever it was dug for can tell it.',
         4.4,
       );
       return;
     }
     if (room.guardian != null) {
       _setInsightHint(switch (tier) {
-        0 => 'It is never quite in the room with you',
-        1 => 'It is solid in one world at a time, and it changes on a count',
+        0 => 'Wraithord is only solid in one world at a time',
+        1 => 'It switches worlds on a steady count',
         _ =>
-          'Nothing lands out of phase, either way. Match the world it is '
-              'standing in, and strike in that one. The stone behind you is '
-              'the only weapon in here',
+          'Neither of you can hit the other from different worlds. Use the '
+              'lych-stone to match its world, then strike',
       });
       return;
     }
     if (room.grave?.graveLamp != null) {
       _setInsightHint(switch (tier) {
-        0 => 'Two things, and the walk wants both',
-        1 => 'One is a stone with no name on it; the other is an unlit lamp',
+        0 => 'The rite needs the name stone and the lamp',
+        1 => 'A Spirit Mask reads the stone. Crystal lights the lamp',
         _ =>
-          'Only a second sight reads a nameless stone; the lamp answers any '
-              'Crystal, once both stars are yours',
+          'A Spirit Mask reads the nameless stone. Any Crystal lights the '
+              'lamp once you have both stars',
       });
       return;
     }
     if (room.vaultCache != null) {
       _setInsightHint(switch (tier) {
-        0 => 'Nobody was ever put in here',
-        1 =>
-          'Every other grave in the field carries a name-slot. This one '
-              'does not',
-        _ =>
-          'An empty slot takes whatever mark is set in it, and there are '
-              'three of you standing in it',
+        0 => 'Nobody was ever buried here',
+        1 => 'Every other grave has a name-slot. This one doesn\'t',
+        _ => 'An empty slot takes any mark set in it',
       });
       return;
     }
@@ -867,39 +862,38 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => r.restlessLook,
         1 =>
-          '${r.name} is holding up the arch that fell on it, and the '
-              'stone that did it is still lying across the warm road',
+          '${r.name}\'s ghost is still here. The stone that killed it blocks '
+              'the living road',
         _ =>
-          'Hear ${r.name} out and it lets go: ${graveCrossingById(r.crossingId)!.look} '
-              'opens to the living for good, and shuts to the dead for good. '
-              'It does not come back',
+          'In the world of the dead, have Spirit hear ${r.name} out. '
+              '${graveCrossingById(r.crossingId)!.look} then opens to the '
+              'living and closes to the dead, for good',
       });
       return;
     }
     if (room.grave?.sigilStone != null && !f.sigilStamped) {
       _setInsightHint(switch (tier) {
-        0 => 'Half a ring, and half a ring is nothing',
+        0 => 'Half a sigil. The other half is in the world of the dead',
         1 =>
-          'The dead carry the other half, one great arc over the whole '
-              'field, on a bearing of its own. The two must close the circle',
+          'The dead see one big arc over the whole field. Your half and '
+              'theirs must close the ring',
         _ =>
-          'The arc runs on $kGraveFieldBearing; this floor runs on '
-              '${kBarrowSigilHalf[room.id] ?? 0}, and only a barrow whose floor '
-              'makes twelve of it will take the mark, and only from a warm hand',
+          'Their arc is $kGraveFieldBearing and this floor is '
+              '${kBarrowSigilHalf[room.id] ?? 0}. Only a barrow that adds up '
+              'to 12 takes the mark, set by a living Water Pip',
       });
       return;
     }
     // Anywhere in the field, insight reads the RULE — which is the planet.
     _setInsightHint(switch (tier) {
-      0 => 'There are two of this field, and you are only ever in one',
+      0 => 'This field exists in two worlds, living and dead',
       1 =>
-        'Every road here belongs to the living or to the dead, and never '
-            'to both. The stones pass you between them',
+        'Each road belongs to the living or the dead, never both. Lych-stones '
+            'move you between worlds',
       _ =>
-        'Six of the roads have not decided yet, and the dead standing on '
-            'them are the decision: finish one and it becomes the living\'s '
-            'forever. Nothing here is ever lost, but the mere is worth having '
-            'in both worlds, and it only has two dead',
+        'Six roads are blocked by ghosts. Laying one to rest gives its road '
+            'to the living for good. The mere is worth reaching in both '
+            'worlds first',
     });
   }
 

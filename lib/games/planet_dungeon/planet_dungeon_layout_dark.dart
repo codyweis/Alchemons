@@ -690,15 +690,21 @@ class EclipseVault {
   /// the star is the transit, which is what makes it an eclipse problem.
   final Set<String> portalsWalked = {};
 
-  /// Seconds the party has stood perfectly still in the abyssal font while
-  /// the deep lay in shadow (the Lost Maxim).
-  double abyssStillness = 0;
-  bool abyssGazed = false;
+  /// THE ABYSS (the Lost Maxim). The font's hole has a bottom after all, and
+  /// on it lies the vault's FOURTH FINGER, fallen an age ago, chained to a
+  /// rusted ring at the rim. It shows only while the Deep stands in LIGHT —
+  /// the one arrangement the whole lower vault punishes — and it comes up in
+  /// three beats: a Spirit hand reads how much chain there is, a Poison pip
+  /// eats the rust off the ring, and a Dark hand hauls, one length a press.
+  bool abyssRead = false;
+  bool abyssChainFree = false;
+  int abyssHauls = 0;
 
-  /// Where every body was when the current vigil started. The abyss answers
-  /// stillness, so the check is against a MARK rather than a velocity — the
-  /// dungeon's creatures do not carry one.
-  List<Offset> abyssMarks = const [];
+  /// Lengths of chain between the rim and the fallen finger.
+  static const int abyssChainLengths = 3;
+
+  /// The finger stands: every length hauled in.
+  bool get abyssRaised => abyssHauls >= abyssChainLengths;
 
   /// Seconds left on the inversion wipe. Purely visual, and named here so the
   /// render has nowhere else to keep it.
@@ -722,9 +728,9 @@ class EclipseVault {
     anchorsOpen.clear();
     anchorsRead.clear();
     portalsWalked.clear();
-    abyssStillness = 0;
-    abyssGazed = false;
-    abyssMarks = const [];
+    abyssRead = false;
+    abyssChainFree = false;
+    abyssHauls = 0;
     wipe = 0;
     inversions = 0;
   }
@@ -830,8 +836,9 @@ class EclipseHall {
   /// and Plant its sepulchre.
   final Offset? snuffer;
 
-  /// The Lost Maxim: the abyss in the font's floor. §6 — stand utterly still
-  /// in total darkness for a full minute, casting no light.
+  /// The Lost Maxim: the abyss in the font's floor — the well the vault's
+  /// fourth finger fell down, which only shows its bottom in the light (see
+  /// [EclipseVault.abyssRead] and the module).
   final Offset? abyss;
 
   /// Noctryos's arena floor-vane: it turns the stair gnomon from down here.
@@ -872,14 +879,12 @@ const DungeonLayout darkLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Analemma Star',
       earnAnnouncement:
-          'The Analemma Star is yours, four stones seated, and never two of '
-          'them in the same vault',
+          'The Analemma Star is yours. All four stones are seated',
     ),
     DungeonStarSpec(
       name: 'Anchor Star',
       earnAnnouncement:
-          'The Anchor Star is yours, three holes walked, and the dark holds '
-          'them open',
+          'The Anchor Star is yours. You\'ve travelled all three portals',
     ),
     DungeonStarSpec(name: 'Totality Star'),
   ],
@@ -887,13 +892,12 @@ const DungeonLayout darkLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('pall_porch', 'shade_gallery'),
   finaleDoor: DungeonDoorRef('eclipse_nave', 'noctryos_totality'),
   riteAnnouncement:
-      'Analemma and Anchor are won, the reredos goes black in the nave, and '
-      'the pall lamps gutter',
+      'Analemma and Anchor are won. The lamps in the nave go out',
   finaleSealedHint:
-      'The rood door is shut, it answers only the Analemma and Anchor stars',
+      'The rood door stays shut until you have the Analemma and Anchor '
+      'stars',
   guardianSealedHint:
-      'Nothing behind the rood is awake while a single lamp still burns in '
-      'the nave',
+      'Noctryos won\'t wake while any lamp in the nave is still lit',
   mercyShrineRoomId: 'shade_gallery',
   // Ideal: Darkmask · Poisonpip · Spiritmane — hinted by VERB, never body
   // part (§4): the sight that pierces the hidden, what my smallest doors
@@ -904,8 +908,8 @@ const DungeonLayout darkLayout = DungeonLayout(
     'and Spirit, because I keep no lamp to find you by.',
   ],
   primer: [
-    'A turn of a gnomon flips the whole vault at once.',
-    'Every door you open that way closes another somewhere else.',
+    'Turning a gnomon moves a shadow and flips which paths are open.',
+    'Every path it opens closes another somewhere else.',
   ],
   // §4 budget: TWO hard gates, on two different objects and two different
   // entry slots, and never two on one star. Star 0 (the analemma) is
@@ -921,15 +925,13 @@ const DungeonLayout darkLayout = DungeonLayout(
       objectId: 'anchor_ring',
       element: kAnyElement,
       family: 'Pip',
-      hintLine:
-          'Only a Poison small enough to work inside the ring eats this '
-          'rust',
+      hintLine: 'Only a Pip is small enough to clear this ring',
     ),
     DungeonFamilyGate(
       objectId: 'A',
       element: 'Dark',
       family: 'Mask',
-      hintLine: 'Only a Dark that sees what is not shown reads this reredos',
+      hintLine: 'Only a Dark Mask can read this reredos',
     ),
   ],
   rooms: {

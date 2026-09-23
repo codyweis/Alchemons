@@ -461,11 +461,11 @@ extension BuriedGiant on PlanetDungeonGame {
     // distinction; now the cue does, and a refusal that called itself a
     // statement got the success sound.
     if (entryDoorRevealed) {
-      _setBlockedHint('The lintel stands raised, the way within open');
+      _setBlockedHint('The lintel is already raised');
       return true;
     }
     if (a.member.element != 'Earth') {
-      _setBlockedHint('Fallen stone bars the way, it answers earthen strength');
+      _setBlockedHint('Only Earth is strong enough to lift this');
       return true;
     }
     _cue(SoundCue.dungeonGateOpen);
@@ -522,7 +522,7 @@ extension BuriedGiant on PlanetDungeonGame {
         if (gate != null) {
           _stampFamilyGate(gate);
         } else {
-          _setBlockedHint('Only an Earth horn\'s force shifts this bone');
+          _setBlockedHint('Only an Earth Horn can shift this bone');
         }
         return true;
       }
@@ -836,7 +836,7 @@ extension BuriedGiant on PlanetDungeonGame {
         return true;
       }
       if (a.member.element != 'Earth') {
-        _setBlockedHint('The bone warms under earth alone');
+        _setBlockedHint('Only Earth can seat this bone');
         return true;
       }
       spineLatched.add(i);
@@ -915,7 +915,7 @@ extension BuriedGiant on PlanetDungeonGame {
       // ── CRYSTAL: seal it, if it has somewhere to grow from ──
       if (element == 'Crystal') {
         if (!lockedPillars.contains(id)) {
-          _setBlockedHint('Nothing to seal, this socket is dark');
+          _setBlockedHint('Nothing to seal. This socket isn\'t crystal');
           return true;
         }
         final ring = _pillarRing(room, id);
@@ -925,10 +925,10 @@ extension BuriedGiant on PlanetDungeonGame {
           // instruction — and it names how many, never which.
           _setBlockedHint(
             unlit.length == 1
-                ? 'Crystal grows out of crystal, one side of this socket is '
-                      'still dark'
-                : 'Crystal grows out of crystal, both sides of this socket '
-                      'are dark',
+                ? 'A socket only seals between two crystals. One neighbour '
+                      'is still dark'
+                : 'A socket only seals between two crystals. Both '
+                      'neighbours are dark',
           );
           return true;
         }
@@ -966,7 +966,7 @@ extension BuriedGiant on PlanetDungeonGame {
         return true;
       }
       if (element != 'Lightning') {
-        _setBlockedHint('An open socket, and nothing in it but dark');
+        _setBlockedHint('An empty socket');
         return true;
       }
       _pillarCharge[id] = 0.0;
@@ -1228,15 +1228,15 @@ extension BuriedGiant on PlanetDungeonGame {
         _setHint(
           hasStar(2)
               ? 'The giant lies quiet, the scale is settled'
-              : 'The bones are carved all over. Mind the symbols: they are '
-                    'what tips the scale',
+              : 'Marks are carved into bones all over the barrow. They tell '
+                    'you how to set the scale',
           4.2,
         );
         return;
       case 'rib_hall':
         _setHint(
-          'The grooves remember three roads east. Shove the bones home '
-          'and the marrow is bridged',
+          'Three grooves run east. Push the rib bones along them to bridge '
+          'the marrow',
           3.8,
         );
         return;
@@ -1249,30 +1249,28 @@ extension BuriedGiant on PlanetDungeonGame {
         _setHint(switch (revealTier) {
           <= 0 =>
             cryptOpen
-                ? 'Four sockets, open to the storm, more Intelligence would '
-                      'read what they want'
-                : 'The giant\'s back runs the length of this crypt, and it '
-                      'is not taking any weight',
+                ? 'Four sockets, open to the storm'
+                : 'The giant\'s spine runs along this crypt. Its bones aren\'t '
+                      'seated',
           1 =>
             cryptOpen
-                ? 'Storm-spark wakes a socket as crystal, and the giant '
-                      'takes it back'
-                : 'Seat the vertebrae and the back will bear what is buried '
+                ? 'A storm spark turns a socket to crystal, but it fades '
+                      'back'
+                : 'Seat the vertebrae and the spine opens what is buried '
                       'under it',
           _ =>
             cryptOpen
-                ? 'Storm-spark wakes a socket as crystal and the giant takes '
-                      'it back. Crystal only SEALS where crystal already '
-                      'burns on both sides of it'
-                : 'Earth\'s weight seats a vertebra. Seat them all and the '
-                      'back will bear what is buried under it',
+                ? 'A storm spark turns a socket to crystal, but it fades. A '
+                      'socket only SEALS when both sockets beside it are '
+                      'already crystal'
+                : 'Earth seats a vertebra. Seat them all and the spine opens '
+                      'what is buried under it',
         }, 4.4);
         return;
       case 'skull_antechamber':
         _setHint(
-          'The bone-mural completes, the eye weighs four stones, and the '
-          'giant\'s own body remembers each one\'s pan: read the leaning '
-          'marks across its bones',
+          'The bone-mural shows the eye weighing four stones. The leaning '
+          'marks on the giant\'s bones say which pan each stone belongs in',
           5.0,
         );
         return;
@@ -1282,8 +1280,8 @@ extension BuriedGiant on PlanetDungeonGame {
         if (prismStage < 2) {
           // The eye is BLIND until its lens stands.
           _setHint(
-            'The eye stares at the bare plinth and sees nothing. Raise '
-            'it a lens of stone and storm',
+            'The eye is blind. It needs a prism of stone and storm on the '
+            'plinth',
             4.0,
           );
           return;
@@ -1295,8 +1293,7 @@ extension BuriedGiant on PlanetDungeonGame {
           // reading did. Gone; the line describes the evidence instead, which
           // is what the rest of the tiers already do.
           _setHint(
-            'The prism sharpens every grain, each stone wears which pan it '
-            'was cut to ride',
+            'Through the prism, each stone shows which pan it belongs in',
             4.2,
           );
         } else {
@@ -1308,9 +1305,8 @@ extension BuriedGiant on PlanetDungeonGame {
               )
               .length;
           _setHint(
-            'Through the prism the eye flickers, $correct of '
-            '${scale.weights.length} stones sit true; sharper insight '
-            'would name them',
+            'Through the prism, $correct of ${scale.weights.length} stones '
+            'are in the right pan',
             3.8,
           );
         }
@@ -1318,23 +1314,23 @@ extension BuriedGiant on PlanetDungeonGame {
       case 'palm_hollow':
         // The egg's single oblique hint.
         _setHint(
-          'The hand lies open. It has held nothing for an age, and '
-          'misses it.',
+          'The hand lies open. It has held nothing for a very long time, '
+          'and misses it.',
           3.6,
         );
         return;
       case 'barrow_gate':
         _setHint(
           entryDoorRevealed
-              ? 'The lintel stands; the barrow breathes'
-              : 'The fallen stones ache to be stood back up',
+              ? 'The lintel is raised. The way is open'
+              : 'The fallen lintel needs raising. Only Earth is strong enough',
         );
         return;
       case 'heart_chamber':
         _setHint(
           guardianAwake
               ? 'Terradon\'s fury ebbs in waves. Strike in the lull'
-              : 'The great heart hangs still, the scale will wake it',
+              : 'The great heart is still. Balancing the scale will wake it',
           3.6,
         );
         return;
@@ -1443,31 +1439,30 @@ extension BuriedGiant on PlanetDungeonGame {
       case 'barrow_gate':
         return entryDoorRevealed
             ? null
-            : 'Barrow Gate, the lintel has fallen; earthen strength '
-                  'raises it';
+            : 'Barrow Gate. The lintel has fallen';
       case 'rib_hall':
-        return 'Rib Hall. Shove the three ribs home and bridge the marrow';
+        return 'Rib Hall. The marrow needs bridging';
       case 'pillar_crypt':
         // WHAT, never HOW (§5.6): the storm-into-crystal method is the
         // bone-mural's earned reading (_barrowReveal).
-        return 'Pillar Crypt, something sleeps beneath the four pillars';
+        return 'Pillar Crypt. Something sleeps under the four pillars';
       case 'palm_hollow':
         return null; // the egg keeps its silence
       case 'skull_antechamber':
         return hasStar(2)
             ? null
-            : 'Skull Antechamber, the bone-mural diagrams the rite ahead';
+            : 'Skull Antechamber. The bone-mural shows the rite ahead';
       case 'eye_chamber':
         // Both were procedures — "build it a lens of stone and storm", then
         // "set the stones, THEN ask the eye". State only; the lens and the
         // order it wants are the bone-mural's to give.
         return prismStage < 2
-            ? 'Eye Chamber, the eye is blind, and its prism is unmade'
-            : 'Eye Chamber, the prism stands, and the eye has not spoken';
+            ? 'Eye Chamber. The eye is blind without its prism'
+            : 'Eye Chamber. The prism stands, and the scale waits';
       case 'heart_chamber':
         return guardianAwake
-            ? 'The Heart, Terradon rises'
-            : 'The Heart. Utterly still; the scale has not spoken';
+            ? 'The Heart. Terradon rises'
+            : 'The Heart. Still and silent until the scale balances';
     }
     return null;
   }

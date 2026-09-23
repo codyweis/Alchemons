@@ -31,9 +31,11 @@
 //    planet's rule. Its lull exists only on the FLATLINE, and every strike
 //    beat it throws the heart forward a whole phase. The arena's VAGAL NODE
 //    is the party's own hand on the clock.
-//  • Lost Maxim — THE HEART-DRUM (§6 #17): strike it in sync with the pulse
-//    for twelve straight beats. This is the ONE reaction-timed thing on
-//    Hemavorn, it is optional, and no star touches it.
+//  • Lost Maxim — THE THROMBUS. The two dead vessels the Graft Star tells you
+//    to leave alone: turn them anyway (the clots come), Light shows the clot
+//    for what it is, and on a FLATLINE — no pressure on it — Blood breaks it,
+//    and the vessel takes. Both, and every road in the eight carries: the
+//    blood is the life. No reaction window anywhere on the planet now.
 //
 // NON-STRANDABILITY (see `solveSanguineOrrery`): Hemavorn is the first planet
 // whose state advances WITHOUT the player, which is a stranding hazard no
@@ -50,7 +52,8 @@
 part of 'planet_dungeon_game.dart';
 
 /// Blood's lost maxim discovery id (the screen pays 20 gold on first find).
-const String kBloodDrumEggId = 'egg:blood_drum';
+/// The string keeps the drum's old id so a save that found it stays found.
+const String kBloodLifeEggId = 'egg:blood_drum';
 
 // ── Device-tunable knobs ───────────────────────────────────
 // Blood has never been on a device; every number the feel depends on is named
@@ -83,13 +86,6 @@ const double _kVagalCooldown = 7.0;
 /// Seconds the pulse ring takes to cross a chamber at a phase turn. Purely
 /// visual.
 const double _kPulseTurnSeconds = 0.5;
-
-/// Consecutive systole onsets the heart-drum wants (§6 #17: twelve).
-const int _kDrumBeats = 12;
-
-/// How far either side of a systole onset a drum strike still counts. The one
-/// reaction window on the planet, and it belongs to an optional secret.
-const double _kDrumWindow = 0.85;
 
 /// Clots a primed mouth wakes (Star 0's one consequence). Waking a dead organ
 /// wakes what has been living in it.
@@ -158,15 +154,15 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     final p = _heartPassageFor(room, door)!;
     switch (p.kind) {
       case PassageKind.valve:
-        return 'The leaflet is held shut, there is pressure on it';
+        return 'This valve is pressed shut. It opens on the flatline';
       case PassageKind.collateral:
-        return 'Grafted, but slack, ${lobeWord(p.lobe!)} is running';
+        return 'Grafted, but slack while ${lobeWord(p.lobe!)} is running';
       case PassageKind.mural:
-        return 'The wall does not open here';
+        return 'This wall doesn\'t open';
       case PassageKind.vein:
         final flow = veinFlow(p.lobe!, heart.phase);
-        if (flow == 0) return 'Collapsed, no blood in it at all';
-        return 'It runs the other way, nothing swims up a heart';
+        if (flow == 0) return 'This vein is empty right now';
+        return 'This vein is flowing the other way right now';
     }
   }
 
@@ -183,7 +179,6 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         _tryOstium(a) ||
         _tryCollateralCock(a) ||
         _tryHeartBalance(a) ||
-        _tryHeartDrum(a) ||
         // LAST, and deliberately: the steadying is a bonus, so it must never
         // swallow a press meant for anything else in the chamber.
         _trySteadyVein(a);
@@ -213,11 +208,12 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     if (pos == null || entryDoorRevealed) return false;
     if ((a.position - pos).distance > _kHeartReach) return false;
     if (a.member.element != 'Blood') {
-      _setBlockedHint('Only Blood unpicks its own sac');
+      _setBlockedHint('Only Blood can open this sac');
       return true;
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
+    _cue(SoundCue.dungeonGateOpen);
     _setHint('The pericardium comes away, and Hemavorn is keeping time');
     _spawnAlchemyBurst(
       pos,
@@ -255,16 +251,17 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         return true;
       }
       if (a.member.element != o.element) {
-        _setBlockedHint('This mouth answers ${o.element}');
+        _setBlockedHint('This mouth only takes ${o.element}');
         return true;
       }
       if (heart.phase != o.phase) {
         _setBlockedHint(
-          'Nothing in it to drink, it takes ${phaseWord(o.phase)}',
+          'Wrong moment. This mouth only drinks on ${phaseWord(o.phase)}',
         );
         return true;
       }
       heart.ostiaPrimed.add(o.id);
+      _cue(SoundCue.elementBlood);
       _spawnAlchemyBurst(
         o.position,
         producedElement: 'Blood',
@@ -318,8 +315,10 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         return true;
       }
       if (heart.cocksTurned.contains(p.id)) {
-        _setBlockedHint('Turned already, the vessel behind it is dead');
-        return true;
+        // ── THE THROMBUS (the Lost Maxim) ──
+        // A turned cock on a dead vessel. The Graft Star told you to leave
+        // these alone; the secret is what a party does with one anyway.
+        return _tryThrombus(a, c, p);
       }
 
       // The flagging. Element-only Light (§4), and it never consumes the cock
@@ -327,6 +326,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       // never legal in v2 and this one gates nothing.
       if (a.member.element == 'Light' && !heart.flagged.contains(p.id)) {
         heart.flagged.add(p.id);
+        _cue(SoundCue.dungeonInteract);
         final far = p.from == currentRoomId ? p.to : p.from;
         _setInsightHint(
           heart.isSound(p.id)
@@ -353,14 +353,13 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
             _stampFamilyGate(gate);
           } else {
             _setBlockedHint(
-              'Only a Dark that sees inside an unlit vessel can graft this '
-              'cock',
+              'Only Dark can graft this vessel',
             );
           }
           return true;
         case InteractionResult.blockedElement:
         case InteractionResult.blockedStat:
-          _setBlockedHint('An unlit lumen answers Dark');
+          _setBlockedHint('Only Dark can graft this vessel');
           return true;
       }
 
@@ -368,7 +367,10 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       if (!heart.isSound(p.id)) {
         // THE CONSEQUENCE (§7): a thrombosed vessel does not take. Nothing is
         // closed and nothing is lost — the price of guessing is a fight.
-        _setHint('The cock turns on nothing, the vessel is packed solid');
+        _cue(SoundCue.dungeonHazardTrigger);
+        speakConsequence(
+          'The cock turns on nothing, the vessel is packed solid',
+        );
         spawnWispWave(
           element: 'Blood',
           center: c.position,
@@ -380,6 +382,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       }
 
       heart.grafted.add(p.id);
+      _cue(SoundCue.dungeonSwitch);
       _spawnAlchemyBurst(
         c.position,
         producedElement: 'Blood',
@@ -432,6 +435,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       if (heart.steadied.containsKey(p.id)) continue;
       heart.steadied[p.id] = _kSteadySeconds;
       heart.steadyDir[p.id] = currentRoom.id == p.from ? 1 : -1;
+      _cue(SoundCue.elementBlood);
       _setHint('${p.look} is held open, it will not close on the turn');
       _spawnAlchemyBurst(
         d.rect.center,
@@ -455,17 +459,18 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kHeartReach) return false;
     if ((conduitEnergy['B'] ?? 0) > 0) return false;
     if (!_heartHasBloodHand(a)) {
-      _setBlockedHint('Only Blood levels a heart against itself');
+      _setBlockedHint('Only Blood can level the sconces');
       return true;
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The sconces will not level, they answer only a bearer of the '
-        '${layout.starName(0)} and ${layout.starName(1)}',
+        'The sconces need the ${layout.starName(0)} and '
+        '${layout.starName(1)} first',
       );
       return true;
     }
     conduitEnergy['B'] = double.infinity;
+    _cue(SoundCue.dungeonSwitch);
     _setHint('The dark sconce and the light one come level, and stay level');
     _spawnAlchemyBurst(
       pos,
@@ -488,17 +493,21 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kHeartReach) return false;
     if (heart.vagalCooldown > 0) {
-      _setBlockedHint('The node will not answer yet');
+      _setBlockedHint('The node needs a moment to recover');
       return true;
     }
     if (!_heartHasBloodHand(a)) {
-      _setBlockedHint('Only Blood lays a hand on a heart');
+      _setBlockedHint('Only Blood can press the node');
       return true;
     }
     heart.arrestFor(_kAsystoleSeconds);
     heart.vagalCooldown = _kVagalCooldown;
     heart.turn = _kPulseTurnSeconds;
-    _setHint('The heart stops, and everything in Hemavorn stops with it');
+    _cue(SoundCue.dungeonSwitch);
+    // A CONSEQUENCE (§5.7): every vein on the planet has just shut at once.
+    speakConsequence(
+      'The heart stops, and everything in Hemavorn stops with it',
+    );
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Blood',
@@ -532,95 +541,143 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       heart.arrest = 0;
       heart.skipPhase();
       heart.turn = _kPulseTurnSeconds;
-      _setHint('Sanguorath throws the beat forward, the pause is gone');
+      _cue(SoundCue.dungeonHazardTrigger);
+      // A closing announces itself (§5.7): from update, where a plain line is
+      // dropped unasked, and every leaflet on the planet just shut.
+      speakConsequence('Sanguorath throws the beat forward, the pause is gone');
     }
   }
 
-  // ── The Lost Maxim · THE HEART-DRUM ──────────────────────
+  // ── The Lost Maxim · THE THROMBUS ────────────────────────
+  //
+  // THE BLOOD IS THE LIFE (2026-09-20; the §7 maxim standard, and Mud's
+  // lesson that the best place to hide a secret is the state your own stars
+  // punish — and the author's rule that a puzzle rewards thinking, never
+  // timing).
+  //
+  // It was the heart-drum: twelve strikes inside a ±0.85s window on the
+  // systole onset, kept as "the one reaction-timed thing on the planet"
+  // because it was optional. Optional or not, it was a reflex test on the
+  // one planet built to have none. It is gone. The secret is THE THROMBUS
+  // now, and it lives in the exact act the Graft Star punishes:
+  //
+  //   1. TURN A DEAD VESSEL'S COCK ANYWAY. Two of the five collaterals are
+  //      thrombosed; the Light flag tells you which, and the star's whole
+  //      lesson is to leave them alone — a turned thrombus costs you a clot
+  //      fight and nothing else. Turn it. The cock stands turned on a vessel
+  //      packed solid.
+  //   2. LIGHT SHOWS THE CLOT FOR WHAT IT IS — the flagging hand's own verb,
+  //      on the same cock: the thrombus runs the whole vessel, and it is old
+  //      blood standing still.
+  //   3. ON A FLATLINE, BLOOD BREAKS IT. Nothing is pushing on the clot in
+  //      the pause between beats, and the heart's own hand is what moves old
+  //      blood. The vessel TAKES, like any sound graft — a road the beat
+  //      never gave the eight. The window is a whole phase, and the ask is
+  //      WHERE to be standing, never when to press.
+  //   4. BOTH DEAD VESSELS — the repeated beat — and every one of the five
+  //      collaterals carries: the blood is the life. The rite of three.
+  //
+  // Nothing here asks for a family the riddle did not name (the cock is
+  // element-only), a wrong hand or a wrong phase answers with a puff and a
+  // sentence, nothing is spent (a graft only ever ADDS a passage, so the
+  // no-strand argument is untouched), and the star path never passes it: the
+  // Graft Star wants three sound vessels, and the flag is there so you never
+  // turn a dead one.
 
-  /// §6 #17: strike the heart-drum in sync with the dungeon's pulse for twelve
-  /// straight beats. Deliberately beyond what the stars demand (§ "Easter
-  /// eggs"), and deliberately the ONLY reaction-timed thing on Hemavorn — a
-  /// planet built out of windows you plan for is allowed exactly one window
-  /// you have to hit, as long as no star is behind it.
-  bool _tryHeartDrum(DungeonCreature a) {
-    final pos = currentRoom.sanguine?.heartDrum;
-    if (pos == null) return false;
-    if ((a.position - pos).distance > _kHeartReach) return false;
-    if (heart.drumHeard || discoveredClouds.contains(kBloodDrumEggId)) {
-      _setAmbientHint('The skin of it is still humming');
+  /// The dead vessels this descent — the two the Graft Star leaves alone.
+  Iterable<String> get _thrombosed => [
+    for (final c in kHeartCocks)
+      if (!heart.isSound(c.passageId)) c.passageId,
+  ];
+
+  /// Every dead vessel broken and carrying: the maxim's win.
+  bool get everyVesselCarries =>
+      _thrombosed.every((id) => heart.grafted.contains(id));
+
+  /// A turned cock on a thrombosed vessel: the clot, seen and broken.
+  bool _tryThrombus(DungeonCreature a, CollateralCock c, HeartPassage p) {
+    if (discoveredClouds.contains(kBloodLifeEggId)) {
+      _setBlockedHint('This vessel is already flowing');
       return true;
     }
-    if (a.member.element != 'Blood') {
-      _setBlockedHint('Only Blood gets an answer out of this skin');
+    final el = a.member.element;
+    // ── 2 · the clot, shown ──
+    if (el == 'Light' && !heart.clotSeen.contains(p.id)) {
+      heart.clotSeen.add(p.id);
+      _cue(SoundCue.dungeonInteract);
+      _spawnAlchemyBurst(
+        c.position,
+        producedElement: 'Light',
+        particleCount: 14,
+        intensity: 0.7,
+      );
+      _setInsightHint(
+        'A clot fills this whole vessel, and nothing is pushing on it',
+        4.0,
+      );
       return true;
     }
-    final beat = _drumWindowBeat();
-    if (beat == null) {
-      heart.drumStreak = 0;
-      heart.drumBeatStruck = -1;
-      _setHint('Off the beat, the drum swallows it');
+    if (!_heartHasBloodHand(a)) {
+      _spawnAlchemyBurst(
+        c.position,
+        producedElement: el,
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint(
+        heart.clotSeen.contains(p.id)
+            ? 'Only Blood can shift this clot'
+            : 'This vessel is blocked solid',
+      );
       return true;
     }
-    if (beat == heart.drumBeatStruck) {
-      _setAmbientHint('Once a beat, and no oftener');
+    if (!heart.clotSeen.contains(p.id)) {
+      _spawnAlchemyBurst(
+        c.position,
+        producedElement: 'Blood',
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint('Too dark in there to see what is blocking it');
       return true;
     }
-    // Consecutive or not, decided by the beat NUMBER rather than by anything
-    // the frame loop happened to see.
-    heart.drumStreak = beat == heart.drumBeatStruck + 1
-        ? heart.drumStreak + 1
-        : 1;
-    heart.drumBeatStruck = beat;
-    if (heart.drumStreak < _kDrumBeats) {
-      _setHint('${heart.drumStreak} of $_kDrumBeats', 1.2);
+    // ── 3 · broken, on the pause ──
+    if (heart.phase != PulsePhase.flatline) {
+      _spawnAlchemyBurst(
+        c.position,
+        producedElement: 'Blood',
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint(
+        'The pressure holds the clot in place. It needs the flatline',
+      );
       return true;
     }
-    heart.drumHeard = true;
-    // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    beginMaximRite(kBloodDrumEggId, pos);
+    heart.grafted.add(p.id);
+    _cue(SoundCue.dungeonWallBreak);
     _spawnAlchemyBurst(
-      pos,
+      c.position,
+      producedElement: 'Blood',
+      reagentElements: const ['Light', 'Dark'],
+      particleCount: 30,
+      intensity: 1.2,
+    );
+    _queueDoorReveal(p.from, p.to);
+    _queueDoorReveal(p.to, p.from);
+    if (!everyVesselCarries) return true;
+    // ── 4 · every vessel carrying: the blood is the life ──
+    _cue(SoundCue.dungeonGateOpen);
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    beginMaximRite(kBloodLifeEggId, c.position);
+    _spawnAlchemyBurst(
+      c.position,
       producedElement: 'Blood',
       reagentElements: const ['Dark', 'Light'],
       particleCount: 44,
       intensity: 1.5,
     );
     return true;
-  }
-
-  /// Which BEAT the drum's window is currently open for, or null when it is
-  /// shut. The window straddles the top of the cycle — a systole onset is the
-  /// wrap — so the tail of one beat belongs to the NEXT one's onset.
-  int? _drumWindowBeat() {
-    if (heart.arrest > 0) return null;
-    final t = heart.clock;
-    if (t <= _kDrumWindow) return heart.beats;
-    if (t >= kPulseCycleSeconds - _kDrumWindow) return heart.beats + 1;
-    return null;
-  }
-
-  /// True while the drum's window is open — the render reads it, and so does
-  /// nothing else: the streak itself is decided by beat NUMBER.
-  bool _drumInWindow() => _drumWindowBeat() != null;
-
-  /// A beat that comes round unanswered breaks the streak, and leaving the
-  /// gallery breaks it too. Frame-rate independent: it fires as soon as the
-  /// window belongs to a beat more than one past the last one answered, so no
-  /// edge can be missed by a slow frame.
-  void _updateDrum(DungeonRoom room, double dt) {
-    if (room.sanguine?.heartDrum == null || heart.drumHeard) {
-      heart.drumStreak = 0;
-      heart.drumBeatStruck = -1;
-      return;
-    }
-    final beat = _drumWindowBeat();
-    if (beat != null &&
-        heart.drumStreak > 0 &&
-        beat > heart.drumBeatStruck + 1) {
-      heart.drumStreak = 0;
-      heart.drumBeatStruck = -1;
-    }
   }
 
   // ── Per-frame ────────────────────────────────────────────
@@ -632,6 +689,9 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     // what makes the reachability question a question about TIME.
     if (heart.advance(dt)) {
       heart.turn = _kPulseTurnSeconds;
+      // THE BEAT IS AUDIBLE: a thud at the top of every systole. Once a
+      // cycle, so it is a heartbeat and not a metronome.
+      if (heart.phase == PulsePhase.systole) _cue(SoundCue.dungeonBlockMove);
       // A vein that has just come into being deserves the engine's flourish;
       // the ones that have just collapsed announce themselves by the lumen
       // closing in the render.
@@ -644,7 +704,6 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         _queueDoorReveal(room.id, d.targetRoomId);
       }
     }
-    _updateDrum(room, dt);
     _updateSanguorath(room, dt);
   }
 
@@ -674,19 +733,18 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         fraction: n / kSoundCollateralCount,
       );
     }
-    if (ch?.heartDrum != null && heart.drumStreak > 0) {
-      return DungeonProgressReadout(
-        label: 'IN SYNC',
-        value: '${heart.drumStreak}/$_kDrumBeats',
-        fraction: heart.drumStreak / _kDrumBeats,
-      );
-    }
+    // THE PULSE, with a COUNTDOWN to the turn. The header promised that a
+    // window here is something a player can PLAN for; four marks say where
+    // the beat is, and the seconds say how long you have to get in place.
     final marks = [
       for (final p in PulsePhase.values) p == heart.phase ? '■' : '□',
     ].join();
+    final left = heart.arrest > 0
+        ? heart.arrest
+        : heart.secondsUntil(nextPulsePhase(heart.phase));
     return DungeonProgressReadout(
       label: phaseTag(heart.phase),
-      value: marks,
+      value: '$marks ${left.ceil()}s',
       fraction: (heart.clock / kPulseCycleSeconds).clamp(0.0, 1.0),
     );
   }
@@ -707,33 +765,31 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _heartObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Sanguorath\'s Systole, the beat keeps the last star';
+      return 'Sanguorath\'s Systole. The last star is here';
     }
     if (room.sanguine?.balance != null) {
-      return 'The Myocardium, the rite waits on the sconces';
+      return 'The Myocardium. The rite happens here';
     }
     if (room.sanguine?.starIndex == 0) {
       return hasStar(0)
           ? null
-          : 'The Vena Crossing, four mouths in this orrery, and none of them '
-                'drinking';
+          : 'The Vena Crossing. Four mouths around the heart need priming';
     }
     if (room.sanguine?.starIndex == 1) {
       return hasStar(1)
           ? null
-          : 'The Capillary Weave, the eight has vessels it is not using';
+          : 'The Capillary Weave. These walls hold vessels nobody is using';
     }
     if (room.vaultCache != null) {
-      return 'A pocket the pressure keeps shut, something is bottled against '
-          'the wall';
+      return 'A sealed pocket. Something is stored here';
     }
-    if (room.sanguine?.heartDrum != null) {
-      return 'The Atrial Gallery, something in here is keeping time';
+    if (room.id == 'atrial_gallery') {
+      return 'The Atrial Gallery, the last chamber of the lesser round';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Pericard Gate, the way out is only sometimes a way out'
-          : 'The Pericard Gate, the sac is stitched shut over it';
+          ? 'The Pericard Gate. Its doors only open on some beats'
+          : 'The Pericard Gate. A sac is stitched over the way in';
     }
     return null;
   }
@@ -770,64 +826,74 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     if (ostiaIn(room.id).isNotEmpty) {
       final o = ostiaIn(room.id).first;
       _setInsightHint(switch (tier) {
-        0 => 'The mouth is cut to take one thing, and only when it comes',
-        1 => 'It drinks on ${phaseWord(o.phase)}, and on nothing else',
+        0 => 'This mouth only drinks at one point in the beat',
+        1 => 'It drinks on ${phaseWord(o.phase)}. Stand here and wait for it',
         _ =>
-          'It drinks on ${phaseWord(o.phase)} and wants ${o.element}. You will '
-              'not answer all four mouths on one beat, they are in four '
-              'chambers and no two take at the same moment. Stand here; it '
-              'comes round',
+          'Bring ${o.element} and press on ${phaseWord(o.phase)}. The four '
+              'mouths drink on different phases, so prime them one at a time',
       });
+      return;
+    }
+    final deadTurned = cocksIn(room.id).any(
+      (c) =>
+          heart.cocksTurned.contains(c.passageId) &&
+          !heart.isSound(c.passageId) &&
+          !heart.grafted.contains(c.passageId),
+    );
+    if (deadTurned && !discoveredClouds.contains(kBloodLifeEggId)) {
+      // ONE OBLIQUE LINE and nothing after it (the §7 maxim standard). It
+      // takes over from the cocks' teaching only once a dead one is turned.
+      _setInsightHint(
+        'A dead vessel is just a clot. It can\'t move while the heart '
+        'pushes, but it might when the heart stops',
+      );
       return;
     }
     if (cocksIn(room.id).isNotEmpty) {
       _setInsightHint(switch (tier) {
-        0 => 'The wall is full of vessels nobody is using',
+        0 => 'These walls hold unused vessels that can be grafted open',
         1 =>
-          'A grafted vessel carries when the round beside it is at rest'
-              'it is a road on the phases the beat will not give you',
+          'A grafted vessel flows while the round beside it is at rest, '
+              'giving you routes the beat normally won\'t',
         _ =>
-          'Five cocks, and only three of the vessels behind them are sound. '
-              'A light shows you which before you open it; nothing else will, '
-              'and a dead one costs you a fight and no ground',
+          'Five vessels, and only three are healthy. Light shows which '
+              'before you graft. A dead one just starts a fight',
       });
       return;
     }
     if (room.vaultCache != null ||
         heartPassageBetween(room.id, 'auricle_reliquary') != null) {
       _setInsightHint(switch (tier) {
-        0 => 'That leaflet has never been open while you were looking',
-        1 => 'A leaflet is held shut by pressure, from either side',
+        0 => 'That valve is pressed shut from both sides',
+        1 => 'It only opens when there is no pressure at all',
         _ =>
-          'It hangs open only when there is no pressure at all, which is '
-              'the pause between beats. Stand at it and wait; it is the same '
-              'leaflet coming back out, so you are not shut in',
+          'It opens on the flatline, the pause between beats. Wait beside '
+              'it. It opens the same way back, so you can\'t get stuck',
       });
       return;
     }
     if (room.sanguine?.vagalNode != null) {
       _setInsightHint(switch (tier) {
-        0 => 'There is a knot in the floor that the beat runs through',
-        1 => 'Press it and the heart stops. Briefly',
+        0 => 'This node controls the heartbeat',
+        1 => 'Press it and the heart stops for a moment',
         _ =>
-          'It only stops moving while the heart does, and the heart only '
-              'stops when you stop it. Take the pause; do not wait for one',
+          'Sanguorath only holds still while the heart is stopped. Press '
+              'the node to make that pause yourself',
       });
       return;
     }
     // Anywhere in the orrery, insight reads the PULSE — which is the planet.
     _setInsightHint(switch (tier) {
-      0 => 'Nothing here is a road for very long',
+      0 => 'Routes here open and close with the heartbeat',
       1 =>
-        'A vein carries only while blood is being pushed through it, and '
-            'only downstream. The greater round turns back on the backwash; '
-            'the lesser round never does',
+        'A vein only carries you downstream, while blood is pushed through '
+            'it. The greater round reverses on the backwash. The lesser '
+            'round never does',
       _ =>
-        'Four phases, in one order, for ever, and you cannot touch them. '
-            'The greater round runs out on the squeeze and back on the '
-            'backwash; the lesser round runs one way on the fill and closes on '
-            'itself; on the pause nothing runs and every leaflet hangs open. '
-            'Work out where to stand, not how fast to move',
+        'Four phases, always in the same order. The greater round flows out '
+            'on the systole and back on the backwash. The lesser round flows '
+            'one way on the diastole. On the flatline nothing flows and every '
+            'valve opens. Plan where to stand, not how fast to move',
     });
   }
 
@@ -1047,31 +1113,66 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
 
   void _renderHeartObjects(Canvas canvas, DungeonRoom room) {
     final ch = room.sanguine;
-    // The mouths.
+    // THE MOUTHS: a sphincter, not a target — a fleshy ring of folds round a
+    // dark throat. It DILATES on its own phase (the folds open and the throat
+    // shows), and once primed it stays open and wet. The chord of the element
+    // it answers is kept: never a letter, never a label.
     for (final o in ostiaIn(room.id)) {
       final primed = heart.ostiaPrimed.contains(o.id);
       final ready = heart.canPrime(o);
+      final open = primed || ready;
+      final pulse = 0.5 + 0.5 * sin(_time * (ready ? 4.0 : 1.4));
+      final outer = 26.0 + (open ? 3 * pulse : 0);
+      final throat = open ? 12.0 + 3 * pulse : 5.0;
+      // Folds: twelve petals round the ring.
+      for (var i = 0; i < 12; i++) {
+        final a = i * pi / 6 + pulse * 0.1;
+        final r0 = throat + 2;
+        final fold = Path()
+          ..moveTo(
+            o.position.dx + cos(a - 0.22) * r0,
+            o.position.dy + sin(a - 0.22) * r0,
+          )
+          ..lineTo(
+            o.position.dx + cos(a) * outer,
+            o.position.dy + sin(a) * outer,
+          )
+          ..lineTo(
+            o.position.dx + cos(a + 0.22) * r0,
+            o.position.dy + sin(a + 0.22) * r0,
+          )
+          ..close();
+        canvas.drawPath(
+          fold,
+          Paint()
+            ..color = (primed ? _kHeartCrimson : _kHeartRust).withValues(
+              alpha: i.isEven ? 0.85 : 0.65,
+            ),
+        );
+      }
       canvas.drawCircle(
         o.position,
-        18,
-        Paint()
-          ..color = (primed ? _kHeartCrimson : _kHeartRust).withValues(
-            alpha: primed ? 0.75 : 0.5,
-          ),
+        throat,
+        Paint()..color = _kHeartInk.withValues(alpha: 0.92),
       );
+      if (primed) {
+        canvas.drawCircle(
+          o.position,
+          throat * 0.6,
+          Paint()..color = _kHeartCrimson.withValues(alpha: 0.6 + 0.3 * pulse),
+        );
+      }
       canvas.drawCircle(
         o.position,
-        ready ? 26 : 22,
+        outer + 3,
         Paint()
-          ..color = _kHeartBone.withValues(alpha: ready ? 0.85 : 0.30)
+          ..color = _kHeartBone.withValues(alpha: ready ? 0.85 : 0.3)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = ready ? 3 : 1.5,
+          ..strokeWidth = ready ? 2.5 : 1.2,
       );
       if (!primed) {
-        // A stub of the element the mouth answers, drawn as a chord of its
-        // colour — never a letter, never a label.
         canvas.drawArc(
-          Rect.fromCircle(center: o.position, radius: 30),
+          Rect.fromCircle(center: o.position, radius: outer + 10),
           -0.6,
           1.2,
           false,
@@ -1082,28 +1183,73 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         );
       }
     }
-    // The cocks.
+    // THE COCKS: a brass stopcock on a stub of vessel let into the wall. The
+    // handle lies ACROSS the stub while shut and turns along it when turned;
+    // grafted, the stub runs red; thrombosed and turned, it is packed dark;
+    // seen, the packing shows its length; the Light flag stays a ring.
     for (final c in cocksIn(room.id)) {
       final grafted = heart.grafted.contains(c.passageId);
       final turned = heart.cocksTurned.contains(c.passageId);
       final flagged = heart.flagged.contains(c.passageId);
+      final dead = turned && !grafted;
+      final seen = heart.clotSeen.contains(c.passageId);
+      final at = c.position;
+      // The stub of vessel, running down into the floor.
+      final stub = Rect.fromCenter(
+        center: at + const Offset(0, 22),
+        width: 18,
+        height: 44,
+      );
       canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: c.position, width: 26, height: 26),
-          const Radius.circular(5),
-        ),
+        RRect.fromRectAndRadius(stub, const Radius.circular(8)),
         Paint()
-          ..color = (grafted ? _kHeartCrimson : _kHeartRust).withValues(
-            alpha: turned ? 0.8 : 0.55,
-          ),
+          ..color =
+              (grafted
+                      ? _kHeartCrimson
+                      : dead
+                      ? _kHeartInk
+                      : _kHeartRust)
+                  .withValues(alpha: 0.9),
       );
+      if (grafted) {
+        // Flow: a bright thread running down the lumen.
+        final t = (_time * 1.2) % 1.0;
+        canvas.drawCircle(
+          Offset(at.dx, stub.top + 6 + t * (stub.height - 12)),
+          3.5,
+          Paint()..color = _kHeartBone.withValues(alpha: 0.7),
+        );
+      } else if (dead && seen) {
+        // The clot, its length shown: pale granules packed the whole stub.
+        for (var i = 0; i < 5; i++) {
+          canvas.drawCircle(
+            Offset(at.dx + (i.isEven ? -3 : 3), stub.top + 8 + i * 7.5),
+            3,
+            Paint()..color = _kHeartBone.withValues(alpha: 0.55),
+          );
+        }
+      }
+      // The body of the cock: a brass boss.
+      canvas.drawCircle(at, 14, Paint()..color = const Color(0xFF8C6F36));
+      canvas.drawCircle(
+        at,
+        14,
+        Paint()
+          ..color = const Color(0xFFE4C16A).withValues(alpha: 0.7)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6,
+      );
+      // The handle: across (shut) or along (turned).
+      final along = turned;
       canvas.drawLine(
-        c.position.translate(-16, 0),
-        c.position.translate(16, 0),
+        at + (along ? const Offset(0, -20) : const Offset(-20, 0)),
+        at + (along ? const Offset(0, 20) : const Offset(20, 0)),
         Paint()
-          ..color = _kHeartBone.withValues(alpha: grafted ? 0.9 : 0.5)
-          ..strokeWidth = 3,
+          ..color = const Color(0xFFE4C16A).withValues(alpha: 0.95)
+          ..strokeWidth = 5
+          ..strokeCap = StrokeCap.round,
       );
+      canvas.drawCircle(at, 3, Paint()..color = _kHeartInk);
       if (flagged && !turned) {
         // The Light hand's flag: a clean ring for a sound vessel, a broken one
         // for a thrombus. Earned information, drawn on the object.
@@ -1112,13 +1258,24 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
           ..color = elementColor('Light').withValues(alpha: 0.9)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5;
-        final r = Rect.fromCircle(center: c.position, radius: 22);
+        final r = Rect.fromCircle(center: at, radius: 24);
         if (sound) {
-          canvas.drawCircle(c.position, 22, paint);
+          canvas.drawCircle(at, 24, paint);
         } else {
           canvas.drawArc(r, -2.6, 2.0, false, paint);
           canvas.drawArc(r, 0.5, 2.0, false, paint);
         }
+      }
+      if (dead && seen && heart.phase == PulsePhase.flatline) {
+        // The pause: the clot can be moved now. A bone ring, breathing.
+        canvas.drawCircle(
+          at,
+          26,
+          Paint()
+            ..color = _kHeartBone.withValues(alpha: 0.5 + 0.3 * sin(_time * 4))
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
+        );
       }
     }
     if (ch == null) return;
@@ -1137,62 +1294,105 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         );
       }
     }
-    // The balance: two sconces on one beam.
+    // THE BALANCE: a beam on a pivot post with two sconces hung off its ends,
+    // one dark and one light. It tilts until the rite levels it.
     final bal = ch.balance;
     if (bal != null) {
       final lit = (conduitEnergy['B'] ?? 0) > 0;
+      final tilt = lit ? 0.0 : 0.16 + 0.03 * sin(_time * 0.8);
+      // Post and foot.
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: bal + const Offset(0, 46),
+          width: 44,
+          height: 14,
+        ),
+        Paint()..color = _kHeartInk.withValues(alpha: 0.8),
+      );
       canvas.drawLine(
-        bal.translate(-34, 0),
-        bal.translate(34, 0),
+        bal + const Offset(0, 44),
+        bal,
         Paint()
-          ..color = _kHeartBone.withValues(alpha: lit ? 0.9 : 0.45)
-          ..strokeWidth = 3,
+          ..color = const Color(0xFF8C6F36)
+          ..strokeWidth = 5,
       );
-      canvas.drawCircle(
-        bal.translate(-34, lit ? 0 : -8),
-        9,
-        Paint()..color = elementColor('Dark').withValues(alpha: 0.85),
-      );
-      canvas.drawCircle(
-        bal.translate(34, lit ? 0 : 8),
-        9,
-        Paint()..color = elementColor('Light').withValues(alpha: 0.85),
-      );
-    }
-    // The drum.
-    final drum = ch.heartDrum;
-    if (drum != null) {
-      final hit = _drumInWindow() && !heart.drumHeard;
-      canvas.drawCircle(
-        drum,
-        26,
-        Paint()..color = _kHeartRust.withValues(alpha: 0.7),
-      );
-      canvas.drawCircle(
-        drum,
-        hit ? 32 : 26,
+      // Beam.
+      final l = bal + Offset(-44 * cos(tilt), -44 * sin(tilt));
+      final r = bal + Offset(44 * cos(tilt), 44 * sin(tilt));
+      canvas.drawLine(
+        l,
+        r,
         Paint()
-          ..color = _kHeartBone.withValues(alpha: hit ? 0.9 : 0.4)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = hit ? 3.5 : 2,
+          ..color = const Color(0xFFE4C16A).withValues(alpha: lit ? 0.95 : 0.7)
+          ..strokeWidth = 4
+          ..strokeCap = StrokeCap.round,
       );
+      canvas.drawCircle(bal, 5, Paint()..color = const Color(0xFF8C6F36));
+      // Sconces hung by chains.
+      for (final (end, el) in [(l, 'Dark'), (r, 'Light')]) {
+        final cup = end + const Offset(0, 22);
+        canvas.drawLine(
+          end,
+          cup + const Offset(0, -8),
+          Paint()
+            ..color = _kHeartBone.withValues(alpha: 0.5)
+            ..strokeWidth = 1.2,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(cup.dx - 11, cup.dy - 8)
+            ..lineTo(cup.dx + 11, cup.dy - 8)
+            ..lineTo(cup.dx + 7, cup.dy + 6)
+            ..lineTo(cup.dx - 7, cup.dy + 6)
+            ..close(),
+          Paint()..color = const Color(0xFF8C6F36).withValues(alpha: 0.9),
+        );
+        canvas.drawCircle(
+          cup + const Offset(0, -12),
+          6 + (lit ? 2 * (0.5 + 0.5 * sin(_time * 5)) : 0),
+          Paint()..color = elementColor(el).withValues(alpha: lit ? 0.95 : 0.7),
+        );
+      }
     }
-    // The vagal node.
+    // THE VAGAL NODE: a knot of nerve in the floor, five cords running into
+    // one ganglion, throbbing with the beat while it will answer and dull
+    // while it will not.
     final node = ch.vagalNode;
     if (node != null) {
       final ready = heart.vagalCooldown <= 0;
+      final throb = ready ? 0.5 + 0.5 * sin(_time * 3.2) : 0.0;
+      for (var i = 0; i < 5; i++) {
+        final a = i * 2 * pi / 5 + 0.4;
+        final far = node + Offset(cos(a), sin(a)) * 62;
+        final mid = node + Offset(cos(a + 0.5), sin(a + 0.5)) * 34;
+        canvas.drawPath(
+          Path()
+            ..moveTo(node.dx, node.dy)
+            ..quadraticBezierTo(mid.dx, mid.dy, far.dx, far.dy),
+          Paint()
+            ..color = _kHeartBone.withValues(alpha: ready ? 0.55 : 0.25)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3.5
+            ..strokeCap = StrokeCap.round,
+        );
+      }
       canvas.drawCircle(
         node,
-        16,
+        18 + throb * 3,
         Paint()..color = _kHeartCrimson.withValues(alpha: ready ? 0.85 : 0.35),
       );
       canvas.drawCircle(
         node,
-        24,
+        18 + throb * 3,
         Paint()
           ..color = _kHeartBone.withValues(alpha: ready ? 0.8 : 0.25)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
+      );
+      canvas.drawCircle(
+        node,
+        6,
+        Paint()..color = _kHeartInk.withValues(alpha: 0.8),
       );
     }
   }

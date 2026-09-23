@@ -1868,11 +1868,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       if ((a.position - door.rect.center).distance > 96) continue;
       _setBlockedHint(
         ward.id == kCryptWard
-            ? 'The dead-house answers the cross, not a hand. Three '
-                  'reliquaries are wanted in the stone.'
+            ? 'The dead-house opens from the cross. It needs three '
+                  'reliquaries.'
             : monastery.carriedPotion == kPureVial.id
-            ? 'The wax will not part here. The basin in the middle of the '
-                  'cloister is what the vial is for.'
+            ? 'The wax won\'t open here. Pour the vial into the basin in '
+                  'the middle of the cloister.'
             : kPureVial.clue,
       );
       return true;
@@ -3337,7 +3337,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (m.wispCircle >= 0) return true; // busy at the cross
     final wants = kWispOrder[m.wispStage];
     if (a.member.element != wants) {
-      _setBlockedHint('It shies from everything but its own colour.');
+      _setBlockedHint('It only lets its own element near it.');
       return true;
     }
     final seal = layout.rooms['ambulatory']?.priorsSeal;
@@ -3574,7 +3574,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         return;
       }
       if (!t.opened.contains(ward.id)) {
-        _setInsightHint('The wax hides whatever walks in there');
+        _setInsightHint('This ward is still sealed. You can\'t see inside yet');
         return;
       }
       final s = t.strainOf(ward.id);
@@ -3618,11 +3618,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         _setInsightHint(switch (revealTier) {
           0 => 'The pot takes two and makes one',
           1 =>
-            'Three jars, three plagues, and two brews in every alchemon'
-                'the sums come out exactly even, so the question is ORDER',
+            'Three jars, three plagues, and two brews in every alchemon. '
+                'There\'s no spare, so the order you brew in matters',
           _ when spent.isEmpty =>
-            'Nothing is spent yet. Wake one plague at a time: whoever mixes '
-                'the brew is worth little in the fight that follows it.',
+            'Nothing is spent yet. Wake one plague at a time. Whoever mixes '
+                'a brew is weaker in the fight that follows.',
           _ => 'Spent already: ${spent.join(', ')}',
         });
         return;

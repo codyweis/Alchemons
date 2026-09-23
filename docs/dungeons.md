@@ -289,7 +289,7 @@ keep what shipped; **Steam is flagged for a structural pass.**
 | **Lava** (built) | Foundry line: one long production line the player re-routes | limited molten pours — what do you cast, in what order | cast a key whose mold is hidden elsewhere on the line |
 | **Lightning** (built; rework §9.1) | Hub dynamo + zero-sum branch circuit (the "ring" claim is retired — it shipped as a hub and Steam owns the ring; the loop promise is honored LOGICALLY: door states follow circuit state) | powering one trunk darkens the others — where does the power go, and what must you do in the dark | walk the DEAD segment in the dark: the vault only opens unpowered (rework) |
 | **Mud** (built) | Shifting field: one huge open bog, no fixed rooms — islands whose connections you terraform | every path you harden sinks another — shape the map you'll have to live with | let the vault knoll SINK, ride it down to the drowned level |
-| **Ice** (built) | Vertical shaft: descending is one-way slides; ascending must be engineered | plan the descent so you can climb back — refrozen slides are your only ladder | visible only in a mirror; enterable only from a slide you can't repeat |
+| **Ice** (built) | Vertical shaft: descending is one-way slides; ascending must be engineered | plan the descent so you can climb back — refrozen slides are your only ladder | enterable only by falling onto its ledge off the head (the old "visible only in a mirror" glow was cut 2026-09-20) |
 | **Dust** (built) | Buried city, two Z-layers: streets above, excavation below; digging swaps layers | conservation of dust — uncovering one thing buries another | a fully buried building visible only as a roof bump on the streets |
 | **Crystal** (built) | Rearranging 3×3 sliding grid — sliding moves rooms AND you | every slide solves one adjacency and breaks another | a room that only ENTERS the grid in one configuration |
 | **Plant** (built) | Nested scales: the same map at tiny and huge, overlaid | which scale to be, where — passages exist at one scale only | visible at huge scale, enterable only at tiny |
@@ -315,7 +315,7 @@ new. The ledger grows with every build:
 | **Lightning** | beam routing/reflection via rotatable mirrors (+ *(rework)* negative constraints, provably unique) · element STATIONING pads · decoy-pad deduction · *(rework)* zero-sum power routing (power here = dark there) |
 | **Steam** | global resource economy (spend/condense/stoke one shared budget) · sacrifice-the-whole-budget vault |
 | **Poison** (BUILT 2026-08-24) | **diagnosis-by-behaviour** (a strain is identified by how it MOVES, not by a label or a clue — CLAIMED: no other planet may make observation-of-motion the read) · **forced partial sacrifice** (a budget that provably covers all but one target, so the question is which one you abandon — CLAIMED, and distinct from Steam's spend-it-all: here the shortfall is structural and the choice is named) |
-| **Ice** (BUILT 2026-08-24) | **reading a room only through a reflection whose content depends on WHERE YOU STAND** (the pool holds the quarter of sky opposite the party and nowhere else; the room is walked to be read, and what is learned is recorded across the ring from where it was seen — CLAIMED 2026-09-15; distinct from Poison's diagnosis-by-behaviour, which reads MOTION, and from Light's occlusion, where the player places the shadow) · **one-way descent with an engineered return** (traversal that consumes the route behind you; the ladder home is something you must have built on the way down — CLAIMED) · ~~treasure-or-ladder exclusivity~~ (RETIRED 2026-09-15: it was one hole with two doors, and played as "the same door sends me to two places". The ledge has its own chute now and nothing is coupled — the seat is free again for a later planet, and any taker must make the exclusivity VISIBLE) · costly full-state reset valve as the anti-softlock (a pattern, not a claim — reusable) |
+| **Ice** (BUILT 2026-08-24) | **reading a room only through a reflection whose content depends on WHERE YOU STAND** (the pool holds the quarter of sky opposite the party and nowhere else; the room is walked to be read, and what is learned is recorded across the ring from where it was seen — CLAIMED 2026-09-15; distinct from Poison's diagnosis-by-behaviour, which reads MOTION, and from Light's occlusion, where the player places the shadow) · **one-way descent with an engineered return** (traversal that consumes the route behind you; the ladder home is something you must have built on the way down — CLAIMED) · ~~treasure-or-ladder exclusivity~~ (RETIRED 2026-09-15: it was one hole with two doors, and played as "the same door sends me to two places". The ledge has its own chute now and nothing is coupled — the seat is free again for a later planet, and any taker must make the exclusivity VISIBLE) · costly full-state reset valve as the anti-softlock (a pattern, not a claim — reusable) · **footing that bears ONE body** (BUILT 2026-09-20, the roof of the hollow: bare ice over the lair holds one of the three, snow holds all, and LOOKING is what makes a pane thin — so information costs footing, and the party is split by where it may stand; CLAIMED: no other planet may make per-body load the constraint. Distinct from Light's exposure, which is a quantity you raise and lower at will, and from Steam's throws, which move one body but never limit where the others stand) |
 | **Lava** (BUILT 2026-08-24) | **production-line re-routing** (program a path, then spend a limited fungible charge down it; what the charge BECOMES is decided by where it went — CLAIMED) · **the dual-purpose product** (the thing you cast is both a road and a plug, so ordering falls out of physics rather than instruction — this is how Lava stays out of Fire's order-memory seat; any planet reusing it must derive the order, never hand it over) |
 | **Mud** (BUILT 2026-08-24) | **terraforming-as-map-authoring** (the player authors the EDGES, not the rooms; the question is the SHAPE left behind — CLAIMED, and deliberately ORDER-INDEPENDENT: A-then-B lands on the same fen as B-then-A, pinned by a test, which is what keeps it out of Air's ordering seat) · **drainage as the cost function** (hardening a crossing drowns its neighbours up- and downstream, so you choose what to KEEP and the physics decides what dies — distinct from Poison's triage, where you choose what to abandon) |
 | **Dust** (BUILT 2026-08-24) | **conservation as the cost function** (one object owns every write, and every mutator is a PAIRED TRANSFER — dig here, heap there, atomically, so the total cannot leak; CLAIMED: no other planet may make a conserved quantity the puzzle) · **Z-layer swap driven by load count** (0 bared = the street is a pit and the cellar opens · 1 = plain street · 2 drifted = a dune-wall, and a ramp opens instead — the layer you are on is a CONSEQUENCE of the ledger, not a toggle; Spirit's living/ghost layer swap is a different reading and stays free) · **the inverted vault verb** (the buried house is the one thing digging cannot reach — you bury it HARDER until the weight cracks the wall) |
@@ -506,6 +506,49 @@ the codebase (Steam's pressure gauge, Water's tide gauge):
 - **CONTROL FEEDBACK** — on the control itself. "Ability cooling down"
   belongs on the ability button as a cooldown ring, not as a line of prose
   that evicts whatever the room was telling you.
+
+### THE HINT VOICE — plain words, and a press always answers (2026-09-22)
+
+The playtest verdict on the capsule was *"the hints read too cheesy"* and too
+cryptic. The whole game had drifted into one register: comma-spliced
+narration ("The weed slides away, three crossings, and none of them sure"),
+aphorism ("One water table, and it has to go somewhere"), and a low-tier
+reading that was a riddle rather than a shorter answer. A hint the player has
+to decode is a second puzzle stacked on the first, and the HINT button is
+the one place they asked for help. Every planet was rewritten to one voice:
+
+  · **Say it plainly.** Name the thing on screen and what it does: *"Firming
+    a crossing floods the crossings next to it."* No riddles, no aphorisms,
+    no "X, and Y" narration, no archaic phrasing ("will not", "for ever",
+    "answers only"). Contractions are fine. Sentences end with a full stop,
+    not a comma splice.
+  · **Use the names the player can see** — room labels, element and family
+    names, the object as it is drawn.
+  · **Tiers get SHORTER, never vaguer.** Tier 0 is the goal and what stands
+    in the way; tier 1 the rule; tier 2 the next concrete step. A low-
+    Intelligence reading is less, not a riddle.
+  · **Refusals say what is missing, in words:** "Only Water can fill this
+    basin" · "The font needs the X and Y stars first". A family gate names
+    the family outright — "Only a Mud Mane can cross these rotten planks" —
+    since a gate line is shown only at the gate.
+  · **A reading that can say "never" must.** A player who cannot tell "not
+    yet" from "never in this state" keeps trying forever. Where a state is
+    dead (Mud's basin on a knoll with a drowned crossing, a fen with no road
+    left to the altar), the reading says so and names the reset.
+  · **Verse survives in two places only:** the descent riddle and the Lost
+    Maxim's one oblique line — and the oblique line is plainer now too.
+
+**A PRESS ALWAYS ANSWERS.** The capsule's priority rule (a live refusal
+outranks a reading) was also being applied to the player's own presses:
+HINT showed the refusal, and HINT again showed *nothing* until the refusal
+timed out, although the room's reading was ready. `askForRoomHint` now
+clears the live line first, so the priority rule only arbitrates between
+lines emitted by that one press; a pending refusal already on screen is
+skipped straight to the reading; and a reading with nothing to say leaves
+the previous line up rather than blanking the capsule. Pinned in
+`planet_dungeon_mud_fen_test.dart` ("a second HINT press shows the next
+line at once"). Several tests used to press HINT twice to re-read the same
+line; they press once now.
 
 ### Popups — four occasions, one chrome
 
@@ -953,8 +996,13 @@ or it drifts into Water's seat.
    and etches it on the frame across the ring, so one lap of the rim puts the
    whole sky on the walls. Every figure appears twice save one, and silvering
    the stranger is the star. Light+Mask wakes the pool (the marquee gate);
-   Air's sweep stills the water wide enough to read three quarters at once.
-   S3 Airwing turns the last breath down the throat at the rite.
+   Air's sweep flashes the whole chart for a breath, then it fades.
+   S3: THE ROOF OF THE HOLLOW (2026-09-20, §9.19) — the rite room's floor is
+   the ice over the wyrm's lair in panes under snow; Light bares a pane and
+   thin glass over the hollow bears ONE body; every bared pane says which
+   way the head lies; open the glass over the head and the Airwing turns
+   the last breath down that throat, Ice sings the font on its pier, and
+   the three of you go down the throat together.
    (S2 REPLACED 2026-09-15 — it used to be a lap against a melt clock, which
    is a dexterity puzzle and Blood's claimed ledger seat besides.)
 6. **Steam — The Molten Labyrinth** · Steam+Earth+Fire · Steampip/Earthhorn/Firemask ·
@@ -1567,13 +1615,13 @@ queue:
 | **Lava** — Black Glass | 1 | the pour you throw away | ✅ §9.7 |
 | **Poison** — The Dose | 3+ | Poison · Plant · Mud, each walked home | ✅ rebuilt 2026-09-04 |
 | **Mud** — No Mud No Lotus | 5 | the fen at full drown · Water · Plant · Mud×3 | ✅ rebuilt 2026-09-13 (§9.8) |
-| **Dust** — Nothing Perishes | 1 | Air sweeps every print | ⬜ one verb, N times |
-| **Crystal** — Know Thyself | 1 | stand all three in the beam | ⬜ positional, one beat |
-| **Plant** — The Unseen Shade | 3 | tend small, look big | ▶ has beats, check the elements |
+| **Dust** — Nothing Perishes | 5 | Dust/Earth lay the count · Air lights the pits | ✅ rebuilt 2026-09-19, §9.13 |
+| **Crystal** — Know Thyself | 5 | Crystal wedges the cell · Pip finds the flaw · Lightning strikes ×3 · Crystal reads | ✅ rebuilt 2026-09-19, §9.16 |
+| **Plant** — The Unseen Shade | 5 | Plant grows the trunk · Mud, Plant, Light tend in the shade · Plant looks from huge | ✅ rebuilt 2026-09-19, §9.17 |
 | **Spirit** — Stuff of Dreams | 5 | the cold world · Water · Crystal · Spirit×3 | ✅ rebuilt 2026-09-13 (§9.9) |
-| **Dark** — The Abyss | 1 | stand still a minute | ⬜ a wait |
-| **Light** — Afraid of the Light | 1 | cross casting nothing | ⬜ a restriction |
-| **Blood** — The Blood Is the Life | 1 | twelve beats on the drum | ⬜ rhythm, one verb |
+| **Dark** — The Abyss | 5 | Dark lights the Deep (vane) · Spirit reads · Poison frees · Dark hauls ×3 | ✅ rebuilt 2026-09-19, §9.14 |
+| **Light** — Afraid of the Light | 4 | Light blazes ×3 · Crystal reads · Light douses in order · Spirit draws | ✅ rebuilt 2026-09-19, §9.15 |
+| **Blood** — The Blood Is the Life | 4 | Dark turns a dead cock · Light shows the clot · Blood breaks it on the pause · both | ✅ rebuilt 2026-09-20, §9.18 |
 
 Take them a planet at a time, with the planet's polish pass — a secret
 designed away from the dungeon it lives in will not use its braid.
@@ -1704,8 +1752,11 @@ quotation constants are deleted from the code — nothing left to drift.
    keeps wobbling, slower and shallower than the well's: **the ice holds the
    moon, not the pool**, and a reflection that stopped read as a picture of
    one rather than as water.
-4. **Ice — Star-Walker:** align every telescope on the unmarked 13th star —
-   visible only in reflection.
+4. **Ice — Star-Walker (REBUILT to the MAXIM STANDARD 2026-09-19, §9.12):**
+   THE STRANGER. A shaft ridden bare is a mirror and the pool under it sees
+   the sky: one star hangs there on a bearing that no frame charts. Carry
+   the bearing down chute B, turn the lens to it with Air, lock the sighting
+   with Ice. Built on the state the primer tells you never to make.
 5. **Lightning — Thunderbolt (BUILT; REBUILT to the MAXIM STANDARD
    2026-09-01):** it used to fire off Star 3's beam if a Lightning HORN
    happened to be standing among the conductors when the tower lit — a secret
@@ -1750,12 +1801,25 @@ quotation constants are deleted from the code — nothing left to drift.
    shape both stars forbid — and the cutters' dead drain runs. Water reads
    the three peat cuts out of it, Plant seeds the sink, and Mud drags each
    cut's lip in turn until the seed is buried utterly. It blooms.
-10. **Dust — Nothing Perishes:** reveal, then sweep away (Air) EVERY ancient
-    footprint in the ruins.
-11. **Crystal — Know Thyself:** stand all three creatures inside one split
-    prism beam at once — it casts their merged reflection.
-12. **Plant — The Unseen Shade:** at tiny scale, tend the seed hidden under
-    the giant root until it towers at huge scale.
+10. **Dust — Nothing Perishes (REBUILT to the MAXIM STANDARD 2026-09-19,
+    §9.13):** THE TALLY. The granary's five grain pits hold the dead's last
+    count of the city, one per mound, marked with the mound's survey glyph.
+    Lay the streets back to that count — the observatory's roof DRIFTED, the
+    state Star 1 forbids — and Air blown across each pit lights it. Five lit
+    at once, and the cist opens.
+11. **Crystal — Know Thyself (REBUILT to the MAXIM STANDARD 2026-09-19,
+    §9.16):** THE BLACK CELL, WEDGED. Ride the Black Cell into the one
+    corner where both its doorways meet the frame — the jam the keep's whole
+    valve exists to rescue you from — and its glass shows nothing but the
+    three of you. The smallest body finds the flaw, Lightning runs it three
+    times, Crystal reads the three shapes. The anneal is the way back out.
+12. **Plant — The Unseen Shade (REBUILT to the MAXIM STANDARD 2026-09-19,
+    §9.17):** THE SHADE THE TRAP THROWS. Grow the giant root's TRUNK — the
+    trap the whole planet warns you off, because it costs the only small
+    road to the islet — and its bough throws a shade across the gallery
+    floor. Under it, small, tend the seed nobody planted the altar's own
+    three ways in the altar's own order; then come back at your own size and
+    see what grew.
 13. **Poison — The Dose:** the sick wisp wears one element at a time and only
     a hand of THAT element can touch it. Each press shoves it a stride toward
     the lustral cross — about six, walked with it — and at the cross it sheds
@@ -1771,12 +1835,26 @@ quotation constants are deleted from the code — nothing left to drift.
     sets a lamp at its head, and the Spirit hand tells three names into it,
     one apiece, with all three of you standing in it. The seventh funeral is
     yours.
-15. **Dark — The Abyss:** stand utterly still in the total-darkness chamber
-    for a full minute, casting no light.
-16. **Light — Afraid of the Light:** cross the blinding maze revealing
-    NOTHING — no light cast at all.
-17. **Blood — The Blood Is the Life:** strike the heart-drum in sync with
-    the dungeon's pulse for twelve straight beats.
+15. **Dark — The Abyss (REBUILT to the MAXIM STANDARD 2026-09-19, §9.14):**
+    THE FOURTH FINGER. The font's well has a bottom, and it shows only while
+    the Deep stands in LIGHT — the one arrangement the whole lower vault
+    punishes, and one only the arena's vane can make from below. On it lies
+    a gnomon that fell an age ago, chained to a rusted ring at the rim:
+    Spirit reads the chain, a Poison pip eats the rust, Dark hauls it up a
+    length a press. Three, and it stands.
+16. **Light — Afraid of the Light (REBUILT to the MAXIM STANDARD 2026-09-19,
+    §9.15):** THE INDEX. The catalogue on the ledger walk is a case of ten
+    panes, one per cell of the hall, whole only when every cell is lit — ten
+    lumens, the state every star forbids. Crystal reads it whole and it
+    names one of five slabs under the oculus; the volume under it is afraid
+    of the light and comes out in TOTAL darkness only, to a Spirit pip. The
+    hall's two maps, both extremes, and the douse ORDER between them.
+17. **Blood — The Blood Is the Life (REBUILT to the MAXIM STANDARD
+    2026-09-20, §9.18):** THE THROMBUS. The two dead vessels the Graft Star
+    tells you to leave alone: turn them anyway, Light shows the clot for what
+    it is, and on a flatline, with nothing pushing on it, Blood breaks it and
+    the vessel takes. Both, and every road in the eight carries. The drum is
+    gone, and with it the last reaction window in the set.
 
 ### Signature mechanic summary
 Fire=ritual forensics · Lava=production-line casting · Lightning=zero-sum living
@@ -2402,13 +2480,13 @@ of work below as a finished pass.
 | **Mud** | ✅ | ✅ §9.8 | ✅ | ⬜ **the gate** |
 | **Spirit** | ✅ | ✅ §9.9 | ✅ | ⬜ |
 | **Poison** | ✅ | ✅ 2026-09-04 | ⬜ | ✅ played |
-| **Dust** | ✅ | ⬜ one verb, N times | ⬜ | ⬜ |
-| **Crystal** | ✅ | ⬜ positional, one beat | ⬜ | ⬜ |
-| **Plant** | ✅ | ▶ has beats | ⬜ | ⬜ |
-| **Dark** | ✅ | ⬜ a wait | ⬜ | ⬜ |
-| **Light** | ✅ | ⬜ a restriction | ⬜ | ⬜ |
-| **Blood** | ✅ | ⬜ rhythm, one verb | ⬜ | ⬜ |
-| **Ice** | ✅ | ⬜ (§7 table) | ✅ | ⬜ **the gate** — see its entry |
+| **Dust** | ✅ | ✅ §9.13 (2026-09-19) | ✅ (2026-09-19) | ⬜ **the gate** — see its entry |
+| **Crystal** | ✅ | ✅ §9.16 (2026-09-19) | ✅ (2026-09-19) | ⬜ **the gate** — see its entry |
+| **Plant** | ✅ | ✅ §9.17 (2026-09-19) | ✅ (2026-09-19) | ⬜ **the gate** — see its entry |
+| **Dark** | ✅ | ✅ §9.14 (2026-09-19) | ✅ (2026-09-19) | ⬜ **the gate** — see its entry |
+| **Light** | ✅ | ✅ §9.15 (2026-09-19) | ✅ (2026-09-19) | ⬜ **the gate** — see its entry |
+| **Blood** | ✅ | ✅ §9.18 (2026-09-20) | ✅ (2026-09-20) | ⬜ **the gate** — see its entry |
+| **Ice** | ✅ | ✅ §9.12 (2026-09-19) | ✅ | ⬜ **the gate** — see its entry |
 
 Blood additionally still has GENERIC FIXTURES — its ostia, cocks, balance,
 drum and vagal node are circles, rings and bars standing on very good
@@ -2454,15 +2532,21 @@ not:
     as a UI panel on the Beacon Archive's reading floor. Now derived from
     the planet's own sky palette, and `_planetOwnedWalls` lets a module that
     draws its obstacles properly (Plant's three) opt out entirely.
-  · ⬜ **`_renderIslandAndVoid` only slices a room into HORIZONTAL BANDS.**
-    Any room whose `gaps` form a ring leaves real walkable ground undrawn —
-    Dust's observatory had no floor under Star 1's marquee gate. Patched
-    locally in Dust. NOT fixed in the shared renderer on purpose: the
-    banding is what every spire and cloud-platform room depends on for its
-    floating-ledge look, and replacing it with a path subtraction to serve
-    one room risks silently changing rooms across four polished planets. The
-    next planet that authors a moat should fix it properly, with those rooms
-    rendered and compared.
+  · ✅ **`_renderIslandAndVoid` only sliced a room into HORIZONTAL BANDS**
+    (fixed 2026-09-19, in the Dust pass). Any room whose `gaps` formed a ring
+    left real walkable ground undrawn — Dust's observatory had no floor under
+    Star 1's marquee gate, and Dust patched it locally. The shared renderer
+    now takes a MOAT branch for any room with a gap that does not run the
+    room's full width: the ground is the stage with every gap subtracted
+    (built once per room), drawn as the same stone as a banded ledge with its
+    rim run round the gaps' lips. Rooms whose gaps span the full width keep
+    the banding untouched — only Dust's observatory has a partial gap
+    (checked by script across every layout), so by construction no other
+    room takes the branch. The room render metrics were captured before and
+    after as a second check: the handful of rooms whose edge counts moved
+    are the time-animated ones (Earth's ribs, Fire's choir, Poison's wards)
+    that move between ANY two runs, and none of them has a gap. Dust keeps
+    its own cut floor on top, as its art rather than as a patch.
 
 **And a process note for the next time this is parallelised.** Eight agents
 in eight worktrees, one planet's `part` file each, is a good shape — the
@@ -2530,7 +2614,9 @@ same question about the STAR.
     a coin down here (Water's moon-well lesson).
   · ✅ **THE RITE'S PLINTHS WERE INDEX CARDS** (§7.10): flat rectangles with a
     bright outline round them. Blocks now — top face, near face, courses, and
-    the only bright line along the front edge where the two meet.
+    the only bright line along the front edge where the two meet. (Superseded
+    2026-09-20: the plinths went with the rite, §9.19. The pier the font
+    stands on keeps the block treatment.)
   · ✅ **SOUNDS**: one `_cue` in the whole planet became seventeen — the cap,
     every freeze, the ride that scours, the thaw, the block's run and its
     seat, every quarter read, the lodestone, the mark, the sweep, the font,
@@ -2578,10 +2664,10 @@ same question about the STAR.
         pocket, and nowhere else).
       · Nothing couples them. Freezing the shaft does not shut the chute;
         riding the chute does not touch the shaft.
-      · A chute is a RAMP OF SNOW. Ride it and the snow comes down after you,
-        and a bare slot is no ramp — which keeps the vault trick §5.5 asks
-        for ("enterable only from a slide you can't repeat") as a physical
-        fact rather than a bookkeeping rule.
+      · A chute is a RAMP OF SNOW, and it is a ramp every time. It used to
+        spend itself (the snow came down after you, and a bare slot was no
+        ramp) to keep "enterable only from a slide you can't repeat" as a
+        physical fact; that went on 2026-09-20 — see the Ice status below.
       · **What is lost is the ledger's "treasure-or-ladder exclusivity" row**
         — the two purposes are no longer one edit. Ice keeps its CLAIMED row,
         one-way descent with an engineered return, which was always the
@@ -2622,13 +2708,219 @@ same question about the STAR.
     meant nothing. It is a lamp now and looks like one: a warm face, a glow,
     no chart, and no engraved plate under it.
 
-  · ⬜ **THE MAXIM IS STILL THE §7 TABLE ENTRY.** Star-Walker is a sighting at
-    the thirteenth telescope gated on the Mirror Star and a shelf you can only
-    fall onto — a real commitment, but one press at the end of it. It has not
-    had the treatment §9.6/§9.8/§9.9 describe.
+  · ✅ **THE MAXIM HAS HAD THE TREATMENT (2026-09-19)** — see §9.12. It was
+    a sighting gated on the Mirror Star and one press at the end of a shelf
+    you can only fall onto. It is THE STRANGER now: a chain built on the one
+    state the primer tells you never to make.
+  · ✅ **THE SOLVED GALLERY STANDS ON RE-ENTRY (2026-09-19).** The banked
+    chart stayed lit only for the run it was won in; a later descent found
+    the pool dead black and every frame dark, as if the room had never been
+    solved. The water holds the whole chart now, true end to end, with the
+    lodestone lit — which is also what keeps the maxim open to a player who
+    cleared the stars first.
+  · ✅ **THE LEDGE CHUTES ARE RAMPS EVERY TIME (2026-09-20).** A chute used
+    to spend itself on the ride — snow down after you, a bare slot, no way
+    back onto that ledge until a thaw. It was a commitment that gated
+    nothing: a ledge's only door scrambles back out to the level it hangs
+    off, so the one-shot never cost a route, only a RETURN — and on flue B
+    that return is the lens, which made the maxim's last two links a thing
+    you got one visit at per run. No one-shots. The chute's snow holds now,
+    `spentChutes` is gone, and the no-strand proof's state space dropped a
+    dimension (the `shelfLosable` audit still passes, because what loses a
+    shelf is gravity — being below it with no stair up — not the chute).
+    The vault's §5.5 line is "enterable only by falling onto its ledge".
+  · ✅ **THE VAULT GLOW IN THE POOL IS GONE (2026-09-20).** The cyan light
+    bobbing in the reflected shaft was the vault's "visible only in a mirror"
+    tell. Played, it was *"the blue star floating thing"* — an unexplained
+    object in a room whose whole puzzle is reading objects in the water, so
+    it read as a clue for the chart and confused it. With the ledge chute a
+    ramp every time, the vault needs no tell: it is the pocket off the head
+    that the chute obviously goes to. The pool shows the sky and the chart
+    now, and the only extra thing that ever hangs in it is the stranger.
+  · ✅ **AIR'S SWEEP IS A FLASH, NOT A REVEAL (2026-09-20).** Played: *"the
+    wind mon in the mirrors shouldn't reveal everything."* The sweep stilled
+    the water for 12s, so the room's reading verb was Air at the vent and the
+    walked lamp was a formality. It holds the whole chart for 0.5s now and
+    fades over 1.2s, laid OVER whatever the lamp is reading (`sweepLight`,
+    combined by max), and re-arms in 4s instead of 14 because a glimpse is
+    all it gives. The stranger still counts as seen if it shows in the flash —
+    the once-in-a-lifetime line fires and says what was there.
+  · ✅ **THE RITE IS A ROOM NOW, NOT TWO PRESSES (2026-09-20)** — see §9.19.
+    Played: *"we need a way better puzzle to get into the boss area, it's
+    really bad right now."* It was Air+Wing on one plinth and Ice on the
+    other. The room is THE ROOF OF THE HOLLOW: the ice over the wyrm's lair,
+    in panes under snow, and the way in is down through it.
   · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Same
     sentence as Mud's, for the same reason. `Ice` stays out of
     `kPolishedDungeons` until it has been played.
+
+### §9.19 ICE'S RITE — THE ROOF OF THE HOLLOW (2026-09-20)
+
+**What it was.** Two plinths on a sundial floor: Air+Wing channelled conduit
+A, Ice sang the font, both latched and the wyrm woke. Every §4 box ticked —
+the hard gate on the right slot, one refusal for a party without the Wing,
+nothing timed — and nothing to think about. The verdict from play was *"really
+bad"*, and it was: a rite is the approach to a boss, and this one was a
+corridor with two buttons in it.
+
+**What it is.** The Star Font room's floor is the ICE OVER FROWYRM'S HOLLOW,
+a 9×5 field of panes under snow between two stone shores (the near one under
+the sump's door, the far one where the hollow's own way up comes out), with
+the glacier for rims. The rules, all of them physical and all of them things
+the planet already said:
+
+  1. **SNOW BEARS ALL AND SHOWS NOTHING.** The primer's own words. Walk
+     anywhere on it, three abreast.
+  2. **LIGHT BARES THE PANE AHEAD**, and bare ice shows what it lies on. Over
+     ROCK it is white and THICK — it holds everyone (the four corners, and
+     the pier). Over the HOLLOW it is dark glass and THIN — **it bears ONE
+     body**. A second is refused: *the ice groans under one already, it will
+     not take two.* Said once, forced, the first time the hollow shows: *bare
+     ice over the hollow bears one body, snow bears all.*
+  3. **EVERY BARED PANE IS A BEARING.** The wyrm's breathing pushes the water
+     under the roof AWAY from its head, and a bared hollow pane shows the
+     drift — four motes with tails, running one way. Under its body the
+     scales run the other way, TOWARD the head. Over the head: an eye, and
+     hoarfrost blooming on the glass above it. So the head is triangulated
+     from two bares, or found by baring the roof pane by pane — and every
+     pane you bare over the hollow is a pane only one of you can stand on.
+     **Information costs footing.** That is the whole strategic loop.
+  4. **LIGHT MELTS BARE GLASS TO WATER**, and Ice freezes water back to thin
+     glass (the pane AHEAD, never under your own feet, never under a
+     companion's). Open water bears nobody. Over the head, the melt is not
+     water: it is **THE THROAT**, and cold comes up it.
+  5. **THE RITE.** The AIR WING turns the last breath down the open throat —
+     the planet's second hard gate, stamped on a wrong family exactly as
+     before (§4: the seal remembers). ICE sings the font on its pier. The
+     pier is an island, water on three sides, so it is reached across the
+     roof or by Ice freezing a way; a body standing on the pier is working
+     the FONT (the orrery's lesson — the floor wins inside its own edge). Both
+     halves sung, *under the roof the wyrm turns over, and every pane of it
+     shudders.*
+  6. **THE WAY IN IS DOWN THE THROAT, TOGETHER.** Awake, the throat bears a
+     body — but only with the other two at its edge, each on its own pane
+     (*not one at a time into that, gather at its edge*), and then the glass
+     gives under the three of you. The hollow's door on the wall is never
+     shown and never walked; the module takes it, so the fall is bookkept
+     like every other transit (anchor, regroup, the wyrm's own descent).
+
+**Why it is a puzzle and not a walk.** The head is rolled per run (a
+connected line of five hollow panes, never water, never the pier — pinned).
+You cannot see it. Looking weakens the roof under exactly the bodies that
+have to cross it. The pier wants a crossing or a bridge. The throat wants
+three standable neighbours. And the party is SPLIT by where it may stand,
+which no other room on this planet — or any other — does: Steam throws one
+body across a chasm; nothing before this limited where the OTHER two may be.
+
+**What it refuses, and how (§5.6).** Every refusal is one clause naming what
+is missing and is REMEMBERED for the hint button, never spoken unasked: the
+ice that groans, the water that bears nobody (silent — a hole needs no line),
+the stone that will not open, the body on the glass, the throat that will not
+take frost, the breath with no throat to go down, the sleeping wyrm under a
+throat you try to step into. Reads (what a bared pane shows) go on the
+INSIGHT channel, because the line is the payload. Insight in the room tiers:
+snow over glass → what bare ice shows and which way the black drifts → the
+whole method. The room names itself on arrival (*the Star Font, on the roof
+of the wyrm's hollow*) and again once it is awake.
+
+**No strand, by construction.** Nothing cracks, nothing is spent, nothing is
+timed. A bared pane stays bared; water can always be frozen back; Ice makes
+its own footing and so can reach anything; the only water that ever appears
+is water Light chose to make. The two-on-thin rule that an earlier draft
+carried was cut for exactly this reason: two bodies stranded on thin glass
+would have made Ice the third, and Ice is the rescue.
+
+**Pinned** (`planet_dungeon_ice_shaft_test` · THE ROOF OF THE HOLLOW): the
+authored roof (one pier, an island, the drop door hidden); the wyrm's roll
+over 40 runs; Light bares the pane AHEAD and never its own; the drift runs
+away from the head and the scales toward it; snow bears all, thin bears one,
+rock bears all, water none; melt and refreeze; the head opening into the
+throat on the second press and refusing frost; the Wing gate stamping its
+chip, the stars gating the breath; the pier working the font; both halves
+waking the wyrm; the drop refused with a body on the shore and taken with all
+three at the edge. The states render harness draws snow, bared, throat and
+awake as four different pictures — and the pictures were LOOKED AT before
+this was written (glass had to be pulled apart from water by tone; the motes
+had to be big enough to read).
+
+**Not yet.** The device. The pane-ahead targeting is the orrery's facing
+idiom and has the orrery's preview (the pane the hand would work is outlined
+in its element's colour), but whether a thumb finds it natural on glass is
+the device's to say.
+
+### §9.12 ICE'S LOST MAXIM — the shaft you were told never to make
+
+Star-Walker was one press: a telescope on flue B's shelf, gated on the Mirror
+Star, answering Ice. The shelf was a real commitment (a slide you cannot
+repeat), but nothing on it was a puzzle — §7's table graded it ⬜ and the Ice
+entry carried it as the last thing owed.
+
+**THE STRANGER.** Mud's lesson (§9.8) applied to this planet: *the best place
+to hide a secret is the state your own stars punish.* Ice's primer opens with
+its one rule — *a shaft goes down, and only down, unless you freeze the snow
+in it into steps* — and every hint on the shaft steers you toward freezing.
+A shaft ridden bare is the mistake. It is also, physically, the only mirror
+on the planet: snow shows the water nothing and cut steps show it nothing, but
+polished ice reflects, and the pool under a bare shaft sees past the mouth to
+the sky.
+
+  1. **RIDE FLUE A BARE.** Nothing is pressed for this. The reflected mouth of
+     the shaft in the pool goes pale with sky — the one wordless tell — and
+     it costs you the way back up until the rimefall, which is the commitment
+     the secret rides on. A party that froze A (the right move) never sees
+     it; to go back for it they thaw, and ride A down on purpose.
+  2. **WAKE THE WATER AND WALK THE LAMP.** Light+Mask strikes the lodestone,
+     as the star needs; then the stranger is read the way everything in this
+     room is read — the Light hand parked across the ring from it, or the
+     flash of Air's sweep. One star hangs out past the chart's
+     band, warm where the chart is cold, flared where it is points, on ONE
+     FRAME'S BEARING. Seeing it is what unlocks the lens (`strangerSeen`, per
+     run), and it is said once in a lifetime: *up the bare shaft the water
+     sees the sky, and one star hangs in it that no frame charts.*
+  3. **RIDE CHUTE B.** The niche is a shelf you can only fall onto. You carry
+     the bearing down with you, and you can come back for another go.
+  4. **TURN THE WHEEL.** Air turns the lens a notch a breath, twelve notches
+     round, always the same way: the repeated beat. The tube swings, eased,
+     and an azimuth ring cut in the floor round the mount has the set notch
+     lit — the old declination arc graded an angle nothing ever changed.
+  5. **LOCK THE SIGHTING.** Ice, on the stranger's bearing, and the rite of
+     three pays out. On any other bearing: a puff of frost and *empty sky*.
+     Nothing is ever spent.
+
+**What it refuses, and how.** The lens with nothing shown upstairs: *the lens
+finds nothing the water has not shown* — WHAT is missing, held for the hint
+button. A Light hand in the lens sees its own eye. The hint button in the
+niche gives the one oblique line and nothing after it: *snow shows the water
+nothing; a shaft ridden bare is a mirror, and the lens wants what the water
+saw in it.* It does not tier and it does not track progress.
+
+**Against the standard:** a chain (bare shaft → read → chute → turn → lock),
+all three of the trio doing what they do everywhere else here (Light reads,
+Air breathes, Ice freezes), a repeated beat at the end, wordless past the
+first nudge, nothing consumed. The one thing it does NOT use is a recipe,
+because Ice's dungeon teaches none — every verb on this planet is
+element-only, and a secret may not introduce a braid the rest of the run
+never taught.
+
+**Two things this rebuild forced.** The bearing is rolled per run and never
+the lodestone's (the lens RESTS on that one, and a secret the rest position
+solves is no secret); tests pin both. And the gallery had to stand solved on
+re-entry: the banked chart used to stay lit only for the run it was won in,
+so a player who cleared the stars first would have come back to a dead pool
+that could show them nothing. The water holds the whole true chart now with
+the lodestone lit, which makes the stranger readable without a lamp once the
+shaft above is bare — the secret stays open to exactly the player most likely
+to go looking for it.
+
+**Brute force is bounded and still gated.** Twelve breaths and a press each
+lands it — but only after the water has shown the stranger, so the gallery
+step cannot be skipped, and a player who saw the star knows the bearing and
+has no reason to turn twelve times. Pinned by a test that walks the
+brute-force loop and by one that refuses the unseen lens.
+
+**The star path never passes it.** The niche banks nothing, its only door
+goes back to the gallery, and a clean three-star run freezes A and never has
+a bare shaft over the pool.
 
 ### §9.11 THE STANDING ORRERY — solid, directional, and it slides (2026-09-15)
 
@@ -2746,8 +3038,10 @@ running right round the ring; it is never seen directly.
     lamp on the water has no far side to be reflected from, and the room may
     not hand you the whole chart for standing in the middle of it.
 
-    **AIR's sweep** stills the whole surface for 12s and is the one way to see
-    it all at once: help, never a gate.
+    **AIR's sweep** FLASHES the whole surface for half a second and fades
+    over the next one (2026-09-20 — it used to still the water for 12s, which
+    made the sweep the way to read the room and the lamp a formality). A
+    glimpse of where to walk the lamp: help, never a gate, never a reveal.
   · **BANKING IT LIGHTS THE CHART UP.** The answer to this room is a PICTURE
     the player assembled out of twelve frames and a walked lamp, and it used
     to be banked with a line of prose. A cold fire runs once round the ring,
@@ -2773,6 +3067,619 @@ in-world chrome rather than a dialog, and worth judging on its own terms.)
 **And what it costs to be wrong: nothing.** No frost is ever spent, there is
 no feedback until the chart closes, and silvering the whole ring — the brute
 force move — always fails, because a false frame in the water always forks.
+
+### ◐ BLOOD — the pass, minus the device session (2026-09-20)
+
+The seventeenth and last, and the one §7.10 singled out for GENERIC
+FIXTURES: ostia, cocks, balance, drum and vagal node were circles, rings and
+bars standing on very good tissue. It also carried the set's last reaction
+window — the heart-drum — and no sound at all, on the planet that IS a
+sound. Rendered room by room first, then:
+
+  · ✅ **THE MAXIM HAS HAD THE TREATMENT** — see §9.18. The drum is gone.
+    The secret is THE THROMBUS now, in the exact act the Graft Star punishes,
+    and every window in it is a whole phase.
+  · ✅ **THERE IS NO REACTION WINDOW LEFT ON THE PLANET.** The layout header
+    used to carve out "one deliberate exception" for the drum's ±0.85s
+    window because it was optional. Optional or not, it was a reflex test on
+    the one planet built to have none, and it broke the author's first rule
+    (puzzles reward thinking, never timing). The header says so now, and a
+    test pins that the shortest ask on the planet is the shortest phase.
+  · ✅ **THE FIXTURES ARE OBJECTS.** An ostium is a SPHINCTER — a ring of
+    fleshy folds round a dark throat that dilates on its own phase and stays
+    open and wet once primed. A cock is a brass STOPCOCK on a stub of vessel
+    let into the wall, its handle across the stub shut and along it turned;
+    a grafted stub runs red with a thread of flow, a dead one is packed dark,
+    and a seen clot shows its granules the whole length. The balance is a
+    beam on a pivot post with two sconces hung by chains, tilting until the
+    rite levels it. The vagal node is a KNOT of nerve, five cords into one
+    ganglion, throbbing while it will answer. The pericardium's stitching
+    stays.
+  · ✅ **THE BEAT IS AUDIBLE, AND THE PLANET HAS A COUNTDOWN.** No sound in
+    the whole orrery became nine, and one of them is the heart itself: a
+    thud at the top of every systole, once a cycle, so it is a heartbeat and
+    not a metronome. The pulse readout now carries the seconds to the next
+    turn beside its four marks — the header promised windows a player can
+    PLAN for, and a plan needs to know how long it has.
+  · ✅ **A CLOSING ANNOUNCES ITSELF (§5.7).** A thrombosed cock's clots, the
+    vagal arrest shutting every vein at once, and Sanguorath's skip shutting
+    every leaflet all spoke on the plain hint channel. Consequences now.
+  · ✅ **A typo in the cocks' insight** ("at rest'it") that would have read
+    as a glitch on the one line that explains the Graft Star.
+  · ✅ **A STATES RENDER HARNESS** (`planet_dungeon_blood_states_render_test`):
+    the gate across the beat with its mouth shut / dilated / primed, the arch
+    with its cocks shut / flagged / a clot shown on the pause / both
+    carrying, the balance tilted and level, the node ready and spent —
+    eleven states asserted to be DIFFERENT PICTURES.
+  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** And
+    the build note's tuning target with it: the longest forced wait (~20s in
+    the reliquary). `Blood` stays out of `kPolishedDungeons` until it has
+    been played.
+
+### §9.18 BLOOD'S LOST MAXIM — the thrombus
+
+*The Blood Is the Life* was the heart-drum: strike it inside a ±0.85s window
+on the systole onset, twelve beats running — five minutes of standing in the
+atrial gallery tapping on the beat. The layout header defended it as "the ONE
+reaction-timed thing on Hemavorn", kept because it was optional and no star
+sat behind it. §7's table graded it ⬜ *rhythm, one verb*. Both were right,
+and the author's rule is simpler than either: puzzles reward thinking, never
+timing. A reflex test does not become a puzzle by being optional.
+
+**THE THROMBUS.** Mud's lesson (§9.8) on the planet with the cleanest
+punishment in the set: the Graft Star's one consequence is that a thrombosed
+cock, turned, wakes clots and takes nothing. The Light flag exists precisely
+so you never turn one. So the secret is what a party does with a dead vessel
+anyway — and "the blood is the life" is what a clot is not: old blood,
+standing still.
+
+  1. **TURN A DEAD COCK ANYWAY.** Two of the five collaterals are thrombosed
+     each descent, and the flag tells you which. Turn it (Dark, the same
+     element-only act as every graft). The clots come, as promised, and the
+     cock stands turned on a vessel packed solid.
+  2. **LIGHT SHOWS THE CLOT FOR WHAT IT IS** — the flagging hand's own verb,
+     at the same cock: *the clot runs the whole vessel; old blood, standing
+     still, and nothing is pushing on it.* The stub shows its granules the
+     whole length.
+  3. **ON A FLATLINE, BLOOD BREAKS IT.** With no pressure on it in the pause
+     between beats, the heart's own hand moves old blood, and the vessel
+     TAKES like any sound graft — a road the beat never gave the eight. The
+     window is the five-second flatline, the ask is WHERE to be standing, and
+     the readout now counts you down to it. Too early: *pressure holds the
+     clot where it is; it wants the pause.*
+  4. **BOTH DEAD VESSELS** — the repeated beat — and all five collaterals
+     carry at once: the rite of three, at the last cock.
+
+**What it refuses, and how.** Blood before the clot is shown: *dark inside,
+and no telling how far the clot runs.* Any other hand once it is: *old blood
+moves for blood, and nothing else.* The hint button in a chamber where a dead
+cock stands turned gives the one oblique line and nothing after it: *a dead
+vessel is old blood standing still; nothing moves it while the heart is
+pushing — blood might, when it is not.* Until a dead one is turned, the
+cocks' own teaching keeps that slot, because the flag is the most important
+thing those rooms have to say.
+
+**Against the standard:** a chain (turn → show → break on the pause, twice),
+all three of the trio doing what they do everywhere else here (Dark turns a
+cock, Light shows a vessel for what it is, Blood is what a heart answers to),
+the Dark+Light→Blood braid standing in for a downed Blood hand as always, a
+repeated beat, wordless past the first nudge, nothing consumed. It is also
+the first maxim in the set whose place moves: which two vessels are dead is
+rolled per descent, so it cannot be looked up.
+
+**And the proof did not move.** A broken clot is a graft, and a graft only
+ever ADDS a passage — reason 6 of the layout header — so the no-strand
+argument is exactly as it was, and the descent test re-runs the search with
+all five vessels carrying and still reads zero. The drum's egg id is kept
+under the new name so a save that ever found it stays found.
+
+### ◐ PLANT — the pass, minus the device session (2026-09-19)
+
+Plant arrived closest to done of the unpassed six: two good stars that are
+genuinely about size, the best safety result in the set (size-lock 0 without
+the valve, by geometry), and a maxim §7 had already graded ▶. What it did not
+have: any sound, a maxim with a PLACE or a reason, and a valve, a bed and a
+gall that all fired silently. Rendered room by room first, then:
+
+  · ✅ **THE MAXIM HAS HAD THE TREATMENT** — see §9.17. It hangs off the
+    planet's own trap now: the giant root's trunk throws the shade the seed
+    grows in.
+  · ✅ **SOUNDS**: none in the whole planet became eleven — the briar, every
+    gall, the pit's warning and the withering, each lamp, each of the altar's
+    three steps, the sepulchre, a creeper and a trunk, Botanica's beat, each
+    tending, the look.
+  · ✅ **A CLOSING ANNOUNCES ITSELF (§5.7).** A gall changes every passage in
+    the crypt for you; a trunk fills the crack it grew in; the pit's first
+    turn is a warning and its second takes every road you grew; Botanica's
+    beat rots a vine from two rooms away. All spoke on the plain hint channel
+    and were dropped unasked. Consequences now.
+  · ✅ **TWO FIXTURES ARE OBJECTS.** The seed-gall was three concentric
+    circles — a target — and it is the one thing in the crypt that changes
+    your size. It is a swelling on a stub of root now, and it BREATHES: the
+    slit in it opens and closes. The grave-lamps were a rounded rectangle
+    with a dot; they are bone sconces on brackets with a cup, a blackened
+    wick when dead and a moving flame when lit, at a mourner's eye or a
+    thumb's height.
+  · ✅ **A STATES RENDER HARNESS** (`planet_dungeon_plant_states_render_test`):
+    the porch knotted / open / small, the gallery's bed bare / creeper /
+    trunk-with-shade / tended / risen, a sconce dead and lit, the bowl dry
+    and woken — twelve states asserted to be DIFFERENT PICTURES.
+  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** And
+    the build note's open question with it: the party's drawn radius does
+    not halve at tiny, and whether the redrawn ground carries the scale
+    without that is exactly what a phone will tell us. `Plant` stays out of
+    `kPolishedDungeons` until it has been played.
+
+### §9.17 PLANT'S LOST MAXIM — the shade the trap throws
+
+*The Unseen Shade* was the closest of the unpassed maxims: three tendings
+small, then a look from your own size. §7 graded it ▶ and asked to check the
+elements. What it lacked: a place with a REASON (a spot under a root you
+already cross), an order, and any hint anywhere.
+
+**THE SHADE THE TRAP THROWS.** Mud's lesson (§9.8), and this planet has the
+sharpest trap in the set to hang it on. The layout header names it: b_root's
+trunk is the bough over the gallery wall that fills the worm-run and costs
+the only small road to the islet — Star 1's seed step and the vault both.
+Every hint on the planet steers you off it, and 142 of the 448 states are
+strandable without the withering, every one of them a b_root trunk. So the
+seed nobody planted lies exactly where that bough throws its shade, and a
+shade is what a seed that wants to grow unseen would want.
+
+  1. **GROW THE TRUNK.** Plant b_root while small. The bough comes up over
+     the gallery wall, the worm-run is gone, the small road to the islet is
+     gone — and a long shade lies across the gallery floor from the bed to
+     the far wall. Nothing is pressed for the secret here; the shade IS the
+     room's clue, and a small body in it finds the seed.
+  2. **TEND IT THE ALTAR'S THREE WAYS, IN THE ALTAR'S ORDER.** Loam (Mud),
+     seed (Plant), sun (Light) — the same three verbs the Bloom Star already
+     taught, in the same order the ground puts them in. Small, in the shade.
+     Out of order is a puff and a sentence: *dry shade, it wants loam before
+     anything* · *loam in the shade, and nothing set in it yet* · *set and
+     fed, and it has never seen a sun.* The repeated beat, and nothing spent.
+  3. **COME BACK AT YOUR OWN SIZE.** A small body in the gallery has no gall
+     to hand; the nearest is the porch's, out along the moss walk and back.
+     What grew in the shade is only visible to a body that can stand back
+     from it, and a Plant hand at your own size brings the rite of three.
+
+**What it refuses, and how.** Before the trunk: *bare ground, and nothing
+above it to throw a shade.* A huge hand at the seed: *something small in the
+shade, too small for this hand.* Tended but still small: *it has everything
+it wants; nothing this size can see it grow.* The hint button in the gallery
+keeps the bed's own teaching (the trap is the most important thing that room
+has to say) until the trunk stands — and then gives the one oblique line and
+nothing after it: *something small lies where the bough throws its shade, and
+it wants what the altar wanted, in the order the altar wanted it.*
+
+**Against the standard:** a chain (trunk → three tendings in order → change
+size → look), all three of the trio doing exactly what they do at the altar,
+a repeated beat, wordless past the first nudge, nothing consumed. The
+withering takes the shade but not the tending — the seed keeps what it took —
+so a player who sprang the trap and had to ring the valve is not sent back to
+zero. The star path never passes it: the authored descent grows b_root as a
+CREEPER, and no star wants its trunk.
+
+### ◐ CRYSTAL — the pass, minus the device session (2026-09-19)
+
+Crystal arrived with the deepest proof in the set (parity, 1.6 million
+player-aware states, the anneal measured load-bearing against 7,404 jams),
+two real sliding puzzles with live readouts, and good cell art. What it did
+not have: any sound, a maxim that was one positional beat nothing taught,
+and a valve that fired silently. Rendered room by room first, then:
+
+  · ✅ **THE MAXIM HAS HAD THE TREATMENT** — see §9.16. "All three in the
+    split beam" became THE BLACK CELL, WEDGED: a chain that lives in the one
+    state this planet was built to rescue you from.
+  · ✅ **SOUNDS**: none in the whole planet became ten — the face cracking,
+    the lamp, the shard, the font, every shunt, the chain both ways, every
+    choir plate, Prismalith's beat, the anneal, the flaw, each strike.
+  · ✅ **A CLOSING ANNOUNCES ITSELF (§5.7).** The anneal costs every slide
+    you made; the berth chain sets the whole keep solid; Prismalith's beat
+    moves the keep from two rooms away. All three spoke on the plain hint
+    channel and were dropped unasked. Consequences now.
+  · ✅ **A STATES RENDER HARNESS** (`planet_dungeon_crystal_states_render_test`):
+    the Black Cell sealed / flawed / crazed clear, the hearth cold and warm,
+    the beam row dark and lit, the choir's gap in the corner and under the
+    mystic — nine states asserted to be DIFFERENT PICTURES.
+  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.**
+    `Crystal` stays out of `kPolishedDungeons` until it has been played.
+
+### §9.16 CRYSTAL'S LOST MAXIM — the Black Cell, wedged
+
+*Know Thyself* was one positional beat: stand all three bodies in the split
+the Shard Hearth throws when it stands in the lit row. §7's table graded it
+⬜, and the module's own comment admitted *no hint anywhere teaches this.*
+
+**THE BLACK CELL, WEDGED.** Mud's lesson (§9.8) on a planet that cannot
+strand: Vitrea's one failure state is the JAM — a body inside a chamber whose
+cut faces both give onto the frame, with the hollow out of reach — and the
+layout header names the Black Cell in a corner as the clean case. The
+reachability search counted 7,404 of them, and the anneal exists for exactly
+this. It is the state every hint on the planet steers you away from, and it
+is the one room in the keep whose every wall is black glass. So that is where
+the secret is, and "know thyself" is what the glass does: it shows nothing
+but whoever stands in it.
+
+  1. **WEDGE YOURSELF ON PURPOSE.** The Black Cell is cut north and west.
+     Ride it into the north-west socket and both doorways meet the keep's
+     own frame — a sealed box, the party inside. Nothing is pressed for this;
+     inside, every wall throws the three of you back, a beat late (the room's
+     own ambient line, *your own shape walks the far wall, a moment late*,
+     was already saying so). The keep OPENS with the Black Cell in that very
+     corner, empty: the first thing a player sees is the box they will later
+     have to be inside.
+  2. **THE SMALLEST FINDS THE FLAW** in the east face — the rite's own
+     declared Pip gate, the body that slips a crack, doing here what it does
+     at the tuning hall.
+  3. **LIGHTNING RUNS IT, THREE TIMES** — the entry rite's verb, the one hand
+     that cracks glass, as the repeated beat. The craze spreads from the flaw
+     with each strike, and at the third the black goes clear.
+  4. **CRYSTAL READS THE GLASS** — the mask's own job on this planet — and
+     the three shapes resolve. The rite of three, over the hearth-mark.
+
+Then out: the plate you rode in on rides the cell straight back (the hollow
+is where you came from), or the anneal from the boss in the cell's own corner
+rings the keep home and puts you out on the oriel. Writing the test caught
+the wording: the sealed Black Cell is a box with no DOORWAY, not a strand —
+the search's true jams need the hollow out of reach as well, and riding in
+always leaves it adjacent. The secret asks for the shape of the jam without
+its cost, which is the right shape for a room built for curiosity.
+
+**What it refuses, and how.** In the Black Cell anywhere but the corner:
+*black glass, and a doorway still cut in it somewhere.* Lightning before the
+flaw: *a flaw in the glass, and nothing here to run it.* Crystal before the
+strikes: *three shapes in clear glass, and only Crystal reads glass.* The
+wrong family at the flaw: *only the smallest finds the flaw in this glass.*
+The hint button in the Black Cell gives the one oblique line and nothing
+after it: *the black glass shows nothing but whoever stands in it; wedge it
+where no door meets a door, and see who is there.*
+
+**Against the standard:** a chain (wedge → flaw → three strikes → read), all
+three of the trio doing what they do everywhere else here (Crystal shunts and
+reads glass, a pip slips a crack, Lightning cracks glass), a repeated beat,
+wordless past the first nudge, nothing consumed. The star path never passes
+it: no star wants the Black Cell anywhere in particular, it is neither clear
+glass nor a throne, and no star ever wants a body inside a chamber with both
+doorways on the frame. The wedge is reached by the engine's own shunt from an
+arrangement four legal moves off the opening, which the test walks.
+
+### ◐ LIGHT — the pass, minus the device session (2026-09-19)
+
+Light arrived with the cleanest safety argument in the set (every move has
+an inverse; 0 strandable with no valve) and two good stars. What it did not
+have: any sound, a maxim that was anything but the vault's own dark walk, a
+readout that let you see what a press had done to bays you were not in — and
+one real bug in the boss room. Rendered room by room first, then:
+
+  · ✅ **THE MAXIM HAS HAD THE TREATMENT** — see §9.15. "Cross casting
+    nothing" was the same walk the vault demands, awarded twice. It is THE
+    INDEX now, hidden in the opposite extreme: the hall blazing at ten.
+  · ✅ **SOLARIN'S PILLARS SHADE YOU IN THE RULES, NOT JUST THE PICTURE.**
+    The glare was drawn with the three pillar shadows bitten out of it and
+    the lull was gated on standing in one — but the BURN ignored the pillars
+    entirely, so a body standing exactly where the room said it was safe
+    took damage every frame. The room said one thing and the floor another,
+    which is §7.10's whole rule. One geometry now, shared by the lull and
+    the burn, and a test stands a body behind a pillar in the glare and
+    checks it keeps every point of health.
+  · ✅ **LESS BROWN** (author, 2026-09-19: *"light looks too brown"*). The
+    sky's shadow was a brown-black and its stone a warm tan, the module's
+    ink a brown-black and its stone a greige, and the bays were oak on tan
+    on brown. A shadowed hall is COOL: the sky's shadow is slate now and its
+    stone bone limestone; the ink is cool; the glass, its lead and the
+    limewashed masonry all moved off the warm side. The oak stays oak and
+    the beams stay gold — the warmth belongs to what the light lands on,
+    not to the dark.
+  · ✅ **THE HALL IS IN THE READOUT.** Five marks beside the lumen count, one
+    per sector, the top half its rim band and the bottom its inward band
+    (Dark's eclipse marks) — so what a beacon press did to bays you cannot
+    see reads at a glance, and the smallest light that is still a road can
+    be PLANNED. The catalogue is the same map as a physical object.
+  · ✅ **A CLOSING ANNOUNCES ITSELF (§5.7).** A beacon press rewrites floors
+    in bays you are not standing in, and the line that named the setting was
+    an ordinary hint — dropped unasked. It is a CONSEQUENCE now, as is the
+    wardens lifting off the gallery when the hush is crossed.
+  · ✅ **SOUNDS**: none in the whole planet became nine — the shutter, every
+    press (and a kindle), the wardens waking, a stone read, a slip drawn,
+    the ring, the index read, the slab.
+  · ✅ **A STATES RENDER HARNESS** (`planet_dungeon_light_states_render_test`):
+    the doorway shut / blazing / dark, the court under the keepers' fan / a
+    low fan / two read, the catalogue as the hall stands / whole / read, the
+    slabs unread / named in the dark, and the glare with its bites — twelve
+    states asserted to be DIFFERENT PICTURES.
+  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Same
+    sentence as Mud's, Ice's, Dust's and Dark's. `Light` stays out of
+    `kPolishedDungeons` until it has been played.
+
+### §9.15 LIGHT'S LOST MAXIM — the index
+
+*Afraid of the Light* was a RESTRICTION: walk from the doorway to the
+reliquary with no lumen showing. That is the same total-darkness walk the
+vault's essence already demands — §6 said so outright — so the "secret" was
+paid for the treasure, and §7's table graded it exactly what it was.
+
+**THE INDEX.** Mud's lesson (§9.8) applied to a planet whose every objective
+wants LESS light: the effigies want a shadow to read, the slips want the hush
+of two, the vault wants none at all, and the wardens count every lumen over
+two. Nothing in the archive wants the hall lit whole. Ten lumens — every
+beacon thrown high, every niche flooded, every heart sill glared shut, the
+wardens off the gallery — is the state the whole planet spends the run
+steering you away from, and it is where the index is whole.
+
+  1. **BLAZE THE HALL.** Three beacons walked to and thrown high until all
+     ten cells are lit: the repeated beat, and the planet's whole verb. It is
+     reachable — the rim's glass is all floor when it is all lit — and it
+     costs you the wardens once, as the hush is crossed.
+  2. **READ THE INDEX.** The catalogue on the ledger walk is a case of ten
+     panes, one per cell, each lit with its cell — a live map of the hall in
+     every state (the readout's marks made physical), whole in only one.
+     CRYSTAL, which splits one shaft in two, splits the full light into its
+     letters, and the lens under the case shows a numeral: one of the five
+     slabs under the oculus, rolled per run.
+  3. **PUT THE ARCHIVE OUT — IN AN ORDER THAT LEAVES YOU A ROAD.** The oculus
+     stair is a heart room with nothing but mirror sills onto it, so the
+     dark is the only way in. Every beacon stands in a rim bay whose ways
+     out are glass, so the LAST beacon you douse has to be the narthex, from
+     the doorway, whose undercroft is mirror-stone and opens as the light
+     dies. Douse the ledger last and you stand in its bay on glass with no
+     floor — a re-press, never a strand (a press is its own undo), but the
+     plan has to be made before the first pan goes out. The planet's thesis,
+     *the road and the wall are the same object*, as the last move.
+  4. **THE SLAB GLOWS IN THE DARK** — what the light wrote, read where there
+     is none — and a SPIRIT PIP draws the volume from under it: the same
+     hand and the same declared gate (`hush_slip`) as every slip behind the
+     shelves. The rite of three over the slab.
+
+**What it refuses, and how.** Crystal at a half-lit index: *the index shows
+what the hall shows it, and N of its ten panes are dark.* Any other hand:
+*ten panes of glass, only a Crystal splits them into letters.* A slab with a
+lumen still showing: *afraid of the light — nothing comes out while N lumens
+still show.* A slab before the read: *five slabs, and nothing filed under one
+until the index has been read.* The wrong slab: a puff and *nothing filed
+under this one.* The hint button on the ledger walk gives the one oblique
+line and nothing after it: *every star here wants the hall dark; the index
+wants all of it lit, and what it names is drawn in no light at all.*
+
+**Against the standard:** a chain (blaze → read → douse in order → draw), all
+three of the trio doing what they do everywhere else here (Light throws and
+douses the beacons, Crystal reads by splitting light, a Spirit pip reaches
+behind a shelf), the Crystal+Spirit→Light braid standing in for a downed
+Light hand at every beacon as always, a repeated beat, wordless past the
+first nudge, nothing consumed. The star path never passes it: every star
+wants the hush, and nothing on the authored line lights the hall whole.
+
+**And it cost the safety argument nothing.** Ten lumens is one of the 963
+states the proof already enumerated; the douse order is the proof's own
+"every move has an inverse" felt from the inside; and the descent test walks
+the whole chain through the real door rules and re-runs the proof at the
+end, still zero.
+
+### ◐ DARK — the pass, minus the device session (2026-09-19)
+
+Dark arrived with the strongest proofs in the set (0 strandable of 392 with
+no valve, the algebra measured) and the best-argued ground — and every
+FIXTURE on it was a diagram: the gnomon a bar with a bar for a shadow, the
+dial two circles and four squares, the anchors plain rings, the snuffer
+three yellow dots, the abyss a black disc. No sound anywhere, and a maxim
+graded "a wait". Rendered room by room first, then:
+
+  · ✅ **THE MAXIM HAS HAD THE TREATMENT** — see §9.14. A sixty-second vigil
+    became THE FOURTH FINGER, hidden in the one arrangement the lower vault
+    punishes: the Deep in light.
+  · ✅ **THE FIXTURES ARE OBJECTS** (§7.10's rule: a shape that is
+    geometrically correct and reads as the wrong object). A gnomon is a
+    tapered finger of black glass on a bronze collar, and its shadow a hard
+    WEDGE lying toward the quarter it holds. The dial has its hour ticks and
+    its stones are plinths with a top face and a near face — a block with no
+    visible side has no height. An anchor is an iron ring in a socket that
+    weeps rust down the stone until a pip eats it, and turns slowly in its
+    hole once the far side is really open. The snuffer's lamps stand on
+    brackets and BURN — a flame is a shape that moves, not a dot. The pall
+    hangs in folds from a knot. The vane is a graduated floor disc with a
+    handle lying to the quarter it holds. The abyss is a WELL.
+  · ✅ **WHERE YOU STAND TELLS YOU WHAT THE PRESS WILL DO** (§9.11's
+    precedent). With a night-hand in reach of a gnomon, the wedge it would
+    throw on the OTHER side is ghosted in, breathing — the turn can be read
+    before it is made, which is §8's plan-then-commit on the planet whose
+    every verb is a commit.
+  · ✅ **SOUNDS**: none in the whole planet became ten — the pall, every
+    turn (and the vane), a stone seating, the rust off a ring, a Spirit
+    read, a portal transit, the snuffer, Noctryos' beat, a haul, the finger.
+  · ✅ **A CLOSING ANNOUNCES ITSELF (§5.7).** A turn shuts every passage cut
+    through the quarter the shadow left, somewhere you cannot see, and the
+    line that said so was an ordinary hint — dropped unasked. It is a
+    CONSEQUENCE now, as is Noctryos' beat (from update, where a plain line
+    was always silent) and the first portal transit's "something comes out
+    with you".
+  · ✅ **A LOT DARKER** (author, 2026-09-19: *"we should make the background
+    for dark a lot darker"*). Two faults. The porch and the court sat ABOVE
+    the shader's mood baseline (0.70 and 0.60 against 0.5), so the top of
+    the vault was brighter than a neutral planet; every room's mood now sits
+    well below baseline (porch 0.34 down to the font at 0.06). And the sky
+    palette itself was an umbral indigo with a cream corona at full
+    intensity — a blue dusk; the horizon is a bruise now, the corona a dim
+    violet, the intensity halved. The lit quarters keep their pewter floor
+    on purpose: the coin-coloured light is the contrast the eclipse is read
+    against. Also found on the way: the render AUDIT was lying about every
+    planet's sky. With no shader in a test, the engine fell back to one
+    generic blue-dusk gradient, so every room-audit PNG of every planet
+    carried the same summer-evening backdrop. The fallback draws the
+    planet's own palette now, shaped by the same mood the shader would use,
+    so a picture of a room is a picture of it.
+  · ✅ **A STATES RENDER HARNESS** (`planet_dungeon_dark_states_render_test`):
+    the pall hung, a gnomon holding each quarter with the ghost wedge, the
+    dial bare and half seated, a ring rusted / clean / through, the lamps lit
+    and out, the abyss dark / lit / read / half-hauled / standing, the vane
+    both ways — seventeen states asserted to be DIFFERENT PICTURES.
+  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Same
+    sentence as Mud's, Ice's and Dust's. `Dark` stays out of
+    `kPolishedDungeons` until it has been played.
+
+### §9.14 DARK'S LOST MAXIM — the fourth finger
+
+*The Abyss* was a WAIT: stand utterly still in the abyssal font, in the dark,
+for a full minute. §7's table graded it exactly that, and §9.6 had already
+said why a condition is an achievement and not a puzzle. It was also the one
+maxim in the set a player could earn by putting the phone down.
+
+**THE FOURTH FINGER.** Mud's lesson (§9.8) again: *the best place to hide a
+secret is the state your own stars punish.* Every objective in Nythralor's
+lower half wants the Deep in SHADOW — the gulf, the causeway, the slot, the
+reliquary's very existence, Noctryos' lull. The Deep in LIGHT is the one
+arrangement nothing down there wants, and you cannot even be down there in
+it by accident: the stair gnomon that lights the Deep stands upstairs behind
+the gulf it shuts. The only hand that lights the Deep from below is the
+arena's floor-vane, behind the rood door — so the secret is post-rite, and
+the first beat of it is turning the fight's own verb the wrong way.
+
+  1. **LIGHT THE DEEP FROM INSIDE IT.** Turn the vane. The gulf and the slot
+     are gone behind you; the reliquary is not there. Walk back to the font
+     by the undercroft, which is a light-walk and exists now.
+  2. **THE HOLE HAS A BOTTOM.** Light falls into the abyss for the first time
+     and the well shows its courses stepping down, and on the floor of it a
+     gnomon — the vault's fourth finger, fallen an age ago — on a chain to a
+     rusted ring at the rim. Nothing is pressed for this; the room is the
+     clue. (In the dark it is a hole with nothing drawn in it, and every hand
+     is told *no bottom to it, nothing has ever lit the way down.*)
+  3. **SPIRIT READS THE CHAIN** — the job it does at every anchor here:
+     *three lengths of chain, and a finger at the end of them.* Until it
+     has, a Dark hand on the chain finds it runs and runs.
+  4. **A POISON PIP EATS THE RUST** off the rim's ring — the same verb, and
+     the same gate declared on the layout, as every anchor ring on the
+     planet (`anchor_ring`, so `dungeon_no_undeclared_family_test` is
+     satisfied without a new gate).
+  5. **DARK HAULS, a length a press** — the repeated beat. The finger rises a
+     course a haul; three, and it stands on the rim on its own collar, and
+     the rite of three plays over the well. The Poison+Spirit braid hauls
+     too: a hand that has done its own beat falls through to stand as half
+     of Dark.
+
+**What it refuses, and how.** A wrong hand or a wrong beat is a puff and a
+sentence, and nothing moves: *only Dark takes hold of what a shadow left
+behind* · *the chain runs and runs, nobody knows how much there is* · *rust
+holds the ring shut.* The hint button in the font gives the one oblique line
+and nothing after it: *nothing has ever been dropped far enough to find the
+bottom of this. Nothing but light.* It does not tier and it does not track
+progress — the well's own picture is the only readout.
+
+**Against the standard:** a chain (vane → light in the well → read → rust →
+three hauls), all three of the trio doing what they do everywhere else here
+(Dark turns and takes hold, Spirit reads, a Poison pip eats rust), the
+planet's own braid standing in for a downed Dark hand, a repeated beat at the
+end, wordless past the first nudge, nothing consumed. The star path never
+passes it: every star wants the Deep dark down here, and the vane is behind
+the finale door.
+
+**And it cost the algebra nothing.** The raised finger is scenery, not a
+fourth gnomon — three shadows over four quarters is the load-bearing claim of
+the whole planet (never all four dark, which is Star 0), and a secret may not
+quietly buy the player a way round it. The no-strand proof is re-run at the
+end of the authored descent with the finger standing, and is still zero.
+
+### ◐ DUST — the pass, minus the device session (2026-09-19)
+
+Dust arrived at this pass with an art foundation, two exhaustive proofs
+(conservation, no-strand) and a solved survey yard — and NO sound at all, a
+maxim graded "one verb, N times", and the shared-renderer bug it had patched
+around. Rendered room by room first (every room read as what it is; the
+faults were in what the rooms did not SAY), then:
+
+  · ✅ **THE MAXIM HAS HAD THE TREATMENT** — see §9.13. Four footprints
+    swept with Air became THE TALLY: the granary's five pits hold the dead's
+    count of the city, and the count is a state Star 1 forbids.
+  · ✅ **SOUNDS**: none in the whole planet became eleven — the silt, every
+    spadeful, every gust, the vane winding and the sirocco, the rings, the
+    glass, the cut, the storm's re-burial, a pit answering, the cist.
+  · ✅ **A CLOSING ANNOUNCES ITSELF (§5.7).** Every spadeful shuts two street
+    crossings, and the line that said so was an ordinary hint — dropped
+    unasked, like every world-response line. It is a CONSEQUENCE now
+    (`speakConsequence`), as are the vane's warning (a warning nobody is
+    shown is not a warning), the sirocco, and Ashdjinn's storm re-burying a
+    dig from update. Ice's Frowyrm roar had the same fault and got the same
+    fix in passing.
+  · ✅ **WHERE YOU STAND TELLS YOU WHAT THE PRESS WILL DO** (Ice's orrery
+    precedent, §9.11). Both yard verbs act on the cell in front and a spade
+    throws behind, and nothing on the floor said which cells those were
+    until the load had moved. The bite is ringed bright and the square the
+    spoil will land on is ringed in ochre (for the wind: the cell underfoot
+    and the cell in front), before anything is spent.
+  · ✅ **EVERY MOUND CARRIES ITS MARK.** A chalked tag on a survey stake at
+    each square's corner, in every state — the same five marks cut over the
+    granary's pits. A rule you cannot see is a secret, not a puzzle; the mark
+    is what makes the tally readable at all.
+  · ✅ **THE SHARED MOAT BUG IS FIXED IN THE SHARED RENDERER** — §7.10's
+    entry, above.
+  · ✅ **A STATES RENDER HARNESS** (`planet_dungeon_dust_states_render_test`):
+    the gate silted / open / vane armed, a mound at all three heights, the
+    yard with its press preview, the observatory roofed and roofless, the
+    granary unread / one pit / five pits, the hollow's cut open and buried —
+    asserted to be DIFFERENT PICTURES.
+  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Same
+    sentence as Mud's and Ice's. `Dust` stays out of `kPolishedDungeons`
+    until it has been played.
+
+### §9.13 DUST'S LOST MAXIM — the count the dead left
+
+*Nothing Perishes* was "sweep every ancient footprint with Air": four prints,
+each showing only while its mound was bared, with conservation capping the
+city at two bared mounds so a sirocco had to be paid in between. §7's table
+graded it ⬜ *one verb, N times*, and it was also not a PLACE — the prints lay
+on the street squares you already cross.
+
+**THE TALLY.** Mud's lesson (§9.8) again: *the best place to hide a secret is
+the state your own stars punish.* Star 1 spends its whole room on one
+sentence — take the observatory's roof OFF, the sky comes down, the rings
+read. The count the dead left has the roof DRIFTED: two loads on it, the
+observatory buried twice over, and the star shut for as long as you hold it.
+And the planet already had the room for it: the granary under the gate
+square, five decorative grain pits in a cellar nothing needed.
+
+  1. **READ THE COUNT.** Five pits in a row, one per mound, each holding grain
+     to the dead's last count of that square — a black mouth, a level lying
+     low, a heap over the lip — with the mound's survey mark cut on a plate
+     over it. The same mark hangs on a chalked tag at the corner of the
+     mound's own square, in every state. No verb: the room is the clue.
+  2. **LAY THE STREETS TO IT.** Two spadefuls, the planet's whole grammar,
+     each a decision made with the body: the kiln onto the bump (the vault
+     cracks below as a side effect), then the agora onto the roof. Exactly
+     one pair of digs reaches the count (enumerated in the test), and in
+     exactly one ORDER: bare the agora first and the street east is shut,
+     the ramp never rises, and the terrace — where the kiln's crown is —
+     cannot be reached at all without a sirocco. The plan has to be made
+     before the first spadeful.
+  3. **COME DOWN.** Three of the four street crossings are shut by then. The
+     granary is reached the way the buried city is always reached: the
+     tower's stair, the windcatch, the undercity — the lower deck that never
+     closes, which is what keeps the secret from ever being behind a route
+     that can be lost.
+  4. **THE REPEATED BEAT.** Air blown across each pit. A pit whose mound
+     stands at the count LIGHTS — the grain goes warm, motes rise off it,
+     the plate turns bronze: nothing perishes, and the grain says so. One
+     whose mound does not answers with a puff and *the grain lies still; the
+     street above does not agree with it.* The gate square opens AT the
+     count, so its pit answers the very first breath — the room's wordless
+     teach that the others want their streets changed.
+  5. **FIVE LIT AT ONCE**, and the cist in the floor opens: the rite of three
+     over it.
+
+**The read is LIVE.** A lit pit goes dark the moment its street changes —
+the storm undoing a dig, a spadeful, the sirocco — and answers again when the
+count is restored. It is the ledger, read in grain; it never lies about the
+city and it never has to be reset.
+
+**What it refuses, and how.** A spade at a pit: *old grain, kept dry; only a
+breath stirs it.* The hint button in the granary gives the one oblique line
+and nothing after it: *the dead counted the city before they left; lay the
+streets to their count, and the wind will find the grain still living.* It
+does not tier and it does not track progress.
+
+**Against the standard:** a chain (read → two digs in one order → come down →
+five breaths), all three of the trio doing what they do everywhere else here
+(Dust and Earth dig, Air breathes; the Air+Earth→Dust braid stands in for a
+downed Dust hand exactly as it does at every mound), a repeated beat at the
+end, wordless past the first nudge, nothing consumed. The star path never
+matches it: the authored descent throws the roof WEST onto the agora, and no
+state on that line agrees with the count.
 
 ### ◐ MUD — the pass, minus the device session (2026-09-13)
 
@@ -2809,7 +3716,8 @@ exactly that, which is why it now also asserts the states look different.
     swims, which is how the dry-footed rule gets taught with no caption.
   · ✅ **THE FIXTURES ARE THINGS.** The Sinking Altar was a flat brown disc in
     the room the planet is named for; it is a kerbed socket packed with the
-    bog-resin cap. The sough is a stone throat with the cutters' plug rammed
+    bog-resin cap (the cap retired 2026-09-22 — see below). The sough is a
+    stone throat with the cutters' plug rammed
     in it, the wallow pulls, the sarsen lies where it fell until you walk it.
   · ✅ **THE DROWNED LEVEL STOPPED PRETENDING TO BE A KNOLL**, and then the
     hollow stopped pretending to be the fane. Three rooms under the fen were
@@ -2853,8 +3761,87 @@ exactly that, which is why it now also asserts the states look different.
     every road they had dragged with it. Both halves are invariants now, plus
     one test that stands a party on the hatch for four seconds.
   · ✅ **THE MAXIM IS THE FEN YOU ARE PUNISHED FOR MAKING** — §9.8.
-  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Nothing
-    on this planet has been played. Every planet in the polished seven found
+  · ✅ **THE FLOOR WAS COMPETING WITH THE FURNITURE** (2026-09-20, straight out
+    of the first device session — *"too much things on the map that occlude
+    what I can see and interact with"*, which is the pass's own prediction
+    coming true on schedule). The fen was scattered uniformly across the whole
+    room with no knowledge of anything in it: the mire gate's 720x560 carried
+    about **fifty-four pieces of ground** — 6 pools, 11 hummocks with a moss
+    cap each, 23 cotton tufts, 3 bog-oaks — plus the weed raft, against
+    **one 54px pad** you can actually press while the weed is down. It all
+    draws UNDER the fixtures, so nothing was ever hidden; it was the same size
+    and brightness as the things that matter, which is the same fault wearing
+    a different hat. Three changes, no new art: the ground now takes a
+    **keep-out list** (every doorway, the strip of floor a crossing runs down,
+    the wallow, both altars, the sough, the lead, the sink, the peat cuts, the
+    mire anchor, and every ford head) and re-rolls a spot that lands on one;
+    counts are down about 40% (pools 6→4, hummocks 11→7, cotton 23→14, and
+    cotton is the palest colour in the room, so on a floor this dark the
+    brightest thing should be something you can press); and the fen is
+    **clipped to the stage** it lies on. The floating weed is deliberately
+    exempt from that clip — a mat cut off flat along the room's edge is the
+    straight seam this render has refused from the start, so it still runs out
+    into the dark and thins on its own. The drowned rooms take the same
+    keep-out: Bogdrya's hollow is a fight room whose one firm footing is the
+    mire anchor, and burying that in soft pans is the same fault with worse
+    consequences.
+  · ✅ **THE DECISION IS THE ROAD; THE REST WAS ERRANDS** (2026-09-22). A
+    design review asked the planet's own question — *is this complex for a
+    reason?* — and the answer was that the puzzle is clean (the choir tells
+    you the road; never drag a middle) but the verbs around it were not:
+    the sarsen was hauled one crossing per press, worked at each crossing's
+    head on whatever knoll it stood on — four walk-and-press errands — and
+    the socket carried a Plant+Mud resin cap that was a checkbox and
+    Plant's ONLY job on the namesake star. Both are gone. Once an unbroken
+    sod road joins the stone to the altar, **PLANT's roots carry it the
+    whole way in one press** and seat it: Water opens the fen, Mud builds
+    the road, Plant moves the stone. The readout reads ROAD whole/broken.
+    And a moor basin on a knoll whose crossing has DROWNED now says "never"
+    rather than "still swims", with the reading naming the sough — the one
+    moment a player most needs to hear it (the old line sent people back to
+    try again forever).
+  · ✅ **WALKING RIGHT LOOPED** (2026-09-23, device). *"I walked right into a
+    door and kept walking right and it would put me in a loop."* The cairn
+    and the lotus each carried their crossing to the other on their EAST
+    walls and arrived on the other's east side, so the next step right went
+    straight back. The altar is the fen's far east shore now — every
+    crossing onto it lands on its west wall (hag, reed, cairn) — and the
+    cairn sits between lotus (west) and altar (east). Plant's pollen stair
+    and niche had the same ping-pong on their west walls; the stair-wall
+    thread goes NORTH now. `dungeon_door_compass_test` holds all seventeen:
+    no door arrives on the side it left from, and following east or south
+    doors never comes back round (Spirit, Light and Blood are rings by
+    design and exempt from the east rule only).
+  · ✅ **THE PLUG IS THE RESET** (2026-09-23, device): *"it should reset
+    when we activate it in the drowned fane instead of leaving."* Pulling the
+    sough now heaves the fen on the spot, with the line spoken there; the
+    risen wallows open with it and climbing one only re-plugs the sough
+    behind you (the carried-fault invariant is unchanged). The no-strand
+    proof models the new valve: still 0 strandable, 1028 reachable states
+    (was 1284 — a freed sough and a dragged fen can no longer coexist) and
+    944 dead without the valve.
+  · ✅ **TWO STARS OPENED NOTHING** (2026-09-23, device). Mud was the one
+    planet with no rite: the hollow door waits for `guardianAwake` and
+    nothing on the planet ever set it (the tests set it by hand). Bogdrya now
+    wakes the moment the second star banks, as Lava's Magmara does, and a
+    test walks two stars up to the open door.
+  · ✅ **THE SARSEN STAR WAS FREE AFTER THE MOOR STAR** (2026-09-23,
+    device): *"I don't think there's strategy there."* The choir's long road
+    is also a whole road to the altar, so once the basins held, the stone was
+    one press. The altar is the SINKING altar now: it holds the stone only on
+    DRY ground (all three of its crossings firm), and no fen shape has both a
+    road to it and a dry altar — enumerated in the test. So the star is a
+    plan across two fens: carry the stone on any road, pull the plug (the
+    heave takes the roads back but not a stone already at the altar), then
+    firm the altar's three crossings and the last drag seats it. The reset
+    is part of the answer, not just an undo.
+  · ✅ **WHAT A STAR DID STAYS DONE** (2026-09-23, device): a banked Moor
+    Star keeps its three basins full through every heave and every later
+    drag; a banked Sarsen Star keeps the stone seated; and a new run opens
+    with both, not with a fallen stone and dry basins.
+  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Begun
+    2026-09-20 — the floor fault above is its first finding, and the planet
+    stays out of `kPolishedDungeons` until a run has been played through. Every planet in the polished seven found
     its real faults in a device session and none of them in the suite, and
     this pass is no different in kind from the ones that preceded that
     session elsewhere — it is what a rendered screenshot and a green suite can
@@ -4097,6 +5084,16 @@ the bone leaves the vault almost sideways and turns down late. Use those.
   ≈ 0.50–0.60 (like Air's islands) so the per-element shader atmosphere
   glows THROUGH the stone — the shader is the room's mood; never paint
   over it with near-opaque floors. (Fire + Water corrected from 0.88/0.94.)
+  **AMENDED 2026-09-19** (author: *"the stages are all starting to look too
+  similar — more transparent, to show the background"*): the rule was
+  being honoured per LAYER and broken in the COMPOSITE. The shared stage
+  slab under every planet sat at 0.52–0.60, and each planet's own bed at
+  ≈0.5 on top of it, so the floor a player saw was three-quarters opaque
+  everywhere and the shader — the whole difference between one planet and
+  the next — barely came through on any of them. The shared stage is a
+  TINT now (0.26–0.32), not a floor; the planet's bed is the floor and the
+  0.50–0.60 budget is the bed's. Dark's umbra bed and Dust's deck came
+  down with it. Judge translucency on the composite, never on one fill.
 - ✅ **ANIMATED-STATE RULE (no instant pops):** every puzzle/architecture
   state change EASES, it never snaps. The reference bar is Earth's entry
   (the dolmen heaves up as beveled masonry over ~1.6s + strewn rubble + dust
@@ -4137,8 +5134,9 @@ the bone leaves the vault almost sideways and turns down late. Use those.
   Mask+Plant feedable vine, Mask+Dust ally auras, support effects
   (shield/heal/blessing/haste), snare fields slow dungeon enemies.
   EXCEPTIONS (ship/orb collection loops don't exist here): Mask+Spirit
-  wisp pickups → plain projectiles; kin support paths; mystic environment
-  washes. Covered by the `survival-parity abilities` test group.
+  wisp pickups → plain projectiles; mystic environment washes. Kin support
+  paths use party-native dungeon equivalents where Survival targets the ship
+  or orb. Covered by the `survival-parity abilities` test group.
 - ✅ Audited end-to-end: `test/planet_dungeon_full_run_test.dart` plays a full
   3-star run headless with the authored trio (entry ignition → 3-ring ascent →
   complete loom incl. Thundercloud charge → conduit sync → Roc); layout tests
@@ -4551,13 +5549,7 @@ splash + mud-trail tag (+ enemy-side puff dropper), Mane+Mud split, and
 the horn charge-trail visual + landing spark. The generic pierce-damage
 falloff was removed (survival has none).
 
-KNOWN REMAINING GAPS:
-- KIN SPECIAL UTILITIES: survival runs a custom per-element kin cast branch
-  (cosmic_survival_game.dart ~6230: Ice charged release, Steam boiler stacks,
-  Dust clouds, Mud ship enchant, Spirit wisp, Dark cloak, Earth equip...).
-  Dungeon kin specials use only the generic builder. Lightning tesla IS
-  ported (timer + chain trigger). This is the polish-pass headliner — port
-  alongside the project_kin_specials_design contract.
+KNOWN INTENTIONAL GAP:
 - Wing+Earth orb mirror beam (orb-specific by design — intentionally absent).
 
 CLOSED (ported to planet_dungeon_game.dart): taunt/decoy steering (beacons
@@ -4574,6 +5566,10 @@ kill-side verbs (`_onEnemyKilledByPlayer`: mane-root detonation, horn
 Steam/Lava/Blood on-kill payoffs via `hornSpecialActiveWindow`, pip kill
 placements, Pip/Mask Spirit streaks), hit sparks, charge-trail render, and
 the `_damageEnemyDirect` funnel so every damage source fires kill verbs.
+Kin support paths are also closed: Ice charge/release, Steam boiler, Dust
+cloud accumulation, Mud trail enchant, Spirit growing wisp, Dark cloak,
+Earth wall, Lava reactive plate, Blood pact, and Lightning Tesla all activate
+in dungeons. Ship/orb targets are mapped to the controlled creature or party.
 
 ## 9. Roadmap
 

@@ -89,9 +89,12 @@
 //     phase to you. Working out which chamber, and how to be in it, is the
 //     puzzle. Being there is not a reflex.
 //
-//   The one deliberate exception is the Lost Maxim (§6 #17: strike the
-//   heart-drum in sync for twelve straight beats), which is an optional
-//   20-gold secret and is SUPPOSED to be hard. No star touches it.
+//   There is NO exception any more (2026-09-20). The Lost Maxim used to be
+//   the heart-drum — twelve strikes on the systole onset inside a ±0.85s
+//   window, the one reaction test on the planet, kept because it was
+//   optional. It was still a reflex test on a planet built to have none, and
+//   the author's rule is that puzzles reward thinking, never timing. It is
+//   THE THROMBUS now (see the module): every window in it is a whole phase.
 //
 // THE VAULT TRICK (§5.5): *reachable only in the flatline window between
 // beats.* The auricle reliquary hangs off the aortic arch behind a valve
@@ -862,16 +865,10 @@ class SanguineHeart {
   /// Seconds until the vagal node answers again.
   double vagalCooldown = 0;
 
-  /// The Lost Maxim: consecutive systole onsets struck in time.
-  int drumStreak = 0;
-  bool drumHeard = false;
-
-  /// Which BEAT the drum was last answered on, or -1. Recording the beat
-  /// NUMBER rather than a per-frame edge is what makes the streak logic
-  /// frame-rate independent: a second strike on the same beat is ignored, a
-  /// strike on the next beat continues the streak, and a strike on any later
-  /// beat starts a new one — all decidable from one integer.
-  int drumBeatStruck = -1;
+  /// THE THROMBUS (the Lost Maxim): dead vessels whose clot a Light hand has
+  /// seen the length of. A clot is broken on the flatline, by Blood, and the
+  /// vessel takes like any other graft.
+  final Set<String> clotSeen = {};
 
   /// Seconds left on the pulse ring the render throws at a phase turn.
   double turn = 0;
@@ -890,9 +887,7 @@ class SanguineHeart {
     steadyDir.clear();
     arrest = 0;
     vagalCooldown = 0;
-    drumStreak = 0;
-    drumHeard = false;
-    drumBeatStruck = -1;
+    clotSeen.clear();
     turn = 0;
     // The corruption is NOT cleared here: a death inside the run must not
     // re-roll which vessels are sound, or the Light flagging would be a lie.
@@ -1037,10 +1032,6 @@ class SanguineChamber {
   /// its snuffer.
   final Offset? balance;
 
-  /// The Lost Maxim (§6 #17): the heart-drum. Twelve straight beats struck in
-  /// sync. The one reaction-timed thing on the planet, and it is optional.
-  final Offset? heartDrum;
-
   /// Sanguorath's arena floor: the VAGAL NODE. It stops the heart for a few
   /// seconds — the party's only hand on the clock, the fight's errand, and
   /// the arena's second safety belt after the phase-free chordae gate.
@@ -1050,7 +1041,6 @@ class SanguineChamber {
     this.starIndex,
     this.pericardium,
     this.balance,
-    this.heartDrum,
     this.vagalNode,
   });
 }
@@ -1070,14 +1060,12 @@ const DungeonLayout bloodLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Priming Star',
       earnAnnouncement:
-          'The Priming Star is yours, four mouths drinking, and never two of '
-          'them on the same beat',
+          'The Priming Star is yours. All four mouths are drinking',
     ),
     DungeonStarSpec(
       name: 'Graft Star',
       earnAnnouncement:
-          'The Graft Star is yours, three dead vessels carrying, and the '
-          'eight has roads the beat never gave it',
+          'The Graft Star is yours. The grafted vessels give you new routes',
     ),
     DungeonStarSpec(name: 'Systole Star'),
   ],
@@ -1085,14 +1073,12 @@ const DungeonLayout bloodLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('pericard_gate', 'arterial_run'),
   finaleDoor: DungeonDoorRef('myocardium', 'sanguorath_systole'),
   riteAnnouncement:
-      'Priming and Graft are won, the cannula seats in the myocardium, and '
-      'the chordae gate goes slack',
+      'Priming and Graft are won. The chordae gate to Sanguorath opens',
   finaleSealedHint:
-      'The chordae gate is drawn tight, it answers only the Priming and '
-      'Graft stars',
+      'The chordae gate stays shut until you have the Priming and Graft '
+      'stars',
   guardianSealedHint:
-      'Nothing behind the chordae stirs while the heart is still keeping its '
-      'own time',
+      'Sanguorath won\'t wake until the Priming and Graft stars are won',
   mercyShrineRoomId: 'arterial_run',
   // Ideal: Bloodkin · Darkmask · Lightmask — hinted by VERB, never body part
   // (§4): the hand that steadies old engines, the sight that pierces the
@@ -1103,8 +1089,9 @@ const DungeonLayout bloodLayout = DungeonLayout(
     'and Light, because half of what I offer you is rotten.',
   ],
   primer: [
-    'The heart does not wait for you.',
-    'A vein is a road only while it is being pushed through, and only downstream.',
+    'The heart beats on its own and routes open and close with it.',
+    'A vein only carries you while blood is pushed through it, and only '
+        'downstream.',
   ],
   // §4 budget: ONE hard gate (the cannula's Blood Mane). It was two — a
   // Blood KIN on the rite and a Dark MASK on the collateral cock — until a
@@ -1131,7 +1118,7 @@ const DungeonLayout bloodLayout = DungeonLayout(
       objectId: 'A',
       element: 'Blood',
       family: 'Mane',
-      hintLine: 'Only a Blood that leaves a road behind it holds this cannula',
+      hintLine: 'Only a Blood Mane can hold this cannula',
     ),
   ],
   rooms: {
@@ -1365,7 +1352,7 @@ const DungeonLayout bloodLayout = DungeonLayout(
       sanguine: SanguineChamber(starIndex: 1),
     ),
 
-    // ── THE ATRIAL GALLERY (the Lost Maxim · lesser lobe) ─
+    // ── THE ATRIAL GALLERY (lesser lobe) ──────────────────
     'atrial_gallery': DungeonRoom(
       id: 'atrial_gallery',
       bounds: Rect.fromLTWH(0, 0, 800, 500),
@@ -1396,7 +1383,7 @@ const DungeonLayout bloodLayout = DungeonLayout(
           targetSpawn: Offset(575, 395),
         ),
       ],
-      sanguine: SanguineChamber(heartDrum: Offset(650, 350)),
+      sanguine: SanguineChamber(),
     ),
 
     // ── THE MYOCARDIUM (the rite · inside the eight) ──────

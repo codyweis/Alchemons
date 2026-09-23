@@ -16,6 +16,9 @@
 // The rest pins the mound trade, the two hard gates, the vault trick and the
 // guardian against the real rules.
 
+import 'dart:math' show atan2;
+
+import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
@@ -55,6 +58,7 @@ PlanetDungeonGame harness(
   List<CosmicPartyMember> party, {
   void Function(int)? onStar,
   void Function(String)? onCloud,
+  void Function(SoundCue)? onSound,
 }) {
   final game = PlanetDungeonGame(
     element: 'Dust',
@@ -62,6 +66,7 @@ PlanetDungeonGame harness(
     initialStarMask: 0,
     onStarEarned: onStar ?? (_) {},
     onCloudDiscovered: onCloud,
+    onSound: onSound,
     onPlayerDown: () => fail('the scripted run must never wipe'),
     onChanged: () {},
   );
@@ -733,52 +738,255 @@ void main() {
     });
   });
 
-  group('the Lost Maxim — NOTHING PERISHES', () {
-    test('conservation itself is what makes it hard', () {
-      // A print shows only while its mound is bared, and #bared == #drifted,
-      // so with five mounds you can never have more than two open at once —
-      // four prints cannot be swept without paying at least one sirocco.
-      final printed = kDustMounds.where((m) => m.footprintPos != null).length;
-      expect(printed, greaterThan(2));
+  group('the Lost Maxim — NOTHING PERISHES · THE TALLY', () {
+    // The §7 maxim standard: a CHAIN — read the count, lay the streets to it
+    // (two spadefuls, in one order), come down, breathe across five pits.
+    // Every link is proved against the same code the buttons call.
+    bool canPass(PlanetDungeonGame game, String from, String to) {
+      final room = game.layout.rooms[from]!;
+      for (final d in room.doors) {
+        if (d.targetRoomId != to) continue;
+        if (game.isDoorHidden(room, d) || game.isDoorLocked(room, d)) continue;
+        return true;
+      }
+      return false;
+    }
+
+    final pits = layout.rooms['granary']!.ruins!.tallyPits!;
+    int pitOf(String id) => kDustMounds.indexWhere((m) => m.id == id);
+
+    /// Aim from a mound's crown toward a neighbour, in city space.
+    double bearing(String from, String to) {
+      Offset place(String id) => switch (id) {
+        'm_gate' => const Offset(0, 1),
+        'm_agora' => const Offset(1, 1),
+        'm_roof' => const Offset(2, 1),
+        'm_bump' => const Offset(3, 1),
+        _ => const Offset(2, 0),
+      };
+      final d = place(to) - place(from);
+      return atan2(d.dy, d.dx);
+    }
+
+    /// The city laid to the count, by the one order that works.
+    void layTheCity(PlanetDungeonGame game) {
+      actFacing(
+        game,
+        earth,
+        'high_terrace',
+        crownOf('m_kiln'),
+        bearing('m_kiln', 'm_bump'),
+      );
+      actFacing(
+        game,
+        earth,
+        'seal_street',
+        crownOf('m_agora'),
+        bearing('m_agora', 'm_roof'),
+      );
+    }
+
+    test('the count is a legal city, and every mound has its own mark', () {
+      var sum = 0;
+      for (final m in kDustMounds) {
+        expect(kDustTally, contains(m.id));
+        sum += kDustTally[m.id]!;
+      }
+      expect(sum, kDustCityLoads, reason: 'nothing perishes, even in a count');
+      expect(
+        kDustMounds.map((m) => m.glyph).toSet(),
+        hasLength(kDustMounds.length),
+      );
+      expect(pits, hasLength(kDustMounds.length));
+    });
+
+    test('exactly one pair of digs reaches it', () {
       final r = RuinsOfTime();
-      var mostOpen = 0;
-      // Every arrangement two digs can produce.
+      final pairs = <String>{};
       for (final a in kDustMounds) {
         for (final an in a.neighbours) {
           for (final b in kDustMounds) {
             for (final bn in b.neighbours) {
               r.reset();
-              r.dig(a.id, an);
-              r.dig(b.id, bn);
-              expect(r.conserved, isTrue);
-              final open = kDustMounds
-                  .where((m) => r.stateOf(m.id) == MoundState.bared)
-                  .length;
-              if (open > mostOpen) mostOpen = open;
+              if (!r.dig(a.id, an) || !r.dig(b.id, bn)) continue;
+              final matches = kDustMounds.every(
+                (m) => r.loadsOn(m.id) == kDustTally[m.id],
+              );
+              if (matches) {
+                pairs.add((['${a.id}>$an', '${b.id}>$bn']..sort()).join(' '));
+              }
             }
           }
         }
       }
-      expect(
-        mostOpen,
-        lessThan(printed),
-        reason: 'the ledger caps how much of the city can be open at once',
-      );
+      expect(pairs, {'m_agora>m_roof m_kiln>m_bump'});
     });
 
-    test('a print is swept by Air, and only while its ground is open', () {
-      final game = harness(_idealTrio())..entryDoorRevealed = true;
-      final print = dustMoundById('m_gate')!.footprintPos!;
-      // Buried ground: nothing to see.
-      act(game, air, 'ashen_gate', print);
-      expect(game.ruins.sweptPrints, isEmpty);
+    test(
+      'and only in one ORDER: bare the agora first and the terrace is lost',
+      () {
+        final game = harness(_idealTrio())..entryDoorRevealed = true;
+        // Agora onto the roof first. The street east is shut and the ramp
+        // never rises, so the kiln's crown cannot be reached without a sirocco.
+        actFacing(
+          game,
+          earth,
+          'seal_street',
+          crownOf('m_agora'),
+          bearing('m_agora', 'm_roof'),
+        );
+        expect(game.ruins.stateOf('m_agora'), MoundState.bared);
+        expect(canPass(game, 'seal_street', 'roof_walk'), isFalse);
+        expect(canPass(game, 'seal_street', 'high_terrace'), isFalse);
+        expect(
+          canPass(game, 'sand_court', 'high_terrace'),
+          isTrue,
+          reason: 'kiln still buried',
+        );
+        // ...but the court itself is cut off: the roof is a dune now.
+        expect(canPass(game, 'roof_walk', 'sand_court'), isFalse);
+        expect(canPass(game, 'high_terrace', 'kiln_cellar'), isFalse);
 
-      actFacing(game, earth, 'ashen_gate', crownOf('m_gate'), east);
-      act(game, earth, 'ashen_gate', print);
-      expect(game.ruins.sweptPrints, isEmpty, reason: 'a spade is not a broom');
-      act(game, air, 'ashen_gate', print);
-      expect(game.ruins.sweptPrints, contains('m_gate'));
+        // The right order: kiln first, then home through the undercity, then
+        // the agora — and the granary is still there at the end of it.
+        final right = harness(_idealTrio())..entryDoorRevealed = true;
+        layTheCity(right);
+        for (final m in kDustMounds) {
+          expect(right.ruins.loadsOn(m.id), kDustTally[m.id], reason: m.id);
+        }
+        expect(right.ruins.conserved, isTrue);
+        expect(canPass(right, 'seal_street', 'ashen_gate'), isTrue);
+        expect(canPass(right, 'ashen_gate', 'windcatch'), isTrue);
+        expect(canPass(right, 'undercity', 'granary'), isTrue);
+        // The observatory's roof stands DRIFTED: Star 1 is shut for as long
+        // as the count is held. That is the state the secret hides in.
+        expect(right.ruins.stateOf('m_roof'), MoundState.drifted);
+        // And the vault cracked open as a side effect of the first spadeful.
+        expect(canPass(right, 'undercity', 'sunken_house'), isTrue);
+      },
+    );
+
+    test('a pit lights only when the city agrees, and only for the wind', () {
+      final game = harness(_idealTrio())..entryDoorRevealed = true;
+      // The gate square opens AT the count (one load): its pit answers the
+      // first breath — the room's wordless teach.
+      act(game, earth, 'granary', pits[pitOf('m_gate')]);
+      expect(
+        game.tallyLit('m_gate'),
+        isFalse,
+        reason: 'a spade is not a breath',
+      );
+      act(game, air, 'granary', pits[pitOf('m_gate')]);
+      expect(game.tallyLit('m_gate'), isTrue);
+      // The roof's pit wants two loads and the roof stands at one.
+      act(game, air, 'granary', pits[pitOf('m_roof')]);
+      expect(game.tallyLit('m_roof'), isFalse);
+      expect(game.tallyComplete, isFalse);
+      expect(game.riteActive, isFalse);
       expect(game.ruins.conserved, isTrue);
+    });
+
+    test('the read is LIVE: move the city and a lit pit goes dark', () {
+      final game = harness(_idealTrio())..entryDoorRevealed = true;
+      act(game, air, 'granary', pits[pitOf('m_gate')]);
+      expect(game.tallyLit('m_gate'), isTrue);
+      actFacing(
+        game,
+        earth,
+        'ashen_gate',
+        crownOf('m_gate'),
+        bearing('m_gate', 'm_agora'),
+      );
+      expect(game.ruins.stateOf('m_gate'), MoundState.bared);
+      expect(game.tallyLit('m_gate'), isFalse);
+      // The sirocco puts the gate back at one, and the pit answers again.
+      game.ruins.levelCity();
+      expect(game.tallyLit('m_gate'), isTrue);
+    });
+
+    test(
+      'THE WHOLE CHAIN: two spadefuls, five breaths, and the cist opens',
+      () {
+        final found = <String>[];
+        final game = harness(_idealTrio(), onCloud: found.add)
+          ..entryDoorRevealed = true;
+        layTheCity(game);
+        for (final m in kDustMounds) {
+          act(game, air, 'granary', pits[pitOf(m.id)]);
+          expect(game.ruins.conserved, isTrue);
+        }
+        expect(game.tallyComplete, isTrue);
+        expect(game.riteActive, isTrue);
+        for (var i = 0; i < 300; i++) {
+          game.update(1 / 60);
+        }
+        expect(found, contains(kDustNothingPerishesEggId));
+        // Found once, the pits are done: nothing answers at them again.
+        act(game, air, 'granary', pits[pitOf('m_gate')]);
+        expect(game.riteActive, isFalse);
+      },
+    );
+
+    test('the star path never matches the count', () {
+      // The authored descent throws the roof WEST onto the agora (the ramp
+      // is the road on). No mound stands at the count after it but the one
+      // the count leaves alone.
+      final game = harness(_idealTrio())..entryDoorRevealed = true;
+      actFacing(
+        game,
+        earth,
+        'roof_walk',
+        crownOf('m_roof'),
+        bearing('m_roof', 'm_agora'),
+      );
+      expect(game.ruins.stateOf('m_roof'), MoundState.bared);
+      expect(game.tallyMatches('m_roof'), isFalse);
+      expect(game.tallyMatches('m_agora'), isFalse);
+      expect(game.tallyComplete, isFalse);
+    });
+  });
+
+  group('the ruins are AUDIBLE', () {
+    // A planet with no cue in it is a planet nobody hears, and this one had
+    // none. These are the beats the buried city is made of.
+    test('every beat of the city speaks', () {
+      final heard = <SoundCue>[];
+      final game = harness(_idealTrio(), onSound: heard.add);
+
+      // The silt.
+      act(
+        game,
+        dust,
+        'ashen_gate',
+        layout.rooms['ashen_gate']!.ruins!.gateSilt!,
+      );
+      expect(heard, contains(SoundCue.dungeonGateOpen));
+
+      // A spadeful.
+      heard.clear();
+      actFacing(game, earth, 'ashen_gate', crownOf('m_gate'), east);
+      expect(heard, contains(SoundCue.elementDust));
+
+      // The vane winding, then the sirocco.
+      heard.clear();
+      final vane = layout.rooms['ashen_gate']!.ruins!.windVane!;
+      act(game, air, 'ashen_gate', vane);
+      expect(heard, contains(SoundCue.dungeonSwitch));
+      heard.clear();
+      act(game, air, 'ashen_gate', vane);
+      expect(heard, contains(SoundCue.dungeonWallBreak));
+
+      // A gust in the yard.
+      heard.clear();
+      const g = kSealYard;
+      actFacing(game, air, 'seal_street', g.centerAt(2, 1), east);
+      expect(heard, contains(SoundCue.elementAir));
+
+      // A breath across a pit.
+      heard.clear();
+      final pits = layout.rooms['granary']!.ruins!.tallyPits!;
+      act(game, air, 'granary', pits[0]);
+      expect(heard, isNotEmpty);
     });
   });
 }

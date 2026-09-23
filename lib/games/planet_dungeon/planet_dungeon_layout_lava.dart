@@ -1195,25 +1195,24 @@ const DungeonLayout kLavaLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Ember Star',
       earnAnnouncement:
-          'The Ember Star is yours, the line cast you a road across itself',
+          'The Ember Star is yours. You cast your own road across',
     ),
     DungeonStarSpec(
       name: 'Reliquary Star',
       earnAnnouncement:
-          'The Reliquary Star is yours, the hidden mold gave up its key',
+          'The Reliquary Star is yours. The hidden mould gave up its key',
     ),
     DungeonStarSpec(name: 'Furnace Star'),
   ],
   entranceRevealDoor: DungeonDoorRef('tap_head', 'switch_yard'),
   finaleDoor: DungeonDoorRef('mold_floor', 'pour_heart'),
   riteAnnouncement:
-      'Ember and Reliquary are won, the heart gate draws back off its rails',
+      'Ember and Reliquary are won. The heart gate opens',
   finaleSealedHint:
-      'The heart gate is bolted, it draws back only for the Ember and '
-      'Reliquary stars',
+      'The heart gate stays shut until you have the Ember and Reliquary '
+      'stars',
   guardianSealedHint:
-      'The heart gate is bolted, nothing down there stirs until the works '
-      'are finished',
+      'Nothing down there wakes until the works are finished',
   mercyShrineRoomId: 'pour_heart',
   // Ideal: Lavahorn · Earthmask · Icemane — named by VERB, never by body part
   // (§4). Only the last of the three is a hard gate; the other two are the

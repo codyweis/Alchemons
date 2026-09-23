@@ -3265,6 +3265,23 @@ class _GarrisonCreature {
   double blessingTimer = 0;
   double blessingHealPerTick = 0;
 
+  // Kin support state. Garrison defenders cast the same specials as deployed
+  // companions, so their non-projectile paths must survive beyond the cast
+  // frame too.
+  bool kinFireOrbitalFlameActive = false;
+  double kinLavaPlateTimer = 0;
+  double kinIceChargeTimer = 0;
+  double kinIceChargeTotal = 0;
+  double kinSteamBoilerTimer = 0;
+  int kinSteamBoilerStacks = 0;
+  double kinSteamStackDecayTimer = 0;
+  double kinSteamStackCarry = 0;
+  double kinLightningChargeTimer = 0;
+  double kinDarkCloakTimer = 0;
+  double kinBloodPactTimer = 0;
+  double kinMudShipEnchantTimer = 0;
+  int kinSpiritWispKills = 0;
+
   // Temporary basic-attack haste granted by some specials.
   double basicHasteTimer = 0;
   double basicHasteMultiplier = 1.0;

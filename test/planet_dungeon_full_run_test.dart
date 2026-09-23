@@ -834,7 +834,6 @@ void main() {
       sharp.activateAbility();
       sharp.askForRoomHint();
       expect(sharp.hintChannel, DungeonHintChannel.insight);
-      sharp.askForRoomHint();
       expect(
         sharp.hintText,
         contains(
@@ -1138,7 +1137,6 @@ void main() {
       expect(game.currentRoomId, 'storm_altar', reason: 'the door held');
       game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
-      game.askForRoomHint();
       expect(game.hintText, contains('conduits'));
 
       // The rite lands → the stair opens.

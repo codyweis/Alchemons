@@ -44,6 +44,7 @@
 
 import 'dart:typed_data';
 
+import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
@@ -264,6 +265,7 @@ PlanetDungeonGame harness(
   List<CosmicPartyMember> party, {
   void Function(int)? onStar,
   void Function(String)? onCloud,
+  void Function(SoundCue)? onSound,
 }) {
   final game = PlanetDungeonGame(
     element: 'Crystal',
@@ -271,6 +273,7 @@ PlanetDungeonGame harness(
     initialStarMask: 0,
     onStarEarned: onStar ?? (_) {},
     onCloudDiscovered: onCloud,
+    onSound: onSound,
     onPlayerDown: () => fail('the scripted run must never wipe'),
     onChanged: () {},
   );
@@ -991,7 +994,7 @@ void main() {
       act(game, crystal, kKeepCellRooms[7], kPlateW);
       expect(game.prism.field.shunts, 0);
       game.askForRoomHint();
-      expect(game.hintText, contains('nothing to give'));
+      expect(game.hintText, contains('empty slot'));
       // Crystal at the plate facing the hollow: it goes.
       act(game, crystal, kKeepCellRooms[7], kPlateE);
       expect(game.prism.field.shunts, 1);
@@ -1218,40 +1221,188 @@ void main() {
     });
   });
 
-  group('THE LOST MAXIM — Know Thyself', () {
-    test('the split only exists in arrangements Star 0 forbids', () {
-      // The hearth SPLITS rather than bends, so the maxim's arrangement is one
-      // where the hearth stands in the lit row — exactly what the rose refuses.
-      final f = PrismKeepField()..lampLit = true;
-      f.restore([2, 5, 6, 0, 3, 4, 7, 1, kHollow]);
-      expect(f.beamLive, isTrue);
-      expect(f.chamberAt(kKeepHeartCell)?.id, isNot('hearth'));
-      f.restore([2, 5, 6, 3, 0, 4, 7, 1, kHollow]);
-      expect(f.beamLive, isTrue);
-      expect(f.spectrumSolved, isFalse);
-      expect(f.chamberAt(kKeepHeartCell)!.id, 'hearth');
+  group('THE LOST MAXIM — Know Thyself · the Black Cell, wedged', () {
+    // The §7 maxim standard: a CHAIN — wedge the Black Cell in the corner,
+    // the smallest finds the flaw, Lightning runs it three times, Crystal
+    // reads the three shapes. Every link proved against the same code the
+    // buttons call.
+    const onyx = 7; // kPrismChambers index of the Black Cell
+
+    /// Ride the Black Cell into the north-west socket BY THE ENGINE'S OWN
+    /// VERB, from an arrangement reached by legal shunts off the opening.
+    PlanetDungeonGame wedged({void Function(String)? onCloud}) {
+      final g = harness(idealTrio(), onCloud: onCloud)
+        ..entryDoorRevealed = true;
+      final f = g.prism.field;
+      // Opening: onyx at 0, hollow at 8. Walk the hollow up to cell 0 by
+      // legal shunts, which carries onyx to cell 1.
+      expect(f.shunt(5), 8);
+      expect(f.shunt(2), 5);
+      expect(f.shunt(1), 2);
+      expect(f.shunt(0), 1); // onyx 0 → 1, hollow at 0
+      expect(f.cellOf(onyx), 1);
+      expect(f.hollowCell, 0);
+      // Stand inside the Black Cell and ride it west into the corner.
+      g.currentRoomId = kKeepCellRooms[1];
+      for (final c in g.creatures) {
+        c.position = kChamberHeart;
+      }
+      expect(g.keepShuntForTest(kFacetW), isTrue);
+      expect(g.currentRoomId, kKeepCellRooms[0]);
+      expect(f.cellOf(onyx), 0);
+      return g;
+    }
+
+    test('the Black Cell seals in exactly one socket — the north-west', () {
+      final g = harness(idealTrio())..entryDoorRevealed = true;
+      final f = g.prism.field;
+      var sealedIn = <int>[];
+      for (var cell = 0; cell < 9; cell++) {
+        final arr = List<int>.filled(9, kHollow);
+        arr[cell] = onyx;
+        // Fill the rest with other chambers so the arrangement is well-formed.
+        var next = 0;
+        for (var i = 0; i < 9; i++) {
+          if (i == cell) continue;
+          if (next == onyx) next++;
+          if (next < 7 || (next == 7 && false)) {
+            arr[i] = next < 8 ? next : kHollow;
+          }
+          next++;
+        }
+        // One hollow, exactly: put it in the last free slot.
+        if (!arr.contains(kHollow)) arr[(cell + 1) % 9] = kHollow;
+        f.restore(arr);
+        g.currentRoomId = kKeepCellRooms[cell];
+        if (g.blackCellSealed) sealedIn.add(cell);
+      }
+      expect(sealedIn, [0]);
     });
 
-    test('all three bodies in the split, and the keep throws them back', () {
+    test('it is SEALED — no doorway out — and it is reachable by play', () {
+      final g = wedged();
+      final room = layout.rooms[kKeepCellRooms[0]]!;
+      expect(g.blackCellSealed, isTrue);
+      for (final d in room.doors) {
+        expect(g.isDoorLocked(room, d), isTrue, reason: d.targetRoomId);
+      }
+      // Not a strand: the hollow is where the cell came from, so the same
+      // plate rides it straight back out. Sealed is about DOORWAYS.
+      expect(g.prism.field.canShunt(0), isTrue);
+    });
+
+    test('unwedged, the Black Cell answers nothing', () {
+      final g = harness(idealTrio())..entryDoorRevealed = true;
+      final f = g.prism.field;
+      f.shunt(5);
+      f.shunt(2);
+      f.shunt(1);
+      f.shunt(0); // onyx at cell 1, a doorway still meeting cell 0's hollow
+      act(g, spirit, kKeepCellRooms[1], kChamberHeart);
+      expect(g.prism.knowCrack, isFalse);
+      expect(g.hintHasAnswer, isTrue);
+      g.askForRoomHint();
+      expect(g.hintText, contains('still meets another'));
+    });
+
+    test('THE CHAIN: the flaw, three strikes, the reading — and the rite', () {
       final clouds = <String>[];
-      final game = harness(idealTrio(), onCloud: clouds.add);
-      game.prism.field
-        ..lampLit = true
-        ..restore([2, 5, 6, 3, 0, 4, 7, 1, kHollow]);
-      game.currentRoomId = kKeepCellRooms[kKeepHeartCell];
-      // Two in the beam is not three.
-      game.creatures[0].position = kChamberHeart;
-      game.creatures[1].position = kChamberHeart;
-      game.creatures[2].position = const Offset(210, 310);
-      game.update(0.016);
-      expect(clouds, isNot(contains(kCrystalKnowThyselfEggId)));
-      game.creatures[2].position = kChamberHeart + const Offset(40, 0);
-      game.update(0.016);
-      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
-      for (var tick = 0; tick < 200; tick++) {
-        game.update(1 / 60);
+      final g = wedged(onCloud: clouds.add);
+      const nw = 'keep_nw';
+      // Lightning before the flaw: nothing to run.
+      act(g, lightning, nw, kChamberHeart);
+      expect(g.prism.knowStrikes, 0);
+      // The smallest finds the flaw.
+      act(g, spirit, nw, kChamberHeart);
+      expect(g.prism.knowCrack, isTrue);
+      // Crystal before the strikes: the glass is still black.
+      act(g, crystal, nw, kChamberHeart);
+      expect(g.riteActive, isFalse);
+      // Three strikes.
+      for (var i = 1; i <= PrismLabyrinth.knowStrikesToClear; i++) {
+        act(g, lightning, nw, kChamberHeart);
+        expect(g.prism.knowStrikes, i);
+      }
+      act(g, lightning, nw, kChamberHeart); // a fourth changes nothing
+      expect(g.prism.knowStrikes, PrismLabyrinth.knowStrikesToClear);
+      expect(g.riteActive, isFalse);
+      // Crystal reads.
+      act(g, crystal, nw, kChamberHeart);
+      expect(g.riteActive, isTrue);
+      for (var tick = 0; tick < 300; tick++) {
+        g.update(1 / 60);
       }
       expect(clouds, contains(kCrystalKnowThyselfEggId));
+      // Found once, the glass answers nothing more.
+      act(g, crystal, nw, kChamberHeart);
+      expect(g.riteActive, isFalse);
+    });
+
+    test('the flaw wants the smallest body, whatever its element', () {
+      final noPip = harness([
+        _member(0, 'Crystal', 'mask'),
+        _member(1, 'Lightning', 'horn'),
+        _member(2, 'Spirit', 'mane'),
+      ])..entryDoorRevealed = true;
+      final f = noPip.prism.field;
+      f.shunt(5);
+      f.shunt(2);
+      f.shunt(1);
+      f.shunt(0);
+      noPip.currentRoomId = kKeepCellRooms[1];
+      for (final c in noPip.creatures) {
+        c.position = kChamberHeart;
+      }
+      noPip.keepShuntForTest(kFacetW);
+      act(noPip, spirit, 'keep_nw', kChamberHeart);
+      expect(noPip.prism.knowCrack, isFalse);
+    });
+
+    test('the anneal is the way out of the wedge, as it always was', () {
+      final g = wedged();
+      act(g, crystal, 'keep_nw', kCellTuningBoss);
+      expect(g.currentRoomId, layout.entranceRoomId);
+      expect(g.prism.field.cellOf(onyx), 0);
+    });
+
+    test('the star path never passes it', () {
+      // Neither star wants the Black Cell anywhere in particular, and no
+      // star wants a body inside a chamber with both doorways on the frame:
+      // the rose's set is {beryl, lazuli, citrine} and the thrones are three
+      // other chambers round the hearth.
+      final f = PrismKeepField();
+      for (final i in [2, 3, 4]) {
+        expect(kPrismChambers[i].id, isNot('onyx'));
+      }
+      expect(kPrismChambers[onyx].throne, isFalse);
+      expect(kPrismChambers[onyx].clear, isFalse);
+      expect(f.cellOf(onyx), 0, reason: 'the keep OPENS with it in the corner');
+    });
+  });
+
+  group('the keep is AUDIBLE', () {
+    test('every beat of the keep speaks', () {
+      final heard = <SoundCue>[];
+      final g = harness(idealTrio(), onSound: heard.add);
+      act(
+        g,
+        lightning,
+        'facet_gate',
+        layout.rooms['facet_gate']!.prism!.glassFace!,
+      );
+      expect(heard, contains(SoundCue.dungeonGateOpen));
+      heard.clear();
+      // A shunt: from the threshold cell, the hollow lies east (cell 8).
+      g.currentRoomId = kKeepCellRooms[7];
+      for (final c in g.creatures) {
+        c.position = kChamberHeart;
+      }
+      expect(g.keepShuntForTest(kFacetE), isTrue);
+      expect(heard, contains(SoundCue.dungeonBlockMove));
+      heard.clear();
+      // The anneal.
+      act(g, crystal, g.currentRoomId, kCellTuningBoss);
+      expect(heard, contains(SoundCue.dungeonWallBreak));
     });
   });
 

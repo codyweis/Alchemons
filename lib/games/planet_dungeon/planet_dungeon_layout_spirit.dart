@@ -787,14 +787,12 @@ const DungeonLayout spiritLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Cold Road Star',
       earnAnnouncement:
-          'The Cold Road Star is yours, the bier goes up to the cairn at '
-          'last, and something walks behind it',
+          'The Cold Road Star is yours. The bier reaches the cairn',
     ),
     DungeonStarSpec(
       name: 'Hourglass Star',
       earnAnnouncement:
-          'The Hourglass Star is yours, the ring closes, and the grave-field '
-          'remembers where you stood',
+          'The Hourglass Star is yours. The sigil is complete',
     ),
     DungeonStarSpec(name: 'Wraith Star'),
   ],
@@ -802,13 +800,12 @@ const DungeonLayout spiritLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('lych_gate', 'barrow_urn'),
   finaleDoor: DungeonDoorRef('barrow_cairn', 'mourners_walk'),
   riteAnnouncement:
-      'Road and Hourglass are won, the rood door grinds back off the '
-      'mourners\' walk',
+      'Road and Hourglass are won. The door to the Mourners\' Walk opens',
   finaleSealedHint:
-      'The rood door is shut, it answers the Cold Road and the Hourglass',
+      'The rood door stays shut until you have the Cold Road and Hourglass '
+      'stars',
   guardianSealedHint:
-      'The last door will not own you, nothing behind it wakes until the '
-      'lamp is lit',
+      'Wraithord won\'t wake until the lamp is lit',
   mercyShrineRoomId: 'lych_gate',
   // Ideal: Spiritmask · Waterpip · Crystalwing — hinted by VERB, never by body
   // part (§4): the sight that pierces the hidden, what the smallest doors
@@ -819,8 +816,9 @@ const DungeonLayout spiritLayout = DungeonLayout(
     'and Crystal, for half of my roads are only remembered.',
   ],
   primer: [
-    'One field, two worlds, and every crossing belongs to only one of them.',
-    'A death finished in the cold world opens a road in the warm one.',
+    'This field exists in two worlds, and each road belongs to only one.',
+    'Laying a ghost to rest in the world of the dead opens its road to the '
+        'living.',
   ],
   // §4 budget: ONE hard gate (the grave sigil's Water Pip). The rite's name
   // stone was a Spirit MASK and is element-only now — the cold world is
@@ -846,7 +844,7 @@ const DungeonLayout spiritLayout = DungeonLayout(
       objectId: 'grave_sigil',
       element: 'Water',
       family: 'Pip',
-      hintLine: 'Only the smallest hand sets a mark this fine',
+      hintLine: 'Only a Water Pip can set a mark this fine',
     ),
   ],
   rooms: {

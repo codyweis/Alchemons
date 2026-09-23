@@ -27,6 +27,7 @@
 // The rest pins the pulse algebra, §4's first-descent guarantee, the two hard
 // gates, the vault trick and the guardian.
 
+import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
@@ -79,6 +80,7 @@ PlanetDungeonGame harness(
   List<CosmicPartyMember> party, {
   void Function(int)? onStar,
   void Function(String)? onCloud,
+  void Function(SoundCue)? onSound,
 }) {
   final game = PlanetDungeonGame(
     element: 'Blood',
@@ -86,6 +88,7 @@ PlanetDungeonGame harness(
     initialStarMask: 0,
     onStarEarned: onStar ?? (_) {},
     onCloudDiscovered: onCloud,
+    onSound: onSound,
     onPlayerDown: () => fail('the scripted run must never wipe'),
     onChanged: () {},
   );
@@ -840,59 +843,120 @@ void main() {
       }
     });
 
-    test('the lost maxim — twelve straight beats on the heart-drum', () {
-      final clouds = <String>{};
-      final g = harness(_idealTrio(), onCloud: clouds.add);
-      g.entryDoorRevealed = true;
-      final gallery = layout.rooms['atrial_gallery']!;
-      final drum = gallery.sanguine!.heartDrum!;
-      g.currentRoomId = 'atrial_gallery';
-      for (var beat = 0; beat < 12; beat++) {
-        // Put the beat exactly on the systole onset — which is what "in sync"
-        // means, and the ONE reaction window on the planet. It is an optional
-        // 20-gold secret; no star is behind it.
-        advanceTo(g, PulsePhase.flatline);
-        advanceTo(g, PulsePhase.systole);
-        act(g, blood, 'atrial_gallery', drum);
-        expect(g.heart.drumStreak, beat + 1, reason: 'beat $beat');
-        // Let the window close so the next strike is a new beat.
-        g.heart.advance(1.0);
-        g.update(1 / 60);
-      }
-      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
-      for (var tick = 0; tick < 200; tick++) {
-        g.update(1 / 60);
-      }
-      expect(clouds, contains('egg:blood_drum'));
-      expect(g.heart.drumHeard, isTrue);
-    });
+    test(
+      'THE LOST MAXIM — the thrombus: turned, shown, broken on the pause',
+      () {
+        // The §7 maxim standard, and no reaction window anywhere: every ask is
+        // WHERE to stand, and every window is a whole phase.
+        final clouds = <String>{};
+        final g = harness(_idealTrio(), onCloud: clouds.add);
+        g.entryDoorRevealed = true;
+        final dead = [
+          for (final c in kHeartCocks)
+            if (!g.heart.isSound(c.passageId)) c,
+        ];
+        expect(dead, hasLength(2), reason: 'two of five are thrombosed');
+        for (final c in dead) {
+          // 1 · turned anyway — the act the Graft Star punishes.
+          advanceTo(g, PulsePhase.systole);
+          act(g, dark, c.roomId, c.position);
+          expect(g.heart.cocksTurned, contains(c.passageId));
+          expect(g.heart.grafted, isNot(contains(c.passageId)));
+          // Blood before the clot is shown: no telling how far it runs.
+          act(g, blood, c.roomId, c.position);
+          expect(g.heart.grafted, isNot(contains(c.passageId)));
+          // 2 · shown.
+          act(g, light, c.roomId, c.position);
+          expect(g.heart.clotSeen, contains(c.passageId));
+          // 3 · pressure on it: refused. On the pause: broken.
+          expect(g.heart.phase, isNot(PulsePhase.flatline));
+          act(g, blood, c.roomId, c.position);
+          expect(g.heart.grafted, isNot(contains(c.passageId)));
+          advanceTo(g, PulsePhase.flatline);
+          act(g, blood, c.roomId, c.position);
+          expect(g.heart.grafted, contains(c.passageId));
+        }
+        // 4 · every vessel carrying.
+        expect(g.everyVesselCarries, isTrue);
+        expect(g.riteActive, isTrue);
+        for (var tick = 0; tick < 300; tick++) {
+          g.update(1 / 60);
+        }
+        expect(clouds, contains(kBloodLifeEggId));
+        // The proof still holds: a graft only ever adds.
+        expect(g.solveSanguineOrrery().strandable, 0);
+      },
+    );
 
-    test('a beat missed breaks the streak', () {
+    test('the star path never passes it, and nothing is spent on the way', () {
       final g = harness(_idealTrio());
       g.entryDoorRevealed = true;
-      final drum = layout.rooms['atrial_gallery']!.sanguine!.heartDrum!;
-      g.currentRoomId = 'atrial_gallery';
-      advanceTo(g, PulsePhase.flatline);
-      advanceTo(g, PulsePhase.systole);
-      act(g, blood, 'atrial_gallery', drum);
-      expect(g.heart.drumStreak, 1);
-      // One beat later the next onset is still ANSWERABLE — the streak is not
-      // broken until a beat has actually come round unanswered.
-      for (var i = 0; i < 4; i++) {
-        advancePhase(g);
-        g.update(1 / 60);
+      final dead = kHeartCocks.firstWhere((c) => !g.heart.isSound(c.passageId));
+      // Three sound grafts bank the star with no dead vessel touched.
+      for (final c in kHeartCocks) {
+        if (!g.heart.isSound(c.passageId)) continue;
+        advanceTo(g, PulsePhase.systole);
+        act(g, dark, c.roomId, c.position);
       }
-      expect(g.heart.drumStreak, 1);
-      // Let that one go by too, and it breaks.
-      for (var i = 0; i < 4; i++) {
-        advancePhase(g);
-        g.update(1 / 60);
-      }
-      expect(g.heart.drumStreak, 0);
+      expect(g.heart.everyGraftTaken, isTrue);
+      expect(g.everyVesselCarries, isFalse);
+      // A wrong hand at a turned dead cock: a puff, and the state as it was.
+      act(g, dark, dead.roomId, dead.position);
+      final turned = Set.of(g.heart.cocksTurned);
+      final grafted = Set.of(g.heart.grafted);
+      act(g, dark, dead.roomId, dead.position);
+      expect(g.heart.cocksTurned, turned);
+      expect(g.heart.grafted, grafted);
+      expect(g.heart.clotSeen, isEmpty);
+    });
+
+    test('there is no reaction window left on the planet', () {
+      // The drum is gone, and with it the only sub-phase window Hemavorn ever
+      // had. Every phase-locked ask is at least the shortest phase long.
+      expect(layout.rooms.values.every((r) => r.sanguine != null), isTrue);
+      expect(
+        kPulsePhaseSeconds.reduce((a, b) => a < b ? a : b),
+        greaterThanOrEqualTo(4.0),
+      );
     });
   });
 
   // ─────────────────────────────────────────────────────────
+
+  group('the orrery is AUDIBLE', () {
+    test('every beat of the heart speaks', () {
+      final heard = <SoundCue>[];
+      final g = harness(_idealTrio(), onSound: heard.add);
+      act(
+        g,
+        blood,
+        'pericard_gate',
+        layout.rooms['pericard_gate']!.sanguine!.pericardium!,
+      );
+      expect(heard, contains(SoundCue.dungeonGateOpen));
+      heard.clear();
+      final gate = ostiumById('os_gate')!;
+      advanceTo(g, PulsePhase.systole);
+      act(g, blood, 'pericard_gate', gate.position);
+      expect(heard, contains(SoundCue.elementBlood));
+      heard.clear();
+      // The thud at the top of a systole, through the real frame loop.
+      advanceTo(g, PulsePhase.flatline);
+      for (
+        var i = 0;
+        i < 400 && !heard.contains(SoundCue.dungeonBlockMove);
+        i++
+      ) {
+        g.update(1 / 60);
+      }
+      expect(heard, contains(SoundCue.dungeonBlockMove));
+      heard.clear();
+      final sound = kHeartCocks.firstWhere((c) => g.heart.isSound(c.passageId));
+      act(g, dark, sound.roomId, sound.position);
+      expect(heard, contains(SoundCue.dungeonSwitch));
+    });
+  });
+
   group('Sanguorath — the guardian fights WITH the pulse (§7)', () {
     PlanetDungeonGame arena() {
       final g = harness(_idealTrio());

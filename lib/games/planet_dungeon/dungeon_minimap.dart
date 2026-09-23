@@ -8,6 +8,9 @@ import 'package:alchemons/audio/audio.dart';
 import 'dart:math' as math;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_chart_layout.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
@@ -215,244 +218,20 @@ const Map<String, String> kDungeonRoomLabels = {
   'sanguorath_systole': 'SYSTOLE',
 };
 
-const Size _fullMapCanvasSize = Size(880, 980);
-const double _fullMapPadding = 8;
-
-/// Authored full-map atlases per planet element — hand-placed, not an
-/// auto-layout graph. They follow each dungeon's room-door geography closely
-/// enough that the full map feels like the dungeon the player is walking
-/// through.
-const Map<String, Map<String, Offset>> _fullMapNodePositionsByElement = {
-  'Air': {
-    'entry': Offset(0.10, 0.26),
-    'hub': Offset(0.28, 0.26),
-    'spiral_cloud': Offset(0.21, 0.09),
-    'ring_cloud': Offset(0.36, 0.09),
-    'lower_spire': Offset(0.48, 0.28),
-    'feather_cloud': Offset(0.36, 0.43),
-    'crosswind_hall': Offset(0.66, 0.18),
-    'cloud_platforms': Offset(0.83, 0.18),
-    'spire_summit': Offset(0.83, 0.06),
-    'sky_loom': Offset(0.63, 0.52),
-    'anvil_cloud': Offset(0.47, 0.67),
-    'veil_cloud': Offset(0.73, 0.67),
-    'relic_chamber': Offset(0.86, 0.46),
-    'storm_rune_hall': Offset(0.82, 0.62),
-    'twin_conduit': Offset(0.94, 0.70),
-    'storm_altar': Offset(0.94, 0.88),
-    'guardian_summit': Offset(0.80, 0.82),
-  },
-  'Fire': {
-    'narthex': Offset(0.10, 0.56),
-    'nave': Offset(0.34, 0.56),
-    'scriptorium': Offset(0.22, 0.34),
-    'choir': Offset(0.58, 0.64),
-    'cloister': Offset(0.38, 0.80),
-    'reliquary': Offset(0.60, 0.86),
-    'vestry': Offset(0.44, 0.32),
-    'bell_gallery': Offset(0.66, 0.22),
-    'high_altar': Offset(0.86, 0.30),
-    'sanctum': Offset(0.86, 0.10),
-  },
-  'Water': {
-    'tide_gate': Offset(0.10, 0.54),
-    'drowned_court': Offset(0.34, 0.54),
-    'tide_works': Offset(0.26, 0.30),
-    'ghost_gallery': Offset(0.60, 0.62),
-    'pearl_vault': Offset(0.84, 0.66),
-    'reflection_court': Offset(0.40, 0.80),
-    'moon_hall': Offset(0.48, 0.28),
-    'moon_well': Offset(0.70, 0.20),
-    'leviathan_depths': Offset(0.86, 0.08),
-  },
-  'Earth': {
-    'barrow_gate': Offset(0.10, 0.54),
-    'sternum_court': Offset(0.34, 0.54),
-    'rib_hall': Offset(0.28, 0.28),
-    'marrow_vault': Offset(0.50, 0.16),
-    'pillar_crypt': Offset(0.62, 0.62),
-    'palm_hollow': Offset(0.40, 0.80),
-    'skull_antechamber': Offset(0.52, 0.32),
-    'eye_chamber': Offset(0.74, 0.22),
-    'heart_chamber': Offset(0.88, 0.08),
-  },
-  'Lightning': {
-    'arc_gate': Offset(0.10, 0.52),
-    'dynamo_court': Offset(0.34, 0.52),
-    'pylon_hall': Offset(0.28, 0.26),
-    'capacitor_vault': Offset(0.46, 0.14),
-    'cloud_works': Offset(0.58, 0.62),
-    'mirror_gallery': Offset(0.44, 0.82),
-    'overload_maze': Offset(0.66, 0.30),
-    'storm_core': Offset(0.88, 0.16),
-  },
-  // The Steam full map draws its true topology: a RING around the crucible.
-  'Steam': {
-    'boiler_gate': Offset(0.08, 0.82),
-    'manifold_south': Offset(0.50, 0.82),
-    'ember_causeway': Offset(0.22, 0.48),
-    'manifold_north': Offset(0.50, 0.14),
-    'cinder_forge': Offset(0.78, 0.48),
-    'crucible': Offset(0.50, 0.46),
-    'boiler_heart': Offset(0.50, 0.64),
-    'burst_vault': Offset(0.78, 0.86),
-  },
-  // Ice draws its true topology too: a SHAFT. The levels descend the middle
-  // of the chart, each shelf hangs off the flue that brakes you onto it, and
-  // the throat runs down the left past every level to the sump — which is
-  // what it does, and the one thing the chart has to say about this planet.
-  'Ice': {
-    'rime_head': Offset(0.38, 0.07),
-    'shelf_glass': Offset(0.72, 0.20),
-    'mirror_gallery': Offset(0.38, 0.33),
-    'shelf_lens': Offset(0.72, 0.46),
-    'orrery_floor': Offset(0.38, 0.59),
-    'cold_sump': Offset(0.38, 0.82),
-    'star_font': Offset(0.64, 0.90),
-    'frowyrm_hollow': Offset(0.88, 0.96),
-  },
-};
-
-/// Full-map section auras (wing groupings) per planet element.
-const Map<String, List<(List<String>, Color)>> _fullMapSectionsByElement = {
-  'Air': [
-    (
-      ['lower_spire', 'crosswind_hall', 'cloud_platforms', 'spire_summit'],
-      Color(0xFF5BC8E8),
-    ),
-    (
-      [
-        'spiral_cloud',
-        'ring_cloud',
-        'feather_cloud',
-        'sky_loom',
-        'anvil_cloud',
-        'veil_cloud',
-        'relic_chamber',
-      ],
-      Color(0xFFE4C16A),
-    ),
-    (
-      ['storm_rune_hall', 'twin_conduit', 'storm_altar', 'guardian_summit'],
-      Color(0xFFFFFF8A),
-    ),
-  ],
-  'Fire': [
-    // The ritual wing (Ember Star).
-    (['scriptorium', 'choir'], Color(0xFFFF8A50)),
-    // The ash garden (Ash Star).
-    (['cloister', 'reliquary'], Color(0xFF9CCC65)),
-    // The vesper wing beyond the chancel gate (Pyre Star).
-    (['vestry', 'bell_gallery', 'high_altar', 'sanctum'], Color(0xFFFFD27A)),
-  ],
-  'Water': [
-    // The tide-works (Tide Star).
-    (['tide_works'], Color(0xFF4AB8D8)),
-    // The ghost wing (Current Star).
-    (['ghost_gallery', 'pearl_vault'], Color(0xFFB8D8E8)),
-    // Beyond the mirror gate (Deep Star).
-    (['moon_hall', 'moon_well', 'leviathan_depths'], Color(0xFFDCE8F0)),
-  ],
-  'Earth': [
-    // The rib hall + its vault (Marrow Star).
-    (['rib_hall', 'marrow_vault'], Color(0xFFD8B878)),
-    // The pillar crypt (Crystal Star).
-    (['pillar_crypt'], Color(0xFFB8E0D8)),
-    // Beyond the skull's jaw (Heart Star).
-    (['skull_antechamber', 'eye_chamber', 'heart_chamber'], Color(0xFFE4A86A)),
-  ],
-  'Lightning': [
-    // The pylon hall + capacitor vault (Circuit Star).
-    (['pylon_hall', 'capacitor_vault'], Color(0xFF6BA8FF)),
-    // The cloud works + mirror gallery (Storm Star).
-    (['cloud_works', 'mirror_gallery'], Color(0xFFBFE6FF)),
-    // Beyond the breaker gate (Overload Star).
-    (['overload_maze', 'storm_core'], Color(0xFFE9D27A)),
-  ],
-  'Steam': [
-    // The west arc (Causeway Star).
-    (['ember_causeway'], Color(0xFF8FE0EC)),
-    // The east arc (Cinder Star).
-    (['cinder_forge'], Color(0xFFFFB46B)),
-    // The ring's centre — the rite and the heart (Crucible Star).
-    (['crucible', 'boiler_heart'], Color(0xFFD8B878)),
-  ],
-};
-
-/// Derived chart positions, cached per element.
-///
-/// The authored atlases above cover the six planets that existed when the full
-/// map was built. Every dungeon authored since had NO atlas, and the lookup
-/// fell back to Offset(0.5, 0.5) PER ROOM — so all eleven charts drew every
-/// room stacked on the exact same point in the middle. The map was not
-/// mis-scaled, it was every node on top of every other one.
-///
-/// Rather than hand-place eleven more atlases (and a twelfth the next time
-/// someone authors a planet), this lays the door graph out automatically:
-/// breadth-first from the entrance, one row per step away from it. It is not
-/// as pretty as a hand-tuned chart — it cannot know that Blood is a
-/// figure-eight or Crystal a 3×3 — but it is honest about connectivity, which
-/// is what the map is for, and it can never silently produce a single point.
-final Map<String, Map<String, Offset>> _derivedNodeCache = {};
-
-Map<String, Offset> _derivedNodePositions(String element) {
-  final cached = _derivedNodeCache[element];
-  if (cached != null) return cached;
-
-  final out = <String, Offset>{};
-  final layout = kPlanetDungeonLayouts[element];
-  if (layout == null) return _derivedNodeCache[element] = out;
-
-  // BFS from the entrance: depth becomes the row, so a chart reads top-down
-  // as "how far in am I".
-  final rows = <List<String>>[];
-  final seen = <String>{layout.entranceRoomId};
-  var frontier = <String>[layout.entranceRoomId];
-  while (frontier.isNotEmpty) {
-    rows.add(frontier);
-    final next = <String>[];
-    for (final id in frontier) {
-      for (final door in layout.rooms[id]?.doors ?? const []) {
-        if (layout.rooms.containsKey(door.targetRoomId) &&
-            seen.add(door.targetRoomId)) {
-          next.add(door.targetRoomId);
-        }
-      }
-    }
-    frontier = next;
-  }
-  // Anything the doors never reach still needs a spot — a room drawn off the
-  // chart is worse than one on an extra row.
-  final orphans = layout.rooms.keys.where((id) => !seen.contains(id)).toList();
-  if (orphans.isNotEmpty) rows.add(orphans);
-
-  for (var r = 0; r < rows.length; r++) {
-    final row = rows[r];
-    final y = (r + 0.5) / rows.length;
-    for (var i = 0; i < row.length; i++) {
-      out[row[i]] = Offset((i + 0.5) / row.length, y);
-    }
-  }
-  return _derivedNodeCache[element] = out;
-}
-
-/// Test-only view of the placement above. The invariant worth guarding is
-/// that two rooms never land on the same point — see
-/// test/dungeon_full_map_chart_test.dart, which is the check that would have
-/// caught eleven charts collapsing into a single dot.
+/// Test-only view of a room's centre on the expanded map, scaled onto
+/// [size]. The invariant worth guarding is that two rooms never land on the
+/// same point — see test/dungeon_full_map_chart_test.dart, which is the check
+/// that would have caught eleven charts collapsing into a single dot.
 @visibleForTesting
-Offset debugFullMapNodePoint(String element, String roomId, Size size) =>
-    _fullMapNodePoint(element, roomId, size);
-
-Offset _fullMapNodePoint(String element, String roomId, Size size) {
-  var atlas = _fullMapNodePositionsByElement[element] ?? const {};
-  if (!atlas.containsKey(roomId)) atlas = _derivedNodePositions(element);
-  final normalised = atlas[roomId] ?? const Offset(0.5, 0.5);
-  final chart = (Offset.zero & size).deflate(_fullMapPadding);
-  return Offset(
-    chart.left + chart.width * normalised.dx,
-    chart.top + chart.height * normalised.dy,
+Offset debugFullMapNodePoint(String element, String roomId, Size size) {
+  final chart = dungeonChartFor(element);
+  final box = chart.rooms[roomId];
+  if (box == null) return size.center(Offset.zero);
+  final k = math.min(
+    size.width / chart.size.width,
+    size.height / chart.size.height,
   );
+  return box.center * k;
 }
 
 class DungeonMiniMap extends StatelessWidget {
@@ -468,10 +247,10 @@ class DungeonMiniMap extends StatelessWidget {
       height: boxSize,
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: const Color(0xFF080808).withValues(alpha: 0.82),
+        color: CosmicScreenStyles.bg1.withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: const Color(0xFF74613A).withValues(alpha: 0.7),
+          color: CosmicScreenStyles.borderAccent.withValues(alpha: 0.7),
         ),
       ),
       child: Stack(
@@ -489,7 +268,7 @@ class DungeonMiniMap extends StatelessWidget {
                   game.currentRoomId.toUpperCase(),
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: const Color(0xFFE4C16A).withValues(alpha: 0.85),
+                color: CosmicScreenStyles.amberBright.withValues(alpha: 0.9),
                 fontSize: 7.5,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.1,
@@ -503,7 +282,7 @@ class DungeonMiniMap extends StatelessWidget {
             child: Icon(
               Icons.open_in_full_rounded,
               size: 9,
-              color: const Color(0xFFC4A35A).withValues(alpha: 0.65),
+              color: CosmicScreenStyles.amber.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -534,17 +313,17 @@ class _DungeonMiniMapPainter extends CustomPainter {
 
     // Floor.
     final floor = Rect.fromLTWH(ox, oy, drawW, drawH);
-    canvas.drawRect(floor, Paint()..color = const Color(0xFF14120E));
+    canvas.drawRect(floor, Paint()..color = CosmicScreenStyles.bg2);
     canvas.drawRect(
       floor,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..color = const Color(0xFF74613A).withValues(alpha: 0.6),
+        ..color = CosmicScreenStyles.borderAccent.withValues(alpha: 0.6),
     );
 
     // Walls.
-    final wallPaint = Paint()..color = const Color(0xFF2E2A23);
+    final wallPaint = Paint()..color = CosmicScreenStyles.bg3;
     for (final w in room.walls) {
       canvas.drawRect(
         Rect.fromPoints(map(w.topLeft), map(w.bottomRight)),
@@ -797,22 +576,56 @@ class _DungeonFullMapState extends State<DungeonFullMap> {
     super.dispose();
   }
 
-  void _centerOnCurrentRoom(Size viewport) {
+  /// The opening zoom: the whole chart if it fits at a readable size, and
+  /// never smaller than that — a map you have to squint at is not a map.
+  double _openingScale(Size viewport, Size chart) {
+    final fit = math.min(
+      viewport.width / chart.width,
+      viewport.height / chart.height,
+    );
+    return fit.clamp(_kReadableScale, 1.0);
+  }
+
+  void _centerOnCurrentRoom(Size viewport, DungeonChart chart) {
     final roomId = widget.game.currentRoomId;
+    // (Re-centres whenever you have moved room since the map last opened.)
     if (_centeredRoomId == roomId && _centeredViewport == viewport) return;
     _centeredRoomId = roomId;
     _centeredViewport = viewport;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final scale = (viewport.width / 540).clamp(0.56, 0.78).toDouble();
-      final node = _fullMapNodePoint(
-        widget.game.layout.element,
-        roomId,
-        _fullMapCanvasSize,
-      );
-      final tx = viewport.width / 2 - node.dx * scale;
-      final ty = viewport.height / 2 - node.dy * scale;
+      // Open on what you KNOW: rooms behind undiscovered doors are not drawn,
+      // and fitting the whole canvas early in a run showed one room lost in
+      // an empty chart.
+      final known = _knownRoomsOf(widget.game);
+      Rect? area;
+      for (final id in known) {
+        final r = chart.rooms[id];
+        if (r == null) continue;
+        area = area == null ? r : area.expandToInclude(r);
+      }
+      area = (area ?? Offset.zero & chart.size).inflate(kChartUnit * 0.6);
+      final scale = _openingScale(viewport, area.size);
+      final box = chart.rooms[roomId];
+      final focus =
+          area.width * scale <= viewport.width &&
+              area.height * scale <= viewport.height
+          ? area.center
+          : (box?.center ?? area.center);
+      // Centre on you, but never scroll past the chart's own edge when the
+      // whole thing fits — a map that opens hanging off one side looks lost.
+      // Centre on the focus, but keep the known area filling the panel on
+      // any axis where it is bigger than the panel (no dark gutter above a
+      // wide chart), and centred on any axis where it fits.
+      double axis(double view, double lo, double hi, double f) {
+        final len = (hi - lo) * scale;
+        if (len <= view) return view / 2 - (lo + hi) / 2 * scale;
+        return (view / 2 - f * scale).clamp(view - hi * scale, -lo * scale);
+      }
+
+      final tx = axis(viewport.width, area.left, area.right, focus.dx);
+      final ty = axis(viewport.height, area.top, area.bottom, focus.dy);
       _mapController.value = Matrix4.identity()
         ..setEntry(0, 0, scale)
         ..setEntry(1, 1, scale)
@@ -824,149 +637,226 @@ class _DungeonFullMapState extends State<DungeonFullMap> {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final width = math.min(screen.width - 28, 410.0);
-    final height = math.min(screen.height - 70, 620.0);
+    final width = math.min(screen.width - 28, 460.0);
+    final height = math.min(screen.height - 70, 660.0);
+    final chart = dungeonChartFor(widget.game.layout.element);
 
-    return Container(
-      width: width,
-      height: height,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF080808).withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFC4A35A).withValues(alpha: 0.68),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF5BC8E8).withValues(alpha: 0.16),
-            blurRadius: 30,
-          ),
-        ],
+    // The survival plate: near-black, bracket corners, monospace head.
+    return CustomPaint(
+      painter: DungeonBracketPainter(
+        color: CosmicScreenStyles.amber.withValues(alpha: 0.7),
+        bracketSize: 14,
+        strokeWidth: 1.2,
       ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.game.layout.title,
-                  style: const TextStyle(
-                    color: Color(0xFFE8DFC8),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.7,
+      child: Container(
+        width: width,
+        height: height,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: CosmicScreenStyles.bg0.withValues(alpha: 0.96),
+          border: Border.all(
+            color: CosmicScreenStyles.amber.withValues(alpha: 0.30),
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x99000000),
+              blurRadius: 28,
+              spreadRadius: 4,
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.map_rounded,
+                  color: CosmicScreenStyles.amberBright,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.game.layout.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          color: CosmicScreenStyles.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.8,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'DUNGEON MAP',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: CosmicScreenStyles.textMuted,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.6,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: context.soundAction(widget.onClose),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: CosmicScreenStyles.bg2,
+                      border: Border.all(
+                        color: CosmicScreenStyles.borderAccent,
+                      ),
+                    ),
+                    child: const Text(
+                      'CLOSE',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: CosmicScreenStyles.amberBright,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: ColoredBox(
+                  color: CosmicScreenStyles.bg0,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final viewport = Size(
+                        constraints.maxWidth,
+                        constraints.maxHeight,
+                      );
+                      _centerOnCurrentRoom(viewport, chart);
+                      final fit = math.min(
+                        viewport.width / chart.size.width,
+                        viewport.height / chart.size.height,
+                      );
+                      return InteractiveViewer(
+                        constrained: false,
+                        boundaryMargin: const EdgeInsets.all(60),
+                        minScale: math.min(fit, _kReadableScale) * 0.9,
+                        maxScale: 1.8,
+                        transformationController: _mapController,
+                        child: CustomPaint(
+                          size: chart.size,
+                          painter: _DungeonFullMapPainter(widget.game),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
-              GestureDetector(
-                onTap: context.soundAction(widget.onClose),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF14120E),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: const Color(0xFF74613A).withValues(alpha: 0.7),
-                    ),
-                  ),
-                  child: const Text(
-                    'CLOSE',
-                    style: TextStyle(
-                      color: Color(0xFFE4C16A),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  _centerOnCurrentRoom(
-                    Size(constraints.maxWidth, constraints.maxHeight),
-                  );
-                  return InteractiveViewer(
-                    constrained: false,
-                    boundaryMargin: const EdgeInsets.all(140),
-                    minScale: 0.46,
-                    maxScale: 1.7,
-                    transformationController: _mapController,
-                    child: CustomPaint(
-                      size: _fullMapCanvasSize,
-                      painter: _DungeonFullMapPainter(widget.game),
-                    ),
-                  );
-                },
-              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'DRAG / PINCH MAP',
-            style: TextStyle(
-              color: const Color(0xFFE8DFC8).withValues(alpha: 0.46),
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const _FullMapLegend(),
-        ],
+            const SizedBox(height: 8),
+            _FullMapLegend(fen: widget.game.layout.element == 'Mud'),
+          ],
+        ),
       ),
     );
   }
 }
 
+/// The smallest zoom the map opens at: room names stay about 7-8 real
+/// pixels tall on the canvas's 11px label.
+const double _kReadableScale = 0.62;
+
 class _FullMapLegend extends StatelessWidget {
-  const _FullMapLegend();
+  const _FullMapLegend({this.fen = false});
+
+  /// Palusia adds the basin mark to the key.
+  final bool fen;
 
   @override
   Widget build(BuildContext context) {
     return Wrap(
       alignment: WrapAlignment.center,
-      spacing: 10,
+      spacing: 12,
       runSpacing: 5,
-      children: const [
-        _LegendChip(color: Color(0xFFE4C16A), label: 'CURRENT'),
-        _LegendChip(color: Color(0xFF5BC8E8), label: 'DISCOVERED'),
-        _LegendChip(color: Color(0xFF22C55E), label: 'STAR DONE'),
+      children: [
+        const _LegendChip(color: _kMapCurrent, label: 'YOU'),
+        const _LegendChip(color: _kMapVisited, label: 'VISITED'),
+        const _LegendChip(color: _kMapUnvisited, label: 'NOT YET'),
+        const _LegendChip(color: _kMapStarDone, label: 'STAR WON', star: true),
+        const _LegendChip(color: _kMapStarOpen, label: 'STAR HERE', star: true),
+        if (fen) ...const [
+          _LegendChip(
+            color: CosmicScreenStyles.teal,
+            label: 'BASIN NEEDS',
+            ring: true,
+          ),
+          _LegendChip(
+            color: CosmicScreenStyles.danger,
+            label: 'WOULD DROWN',
+            ring: true,
+          ),
+        ],
       ],
     );
   }
 }
 
 class _LegendChip extends StatelessWidget {
-  const _LegendChip({required this.color, required this.label});
+  const _LegendChip({
+    required this.color,
+    required this.label,
+    this.star = false,
+    this.ring = false,
+  });
+
+  /// A round mark, as the fen's crossing marks are drawn.
+  final bool ring;
 
   final Color color;
   final String label;
+  final bool star;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
+        star
+            ? Icon(Icons.star_rounded, size: 11, color: color)
+            : ring
+            ? Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: color, width: 1.8),
+                ),
+              )
+            : Container(
+                width: 10,
+                height: 7,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
+                  border: Border.all(color: color, width: 1.4),
+                ),
+              ),
         const SizedBox(width: 4),
         Text(
           label,
           style: TextStyle(
-            color: const Color(0xFFE8DFC8).withValues(alpha: 0.72),
+            color: CosmicScreenStyles.textSecondary,
             fontSize: 9,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.8,
@@ -977,17 +867,106 @@ class _LegendChip extends StatelessWidget {
   }
 }
 
+// THE SURVIVAL PALETTE. The map was warm brown on brown (panel 12100C, rooms
+// 1C1912, lines B8A57A) — the house style from before cosmic and survival
+// moved to cool near-black grounds with bright ink, and next to them it read
+// as a screen from an older game. Same tokens as the survival dialogs now.
+const Color _kMapCurrent = CosmicScreenStyles.amberBright;
+const Color _kMapVisited = CosmicScreenStyles.amber;
+const Color _kMapUnvisited = CosmicScreenStyles.borderMid;
+const Color _kMapStarDone = CosmicScreenStyles.success;
+const Color _kMapStarOpen = CosmicScreenStyles.amberBright;
+
 /// Test seam: run the REAL full-map painter over a canvas.
 ///
 /// `debugFullMapNodePoint` proves the placement helper, and the placement
 /// helper was never the thing that was broken — the painter was, by not
 /// calling it. Anything that claims the map draws has to go through this.
+/// The chart is scaled to fit [size].
 @visibleForTesting
-void debugPaintFullMap(PlanetDungeonGame game, Canvas canvas, Size size) =>
-    _DungeonFullMapPainter(game).paint(canvas, size);
+void debugPaintFullMap(PlanetDungeonGame game, Canvas canvas, Size size) {
+  final chart = dungeonChartFor(game.layout.element);
+  final k = math.min(
+    size.width / chart.size.width,
+    size.height / chart.size.height,
+  );
+  canvas.save();
+  canvas.scale(k);
+  _DungeonFullMapPainter(game).paint(canvas, chart.size);
+  canvas.restore();
+}
 
 /// How Palusia's chart draws one crossing. See `_fenEdgeState`.
 enum _FenEdge { mire, sod, drowned, plank }
+
+/// Every star a room holds, across all seventeen planets' fixtures. Each
+/// planet keeps its star on a different object; the map needs one answer.
+List<int> _roomStars(DungeonRoom room) => [
+  ?room.summit?.starIndex,
+  ?room.loomStarIndex,
+  ?room.brazierStarIndex,
+  ?room.vineStarIndex,
+  ?room.sealStarIndex,
+  ?room.canalStarIndex,
+  ?room.ribStarIndex,
+  ?room.pillarStarIndex,
+  ?room.circuitStarIndex,
+  ?room.garth?.starIndex,
+  ?room.capstone?.starIndex,
+  ?room.molten?.starIndex,
+  ?room.foundryStar?.starIndex,
+  ?room.priorsSeal?.diagnosisStarIndex,
+  ?room.priorsSeal?.triageStarIndex,
+  ?room.rime?.starIndex,
+  ?room.fen?.altar?.sarsenStarIndex,
+  ?room.fen?.altar?.moorStarIndex,
+  ?room.grove?.starIndex,
+  ?room.eclipse?.starIndex,
+  ?room.hall?.starIndex,
+  ?room.sanguine?.starIndex,
+  ?room.ruins?.starIndex,
+  ?room.prism?.keep?.spectrumStarIndex,
+  ?room.prism?.keep?.throneStarIndex,
+  ?room.grave?.vigil?.roadStarIndex,
+  ?room.grave?.vigil?.sigilStarIndex,
+  ?room.guardian?.starIndex,
+];
+
+/// The rooms the map is allowed to show: everywhere you have stood, and
+/// everything reachable from there through doors you can SEE (the whole
+/// map is still a planning tool — Palusia's strategy is the shape of the
+/// fen — so this is not fog of war). A room that only a
+/// hidden door reaches — a vault behind a false wall, a crossing under
+/// weed — stays off the chart until it is found, instead of floating on it
+/// unconnected and giving the secret away.
+Set<String> _knownRoomsOf(PlanetDungeonGame game) {
+  final layout = game.layout;
+  final known = <String>{
+    layout.entranceRoomId,
+    game.currentRoomId,
+    ...game.visitedRooms,
+  };
+  final frontier = [...known];
+  while (frontier.isNotEmpty) {
+    final id = frontier.removeLast();
+    final room = layout.rooms[id];
+    if (room == null) continue;
+    for (final d in room.doors) {
+      if (d.chromeless || game.isDoorHidden(room, d)) continue;
+      final to = layout.rooms[d.targetRoomId];
+      if (to == null || known.contains(to.id)) continue;
+      // Seen from this side, but is it hidden from the far side too?
+      if (to.doors.any(
+        (b) => b.targetRoomId == id && game.isDoorHidden(to, b),
+      )) {
+        continue;
+      }
+      known.add(to.id);
+      frontier.add(to.id);
+    }
+  }
+  return known;
+}
 
 class _DungeonFullMapPainter extends CustomPainter {
   _DungeonFullMapPainter(this.game);
@@ -996,130 +975,368 @@ class _DungeonFullMapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final chart = dungeonChartFor(game.layout.element);
     final rect = Offset.zero & size;
-    final element = game.layout.element;
-    // EVERY ROOM IN THE LAYOUT, through `_fullMapNodePoint` — which is what
-    // falls back to the derived chart for a planet with no authored atlas.
-    //
-    // This used to iterate the AUTHORED atlas instead, so the eleven planets
-    // that have none (Mud, Ice, Dust, Lava, Poison, Plant, Crystal, Spirit,
-    // Dark, Light, Blood) built an empty `positions` map and the full map
-    // drew its background and nothing else: no nodes, no edges, no YOU ARE
-    // HERE. The chart test never saw it because it asks
-    // `debugFullMapNodePoint`, which has always had the fallback — the bug
-    // was in who the painter asked, not in what the answer would have been.
-    final positions = {
-      for (final id in game.layout.rooms.keys)
-        id: _fullMapNodePoint(element, id, size),
-    };
-
-    final background = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF101928), Color(0xFF090B10)],
-      ).createShader(rect);
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(12)),
-      background,
-    );
-
-    final sections =
-        _fullMapSectionsByElement[element] ?? const <(List<String>, Color)>[];
-    for (final (ids, color) in sections) {
-      _drawSectionAura(canvas, positions, ids, color);
-    }
-
-    _drawEdges(canvas, positions);
-    for (final id in positions.keys) {
-      _drawNode(canvas, positions[id]!, id);
-    }
-  }
-
-  void _drawSectionAura(
-    Canvas canvas,
-    Map<String, Offset> positions,
-    List<String> ids,
-    Color color,
-  ) {
-    final points = ids.map((id) => positions[id]).whereType<Offset>().toList();
-    if (points.isEmpty) return;
-    var minX = points.first.dx;
-    var maxX = points.first.dx;
-    var minY = points.first.dy;
-    var maxY = points.first.dy;
-    for (final p in points.skip(1)) {
-      minX = math.min(minX, p.dx);
-      maxX = math.max(maxX, p.dx);
-      minY = math.min(minY, p.dy);
-      maxY = math.max(maxY, p.dy);
-    }
-    final aura = Rect.fromLTRB(minX, minY, maxX, maxY).inflate(28);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(aura, const Radius.circular(28)),
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = color.withValues(alpha: 0.10),
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [CosmicScreenStyles.bg1, CosmicScreenStyles.bg0],
+        ).createShader(rect),
     );
+    _drawGrid(canvas, size);
+    // Each level below the first gets a faint rule above it.
+    for (final y in chart.levelBreaks) {
+      _drawDashed(
+        canvas,
+        Path()
+          ..moveTo(24, y)
+          ..lineTo(size.width - 24, y),
+        Paint()
+          ..strokeWidth = 1.2
+          ..color = CosmicScreenStyles.amber.withValues(alpha: 0.2),
+      );
+    }
+    final known = _knownRoomsOf(game);
+    final hatches = <String, Color>{};
+    final fenMarks = <(Offset, BogFord)>[];
+    _drawCorridors(canvas, chart, hatches, known, fenMarks);
+    for (final e in chart.rooms.entries) {
+      if (!known.contains(e.key)) continue;
+      final room = game.layout.rooms[e.key];
+      if (room != null) _drawRoom(canvas, e.value, room);
+    }
+    // Hatches sit INSIDE their rooms, so they go on after the room fills.
+    _drawFenMarks(canvas, fenMarks);
+    hatches.forEach((id, color) {
+      final box = chart.rooms[id];
+      if (box == null || !known.contains(id)) return;
+      _drawHatch(canvas, Offset(box.left + 14, box.bottom - 14), color);
+    });
   }
 
-  void _drawEdges(Canvas canvas, Map<String, Offset> positions) {
+  /// A faint surveyor's grid, so the empty space reads as parchment and not
+  /// as a void — drawn once as lines, no blur.
+  void _drawGrid(Canvas canvas, Size size) {
+    final p = Paint()
+      ..strokeWidth = 1
+      ..color = CosmicScreenStyles.teal.withValues(alpha: 0.035);
+    for (var x = kChartUnit / 2; x < size.width; x += kChartUnit / 2) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);
+    }
+    for (var y = kChartUnit / 2; y < size.height; y += kChartUnit / 2) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
+    }
+  }
+
+  /// Where a door sits on its room's box on the chart. A wall door is pinned
+  /// to that wall; a hatch sits inside the box where it sits in the room.
+  Offset _doorPoint(Rect box, DungeonRoom room, Rect door) {
+    final b = room.bounds;
+    final fx = ((door.center.dx - b.left) / b.width).clamp(0.08, 0.92);
+    final fy = ((door.center.dy - b.top) / b.height).clamp(0.12, 0.88);
+    return switch (chartDoorWall(b, door)) {
+      'W' => Offset(box.left, box.top + box.height * fy),
+      'E' => Offset(box.right, box.top + box.height * fy),
+      'N' => Offset(box.left + box.width * fx, box.top),
+      'S' => Offset(box.left + box.width * fx, box.bottom),
+      _ => Offset(box.left + box.width * fx, box.top + box.height * fy),
+    };
+  }
+
+  /// Where a door lands in the next room, on the chart: the arrival point,
+  /// pushed to the wall it is nearest.
+  Offset _arrivalPoint(Rect box, DungeonRoom room, Offset spawn) {
+    final b = room.bounds;
+    final fx = ((spawn.dx - b.left) / b.width).clamp(0.08, 0.92);
+    final fy = ((spawn.dy - b.top) / b.height).clamp(0.12, 0.88);
+    final d = {
+      'W': spawn.dx - b.left,
+      'E': b.right - spawn.dx,
+      'N': spawn.dy - b.top,
+      'S': b.bottom - spawn.dy,
+    };
+    final m = d.entries.reduce((a, c) => a.value <= c.value ? a : c);
+    if (m.value > 160) {
+      return Offset(box.left + box.width * fx, box.top + box.height * fy);
+    }
+    return switch (m.key) {
+      'W' => Offset(box.left, box.top + box.height * fy),
+      'E' => Offset(box.right, box.top + box.height * fy),
+      'N' => Offset(box.left + box.width * fx, box.top),
+      _ => Offset(box.left + box.width * fx, box.bottom),
+    };
+  }
+
+  void _drawCorridors(
+    Canvas canvas,
+    DungeonChart chart,
+    Map<String, Color> hatches,
+    Set<String> known,
+    List<(Offset, BogFord)> fenMarks,
+  ) {
     final seen = <String>{};
     final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.25
-      ..strokeCap = StrokeCap.round;
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
     for (final room in game.layout.rooms.values) {
-      final from = positions[room.id];
-      if (from == null) continue;
+      final boxA = chart.rooms[room.id];
+      if (boxA == null) continue;
       for (final door in room.doors) {
-        if (door.chromeless) continue; // secret ways draw no thread
-        final to = positions[door.targetRoomId];
-        if (to == null) continue;
-        final key = room.id.compareTo(door.targetRoomId) < 0
-            ? '${room.id}:${door.targetRoomId}'
-            : '${door.targetRoomId}:${room.id}';
-        if (!seen.add(key)) continue;
-        final active =
-            room.id == game.currentRoomId ||
-            door.targetRoomId == game.currentRoomId;
-        paint
-          ..strokeWidth = 1.25
-          ..color = (active ? const Color(0xFF5BC8E8) : const Color(0xFF74613A))
-              .withValues(alpha: active ? 0.62 : 0.34);
-        // PALUSIA'S EDGES ARE THE PUZZLE. Every other planet's door graph is
-        // a constant and the chart is a reminder of where things are; this
-        // one is authored by the player, one irreversible drag at a time,
-        // and the whole strategic question is "what shape am I in now".
-        // Leaving every crossing drawn as the same thread made the one map
-        // in the game that carries live information carry none of it.
-        final fenState = _fenEdgeState(room.id, door.targetRoomId);
-        if (fenState != null) {
-          switch (fenState) {
-            case _FenEdge.mire:
-              paint
-                ..strokeWidth = 1.1
-                ..color = const Color(0xFF8A7350).withValues(alpha: 0.45);
-            case _FenEdge.sod:
-              paint
-                ..strokeWidth = 2.6
-                ..color = const Color(0xFF9BB05A).withValues(alpha: 0.85);
-            case _FenEdge.drowned:
-              // Gone, and never coming back: drawn, but as water.
-              paint
-                ..strokeWidth = 1.0
-                ..color = const Color(0xFF2A4A52).withValues(alpha: 0.42);
-            case _FenEdge.plank:
-              paint
-                ..strokeWidth = 1.2
-                ..color = const Color(0xFF6E5B3A).withValues(alpha: 0.55);
-          }
+        if (door.chromeless) continue; // secret ways draw no corridor
+        if (game.isDoorHidden(room, door)) continue; // not found yet
+        final to = game.layout.rooms[door.targetRoomId];
+        final boxB = chart.rooms[door.targetRoomId];
+        if (to == null || boxB == null) continue;
+        if (!known.contains(room.id) || !known.contains(to.id)) continue;
+        // Hidden from EITHER side is hidden: the gate's crossings are under
+        // weed until Water clears them, and the knolls' ends of them must not
+        // give the game away.
+        if (to.doors.any(
+          (d) => d.targetRoomId == room.id && game.isDoorHidden(to, d),
+        )) {
+          continue;
         }
-        final path = Path()..moveTo(from.dx, from.dy);
-        final control = _edgeControl(room.id, door.targetRoomId, from, to);
-        path.quadraticBezierTo(control.dx, control.dy, to.dx, to.dy);
-        canvas.drawPath(path, paint);
+        final key = room.id.compareTo(to.id) < 0
+            ? '${room.id}:${to.id}:${door.rect.center.dy.round()}'
+            : '${to.id}:${room.id}:${door.targetSpawn.dy.round()}';
+        if (!seen.add(key)) continue;
+        // The reciprocal is drawn by this same line; skip it by its own key.
+        final back = to.doors.where((d) => d.targetRoomId == room.id);
+        for (final d in back) {
+          seen.add(
+            to.id.compareTo(room.id) < 0
+                ? '${to.id}:${room.id}:${d.rect.center.dy.round()}'
+                : '${room.id}:${to.id}:${d.targetSpawn.dy.round()}',
+          );
+        }
+
+        final a = _doorPoint(boxA, room, door.rect);
+        final b = _arrivalPoint(boxB, to, door.targetSpawn);
+        // A way through the FLOOR, in either direction, is a hatch — Mud's
+        // fane climbs back up through wall doors to wallows that go down.
+        final hatchHere = chartDoorWall(room.bounds, door.rect) == 'I';
+        final hatchBack = back.where(
+          (d) => chartDoorWall(to.bounds, d.rect) == 'I',
+        );
+        final hatch = hatchHere || hatchBack.isNotEmpty;
+        final touchesYou =
+            room.id == game.currentRoomId || to.id == game.currentRoomId;
+
+        var color = touchesYou ? _kMapCurrent : _kMapVisited;
+        var width = 3.0;
+        var alpha = touchesYou ? 0.55 : 0.30;
+        // PALUSIA'S CORRIDORS ARE THE PUZZLE: every crossing is authored by
+        // the player, so the chart shows what each one is right now.
+        final fenFord = _chartFordFor(room, door);
+        if (fenFord != null) fenMarks.add((Offset.lerp(a, b, 0.5)!, fenFord));
+        switch (_isChartPlank(room, door)
+            ? _FenEdge.plank
+            : _fenEdgeState(room.id, to.id)) {
+          case _FenEdge.mire:
+            color = const Color(0xFF8A7350);
+            width = 2.2;
+            alpha = 0.6;
+          case _FenEdge.sod:
+            color = const Color(0xFF9BB05A);
+            width = 4.0;
+            alpha = 0.9;
+          case _FenEdge.drowned:
+            color = const Color(0xFF2E5A66);
+            width = 2.0;
+            alpha = 0.55;
+          case _FenEdge.plank:
+            color = const Color(0xFF6E5B3A);
+            width = 2.0;
+            alpha = 0.7;
+          case null:
+            break;
+        }
+        paint
+          ..strokeWidth = width
+          ..color = color.withValues(alpha: alpha);
+
+        final path = Path()..moveTo(a.dx, a.dy);
+        final dir = chartDoorDirection(room, door, to);
+        final horizontal = dir == 'E' || dir == 'W';
+        // Out of the wall a short stub, then straight across, then a stub
+        // into the far wall. Elbows bunched every off-axis corridor into one
+        // shared vertical run between two columns of rooms; a direct line
+        // keeps each corridor its own.
+        const stub = 12.0;
+        final out = switch (dir) {
+          'E' => const Offset(stub, 0),
+          'W' => const Offset(-stub, 0),
+          'N' => const Offset(0, -stub),
+          _ => const Offset(0, stub),
+        };
+        final aligned =
+            (horizontal && (a.dy - b.dy).abs() < 2) ||
+            (!horizontal && (a.dx - b.dx).abs() < 2);
+        // The stubs only make sense when the far door really is further
+        // along the way this one faces; otherwise they fold back into a
+        // little arrowhead.
+        final ahead = switch (dir) {
+          'E' => b.dx - a.dx > stub * 2.5,
+          'W' => a.dx - b.dx > stub * 2.5,
+          'N' => a.dy - b.dy > stub * 2.5,
+          _ => b.dy - a.dy > stub * 2.5,
+        };
+        if (aligned || hatch || !ahead) {
+          path.lineTo(b.dx, b.dy);
+        } else {
+          final a1 = a + out, b1 = b - out;
+          path
+            ..lineTo(a1.dx, a1.dy)
+            ..lineTo(b1.dx, b1.dy)
+            ..lineTo(b.dx, b.dy);
+        }
+        if (hatch) {
+          // A hatch whose room hangs right under this one draws its drop as
+          // a short dashed line. One that lands far away (Mud has a wallow
+          // on every knoll, all into the one drowned fane) draws a DOWN mark
+          // in the room instead — seven dashed threads across the whole
+          // chart said nothing but "clutter".
+          final near =
+              (boxB.top - boxA.bottom).abs() < kChartUnit * 0.9 &&
+              boxA.left < boxB.right &&
+              boxB.left < boxA.right;
+          if (near || chart.handPlaced) {
+            _drawDashed(canvas, path, paint);
+          }
+          final mark = color.withValues(alpha: alpha + 0.3);
+          // One mark per room with a way down, in its corner — not one per
+          // hatch across its name.
+          if (hatchHere) hatches[room.id] = mark;
+          if (hatchBack.isNotEmpty) hatches[to.id] = mark;
+        } else {
+          canvas.drawPath(path, paint);
+        }
+      }
+    }
+  }
+
+  /// A way DOWN through the floor: a small ring with a chevron under it.
+  void _drawHatch(Canvas canvas, Offset at, Color color) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..color = color;
+    canvas.drawCircle(at, 6, p);
+    canvas.drawLine(at + const Offset(-3, -1), at + const Offset(0, 2), p);
+    canvas.drawLine(at + const Offset(0, 2), at + const Offset(3, -1), p);
+  }
+
+  void _drawDashed(Canvas canvas, Path path, Paint paint) {
+    for (final metric in path.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        canvas.drawPath(
+          metric.extractPath(d, math.min(d + 7, metric.length)),
+          paint,
+        );
+        d += 12;
+      }
+    }
+  }
+
+  /// The peat-cutters' plank road shares its two knolls with a ford; on the
+  /// chart it is the SECOND door of the pair, as in the engine.
+  bool _isChartPlank(DungeonRoom room, DungeonDoor door) {
+    if (game.layout.element != 'Mud') return false;
+    if (room.id != kPlankFromKnoll && room.id != kPlankToKnoll) return false;
+    final want = room.id == kPlankFromKnoll ? kPlankToKnoll : kPlankFromKnoll;
+    final pair = room.doors.where((d) => d.targetRoomId == want).toList();
+    return pair.length >= 2 && identical(door, pair.last);
+  }
+
+  /// The ford this chart corridor IS, on Palusia (null elsewhere, and for
+  /// the plank, the wallows and the drowned level's doors).
+  BogFord? _chartFordFor(DungeonRoom room, DungeonDoor door) {
+    if (game.layout.element != 'Mud' || _isChartPlank(room, door)) {
+      return null;
+    }
+    for (final f in kBogFords) {
+      if (f.touches(room.id) && f.other(room.id) == door.targetRoomId) {
+        return f;
+      }
+    }
+    return null;
+  }
+
+  /// WHAT THE BASINS ASK FOR, AND WHAT A DRAG WOULD COST — on the chart.
+  ///
+  /// The Moor Star's whole clue is that the three basin knolls between them
+  /// name the four crossings to firm — and that had to be pieced together
+  /// from three rooms you never see at once (*"what's the clue to know which
+  /// paths to do?"*). Every moor knoll you have visited marks its crossings
+  /// here: a filled teal basin on a crossing already firm, a hollow one on a
+  /// crossing still to firm, and a red cross where the crossing has drowned
+  /// and that basin can never fill in this fen. Visit all three and the four
+  /// marked crossings are the road.
+  ///
+  /// And standing at a crossing you could firm, every crossing that drag
+  /// would drown is ringed in red here as well as in the room — the price,
+  /// on the map, before it is paid.
+  void _drawFenMarks(Canvas canvas, List<(Offset, BogFord)> marks) {
+    if (marks.isEmpty) return;
+    final field = game.bog.field;
+    final altar = game.layout.rooms[kSarsenSocketKnoll]?.fen?.altar;
+    final moorWon = altar != null && game.hasStar(altar.moorStarIndex);
+    final doomed = game.bogDoomedByHand;
+    const teal = CosmicScreenStyles.teal;
+    const red = CosmicScreenStyles.danger;
+    for (final (at, ford) in marks) {
+      if (doomed.contains(ford.id)) {
+        canvas.drawCircle(
+          at,
+          13,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.4
+            ..color = red.withValues(alpha: 0.9),
+        );
+      }
+      if (moorWon) continue;
+      final needed = kMoorKnollIds.any(
+        (k) => ford.touches(k) && game.visitedRooms.contains(k),
+      );
+      if (!needed) continue;
+      final state = field.stateOf(ford.id);
+      if (state == BogFordState.drowned) {
+        final p = Paint()
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round
+          ..color = red;
+        canvas.drawLine(at + const Offset(-6, -6), at + const Offset(6, 6), p);
+        canvas.drawLine(at + const Offset(6, -6), at + const Offset(-6, 6), p);
+        continue;
+      }
+      // A little basin: a bowl with water in it.
+      canvas.drawCircle(at, 8.5, Paint()..color = CosmicScreenStyles.bg0);
+      canvas.drawCircle(
+        at,
+        8.5,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = teal,
+      );
+      if (state == BogFordState.sod) {
+        canvas.drawCircle(at, 5, Paint()..color = teal);
+      } else {
+        canvas.drawLine(
+          at + const Offset(-4, 1),
+          at + const Offset(4, 1),
+          Paint()
+            ..strokeWidth = 1.6
+            ..strokeCap = StrokeCap.round
+            ..color = teal.withValues(alpha: 0.8),
+        );
       }
     }
   }
@@ -1146,115 +1363,110 @@ class _DungeonFullMapPainter extends CustomPainter {
     return null;
   }
 
-  Offset _edgeControl(String a, String b, Offset from, Offset to) {
-    final mid = Offset.lerp(from, to, 0.5)!;
-    final dx = to.dx - from.dx;
-    final dy = to.dy - from.dy;
-    final distance = (to - from).distance;
-    if (distance < 95) return mid;
+  void _drawRoom(Canvas canvas, Rect box, DungeonRoom room) {
+    final current = room.id == game.currentRoomId;
+    final visited = current || game.visitedRooms.contains(room.id);
+    final rrect = RRect.fromRectAndRadius(box, const Radius.circular(10));
 
-    final key = a.compareTo(b) < 0 ? '$a:$b' : '$b:$a';
-    final bend = switch (key) {
-      'hub:sky_loom' => const Offset(-50, 22),
-      'sky_loom:spire_summit' => const Offset(46, 64),
-      'crosswind_hall:lower_spire' => const Offset(16, -42),
-      'guardian_summit:storm_altar' => const Offset(-38, -30),
-      _ => Offset(-dy, dx) / distance * 18,
-    };
-    return mid + bend;
-  }
-
-  void _drawNode(Canvas canvas, Offset c, String id) {
-    final room = game.layout.rooms[id]!;
-    final current = id == game.currentRoomId;
-    final star =
-        room.summit?.starIndex ??
-        room.loomStarIndex ??
-        room.brazierStarIndex ??
-        room.vineStarIndex ??
-        room.sealStarIndex ??
-        room.canalStarIndex ??
-        room.ribStarIndex ??
-        room.pillarStarIndex ??
-        room.guardian?.starIndex;
-    final starDone = star != null && game.hasStar(star);
-    final cloudTouched =
-        room.clouds.isNotEmpty &&
-        room.clouds.any(
-          (cloud) =>
-              game.discoveredClouds.contains(cloud.id) ||
-              game.placedClouds.contains(cloud.id),
+    if (current) {
+      // A soft halo from two widened strokes — no MaskFilter blur.
+      for (final (w, a) in [(14.0, 0.07), (7.0, 0.12)]) {
+        canvas.drawRRect(
+          rrect,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = w
+            ..color = _kMapCurrent.withValues(alpha: a),
         );
-    final stormLive =
-        room.conduits.isNotEmpty &&
-        (game.altarOpen || game.conduitEnergy.isNotEmpty);
-
-    final color = current
-        ? const Color(0xFFE4C16A)
-        : starDone
-        ? const Color(0xFF22C55E)
-        : stormLive
-        ? const Color(0xFFFFFF8A)
-        : cloudTouched
-        ? const Color(0xFF5BC8E8)
-        : const Color(0xFF74613A);
-    final radius = current ? 10.5 : 8.0;
-
-    if (current || starDone || stormLive) {
-      canvas.drawCircle(
-        c,
-        radius + 8,
-        Paint()..color = color.withValues(alpha: current ? 0.18 : 0.10),
-      );
+      }
     }
-    canvas.drawCircle(c, radius, Paint()..color = const Color(0xFF14120E));
-    canvas.drawCircle(
-      c,
-      radius,
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..color = current
+            ? Color.lerp(CosmicScreenStyles.bg2, _kMapCurrent, 0.16)!
+            : visited
+            ? CosmicScreenStyles.bg2
+            : CosmicScreenStyles.bg1,
+    );
+    canvas.drawRRect(
+      rrect,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = current ? 2.4 : 1.5
-        ..color = color.withValues(alpha: current ? 0.95 : 0.72),
+        ..strokeWidth = current ? 2.6 : 1.6
+        ..color =
+            (current
+                    ? _kMapCurrent
+                    : visited
+                    ? _kMapVisited
+                    : _kMapUnvisited)
+                .withValues(
+                  alpha: current
+                      ? 1.0
+                      : visited
+                      ? 0.75
+                      : 0.6,
+                ),
     );
 
-    if (star != null) {
-      _drawStar(canvas, c, starDone ? 4.2 : 3.5, color);
-    } else if (room.clouds.isNotEmpty) {
-      canvas.drawCircle(
-        c,
-        3,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1
-          ..color = color.withValues(alpha: 0.8),
-      );
-    } else if (room.conduits.isNotEmpty || room.guardian != null) {
-      canvas.drawLine(
-        c + const Offset(-3, 3),
-        c + const Offset(2, -4),
-        Paint()
-          ..strokeWidth = 1.3
-          ..strokeCap = StrokeCap.round
-          ..color = color.withValues(alpha: 0.9),
-      );
-      canvas.drawLine(
-        c + const Offset(2, -4),
-        c + const Offset(5, 1),
-        Paint()
-          ..strokeWidth = 1.3
-          ..strokeCap = StrokeCap.round
-          ..color = color.withValues(alpha: 0.9),
+    // Stars held here: filled green when won, outlined gold while open.
+    final stars = _roomStars(room).toSet().toList()..sort();
+    for (var i = 0; i < stars.length; i++) {
+      final won = game.hasStar(stars[i]);
+      _drawStar(
+        canvas,
+        Offset(box.right - 13 - i * 16, box.top + 13),
+        6.5,
+        won ? _kMapStarDone : _kMapStarOpen,
+        filled: won,
       );
     }
 
-    _drawLabel(
+    final label = kDungeonRoomLabels[room.id] ?? room.id.toUpperCase();
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(
+          color: (current ? _kMapCurrent : CosmicScreenStyles.textPrimary)
+              .withValues(
+                alpha: current
+                    ? 1.0
+                    : visited
+                    ? 0.85
+                    : 0.45,
+              ),
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+          height: 1.15,
+        ),
+      ),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+      maxLines: 2,
+      ellipsis: '…',
+    )..layout(maxWidth: box.width - 14);
+    tp.paint(
       canvas,
-      c + Offset(0, current ? 20 : 17),
-      kDungeonRoomLabels[id] ?? id,
+      box.center - Offset(tp.width / 2, tp.height / 2 - (current ? 0 : 0)),
     );
+    if (current) {
+      final y = box.center.dy + tp.height / 2 + 8;
+      canvas.drawCircle(
+        Offset(box.center.dx, y),
+        3.2,
+        Paint()..color = _kMapCurrent,
+      );
+    }
   }
 
-  void _drawStar(Canvas canvas, Offset c, double r, Color color) {
+  void _drawStar(
+    Canvas canvas,
+    Offset c,
+    double r,
+    Color color, {
+    required bool filled,
+  }) {
     final path = Path();
     for (var i = 0; i < 10; i++) {
       final a = -math.pi / 2 + i * math.pi / 5;
@@ -1267,24 +1479,15 @@ class _DungeonFullMapPainter extends CustomPainter {
       }
     }
     path.close();
-    canvas.drawPath(path, Paint()..color = color.withValues(alpha: 0.86));
-  }
-
-  void _drawLabel(Canvas canvas, Offset center, String label) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: TextStyle(
-          color: const Color(0xFFE8DFC8).withValues(alpha: 0.72),
-          fontSize: 7.5,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
-        ),
-      ),
-      textAlign: TextAlign.center,
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: 62);
-    tp.paint(canvas, center - Offset(tp.width / 2, 0));
+    canvas.drawPath(
+      path,
+      filled
+          ? (Paint()..color = color)
+          : (Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.4
+              ..color = color.withValues(alpha: 0.85)),
+    );
   }
 
   @override

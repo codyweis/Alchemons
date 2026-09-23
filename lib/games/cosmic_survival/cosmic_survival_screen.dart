@@ -1,3 +1,4 @@
+import 'components/survival_camera_button.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 // lib/games/cosmic_survival/cosmic_survival_screen.dart
@@ -1581,11 +1582,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   void _toggleAutopilot() {
     final game = _game;
-    if (game == null || _showPauseMenu || _powerUpChoices.isNotEmpty) return;
+    if (game == null ||
+        !game.isLoaded ||
+        game.isGameOver ||
+        _showPauseMenu ||
+        _powerUpChoices.isNotEmpty) {
+      return;
+    }
     HapticFeedback.selectionClick();
-    setState(() {
-      game.setAutopilot(!game.autopilot);
-    });
+    game.setAutopilot(!game.autopilot);
   }
 
   void _closePauseMenu() {
@@ -2653,210 +2658,258 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     final game = _game;
     if (game == null) return _buildLoading();
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // Flame game
-        GameWidget(
-          game: game,
-          backgroundBuilder: (_) => Container(color: Colors.transparent),
-        ),
-
-        // Autopilot camera: while the ship flies itself, a drag pans, a
-        // pinch zooms, and a double-tap brings the camera home. The game's
-        // own pan detector ignores drags in this mode, so nothing is lost.
-        if (game.autopilot)
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onScaleStart: (_) => game.beginCameraGesture(),
-              onScaleUpdate: (d) => game.cameraGesture(
-                panDelta: d.focalPointDelta,
-                scale: d.scale,
-              ),
-              onDoubleTap: () {
-                HapticFeedback.selectionClick();
-                game.recenterCamera();
-              },
-            ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: game.autopilotState,
+      builder: (_, cameraMode, __) => Stack(
+        fit: StackFit.expand,
+        children: [
+          // Flame game
+          GameWidget(
+            game: game,
+            backgroundBuilder: (_) => Container(color: Colors.transparent),
           ),
 
-        // Where the ship is when it has left the frame, and whether it is
-        // being hit. Only matters once the camera can leave it.
-        if (game.autopilot)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: ValueListenableBuilder<int>(
-                valueListenable: _liveUiTick,
-                builder: (_, __, ___) =>
-                    CustomPaint(painter: _ShipEdgeMarkerPainter(game)),
+          // Autopilot camera: while the ship flies itself, a drag pans, a
+          // pinch zooms, and a double-tap brings the camera home. The game's
+          // own pan detector ignores drags in this mode, so nothing is lost.
+          if (game.autopilot)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onScaleStart: (_) => game.beginCameraGesture(),
+                onScaleUpdate: (d) => game.cameraGesture(
+                  panDelta: d.focalPointDelta,
+                  scale: d.scale,
+                  focalPoint: d.localFocalPoint,
+                ),
+                onDoubleTap: () {
+                  HapticFeedback.selectionClick();
+                  game.recenterCamera();
+                },
               ),
             ),
+
+          // Where the ship is when it has left the frame, and whether it is
+          // being hit. Only matters once the camera can leave it.
+          if (game.autopilot)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ValueListenableBuilder<int>(
+                  valueListenable: _liveUiTick,
+                  builder: (_, __, ___) =>
+                      CustomPaint(painter: _ShipEdgeMarkerPainter(game)),
+                ),
+              ),
+            ),
+
+          Positioned.fill(
+            child: MysticGraphxOverlay(controller: _mysticOverlayController),
           ),
 
-        Positioned.fill(
-          child: MysticGraphxOverlay(controller: _mysticOverlayController),
-        ),
+          _buildLivePlayOverlay(game),
 
-        _buildLivePlayOverlay(game),
-
-        // Joystick (bottom left). Re-check `game.isLoaded` on live ticks so
-        // enabled joystick appears as soon as the game finishes loading.
-        ValueListenableBuilder<int>(
-          valueListenable: _liveUiTick,
-          builder: (_, __, ___) {
-            if (!game.isLoaded || !_showJoystick) {
-              return const SizedBox.shrink();
-            }
-            return Positioned(
+          // Joystick (bottom left). Re-check `game.isLoaded` on live ticks so
+          // enabled joystick appears as soon as the game finishes loading.
+          ValueListenableBuilder<int>(
+            valueListenable: _liveUiTick,
+            builder: (_, __, ___) {
+              if (!game.isLoaded || !_showJoystick || game.autopilot) {
+                return const SizedBox.shrink();
+              }
+              return Positioned(
+                bottom: 20,
+                left: 12,
+                child: SafeArea(
+                  child: VirtualJoystick(
+                    sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
+                    onDirectionChanged: (dir) {
+                      game.setJoystickInput(dir ?? Offset.zero);
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+          if (cameraMode)
+            Positioned(
               bottom: 20,
               left: 12,
               child: SafeArea(
-                child: VirtualJoystick(
-                  sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
-                  onDirectionChanged: (dir) {
-                    game.setJoystickInput(dir ?? Offset.zero);
-                  },
+                child: _SurvivalPlate(
+                  accent: _C.teal,
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'CAMERA MODE',
+                        style: TextStyle(
+                          color: _C.teal,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Drag to pan · Pinch to zoom\nShip flies automatically',
+                        style: TextStyle(color: _C.textSecondary, fontSize: 11),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: game.recenterCamera,
+                            child: const Text('Follow ship'),
+                          ),
+                          TextButton(
+                            onPressed: _toggleAutopilot,
+                            child: const Text('Exit camera'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            );
-          },
-        ),
-        // Power-up selection overlay
-        if (_powerUpChoices.isNotEmpty)
-          PowerUpSelectionOverlay(
-            choices: _powerUpChoices,
-            currentWave: game.spawner.currentWave,
-            party: _party ?? const [],
-            powerUps: game.powerUps,
-            onSelect: _selectPowerUp,
-          ),
+            ),
+          // Power-up selection overlay
+          if (_powerUpChoices.isNotEmpty)
+            PowerUpSelectionOverlay(
+              choices: _powerUpChoices,
+              currentWave: game.spawner.currentWave,
+              party: _party ?? const [],
+              powerUps: game.powerUps,
+              onSelect: _selectPowerUp,
+            ),
 
-        if (_showPauseMenu) _buildPauseOverlay(game),
+          if (_showPauseMenu) _buildPauseOverlay(game),
 
-        // Boss announcement
-        if (_bossAnnouncement != null)
-          Positioned.fill(
-            child: SafeArea(
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 60),
-                  child: _SurvivalPlate(
-                    accent: _C.danger,
-                    bracketSize: 9,
-                    background: _C.bg0.withValues(alpha: 0.94),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 10,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              AppIcons.warning_amber_rounded,
-                              color: _C.danger,
-                              size: 13,
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'BOSS INCOMING',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
+          // Boss announcement
+          if (_bossAnnouncement != null)
+            Positioned.fill(
+              child: SafeArea(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 60),
+                    child: _SurvivalPlate(
+                      accent: _C.danger,
+                      bracketSize: 9,
+                      background: _C.bg0.withValues(alpha: 0.94),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 10,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                AppIcons.warning_amber_rounded,
                                 color: _C.danger,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 2.4,
+                                size: 13,
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          _bossAnnouncement!.toUpperCase(),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            color: _C.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.6,
+                              const SizedBox(width: 6),
+                              const Text(
+                                'BOSS INCOMING',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: _C.danger,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 2.4,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        if (_bossAnnouncementSubtitle != null) ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 5),
                           Text(
-                            _bossAnnouncementSubtitle!,
+                            _bossAnnouncement!.toUpperCase(),
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontFamily: 'monospace',
-                              color: _C.textSecondary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.6,
+                              color: _C.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.6,
                             ),
                           ),
+                          if (_bossAnnouncementSubtitle != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              _bossAnnouncementSubtitle!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                color: _C.textSecondary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        if (_waveAnnouncementTitle != null)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: SafeArea(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      top: _bossAnnouncement != null ? 152 : 60,
-                    ),
-                    child: AnimatedOpacity(
-                      opacity: _waveAnnouncementTitle == null ? 0 : 1,
-                      duration: const Duration(milliseconds: 420),
-                      curve: Curves.easeOut,
-                      child: _SurvivalPlate(
-                        accent: _C.amber,
-                        background: _C.bg0.withValues(alpha: 0.94),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 26,
-                          vertical: 13,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _waveAnnouncementTitle!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                color: _C.amberBright,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 3.4,
-                              ),
-                            ),
-                            if (_waveAnnouncementSubtitle != null) ...[
-                              const SizedBox(height: 7),
+          if (_waveAnnouncementTitle != null)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: SafeArea(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        top: _bossAnnouncement != null ? 152 : 60,
+                      ),
+                      child: AnimatedOpacity(
+                        opacity: _waveAnnouncementTitle == null ? 0 : 1,
+                        duration: const Duration(milliseconds: 420),
+                        curve: Curves.easeOut,
+                        child: _SurvivalPlate(
+                          accent: _C.amber,
+                          background: _C.bg0.withValues(alpha: 0.94),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 26,
+                            vertical: 13,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                               Text(
-                                _waveAnnouncementSubtitle!.toUpperCase(),
+                                _waveAnnouncementTitle!,
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
                                   fontFamily: 'monospace',
-                                  color: _C.textSecondary,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.8,
+                                  color: _C.amberBright,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 3.4,
                                 ),
                               ),
+                              if (_waveAnnouncementSubtitle != null) ...[
+                                const SizedBox(height: 7),
+                                Text(
+                                  _waveAnnouncementSubtitle!.toUpperCase(),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: _C.textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.8,
+                                  ),
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -2864,8 +2917,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -3127,12 +3180,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 onTap: context.soundTap(_togglePauseMenu),
               ),
               const SizedBox(width: 6),
-              // Autopilot: the ship orbits on its own and the arena becomes
-              // a camera you drag and pinch. Replaced the zoom-preset button.
-              _HudIconButton(
-                icon: AppIcons.navigation_rounded,
-                color: game.autopilot ? _C.teal : _C.borderDim,
-                onTap: context.soundTap(_toggleAutopilot),
+              SurvivalCameraButton(
+                cameraMode: game.autopilotState,
+                onToggle: context.soundTap(_toggleAutopilot),
               ),
               const SizedBox(width: 6),
               // Fast forward: 1.5x. Two was too fast to read a front.

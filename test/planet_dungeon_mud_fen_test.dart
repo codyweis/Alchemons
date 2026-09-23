@@ -208,7 +208,7 @@ void main() {
     test('no state reachable by legal play can strand the party', () {
       final game = _harness(_idealTrio());
       final r = game.solveFenTerraform();
-      expect(r.states, 1284, reason: 'the whole (room × fen × valve) graph');
+      expect(r.states, 1028, reason: 'the whole (room × fen × valve) graph');
       expect(
         r.strandable,
         0,
@@ -265,9 +265,12 @@ void main() {
         greaterThan(r.states ~/ 2),
         reason: 'irreversible terraforming must actually be irreversible',
       );
-      // For the record, and so a future softening shows up as a diff: 1200 of
-      // 1284 states — 93% — would be dead ends without the valve.
-      expect(r.strandableWithoutSough, 1200);
+      // For the record, and so a future softening shows up as a diff: 944 of
+      // 1028 states — 92% — would be dead ends without the valve. (1200 of
+      // 1284 before 2026-09-23, when the heave moved from climbing out to
+      // pulling the plug: a freed sough and a dragged fen can no longer be
+      // held at once, so 256 states simply stopped existing.)
+      expect(r.strandableWithoutSough, 944);
     });
 
     test('the fen really can be cut in two — that is the whole question', () {
@@ -444,55 +447,225 @@ void main() {
   });
 
   group('Star 0 — THE SARSEN', () {
-    test('the stone will not cross anything soft', () {
-      final game = _harness(_idealTrio());
-      game.entryDoorRevealed = true;
-      _act(game, mud, 'mire_gate', _ford('tarn_head').headIn('mire_gate')!);
-      // That press DRAGGED the crossing (the drag runs first); the stone only
-      // moves on the second press, now that the road stands.
-      expect(game.bog.field.stateOf('tarn_head'), BogFordState.sod);
-      expect(game.bog.field.sarsenKnoll, 'mire_gate');
-      _act(game, mud, 'mire_gate', _ford('tarn_head').headIn('mire_gate')!);
-      expect(game.bog.field.sarsenKnoll, 'sedge_knoll');
+    Offset stoneAt(PlanetDungeonGame g) =>
+        Offset(g.layout.rooms['mire_gate']!.bounds.center.dx, 150);
+    Offset stoneAtAltar(PlanetDungeonGame g) =>
+        Offset(g.layout.rooms['altar_knoll']!.bounds.center.dx, 140);
+
+    test('THE SINKING ALTAR: no fen has both a road to it and dry ground',
+        () {
+      // This is what makes the star a plan instead of a press: every road to
+      // the altar drowns one of the altar's own crossings, so the stone has
+      // to be carried in one fen and settled in another, with the heave
+      // between them. Enumerated over every legal shape, not argued.
+      var shapes = 0;
+      for (var h = 0; h < (1 << kBogFords.length); h++) {
+        final f = BogField();
+        var legal = true;
+        for (var i = 0; i < kBogFords.length && legal; i++) {
+          if ((h & (1 << i)) == 0) continue;
+          legal = f.harden(kBogFords[i].id) != null;
+        }
+        if (!legal) continue;
+        shapes++;
+        // A road of sod from the gate to the altar?
+        final seen = {'mire_gate'};
+        final q = ['mire_gate'];
+        while (q.isNotEmpty) {
+          final k = q.removeLast();
+          for (final x in f.fordsOf(k)) {
+            if (f.stateOf(x.id) != BogFordState.sod) continue;
+            final o = x.other(k)!;
+            if (seen.add(o)) q.add(o);
+          }
+        }
+        final road = seen.contains(kSarsenSocketKnoll);
+        expect(
+          road && f.isDry(kSarsenSocketKnoll),
+          isFalse,
+          reason: 'shape ${f.hardened} has a road AND a dry altar',
+        );
+      }
+      expect(shapes, greaterThan(20));
     });
 
-    test('THE AUTHORED SOLUTION hauls the stone home and banks the star', () {
+    test('the roots will not carry the stone over anything soft', () {
+      final game = _harness(_idealTrio());
+      game.entryDoorRevealed = true;
+      _drag(game, 'tarn_head', 'mire_gate');
+      _act(game, plant, 'mire_gate', stoneAt(game));
+      expect(game.bog.field.sarsenKnoll, 'mire_gate');
+      expect(game.hintHasAnswer, isTrue, reason: 'the refusal is kept');
+    });
+
+    test('only Plant carries the stone', () {
+      final game = _harness(_idealTrio());
+      game.entryDoorRevealed = true;
+      _drag(game, 'add_head', 'mire_gate');
+      _drag(game, 'cor_neck', 'reed_knoll');
+      _act(game, mud, 'mire_gate', stoneAt(game));
+      expect(game.bog.field.sarsenKnoll, 'mire_gate');
+      _act(game, water, 'mire_gate', stoneAt(game));
+      expect(game.bog.field.sarsenKnoll, 'mire_gate');
+      _act(game, plant, 'mire_gate', stoneAt(game));
+      expect(game.bog.field.sarsenKnoll, kSarsenSocketKnoll);
+    });
+
+    test('a carried stone waits beside a sinking altar', () {
+      final earned = <int>[];
+      final game = _harness(_idealTrio(), onStar: earned.add);
+      game.entryDoorRevealed = true;
+      _drag(game, 'add_head', 'mire_gate');
+      _drag(game, 'cor_neck', 'reed_knoll');
+      _act(game, plant, 'mire_gate', stoneAt(game));
+      expect(game.bog.field.sarsenKnoll, kSarsenSocketKnoll);
+      expect(game.bog.field.sarsenSeated, isFalse, reason: 'the knoll swims');
+      expect(earned, isNot(contains(0)));
+    });
+
+    test('THE AUTHORED SOLUTION: carry, heave, drain — the star', () {
       final earned = <int>[];
       final game = _harness(_idealTrio(), onStar: earned.add);
       game.entryDoorRevealed = true;
 
-      // The same four crossings the choir demanded: THE CHOIR TELLS YOU THE
-      // ROAD. One drag each, then one haul each, knoll to knoll.
-      const legs = [
-        ('tarn_head', 'mire_gate', 'sedge_knoll'),
-        ('cor_tail', 'sedge_knoll', 'lotus_knoll'),
-        ('add_tail', 'lotus_knoll', 'cairn_knoll'),
-        ('tarn_tail', 'cairn_knoll', 'altar_knoll'),
-      ];
-      for (final (ford, from, to) in legs) {
-        _drag(game, ford, from);
-        _act(game, mud, from, _ford(ford).headIn(from)!); // the haul
-        expect(game.bog.field.sarsenKnoll, to, reason: ford);
-      }
+      // 1. Any road — the choir's long one, which also dries the basins.
+      _drag(game, 'tarn_head', 'mire_gate');
+      _drag(game, 'cor_tail', 'sedge_knoll');
+      _drag(game, 'add_tail', 'lotus_knoll');
+      _drag(game, 'tarn_tail', 'cairn_knoll');
+      _act(game, plant, 'mire_gate', stoneAt(game));
+      expect(game.bog.field.sarsenKnoll, kSarsenSocketKnoll);
+      expect(earned, isNot(contains(0)));
 
-      final altar = game.layout.rooms['altar_knoll']!.fen!.altar!;
-      // The socket's resin cap: Plant+Mud→Poison, the planet's own braid.
-      _act(game, plant, 'altar_knoll', altar.cap);
-      expect(game.bog.field.socketOpen, isTrue);
-      _act(game, mud, 'altar_knoll', altar.socket);
+      // 2. The heave takes the roads back and leaves the stone.
+      final fane = game.layout.rooms['drowned_fane']!;
+      _act(game, mud, 'drowned_fane', fane.fen!.sough!);
+      expect(game.bog.field.hardened, isEmpty);
+      expect(game.bog.field.sarsenKnoll, kSarsenSocketKnoll);
+
+      // 3. Drain the altar's knoll; the last drag seats it.
+      _drag(game, 'add_neck', 'altar_knoll');
+      _drag(game, 'cor_neck', 'altar_knoll');
+      expect(game.bog.field.sarsenSeated, isFalse);
+      _drag(game, 'tarn_tail', 'altar_knoll');
       expect(game.bog.field.sarsenSeated, isTrue);
       expect(earned, contains(0));
+      expect(game.progressReadout?.label, isNot('ALTAR'));
     });
 
-    test('the socket refuses a lone hand — the braid is the only key', () {
-      final game = _harness([
-        _member(0, 'Mud', 'mane'),
-        _member(1, 'Water', 'mask'),
-        _member(2, 'Water', 'pip'),
-      ]);
-      final altar = game.layout.rooms['altar_knoll']!.fen!.altar!;
-      _act(game, 0, 'altar_knoll', altar.cap);
-      expect(game.bog.field.socketOpen, isFalse);
+    test('pressing the waiting stone says what it waits for', () {
+      final game = _harness(_idealTrio());
+      game.entryDoorRevealed = true;
+      _drag(game, 'add_head', 'mire_gate');
+      _drag(game, 'cor_neck', 'reed_knoll');
+      _act(game, plant, 'mire_gate', stoneAt(game));
+      _act(game, mud, 'altar_knoll', stoneAtAltar(game));
+      game.askForRoomHint();
+      expect(game.hintText?.toLowerCase(), contains('dry'));
+      expect(game.progressReadout?.label, 'ALTAR');
+    });
+  });
+
+  group('WHAT A STAR DID STAYS DONE', () {
+    test('a banked Moor Star keeps its basins through the heave and after', () {
+      final game = _harness(_idealTrio());
+      game.entryDoorRevealed = true;
+      for (final (ford, knoll) in [
+        ('tarn_head', 'mire_gate'),
+        ('cor_tail', 'sedge_knoll'),
+        ('add_tail', 'lotus_knoll'),
+        ('tarn_tail', 'cairn_knoll'),
+      ]) {
+        _drag(game, ford, knoll);
+      }
+      for (final k in kMoorKnollIds) {
+        final moor = game.layout.rooms[k]!.fen!.moor!;
+        game.bog.field.moorsWoken.add(k); // (the pours; tested elsewhere)
+        expect(moor, isNotNull);
+      }
+      game.earnStar(1);
+      final fane = game.layout.rooms['drowned_fane']!;
+      _act(game, mud, 'drowned_fane', fane.fen!.sough!);
+      expect(game.bog.field.hardened, isEmpty, reason: 'the roads reset');
+      expect(
+        game.bog.field.moorsWoken,
+        containsAll(kMoorKnollIds),
+        reason: 'the basins do not',
+      );
+      // A later drag that leaves a moor knoll wet does not empty it either.
+      _drag(game, 'cor_neck', 'reed_knoll');
+      expect(game.bog.field.moorsWoken, containsAll(kMoorKnollIds));
+    });
+
+    test('a seated stone stays seated through the heave', () {
+      final game = _harness(_idealTrio());
+      game.bog.field
+        ..sarsenKnoll = kSarsenSocketKnoll
+        ..sarsenSeated = true;
+      final fane = game.layout.rooms['drowned_fane']!;
+      _act(game, mud, 'drowned_fane', fane.fen!.sough!);
+      expect(game.bog.field.sarsenSeated, isTrue);
+      expect(game.bog.field.sarsenKnoll, kSarsenSocketKnoll);
+    });
+  });
+
+  group('THE RITE — both stars open the hollow', () {
+    test('two stars wake Bogdrya and the fane door opens', () {
+      final game = _harness(_idealTrio());
+      final fane = game.layout.rooms['drowned_fane']!;
+      final down = fane.doors.firstWhere(
+        (d) => d.targetRoomId == 'bogdrya_hollow',
+      );
+      game.currentRoomId = 'drowned_fane';
+      game.earnStar(1);
+      game.update(1 / 60);
+      expect(game.isDoorLocked(fane, down), isTrue, reason: 'one star');
+      game.earnStar(0);
+      game.update(1 / 60);
+      expect(game.guardianAwake, isTrue);
+      expect(
+        game.isDoorLocked(fane, down),
+        isFalse,
+        reason: 'two stars held and the hollow still would not open — the '
+            'bug from the first device run',
+      );
+    });
+  });
+
+  group('THE HINTS SAY "NEVER" WHEN THEY MEAN IT', () {
+    test('a basin on a knoll that can never dry says so, not "not yet"', () {
+      final game = _harness(_idealTrio());
+      game.entryDoorRevealed = true;
+      final sedge = game.layout.rooms['sedge_knoll']!.fen!.moor!.basin;
+
+      // Not yet: the knoll is merely wet.
+      _act(game, water, 'sedge_knoll', sedge);
+      game.askForRoomHint();
+      expect(game.hintText?.toLowerCase(), isNot(contains('never')));
+
+      // Never: cor_neck drowns cor_tail, one of Sedge's own crossings.
+      _drag(game, 'cor_neck', 'reed_knoll');
+      _act(game, water, 'sedge_knoll', sedge);
+      game.askForRoomHint();
+      expect(game.hintText?.toLowerCase(), contains('never'));
+      // And the reading, asked for again, names the way out.
+      game.askForRoomHint();
+      expect(game.hintText?.toLowerCase(), contains('plug'));
+    });
+
+    test('a second HINT press shows the next line at once', () {
+      // HINT → the refusal; HINT again used to show NOTHING until the
+      // refusal timed out, because a live refusal outranked the reading.
+      final game = _harness(_idealTrio());
+      game.entryDoorRevealed = true;
+      final sough = game.layout.rooms['drowned_fane']!.fen!.sough!;
+      _act(game, water, 'drowned_fane', sough); // refused: not Mud
+      game.askForRoomHint();
+      final first = game.hintText;
+      expect(first, isNotNull);
+      game.askForRoomHint();
+      expect(game.hintText, isNotNull);
+      expect(game.hintText, isNot(first));
     });
   });
 
@@ -583,7 +756,8 @@ void main() {
       }
     });
 
-    test('the sough opens the way up, and climbing it HEAVES the fen', () {
+    test('pulling the plug HEAVES the fen there and then, and opens the '
+        'way up', () {
       final game = _harness(_idealTrio());
       game.entryDoorRevealed = true;
       _drag(game, 'add_neck', 'hag_knoll');
@@ -597,11 +771,14 @@ void main() {
       expect(game.isDoorLocked(fane, up), isTrue, reason: 'the roof is shut');
 
       _act(game, mud, 'drowned_fane', fane.fen!.sough!);
+      // The reset is the plug, not the climb: still standing in the fane.
+      expect(game.currentRoomId, 'drowned_fane');
+      expect(game.bog.field.heaves, 1);
       expect(game.bog.field.soughFreed, isTrue);
       expect(game.isDoorLocked(fane, up), isFalse);
 
       game.onBogTransitForTest(fane, up);
-      expect(game.bog.field.heaves, 1);
+      expect(game.bog.field.heaves, 1, reason: 'climbing out is not another');
       expect(game.bog.field.hardened, isEmpty, reason: 'the price is the map');
       expect(game.bog.field.sarsenKnoll, kSarsenHomeKnoll);
       for (final ford in kBogFords) {
@@ -609,27 +786,47 @@ void main() {
       }
     });
 
-    test('THE HEAVE IS SPOKEN on the arrival it happens on', () {
-      // The Ice precedent, same cause: the line was set by the transit hook
-      // and wiped by `_clearHints()` one line later inside the same
-      // `passThroughDoor`, so the fen's one world-scale act was silent and
-      // the player found out by looking at a map they no longer had.
+    test('THE HEAVE IS SPOKEN the moment the plug comes out', () {
+      // A world-scale act the player caused has to be said when it happens,
+      // not left for them to discover by looking at a map they no longer
+      // have (the Ice precedent).
       final game = _harness(_idealTrio());
       game.entryDoorRevealed = true;
       game.beginRun(); // spend any one-time teach first
       _drag(game, 'add_neck', 'hag_knoll');
       final fane = game.layout.rooms['drowned_fane']!;
-      final up = fane.doors.firstWhere((d) => d.targetRoomId == 'mire_gate');
       game.currentRoomId = 'drowned_fane';
       game.setActive(mud);
       _act(game, mud, 'drowned_fane', fane.fen!.sough!);
+      expect(game.hintText, contains('resets'));
+    });
 
-      game.passThroughDoor(up);
-      expect(game.currentRoomId, 'mire_gate');
+    test('THE PLUG PLAYS THE HEAVE, and each knoll settles once after it',
+        () {
+      final game = _harness(_idealTrio());
+      game.entryDoorRevealed = true;
+      final fane = game.layout.rooms['drowned_fane']!;
+      game.currentRoomId = 'drowned_fane';
+      _act(game, mud, 'drowned_fane', fane.fen!.sough!);
+      expect(game.bog.heaveFx, greaterThanOrEqualTo(0));
+
+      // Up onto a knoll: it settles, once.
+      game.currentRoomId = 'mire_gate';
+      game.update(1 / 60);
+      expect(game.bog.settleRoom, 'mire_gate');
+      expect(game.bog.settleFx, greaterThanOrEqualTo(0));
+      for (var i = 0; i < 60 * 4; i++) {
+        game.update(1 / 60);
+      }
+      expect(game.bog.settleFx, lessThan(0), reason: 'it finishes');
+      game.currentRoomId = 'hag_knoll';
+      game.update(1 / 60);
+      game.currentRoomId = 'mire_gate';
+      game.update(1 / 60);
       expect(
-        game.hintText,
-        contains('heaves'),
-        reason: 'the room named itself over the top of the heave',
+        game.bog.settleRoom,
+        'hag_knoll',
+        reason: 'the gate already settled; walking back does not replay it',
       );
     });
 
@@ -738,9 +935,9 @@ void main() {
 
     test('THE STONE ANSWERS A PRESS, instead of doing nothing at all', () {
       // Walking up to the big stone and pressing is the first thing anybody
-      // does on this planet. The haul is worked at a CROSSING, so that press
-      // used to fall through to the wordless element puff — silence, at the
-      // one object the whole star is about.
+      // does on this planet. It once fell through to the wordless element
+      // puff — silence, at the one object the whole star is about. A hand
+      // that cannot carry it now says who can.
       final game = _harness(_idealTrio())..entryDoorRevealed = true;
       final hints = <String>[];
       game.currentRoomId = 'mire_gate';
@@ -767,26 +964,23 @@ void main() {
       expect(game.refusalFlash, greaterThan(0));
       game.askForRoomHint();
       hints.add(game.hintText ?? '');
-      expect(hints.single.toLowerCase(), contains('road'));
+      expect(hints.single.toLowerCase(), contains('plant'));
     });
 
-    test('the readout tracks the HAUL, and knows when there is no road', () {
+    test('the readout says whether the road is whole', () {
       final game = _harness(_idealTrio())..entryDoorRevealed = true;
       game.currentRoomId = 'mire_gate';
-      expect(game.progressReadout?.label, 'SARSEN');
-      expect(
-        game.progressReadout?.value,
-        'no road',
-        reason: 'an unbuilt fen has no road home, and should say so',
-      );
+      expect(game.progressReadout?.label, 'ROAD');
+      expect(game.progressReadout?.value, 'broken');
 
-      // The authored southern road, one crossing at a time.
       _drag(game, 'tarn_head', 'mire_gate');
-      expect(game.progressReadout?.value, 'no road');
       _drag(game, 'tarn_tail', 'altar_knoll');
       // tarn_head joins the gate to sedge; tarn_tail joins altar to cairn.
       // Still nothing continuous between the stone and the socket.
-      expect(game.progressReadout?.value, 'no road');
+      expect(game.progressReadout?.value, 'broken');
+      _drag(game, 'cor_tail', 'sedge_knoll');
+      _drag(game, 'add_tail', 'lotus_knoll');
+      expect(game.progressReadout?.value, 'whole');
     });
   });
 
@@ -854,7 +1048,7 @@ void main() {
       expect(game.bog.field.hardened, contains('tarn_head'));
     });
 
-    test('THE HEAVE RE-PLUGS THE SOUGH, which is what makes the arrival '
+    test('CLIMBING OUT RE-PLUGS THE SOUGH, which is what makes the arrival '
         'safe at all', () {
       final game = _harness(_idealTrio());
       final fane = game.layout.rooms['drowned_fane']!;
@@ -868,8 +1062,8 @@ void main() {
         game.bog.field.soughFreed,
         isFalse,
         reason:
-            'if a heave left the sough open, the next wallow down would '
-            'drop you onto an OPEN hatch and heave again on its own',
+            'if climbing out left the sough open, the next wallow down would '
+            'drop you onto an OPEN hatch and carry you straight back up',
       );
     });
   });

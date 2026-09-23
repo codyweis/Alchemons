@@ -165,8 +165,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         'Companion visuals loaded: alchemy=${visuals?.alchemyEffect} variant=${visuals?.variantFaction} tint=${visuals?.tint}',
       );
       // Fit sprite into ~48px box, then apply species + 30% scale (sized up
-      // another 30% again per design request).
-      final desiredSize = 62.4;
+      // another 30%, then another 20% again per design request).
+      final desiredSize = 74.88;
       final sx = desiredSize / sheet.frameSize.x;
       final sy = desiredSize / sheet.frameSize.y;
       final specScale = activeCompanions[slotIndex]?.speciesScale ?? 1.3;

@@ -17,6 +17,7 @@
 // The rest pins the scale rule, the bed trade, the two hard gates, the vault
 // trick and the guardian.
 
+import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
@@ -57,6 +58,7 @@ PlanetDungeonGame harness(
   List<CosmicPartyMember> party, {
   void Function(int)? onStar,
   void Function(String)? onCloud,
+  void Function(SoundCue)? onSound,
 }) {
   final game = PlanetDungeonGame(
     element: 'Plant',
@@ -64,6 +66,7 @@ PlanetDungeonGame harness(
     initialStarMask: 0,
     onStarEarned: onStar ?? (_) {},
     onCloudDiscovered: onCloud,
+    onSound: onSound,
     onPlayerDown: () => fail('the scripted run must never wipe'),
     onChanged: () {},
   );
@@ -330,14 +333,14 @@ void main() {
       // Large: the flagstone gap is a hairline.
       g.entryDoorRevealed = true;
       expect(g.isDoorLocked(porch, flagGap), isTrue);
-      expect(doorHint(g, 'root_porch', flagGap), contains('Too big'));
+      expect(doorHint(g, 'root_porch', flagGap), contains('too big'));
       g.crypt.scale = PlantScale.tiny;
       expect(g.isDoorLocked(porch, flagGap), isFalse);
       // …and now the arch is fine but the rill is a river.
       final walk = layout.rooms['mosswalk']!;
       final rill = walk.doors.singleWhere((d) => d.targetRoomId == 'islet');
       expect(g.isDoorLocked(walk, rill), isTrue);
-      expect(doorHint(g, 'mosswalk', rill), contains('Too small'));
+      expect(doorHint(g, 'mosswalk', rill), contains('too small'));
     });
   });
 
@@ -366,7 +369,7 @@ void main() {
       );
       g.entryDoorRevealed = true;
       expect(g.isDoorLocked(gallery, wormRun), isTrue);
-      expect(doorHint(g, 'fern_gallery', wormRun), contains('Grown shut'));
+      expect(doorHint(g, 'fern_gallery', wormRun), contains('trunk has grown over'));
       // And the bed will not take a second seed, at either size.
       g.crypt.scale = PlantScale.huge;
       act(g, plant, 'fern_gallery', bedOf('b_root'));
@@ -620,7 +623,7 @@ void main() {
       act(g, mud, 'mosswalk', pit);
       expect(g.crypt.armedPitRoom, isNull, reason: 'nothing to turn');
       g.askForRoomHint();
-      expect(g.hintText, contains('fallow'));
+      expect(g.hintText, contains('Nothing to reset'));
     });
 
     test('a banked star survives the season', () {
@@ -711,35 +714,141 @@ void main() {
     });
   });
 
-  group('the lost maxim — THE UNSEEN SHADE', () {
-    test(
-      'tend it small with all three, then look at it from your own size',
-      () {
-        var clouds = <String>[];
-        final g = harness(_idealTrio(), onCloud: clouds.add);
-        final seed = layout.rooms['fern_gallery']!.grove!.shadeSeed!;
-        // A large body cannot even see under the root.
-        act(g, mud, 'fern_gallery', seed);
-        expect(g.crypt.tendedBy, isEmpty);
-        g.crypt.scale = PlantScale.tiny;
-        act(g, mud, 'fern_gallery', seed);
-        act(g, light, 'fern_gallery', seed);
-        act(g, plant, 'fern_gallery', seed);
-        expect(g.crypt.tendedBy.length, 3);
-        expect(clouds, isNot(contains(kPlantUnseenShadeEggId)));
-        // And it only towers for someone who can stand back and look.
-        act(g, plant, 'fern_gallery', seed);
-        expect(clouds, isNot(contains(kPlantUnseenShadeEggId)));
-        g.crypt.scale = PlantScale.huge;
-        act(g, plant, 'fern_gallery', seed);
-        // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
-        for (var tick = 0; tick < 200; tick++) {
-          g.update(1 / 60);
-        }
-        expect(clouds, contains(kPlantUnseenShadeEggId));
-        expect(g.crypt.shadeRisen, isTrue);
-      },
-    );
+  group('the lost maxim — THE UNSEEN SHADE · the shade the trap throws', () {
+    // The §7 maxim standard: a CHAIN — grow the giant root's trunk (the
+    // trap), tend the seed in its shade the altar's three ways in the
+    // altar's order, come back at your own size to look.
+    final seed = layout.rooms['fern_gallery']!.grove!.shadeSeed!;
+
+    test('nothing is there until the bough throws its shade', () {
+      final g = harness(_idealTrio())..entryDoorRevealed = true;
+      g.crypt.scale = PlantScale.tiny;
+      act(g, mud, 'fern_gallery', seed);
+      expect(g.crypt.shadeStep, 0);
+      expect(g.hintHasAnswer, isTrue);
+      g.askForRoomHint();
+      expect(g.hintText, contains('Nothing here throws shade'));
+    });
+
+    test('the shade is THE TRAP — the giant root\'s trunk', () {
+      final g = harness(_idealTrio())..entryDoorRevealed = true;
+      g.crypt.scale = PlantScale.tiny;
+      act(g, plant, 'fern_gallery', bedOf('b_root'));
+      expect(g.crypt.stateOf('b_root'), VineState.trunk);
+      expect(g.shadeThrown, isTrue);
+      // The price the whole planet warns you off: the small road to the
+      // islet is gone, and so is the worm-run.
+      expect(
+        g.crypt.spanExists(cryptSpanBetween('fern_gallery', 'islet')!),
+        isFalse,
+      );
+      expect(
+        g.crypt.spanExists(cryptSpanBetween('fern_gallery', 'crypt_niche')!),
+        isFalse,
+      );
+    });
+
+    test('a huge body cannot tend it, and the order is the altar\'s', () {
+      final g = harness(_idealTrio())..entryDoorRevealed = true;
+      g.crypt.scale = PlantScale.tiny;
+      act(g, plant, 'fern_gallery', bedOf('b_root'));
+      g.crypt.scale = PlantScale.huge;
+      act(g, mud, 'fern_gallery', seed);
+      expect(g.crypt.shadeStep, 0);
+      g.crypt.scale = PlantScale.tiny;
+      // Out of order: a puff and a sentence, nothing spent.
+      act(g, light, 'fern_gallery', seed);
+      act(g, plant, 'fern_gallery', seed);
+      expect(g.crypt.shadeStep, 0);
+      act(g, mud, 'fern_gallery', seed);
+      expect(g.crypt.shadeStep, 1);
+      act(g, light, 'fern_gallery', seed);
+      expect(g.crypt.shadeStep, 1);
+      act(g, plant, 'fern_gallery', seed);
+      expect(g.crypt.shadeStep, 2);
+      act(g, light, 'fern_gallery', seed);
+      expect(g.crypt.shadeStep, 3);
+      expect(g.crypt.shadeTended, isTrue);
+    });
+
+    test('THE CHAIN, and the look from your own size pays out', () {
+      final clouds = <String>[];
+      final g = harness(_idealTrio(), onCloud: clouds.add)
+        ..entryDoorRevealed = true;
+      g.crypt.scale = PlantScale.tiny;
+      act(g, plant, 'fern_gallery', bedOf('b_root'));
+      for (final idx in [mud, plant, light]) {
+        act(g, idx, 'fern_gallery', seed);
+      }
+      // Small, it towers unseen.
+      act(g, plant, 'fern_gallery', seed);
+      expect(g.riteActive, isFalse);
+      // The porch gall is the small body's way back to its own size.
+      act(g, plant, 'root_porch', layout.rooms['root_porch']!.grove!.bole!);
+      expect(g.crypt.isTiny, isFalse);
+      act(
+        g,
+        mud,
+        'fern_gallery',
+        seed,
+      ); // the wrong hand sees it, and that is all
+      expect(g.riteActive, isFalse);
+      act(g, plant, 'fern_gallery', seed);
+      expect(g.riteActive, isTrue);
+      for (var tick = 0; tick < 300; tick++) {
+        g.update(1 / 60);
+      }
+      expect(clouds, contains(kPlantUnseenShadeEggId));
+      expect(g.crypt.shadeRisen, isTrue);
+    });
+
+    test('the withering takes the shade but not the tending', () {
+      final g = harness(_idealTrio())..entryDoorRevealed = true;
+      g.crypt.scale = PlantScale.tiny;
+      act(g, plant, 'fern_gallery', bedOf('b_root'));
+      act(g, mud, 'fern_gallery', seed);
+      g.crypt.wither();
+      expect(g.shadeThrown, isFalse);
+      expect(g.crypt.shadeStep, 1);
+    });
+
+    test('the star path never passes it', () {
+      // The authored descent grows b_root as a CREEPER (planted huge), and no
+      // star wants the trunk.
+      final g = harness(_idealTrio())..entryDoorRevealed = true;
+      act(g, plant, 'fern_gallery', bedOf('b_root'));
+      expect(g.crypt.stateOf('b_root'), VineState.creeper);
+      expect(g.shadeThrown, isFalse);
+    });
+  });
+
+  group('the crypt is AUDIBLE', () {
+    test('every beat of the crypt speaks', () {
+      final heard = <SoundCue>[];
+      final g = harness(_idealTrio(), onSound: heard.add);
+      act(
+        g,
+        plant,
+        'root_porch',
+        layout.rooms['root_porch']!.grove!.briarGate!,
+      );
+      expect(heard, contains(SoundCue.dungeonGateOpen));
+      heard.clear();
+      act(g, plant, 'root_porch', layout.rooms['root_porch']!.grove!.bole!);
+      expect(heard, contains(SoundCue.dungeonSwitch));
+      heard.clear();
+      g.crypt.scale = PlantScale.huge;
+      act(g, light, 'mosswalk', lampOf('lamp_walk'));
+      expect(heard, contains(SoundCue.elementLight));
+      heard.clear();
+      act(g, plant, 'fern_gallery', bedOf('b_root'));
+      expect(heard, contains(SoundCue.elementPlant));
+      heard.clear();
+      final pit = layout.rooms['fern_gallery']!.grove!.mulchPit!;
+      act(g, mud, 'fern_gallery', pit);
+      act(g, mud, 'fern_gallery', pit);
+      expect(heard, contains(SoundCue.dungeonWallBreak));
+    });
   });
 
   group('the descent', () {

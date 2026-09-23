@@ -352,10 +352,9 @@ void main() {
       game.askForRoomHint();
       expect(
         game.hintText,
-        contains('Incorrect placement'),
+        contains('Wrong cloud'),
         reason: 'the wisp-wave hint must not stomp the placement feedback',
       );
-      game.askForRoomHint();
       expect(
         game.hintText,
         contains(wrongAnchor.clue),
@@ -577,6 +576,72 @@ void main() {
         expect(fields, greaterThan(0), reason: 'orbs bloom into shock fields');
       },
     );
+
+    test('every active Kin signature starts in a dungeon', () {
+      const timed = <String>[
+        'Lava',
+        'Ice',
+        'Steam',
+        'Lightning',
+        'Dark',
+        'Blood',
+        'Mud',
+      ];
+      for (final element in timed) {
+        final game = buildParty([(element, 'kin'), ('Air', 'wing')]);
+        final comp = game.combatCompanions.first;
+        comp.specialCooldown = 0;
+        game.spawnWispWave(
+          element: 'Air',
+          center: game.creatures.first.position + const Offset(100, 0),
+          count: 1,
+        );
+        _toughen(game);
+
+        expect(game.activateCombatAbility(), isTrue, reason: element);
+        final active = switch (element) {
+          'Lava' => comp.kinLavaPlateTimer,
+          'Ice' => comp.kinIceChargeTimer,
+          'Steam' => comp.kinSteamBoilerTimer,
+          'Lightning' => comp.kinLightningChargeTimer,
+          'Dark' => comp.kinDarkCloakTimer,
+          'Blood' => comp.kinBloodPactTimer,
+          'Mud' => comp.kinMudShipEnchantTimer,
+          _ => 0.0,
+        };
+        expect(active, greaterThan(0), reason: '$element spent an empty cast');
+      }
+
+      for (final element in const ['Dust', 'Earth', 'Spirit']) {
+        final game = buildParty([(element, 'kin'), ('Air', 'wing')]);
+        game.combatCompanions.first.specialCooldown = 0;
+        game.spawnWispWave(
+          element: 'Air',
+          center: game.creatures.first.position + const Offset(100, 0),
+          count: 1,
+        );
+        _toughen(game);
+        expect(game.activateCombatAbility(), isTrue, reason: element);
+        expect(
+          game.combatProjectiles.any(
+            (p) => p.abilityFamily == 'kin' && p.element == element,
+          ),
+          isTrue,
+          reason: '$element spent an empty cast',
+        );
+      }
+    });
+
+    test('Fire Kin phoenix saves a teammate rather than reviving itself', () {
+      final game = buildParty([('Fire', 'kin'), ('Air', 'wing')]);
+      final fireKin = game.combatCompanions.first;
+      game.creatures[1].hp = 0;
+
+      game.update(1 / 60);
+
+      expect(game.creatures[1].hp, greaterThan(0));
+      expect(fireKin.kinFireOrbitalFlameActive, isTrue);
+    });
   });
 
   group('auto-targeting', () {
@@ -797,7 +862,6 @@ void main() {
       );
       game.askForRoomHint();
       expect(game.hintText, contains('storm'));
-      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
     });
   });
@@ -914,7 +978,7 @@ void main() {
         reason: 'a sealed door must not transition',
       );
       game.askForRoomHint();
-      expect(game.hintText, contains('sealed'));
+      expect(game.hintText, contains('stays shut'));
 
       // One star — either one — is not enough.
       game.earnStar(1);

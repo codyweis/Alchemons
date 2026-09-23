@@ -154,11 +154,6 @@ class DustMound {
   /// layout test pins that.
   final List<String> neighbours;
 
-  /// An ancient footprint pressed into the floor of the building below, shown
-  /// the moment this mound is BARED. Sweeping every one of them is the Lost
-  /// Maxim (see the module). Null = no print here.
-  final Offset? footprintPos;
-
   const DustMound({
     required this.id,
     required this.roomId,
@@ -169,8 +164,12 @@ class DustMound {
     this.cellarRoomId,
     this.rampRoomId,
     this.pressedRoomId,
-    this.footprintPos,
   });
+
+  /// The survey mark cut into this mound's peg — and into its pit's plate in
+  /// the granary. The same mark in both places is what lets the Lost Maxim
+  /// be read without a word (see [kDustTally]).
+  int get glyph => kDustMounds.indexWhere((m) => m.id == id);
 }
 
 /// Sablis's five mounds, west to east. Every one starts BURIED (1 load), so
@@ -186,7 +185,6 @@ const List<DustMound> kDustMounds = [
     crossTo: 'seal_street',
     cellarRoomId: 'granary',
     neighbours: ['m_agora'],
-    footprintPos: Offset(430, 388),
   ),
   // The agora. No cellar — but heaped, its dune is the climb to the terrace.
   DustMound(
@@ -197,7 +195,6 @@ const List<DustMound> kDustMounds = [
     crossTo: 'roof_walk',
     rampRoomId: 'high_terrace',
     neighbours: ['m_gate', 'm_roof', 'm_kiln'],
-    footprintPos: Offset(790, 360),
   ),
   // THE OBSERVATORY ROOF. Star 1's whole trade lives on this one square: its
   // paving is the street's only bridge to the court, and its underside is the
@@ -210,7 +207,6 @@ const List<DustMound> kDustMounds = [
     crossTo: 'sand_court',
     cellarRoomId: 'observatory',
     neighbours: ['m_agora', 'm_bump'],
-    footprintPos: Offset(250, 388),
   ),
   // THE ROOF BUMP (the vault). Carries no street and hides no ramp: bare it
   // and you have uncovered nothing but tiles. Heap it and the weight cracks
@@ -231,7 +227,6 @@ const List<DustMound> kDustMounds = [
     crossTo: 'sand_court',
     cellarRoomId: 'kiln_cellar',
     neighbours: ['m_agora', 'm_bump'],
-    footprintPos: Offset(360, 340),
   ),
 ];
 
@@ -251,6 +246,31 @@ List<DustMound> dustMoundsIn(String roomId) => [
 
 /// Loads in the city at the opening of a run: one per mound.
 const int kDustCityLoads = 5;
+
+// ─────────────────────────────────────────────────────────
+// THE LOST MAXIM — NOTHING PERISHES (the granary's tally)
+// ─────────────────────────────────────────────────────────
+
+/// THE DEAD'S LAST COUNT OF THE CITY, kept as grain in the granary's five
+/// pits — one pit per mound, marked with the mound's own survey glyph.
+///
+/// It is NOT the city as its dead left it (that is the opening ledger, one
+/// load everywhere). It is how the dust lay when they took the count, and
+/// laying the streets back to it is the secret: the observatory's roof
+/// DRIFTED — the one thing Star 1 spends the whole room telling you not to
+/// do, and a state that costs you that star until the sirocco — the kiln
+/// bared, the agora bared, the bump heaped (so the vault cracks as a side
+/// effect). Conservation holds (it sums to [kDustCityLoads]) and exactly one
+/// pair of digs reaches it, in exactly one order: the kiln onto the bump
+/// first, because once the agora is bared the terrace cannot be reached at
+/// all. Pinned in `test/planet_dungeon_dust_ruins_test.dart`.
+const Map<String, int> kDustTally = {
+  'm_gate': 1,
+  'm_agora': 0,
+  'm_roof': 2,
+  'm_bump': 2,
+  'm_kiln': 0,
+};
 
 // ─────────────────────────────────────────────────────────
 // STAR 0 — THE THREE SEALS (the drift field)
@@ -394,8 +414,10 @@ class RuinsOfTime {
   /// the provenance to shovel it back (§7: the guardian fights WITH the rule).
   final Map<String, String> spoilFrom = {};
 
-  /// Footprints already swept away (the Lost Maxim).
-  final Set<String> sweptPrints = {};
+  /// Granary pits the wind has been blown across while the city agreed with
+  /// them (the Lost Maxim). A pit is LIT while it is in here AND its mound
+  /// still stands at the dead's count — the read is live, like the ledger.
+  final Set<String> tallyLit = {};
 
   /// How many times the sirocco has been called. A readout, and the price tag
   /// on the anti-strand valve.
@@ -417,7 +439,7 @@ class RuinsOfTime {
     hollowPit = 0;
     hollowBank = kHollowLoads;
     spoilFrom.clear();
-    sweptPrints.clear();
+    tallyLit.clear();
     levellings = 0;
     armedVaneRoom = null;
     armedVaneTimer = 0;
@@ -613,6 +635,15 @@ class DustRuins {
   /// Ashdjinn's open cut. Held bare, it is the fight's whole verb (§7).
   final Offset? hollowCut;
 
+  /// The granary's five grain pits, in [kDustMounds] order — the Lost Maxim's
+  /// tally (see [kDustTally]). AIR blown across a pit whose mound stands at
+  /// the dead's count lights it; five lit at once is the secret.
+  final List<Offset>? tallyPits;
+
+  /// Where the maxim's rite plays out when the five pits agree: the granary's
+  /// measuring cist.
+  final Offset? tallyCist;
+
   const DustRuins({
     this.starIndex,
     this.field,
@@ -621,6 +652,8 @@ class DustRuins {
     this.armillary,
     this.glassCourt,
     this.hollowCut,
+    this.tallyPits,
+    this.tallyCist,
   });
 }
 
@@ -639,14 +672,12 @@ const DungeonLayout dustLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Seal Star',
       earnAnnouncement:
-          'The Seal Star is yours, three bronzes bare at once, and the '
-          'street holds',
+          'The Seal Star is yours. All three seals are uncovered',
     ),
     DungeonStarSpec(
       name: 'Armillary Star',
       earnAnnouncement:
-          'The Armillary Star is yours, the sky comes down through the roof '
-          'you took',
+          'The Armillary Star is yours. The armillary can see the sky',
     ),
     DungeonStarSpec(name: 'Ash Star'),
   ],
@@ -654,12 +685,11 @@ const DungeonLayout dustLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('ashen_gate', 'seal_street'),
   finaleDoor: DungeonDoorRef('sand_court', 'ashdjinn_hollow'),
   riteAnnouncement:
-      'Seal and Armillary are won, the great glass grinds loose in the court',
+      'Seal and Armillary are won. The great glass in the court comes loose',
   finaleSealedHint:
-      'The court is shut, it answers only the Seal and Armillary stars',
+      'The court stays shut until you have the Seal and Armillary stars',
   guardianSealedHint:
-      'The hollow lies drifted over, nothing in there stirs until the glass '
-      'is turned',
+      'Ashdjinn won\'t wake until the great glass is turned',
   mercyShrineRoomId: 'undercity',
   // Ideal: Dustmask · Airwing · Earthhorn — hinted by VERB, never body part
   // (§4): the sight that reads ash, the one the ground cannot keep, and the
@@ -670,8 +700,8 @@ const DungeonLayout dustLayout = DungeonLayout(
     'and Earth, with any Horn, to shoulder through a wall that was never there.',
   ],
   primer: [
-    'Nothing is created here. Dig one mound and a neighbour rises.',
-    'How buried a thing is decides which deck you are standing on.',
+    'Sand you dig has to go somewhere. Dig one mound and a neighbour rises.',
+    'A dug-out street opens a way down. A heaped one opens a way up.',
   ],
   // §4 budget: TWO hard gates, one per star that has one, each on a different
   // entry slot. Star 0 (the three seals) is deliberately UNGATED and uses all
@@ -684,13 +714,13 @@ const DungeonLayout dustLayout = DungeonLayout(
       objectId: 'armillary',
       element: kAnyElement,
       family: 'Wing',
-      hintLine: 'Only Air borne on wings crosses a roofless span',
+      hintLine: 'Only an Air Wing can fly across this gap',
     ),
     DungeonFamilyGate(
       objectId: 'A',
       element: kAnyElement,
       family: 'Horn',
-      hintLine: 'Only an Earth horn puts a shoulder through this wall',
+      hintLine: 'Only an Earth Horn can break through this wall',
     ),
   ],
   rooms: {
@@ -915,7 +945,13 @@ const DungeonLayout dustLayout = DungeonLayout(
       ],
     ),
 
-    // ── EXCAVATION · THE GRANARY ──────────────────────────
+    // ── EXCAVATION · THE GRANARY (the Lost Maxim) ─────────
+    // The store under the gate square, and the one room on the planet that
+    // COUNTS. Five grain pits, one per mound, each holding the dead's last
+    // count of that square's dust (see kDustTally); a cist in the floor
+    // between them and the tunnel door. Always reachable — by the hole
+    // through the gate square, or from the undercity, whose tunnels never
+    // close — so the secret is never behind a route that can be lost.
     'granary': DungeonRoom(
       id: 'granary',
       bounds: Rect.fromLTWH(0, 0, 460, 340),
@@ -931,6 +967,16 @@ const DungeonLayout dustLayout = DungeonLayout(
           targetSpawn: Offset(195, 120),
         ),
       ],
+      ruins: DustRuins(
+        tallyPits: [
+          Offset(70, 205), // m_gate
+          Offset(150, 205), // m_agora
+          Offset(230, 205), // m_roof
+          Offset(310, 205), // m_bump
+          Offset(390, 205), // m_kiln
+        ],
+        tallyCist: Offset(390, 285),
+      ),
     ),
 
     // ── EXCAVATION · THE OBSERVATORY (Star 1) ─────────────

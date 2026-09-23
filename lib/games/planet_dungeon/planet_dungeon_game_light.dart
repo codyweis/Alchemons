@@ -32,9 +32,13 @@
 //    glare sweeps its own floor, nothing can touch it from inside the glare,
 //    and its lull exists only for a party standing in the shadow one of the
 //    three pillars is throwing.
-//  • Lost Maxim — AFRAID OF THE LIGHT (§6): cross the whole archive from the
-//    doorway to the reliquary revealing NOTHING — not one lumen, start to
-//    finish.
+//  • Lost Maxim — AFRAID OF THE LIGHT: THE INDEX. The catalogue on the ledger
+//    walk is whole only when every cell of the hall is lit — ten lumens, the
+//    state every star forbids and the wardens punish. Crystal reads it whole,
+//    and it names one of five slabs in the oculus stair; the volume under it
+//    is afraid of the light and comes out in TOTAL darkness only, to the one
+//    hand small enough to reach behind a shelf. The hall's two maps, both
+//    extremes, and the douse ORDER between them is the puzzle.
 //
 // NON-STRANDABILITY (see `solveBeaconArchive`): a hall whose floor is made of
 // light is the most direct stranding machine in the set — the ground you are
@@ -102,6 +106,9 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     // archive is puzzle state like every other planet's, so it resets with
     // the run.
     archive.reset();
+    // THE INDEX names a fresh slab each run, so the secret is read this run
+    // and not looked up from the last.
+    archive.indexSocket = Random().nextInt(BeaconArchive.indexSocketCount);
   }
 
   // ── The map, in the state the archive is in ──────────────
@@ -143,8 +150,8 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     final sill = _archiveSillFor(room, door)!;
     final where = sectorWord(sill.cell!.sector);
     return sill.cut == SillCut.glassLeaf
-        ? 'Nothing in the glass, $where is dark'
-        : 'Glare off the whole shelf, $where is lit';
+        ? 'Glass floor only holds while lit, and $where is dark'
+        : 'Mirror floor is blinding while lit, and $where is lit';
   }
 
   // ── Verbs ────────────────────────────────────────────────
@@ -159,6 +166,8 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         _tryBeacon(a) ||
         _tryEffigy(a) ||
         _tryHushSlip(a) ||
+        _tryCatalogue(a) ||
+        _tryIndexSocket(a) ||
         _tryShutterRing(a);
   }
 
@@ -186,11 +195,12 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     if (pos == null || entryDoorRevealed) return false;
     if ((a.position - pos).distance > _kArchiveReach) return false;
     if (a.member.element != 'Light') {
-      _setBlockedHint('Only Light unfolds the archive\'s own shutter');
+      _setBlockedHint('Only Light can open this shutter');
       return true;
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
+    _cue(SoundCue.dungeonGateOpen);
     _setHint('The shutter folds back, and the archive is one room, all of it');
     _spawnAlchemyBurst(
       pos,
@@ -213,12 +223,14 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     if (b == null) return false;
     if ((a.position - b.post).distance > _kArchiveReach) return false;
     if (!_archiveHasSunHand(a)) {
-      _setBlockedHint('Only Light takes hold of a beam');
+      _setBlockedHint('This needs Light, or Crystal and Spirit together');
       return true;
     }
     final before = archive.lumens;
     final now = archive.press(b.id);
     archive.bloom = _kArchiveBloomSeconds;
+    _cue(SoundCue.dungeonSwitch);
+    if (now != null) _cue(SoundCue.elementLight);
     _spawnAlchemyBurst(
       b.post,
       producedElement: 'Light',
@@ -226,10 +238,13 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       particleCount: now == null ? 12 : 22,
       intensity: now == null ? 0.7 : 1.1,
     );
-    _setHint(
+    // A CONSEQUENCE, not narration (§5.7): a press has just rewritten floors
+    // in bays you cannot see, and the setting's name is the only account of
+    // it you get without walking there.
+    speakConsequence(
       now == null
-          ? 'The pan goes out, and the hall comes back'
-          : 'It throws ${now.look}',
+          ? 'The beacon goes dark'
+          : 'The beacon now throws ${now.look}',
     );
     _wakeWardens(before, b.post);
     return true;
@@ -242,6 +257,8 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
   void _wakeWardens(int before, Offset at) {
     final after = archive.lumens;
     if (after <= kArchiveHush || before > kArchiveHush) return;
+    _cue(SoundCue.dungeonHazardTrigger);
+    speakConsequence('Too much light. The wardens wake', 3.2);
     spawnWispWave(
       element: 'Light',
       center: at,
@@ -274,22 +291,23 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         return true;
       }
       if (a.member.element != e.element) {
-        _setBlockedHint('This one answers ${e.element}');
+        _setBlockedHint('This effigy needs ${e.element}');
         return true;
       }
       if (archive.isDark(e.stand)) {
         _setBlockedHint(
-          'No light on it, ${sectorWord(e.stand.sector)} is dark',
+          'The stone needs light, and ${sectorWord(e.stand.sector)} is dark',
         );
         return true;
       }
       if (archive.isLit(e.niche)) {
         _setBlockedHint(
-          'Nowhere for its shadow, ${sectorWord(e.niche.sector)} is lit',
+          'Its shadow needs darkness, and ${sectorWord(e.niche.sector)} is lit',
         );
         return true;
       }
       archive.effigiesRead.add(e.id);
+      _cue(SoundCue.dungeonInteract);
       _spawnAlchemyBurst(
         e.position,
         producedElement: 'Light',
@@ -341,7 +359,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       if (archive.slipsDrawn.contains(s.id)) return false;
       final gate = layout.familyGateFor('hush_slip')!;
       if (a.member.element != gate.element) {
-        _setBlockedHint('This reaches back further than ${a.member.element}');
+        _setBlockedHint('Only a Spirit Pip can reach this');
         return true;
       }
       if (abilityForFamily(a.member.family) != abilityForFamily(gate.family)) {
@@ -352,11 +370,12 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       _stampFamilyGate(gate);
       if (!archive.underHush) {
         _setBlockedHint(
-          'Too much of you showing, ${archive.lumens} lumens on the hall',
+          'Too bright: ${archive.lumens} lumens lit. It needs 2 or fewer',
         );
         return true;
       }
       archive.slipsDrawn.add(s.id);
+      _cue(SoundCue.dungeonSecretReveal);
       _spawnAlchemyBurst(
         s.position,
         producedElement: 'Light',
@@ -390,17 +409,18 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kArchiveReach) return false;
     if ((conduitEnergy['B'] ?? 0) > 0) return false;
     if (!_archiveHasSunHand(a)) {
-      _setBlockedHint('Only Light turns the ring');
+      _setBlockedHint('This needs Light, or Crystal and Spirit together');
       return true;
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The ring will not turn, it answers only a bearer of the '
-        '${layout.starName(0)} and ${layout.starName(1)}',
+        'The ring needs the ${layout.starName(0)} and '
+        '${layout.starName(1)} first',
       );
       return true;
     }
     conduitEnergy['B'] = double.infinity;
+    _cue(SoundCue.dungeonSwitch);
     _setHint('The ring comes round, and the oculus lands on the floor at last');
     _spawnAlchemyBurst(
       pos,
@@ -439,19 +459,38 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     // the pillars are the answer — the planet's own rule, in the fight.
     for (final c in creatures) {
       if (!c.alive) continue;
-      if (!_inGlare(eye, c.position)) continue;
+      if (!_inGlare(eye, c.position, room: room)) continue;
       // _handleDowns resolves a KO, exactly as the shared hazard check does.
       c.hp = max(0, c.hp - _kGlareBurn * dt);
     }
   }
 
-  /// Whether [p] stands inside the cone Solarin is currently looking down.
-  bool _inGlare(Offset eye, Offset p) {
+  /// Whether [p] stands inside the cone Solarin is currently looking down —
+  /// AND NOT BEHIND A PILLAR. The render has always drawn the three pillar
+  /// shadows as bites out of the glare; the burn used to ignore them, so the
+  /// room said "safe here" and the floor said otherwise (2026-09-19).
+  bool _inGlare(Offset eye, Offset p, {DungeonRoom? room}) {
     final d = p - eye;
     if (d.distance < 32) return false;
     var diff = (atan2(d.dy, d.dx) - archive.glare) % (2 * pi);
     if (diff > pi) diff -= 2 * pi;
-    return diff.abs() < _kGlareHalfAngle;
+    if (diff.abs() >= _kGlareHalfAngle) return false;
+    return !_shadedByPillar(room ?? currentRoom, eye, p);
+  }
+
+  /// Whether [p] stands in the shadow one of the chamber's pillars throws
+  /// from [eye] — behind it, within its shadow's half-angle.
+  bool _shadedByPillar(DungeonRoom room, Offset eye, Offset p) {
+    final d = p - eye;
+    final bearing = atan2(d.dy, d.dx);
+    for (final pil in room.hall?.gazePillars ?? const <Offset>[]) {
+      final pd = pil - eye;
+      if (d.distance <= pd.distance) continue; // in front of the pillar
+      var diff = (bearing - atan2(pd.dy, pd.dx)) % (2 * pi);
+      if (diff > pi) diff -= 2 * pi;
+      if (diff.abs() < _kPillarShadowHalf) return true;
+    }
+    return false;
   }
 
   /// Whether the ACTIVE body stands behind one of the chamber's three pillars
@@ -462,50 +501,188 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     if (pillars.isEmpty) return true;
     final a = active;
     if (a == null || !a.alive) return false;
-    final d = a.position - eye;
-    final bearing = atan2(d.dy, d.dx);
-    for (final pil in pillars) {
-      final pd = pil - eye;
-      if (d.distance <= pd.distance) continue; // in front of the pillar
-      var diff = (bearing - atan2(pd.dy, pd.dx)) % (2 * pi);
-      if (diff > pi) diff -= 2 * pi;
-      if (diff.abs() < _kPillarShadowHalf) return true;
-    }
-    return false;
+    return _shadedByPillar(room, eye, a.position);
   }
 
   // ── The Lost Maxim · AFRAID OF THE LIGHT ─────────────────
+  //
+  // THE INDEX (2026-09-19; the §7 maxim standard, and Mud's lesson that the
+  // best place to hide a secret is the state your own stars punish).
+  //
+  // It used to be a RESTRICTION: walk from the door to the reliquary with no
+  // lumen showing — which is the same dark walk the vault already demands, so
+  // the "secret" was awarded for the treasure. It is a CHAIN now, across the
+  // hall's two maps:
+  //
+  //   1. BLAZE THE HALL. Every beacon thrown high until all ten cells are lit
+  //      — five times the hush, every niche flooded, the heart glared shut
+  //      from every side, and the wardens off the gallery. The repeated beat:
+  //      three beacons, walked to and thrown, the planet's whole verb.
+  //   2. READ THE INDEX. The catalogue on the ledger walk is a case of ten
+  //      panes, one per cell, each lit with its cell — a live map of the hall
+  //      in every state, and whole in only one. CRYSTAL splits the full light
+  //      into its letters and the index names ONE of five slabs under the
+  //      oculus.
+  //   3. PUT THE ARCHIVE OUT — IN AN ORDER THAT LEAVES YOU A ROAD. The volume
+  //      is afraid of the light: it comes out in total darkness only, and the
+  //      oculus stair is a heart room with nothing but mirror sills onto it.
+  //      Douse the last beacon from the doorway, whose undercroft is mirror
+  //      and opens as the light dies; douse it anywhere else and you stand on
+  //      glass with no floor. The planet's thesis, as the last move.
+  //   4. THE SLAB GLOWS in the dark — what the light wrote is read where there
+  //      is none — and a SPIRIT PIP draws the volume from under it: the same
+  //      hand and the same declared gate as every slip behind the shelves.
+  //
+  // Nothing here asks for a family the riddle did not name, a wrong hand or a
+  // wrong state answers with a puff and a sentence, and the star path never
+  // passes it: every star wants the hush, and nothing on it lights the hall.
 
-  /// §6's "Afraid of the Light": cross the blinding maze revealing NOTHING.
-  /// Armed at the doorway with the whole archive dark, killed by the first
-  /// lumen (see [BeaconArchive.press]), and paid off on arriving at the
-  /// reliquary — which is the same walk the vault's essence wants (§6 says so
-  /// outright), and the one crossing the run spends its whole length teaching
-  /// you not to make.
-  void _updateHushWalk(DungeonRoom room) {
-    if (archive.hushWalked || discoveredClouds.contains(kLightAfraidEggId)) {
-      return;
+  /// Every pane of the index lit: the whole hall, and nothing in shadow.
+  bool get indexWhole => archive.lumens >= BeaconArchive.allCells.length;
+
+  /// THE CATALOGUE: Crystal reads the index, whole.
+  bool _tryCatalogue(DungeonCreature a) {
+    final pos = currentRoom.hall?.catalogue;
+    if (pos == null) return false;
+    if ((a.position - pos).distance > _kArchiveReach) return false;
+    if (discoveredClouds.contains(kLightAfraidEggId)) return false;
+    if (a.member.element != 'Crystal') {
+      _spawnAlchemyBurst(
+        pos,
+        producedElement: a.member.element,
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint(
+        'Ten panes of glass. Only Crystal can read them',
+      );
+      return true;
+    }
+    if (!indexWhole) {
+      final dark = BeaconArchive.allCells.length - archive.lumens;
+      _spawnAlchemyBurst(
+        pos,
+        producedElement: 'Crystal',
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      // WHAT is missing (§5.6): the index shows the hall, and the hall is
+      // not all showing.
+      _setBlockedHint(
+        '$dark of the index\'s ten panes are dark. It needs the whole hall lit',
+      );
+      return true;
+    }
+    if (archive.indexRead) {
+      _setAmbientHint('Read, and it still says the same slab');
+      return true;
+    }
+    archive.indexRead = true;
+    _cue(SoundCue.dungeonInteract);
+    _spawnAlchemyBurst(
+      pos,
+      producedElement: 'Light',
+      reagentElements: const ['Crystal'],
+      particleCount: 26,
+      intensity: 1.1,
+    );
+    _setInsightHint(
+      'The index names one entry: under the '
+      '${_ordinal(archive.indexSocket + 1)} slab of the Oculus Stair, in total '
+      'darkness',
+      5.0,
+    );
+    return true;
+  }
+
+  String _ordinal(int n) => switch (n) {
+    1 => 'first',
+    2 => 'second',
+    3 => 'third',
+    4 => 'fourth',
+    _ => 'fifth',
+  };
+
+  /// A SLAB under the oculus. The named one, in total darkness, to a Spirit
+  /// pip: the volume that was afraid of the light.
+  bool _tryIndexSocket(DungeonCreature a) {
+    final slabs = currentRoom.hall?.indexSockets ?? const <Offset>[];
+    if (slabs.isEmpty) return false;
+    if (discoveredClouds.contains(kLightAfraidEggId)) return false;
+    var best = -1;
+    var bestD = _kArchiveReach;
+    for (var i = 0; i < slabs.length; i++) {
+      final d = (a.position - slabs[i]).distance;
+      if (d <= bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    if (best < 0) return false;
+    final slab = slabs[best];
+    final gate = layout.familyGateFor('hush_slip')!;
+    if (a.member.element != gate.element) {
+      _spawnAlchemyBurst(
+        slab,
+        producedElement: a.member.element,
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint(
+        'Only a Spirit Pip can reach under these slabs',
+      );
+      return true;
+    }
+    if (abilityForFamily(a.member.family) != abilityForFamily(gate.family)) {
+      _stampFamilyGate(gate);
+      _setBlockedHint(gate.hintLine);
+      return true;
     }
     if (archive.lumens > 0) {
-      archive.hushWalk = false;
-      return;
+      _spawnAlchemyBurst(
+        slab,
+        producedElement: 'Spirit',
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint(
+        'It won\'t come out while ${archive.lumens} lumen${archive.lumens == 1 ? ' is' : 's are'} lit',
+      );
+      return true;
     }
-    if (room.id == layout.entranceRoomId) {
-      archive.hushWalk = true;
-      return;
+    if (!archive.indexRead) {
+      _spawnAlchemyBurst(
+        slab,
+        producedElement: 'Spirit',
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint(
+        'Five slabs, and no telling which one yet',
+      );
+      return true;
     }
-    if (!archive.hushWalk || room.vaultCache == null) return;
-    archive.hushWalk = false;
-    archive.hushWalked = true;
+    if (best != archive.indexSocket) {
+      _spawnAlchemyBurst(
+        slab,
+        producedElement: 'Spirit',
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setHint('Nothing filed under this one');
+      return true;
+    }
     // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    beginMaximRite(kLightAfraidEggId, room.vaultCache!);
+    _cue(SoundCue.dungeonGateOpen);
+    beginMaximRite(kLightAfraidEggId, slab);
     _spawnAlchemyBurst(
-      room.vaultCache!,
+      slab,
       producedElement: 'Light',
       reagentElements: const ['Crystal', 'Spirit'],
       particleCount: 44,
       intensity: 1.5,
     );
+    return true;
   }
 
   // ── Per-frame ────────────────────────────────────────────
@@ -513,7 +690,6 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
   void _updateArchive(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isArchive) return;
     if (archive.bloom > 0) archive.bloom = max(0.0, archive.bloom - dt);
-    _updateHushWalk(room);
     _updateSolarin(room, dt);
   }
 
@@ -541,10 +717,26 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         fraction: n / kArchiveSlips.length,
       );
     }
+    // THE HALL, AS FIVE MARKS: one per sector, its top half the rim band and
+    // its bottom the inward band, so what a press did to bays you cannot see
+    // reads at a glance beside the lumen count (Dark's eclipse marks, and
+    // §5.6's state-leaves-the-capsule).
     final l = archive.lumens;
+    final marks = [
+      for (final sec in HallSector.values)
+        switch ((
+          archive.isLit(HallCell(sec, HallBand.rim)),
+          archive.isLit(HallCell(sec, HallBand.inward)),
+        )) {
+          (true, true) => '█',
+          (true, false) => '▀',
+          (false, true) => '▄',
+          _ => '·',
+        },
+    ].join();
     return DungeonProgressReadout(
       label: 'LUMENS',
-      value: '$l/$kArchiveHush',
+      value: '$l/$kArchiveHush  $marks',
       fraction: (l / BeaconArchive.allCells.length).clamp(0.0, 1.0),
     );
   }
@@ -564,37 +756,40 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _archiveObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Solarin\'s Oculus, the last star is behind a thing that looks '
-          'at you';
+      return 'Solarin\'s Oculus. The last star is here';
     }
     if (room.hall?.shutterRing != null) {
-      return 'The Reading Floor, the rite waits on the oriel and the ring';
+      return 'The Reading Floor. The rite happens here';
     }
     if (room.hall?.balustrade != null) {
       return hasStar(room.hall!.starIndex!)
           ? null
-          : 'The Shadow Court, four effigies, and every one of them lying';
+          : 'The Shadow Court. Four effigies need reading';
     }
     if (room.hall?.starIndex == 1) {
       return hasStar(1)
           ? null
-          : 'The Dark Stacks, something is filed where the light does not go';
+          : 'The Dark Stacks. Slips are filed behind the shelves';
     }
     if (room.vaultCache != null) {
-      return 'The Sunless Reliquary, the essence has been in plain sight the '
-          'whole run';
+      return 'The Sunless Reliquary. Something is stored here';
     }
     if (archiveSlipsIn(room.id).isNotEmpty && !hasStar(1)) {
-      return '${_archiveRoomWord(room.id)}, a slip lies behind the shelves';
+      return '${_archiveRoomWord(room.id)}. A slip lies behind the shelves';
+    }
+    if (room.hall?.catalogue != null) {
+      return 'The Catalogue Walk. An index of the whole hall';
+    }
+    if (room.hall?.indexSockets.isNotEmpty ?? false) {
+      return 'The Oculus Stair. Five slabs';
     }
     if (archiveBeaconIn(room.id) != null) {
-      return 'A beacon stands here, and the hall is whatever it says';
+      return 'A beacon. It lights part of the hall';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Lumen Threshold, three ways on, and no two of them the same '
-                'kind of floor'
-          : 'The Lumen Threshold, the doorway is folded shut';
+          ? 'The Lumen Threshold'
+          : 'The Lumen Threshold. A shutter covers the doorway';
     }
     return null;
   }
@@ -625,67 +820,70 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     final tier = revealHintTier(a.member.statIntelligence);
     if (room.hall?.balustrade != null) {
       _setInsightHint(switch (tier) {
-        0 => 'Four of them, and the stone on each one is a lie',
+        0 => 'Each effigy is read by its shadow, not its stone',
         1 =>
-          'A shadow is the true shape. Put a light on the stone and leave '
-              'the place it falls into dark',
+          'An effigy reads when its stone is lit and the spot its shadow '
+              'falls on is dark',
         _ =>
-          'You will not read all four in one light. The moth wants the '
-              'doorway\'s inner shelf dark and the sun wants the doorway lit, '
-              'and nothing stands in the doorway to keep a shadow, so come '
-              'back with the hall thrown differently',
+          'You can\'t read all four with one lighting. Read what you can, '
+              'change the beacons, then come back for the rest',
       });
       return;
     }
     if (archiveSlipsIn(room.id).isNotEmpty) {
       _setInsightHint(switch (tier) {
-        0 => 'There is something filed back there, and it is not on any shelf',
+        0 => 'Something is filed behind these shelves',
         1 =>
-          'The reading cannot be done while the wardens can count you. '
-              'Two lumens on the whole hall, no more',
+          'A slip can only be drawn with two lumens or fewer lit across the '
+              'whole hall',
         _ =>
-          'A beam breaking on a great stack costs one; an empty bay costs '
-              'two. Out here past the stacks there is nothing to break on, so '
-              'set the far beacon first and come at these shelves from behind, '
-              'through the dark',
+          'A beam blocked by a stack costs one lumen, an open bay costs two. '
+              'Set the far beacon first and approach these shelves from '
+              'behind, through the dark',
       });
+      return;
+    }
+    if (room.hall?.catalogue != null &&
+        !discoveredClouds.contains(kLightAfraidEggId)) {
+      // ONE OBLIQUE LINE and nothing after it (the §7 maxim standard). It
+      // does not tier and it does not track progress.
+      _setInsightHint(
+        'Every star here wants the hall dark. The index wants all of it lit, '
+        'and what it names only comes out in total darkness',
+      );
       return;
     }
     if (archiveBeaconIn(room.id) != null) {
       _setInsightHint(switch (tier) {
-        0 => 'It throws a fan, and it can be thrown flatter',
+        0 => 'Each press changes how far this beacon reaches',
         1 =>
-          'Low, it breaks on the stacks and leaves the inner shelves dark. '
-              'High, it goes over them and fills them in',
+          'A low beam stops at the stacks and leaves the inner shelves dark. '
+              'A high beam lights them too',
         _ =>
-          'Everything you light on the glass you take away on the mirror, '
-              'and the reverse. The stacks are the only shadows in this hall, '
-              'so a low beam is the only way to have a road and a shadow at '
-              'once, and it is half the lumens besides',
+          'Lighting makes glass floor walkable but blinds you on mirror '
+              'floor. A low beam gives you a path and a shadow at once, for '
+              'half the lumens',
       });
       return;
     }
     if (room.vaultCache != null || room.id == 'oculus_stair') {
       _setInsightHint(switch (tier) {
-        0 => 'You have been able to see that shrine since the door',
-        1 => 'The shelf onto it is mirror-stone, and glare is not a floor',
+        0 => 'You\'ve been able to see that shrine since the entrance',
+        1 => 'The path to it is mirror floor, which you can\'t cross while lit',
         _ =>
-          'It lies in the court bay, which is the one bay the rim cannot '
-              'be opened without. There is no arrangement that gives you both. '
-              'Put the archive out and walk here in the dark',
+          'Turn every beacon off and walk here in the dark',
       });
       return;
     }
     // Anywhere in the hall, insight reads the LIGHT — which is the planet.
     _setInsightHint(switch (tier) {
-      0 => 'There are no walls in here. There is only how far you can see',
+      0 => 'The beacons decide which floors you can walk on',
       1 =>
-        'Glass is a floor with light in it and a hole without. Mirror-stone '
-            'is a floor without light and glare with. Nothing else is a door',
+        'Glass floor holds only while lit. Mirror floor is only walkable '
+            'while dark',
       _ =>
-        'Five bays, two bands, two great stacks. A low beam lights the '
-            'outer walk of a bay and stops; a high one goes all the way in. '
-            'Plan the smallest light that is still a road',
+        'A low beam lights the outer part of a bay. A high one lights all '
+            'of it. Use the least light that still makes a path',
     });
   }
 
@@ -1009,11 +1207,13 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
   // frame costs one `drawPicture`, the wedge, and about twenty motes. Nothing
   // here allocates per frame and nothing here animates except the dust.
 
-  static const Color _kArchiveNight = Color(0xFF14120E);
+  // LESS BROWN (2026-09-19, from the author): the ink was a brown-black and
+  // the stone a greige; the shadow of a hall is cool, and its stone is bone.
+  static const Color _kArchiveNight = Color(0xFF13161F);
   static const Color _kArchiveGold = Color(0xFFFFE082);
   static const Color _kArchiveGlare = Color(0xFFFFF6DC);
-  static const Color _kArchiveSlate = Color(0xFF5A5F66);
-  static const Color _kArchiveStone = Color(0xFF9A9182);
+  static const Color _kArchiveSlate = Color(0xFF5C6270);
+  static const Color _kArchiveStone = Color(0xFFB4AE9E);
 
   void _renderArchive(Canvas canvas, DungeonRoom room) {
     final g = _archiveGroundFor(room);
@@ -1330,6 +1530,171 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       );
     }
 
+    // THE CATALOGUE: an index-case against the wall, ten panes in two rows of
+    // five — one per cell of the hall, lit with its cell. A live map of the
+    // archive in every state, and whole in exactly one. Read whole, the
+    // named slab's numeral shows in the lens under it.
+    final cat = hall.catalogue;
+    if (cat != null) {
+      final found = discoveredClouds.contains(kLightAfraidEggId);
+      final caseRect = Rect.fromCenter(center: cat, width: 150, height: 64);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(caseRect.inflate(4), const Radius.circular(4)),
+        Paint()..color = const Color(0xFF4A3A22).withValues(alpha: 0.95),
+      );
+      canvas.drawRect(
+        caseRect,
+        Paint()..color = _kArchiveNight.withValues(alpha: 0.9),
+      );
+      for (var i = 0; i < HallSector.values.length; i++) {
+        final sec = HallSector.values[i];
+        for (var band = 0; band < 2; band++) {
+          final cell = HallCell(
+            sec,
+            band == 0 ? HallBand.rim : HallBand.inward,
+          );
+          final lit = archive.isLit(cell);
+          final pane = Rect.fromLTWH(
+            caseRect.left + 6 + i * 28.0,
+            caseRect.top + 6 + band * 28.0,
+            22,
+            22,
+          );
+          canvas.drawRect(
+            pane,
+            Paint()
+              ..color = lit
+                  ? _kArchiveGold.withValues(alpha: 0.85)
+                  : _kArchiveSlate.withValues(alpha: 0.35),
+          );
+          canvas.drawRect(
+            pane,
+            Paint()
+              ..color = _kArchiveStone.withValues(alpha: 0.5)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1,
+          );
+          if (sectorHasStack(sec) && band == 1) {
+            // The stack's mark on its inward pane: the pane a low beam leaves dark.
+            canvas.drawLine(
+              pane.topLeft + const Offset(4, 4),
+              pane.bottomRight - const Offset(4, 4),
+              Paint()
+                ..color = _kArchiveNight.withValues(alpha: 0.6)
+                ..strokeWidth = 1.4,
+            );
+          }
+        }
+      }
+      // The lens under the case: dark until the index is read, then the
+      // numeral of the slab it names.
+      final lens = cat + const Offset(0, 48);
+      canvas.drawCircle(
+        lens,
+        13,
+        Paint()..color = _kArchiveNight.withValues(alpha: 0.9),
+      );
+      canvas.drawCircle(
+        lens,
+        13,
+        Paint()
+          ..color =
+              (archive.indexRead || found ? _kArchiveGold : _kArchiveStone)
+                  .withValues(alpha: 0.8)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+      if (archive.indexRead || found) {
+        final n = archive.indexSocket + 1;
+        for (var k = 0; k < n; k++) {
+          final x = lens.dx - (n - 1) * 3.0 + k * 6.0;
+          canvas.drawLine(
+            Offset(x, lens.dy - 6),
+            Offset(x, lens.dy + 6),
+            Paint()
+              ..color = _kArchiveGold
+              ..strokeWidth = 2,
+          );
+        }
+      } else if (indexWhole) {
+        canvas.drawCircle(
+          lens,
+          6,
+          Paint()
+            ..color = _kArchiveGlare.withValues(
+              alpha: 0.5 + 0.3 * sin(_time * 4),
+            ),
+        );
+      }
+    }
+
+    // THE SLABS under the oculus: five sealed flags in an arc, numbered by a
+    // stroke count cut in the stone. In TOTAL darkness, once the index has
+    // been read, the named one glows — what the light wrote, read where
+    // there is none. Drawn, it stands open.
+    final slabs = hall.indexSockets;
+    if (slabs.isNotEmpty) {
+      final found = discoveredClouds.contains(kLightAfraidEggId);
+      for (var i = 0; i < slabs.length; i++) {
+        final at = slabs[i];
+        final named = i == archive.indexSocket;
+        final glow =
+            named && !found && archive.indexRead && archive.lumens == 0;
+        final open = named && found;
+        final slab = Rect.fromCenter(center: at, width: 46, height: 30);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            slab.translate(0, 4),
+            const Radius.circular(3),
+          ),
+          Paint()..color = _kArchiveNight.withValues(alpha: 0.7),
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(slab, const Radius.circular(3)),
+          Paint()
+            ..color = (open ? _kArchiveNight : _kArchiveSlate).withValues(
+              alpha: open ? 0.95 : 0.85,
+            ),
+        );
+        if (glow) {
+          for (var k = 3; k >= 1; k--) {
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(
+                slab.inflate(k * 5.0),
+                Radius.circular(3 + k * 3.0),
+              ),
+              Paint()
+                ..color = _kArchiveGold.withValues(
+                  alpha: 0.05 + 0.03 * sin(_time * 3),
+                ),
+            );
+          }
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(slab, const Radius.circular(3)),
+            Paint()
+              ..color = _kArchiveGold.withValues(
+                alpha: 0.7 + 0.2 * sin(_time * 3),
+              )
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2,
+          );
+        }
+        // The numeral: i+1 strokes.
+        for (var k = 0; k <= i; k++) {
+          final x = at.dx - i * 3.0 + k * 6.0;
+          canvas.drawLine(
+            Offset(x, at.dy - 7),
+            Offset(x, at.dy + 7),
+            Paint()
+              ..color = (glow ? _kArchiveGold : _kArchiveStone).withValues(
+                alpha: glow ? 0.95 : 0.7,
+              )
+              ..strokeWidth = 1.8,
+          );
+        }
+      }
+    }
+
     // THE SHUTTER-RING: a ring on the reading floor, closed until the rite.
     final ring = hall.shutterRing;
     if (ring != null) {
@@ -1466,10 +1831,10 @@ const Color _kArchWell = Color(0xFF04060B);
 
 /// The glass itself, which has almost no colour of its own — what you see in
 /// it is whatever is under it or on it.
-const Color _kArchGlass = Color(0xFF272A26);
+const Color _kArchGlass = Color(0xFF22262F);
 
 /// The lead the panes are set in.
-const Color _kArchLead = Color(0xFF8A8272);
+const Color _kArchLead = Color(0xFF9CA2AB);
 
 /// The heart's black mirror-stone.
 const Color _kArchMirror = Color(0xFF1B1A1B);
@@ -1479,7 +1844,7 @@ const Color _kArchOak = Color(0xFF3A2E21);
 const Color _kArchOakLip = Color(0xFF7A6449);
 
 /// The masonry — piers, plinths, kerbs, balustrades.
-const Color _kArchLime = Color(0xFF8C8374);
+const Color _kArchLime = Color(0xFFB4AE9E);
 
 /// Six leathers. Books are bound in whatever the binder had, and a shelf of
 /// one colour is a shelf nobody ever added to.
@@ -2579,7 +2944,7 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
   canvas.drawPath(
     d.field,
     Paint()
-      ..color = (glass ? _kArchGlass : _kArchMirror).withValues(alpha: 0.58),
+      ..color = (glass ? _kArchGlass : _kArchMirror).withValues(alpha: 0.46),
   );
   canvas.drawPath(d.wells, Paint()..color = _kArchWell.withValues(alpha: 0.40));
   canvas.drawPath(

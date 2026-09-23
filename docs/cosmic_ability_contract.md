@@ -13,6 +13,11 @@ It is derived from `alchemon_abilities_transcription.md` and backed by tests.
   It must preserve species ability identity.
 - Avoid behavior checks based only on incidental flags like `homing`, `decoy`,
   or `stationary`. Prefer `abilityFamily`, `visualStyle`, and effect descriptors.
+- A cast must not spend its cooldown on an empty mode-specific result. Kin
+  support paths that use timers or persistent entities must be activated by
+  Survival, open Cosmic, and Dungeons. When a mode has no ship/orb, map that
+  target to its controlled creature or party and cover the adaptation in a
+  parity test.
 - Lightning is drawn by one renderer everywhere: `drawLightningBolt` /
   `drawLightningCrackle` in `cosmic_projectile_vfx.dart`, ported from the
   Voltara dungeon. Do not re-fork a per-game zigzag. Their `glowPasses`
@@ -69,6 +74,11 @@ renderer claims lives in `drawGenericProjectileVisual` in
 Only Survival mastery visuals and Survival's large Mystic world fixtures are
 allowed to remain mode-specific. Moving Mystic projectiles still use the
 shared renderer.
+
+Kin's non-projectile signatures are implemented by each mode's runtime using
+the shared companion fields and painters. `test/kin_cross_mode_parity_test.dart`
+guards open Cosmic, while the `survival-parity abilities` group in
+`test/planet_dungeon_combat_test.dart` guards Dungeons.
 
 ## Enemy Contact Sheets
 

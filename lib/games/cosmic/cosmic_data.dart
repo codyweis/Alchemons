@@ -4413,6 +4413,23 @@ class Projectile {
   /// of update and 2.2 seconds of raster.
   bool trapSpent;
 
+  /// Original vine power, retained while repeated casts feed its growth.
+  double? maskBasePower;
+
+  bool get isMaskDamageZone =>
+      abilityFamily == 'mask' &&
+      switch (tickEffect) {
+        AbilityEffectKind.burn ||
+        AbilityEffectKind.poison ||
+        AbilityEffectKind.zoneDamage ||
+        AbilityEffectKind.root ||
+        AbilityEffectKind.chain ||
+        AbilityEffectKind.geyser => true,
+        _ => false,
+      };
+  Set<int>? _maskGrowthHitIds;
+  bool noteMaskGrowthHit(int id) => (_maskGrowthHitIds ??= <int>{}).add(id);
+
   /// Speed multiplier (1.0 = normal). Lava/Mud are slower, Lightning is faster.
   /// Non-final so per-frame updaters can decelerate (e.g. Pip ricochet
   /// speed bleed per bounce).
@@ -5387,6 +5404,7 @@ Projectile copyProjectile(
   // A copy is a fresh projectile with the same rules: it inherits the ceiling
   // but not the tally, or a ricochet would arrive already spent.
   clone.maxHitsPerEnemy = p.maxHitsPerEnemy;
+  clone.maskBasePower = p.maskBasePower;
   return clone;
 }
 
@@ -6609,8 +6627,8 @@ CosmicSpecialResult _wingSpecial(
       effectPower: p.effectPower > 0
           ? p.effectPower * impactScale
           : p.damage * impactScale * 0.22,
-      effectRadius: (p.effectRadius > 0 ? p.effectRadius : 82.0) *
-          visualScaleMul,
+      effectRadius:
+          (p.effectRadius > 0 ? p.effectRadius : 82.0) * visualScaleMul,
       effectDuration: p.effectDuration > 0
           ? p.effectDuration * durationScale
           : 1.7 * durationScale,
@@ -11728,7 +11746,7 @@ class GalaxyWhirl {
     this.radius = 60,
     this.state = WhirlState.dormant,
     this.currentWave = 0,
-    this.totalWaves = 5,
+    this.totalWaves = 3,
     this.waveTimer = 0,
     this.spawnTimer = 0,
     this.enemiesSpawnedInWave = 0,
@@ -11760,15 +11778,8 @@ class GalaxyWhirl {
     HordeType.onslaught => 25.0 + wave * 6.0, // tight timer
   };
 
-  /// Shard reward for clearing all waves — scales with level & type.
-  int get shardReward {
-    final typeBonus = switch (hordeType) {
-      HordeType.skirmish => 0,
-      HordeType.siege => 8,
-      HordeType.onslaught => 18,
-    };
-    return (10 + level * 5) + totalWaves * 3 + typeBonus;
-  }
+  /// Shard reward for clearing all waves — flat regardless of level/type.
+  int get shardReward => 50;
 
   /// Element particle reward for clearing all waves — scales with level.
   double get particleReward {
@@ -11829,7 +11840,7 @@ class GalaxyWhirl {
           element: elements[rng.nextInt(elements.length)],
           level: CosmicBalance.rollSpaceLevel(guardiansDefeated, rng),
           radius: 50 + rng.nextDouble() * 30,
-          totalWaves: 3 + rng.nextInt(3),
+          totalWaves: 3,
         ),
       );
     }
@@ -12304,6 +12315,22 @@ class CosmicCompanion with HasEffects {
   double hornMudTrailTimer;
   double hornPoisonAuraTimer;
   bool kinFireOrbitalFlameActive;
+  // Kin support state is kept on the shared companion model so open Cosmic
+  // can execute the same authored support paths as Survival instead of
+  // spending a cooldown on an empty generic payload.
+  double kinLavaPlateTimer;
+  double kinIceChargeTimer;
+  double kinIceChargeTotal;
+  double kinSteamBoilerTimer;
+  int kinSteamBoilerStacks;
+  double kinSteamStackDecayTimer;
+  double kinSteamStackCarry;
+  double kinLightningChargeTimer;
+  double kinDarkCloakTimer;
+  double kinBloodPactTimer;
+  double kinMudShipEnchantTimer;
+  int kinSpiritWispKills;
+  int kinPrevHp;
   Offset? lastPipPoisonHitPos;
   List<Projectile>? pendingChargeBurst;
   Offset? pendingChargeOrigin;
@@ -12357,6 +12384,19 @@ class CosmicCompanion with HasEffects {
     this.hornMudTrailTimer = 0,
     this.hornPoisonAuraTimer = 0,
     this.kinFireOrbitalFlameActive = false,
+    this.kinLavaPlateTimer = 0,
+    this.kinIceChargeTimer = 0,
+    this.kinIceChargeTotal = 0,
+    this.kinSteamBoilerTimer = 0,
+    this.kinSteamBoilerStacks = 0,
+    this.kinSteamStackDecayTimer = 0,
+    this.kinSteamStackCarry = 0,
+    this.kinLightningChargeTimer = 0,
+    this.kinDarkCloakTimer = 0,
+    this.kinBloodPactTimer = 0,
+    this.kinMudShipEnchantTimer = 0,
+    this.kinSpiritWispKills = 0,
+    this.kinPrevHp = 0,
     this.lastPipPoisonHitPos,
     this.pendingChargeBurst,
     this.pendingChargeOrigin,

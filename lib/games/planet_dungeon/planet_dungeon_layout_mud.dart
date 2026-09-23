@@ -79,7 +79,8 @@
 // and it will not hold you. The Lotus Knoll is moored by two fords and also
 // reached by the peat-cutters' PLANK ROAD, a rotten boardwalk laid ON the
 // water: a plank road carries a walker but moors nothing. So the vault is an
-// INDUCED MAP STATE — cut the lotus's two fords (one hardening does it), walk
+// INDUCED MAP STATE — cut the lotus's two fords (two drags, the Cormorant's and
+// the Adder's middles), walk
 // the plank, and the knoll founders under your weight and carries you down to
 // the bowl in the drowned fane, where the bottled essence lies. It is not a
 // side room behind a signature door, and it is not Ice's unrepeatable slide:
@@ -226,7 +227,7 @@ const List<BogFord> kBogFords = [
     slough: 'cor',
     index: 1,
     headA: Offset(490, 215),
-    headB: Offset(150, 325),
+    headB: Offset(150, 265),
   ),
   BogFord(
     id: 'cor_tail',
@@ -254,7 +255,7 @@ const List<BogFord> kBogFords = [
     slough: 'add',
     index: 1,
     headA: Offset(490, 155),
-    headB: Offset(150, 125),
+    headB: Offset(150, 75),
   ),
   BogFord(
     id: 'add_tail',
@@ -262,7 +263,7 @@ const List<BogFord> kBogFords = [
     knollB: 'lotus_knoll',
     slough: 'add',
     index: 2,
-    headA: Offset(450, 140),
+    headA: Offset(150, 140),
     headB: Offset(450, 140),
   ),
   // ── the Tarn, head to mouth ──
@@ -290,8 +291,8 @@ const List<BogFord> kBogFords = [
     knollB: 'cairn_knoll',
     slough: 'tarn',
     index: 2,
-    headA: Offset(610, 215),
-    headB: Offset(150, 220),
+    headA: Offset(150, 455),
+    headB: Offset(450, 220),
   ),
 ];
 
@@ -351,9 +352,6 @@ class BogField {
 
   /// Which knoll the sarsen stands on.
   String sarsenKnoll = kSarsenHomeKnoll;
-
-  /// The socket's bog-resin cap, eaten by **Plant+Mud→Poison** (§6.8).
-  bool socketOpen = false;
 
   /// The sarsen, seated (Star 0's success).
   bool sarsenSeated = false;
@@ -471,10 +469,15 @@ class BogField {
   /// THE HEAVE — the sough's price. The fen returns to the state it opened
   /// in: every drag gone, every drowned channel running, the lotus risen and
   /// the sarsen washed back to the gate. Banked stars are not touched.
-  void heave() {
+  void heave({bool keepBasins = false}) {
     hardened.clear();
-    moorsWoken.clear();
-    sarsenKnoll = kSarsenHomeKnoll;
+    // A choir already banked keeps singing: the heave takes back roads, not
+    // stars. Otherwise the basins drain with everything else.
+    if (!keepBasins) moorsWoken.clear();
+    // A stone already AT the altar stays there: the heave takes back the
+    // roads, not what was carried down them. That is the Sarsen Star's
+    // second half (see `_tryCarryStone`).
+    if (sarsenKnoll != kSarsenSocketKnoll) sarsenKnoll = kSarsenHomeKnoll;
     lotusSunk = false;
     soughFreed = false;
     founder = 0;
@@ -486,7 +489,6 @@ class BogField {
     hardened.clear();
     moorsWoken.clear();
     sarsenKnoll = kSarsenHomeKnoll;
-    socketOpen = false;
     sarsenSeated = false;
     soughFreed = false;
     lotusSunk = false;
@@ -537,9 +539,6 @@ class SinkingAltarSocket {
   /// Where the sarsen seats.
   final Offset socket;
 
-  /// The bog-resin cap over it — **Plant+Mud→Poison** eats it (§6.8).
-  final Offset cap;
-
   /// Star banked when the sarsen stands in the socket (the Sarsen Star).
   final int sarsenStarIndex;
 
@@ -548,7 +547,6 @@ class SinkingAltarSocket {
 
   const SinkingAltarSocket({
     required this.socket,
-    required this.cap,
     required this.sarsenStarIndex,
     required this.moorStarIndex,
   });
@@ -611,12 +609,15 @@ const String kMudLotusEggId = 'egg:mud_no_lotus';
 /// PALUSIA — THE SINKING ALTAR, the Mud dungeon.
 ///
 /// Stars (§7: one core mechanic + one consequence + one success, each):
-///  0 · **Sarsen Star** — core: haul the fen's fallen standing stone from the
-///      mire gate to the Sinking Altar. A sarsen crosses SOD and nothing else,
-///      so the road has to be dragged ahead of it. Consequence: every drag
-///      drowns the crossings beside it, so the road you build deletes
-///      crossings — including ones you were going to need. Success: the resin
-///      cap eaten and the stone standing in its socket.
+///  0 · **Sarsen Star** — core: carry the fen's fallen standing stone from
+///      the mire gate to the Sinking Altar. A sarsen crosses SOD and nothing
+///      else, so Mud drags the whole road first; then PLANT's roots take the
+///      stone and walk it down that road in one press. Consequence: every
+///      drag drowns the crossings beside it, so the road you build deletes
+///      crossings — including ones you were going to need. Success: the stone
+///      standing in its socket. (It used to be hauled one crossing per press
+///      behind a Plant+Mud resin cap: four walk-and-press errands and a
+///      checkbox, none of which was a decision. The decision is the road.)
 ///      UNGATED — this is the star §4 guarantees to any trio of the right
 ///      elements.
 ///  1 · **Moor Star** — core: three moor-altars, on three knolls; a basin
@@ -643,12 +644,11 @@ const DungeonLayout mudLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Sarsen Star',
       earnAnnouncement:
-          'The Sarsen Star is yours, the stone stands where the fen wanted it',
+          'The Sarsen Star is yours. The stone is back in the altar',
     ),
     DungeonStarSpec(
       name: 'Moor Star',
-      earnAnnouncement:
-          'The Moor Star is yours, three basins hold, and the fen is quiet',
+      earnAnnouncement: 'The Moor Star is yours. All three basins are full',
     ),
     DungeonStarSpec(name: 'Bogdrya\'s Star'),
   ],
@@ -656,12 +656,11 @@ const DungeonLayout mudLayout = DungeonLayout(
   // crossings show themselves (the eased entry reveal, §5.5).
   entranceRevealDoor: DungeonDoorRef('mire_gate', 'hag_knoll'),
   finaleDoor: DungeonDoorRef('drowned_fane', 'bogdrya_hollow'),
-  riteAnnouncement: 'Stone and choir agree, the peat parts under the fane',
-  finaleSealedHint:
-      'The peat will not part, it answers only the Sarsen and Moor stars',
+  riteAnnouncement:
+      'Both stars are won. The way down to Bogdrya opens under the fane',
+  finaleSealedHint: 'This stays shut until you have the Sarsen and Moor stars',
   guardianSealedHint:
-      'The hollow lies shut under the fen, nothing down there stirs until '
-      'the stone stands and the basins hold',
+      'Bogdrya won\'t wake until the Sarsen and Moor stars are won',
   mercyShrineRoomId: 'drowned_fane',
   // Ideal: Mudmane · Plantpip · Watermask — hinted by VERB, never by body
   // part (§4 THE DESCENT RIDDLE): the hard trail left behind, the small door,
@@ -678,23 +677,23 @@ const DungeonLayout mudLayout = DungeonLayout(
   // goal goes first now, and the rule second, where it belongs: as the
   // reason the goal is hard.
   primer: [
-    'The fen\'s fallen stone belongs in the Sinking Altar; it crosses hard '
-        'ground and nothing else.',
-    'Drag a crossing firm and its neighbours on that water drown. The order '
-        'does not matter — the shape you are left with does.',
+    'The fallen stone belongs in the Sinking Altar. It only crosses hard '
+        'ground, and the altar only holds it on dry ground.',
+    'Hardening a crossing floods the crossings next to it on the same stream. '
+        'Order doesn\'t matter, only which ones you harden.',
   ],
   familyGates: [
     DungeonFamilyGate(
       objectId: 'moor_black',
       element: 'Water',
       family: 'Mask',
-      hintLine: 'Only Water\'s second sight finds a basin under black water',
+      hintLine: 'Only a Water Mask can find a basin under black water',
     ),
     DungeonFamilyGate(
       objectId: 'plank_road',
       element: 'Mud',
       family: 'Mane',
-      hintLine: 'Only a Mud mane lays ground enough to cross these planks',
+      hintLine: 'Only a Mud Mane can cross these rotten planks',
     ),
   ],
   rooms: {
@@ -754,7 +753,7 @@ const DungeonLayout mudLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(616, 110, 24, 90),
           targetRoomId: 'altar_knoll',
-          targetSpawn: Offset(60, 125),
+          targetSpawn: Offset(60, 75),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(616, 310, 24, 90),
@@ -794,7 +793,7 @@ const DungeonLayout mudLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(616, 170, 24, 90),
           targetRoomId: 'altar_knoll',
-          targetSpawn: Offset(60, 325),
+          targetSpawn: Offset(60, 265),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(300, 380, 54, 54),
@@ -817,20 +816,29 @@ const DungeonLayout mudLayout = DungeonLayout(
       id: 'altar_knoll',
       bounds: Rect.fromLTWH(0, 0, 760, 540),
       doors: [
+        // THE ALTAR IS THE FEN'S FAR EAST SHORE. Every crossing onto it
+        // comes in on its WEST wall — the hag's, the reed's and the cairn's
+        // — so walking east always brings you here and never past it. The
+        // cairn's crossing used to leave from this room's EAST wall and
+        // arrive on the cairn's west, while the cairn's lotus crossing also
+        // left EAST and arrived on the lotus's east side: walk right out of
+        // the cairn and you came out walking left, and walking right again
+        // put you back in the cairn. A loop you could not see from inside.
+        // (`door_compass_test` now holds every planet to this.)
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 80, 24, 90),
+          rect: Rect.fromLTWH(0, 30, 24, 90),
           targetRoomId: 'hag_knoll',
           targetSpawn: Offset(570, 155),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 280, 24, 90),
+          rect: Rect.fromLTWH(0, 220, 24, 90),
           targetRoomId: 'reed_knoll',
           targetSpawn: Offset(490, 215),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(736, 170, 24, 90),
+          rect: Rect.fromLTWH(0, 410, 24, 90),
           targetRoomId: 'cairn_knoll',
-          targetSpawn: Offset(70, 220),
+          targetSpawn: Offset(530, 220),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(360, 440, 54, 54),
@@ -846,7 +854,6 @@ const DungeonLayout mudLayout = DungeonLayout(
         ),
         altar: SinkingAltarSocket(
           socket: Offset(400, 250),
-          cap: Offset(400, 250),
           sarsenStarIndex: 0,
           moorStarIndex: 1,
         ),
@@ -890,13 +897,15 @@ const DungeonLayout mudLayout = DungeonLayout(
       id: 'cairn_knoll',
       bounds: Rect.fromLTWH(0, 0, 600, 440),
       doors: [
+        // West to the lotus (ford, then plank), east to the altar: the
+        // cairn sits between them on the southern road, and its doors say so.
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 175, 24, 90),
+          rect: Rect.fromLTWH(576, 175, 24, 90),
           targetRoomId: 'altar_knoll',
-          targetSpawn: Offset(690, 215),
+          targetSpawn: Offset(70, 455),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(576, 95, 24, 90),
+          rect: Rect.fromLTWH(0, 95, 24, 90),
           targetRoomId: 'lotus_knoll',
           targetSpawn: Offset(530, 140),
         ),
@@ -907,7 +916,7 @@ const DungeonLayout mudLayout = DungeonLayout(
           // water carries a walker and moors nothing, which is the whole
           // vault trick — so it cannot sit 85px from the ford and read as
           // its other half. 120px of wall between them.
-          rect: Rect.fromLTWH(576, 305, 24, 90),
+          rect: Rect.fromLTWH(0, 305, 24, 90),
           targetRoomId: 'lotus_knoll',
           targetSpawn: Offset(530, 350),
         ),
@@ -942,13 +951,13 @@ const DungeonLayout mudLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(576, 95, 24, 90),
           targetRoomId: 'cairn_knoll',
-          targetSpawn: Offset(530, 165),
+          targetSpawn: Offset(70, 140),
         ),
         // The plank road's far end.
         DungeonDoor(
           rect: Rect.fromLTWH(576, 305, 24, 90),
           targetRoomId: 'cairn_knoll',
-          targetSpawn: Offset(530, 350),
+          targetSpawn: Offset(70, 350),
         ),
         // THE FOUNDER — the knoll going down under your weight. The engine
         // walks the party through this door itself; it is never touched.

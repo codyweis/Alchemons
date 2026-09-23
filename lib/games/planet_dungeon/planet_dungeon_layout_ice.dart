@@ -15,7 +15,8 @@
 //        │ flue C                                       │
 //     cold_sump  (the bottom, mercy)  ◄─────────────────┘
 //        │  the RIMEFALL climbs back to the mouth
-//     star_font (the rite) → frowyrm_hollow (Star 2 · MYS09 Frowyrm)
+//     star_font (the rite: THE ROOF OF THE HOLLOW) ↓ drop through the roof
+//     frowyrm_hollow (Star 2 · MYS09 Frowyrm)
 //
 // WORLD RULE — *the shaft only goes down; the way back up is whatever you
 // froze on the way.* Every level is joined to the next by a FLUE: a chute of
@@ -36,11 +37,13 @@
 // you must decide at its head, on the way down, before you know what is
 // below. That is the whole planet.
 //
-// THE VAULT TRICK (§5.5): the cache sits on flue A's shelf. It is **visible
-// only in a mirror** — from the gallery below, the still pool shows the
-// shelf's glow hanging in the reflected shaft though the wall itself is
-// blank — and **enterable only from a slide you can't repeat**: the drift
-// catches you once and is scoured by its own ride.
+// THE VAULT TRICK (§5.5): the cache sits on flue A's shelf, **enterable only
+// by falling onto its ledge**: nothing climbs to it, and its only door
+// scrambles back out the way you came. The chute is a ramp every time
+// (2026-09-20): a shelf you could enter once a run was a commitment that
+// gated nothing and made the lens niche a one-shot. The pool below used to
+// show the shelf's glow ("visible only in a mirror"); that tell is gone too —
+// it read as an unexplained blue star.
 //
 // THE ANTI-STRAND VALVE (and the one place this file deviates from a literal
 // reading of the brief — see the module's `solveShaftDescent`): at the very
@@ -267,7 +270,8 @@ class OrreryGrid {
 /// behind it. Reading is therefore a thing you are DOING, with the one hand
 /// the entrance and the lodestone also want — walk it to see, switch to Ice
 /// to work the frames, switch back to check. Air's sweep off the cold vent
-/// stills the whole surface for a while: the one way to see it all at once.
+/// FLASHES the whole surface for a breath and fades: a glimpse of where to
+/// walk the lamp, never a way round walking it.
 class MirrorRing {
   final Offset center;
   final double radius;
@@ -323,7 +327,12 @@ class IceShaft {
   final Offset? rimefall;
 
   /// The rite's second half: the cold font, element-only Ice (conduit 'B').
+  /// It stands on the roof's one pier (see [roof]).
   final Offset? coldFont;
+
+  /// THE ROOF OF THE HOLLOW — the rite room's floor is the ice over the
+  /// wyrm's lair, in panes (2026-09-20).
+  final IceRoof? roof;
 
   /// Frowyrm's hoarfrost pillar. Its lull only opens while the pillar stands;
   /// every strike beat shatters it — and one of your stairs with it.
@@ -339,9 +348,97 @@ class IceShaft {
     this.iceCap,
     this.rimefall,
     this.coldFont,
+    this.roof,
     this.hoarfrost,
     this.telescope,
   });
+}
+
+/// What a pane of the roof lies on. Authored per cell, and hidden under snow
+/// until Light bares it.
+enum IceRoofBed {
+  /// Solid glacier. Bare ice over rock is THICK: it bears everyone.
+  rock,
+
+  /// The hollow. Bare ice over the hollow is THIN: it bears one body.
+  hollow,
+
+  /// The pier the font stands on — rock, drawn as a plinth above the snow.
+  pier,
+}
+
+/// THE ROOF OF THE HOLLOW (2026-09-20) — the Star Font room's floor.
+///
+/// A grid of ice panes over Frowyrm's lair, snow on every one of them. Snow
+/// bears all and shows nothing; Light bares a pane and the ice shows what it
+/// lies on. Over ROCK it is thick and holds the party; over the HOLLOW it is
+/// thin and holds ONE body. Somewhere under it the wyrm sleeps, its body a
+/// line of cells rolled per run, and the pane over its HEAD is the throat the
+/// last breath goes down — and, once it is awake, the way in.
+///
+/// The `art` rows are authored: 'R' rock · '.' hollow · 'W' open water (the
+/// wyrm's warmth melted through) · 'F' the font's pier (rock).
+class IceRoof {
+  final Offset origin;
+  final double cell;
+  final List<String> art;
+
+  const IceRoof({required this.origin, required this.cell, required this.art});
+
+  int get cols => art.first.length;
+  int get rows => art.length;
+  int get count => cols * rows;
+
+  Rect get bounds =>
+      Rect.fromLTWH(origin.dx, origin.dy, cols * cell, rows * cell);
+
+  IceRoofBed bedAt(int c) => switch (art[c ~/ cols][c % cols]) {
+    'R' => IceRoofBed.rock,
+    'F' => IceRoofBed.pier,
+    _ => IceRoofBed.hollow,
+  };
+
+  /// Open water from the start.
+  bool waterAt(int c) => art[c ~/ cols][c % cols] == 'W';
+
+  /// The pier's cell (exactly one, layout-test enforced).
+  int get pierCell => [
+    for (var c = 0; c < count; c++)
+      if (art[c ~/ cols][c % cols] == 'F') c,
+  ].single;
+
+  Offset centerAt(int c) => Offset(
+    origin.dx + (c % cols) * cell + cell / 2,
+    origin.dy + (c ~/ cols) * cell + cell / 2,
+  );
+
+  Rect rectOf(int c) => Rect.fromLTWH(
+    origin.dx + (c % cols) * cell,
+    origin.dy + (c ~/ cols) * cell,
+    cell,
+    cell,
+  );
+
+  /// The pane under [p], or null off the roof (the shores, the rims).
+  int? cellAt(Offset p) {
+    final cx = ((p.dx - origin.dx) / cell).floor();
+    final cy = ((p.dy - origin.dy) / cell).floor();
+    if (cx < 0 || cy < 0 || cx >= cols || cy >= rows) return null;
+    return cy * cols + cx;
+  }
+
+  /// Four-neighbours of [c] that exist.
+  List<int> neighbours(int c) {
+    final x = c % cols, y = c ~/ cols;
+    return [
+      if (y > 0) c - cols,
+      if (y < rows - 1) c + cols,
+      if (x > 0) c - 1,
+      if (x < cols - 1) c + 1,
+    ];
+  }
+
+  bool adjacent(int a, int b) => neighbours(a).contains(b);
 }
 
 // ─────────────────────────────────────────────────────────
@@ -365,12 +462,12 @@ const DungeonLayout iceLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Mirror Star',
       earnAnnouncement:
-          'The Mirror Star is yours, the chart closes and the sky stands',
+          'The Mirror Star is yours. You found the odd star out',
     ),
     DungeonStarSpec(
       name: 'Orrery Star',
       earnAnnouncement:
-          'The Orrery Star is yours, the sky stands still and true',
+          'The Orrery Star is yours. Every block is on its socket',
     ),
     DungeonStarSpec(name: 'Frost Star'),
   ],
@@ -378,11 +475,12 @@ const DungeonLayout iceLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('rime_head', 'mirror_gallery'),
   finaleDoor: DungeonDoorRef('cold_sump', 'star_font'),
   riteAnnouncement:
-      'Mirror and Orrery are won, the font grinds open below the sump',
+      'Mirror and Orrery are won. The Star Font over the hollow opens',
   finaleSealedHint:
-      'The font is shut, it answers only the Mirror and Orrery stars',
+      'This stays shut until you have the Mirror and Orrery stars',
   guardianSealedHint:
-      'The hollow is iced over, nothing in there stirs until the font is sung',
+      'Frowyrm won\'t wake until the font is sung and the breath is turned '
+      'down',
   mercyShrineRoomId: 'cold_sump',
   // Ideal: Icemane · Lightmask · Airwing — hinted by VERB, never body part
   // (§4): the cold road left behind, the sight that reads dark glass, and the
@@ -401,9 +499,9 @@ const DungeonLayout iceLayout = DungeonLayout(
   // resource and nothing is coupled to anything else (2026-09-15): a shaft
   // is a shaft, a chute is a chute, and what they do is written on them.
   primer: [
-    'A shaft goes down, and only down, unless you freeze the snow in it into steps.',
-    'Ride one and it is bare ice for good, and will never take frost again.',
-    'A ledge has its own chute, and the snow in it comes down with you.',
+    'Shafts only go down, unless Ice freezes their snow into steps.',
+    'Ride a shaft down and it\'s bare ice for good. It can\'t be frozen after.',
+    'A ledge has its own chute, and its snow comes down with you.',
   ],
   // §4 budget: TWO hard gates, one per star that has one, each on a different
   // entry slot. The ORRERY (Star 1, index 1) is deliberately UNGATED so any
@@ -414,13 +512,13 @@ const DungeonLayout iceLayout = DungeonLayout(
       objectId: 'mirror_lodestone',
       element: 'Light',
       family: 'Mask',
-      hintLine: 'Only Light\'s second sight strikes into this glass',
+      hintLine: 'Only a Light Mask can strike this glass',
     ),
     DungeonFamilyGate(
       objectId: 'A',
       element: 'Air',
       family: 'Wing',
-      hintLine: 'Only Air borne on wings turns this breath down the throat',
+      hintLine: 'Only an Air Wing can turn this breath down',
     ),
   ],
   rooms: {
@@ -443,8 +541,8 @@ const DungeonLayout iceLayout = DungeonLayout(
           targetSpawn: Offset(760, 120),
         ),
         // THE LEDGE CHUTE — its own mouth, its own snow, and it goes exactly
-        // one place. The snow is what makes it a ramp; ridden, it is a bare
-        // slot and nothing gets into it again.
+        // one place. The snow is what makes it a ramp, and it holds: ride it
+        // as often as you like.
         DungeonDoor(
           rect: Rect.fromLTWH(390, 496, 110, 24),
           targetRoomId: 'shelf_glass',
@@ -463,8 +561,7 @@ const DungeonLayout iceLayout = DungeonLayout(
 
     // ── L1 · THE MIRROR GALLERY (Star 1) ──────────────────
     // A ring of twelve frames around a still black pool. The pool is the
-    // planet's signature: it shows the shaft ABOVE, including the glow of
-    // flue A's shelf — a thing that is not on any wall.
+    // planet's signature: it shows the shaft ABOVE.
     'mirror_gallery': DungeonRoom(
       id: 'mirror_gallery',
       bounds: Rect.fromLTWH(0, 0, 860, 600),
@@ -594,51 +691,74 @@ const DungeonLayout iceLayout = DungeonLayout(
           targetRoomId: 'orrery_floor',
           targetSpawn: Offset(560, 598),
         ),
-        // The rite, behind both stars.
+        // The rite, behind both stars. You come out on the near shore of
+        // the roof.
         DungeonDoor(
           rect: Rect.fromLTWH(660, 536, 110, 24),
           targetRoomId: 'star_font',
-          targetSpawn: Offset(320, 120),
+          targetSpawn: Offset(400, 70),
         ),
       ],
       rime: IceShaft(rimefall: Offset(115, 80)),
     ),
 
-    // ── THE STAR FONT (the rite) ──────────────────────────
-    // Conduit A is the planet's Air+Wing gate — the last cold breath turned
-    // down the throat. Conduit B is the font itself: element-only Ice, so a
-    // party that brought no Wing still learns what it is missing at ONE
-    // object rather than being stopped by two.
+    // ── THE STAR FONT · THE ROOF OF THE HOLLOW (the rite) ─
+    // The rite room's floor is the ICE OVER FROWYRM'S LAIR, in panes under
+    // snow (2026-09-20 — it was two plinths and two presses). Snow bears all
+    // and shows nothing. Light bares a pane; over rock the ice is thick and
+    // holds everyone, over the hollow it is thin and holds ONE body. The
+    // wyrm sleeps under it, its body rolled per run, and every bared pane
+    // over the hollow says which way its head lies. Open the glass over the
+    // head and that is the throat: the Air Wing turns the last breath down
+    // it (the planet's second hard gate), Ice sings the font on its pier,
+    // and the wyrm wakes. Then the party goes down the throat together.
+    //
+    // Two shores: the near one at the top (from the sump) and the far one at
+    // the bottom (where you come back up out of the hollow). The rims either
+    // side are glacier, and walls.
     'star_font': DungeonRoom(
       id: 'star_font',
-      bounds: Rect.fromLTWH(0, 0, 640, 460),
+      bounds: Rect.fromLTWH(0, 0, 800, 620),
+      walls: [
+        Rect.fromLTWH(0, 130, 40, 400), // the west rim
+        Rect.fromLTWH(760, 130, 40, 400), // the east rim
+      ],
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(265, 0, 110, 24),
+          rect: Rect.fromLTWH(345, 0, 110, 24),
           targetRoomId: 'cold_sump',
           targetSpawn: Offset(715, 470),
         ),
+        // THE WAY DOWN IS THROUGH THE ROOF. This door is never shown and
+        // never walked: the module takes it when the party goes down the
+        // throat (`_roofDrop`). It exists so the layout is honest about the
+        // hollow having a way in, and so the invariant "every door has a way
+        // back" holds for the hollow's own door up.
         DungeonDoor(
-          rect: Rect.fromLTWH(265, 436, 110, 24),
+          rect: Rect.fromLTWH(60, 596, 110, 24),
           targetRoomId: 'frowyrm_hollow',
           targetSpawn: Offset(450, 150),
         ),
       ],
-      conduits: [
-        Conduit(
-          id: 'A',
-          position: Offset(200, 250),
-          requireElement: 'Air',
-          requiredFamily: DungeonAbility.aerialTraversal,
+      rime: IceShaft(
+        // The font stands on the pier: 'F' in the art below, which is
+        // (col 5, row 2) — its centre.
+        coldFont: Offset(480, 330),
+        roof: IceRoof(
+          origin: Offset(40, 130),
+          cell: 80,
+          // The pier is an island: water on three sides, so the font is
+          // reached from the far side of the roof, or by Ice freezing a way.
+          // The four rock corners are where the glacier comes through.
+          art: [
+            'R...W...R',
+            '.....W...',
+            '....WFW..',
+            '......W..',
+            'R.......R',
+          ],
         ),
-        // The rite's other half — conduit 'B' — is NOT authored as a Conduit:
-        // it is the cold font below, an element-only Ice object the Ice module
-        // owns and which latches `conduitEnergy['B']` itself. Authoring it as
-        // a family-less Conduit would make the engine's channel verb step over
-        // it and the layout invariants read it as a storm-struck pylon with no
-        // storm, which it is not.
-      ],
-      rime: IceShaft(coldFont: Offset(440, 250)),
+      ),
     ),
 
     // ── FROWYRM'S HOLLOW (Star 2) ─────────────────────────
@@ -652,14 +772,15 @@ const DungeonLayout iceLayout = DungeonLayout(
       // and it is DOWN when you walk in — so the room taught itself nothing
       // and drew almost nothing. One line, once, on the insight channel.
       teach:
-          'The wyrm slows only while the hoarfrost stands, and every strike '
-          'it lands takes the pillar down again.',
+          'Frowyrm can only be hit while the hoarfrost pillar stands, and '
+          'every hit it lands knocks the pillar down.',
       bounds: Rect.fromLTWH(0, 0, 900, 640),
       doors: [
+        // Back up through the broken roof, onto its far shore.
         DungeonDoor(
           rect: Rect.fromLTWH(395, 0, 110, 24),
           targetRoomId: 'star_font',
-          targetSpawn: Offset(320, 330),
+          targetSpawn: Offset(400, 575),
         ),
       ],
       guardian: GuardianNode(

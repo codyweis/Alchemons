@@ -2589,9 +2589,11 @@ extension CosmicGameWorldSystems on CosmicGame {
     final harvesterKey = 'item.harvest_std_$faction';
     final portalKey = 'item.portal_key.$faction';
 
+    // Every whirl guarantees at least one harvester on clear.
+    _spawnItemDrop(whirl.position, harvesterKey);
+
     if (whirl.level >= 5) {
-      // Lv5: guaranteed harvester, 20% portal key
-      _spawnItemDrop(whirl.position, harvesterKey);
+      // Lv5: 20% portal key
       if (rng.nextDouble() < 0.20) {
         _spawnItemDrop(whirl.position, portalKey);
       }
@@ -2600,17 +2602,9 @@ extension CosmicGameWorldSystems on CosmicGame {
         _spawnItemDrop(whirl.position, 'item.harvest_guaranteed');
       }
     } else if (whirl.level >= 4) {
-      // Lv4: 40% harvester, 5% portal key
-      if (rng.nextDouble() < 0.40) {
-        _spawnItemDrop(whirl.position, harvesterKey);
-      }
+      // Lv4: 5% portal key
       if (rng.nextDouble() < 0.05) {
         _spawnItemDrop(whirl.position, portalKey);
-      }
-    } else if (whirl.level >= 3) {
-      // Lv3: 15% harvester
-      if (rng.nextDouble() < 0.15) {
-        _spawnItemDrop(whirl.position, harvesterKey);
       }
     }
   }
@@ -3390,6 +3384,41 @@ extension CosmicGameWorldSystems on CosmicGame {
     _spawnHitSpark(ship.pos, Colors.redAccent);
 
     if (shipHealth <= 0) {
+      CosmicCompanion? phoenix;
+      _GarrisonCreature? garrisonPhoenix;
+      for (final comp in activeCompanions.values) {
+        if (comp.isAlive &&
+            comp.member.family.toLowerCase() == 'kin' &&
+            comp.member.element == 'Fire' &&
+            !comp.kinFireOrbitalFlameActive) {
+          phoenix = comp;
+          break;
+        }
+      }
+      if (phoenix == null) {
+        for (final g in _garrison) {
+          if (g.hp > 0 &&
+              g.member.family.toLowerCase() == 'kin' &&
+              g.member.element == 'Fire' &&
+              !g.kinFireOrbitalFlameActive) {
+            garrisonPhoenix = g;
+            break;
+          }
+        }
+      }
+      if (phoenix != null || garrisonPhoenix != null) {
+        shipHealth = CosmicGame.shipMaxHealth * 0.25;
+        if (phoenix != null) {
+          phoenix.kinFireOrbitalFlameActive = true;
+          phoenix.invincibleTimer = max(phoenix.invincibleTimer, 1.0);
+        } else {
+          garrisonPhoenix!.kinFireOrbitalFlameActive = true;
+        }
+        _shipInvincible = max(_shipInvincible, 1.0);
+        _spawnHitSpark(ship.pos, const Color(0xFFFFB060));
+        _spawnHitSpark(ship.pos, const Color(0xFFFFE7B0));
+        return;
+      }
       if (sandboxMode) {
         _spawnKillVfx(ship.pos, const Color(0xFF00E5FF), 18, true);
         resetSandboxCombatState();

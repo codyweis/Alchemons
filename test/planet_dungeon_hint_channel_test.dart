@@ -114,8 +114,7 @@ void main() {
       _step(game, 0.2);
 
       game.askForRoomHint();
-      expect(game.hintText, contains('sealed'));
-      game.askForRoomHint();
+      expect(game.hintText, contains('stays shut'));
       expect(game.hintChannel, DungeonHintChannel.blocked);
 
       // Keep leaning on it well past the line's lifetime: the refusal must
@@ -133,8 +132,7 @@ void main() {
       walker.position = sealedDoor.rect.center;
       _step(game, 0.2);
       game.askForRoomHint();
-      expect(game.hintText, contains('sealed'));
-      game.askForRoomHint();
+      expect(game.hintText, contains('stays shut'));
       expect(game.hintChannel, DungeonHintChannel.blocked);
     });
 
@@ -145,7 +143,6 @@ void main() {
       expect(game.activeIndex, 0, reason: 'a downed creature cannot take over');
       game.askForRoomHint();
       expect(game.hintText, contains('down'));
-      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
     });
   });
@@ -167,7 +164,6 @@ void main() {
       _step(game, 0.4);
       game.askForRoomHint();
       expect(game.hintText, reading);
-      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.insight);
     });
 
@@ -310,9 +306,7 @@ void main() {
       game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.insight);
       // Tier 1 narrows the method without spelling out the leader's rule…
-      game.askForRoomHint();
       expect(game.hintText, contains('ladder'));
-      game.askForRoomHint();
       expect(game.hintText, isNot(contains('tallest')));
 
       // …tier 2 (a sharper mask) names element and order.
@@ -342,7 +336,6 @@ void main() {
       game2.activateAbility();
       game2.askForRoomHint();
       expect(game2.hintChannel, DungeonHintChannel.insight);
-      game2.askForRoomHint();
       expect(game2.hintText, contains('tallest'));
     });
   });
@@ -359,7 +352,6 @@ void main() {
 
       game.askForRoomHint();
       expect(game.hintText, contains('Speed'));
-      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
 
       // Keep standing in it: the refusal fades and must NOT re-latch.
@@ -376,7 +368,6 @@ void main() {
       _step(game, 0.2);
       game.askForRoomHint();
       expect(game.hintText, contains('Speed'));
-      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
     });
 
@@ -398,7 +389,6 @@ void main() {
       }
       game.askForRoomHint();
       expect(game.hintText, contains('Speed'));
-      game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
 
       // Keep fighting it well past the line's lifetime: spoken once.

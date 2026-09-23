@@ -40,6 +40,25 @@ class PortalKeyGlyph extends StatefulWidget {
     return ElementResources.byBiomeId.containsKey(biome) ? biome : null;
   }
 
+  /// Paints the same key glyph directly onto an arbitrary canvas at
+  /// [center] — for contexts with no widget tree, e.g. an in-world
+  /// loot-drop pickup. [fade] multiplies every alpha.
+  static void paintGlyph(
+    Canvas canvas,
+    Offset center,
+    double size,
+    Color color,
+    double time, {
+    double fade = 1.0,
+  }) => _PortalKeyPainter.paintGlyph(
+    canvas,
+    center,
+    size,
+    color,
+    time,
+    fade: fade,
+  );
+
   @override
   State<PortalKeyGlyph> createState() => _PortalKeyGlyphState();
 }
@@ -135,18 +154,35 @@ class _PortalKeyPainter extends CustomPainter {
   });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide;
-    if (s <= 0) return;
-    final c = Offset(size.width / 2, size.height / 2);
+  void paint(Canvas canvas, Size size) => paintGlyph(
+    canvas,
+    Offset(size.width / 2, size.height / 2),
+    size.shortestSide,
+    color,
+    _t,
+  );
 
-    _aperture(canvas, c, s);
-    _motes(canvas, c, s);
+  /// Paints the key glyph directly onto an arbitrary canvas at [center] —
+  /// for contexts with no widget tree, e.g. an in-world loot-drop pickup.
+  /// [fade] multiplies every alpha, for a drop that's fading out.
+  static void paintGlyph(
+    Canvas canvas,
+    Offset center,
+    double s,
+    Color color,
+    double t, {
+    double fade = 1.0,
+  }) {
+    if (s <= 0) return;
+    _aperture(canvas, center, s, color, t, fade);
+    _motes(canvas, center, s, color, t, fade);
 
     final key = _key(s);
     final bounds = Rect.fromLTWH(0, 0, s, s);
     final bright = Color.lerp(color, Colors.white, 0.55)!;
 
+    canvas.save();
+    canvas.translate(center.dx - s / 2, center.dy - s / 2);
     canvas.drawPath(
       key,
       _p
@@ -165,19 +201,35 @@ class _PortalKeyPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = s * 0.016
         ..strokeJoin = StrokeJoin.round
-        ..color = Color.lerp(bright, Colors.white, 0.5)!.withValues(alpha: 0.9),
+        ..color = Color.lerp(
+          bright,
+          Colors.white,
+          0.5,
+        )!.withValues(alpha: 0.9 * fade),
     );
     _p.style = PaintingStyle.fill;
+    canvas.restore();
   }
 
   /// The rift the key is for: a broken ring, turning.
-  void _aperture(Canvas canvas, Offset c, double s) {
+  static void _aperture(
+    Canvas canvas,
+    Offset c,
+    double s,
+    Color color,
+    double t,
+    double fade,
+  ) {
     final r = s * 0.415;
-    final spin = _t * 0.42;
+    final spin = t * 0.42;
     // Breathes, so a still row of five is not five identical frozen rings.
-    final pulse = 0.72 + 0.14 * math.sin(_t * 1.3);
+    final pulse = 0.72 + 0.14 * math.sin(t * 1.3);
 
-    canvas.drawCircle(c, r * 0.86, _p..color = color.withValues(alpha: 0.07));
+    canvas.drawCircle(
+      c,
+      r * 0.86,
+      _p..color = color.withValues(alpha: 0.07 * fade),
+    );
 
     final rect = Rect.fromCircle(center: c, radius: r);
     _p
@@ -191,7 +243,7 @@ class _PortalKeyPainter extends CustomPainter {
         start,
         0.62,
         false,
-        _p..color = color.withValues(alpha: 0.28 * pulse + 0.10),
+        _p..color = color.withValues(alpha: (0.28 * pulse + 0.10) * fade),
       );
     }
     _p
@@ -200,22 +252,29 @@ class _PortalKeyPainter extends CustomPainter {
   }
 
   /// Element being drawn out of the rift and into the key.
-  void _motes(Canvas canvas, Offset c, double s) {
+  static void _motes(
+    Canvas canvas,
+    Offset c,
+    double s,
+    Color color,
+    double t,
+    double fade,
+  ) {
     final bright = Color.lerp(color, Colors.white, 0.45)!;
     for (var i = 0; i < 8; i++) {
-      final phase = (_t * 0.30 + _seed(i, 1)) % 1.0;
+      final phase = (t * 0.30 + _seed(i, 1)) % 1.0;
       // Rim inward, so the key looks like it is being charged by the rift.
       final pull = Curves.easeInCubic.transform(phase);
       final dist = s * (0.44 - 0.30 * pull);
       final a = _seed(i, 2) * math.pi * 2 + phase * 1.4;
-      final fade =
+      final moteFade =
           (phase < 0.15 ? phase / 0.15 : 1.0) *
           (phase > 0.82 ? (1 - phase) / 0.18 : 1.0);
-      if (fade <= 0.02) continue;
+      if (moteFade <= 0.02) continue;
       canvas.drawCircle(
         c + Offset(math.cos(a) * dist, math.sin(a) * dist),
         s * (0.020 - 0.008 * pull),
-        _p..color = bright.withValues(alpha: 0.75 * fade),
+        _p..color = bright.withValues(alpha: 0.75 * moteFade * fade),
       );
     }
   }

@@ -864,12 +864,13 @@ const DungeonLayout crystalLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Prism Star',
       earnAnnouncement:
-          'The Prism Star is yours, the rose reads the hue it was cut for',
+          'The Prism Star is yours. The light reaches the rose in the right '
+          'colour',
     ),
     DungeonStarSpec(
       name: 'Throne Star',
       earnAnnouncement:
-          'The Throne Star is yours, three thrones stand served at once',
+          'The Throne Star is yours. All three thrones face the hearth',
     ),
     DungeonStarSpec(name: 'Facet Star'),
   ],
@@ -877,13 +878,11 @@ const DungeonLayout crystalLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('facet_gate', 'keep_s'),
   finaleDoor: DungeonDoorRef('keep_n', 'tuning_hall'),
   riteAnnouncement:
-      'Prism and Throne are won, the north arch grinds open on the tuning '
-      'hall',
+      'Prism and Throne are won. The north arch opens to the tuning hall',
   finaleSealedHint:
-      'The north arch is shut, it answers the Prism and the Throne',
+      'The north arch stays shut until you have the Prism and Throne stars',
   guardianSealedHint:
-      'The choir is dark glass, nothing in there wakes until the font is '
-      'struck',
+      'Prismalith won\'t wake until the font in the tuning hall is used',
   mercyShrineRoomId: 'facet_gate',
   // Ideal: Crystalmask · Lightninghorn · Spiritpip — hinted by VERB, never by
   // body part (§4): the second sight that reads which glass will pass a light,
@@ -894,8 +893,8 @@ const DungeonLayout crystalLayout = DungeonLayout(
     'and Spirit, with any Pip, to slip the crack behind the keep.',
   ],
   primer: [
-    'The rooms slide, and you slide with them.',
-    'Every slide solves one adjacency and breaks another.',
+    'The rooms slide into the empty slot, and you ride with them.',
+    'You can only walk between rooms whose doorways line up.',
   ],
   // §4 budget: TWO hard gates, on two different entry slots.
   //
@@ -911,13 +910,13 @@ const DungeonLayout crystalLayout = DungeonLayout(
       objectId: 'shard_hearth',
       element: 'Lightning',
       family: 'Horn',
-      hintLine: 'Only a horn\'s strike will kindle this shard',
+      hintLine: 'Only a Lightning Horn can strike this shard warm',
     ),
     DungeonFamilyGate(
       objectId: 'A',
       element: kAnyElement,
       family: 'Pip',
-      hintLine: 'Only the smallest slips into this crack',
+      hintLine: 'Only a Pip is small enough for this crack',
     ),
   ],
   rooms: {

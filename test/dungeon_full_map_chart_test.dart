@@ -15,6 +15,7 @@
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_chart_layout.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
@@ -25,6 +26,64 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   _painterTests();
   const canvas = Size(880, 980);
+
+  group('the chart agrees with the walking', () {
+    // THE MAP IS DRAWN FROM THE DOORS (dungeon_chart_layout.dart): a room
+    // through an east door is to the east. This is the property the old
+    // "rows by distance from the entrance" chart did not have, and the reason
+    // it read as weird. Rings (Spirit, Light, Blood) cannot satisfy it all
+    // the way round, and floor hatches go DOWN a level, so both are exempt.
+    const rings = {'Spirit', 'Light', 'Blood'};
+    kPlanetDungeonLayouts.forEach((element, layout) {
+      if (rings.contains(element)) return;
+      test('$element: every wall door points the way its room is drawn', () {
+        final chart = dungeonChartFor(element);
+        final wrong = <String>[];
+        for (final room in layout.rooms.values) {
+          for (final d in room.doors) {
+            final to = layout.rooms[d.targetRoomId];
+            if (to == null) continue;
+            if (chartPairIsHatch(layout, room.id, to.id)) continue;
+            // Mud's bowl and fane: a reciprocal pair that exists only for
+            // the door invariant and is never walked (door_compass_test).
+            if (element == 'Mud' &&
+                {
+                  room.id,
+                  to.id,
+                }.containsAll({'drowned_fane', 'sunken_lotus'})) {
+              continue;
+            }
+            final a = chart.rooms[room.id]!.center;
+            final b = chart.rooms[to.id]!.center;
+            final ok = switch (chartDoorWall(room.bounds, d.rect)) {
+              'E' => b.dx > a.dx,
+              'W' => b.dx < a.dx,
+              'N' => b.dy < a.dy,
+              'S' => b.dy > a.dy,
+              _ => true,
+            };
+            if (!ok) wrong.add('${room.id} -> ${to.id}');
+          }
+        }
+        expect(wrong, isEmpty);
+      });
+    });
+
+    test('no two rooms overlap on any chart', () {
+      kPlanetDungeonLayouts.forEach((element, layout) {
+        final boxes = dungeonChartFor(element).rooms.entries.toList();
+        for (var i = 0; i < boxes.length; i++) {
+          for (var j = i + 1; j < boxes.length; j++) {
+            expect(
+              boxes[i].value.overlaps(boxes[j].value),
+              isFalse,
+              reason: '$element: ${boxes[i].key} / ${boxes[j].key}',
+            );
+          }
+        }
+      });
+    });
+  });
 
   group('every dungeon charts as a real map', () {
     test('no two rooms land on the same point', () {

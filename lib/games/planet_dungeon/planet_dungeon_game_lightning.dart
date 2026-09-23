@@ -475,7 +475,7 @@ extension StormCircuit on PlanetDungeonGame {
       if (!solved && !fed && vent != null) {
         _setBlockedHintOnce(
           'circuit:hall_dark',
-          'The hall is dark, the vents wait on the dynamo',
+          'The hall has no power. It needs the dynamo',
         );
       }
     }
@@ -502,7 +502,7 @@ extension StormCircuit on PlanetDungeonGame {
     for (final m in room.beamMirrors) {
       if ((a.position - m.position).distance <= 52) {
         if (a.member.element != 'Lightning') {
-          _setBlockedHint('Only Lightning turns the conductor');
+          _setBlockedHint('Only Lightning can turn the conductor');
           return true;
         }
         mirrorOrient[m.id] = ((mirrorOrient[m.id] ?? 0) + 1) % 2;
@@ -869,7 +869,7 @@ extension StormCircuit on PlanetDungeonGame {
           // missing (§5.6 BLOCKED — attempt-edged by the state itself).
           _setBlockedHintOnce(
             'circuit:works_dark',
-            'The works are dark, the sockets wait on the dynamo',
+            'The works have no power. They need the dynamo',
           );
         }
       } else {
@@ -953,7 +953,7 @@ extension StormCircuit on PlanetDungeonGame {
       keep.add('circuit:vault_bolt');
       _setBlockedHintOnce(
         'circuit:vault_bolt',
-        'The vault bolt holds while this trunk burns',
+        'The vault bolt stays locked while this trunk has power',
       );
     }
     _releaseBlockedExcept('circuit:vault_bolt', keep);
@@ -1083,7 +1083,7 @@ extension StormCircuit on PlanetDungeonGame {
     if (spike == null || isRaid) return false;
     if ((a.position - spike).distance > 56) return false;
     if (a.member.element != 'Lightning') {
-      _setBlockedHint('The grounding spike answers only Lightning');
+      _setBlockedHint('Only Lightning can use the grounding spike');
       return true;
     }
     final g = room.guardian;
@@ -1148,7 +1148,7 @@ extension StormCircuit on PlanetDungeonGame {
         return true;
       }
       if ((a.position - cell.reflection).distance <= _kEchoReach) {
-        _setBlockedHint('Your hand closes on glass, the pane shows a side');
+        _setBlockedHint('That\'s only a reflection. The echo is elsewhere');
         return true;
       }
     }
@@ -1160,10 +1160,10 @@ extension StormCircuit on PlanetDungeonGame {
       _setBlockedHintOnce(
         'circuit:gallery_drowned',
         activeTrunk == null
-            ? 'The glass is black, no wing is lit to shine into it'
+            ? 'The glass is dark. No wing has power'
             : circuitRoomLit(room.id)
-            ? 'The gallery\'s own light drowns the glass'
-            : 'This wing throws nothing the glass can hold',
+            ? 'This room\'s own power drowns out the glass'
+            : 'The powered wing shows nothing in this glass',
       );
       return true;
     }
@@ -1212,7 +1212,7 @@ extension StormCircuit on PlanetDungeonGame {
       if (a.member.element == 'Fire') {
         return _heatAnvil(a, sock);
       }
-      _setBlockedHint('The anvil-cell answers only Fire');
+      _setBlockedHint('Only Fire can work the anvil-cell');
       return true;
     }
 
@@ -1352,7 +1352,7 @@ extension StormCircuit on PlanetDungeonGame {
         }
         if (rotorOverspeed <= 0) {
           _setBlockedHint(
-            'The jaws are cold, nothing here is carrying enough to fuse',
+            'Not enough charge here to fuse',
           );
           return true;
         }
@@ -1375,7 +1375,7 @@ extension StormCircuit on PlanetDungeonGame {
       }
 
       if (el != 'Lightning') {
-        _setBlockedHint('The breaker answers only Lightning');
+        _setBlockedHint('Only Lightning can throw the breaker');
         return true;
       }
 
@@ -1418,7 +1418,7 @@ extension StormCircuit on PlanetDungeonGame {
 
   bool _chargePylon(DungeonCreature a, CircuitNode node) {
     if (a.member.element != 'Lightning') {
-      _setBlockedHint('This dead iron answers only Lightning');
+      _setBlockedHint('Only Lightning can charge this iron');
       return true;
     }
     // ELEMENT-ONLY: every Lightning drives the same full, clean charge.
@@ -1504,17 +1504,17 @@ extension StormCircuit on PlanetDungeonGame {
       _setInsightHint(
         tier >= 2
             ? (shown
-                  ? 'One pane is speaking. What stands in it is a REFLECTION '
-                        ', the echo waits as far the other side of the glass '
-                        'as its image stands this side'
-                  : 'Nothing shines in here now. Go back to the dynamo and '
-                        'feed a different wing, any wing but this one')
+                  ? 'One pane is lit. What you see in it is a REFLECTION. The '
+                        'echo stands as far behind the glass as its image '
+                        'stands in front'
+                  : 'Nothing is showing now. Power a different wing at the '
+                        'dynamo, any wing but this one')
             : tier >= 1
-            ? 'The glass holds no light of its own. It carries whichever wing '
-                  'the dynamo feeds, and each echo answers to one wing only'
-                  'so lighting THIS room hides all three'
-            : 'Glass, and $hidden echo${hidden == 1 ? '' : 'es'} that will not '
-                  'stand where they seem to',
+            ? 'The glass shows light from whichever wing the dynamo powers. '
+                  'Each echo shows for one wing only, and powering THIS room '
+                  'hides all three'
+            : '$hidden echo${hidden == 1 ? '' : 'es'} hide here, and they '
+                  'aren\'t where they seem',
       );
       return;
     }
@@ -1522,19 +1522,18 @@ extension StormCircuit on PlanetDungeonGame {
     // t2 the tempting lie the hall is built to teach.
     if (room.circuitStarIndex == 0 && room.beamEmitters.isNotEmpty) {
       if (!circuitRoomLit(room.id)) {
-        _setHint('The hall is dead, the dynamo must feed the pylon trunk');
+        _setHint('The hall has no power. Send the dynamo to the pylon trunk');
         return;
       }
       _setHint(
         tier >= 2
-            ? 'The low vent and the flame in front of it make a real bolt'
-                  'and it dies in the east wall. Only the high vent ever '
-                  'reaches iron'
+            ? 'The low vent makes a real bolt, but it hits the east wall. '
+                  'Only the high vent reaches the iron'
             : tier >= 1
-            ? 'Air opens a vent; Fire standing in that wind turns it to '
+            ? 'Air opens a vent. Fire standing in that wind turns it into '
                   'lightning, and only lightning wakes the mast'
-            : 'The mast drinks lightning alone; wind and flame must braid to '
-                  'make it, and iron must carry it home',
+            : 'Only lightning wakes the mast. Wind and flame together make '
+                  'it, and iron carries it',
       );
       return;
     }
@@ -1542,22 +1541,20 @@ extension StormCircuit on PlanetDungeonGame {
     // early the flame stands), t2 the free-planning trick and the decoy.
     if (room.beamEmitters.isNotEmpty) {
       if (!circuitRoomLit(room.id)) {
-        _setHint('The spire is cold, the dynamo must feed the core wing');
+        _setHint('The spire has no power. Send the dynamo to the core wing');
         return;
       }
       _setHint(
         tier >= 2
-            ? 'Plan in WIND: with no flame stationed the run lights nothing, '
-                  'so the whole spiral can be laid out and looked over for '
-                  'free. And the column with no conductor in it is a lie, '
-                  'however well its pair line up'
+            ? 'Plan with wind only: without flame nothing lights, so you can '
+                  'lay out the whole route for free. The column with no '
+                  'conductor is a trap'
             : tier >= 1
-            ? 'Three converters stand on the route at different depths, and '
-                  'every one of them makes a real bolt. Everything BEFORE the '
-                  'flame is only wind, so the question is how early you can '
-                  'stand it'
-            : 'One chain must lie on all three masts at once, and the last of '
-                  'them stands on the gate',
+            ? 'Three converters sit along the route, and each makes a real '
+                  'bolt. Everything before the flame is just wind, so place '
+                  'Fire as early as you can'
+            : 'One chain has to reach all three masts at once. The last one '
+                  'is at the gate',
       );
       return;
     }
@@ -1565,10 +1562,9 @@ extension StormCircuit on PlanetDungeonGame {
     if (room.cellSockets.isNotEmpty) {
       _setHint(
         tier >= 1
-            ? 'Herd each echo to a socket, the anvil-cell answers only to '
-                  'Fire\'s heat, and the works sing only while their trunk burns'
-            : 'The sockets want their storm-cells, and the works want the '
-                  'dynamo',
+            ? 'Herd each echo into a socket. Only Fire works the anvil-cell, '
+                  'and the works only run while their trunk has power'
+            : 'The sockets need storm-cells, and the works need the dynamo',
       );
       return;
     }
@@ -1576,26 +1572,25 @@ extension StormCircuit on PlanetDungeonGame {
     if (room.id == layout.dynamoRoomId) {
       _setHint(
         tier >= 2
-            ? 'The dynamo owns one trunk at a time, and the vault bolt only '
-                  'falls in a DEAD trunk'
-            : 'The dynamo owns one trunk at a time. What it feeds wakes; '
-                  'the rest go dark',
+            ? 'The dynamo powers one trunk at a time, and the vault bolt only '
+                  'drops in an UNPOWERED trunk'
+            : 'The dynamo powers one trunk at a time. The rest go dark',
       );
       return;
     }
     // The vault — the re-hide, named.
     if (room.vaultBolt != null) {
       _setHint(
-        'The bolt holds while this trunk burns. Kill the power you '
-        'stand in',
+        'The bolt stays locked while this trunk has power. Cut the power '
+        'to this room',
       );
       return;
     }
     // The storm core — the feed, named.
     if (room.guardian != null && guardianAwake) {
       _setHint(
-        'Raikuma drinks the powered trunk. Ground it at the spike to '
-        'force the lull',
+        'Raikuma feeds on the powered trunk. Ground it at the spike to '
+        'force a lull',
       );
       return;
     }
@@ -1658,25 +1653,25 @@ extension StormCircuit on PlanetDungeonGame {
   String? _circuitObjectiveHint(DungeonRoom room) {
     // Room-entry goal lines — WHAT, never HOW (the method lives with Mask).
     if (room.id == layout.dynamoRoomId) {
-      return 'Dynamo Court, one dynamo, four dark trunks';
+      return 'Dynamo Court. One dynamo, four dark trunks';
     }
     if (room.cellSockets.isNotEmpty) {
-      return 'Cloud Works, three sockets stand empty';
+      return 'Cloud Works. Three empty sockets';
     }
     if (room.circuitStarIndex != null && room.beamEmitters.isNotEmpty) {
-      return 'Pylon Hall, one dead mast, and no bolt in the hall to wake it';
+      return 'Pylon Hall. One dead mast';
     }
     if (room.beamConverters.isNotEmpty) {
-      return 'Storm Spire, three dead masts, and only lightning wakes them';
+      return 'Storm Spire. Three dead masts';
     }
     if (room.guardian != null) {
       return 'Storm Core. Face Raikuma: calm it, or strike in its lulls';
     }
     if (room.stormCells.isNotEmpty) {
-      return 'Mirror Gallery, three echoes, and glass that holds no light';
+      return 'Mirror Gallery. Three hidden echoes';
     }
     if (room.vaultBolt != null && !discoveredClouds.contains(_vaultCacheId)) {
-      return 'Capacitor Vault, the treasury hoards its charge';
+      return 'Capacitor Vault. Something is stored here';
     }
     return null;
   }

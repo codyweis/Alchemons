@@ -516,8 +516,8 @@ extension MoltenReliquary on PlanetDungeonGame {
   /// §5.6 BLOCKED: one clause, naming what is missing — never the method.
   String _foundryDoorHint(DungeonRoom room, DungeonDoor door) =>
       _wardIdFor(room, door) == 'gantry'
-      ? 'The gantry is bolted, its ward wants a key cast to it'
-      : 'The reliquary ward wants a key cast to it';
+      ? 'The gantry is bolted. Its ward needs a cast key'
+      : 'The reliquary ward needs a cast key';
 
   /// Which ward (if any) a door answers to, from either side.
   String? _wardIdFor(DungeonRoom room, DungeonDoor door) {
@@ -605,7 +605,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     // makes it a forfeit rather than a discovery.
     if (s.pour != null && s.pour!.channelId == 'ch_tap') {
       if (el != 'Ice') {
-        _setBlockedHint('Only Ice quenches a running font');
+        _setBlockedHint('Only Ice can quench this');
         return true;
       }
       s.quench();
@@ -699,12 +699,12 @@ extension MoltenReliquary on PlanetDungeonGame {
 
   bool _throwPoints(DungeonCreature a, FoundryNode n) {
     if (a.member.element != 'Earth') {
-      _setBlockedHint('Only Earth\'s strength frees these slag-seized points');
+      _setBlockedHint('Only Earth can free these jammed points');
       return true;
     }
     final s = works.line;
     if (!s.cycleSwitch(n.switchId!)) {
-      _setBlockedHint('This lever hangs out over the channel');
+      _setBlockedHint('This lever is out over the channel, out of reach');
       return true;
     }
     works
@@ -806,7 +806,7 @@ extension MoltenReliquary on PlanetDungeonGame {
       if (c.rect.width <= 0) continue; // a carried key has no footprint
       if ((a.position - centre).distance > _kWorksReach + 20) continue;
       if (a.member.element != 'Lava') {
-        _setBlockedHint('Only Lava melts a casting back out');
+        _setBlockedHint('Only Lava can melt a casting out');
         return true;
       }
       s.remelt(c.id);
@@ -834,7 +834,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     // find, so the form itself is where a Lava hand takes it back out.
     if (!s.cast(what)) {
       if (a.member.element != 'Lava') {
-        _setBlockedHint('Only slag in this form, and only Lava melts it out');
+        _setBlockedHint('This form holds slag. Only Lava can melt it out');
         return true;
       }
       s.remelt('cast:$what');
@@ -1008,8 +1008,8 @@ extension MoltenReliquary on PlanetDungeonGame {
         });
       case 'tap_head':
         _setInsightHint(switch (t) {
-          0 => 'The sump takes back everything the floor refuses',
-          1 => 'There is a form at the end of it, cut for a key',
+          0 => 'Anything the floor rejects ends up in the sump',
+          1 => 'There\'s a key mould at the end of it',
           _ =>
             'Fill it before you lay any road across the sump. Cold metal '
                 'stops everything behind it',
@@ -1034,8 +1034,8 @@ extension MoltenReliquary on PlanetDungeonGame {
         );
       case 'pour_heart':
         _setInsightHint(
-          'It cannot leave the ring, and the heads on the ring '
-          'are the works\' own hands',
+          'It can\'t leave the ring, and the heads on the ring are the '
+          'works\' own machines',
         );
       default:
         _setInsightHint('Nothing here reads back');

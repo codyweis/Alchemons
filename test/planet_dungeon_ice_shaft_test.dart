@@ -1,8 +1,8 @@
 // GLACIUS — the Frozen Observatory, pinned.
 //
 // Ice's topology is a VERTICAL SHAFT whose descents are one-way slides, and
-// whose vault is "enterable only from a slide you can't repeat" (docs
-// §5.5). That combination is a stranding machine unless the state graph is
+// whose vault sits on a ledge you can only fall onto (docs §5.5). That
+// combination is a stranding machine unless the state graph is
 // checked, so the centrepiece of this file is the FULL REACHABILITY SEARCH:
 // every state the player can legally reach (room × every flue's
 // drift/stair/scoured state × the rimefall), and from each of them, whether
@@ -16,7 +16,7 @@
 // The gallery is pinned as what it now is — a room you WALK to read, with
 // nothing in it that runs down.
 
-import 'dart:math' show atan2;
+import 'dart:math' show atan2, pi;
 import 'dart:ui' show Offset, Rect;
 
 import 'package:alchemons/audio/sound_cue.dart';
@@ -158,7 +158,7 @@ void main() {
       expect(
         rimeFlueForShelf(cacheRoom.id),
         isNotNull,
-        reason: 'docs §5.5: enterable only from a slide you cannot repeat',
+        reason: 'docs §5.5: visible in a mirror, reached by falling onto it',
       );
     });
 
@@ -216,15 +216,15 @@ void main() {
       );
     });
 
-    test('a shelf CAN be lost — the slide really is unrepeatable', () {
+    test('a shelf CAN be lost — gravity, not the chute', () {
       final game = _harness(_idealTrio());
       final r = game.solveShaftDescent();
       expect(
         r.shelfLosable,
         greaterThan(0),
         reason:
-            'freezing a flue seals its shelf, and riding it spends it: '
-            'without paying a thaw the treasure is gone for the run',
+            'a ledge is entered from the level above it: below, with no '
+            'stair back up, the treasure is gone until you pay a thaw',
       );
     });
   });
@@ -359,9 +359,11 @@ void main() {
       );
     });
 
-    test('RIDING THE CHUTE SPENDS THE CHUTE, AND NOTHING ELSE', () {
-      // The whole point of the split. The chute and the shaft are two holes
-      // with one destination each, and neither touches the other.
+    test('RIDING THE CHUTE SPENDS NOTHING — not the chute, not the shaft', () {
+      // The chute and the shaft are two holes with one destination each, and
+      // neither touches the other. And the chute is a ramp EVERY time
+      // (2026-09-20): a ledge you could enter once a run gated nothing and
+      // made the lens niche a one-shot.
       final game = _harness(_idealTrio());
       openTheFloor(game);
       final head = game.layout.rooms['rime_head']!;
@@ -369,12 +371,12 @@ void main() {
         (d) => d.targetRoomId == 'shelf_glass',
       );
       game.onShaftTransitForTest(head, chuteDoor);
+      game.onShaftTransitForTest(head, chuteDoor);
 
-      expect(game.spentChutes, contains('flue_a'));
       expect(
         game.isDoorHidden(head, chuteDoor),
-        isTrue,
-        reason: 'a bare slot is no ramp',
+        isFalse,
+        reason: 'the snow holds; the ledge can be gone back to',
       );
       expect(
         game.flueState['flue_a'],
@@ -1004,21 +1006,60 @@ void main() {
       }
     });
 
-    test('an Air sweep stills the water and shows it all at once', () {
+    test('an Air sweep FLASHES the whole chart, then it fades back', () {
+      // A glimpse, not a reveal (2026-09-20): the sweep used to still the
+      // water for 12s, which made it the way to read the room and the lamp a
+      // formality. Now it holds for half a second, fades, and the water is
+      // the lamp's again.
       final game = _gallery();
       final ring = game.layout.rooms['mirror_gallery']!.rime!.mirrors!;
       game.creatures[light].position = ring.frameAt(0);
+      final before = [
+        for (var k = 0; k < kIceChartStars; k++) game.chartStarLight(ring, k),
+      ];
       final dark = [
         for (var k = 0; k < kIceChartStars; k++)
-          if (!game.chartStarVisible(ring, k)) k,
+          if (before[k] == 0) k,
       ];
       expect(dark, isNotEmpty);
+      expect(before.any((b) => b > 0), isTrue);
       game.setActive(air);
       game.creatures[air].position = ring.vent;
       game.activateAbility();
-      expect(game.poolStill, greaterThan(0));
+      expect(game.sweepLight, 1.0);
       for (final k in dark) {
-        expect(game.chartStarVisible(ring, k), isTrue);
+        expect(game.chartStarLight(ring, k), 1.0, reason: 'the flash');
+      }
+      // Still whole at the end of the hold.
+      for (var i = 0; i < 24; i++) {
+        game.update(1 / 60);
+      }
+      for (final k in dark) {
+        expect(game.chartStarLight(ring, k), 1.0, reason: 'held for 0.5s');
+      }
+      // Half-way through the fade: dimmer, and not gone.
+      for (var i = 0; i < 40; i++) {
+        game.update(1 / 60);
+      }
+      expect(game.sweepLight, lessThan(0.7));
+      expect(game.sweepLight, greaterThan(0.2));
+      for (final k in dark) {
+        expect(game.chartStarLight(ring, k), game.sweepLight);
+      }
+      // Gone, and the lamp's stretch is exactly what it was.
+      for (var i = 0; i < 60; i++) {
+        game.update(1 / 60);
+      }
+      expect(game.sweepLight, 0);
+      for (final k in dark) {
+        expect(game.chartStarVisible(ring, k), isFalse, reason: 'faded');
+      }
+      for (var k = 0; k < kIceChartStars; k++) {
+        expect(
+          game.chartStarLight(ring, k),
+          before[k],
+          reason: 'the lamp holds',
+        );
       }
     });
   });
@@ -1097,23 +1138,8 @@ void main() {
       expect(game.currentRoomId, 'rime_head');
       expect(
         game.hintText,
-        contains('lets go'),
+        contains('shaft resets'),
         reason: 'the room named itself over the top of the thaw',
-      );
-    });
-
-    test('a ride says the snow went with you, and what that leaves', () {
-      final game = _harness(_idealTrio());
-      game.entryDoorRevealed = true;
-      final head = game.layout.rooms['rime_head']!;
-      game.passThroughDoor(
-        head.doors.firstWhere((d) => d.targetRoomId == 'shelf_glass'),
-      );
-      expect(game.hintText, contains('snow comes down after you'));
-      expect(
-        game.hintText,
-        contains('no ramp in that slot'),
-        reason: 'the chute says what riding it did to the chute',
       );
     });
 
@@ -1136,14 +1162,14 @@ void main() {
         }
         // Nothing cut: the climb is free and the line would be noise.
         game.update(1 / 60);
-        expect(game.hintText, isNot(contains('lets go')));
+        expect(game.hintText, isNot(contains('shaft resets')));
         expect(game.currentRoomId, 'cold_sump');
 
         // A stair standing: now it costs, so now it says so — UNASKED,
         // because a warning held back for the hint button is not a warning.
         game.flueState['flue_b'] = RimeFlueState.stair;
         game.update(1 / 60);
-        expect(game.hintText, contains('lets go behind you'));
+        expect(game.hintText, contains('resets the whole shaft'));
 
         // And never again: it is a teach, not a nag.
         game.hintText = null;
@@ -1177,16 +1203,18 @@ void main() {
       game.activateAbility();
       expect(heard, contains(SoundCue.elementIce));
 
-      // A ride that scours.
+      // A ride that scours — the SHAFT, not the chute: a ledge chute is a
+      // ramp every time, and spends nothing to be heard.
       heard.clear();
       game.flueState['flue_b'] = RimeFlueState.drift;
       final gallery = game.layout.rooms['mirror_gallery']!;
       game.currentRoomId = 'mirror_gallery';
       game.onShaftTransitForTest(
         gallery,
-        gallery.doors.firstWhere((d) => d.targetRoomId == 'shelf_lens'),
+        gallery.doors.firstWhere((d) => d.targetRoomId == 'orrery_floor'),
       );
       expect(heard, contains(SoundCue.dungeonHazardTrigger));
+      expect(game.flueState['flue_b'], RimeFlueState.scoured);
 
       // A stretch of chart put into the water.
       heard.clear();
@@ -1215,6 +1243,218 @@ void main() {
     });
   });
 
+  group('THE LOST MAXIM · STAR-WALKER — the stranger', () {
+    // The maxim standard (§7): a CHAIN — ride flue A bare so the shaft over
+    // the pool is a mirror; wake the water and read the stranger's bearing;
+    // ride chute B; turn the lens to the bearing; lock the sighting. Every
+    // link is proved here against the same code the buttons call.
+    final ring = layout.rooms['mirror_gallery']!.rime!.mirrors!;
+    const bearing = 4;
+
+    /// The gallery awake, and the lamp parked ACROSS from the bearing — the
+    /// only place the water reads it from.
+    PlanetDungeonGame awake() {
+      final game = _harness(_idealTrio());
+      game.currentRoomId = 'mirror_gallery';
+      game.strangerFrame = bearing;
+      game.setActive(light);
+      for (final c in game.creatures) {
+        c.position = ring.frameAt(ring.lodestoneIndex);
+      }
+      game.activateAbility(); // Light+Mask strikes the lodestone
+      expect(game.lodestoneLit, isTrue);
+      game.creatures[light].position = ring.frameAt(
+        (bearing + ring.count ~/ 2) % ring.count,
+      );
+      return game;
+    }
+
+    /// The lens niche, with the sighting already shown (or not) upstairs.
+    PlanetDungeonGame niche({bool seen = true, int notch = 0}) {
+      final game = _harness(_idealTrio());
+      final lens = layout.rooms['shelf_lens']!.rime!.telescope!;
+      game.currentRoomId = 'shelf_lens';
+      game.strangerFrame = bearing;
+      game.strangerSeen = seen;
+      game.telescopeNotch = notch;
+      for (final c in game.creatures) {
+        c.position = lens;
+      }
+      return game;
+    }
+
+    test('the stranger hangs only over a shaft ridden BARE', () {
+      final game = awake();
+      // Drift: snow shows the water nothing.
+      expect(game.shaftAboveIsMirror, isFalse);
+      expect(game.strangerLight(ring), 0);
+      game.update(1 / 60);
+      expect(game.strangerSeen, isFalse);
+      // A stair: cut steps show it nothing either. Doing the RIGHT thing on
+      // the way down is exactly what hides the secret.
+      game.flueState['flue_a'] = RimeFlueState.stair;
+      expect(game.strangerLight(ring), 0);
+      // Bare ice is a mirror, and the sky is in it.
+      game.flueState['flue_a'] = RimeFlueState.scoured;
+      expect(game.shaftAboveIsMirror, isTrue);
+      expect(game.strangerLight(ring), 1.0);
+      game.update(1 / 60);
+      expect(game.strangerSeen, isTrue);
+      // Said once, unasked, the first time — the star is new in the water.
+      expect(game.hintText, contains('no frame charts'));
+    });
+
+    test('and only where the water is reading', () {
+      final game = awake();
+      game.flueState['flue_a'] = RimeFlueState.scoured;
+      // A lamp on the SAME side reads the far side; the stranger stays dark.
+      game.creatures[light].position = ring.frameAt(bearing);
+      expect(game.strangerLight(ring), 0);
+      game.update(1 / 60);
+      expect(game.strangerSeen, isFalse);
+      // Air's sweep stills the whole surface, and that shows it too.
+      game.setActive(air);
+      game.creatures[air].position = ring.vent;
+      game.activateAbility();
+      expect(game.strangerLight(ring), 1.0);
+      game.update(1 / 60);
+      expect(game.strangerSeen, isTrue);
+    });
+
+    test('the water is dead until the lodestone wakes it, stranger or no', () {
+      final game = _harness(_idealTrio());
+      game.currentRoomId = 'mirror_gallery';
+      game.strangerFrame = bearing;
+      game.flueState['flue_a'] = RimeFlueState.scoured;
+      game.creatures[light].position = ring.frameAt(
+        (bearing + ring.count ~/ 2) % ring.count,
+      );
+      game.update(1 / 60);
+      expect(game.lodestoneLit, isFalse);
+      expect(game.strangerLight(ring), 0);
+      expect(game.strangerSeen, isFalse);
+    });
+
+    test('the roll never lands on the rest position', () {
+      for (var i = 0; i < 40; i++) {
+        final game = _harness(_idealTrio());
+        expect(game.strangerFrame, isNot(ring.lodestoneIndex));
+        expect(game.strangerFrame, inInclusiveRange(0, ring.count - 1));
+        expect(game.telescopeNotch, ring.lodestoneIndex);
+        expect(game.strangerSeen, isFalse);
+      }
+    });
+
+    test('the lens refuses a sighting the water has not shown', () {
+      final game = niche(seen: false, notch: bearing);
+      game.setActive(ice);
+      game.activateAbility();
+      expect(game.riteActive, isFalse);
+      // §5.6: a refusal is held for the hint button, and names WHAT is
+      // missing — never how to get it.
+      expect(game.hintHasAnswer, isTrue);
+      game.askForRoomHint();
+      expect(game.hintText, contains('where the water saw'));
+    });
+
+    test('Air turns the wheel a notch a breath, and it comes round', () {
+      final game = niche();
+      game.setActive(air);
+      for (var i = 1; i <= ring.count; i++) {
+        game.activateAbility();
+        expect(game.telescopeNotch, i % ring.count);
+        expect(game.riteActive, isFalse);
+      }
+    });
+
+    test('frost on the wrong bearing is empty sky, and costs nothing', () {
+      final game = niche(notch: bearing - 1);
+      game.setActive(ice);
+      game.activateAbility();
+      expect(game.riteActive, isFalse);
+      expect(game.telescopeNotch, bearing - 1);
+      expect(game.strangerSeen, isTrue);
+      expect(game.discoveredClouds, isNot(contains(kIceStarWalkerEggId)));
+      // §5.6: the world does not narrate an unasked tap. The puff of frost
+      // is the answer; the sentence waits for the hint button like every
+      // other world-response line on the planet.
+      expect(game.hintText, isNull);
+    });
+
+    test('a Light hand in the lens sees only itself', () {
+      final game = niche(notch: bearing);
+      game.setActive(light);
+      game.activateAbility();
+      expect(game.riteActive, isFalse);
+      expect(game.telescopeNotch, bearing);
+    });
+
+    test('THE SIGHTING LANDS on the stranger\'s bearing, and pays out', () {
+      final game = niche(notch: bearing);
+      game.setActive(ice);
+      game.activateAbility();
+      expect(game.riteActive, isTrue);
+      // The rite of three binds, and the screen is paid.
+      for (var i = 0; i < 200; i++) {
+        game.update(1 / 60);
+      }
+      expect(game.discoveredClouds, contains(kIceStarWalkerEggId));
+      // Found once, the lens is done: nothing answers at it again.
+      game.setActive(air);
+      final notch = game.telescopeNotch;
+      game.activateAbility();
+      expect(game.telescopeNotch, notch);
+    });
+
+    test('the sighting is reached by turning, not by knowing the code', () {
+      // Twelve breaths and a press each is the brute-force ceiling — and it
+      // still needs the water to have shown the stranger first.
+      final game = niche(seen: true, notch: 0);
+      var landed = false;
+      for (var i = 0; i < ring.count && !landed; i++) {
+        game.setActive(ice);
+        game.activateAbility();
+        landed = game.riteActive;
+        if (!landed) {
+          game.setActive(air);
+          game.activateAbility();
+        }
+      }
+      expect(landed, isTrue);
+      expect(game.telescopeNotch, bearing);
+    });
+
+    test('THE SOLVED CHART STANDS when you walk back in', () {
+      // A later descent, the Mirror Star already banked: the pool used to
+      // open dead black with every frame dark, as if never solved.
+      final game = _harness(_idealTrio());
+      game.starMask = 1 << 0; // onLoad would read this off the save
+      game.currentRoomId = 'mirror_gallery';
+      game.update(1 / 60);
+      expect(game.lodestoneLit, isTrue);
+      expect(game.mirrorChart, hasLength(kIceChartStars));
+      expect(game.silveredFrames, hasLength(ring.count));
+      expect(game.chartStarsWhole, kIceChartStars);
+      // And the stranger reads without a lamp, once the shaft is bare — the
+      // secret stays open to a player who cleared the stars first.
+      game.strangerFrame = bearing;
+      expect(game.strangerLight(ring), 0);
+      game.flueState['flue_a'] = RimeFlueState.scoured;
+      expect(game.strangerLight(ring), 1.0);
+    });
+
+    test('the star path never passes it', () {
+      // The niche is a shelf: nothing on it banks a star, and the Frost Star
+      // is reached down flue C with A frozen — the shaft never bare.
+      final niche = layout.rooms['shelf_lens']!;
+      expect(niche.rime?.starIndex, isNull);
+      expect(niche.doors.map((d) => d.targetRoomId), ['mirror_gallery']);
+      final game = _harness(_idealTrio());
+      game.flueState['flue_a'] = RimeFlueState.stair;
+      expect(game.shaftAboveIsMirror, isFalse);
+    });
+  });
+
   group('the rite and the guardian', () {
     test('the font refuses until both stars are banked, then sings', () {
       final game = _harness(_idealTrio());
@@ -1231,26 +1471,6 @@ void main() {
       expect(game.conduitEnergy['B'], double.infinity);
     });
 
-    test('conduit A is the Air+WING gate and stamps its own chip', () {
-      final stamped = <String>[];
-      final game = _harness([
-        _member(0, 'Ice', 'mane'),
-        _member(1, 'Light', 'mask'),
-        _member(2, 'Air', 'pip'), // wrong family
-      ], onCloud: stamped.add);
-      final room = game.layout.rooms['star_font']!;
-      game.currentRoomId = 'star_font';
-      game.earnStar(0);
-      game.earnStar(1);
-      game.setActive(air);
-      game.creatures[air].position = room.conduits
-          .firstWhere((c) => c.id == 'A')
-          .position;
-      game.activateAbility();
-      expect(game.conduitEnergy['A'] ?? 0, 0);
-      expect(stamped, contains('gate:air_wing'));
-    });
-
     test('Frowyrm keeps its lull shut while the hoarfrost is down', () {
       final game = _harness(_idealTrio());
       final room = game.layout.rooms['frowyrm_hollow']!;
@@ -1265,6 +1485,317 @@ void main() {
       game.creatures[ice].position = room.rime!.hoarfrost!;
       game.activateAbility();
       expect(game.hoarfrostWhole, isTrue);
+    });
+  });
+
+  group('THE ROOF OF THE HOLLOW — the rite', () {
+    // The rite room's floor is the ice over the wyrm's lair (2026-09-20).
+    // Snow bears all and shows nothing; Light bares a pane and bare ice over
+    // the hollow bears one body; every bared pane says which way the head
+    // lies; the glass over the head is the throat the breath goes down and,
+    // once the wyrm is awake, the way in — for all three together.
+    final room = layout.rooms['star_font']!;
+    final roof = room.rime!.roof!;
+    // A wyrm laid by hand: head at (3,3), body west along row 3 and down.
+    const wyrm = [30, 29, 28, 37, 38];
+
+    PlanetDungeonGame onTheRoof({List<CosmicPartyMember>? party}) {
+      final game = _harness(party ?? _idealTrio());
+      game.currentRoomId = 'star_font';
+      game.earnStar(0);
+      game.earnStar(1);
+      game.seedRoofForTest(wyrm);
+      for (final c in game.creatures) {
+        c
+          ..position = const Offset(400, 70)
+          ..lastSafe = const Offset(400, 70);
+      }
+      return game;
+    }
+
+    /// Stand [who] at [p] facing [angle], make them active, and press.
+    void press(PlanetDungeonGame g, int who, Offset p, double angle) {
+      g.setActive(who);
+      g.creatures[who]
+        ..position = p
+        ..aimAngle = angle;
+      g.activateAbility();
+    }
+
+    const down = pi / 2, left = pi, right = 0.0;
+
+    test('the roof is authored honestly: one pier, an island, and water', () {
+      expect(roof.cols, 9);
+      expect(roof.rows, 5);
+      final pier = roof.pierCell;
+      expect(roof.centerAt(pier), room.rime!.coldFont);
+      // Water on three sides of the pier, hollow on the fourth: the font is
+      // reached across the roof or by Ice freezing a way.
+      final around = roof.neighbours(pier);
+      expect(around.where(roof.waterAt).length, 3);
+      expect(
+        around
+            .where(
+              (c) => roof.bedAt(c) == IceRoofBed.hollow && !roof.waterAt(c),
+            )
+            .length,
+        1,
+      );
+      // The way in is never a door on a wall.
+      final drop = room.doors.firstWhere(
+        (d) => d.targetRoomId == 'frowyrm_hollow',
+      );
+      final game = _harness(_idealTrio());
+      expect(game.isDoorHidden(room, drop), isTrue);
+    });
+
+    test('the wyrm is rolled as a connected line of hollow panes', () {
+      for (var roll = 0; roll < 40; roll++) {
+        final game = _harness(_idealTrio());
+        final w = game.roofWyrm;
+        expect(w.length, kIceWyrmLength, reason: 'roll $roll');
+        expect(w.toSet().length, w.length, reason: 'no pane twice');
+        for (var i = 0; i < w.length; i++) {
+          expect(roof.bedAt(w[i]), IceRoofBed.hollow, reason: 'roll $roll');
+          expect(game.roofIsWater(w[i]), isFalse, reason: 'roll $roll');
+          if (i > 0) {
+            expect(roof.adjacent(w[i - 1], w[i]), isTrue, reason: 'roll $roll');
+          }
+        }
+        // And the authored water is water from the start.
+        for (var c = 0; c < roof.count; c++) {
+          expect(game.roofIsWater(c), roof.waterAt(c));
+        }
+        expect(game.roofBare, isEmpty);
+        expect(game.roofThroat, isNull);
+      }
+    });
+
+    test('Light bares the pane AHEAD, and the ice says what it lies on', () {
+      final game = onTheRoof();
+      // From the near shore, facing down: the first pane of the roof.
+      press(game, light, Offset(roof.centerAt(1).dx, 100), down);
+      expect(game.roofTargetCell(game.creatures[light]), 1);
+      expect(game.roofBare, contains(1));
+      expect(game.hintText, contains('Dark water under this ice'));
+      // The rule is said once, the first time the hollow shows.
+      expect(game.discoveredClouds, contains(kIceRoofTeachId));
+      // Standing on that pane, facing the corner: rock.
+      press(game, light, roof.centerAt(1), left);
+      expect(game.roofBare, contains(0));
+      // A reading is held for the hint button (the dungeon does not narrate).
+      game.askForRoomHint();
+      expect(game.hintText, contains('Stone under this ice'));
+      // Never the pane under your own feet.
+      expect(game.roofTargetCell(game.creatures[light]), isNot(1));
+    });
+
+    test(
+      'every bared pane is a bearing: the drift runs AWAY from the head',
+      () {
+        final game = onTheRoof();
+        final head = roof.centerAt(wyrm.first);
+        for (var c = 0; c < roof.count; c++) {
+          if (roof.bedAt(c) != IceRoofBed.hollow || wyrm.contains(c)) continue;
+          final d = game.roofDrift(roof, c);
+          final away = roof.centerAt(c) - head;
+          expect(
+            d.dx * away.dx + d.dy * away.dy,
+            greaterThan(0),
+            reason: 'pane $c',
+          );
+        }
+        // And under the body, the scales run TOWARD the head.
+        for (var i = 1; i < wyrm.length; i++) {
+          final run = game.roofScaleRun(roof, wyrm[i]);
+          final toHead = roof.centerAt(wyrm[i - 1]) - roof.centerAt(wyrm[i]);
+          expect(run.dx * toHead.dx + run.dy * toHead.dy, greaterThan(0));
+        }
+        expect(game.roofScaleRun(roof, wyrm.first), Offset.zero);
+      },
+    );
+
+    test('snow bears all; bare glass over the hollow bears ONE body', () {
+      final game = onTheRoof();
+      game.setActive(ice);
+      // Snow, with Light already standing on it: Ice may join.
+      game.creatures[light].position = roof.centerAt(10);
+      expect(game.shaftBlocksAtForTest(roof.centerAt(10)), isFalse);
+      // Bared, it is thin, and Light is on it: Ice is refused, and told why.
+      game.roofBare.add(10);
+      expect(game.shaftBlocksAtForTest(roof.centerAt(10)), isTrue);
+      game.update(1 / 60);
+      expect(game.hintHasAnswer, isTrue, reason: 'a refusal is remembered');
+      game.askForRoomHint();
+      expect(game.hintText, contains('only holds one'));
+      // Bare glass over ROCK is thick: the corner bears the whole party.
+      game.roofBare.add(0);
+      game.creatures[light].position = roof.centerAt(0);
+      game.creatures[air].position = roof.centerAt(0);
+      expect(game.shaftBlocksAtForTest(roof.centerAt(0)), isFalse);
+      // Water bears nobody, and says nothing about it.
+      expect(game.shaftBlocksAtForTest(roof.centerAt(4)), isTrue);
+    });
+
+    test('Light melts bare glass to water, Ice freezes it back thin', () {
+      final game = onTheRoof();
+      game.roofBare.add(10);
+      // Light on pane 1 facing down works pane 10.
+      press(game, light, roof.centerAt(1), down);
+      expect(game.roofIsWater(10), isTrue);
+      // Ice, same spot: the water takes frost again, thin.
+      press(game, ice, roof.centerAt(1), down);
+      expect(game.roofIsWater(10), isFalse);
+      expect(game.roofIsBare(10), isTrue);
+      expect(game.roofIsThin(roof, 10), isTrue);
+      // Stone will not open, and a pane with a body on it will not be melted
+      // from under them.
+      game.roofBare.add(0);
+      press(game, light, roof.centerAt(1), left);
+      expect(game.roofIsWater(0), isFalse);
+      game.askForRoomHint();
+      expect(game.hintText, contains('Nothing to open'));
+      game.creatures[air].position = roof.centerAt(10);
+      press(game, light, roof.centerAt(1), down);
+      expect(game.roofIsWater(10), isFalse);
+      game.askForRoomHint();
+      expect(game.hintText, contains('standing on that ice'));
+    });
+
+    test('the glass over the head opens into the THROAT, twice pressed', () {
+      final game = onTheRoof();
+      // Light on pane 31 facing west works pane 30 — the head.
+      press(game, light, roof.centerAt(31), left);
+      expect(game.roofBare, contains(30));
+      expect(game.hintText, contains('head is under this ice'));
+      expect(game.roofThroat, isNull);
+      press(game, light, roof.centerAt(31), left);
+      expect(game.roofThroat, 30);
+      expect(game.roofIsWater(30), isFalse);
+      // Frost will not close it again.
+      press(game, ice, roof.centerAt(31), left);
+      expect(game.roofThroat, 30);
+      game.askForRoomHint();
+      expect(game.hintText, contains('stops this from freezing'));
+      // Sealed, it bears nobody: the wyrm is asleep under it.
+      game.setActive(ice);
+      expect(game.shaftBlocksAtForTest(roof.centerAt(30)), isTrue);
+    });
+
+    test('the breath is the Air+WING gate, and it stamps its own chip', () {
+      final stamped = <String>[];
+      final game = _harness([
+        _member(0, 'Ice', 'mane'),
+        _member(1, 'Light', 'mask'),
+        _member(2, 'Air', 'pip'), // wrong family
+      ], onCloud: stamped.add);
+      game.currentRoomId = 'star_font';
+      game.earnStar(0);
+      game.earnStar(1);
+      game.seedRoofForTest(wyrm);
+      game.roofBare.add(30);
+      game.roofThroat = 30;
+      // No throat open elsewhere: Air is told what is missing.
+      press(game, air, roof.centerAt(1), down);
+      game.askForRoomHint();
+      expect(game.hintText, contains('over the wyrm\'s head first'));
+      // At the throat, the wrong family is refused and the seal remembers.
+      press(game, air, roof.centerAt(31), left);
+      expect(game.conduitEnergy['A'] ?? 0, 0);
+      expect(stamped, contains('gate:air_wing'));
+    });
+
+    test('the Wing turns the breath down the throat, once the stars allow', () {
+      final game = _harness(_idealTrio());
+      game.currentRoomId = 'star_font';
+      game.seedRoofForTest(wyrm);
+      game.roofBare.add(30);
+      game.roofThroat = 30;
+      press(game, air, roof.centerAt(31), left);
+      expect(game.conduitEnergy['A'] ?? 0, 0, reason: 'no stars, no breath');
+      game.askForRoomHint();
+      expect(game.hintText, contains('Mirror Star'));
+      game.earnStar(0);
+      game.earnStar(1);
+      press(game, air, roof.centerAt(31), left);
+      expect(game.conduitEnergy['A'], double.infinity);
+    });
+
+    test(
+      'on the pier, Ice sings the font; the water round it is frozen from the roof',
+      () {
+        final game = onTheRoof();
+        final pier = roof.pierCell;
+        // Standing on the pier facing the water: the FONT answers, not the
+        // water (a body on the pier is working the font).
+        press(game, ice, roof.centerAt(pier), right);
+        expect(game.conduitEnergy['B'], double.infinity);
+        expect(game.roofIsWater(pier + 1), isTrue);
+        // From the hollow pane below, facing up at the pier's water neighbour
+        // — no: facing the water beside it from the roof freezes it.
+        press(game, ice, roof.centerAt(pier + roof.cols + 1), -pi / 2);
+        expect(game.roofIsWater(pier + 1), isFalse);
+      },
+    );
+
+    test('both halves sung, the wyrm wakes under the roof', () {
+      final game = onTheRoof();
+      game.roofBare.add(30);
+      game.roofThroat = 30;
+      press(game, ice, roof.centerAt(roof.pierCell), down);
+      expect(game.conduitEnergy['B'], double.infinity);
+      expect(game.guardianAwake, isFalse, reason: 'half a rite wakes nothing');
+      press(game, air, roof.centerAt(31), left);
+      game.update(1 / 60);
+      expect(game.altarOpen, isTrue);
+      expect(game.guardianAwake, isTrue);
+      expect(game.hintText, contains('wyrm stirs'));
+    });
+
+    test('the throat takes the three of you together, or nobody', () {
+      final game = onTheRoof();
+      game.roofBare.add(30);
+      game.roofThroat = 30;
+      game.conduitEnergy['A'] = double.infinity;
+      game.conduitEnergy['B'] = double.infinity;
+      game.update(1 / 60);
+      expect(game.guardianAwake, isTrue);
+      game.setActive(ice);
+      game.creatures[ice].position = roof.centerAt(31);
+      // The others still on the shore: the step in is refused, and told.
+      expect(game.shaftBlocksAtForTest(roof.centerAt(30)), isTrue);
+      game.update(1 / 60);
+      game.askForRoomHint();
+      expect(game.hintText, contains('at the edge first'));
+      expect(game.currentRoomId, 'star_font');
+      // Gathered at the edge — each on their own pane — the step in bears.
+      game.creatures[light].position = roof.centerAt(21);
+      game.creatures[air].position = roof.centerAt(39);
+      expect(game.shaftBlocksAtForTest(roof.centerAt(30)), isFalse);
+      game.creatures[ice].position = roof.centerAt(30);
+      game.update(1 / 60);
+      expect(game.currentRoomId, 'frowyrm_hollow');
+      // The hollow's own once-only teach outranks the fall's line on arrival,
+      // which is the engine's rule; what matters is that the party went.
+      expect(game.guardianAwake, isTrue);
+    });
+
+    test('the roof reads itself: arrival, insight, readout', () {
+      final game = onTheRoof();
+      // Arriving names the room, and what it is the roof OF.
+      game.currentRoomId = 'cold_sump';
+      final sump = game.layout.rooms['cold_sump']!;
+      game.passThroughDoor(
+        sump.doors.firstWhere((d) => d.targetRoomId == 'star_font'),
+      );
+      expect(game.hintText, contains('hollow'));
+      final r = game.progressReadout;
+      expect(r?.label, 'RITE');
+      expect(r?.value, '0/2');
+      // The hint button reads the roof, not the shaft.
+      game.setActive(light);
+      game.askForRoomHint();
+      expect(game.hintText, anyOf(contains('glass'), contains('drift')));
     });
   });
 }

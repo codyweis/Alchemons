@@ -361,7 +361,7 @@ void main() {
     test('and it stops promising once the ring is whole', () {
       final g = _spire();
       g.discoveredClouds.add(kAirFirstWindEggId);
-      expect(read(g).toLowerCase(), contains('whole'));
+      expect(read(g).toLowerCase(), contains('complete'));
     });
 
     test('an empty room admits the planet is still keeping one', () {

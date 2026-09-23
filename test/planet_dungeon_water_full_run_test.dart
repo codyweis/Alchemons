@@ -937,7 +937,6 @@ void main() {
       expect(game.dammedNodes, isEmpty, reason: '$element must be refused');
       game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
-      game.askForRoomHint();
       expect(game.hintText, 'Only Ice plugs a basin');
       expect(
         game.combatEnemies.where((e) => !e.isDead),
@@ -965,7 +964,6 @@ void main() {
     expect(game.dammedNodes, isEmpty);
     game.askForRoomHint();
     expect(game.hintChannel, DungeonHintChannel.blocked);
-    game.askForRoomHint();
     expect(game.hintText, contains('will not take'));
   });
 
@@ -985,7 +983,7 @@ void main() {
     t0.askForRoomHint();
     expect(t0.hintChannel, DungeonHintChannel.insight);
     expect(t0.hintText, contains('deep cuts'));
-    expect(t0.hintText, contains('torrent'));
+    expect(t0.hintText, contains('flood at high tide'));
 
     // t1 — …and where the water would take the lantern NEXT.
     final t1 = _gallery([_member(0, 'Spirit', 'mask', intelligence: 3)]);
@@ -1000,7 +998,7 @@ void main() {
     t2.activateAbility();
     expect(t2.canalRevealTier, 2);
     t2.askForRoomHint();
-    expect(t2.hintText, contains('whole fall'));
+    expect(t2.hintText, contains('whole path'));
 
     // The forecast rides a timer Intelligence buys; the NAMING does not.
     expect(t2.canalRevealTimer, greaterThan(t0.canalRevealTimer));
@@ -1023,7 +1021,6 @@ void main() {
     expect(game.sumpsRead, isFalse, reason: 'the foresight stays Spirit\'s');
     game.askForRoomHint();
     expect(game.hintText, contains('LOWEST'));
-    game.askForRoomHint();
     expect(
       game.hintText,
       contains('sill'),

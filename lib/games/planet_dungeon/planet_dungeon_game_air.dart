@@ -474,7 +474,7 @@ extension WindCrownSpire on PlanetDungeonGame {
       if ((a.position - v.position).distance > _kVentReach) continue;
       if (spiralTorn) {
         // §5.6 BLOCKED: one clause, naming the state, never the method.
-        _setBlockedHint('The eye is shearing. Let the ring settle');
+        _setBlockedHint('The eye is tearing apart. Let the ring settle');
         return true;
       }
       if (spiralOpenJets.contains(v.id)) {
@@ -502,7 +502,7 @@ extension WindCrownSpire on PlanetDungeonGame {
       spiralTorn = true;
       _spiralShearedVent = v.id;
       _spiralTearFlash = _kSpiralTearSeconds;
-      _setBlockedHint('The eye shears apart');
+      _setBlockedHint('The eye tears apart');
       _spawnAlchemyBurst(
         _spiralEye(room),
         producedElement: 'Air',
@@ -530,15 +530,15 @@ extension WindCrownSpire on PlanetDungeonGame {
   String _spiralInsight(int tier) {
     if (tier >= 2) {
       final coil = spiralComposableCoil;
-      if (coil == null) return 'Nothing in this ring will hold an eye';
+      if (coil == null) return 'No set of jets here can form an eye';
       final hand = coil == GaleVentFlow.sunwise ? 'sunwise' : 'widdershins';
-      return 'Four of these mouths breathe $hand, the rest will shear the eye';
+      return 'Four of these jets blow $hand. The rest will tear the eye apart';
     }
     if (tier >= 1) {
-      return 'An eye braids only from jets that skirt the rim the same way, '
-          'and no mouth you open will shut again';
+      return 'An eye only forms from jets that circle the rim the same way. '
+          'A jet you open stays open';
     }
-    return 'Seven mouths, one eye, and the eye is particular';
+    return 'Seven jets, and only some of them form the eye';
   }
 
   // ── Star 1 · the wind graph ──────────────────────────────
@@ -1083,7 +1083,7 @@ extension WindCrownSpire on PlanetDungeonGame {
     for (final rod in room.stormRods) {
       if ((a.position - rod.position).distance > _kRodReach) continue;
       if (a.member.element != 'Air') {
-        _setBlockedHint('The rods answer Air alone');
+        _setBlockedHint('Only Air can move the rods');
         return true;
       }
       final next = ((rodHeight[rod.id] ?? 0) + 1) % (kStormRodMaxHeight + 1);
@@ -1111,7 +1111,7 @@ extension WindCrownSpire on PlanetDungeonGame {
     if (cell == null) return false;
     if ((a.position - cell).distance > _kCellGustReach) return false;
     if (a.member.element != 'Air') {
-      _setBlockedHint('Only Air can shove the storm');
+      _setBlockedHint('Only Air can push the storm cell');
       return true;
     }
     final orbit = room.stormOrbit!;
@@ -1292,18 +1292,18 @@ extension WindCrownSpire on PlanetDungeonGame {
   /// Goal only — never method. The method lives behind Mask insight.
   String? _spireObjectiveHint(DungeonRoom room) {
     if (room.gustShrines.isNotEmpty && !hasStar(0)) {
-      return 'A gust shrine sleeps here';
+      return 'A sleeping gust shrine';
     }
     if (room.summit != null && !hasStar(0)) {
       return summitOpen
-          ? 'The crown stands open'
-          : 'The crown waits on every wind';
+          ? 'The crown is open'
+          : 'The crown opens once every wind is awake';
     }
     if (room.guardian != null) {
-      return hasStar(2) ? null : 'Something enormous is riding the storm';
+      return hasStar(2) ? null : 'Something huge rides the storm. The last star is here';
     }
     if (room.stormRods.isNotEmpty) {
-      return 'The twin conduits sleep';
+      return 'The twin conduits are dark';
     }
     return null;
   }
@@ -1325,7 +1325,7 @@ extension WindCrownSpire on PlanetDungeonGame {
   /// Mask insight, tiered — the ONLY channel allowed to teach method.
   String _spireWindInsight(DungeonRoom room, int tier) {
     if (tier < 1) {
-      return 'The shrines answer, but the winds keep their order secret';
+      return 'Each shrine wakes a wind, and the order matters';
     }
     if (tier >= 2) {
       // Tier 2 marks the answer: which walk each sleeping wind will scour.
@@ -1338,27 +1338,26 @@ extension WindCrownSpire on PlanetDungeonGame {
               .firstOrNull;
           if (shrine == null) continue;
           threats.add(
-            '${_capitalise(shrine.name)} will scour a walk you '
+            '${_capitalise(shrine.name)} will blow across a walkway you '
             'still need',
           );
         }
       }
       return threats.isEmpty
-          ? 'Nothing left to wake will bar your road'
+          ? 'No wind left to wake will block your path'
           : threats.first;
     }
-    return 'Every wind you wake blows for good, and blows on the walkways '
-        'too';
+    return 'Every wind you wake keeps blowing, and it blows across the '
+        'walkways too';
   }
 
   String _spireStormInsight(DungeonRoom room, int tier) => tier >= 2
-      ? 'The bolt climbs: from where it hangs it leaps to the tallest iron '
-            'in reach, then to taller iron still, and stops where nothing '
-            'rises above it'
+      ? 'The bolt jumps to the tallest rod in reach, then to a taller one, '
+            'and stops where nothing is taller'
       : tier >= 1
-      ? 'The storm will not come to the conduit. Build it a ladder of rising '
-            'iron, and shove the cell to the ladder\'s foot'
-      : 'The storm chooses for itself, and the rods know why';
+      ? 'The storm won\'t come to the conduit. Build a ladder of rising '
+            'rods and push the storm cell to its foot'
+      : 'Lightning jumps between the rods by height';
 
   DungeonProgressReadout? _spireProgressReadout() {
     final room = currentRoom;
@@ -2451,39 +2450,34 @@ extension PlanetDungeonFourWindsInsight on PlanetDungeonGame {
   /// hands, and that there is something under the rime worth comparing.
   String _fourWindsInsight(int tier) {
     if (_fourWindsFound) {
-      return 'The ring is whole and the compass turns, this hall keeps '
-          'nothing back now';
+      return 'The compass is complete. Nothing more here';
     }
     switch (firstWindStage) {
       case 0:
         return switch (tier) {
           <= 0 =>
-            'Four stones ring the compass, and the compass is a '
-                'mechanism, not a mural',
+            'The compass is a machine, not a decoration',
           1 =>
-            'The mechanism is cold. Its heart wants CURRENT, not a hand '
-                'on its stones',
+            'The machine has no power. Its centre needs CURRENT',
           _ =>
-            'The mechanism is cold, and the stones are rimed shut. Put '
-                'current through the heart and the ring will answer',
+            'The machine has no power and the stones are frosted over. Run '
+                'current through the centre to start it',
         };
       case 1:
         return switch (tier) {
-          <= 0 => 'The ring is live, and every face is still rimed over',
+          <= 0 => 'The compass has power, but every face is frosted over',
           _ =>
-            'Rime hides the four faces. Burn it off and there will be '
-                'something to compare',
+            'Frost hides the four faces. Burn it off to compare them',
         };
       case 2:
         final left = firstWindOrder.length - firstWindSpoken.length;
         return switch (tier) {
-          <= 0 => 'The faces are bare, and no two are worn alike',
+          <= 0 => 'The faces are clear, and each is worn differently',
           1 =>
-            'The wind has eaten the four faces unequally, $left still '
-                'sleep',
+            'The wind wore the four faces unequally. $left still to wake',
           _ =>
-            'The wind has eaten the four faces unequally, and it has been '
-                'blowing longest on one of them',
+            'The wind wore the faces unequally. The most worn has been '
+                'blowing the longest',
         };
       default:
         return 'The winds gather';

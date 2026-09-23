@@ -12,13 +12,14 @@
 //  • Entry — the fen's face is a skin of floating weed. WATER sluices it and
 //    the gate's three crossings show themselves (docs §5.5, the eased entry
 //    reveal).
-//  • Star 0 (Sarsen) — THE HAUL. The fen's fallen standing stone lies in the
-//    gate's silt. It crosses SOD and nothing else, so the road has to be
-//    dragged ahead of it, one crossing at a time, and every drag drowns the
-//    crossings beside it on the same slough. MUD drags (element-only), or the
-//    planet's braid **Plant+Water→Mud** with wisps as the recipe's price. The
-//    socket's bog-resin cap wants **Plant+Mud→Poison** (§6.8). UNGATED — this
-//    is the star §4 guarantees to any trio of Mud/Plant/Water.
+//  • Star 0 (Sarsen) — THE ROAD, THEN THE ROOTS. The fen's fallen standing
+//    stone lies in the gate's silt. It crosses SOD and nothing else, so the
+//    whole road to the altar has to be dragged first, and every drag drowns
+//    the crossings beside it on the same slough. MUD drags (element-only), or
+//    the planet's braid **Plant+Water→Mud** with wisps as the recipe's price.
+//    Once an unbroken road stands, PLANT's roots take the stone and walk it
+//    down that road into the socket in one press. UNGATED — this is the star
+//    §4 guarantees to any trio of Mud/Plant/Water.
 //  • Star 1 (Moor) — THE CHOIR. Three moor-altars on three knolls. A basin
 //    holds its offering only while its knoll stands DRY-FOOTED (every
 //    crossing that touches it dragged to sod) — sodden ground drinks the
@@ -70,6 +71,21 @@ const int _kBraidWisps = 2;
 /// Seconds the drag smear stays on screen, travelling out along the slough.
 const double _kSmearSeconds = 1.6;
 
+/// Seconds THE HEAVE plays in the fane after the plug comes out: the bung
+/// flying, the fen pouring down every risen wallow and away down the sough.
+const double _kHeaveSeconds = 3.6;
+
+/// Peak camera rumble while the fen goes down the sough, in pixels.
+const double _kHeaveShake = 7.0;
+
+/// Seconds a knoll spends SETTLING the first time you walk onto it after a
+/// heave: its crossings going soft again and the last of its water running
+/// down its wallow.
+const double _kSettleSeconds = 2.8;
+
+/// The settling's rumble — a knoll going quiet, not a fen going down a drain.
+const double _kSettleShake = 3.0;
+
 /// Everything one Mud run tracks. ONE field on the engine (the Lava/Poison
 /// pattern): the pure fen rules plus the handful of live/visual timers the
 /// rules themselves have no business knowing about.
@@ -91,6 +107,18 @@ class SinkingFen {
   bool cutsFound = false;
   bool seedSet = false;
   final Set<int> poured = {};
+
+  /// Seconds since the plug came out, or negative when the heave is not
+  /// playing (render only — the fen itself resets in one step).
+  double heaveFx = -1;
+
+  /// THE SETTLING: seconds since the knoll [settleRoom] started settling, or
+  /// negative when none is. [settled] is every knoll that has already shown
+  /// it since the last heave, so each one settles once and then is just
+  /// ground again.
+  double settleFx = -1;
+  String? settleRoom;
+  final Set<String> settled = {};
 
   /// How thick the sink is, 0 (clean water) → 1 (peat you could stand a
   /// stone in). Eased toward `poured.length / 3` so a pour READS as an
@@ -137,27 +165,80 @@ extension SinkingAltarFen on PlanetDungeonGame {
 
   // ── Lifecycle ────────────────────────────────────────────
 
+  /// Has the Moor Star been banked (this run or an earlier one)?
+  bool get _moorStarBanked {
+    final altar = layout.rooms[kSarsenSocketKnoll]?.fen?.altar;
+    return altar != null && hasStar(altar.moorStarIndex);
+  }
+
   void _resetBogState() {
     if (!_isBog) return;
     // A death re-floods nothing and un-drags nothing by itself — the fen is
     // puzzle state like every other planet's, so it resets with the run.
     _fen.reset();
+    // …but what a banked star DID stays done. A run that opens with the
+    // Sarsen Star already won finds the stone in its socket, not fallen at
+    // the gate; one with the Moor Star finds three full basins. (They reset
+    // with everything else, which played as "after we get one star, the mud
+    // things shouldn't reset those.")
+    final altar = layout.rooms[kSarsenSocketKnoll]?.fen?.altar;
+    if (altar != null && hasStar(altar.sarsenStarIndex)) {
+      _fen
+        ..sarsenKnoll = kSarsenSocketKnoll
+        ..sarsenSeated = true;
+    }
+    if (_moorStarBanked) _fen.moorsWoken.addAll(kMoorKnollIds);
     bog
       ..clock = 0
       ..smear = 0
       ..smearLost = const []
       ..cutsFound = false
       ..seedSet = false
-      ..sinkThickness = 0;
+      ..sinkThickness = 0
+      ..heaveFx = -1
+      ..settleFx = -1
+      ..settleRoom = null;
     bog.poured.clear();
+    bog.settled.clear();
   }
 
   // ── Per-frame update ─────────────────────────────────────
 
   void _updateBog(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isBog) return;
+    _maybeWakeBogdrya();
     bog.clock += dt;
     if (bog.smear > 0) bog.smear = max(0.0, bog.smear - dt);
+    if (bog.heaveFx >= 0) {
+      bog.heaveFx += dt;
+      if (bog.heaveFx > _kHeaveSeconds) {
+        bog.heaveFx = -1;
+      } else {
+        // The whole drowned level rumbles while the fen goes down the sough:
+        // a quick rise, a long hold, a slow tail.
+        final t = bog.heaveFx / _kHeaveSeconds;
+        final env = t < 0.08 ? t / 0.08 : pow(1 - (t - 0.08) / 0.92, 1.6);
+        _shake = max(_shake, _kHeaveShake * env.toDouble());
+      }
+    }
+    // THE SETTLING. The first knoll you stand on after a heave shows what
+    // the heave did to it; each knoll does it once.
+    if (_fen.heaves > 0 &&
+        room.fen?.knoll != null &&
+        bog.settled.add(room.id)) {
+      bog
+        ..settleRoom = room.id
+        ..settleFx = 0;
+    }
+    if (bog.settleFx >= 0) {
+      bog.settleFx += dt;
+      if (bog.settleFx > _kSettleSeconds || bog.settleRoom != room.id) {
+        bog.settleFx = -1;
+      } else {
+        final t = bog.settleFx / _kSettleSeconds;
+        _shake = max(_shake, _kSettleShake * (1 - t));
+      }
+    }
     // The sink thickens toward what has been poured into it, rather than
     // snapping: a pour has to READ as peat arriving down the lead.
     final want = bog.poured.length / 3.0;
@@ -242,8 +323,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
       if (!f.hardened.contains(ford.id)) continue;
       f.hardened.remove(ford.id);
       // The moor-altars answer to dryness, so a swallowed road can un-wake a
-      // basin — Star 1 is only ever lost this way BEFORE it is banked.
-      f.moorsWoken.removeWhere((k) => !f.isDry(k));
+      // basin — but only BEFORE the Moor Star is banked.
+      if (!_moorStarBanked) f.moorsWoken.removeWhere((k) => !f.isDry(k));
       _setHint('Bogdrya drinks, a causeway goes out from under the bog');
       return;
     }
@@ -343,16 +424,16 @@ extension SinkingAltarFen on PlanetDungeonGame {
   String _bogDoorHint(DungeonRoom room, DungeonDoor door) {
     final f = _fen;
     if (room.id == 'sunken_lotus' && door.targetRoomId == kLotusKnollId) {
-      return 'The knoll came down with you, there is only water above';
+      return 'The knoll sank with you. There\'s no way back up';
     }
     if (door.targetRoomId == kLotusKnollId && f.lotusSunk) {
-      return 'That knoll is under the fen now';
+      return 'That knoll has sunk';
     }
     if (_isWallowDoor(room, door)) {
-      return 'Only Mud lets the bog take it down';
+      return 'Only Mud can sink through here';
     }
     if (_isRisenWallowDoor(room, door)) {
-      return 'The fen holds its roof shut, nothing rises here yet';
+      return 'The way up stays shut until the plug is pulled';
     }
     if (_isPlankDoor(room, door)) {
       final gate = layout.familyGateFor('plank_road');
@@ -361,22 +442,17 @@ extension SinkingAltarFen on PlanetDungeonGame {
         return gate.hintLine;
       }
     }
-    return 'Open water, nothing crosses it now';
+    return 'This crossing has drowned';
   }
 
-  /// Bookkeeping on the transit itself: climbing a risen wallow is THE HEAVE.
+  /// Bookkeeping on the transit itself: climbing a risen wallow RE-PLUGS the
+  /// sough behind you. The heave already happened when the plug came out
+  /// (see `_trySough`); this only shuts the way up again, so the next wallow
+  /// down lands on a closed hatch — the carried-fault invariant.
   void _onBogTransit(DungeonRoom from, DungeonDoor door) {
     if (!_isBog) return;
     if (!_isRisenWallowDoor(from, door)) return;
-    _fen.heave();
-    // A TRANSIT line: as a plain hint this was wiped by the very door it
-    // reports on (the fen's one world-scale act, silent since it was built —
-    // the Ice precedent, same cause).
-    _announceTransit(
-      'The sough lets go and the whole fen heaves, every road you dragged '
-      'is soup again',
-      7.0,
-    );
+    _fen.soughFreed = false;
   }
 
   /// Test seam for the transit bookkeeping (the Ice precedent), so the heave
@@ -394,10 +470,9 @@ extension SinkingAltarFen on PlanetDungeonGame {
         _trySough(a) ||
         _tryBlackLead(a) ||
         _tryMoorBasin(a) ||
-        _trySocketCap(a) ||
-        _trySeatSarsen(a) ||
-        _tryDragFord(a) ||
-        _tryHaulSarsen(a);
+        _tryCarryStone(a) ||
+        _tryEmptySocket(a) ||
+        _tryDragFord(a);
   }
 
   /// The entry rite: WATER sluices the skin of floating weed off the fen's
@@ -410,7 +485,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (knoll == null) return false;
     if ((a.position - const Offset(560, 240)).distance > 220) return false;
     if (a.member.element != 'Water') {
-      _setBlockedHint('Only Water washes this weed off the fen');
+      _setBlockedHint('Only Water can wash this weed off');
       return true;
     }
     entryDoorRevealed = true;
@@ -436,20 +511,17 @@ extension SinkingAltarFen on PlanetDungeonGame {
       if ((a.position - head).distance > _kFenReach) continue;
       switch (f.stateOf(ford.id)) {
         case BogFordState.sod:
-          // A road that already stands is the HAUL's business, not the
-          // drag's: decline so `_tryHaulSarsen` gets the press.
-          if (!f.sarsenSeated && f.sarsenKnoll == currentRoomId) return false;
-          _setBlockedHint('This crossing already stands');
+          _setBlockedHint('This crossing is already hardened');
           return true;
         case BogFordState.drowned:
-          _setBlockedHint('Open water, there is nothing left to pull on');
+          _setBlockedHint('This crossing has drowned and can\'t be hardened');
           return true;
         case BogFordState.mire:
           break;
       }
       final braid = a.member.element != 'Mud';
       if (braid && !_bogBraidReady(a)) {
-        _setBlockedHint('The mire answers only Mud');
+        _setBlockedHint('Only Mud can harden this crossing');
         return true;
       }
       final lost = f.harden(ford.id) ?? const <BogFord>[];
@@ -501,47 +573,121 @@ extension SinkingAltarFen on PlanetDungeonGame {
     );
   }
 
-  /// THE HAUL — Star 0's core. Stand at a crossing's head on the knoll the
-  /// sarsen is on and drag it over. A sarsen crosses SOD and nothing else:
-  /// mire will not bear it, and water is water.
-  bool _tryHaulSarsen(DungeonCreature a) {
+  /// THE ROOTS, AND THE SINKING ALTAR — Star 0.
+  ///
+  /// Plant's roots carry the stone the whole way down an unbroken sod road
+  /// in one press. But the altar is the SINKING altar: it only holds the
+  /// stone on DRY ground — every crossing onto its knoll firm — and no fen
+  /// shape has both a road to the altar and a dry altar (every road drowns
+  /// one of the altar's own crossings; proved in the test). So the star is a
+  /// plan in two fens:
+  ///
+  ///   1. build any road and carry the stone to the altar, where it rests
+  ///      beside a socket that is sinking;
+  ///   2. pull the plug — the fen resets, but a stone already AT the altar
+  ///      stays there;
+  ///   3. firm the altar's three crossings: the knoll drains and the stone
+  ///      settles into the socket.
+  ///
+  /// It was one press after the Moor Star before (the choir's long road is
+  /// also a whole road to the altar), which played as *"I don't think
+  /// there's strategy there."* Now the reset is part of the answer.
+  bool _tryCarryStone(DungeonCreature a) {
     final f = _fen;
     if (f.sarsenSeated) return false;
     if (currentRoomId != f.sarsenKnoll) return false;
-    // PRESSING AT THE STONE HAS TO SAY SOMETHING. The haul is worked at a
-    // CROSSING, not at the sarsen, so the obvious thing to try — walk up to
-    // the big stone and press — did nothing at all and fell through to the
-    // wordless element puff. That is the first thing a player does on this
-    // planet, and the answer was silence.
-    if ((a.position - _sarsenStandsAt()).distance <= _kFenReach) {
-      _setBlockedHint(
-        'The stone will not be lifted, only pushed — and only onto a road',
-      );
+    final stone = _sarsenStandsAt();
+    if ((a.position - stone).distance > _kFenReach) return false;
+    if (f.sarsenKnoll == kSarsenSocketKnoll) {
+      // Already here: it is waiting on the ground, not on a hand.
+      if (!_settleSarsenIfDry()) {
+        _setBlockedHint(
+          'The altar is sinking. Its knoll has to be dry to hold the stone',
+        );
+      }
       return true;
     }
-    for (final ford in kBogFords) {
-      final head = ford.headIn(currentRoomId);
-      if (head == null) continue;
-      if ((a.position - head).distance > _kFenReach * 1.4) continue;
-      // Only sod ever bears the stone. Anything else has already been
-      // answered by the drag, which runs first.
-      if (f.stateOf(ford.id) != BogFordState.sod) continue;
-      f.sarsenKnoll = ford.other(currentRoomId)!;
-      _setHint('The sarsen grinds across, one crossing nearer', 3.2);
+    if (a.member.element != 'Plant') {
+      _setBlockedHint('Too heavy to push, only Plant\'s roots can carry it');
+      return true;
+    }
+    if (_sarsenHopsHome() == null) {
+      _setBlockedHint('The roots need hard ground all the way to the altar');
+      return true;
+    }
+    f.sarsenKnoll = kSarsenSocketKnoll;
+    _spawnAlchemyBurst(
+      stone,
+      producedElement: 'Plant',
+      reagentElements: const ['Mud'],
+      particleCount: 30,
+      intensity: 1.2,
+    );
+    if (!_settleSarsenIfDry()) {
+      speakConsequence(
+        'The roots carry the stone to the altar, but the ground there is '
+        'too wet to hold it',
+        4.6,
+      );
+    }
+    return true;
+  }
+
+  /// The stone settles into the socket the moment it is at the altar AND
+  /// the altar's knoll is dry. Called after a carry and after every drag,
+  /// so the drag that drains the knoll is the one that seats it. True when
+  /// it seated (or already had).
+  bool _settleSarsenIfDry() {
+    final f = _fen;
+    if (f.sarsenSeated) return true;
+    if (f.sarsenKnoll != kSarsenSocketKnoll) return false;
+    if (!f.isDry(kSarsenSocketKnoll)) return false;
+    f.sarsenSeated = true;
+    speakConsequence(
+      'The altar\'s knoll drains, and the stone settles into the socket',
+      4.6,
+    );
+    final altar = layout.rooms[kSarsenSocketKnoll]?.fen?.altar;
+    if (altar != null) {
       _spawnAlchemyBurst(
-        head,
+        altar.socket,
         producedElement: 'Earth',
         reagentElements: const ['Mud'],
-        particleCount: 18,
-        intensity: 0.9,
+        particleCount: 32,
+        intensity: 1.3,
       );
-      return true;
+      if (!hasStar(altar.sarsenStarIndex)) earnStar(altar.sarsenStarIndex);
     }
-    return false;
+    return true;
+  }
+
+  /// THE RITE: both stars banked, and the peat parts under the fane — Bogdrya
+  /// wakes in the hollow. (There was no rite at all: every other planet
+  /// rouses its guardian with a rite, and Mud's hollow door waited for a
+  /// wake nothing ever gave it, so two stars opened nothing. The tests
+  /// set `guardianAwake` by hand and never noticed.)
+  void _maybeWakeBogdrya() {
+    if (guardianAwake || hasStar(2) || !guardianRiteUnlocked || isRaid) return;
+    guardianAwake = true;
+    guardianHp = PlanetDungeonGame.maxGuardianHp;
+  }
+
+  /// Pressing the empty socket has to say where the stone is.
+  bool _tryEmptySocket(DungeonCreature a) {
+    final altar = currentRoom.fen?.altar;
+    final f = _fen;
+    if (altar == null || f.sarsenSeated) return false;
+    if ((a.position - altar.socket).distance > _kFenReach) return false;
+    _setBlockedHint(
+      f.sarsenKnoll == kSarsenSocketKnoll
+          ? 'The stone is here, but the altar sinks. This knoll must be dry'
+          : 'The socket is empty, the stone is still at the Mire Gate',
+    );
+    return true;
   }
 
   /// Where the sarsen stands in the room it is currently on. One copy, so
-  /// the renderer and the haul cannot disagree about what you are next to.
+  /// the renderer and the carry cannot disagree about what you are next to.
   Offset _sarsenStandsAt() {
     final room = layout.rooms[_fen.sarsenKnoll];
     final b = room?.bounds ?? currentRoom.bounds;
@@ -549,63 +695,6 @@ extension SinkingAltarFen on PlanetDungeonGame {
       b.center.dx,
       _fen.sarsenKnoll == kSarsenHomeKnoll ? 150 : 140,
     );
-  }
-
-  /// The socket's bog-resin cap — **Plant+Mud→Poison** eats it (§6.8). The
-  /// braid is the ONLY way: no Poison hand descends here.
-  bool _trySocketCap(DungeonCreature a) {
-    final altar = currentRoom.fen?.altar;
-    final f = _fen;
-    if (altar == null || f.socketOpen) return false;
-    if ((a.position - altar.cap).distance > _kFenReach) return false;
-    final e = a.member.element;
-    final want = e == 'Plant' ? 'Mud' : 'Plant';
-    final paired =
-        (e == 'Plant' || e == 'Mud') &&
-        creatures.any(
-          (c) => c.alive && !identical(c, a) && c.member.element == want,
-        );
-    if (!paired) {
-      _setBlockedHint('The resin holds, nothing here eats it alone');
-      return true;
-    }
-    f.socketOpen = true;
-    _setHint('The resin rots through and the socket opens black');
-    _spawnAlchemyBurst(
-      altar.cap,
-      producedElement: 'Poison',
-      reagentElements: const ['Plant', 'Mud'],
-      particleCount: 26,
-      intensity: 1.15,
-    );
-    return true;
-  }
-
-  /// Seat the sarsen — Star 0's success.
-  bool _trySeatSarsen(DungeonCreature a) {
-    final altar = currentRoom.fen?.altar;
-    final f = _fen;
-    if (altar == null || f.sarsenSeated) return false;
-    if ((a.position - altar.socket).distance > _kFenReach) return false;
-    if (f.sarsenKnoll != kSarsenSocketKnoll) {
-      _setBlockedHint('The socket stands empty, the stone is still out there');
-      return true;
-    }
-    if (!f.socketOpen) {
-      _setBlockedHint('Old resin caps the socket');
-      return true;
-    }
-    f.sarsenSeated = true;
-    _setHint('The sarsen drops home and the altar stops sinking', 4.0);
-    _spawnAlchemyBurst(
-      altar.socket,
-      producedElement: 'Earth',
-      reagentElements: const ['Mud'],
-      particleCount: 32,
-      intensity: 1.3,
-    );
-    if (!hasStar(altar.sarsenStarIndex)) earnStar(altar.sarsenStarIndex);
-    return true;
   }
 
   /// A MOOR BASIN — Star 1. Element-only WATER, except the cairn's, which is
@@ -629,12 +718,20 @@ extension SinkingAltarFen on PlanetDungeonGame {
         return true;
       }
     } else if (a.member.element != 'Water') {
-      _setBlockedHint('The basin answers only Water');
+      _setBlockedHint('Only Water can fill this basin');
       return true;
     }
     if (!f.isDry(currentRoomId)) {
-      // The world teaches the rule: sodden ground drinks the offering.
-      _setBlockedHint('The ground drinks it, this knoll still swims');
+      // The world teaches the rule: sodden ground drinks the offering. But
+      // "not yet" and "never" are different answers, and the player needs
+      // the second one most: a knoll with a DROWNED crossing can never dry in
+      // this fen, and the only way back is the heave. Saying "still swims"
+      // there sent people back to try again forever.
+      _setBlockedHint(
+        _moorKnollDead(currentRoomId)
+            ? 'A crossing here has drowned, this knoll can never dry now'
+            : 'The water drains away, every crossing here must be hardened first',
+      );
       _spawnAlchemyBurst(
         moor.basin,
         producedElement: 'Water',
@@ -657,12 +754,22 @@ extension SinkingAltarFen on PlanetDungeonGame {
     return true;
   }
 
+  /// A moor knoll that can never dry in the fen as it stands: one of its
+  /// crossings is open water, and open water never comes back short of the
+  /// heave.
+  bool _moorKnollDead(String knollId) => _fen
+      .fordsOf(knollId)
+      .any((x) => _fen.stateOf(x.id) == BogFordState.drowned);
+
   /// A drag can dry the last knoll a woken basin was waiting on; re-check the
   /// choir whenever the fen changes under it.
   void _wakeSettledMoors() {
     final f = _fen;
-    f.moorsWoken.removeWhere((k) => !f.isDry(k));
+    // Once the Moor Star is banked the basins are done for good; a later
+    // drag that wets a knoll does not empty them.
+    if (!_moorStarBanked) f.moorsWoken.removeWhere((k) => !f.isDry(k));
     _bankMoorStarIfWhole();
+    _settleSarsenIfDry();
   }
 
   void _bankMoorStarIfWhole() {
@@ -674,30 +781,46 @@ extension SinkingAltarFen on PlanetDungeonGame {
   }
 
   /// THE SOUGH — the fen's outfall, and the anti-strand valve. A Mud hand
-  /// pulls its peat plug; climbing out afterwards heaves the whole bog back
-  /// to its opening state (see `_onBogTransit`). Always available, from any
-  /// state, which is what `solveFenTerraform().strandable == 0` rests on.
+  /// pulls its peat plug and the whole bog HEAVES back to its opening state
+  /// there and then — the act and its consequence in the same place. (It
+  /// used to wait until you climbed out, which played as *"it should reset
+  /// when we activate it, not when we leave"*: pulling a plug and watching
+  /// nothing happen reads as a broken plug.) The risen wallows open with it
+  /// and climbing one re-plugs the sough behind you. Always available, from
+  /// any state, which is what `solveFenTerraform().strandable == 0` rests on.
   bool _trySough(DungeonCreature a) {
     final pos = currentRoom.fen?.sough;
     final f = _fen;
     if (pos == null) return false;
     if ((a.position - pos).distance > _kFenReach) return false;
     if (a.member.element != 'Mud') {
-      _setBlockedHint('Only Mud has a grip on this plug');
+      _setBlockedHint('Only Mud can pull this plug');
       return true;
     }
     if (f.soughFreed) {
-      _setBlockedHint('The outfall already runs');
+      _setBlockedHint('The plug is already out');
       return true;
     }
-    f.soughFreed = true;
-    _setHint('The plug comes away, the whole fen starts to move');
+    f.heave(keepBasins: _moorStarBanked);
+    f.soughFreed = true; // after the heave, which re-plugs it
+    bog.heaveFx = 0;
+    bog.settled.clear(); // every knoll above has settling to show
+    _cue(SoundCue.dungeonWallBreak);
+    // A CONSEQUENCE, spoken unasked: the whole map just changed.
+    speakConsequence(
+      f.sarsenKnoll == kSarsenSocketKnoll && !f.sarsenSeated
+          ? 'The plug comes out and the fen resets. The stone stays at the '
+                'altar'
+          : 'The plug comes out and the fen resets. Every crossing is mire '
+                'again',
+      5.0,
+    );
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Mud',
       reagentElements: const ['Water'],
-      particleCount: 28,
-      intensity: 1.2,
+      particleCount: 40,
+      intensity: 1.5,
     );
     return true;
   }
@@ -862,11 +985,11 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kFenReach) return false;
     if (a.member.element != 'Mud') {
-      _setBlockedHint('Only Mud sets this floor');
+      _setBlockedHint('Only Mud can harden this floor');
       return true;
     }
     if (f.anchorFirm) {
-      _setBlockedHint('The floor is firm');
+      _setBlockedHint('The floor is already hardened');
       return true;
     }
     f.anchorFirm = true;
@@ -887,18 +1010,30 @@ extension SinkingAltarFen on PlanetDungeonGame {
   DungeonProgressReadout? _bogProgressReadout() {
     final f = _fen;
     final altar = layout.rooms[kSarsenSocketKnoll]?.fen?.altar;
-    // THE HAUL COMES FIRST while the stone is still out in the fen. It is
+    // THE ROAD COMES FIRST while the stone is still out in the fen. It is
     // Star 0, it is the thing a player is doing in the opening minutes, and
-    // it is the one quantity here nobody can derive by looking: how many
-    // crossings of HARD ground still lie between the stone and the socket,
-    // which is a different question from how far apart they are. The basins
-    // take the slot once the stone is home; the crossings that used to live
-    // here are all nine of them on the fen chart now.
+    // it is the one fact here nobody can derive by looking: whether an
+    // unbroken road of HARD ground joins the stone to the socket — the one
+    // condition Plant's carry waits on. The basins take the slot once the
+    // stone is home.
+    if (altar != null &&
+        !f.sarsenSeated &&
+        !hasStar(altar.sarsenStarIndex) &&
+        f.sarsenKnoll == kSarsenSocketKnoll) {
+      // At the altar: now it is the knoll's dryness that is outstanding.
+      final fords = f.fordsOf(kSarsenSocketKnoll);
+      final done = fords.where((x) => f.hardened.contains(x.id)).length;
+      return DungeonProgressReadout(
+        label: 'ALTAR',
+        value: '$done/${fords.length} hardened',
+        fraction: done / fords.length,
+      );
+    }
     if (altar != null && !f.sarsenSeated && !hasStar(altar.sarsenStarIndex)) {
       final hops = _sarsenHopsHome();
       return DungeonProgressReadout(
-        label: 'SARSEN',
-        value: hops == null ? 'no road' : '$hops to go',
+        label: 'ROAD',
+        value: hops == null ? 'broken' : 'whole',
         fraction: null,
       );
     }
@@ -938,46 +1073,47 @@ extension SinkingAltarFen on PlanetDungeonGame {
     return null;
   }
 
-  /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
+  /// WHAT, never HOW (§5.6). The method is the HINT button's to give.
   String? _bogObjectiveHint(DungeonRoom room) {
     final f = _fen;
     if (room.guardian != null) {
-      return 'Bogdrya\'s Hollow, the fen keeps its last star down here';
+      return 'Bogdrya\'s Hollow. The fen\'s last star is down here';
     }
     if (room.fen?.sough != null) {
-      return 'The Drowned Fane, the whole bog drains through this room';
+      return 'The Drowned Fane. The fen\'s drain plug is here';
     }
     if (room.vaultCache != null) {
-      return 'A bowl under the fen, something is bottled here';
+      return 'A sunken bowl. Something is stored down here';
     }
-    // WHERE THE STONE IS, AND WHERE IT IS GOING. These two lines used to
-    // describe their rooms — "the sarsen lies here", "its socket stands
-    // empty" — as two unrelated facts in two rooms you never see at once.
-    // Each names the OTHER end now, because a haul is only a goal when you
-    // know both ends of it.
+    // WHERE THE STONE IS, AND WHERE IT IS GOING. Each end names the other,
+    // because carrying something is only a goal when you know both ends.
     final altar = room.fen?.altar;
     if (altar != null && !hasStar(altar.sarsenStarIndex)) {
       return f.sarsenKnoll == room.id
-          ? 'The Sinking Altar, and the stone is here at last'
-          : 'The Sinking Altar, its socket wants the fen\'s fallen stone';
+          ? 'The Sinking Altar. The stone waits here, the ground too wet'
+          : 'The Sinking Altar. It only holds the fallen stone on dry ground';
     }
     if (room.fen?.knoll != null &&
         f.sarsenKnoll == room.id &&
         !f.sarsenSeated) {
-      return 'The stone stands here, and the altar is not this knoll';
+      return entryDoorRevealed || room.id != layout.entranceRoomId
+          ? 'The fallen stone lies here. It belongs in the Sinking Altar'
+          : 'The Mire Gate. Weed covers the water';
     }
     if (room.fen?.moor != null) {
       if (f.moorsWoken.contains(room.id)) return null;
-      // The condition, not just the symptom. "Will not keep anything" is
-      // true and teaches nothing; a knoll that still swims is the reason.
+      // The condition, not just the symptom: the knoll is the reason.
+      if (_moorKnollDead(room.id)) {
+        return 'A moor basin. A crossing here has drowned, so it can\'t fill';
+      }
       return f.isDry(room.id)
-          ? 'A moor-altar on drained ground, its basin would hold now'
-          : 'A moor-altar, and this knoll still swims';
+          ? 'A moor basin. This knoll is dry now, so it will hold water'
+          : 'A moor basin. It won\'t hold water while the knoll is wet';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Mire Gate, three crossings out, and the stone lies here'
-          : 'The Mire Gate. Weed lies over everything';
+          ? 'The Mire Gate'
+          : 'The Mire Gate. Weed covers the water';
     }
     return null;
   }
@@ -1014,75 +1150,153 @@ extension SinkingAltarFen on PlanetDungeonGame {
     }
   }
 
-  /// INSIGHT is the only channel allowed to teach method (§5.6), tiered by
-  /// Intelligence.
+  /// THE HINT BUTTON'S READING (§5.6), tiered by Intelligence: tier 0 names
+  /// the goal and what stands in the way, tier 1 the rule, tier 2 the next
+  /// concrete step. Plain words at every tier — a low-Intelligence reading
+  /// is SHORTER, never a riddle.
+  ///
+  /// Two readings do not tier, because they are the ones a stuck player
+  /// cannot do without: a knoll that can never dry, and a fen with no road
+  /// left to the altar. Both name the reset.
   void _bogReveal(DungeonCreature a, DungeonRoom room) {
     final tier = revealHintTier(a.member.statIntelligence);
-    // THE BLACK LEAD'S ONE OBLIQUE LINE (§7 rule 5), and it is the only thing
+    final f = _fen;
+    // THE BLACK LEAD'S ONE OBLIQUE LINE (§7 rule 5), and the only thing
     // anywhere in the game that speaks about the Lost Maxim. It does not
-    // tier, it does not track progress, and it says the same words whether
-    // the lead is running or dry: it points at the IDEA — this cut was dug
-    // to take the fen's worst, and clean water grows nothing — and every
+    // tier and does not track progress: it points at the IDEA, and every
     // step after it is legible from what is standing there.
     final sink = room.fen?.sinkPit;
     if (sink != null &&
         (a.position - sink).distance < 150 &&
         !discoveredClouds.contains(kMudNoLotusEggId)) {
       _setHint(
-        'The cut was dug to take the fen\'s worst. Nothing has ever '
-        'bloomed out of clean water.',
+        'This drain only runs when the fen is as flooded as it can get. '
+        'Nothing grows in clean water.',
         4.0,
       );
       return;
     }
-    if (room.fen?.moor != null) {
+    if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
+      _setInsightHint('Weed hides the crossings. Water can wash it off');
+      return;
+    }
+    final moor = room.fen?.moor;
+    if (moor != null) {
+      if (f.moorsWoken.contains(room.id)) {
+        _setInsightHint(
+          'This basin is full. '
+          '${kMoorKnollIds.length - f.moorsWoken.length} left to fill',
+        );
+        return;
+      }
+      if (_moorKnollDead(room.id)) {
+        _setInsightHint(
+          'A crossing next to this knoll has drowned, so it can never dry. '
+          'Pull the plug in the Drowned Fane to reset the fen',
+          4.4,
+        );
+        return;
+      }
       _setInsightHint(switch (tier) {
-        0 => 'Wet ground will not keep an offering',
+        0 => 'The basin only holds water once this knoll is dry',
         1 =>
-          'The basin holds only where the knoll itself stands drained'
-              'and a knoll drains when every crossing that touches it is hard',
+          'A knoll is dry when every crossing touching it is hardened. '
+              'Harden them all, then pour Water',
         _ =>
-          'Count this knoll\'s crossings and harden every one; the black '
-              'basin on the cairn answers a reading eye rather than a pouring '
-              'hand',
+          moor.hidden
+              ? 'Harden both crossings here, then fill the basin. It\'s under '
+                    'black water, so it needs a Water Mask'
+              : 'Harden both crossings here, then have Water fill the basin',
       });
       return;
     }
+    if (room.fen?.altar != null && f.sarsenKnoll == kSarsenSocketKnoll) {
+      // The stone is home but the knoll is wet: the second half.
+      _setInsightHint(
+        _moorKnollDead(room.id)
+            ? 'The stone is here. A crossing here has drowned, so pull the '
+                  'plug to reset the fen. The stone stays'
+            : switch (tier) {
+                0 => 'The stone is here. Now this knoll has to dry',
+                1 => 'Harden all three crossings here and the stone settles in',
+                _ =>
+                  'Pull the plug to reset the fen (the stone stays), then '
+                      'harden all three crossings onto this knoll',
+              },
+        4.4,
+      );
+      return;
+    }
     if (room.fen?.altar != null) {
+      if (!f.sarsenSeated && _noRoadLeft()) {
+        _setInsightHint(
+          'Drowned crossings have cut off every road to the altar. Pull the '
+          'plug in the Drowned Fane to reset the fen',
+          4.4,
+        );
+        return;
+      }
       _setInsightHint(switch (tier) {
-        0 => 'The stone will not travel over anything soft',
+        0 =>
+          'The stone needs a road here, and the altar needs dry ground '
+              'to hold it',
         1 =>
-          'A road has to stand before the sarsen will cross it, and old '
-              'resin caps the socket at the end',
+          'No road can reach here while this knoll stays dry. Get the stone '
+              'here first, then deal with the ground',
         _ =>
-          'Drag the road one crossing ahead of the stone; the socket\'s '
-              'resin rots only where root and mire are worked together',
-      });
+          'Harden any road and have Plant carry the stone here. Then pull the '
+              'plug: the fen resets but the stone stays. Then harden all three '
+              'crossings here',
+      }, 4.2);
       return;
     }
     if (room.fen?.sough != null) {
       _setInsightHint(switch (tier) {
-        0 => 'Everything the fen loses ends up here',
-        1 =>
-          'The outfall can be opened, and the fen will answer the whole '
-              'way up',
+        0 => 'Pulling this plug resets the whole fen',
+        1 => 'Mud can pull the plug. Every crossing goes back to mire',
         _ =>
-          'Free the plug and climb out anywhere, but the heave takes back '
-              'every road you dragged, and puts the stone back where it lay',
+          'Pull the plug with Mud to reset every crossing, then climb out '
+              'through any wallow. Stars you\'ve earned stay',
       });
       return;
     }
-    // Anywhere in the bog, insight reads THE FEN — which is the planet.
+    // Anywhere else in the bog, the reading is THE FEN's rule.
+    final stoneHere =
+        room.fen?.knoll != null && f.sarsenKnoll == room.id && !f.sarsenSeated;
+    if (stoneHere && _sarsenHopsHome() != null) {
+      _setInsightHint(
+        'The road to the altar is whole. Plant can carry the stone',
+      );
+      return;
+    }
     _setInsightHint(switch (tier) {
-      0 => 'One water table, and it has to go somewhere',
+      0 => 'Hardening a crossing floods the crossings next to it',
       1 =>
-        'Harden a crossing and the water it held backs up into the '
-            'crossings beside it on the same watercourse',
+        'Hardening a crossing floods its neighbours on the same stream. A '
+            'flooded crossing is gone for good',
       _ =>
-        'No two neighbours on one watercourse can ever both stand, in any '
-            'order; what already stands is safe, and what has drowned is gone. '
-            'A knoll with nothing left holding it will not hold you either',
-    });
+        'Crossings with the same mark share a stream. Never harden two '
+            'neighbours. A middle crossing floods both ends',
+    }, 4.2);
+  }
+
+  /// No road of anything but open water joins the stone to the altar: every
+  /// route has a drowned crossing on it, so no amount of dragging can finish
+  /// the Sarsen Star in this fen.
+  bool _noRoadLeft() {
+    final f = _fen;
+    final seen = <String>{f.sarsenKnoll};
+    final frontier = <String>[f.sarsenKnoll];
+    while (frontier.isNotEmpty) {
+      final k = frontier.removeLast();
+      if (k == kSarsenSocketKnoll) return false;
+      for (final ford in f.fordsOf(k)) {
+        if (f.stateOf(ford.id) == BogFordState.drowned) continue;
+        final o = ford.other(k);
+        if (o != null && seen.add(o)) frontier.add(o);
+      }
+    }
+    return true;
   }
 
   /// Per-room sky mood — the fen is low and grey, and the drowned level is
@@ -1107,8 +1321,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
   /// is freed) × (whether the lotus has been ridden down). Every legal move
   /// is expanded: walking a crossing that is sod or mire, dragging a mire
   /// crossing (which drowns its slough-neighbours), the plank road, the
-  /// wallow down from any knoll, freeing the sough, climbing a risen wallow
-  /// (which HEAVES the fen back to its opening state), the founder ride into
+  /// wallow down from any knoll, freeing the sough (which HEAVES the fen back
+  /// to its opening state), climbing a risen wallow, the founder ride into
   /// the vault bowl, and the plain doors of the drowned level.
   ///
   /// Three questions, all answered by construction rather than by argument:
@@ -1227,11 +1441,12 @@ extension SinkingAltarFen on PlanetDungeonGame {
 
       if (room == 'drowned_fane') {
         if (valveEnabled) {
-          if (!sough) out.add((room, h, true, sunk));
+          // THE HEAVE — pulling the plug puts the fen back as it opened, and
+          // opens the way up; climbing out re-plugs it behind you.
+          if (!sough) out.add((room, 0, true, false));
           if (sough) {
-            // THE HEAVE — climbing out puts the fen back as it opened.
             for (final k in kBogKnollIds) {
-              out.add((k, 0, false, false));
+              out.add((k, h, false, sunk));
             }
           }
         }
@@ -1444,6 +1659,424 @@ extension SinkingAltarFen on PlanetDungeonGame {
     _renderPlankRoad(canvas, room);
     _renderKnollFurniture(canvas, room);
     _renderSmear(canvas, room);
+    _renderHeave(canvas, room);
+    _renderSettle(canvas, room);
+  }
+
+  /// The top layer of the heave and the settling, drawn OVER the door frames:
+  /// both spill out of doorways (the fane's risen wallows, a knoll's wallow),
+  /// and under the frame the whirl and the gush were hidden by the very
+  /// thing they come out of.
+  void _renderBogOverDoors(Canvas canvas, DungeonRoom room) {
+    if (bog.heaveFx >= 0 && room.fen?.sough != null) {
+      final t0 = bog.heaveFx;
+      final t = t0 / _kHeaveSeconds;
+      final flow = t < 0.1
+          ? t / 0.1
+          : t > 0.7
+          ? max(0.0, 1 - (t - 0.7) / 0.3)
+          : 1.0;
+      final hatches = [
+        for (final d in room.doors)
+          if (_isRisenWallowDoor(room, d)) d.rect.center,
+      ];
+      for (var h = 0; h < hatches.length; h++) {
+        final at = hatches[h];
+        // Rings of slurry spreading out from the hatch as it spills.
+        for (var k = 0; k < 3; k++) {
+          final ph = ((t0 * 1.3 + k / 3 + h * 0.17) % 1.0);
+          canvas.drawOval(
+            Rect.fromCenter(
+              center: at,
+              width: 60 + ph * 120,
+              height: 30 + ph * 56,
+            ),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 3.5 * (1 - ph)
+              ..color = _fenSlurry.withValues(alpha: 0.6 * (1 - ph) * flow),
+          );
+        }
+      }
+    }
+    final knoll = room.fen?.knoll;
+    if (bog.settleFx >= 0 && bog.settleRoom == room.id && knoll != null) {
+      final t0 = bog.settleFx;
+      final t = t0 / _kSettleSeconds;
+      final fade = t > 0.65 ? max(0.0, 1 - (t - 0.65) / 0.35) : 1.0;
+      final wallow = knoll.wallow;
+      // ── the wallow takes the last of it ──
+      final pull = t < 0.15 ? t / 0.15 : fade;
+      canvas.drawOval(
+        Rect.fromCenter(center: wallow, width: 90 * pull, height: 50 * pull),
+        Paint()..color = _fenPeat.withValues(alpha: 0.7 * pull),
+      );
+      final spin = t0 * 7;
+      for (var arm = 0; arm < 3; arm++) {
+        for (var ring = 0; ring < 2; ring++) {
+          final r = 22.0 + ring * 16;
+          canvas.drawArc(
+            Rect.fromCenter(center: wallow, width: r * 2, height: r * 1.2),
+            spin * (1.3 - ring * 0.4) + arm * 2 * pi / 3,
+            1.0,
+            false,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeCap = StrokeCap.round
+              ..strokeWidth = 3.0 - ring
+              ..color = (ring == 0 ? _fenSheen : _fenSlurry).withValues(
+                alpha: 0.65 * pull,
+              ),
+          );
+        }
+      }
+    }
+  }
+
+  /// THE SETTLING — the heave, seen from above.
+  ///
+  /// The fane shows the fen going down the sough. Up here is where it came
+  /// FROM, so the first time you stand on each knoll after a heave it shows
+  /// the tail of it: every crossing goes soft again in a wave that rolls from
+  /// its doorway back to its head (sod slumping to mire, open water filling
+  /// back in to wadeable ground), the last of the knoll's water runs across
+  /// the peat and down its wallow in a whirl, and the knoll's own pools
+  /// shiver. Then it is just a fen with nothing in it that you made.
+  ///
+  /// Budget: a few crossings, three streams, a handful of pool rings and a
+  /// small whirl, only for [_kSettleSeconds], once per knoll per heave.
+  void _renderSettle(Canvas canvas, DungeonRoom room) {
+    final t0 = bog.settleFx;
+    if (t0 < 0 || bog.settleRoom != room.id) return;
+    final knoll = room.fen?.knoll;
+    if (knoll == null) return;
+    final t = t0 / _kSettleSeconds;
+    final fade = t > 0.65 ? max(0.0, 1 - (t - 0.65) / 0.35) : 1.0;
+    final wallow = knoll.wallow;
+
+    // ── each crossing goes soft again, doorway first ──
+    for (final door in room.doors) {
+      final ford = _fordForDoor(room, door);
+      final head = ford?.headIn(room.id);
+      if (ford == null || head == null) continue;
+      final mouth = door.rect.center;
+      final along = mouth - head;
+      final len = along.distance;
+      if (len < 1) continue;
+      final dir = along / len;
+      final norm = Offset(-dir.dy, dir.dx);
+      final bow = sin(ford.index * 2.1 + ford.slough.hashCode % 7) * 16;
+      final ctrl = head + dir * (len / 2) + norm * bow;
+      Offset spine(double u) {
+        final a = Offset.lerp(mouth, ctrl, u)!;
+        final b = Offset.lerp(ctrl, head, u)!;
+        return Offset.lerp(a, b, u)!;
+      }
+
+      // The wave: a band of wet slurry rolling mouth → head, then gone.
+      final front = Curves.easeInOut.transform((t0 / 1.4).clamp(0.0, 1.0));
+      for (var k = 0; k < 3; k++) {
+        final u = front - k * 0.08;
+        if (u <= 0 || u >= 1) continue;
+        final p = spine(u);
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: p,
+            width: 70 - k * 14.0,
+            height: 34 - k * 7.0,
+          ),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 5.0 - k * 1.4
+            ..color = _fenSlurry.withValues(alpha: (0.8 - k * 0.22) * fade),
+        );
+      }
+      // Behind the wave the crossing glistens: it is mire, and it moves.
+      if (front > 0.05) {
+        final wet = Path();
+        const steps = 10;
+        for (var i = 0; i <= steps; i++) {
+          final p = spine(front * i / steps);
+          if (i == 0) {
+            wet.moveTo(p.dx, p.dy);
+          } else {
+            wet.lineTo(p.dx, p.dy);
+          }
+        }
+        canvas.drawPath(
+          wet,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 3
+            ..color = _fenSheen.withValues(alpha: 0.4 * fade),
+        );
+      }
+
+      // The water that was held on this crossing runs to the wallow.
+      final reach = Curves.easeOut.transform(
+        ((t0 - 0.5) / 1.1).clamp(0.0, 1.0),
+      );
+      if (reach > 0) {
+        final start = head;
+        final mid = Offset.lerp(start, wallow, 0.5)!;
+        final away = start - wallow;
+        final side = Offset(-away.dy, away.dx) / (away.distance + 1);
+        final c2 = mid + side * 50;
+        Offset path(double u) {
+          final a = Offset.lerp(start, c2, u)!;
+          final b = Offset.lerp(c2, wallow, u)!;
+          return Offset.lerp(a, b, u)!;
+        }
+
+        final body = Path()..moveTo(start.dx, start.dy);
+        for (var i = 1; i <= 12; i++) {
+          final p = path(reach * i / 12);
+          body.lineTo(p.dx, p.dy);
+        }
+        canvas.drawPath(
+          body,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..strokeWidth = 9 * fade
+            ..color = _fenPeat.withValues(alpha: 0.85 * fade),
+        );
+        canvas.drawPath(
+          body,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..strokeWidth = 4 * fade
+            ..color = _fenSlurry.withValues(alpha: 0.7 * fade),
+        );
+        for (var b = 0; b < 3; b++) {
+          final u = ((t0 * 0.9 + b / 3) % 1.0) * reach;
+          canvas.drawLine(
+            path(u),
+            path(min(reach, u + 0.08)),
+            Paint()
+              ..strokeCap = StrokeCap.round
+              ..strokeWidth = 2.2
+              ..color = _fenSheen.withValues(alpha: 0.5 * fade),
+          );
+        }
+      }
+    }
+
+    // ── the knoll's own pools shiver ──
+    final pools = bog.ground[room.id]?.poolCentres ?? const <Offset>[];
+    for (var i = 0; i < pools.length; i++) {
+      for (var k = 0; k < 2; k++) {
+        final ph = ((t0 * 0.9 + k / 2 + i * 0.23) % 1.0);
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: pools[i],
+            width: 20 + ph * 70,
+            height: 10 + ph * 34,
+          ),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2 * (1 - ph)
+            ..color = _fenSheen.withValues(alpha: 0.45 * (1 - ph) * fade),
+        );
+      }
+    }
+  }
+
+  /// THE HEAVE, as it happens — what pulling the plug actually DOES.
+  ///
+  /// The fen above is one water table, and the sough is where it drains. So
+  /// the plug flies out of the throat, the fen comes down EVERY risen wallow
+  /// in the fane's roof line at once, runs across the flags in streams from
+  /// all of them, and goes round and down the sough in a whirl; silt shakes
+  /// out of the roots overhead and the whole level rumbles (`_updateBog`).
+  /// It used to be a line of text and a plug that vanished.
+  ///
+  /// Budget (the render loop is hot): no blur, no allocation beyond a few
+  /// Paints, seven hatches × (a pool, three rings, two streams of a body, a
+  /// top and four sheens), a dozen spiral arcs and a couple of dozen falling
+  /// specks — and only for
+  /// [_kHeaveSeconds] after a pull.
+  void _renderHeave(Canvas canvas, DungeonRoom room) {
+    final t0 = bog.heaveFx;
+    if (t0 < 0) return;
+    final sough = room.fen?.sough;
+    if (sough == null) return;
+    final t = t0 / _kHeaveSeconds; // 0 → 1
+    double rnd(int i) {
+      final v = sin(i * 12.9898 + 78.233) * 43758.5453;
+      return v - v.floorToDouble();
+    }
+
+    // The flow's strength: builds fast, holds, drains away.
+    final flow = t < 0.1
+        ? t / 0.1
+        : t > 0.7
+        ? max(0.0, 1 - (t - 0.7) / 0.3)
+        : 1.0;
+
+    final hatches = [
+      for (final d in room.doors)
+        if (_isRisenWallowDoor(room, d)) d.rect.center,
+    ];
+
+    // ── the fen pouring down every risen wallow ──
+    // First the floor goes wet: a pool of fen spreading out from each hatch.
+    for (var h = 0; h < hatches.length; h++) {
+      final local = ((t0 - h * 0.05) / 0.6).clamp(0.0, 1.0);
+      if (local <= 0) continue;
+      final grow = Curves.easeOut.transform(local);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: hatches[h] + const Offset(0, 6),
+          width: 70 + 150 * grow,
+          height: 40 + 70 * grow,
+        ),
+        Paint()..color = _fenPeat.withValues(alpha: 0.55 * flow),
+      );
+    }
+    for (var h = 0; h < hatches.length; h++) {
+      final at = hatches[h];
+      final local = ((t0 - h * 0.05) / 0.5).clamp(0.0, 1.0);
+      if (local <= 0) continue;
+      // Two streams from every hatch, running up the flags to the sough and
+      // bending round it the same way, so all fourteen read as one whirl.
+      for (var s = 0; s < 2; s++) {
+        final seed = h * 7 + s;
+        final start = at + Offset((s == 0 ? -1 : 1) * 14.0, -6);
+        final mid = Offset.lerp(start, sough, 0.5)!;
+        final away = start - sough;
+        final side = Offset(-away.dy, away.dx) / (away.distance + 1);
+        final ctrl = mid + side * (50 + rnd(seed + 3) * 70);
+        // How far up its course the mud has got yet.
+        final reach = Curves.easeOut.transform(
+          ((t0 - h * 0.05 - 0.1) / 0.7).clamp(0.0, 1.0),
+        );
+        if (reach <= 0) continue;
+        Offset along(double u) {
+          final a = Offset.lerp(start, ctrl, u)!;
+          final b = Offset.lerp(ctrl, sough, u)!;
+          return Offset.lerp(a, b, u)!;
+        }
+
+        final body = Path()..moveTo(start.dx, start.dy);
+        const steps = 14;
+        for (var i = 1; i <= steps; i++) {
+          final p = along(reach * i / steps);
+          body.lineTo(p.dx, p.dy);
+        }
+        // The body of the stream, then its lighter wet top.
+        canvas.drawPath(
+          body,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..strokeWidth = 13 * flow
+            ..color = _fenPeat.withValues(alpha: 0.9 * flow),
+        );
+        canvas.drawPath(
+          body,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..strokeWidth = 6 * flow
+            ..color = _fenSlurry.withValues(alpha: 0.75 * flow),
+        );
+        // Sheen sliding down it, so it is plainly MOVING toward the sough.
+        for (var b = 0; b < 4; b++) {
+          final u = ((t0 * (0.8 + rnd(seed + 5) * 0.4) + b / 4) % 1.0) * reach;
+          canvas.drawLine(
+            along(u),
+            along(min(reach, u + 0.07)),
+            Paint()
+              ..strokeCap = StrokeCap.round
+              ..strokeWidth = 2.6
+              ..color = _fenSheen.withValues(alpha: 0.55 * flow),
+          );
+        }
+      }
+    }
+
+    // ── the whirl down the sough ──
+    // A dark eye where everything goes, then the arms turning round it.
+    canvas.drawOval(
+      Rect.fromCenter(center: sough, width: 150 * flow, height: 110 * flow),
+      Paint()..color = _fenPeat.withValues(alpha: 0.7 * flow),
+    );
+    final spin = t0 * (4.0 + 6.0 * flow);
+    for (var arm = 0; arm < 4; arm++) {
+      for (var ring = 0; ring < 3; ring++) {
+        final r = 34.0 + ring * 22;
+        final a0 = spin * (1.4 - ring * 0.3) + arm * pi / 2 + ring * 0.6;
+        canvas.drawArc(
+          Rect.fromCenter(center: sough, width: r * 2, height: r * 1.55),
+          a0,
+          0.9,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 4.0 - ring
+            ..color = (ring == 0 ? _fenSheen : _fenSlurry).withValues(
+              alpha: (0.7 - ring * 0.18) * flow,
+            ),
+        );
+      }
+    }
+
+    // ── the plug, flung out of the throat and tumbling away ──
+    if (t0 < 1.1) {
+      final u = t0 / 1.1;
+      final at = sough + Offset(u * 150, -140 * u + 260 * u * u);
+      canvas.save();
+      canvas.translate(at.dx, at.dy);
+      canvas.rotate(u * 7);
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: 62, height: 46),
+        Paint()..color = const Color(0xFF3A2E1E).withValues(alpha: 1 - u * 0.6),
+      );
+      canvas.drawCircle(
+        const Offset(0, -2),
+        9,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = const Color(0xFF6E6455).withValues(alpha: 1 - u * 0.6),
+      );
+      canvas.restore();
+      // Peat clods thrown with it.
+      for (var i = 0; i < 10; i++) {
+        final a = -pi / 2 + (rnd(i + 40) - 0.5) * 2.4;
+        final v = 120 + rnd(i + 50) * 160;
+        final p = sough + Offset(cos(a) * v * u, sin(a) * v * u + 320 * u * u);
+        canvas.drawCircle(
+          p,
+          3 + rnd(i + 60) * 3,
+          Paint()..color = _fenPeat.withValues(alpha: 1 - u),
+        );
+      }
+    }
+
+    // ── silt shaken out of the roots overhead ──
+    final b = room.bounds;
+    for (var i = 0; i < 26; i++) {
+      final x = b.left + rnd(i + 80) * b.width;
+      final fall = ((t0 * (0.8 + rnd(i + 90) * 0.6) + rnd(i + 100)) % 1.0);
+      final y = b.top + fall * b.height * 0.8;
+      canvas.drawLine(
+        Offset(x, y),
+        Offset(x, y + 9),
+        Paint()
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round
+          ..color = _fenSlurry.withValues(alpha: 0.5 * flow * (1 - fall)),
+      );
+    }
   }
 
   /// THE PLANK ROAD — and it has to look like nothing else on this planet.
@@ -1570,29 +2203,41 @@ extension SinkingAltarFen on PlanetDungeonGame {
     // all three a flagged temple floor made the wyrm's pit read as a nave
     // and told the player the wrong thing about where it is safe to stand.
     if (room.id != 'drowned_fane') {
+      // The drowned rooms keep off their own furniture too. The hollow is a
+      // fight room whose one firm footing is the mire anchor; burying it in
+      // soft pans and bones is the same fault with worse consequences.
+      final keepOut = _fenKeepOut(room);
+
       // SOFT PANS — the quaking floor, wherever it has not set.
       final pans = (b.width * b.height / 46000).clamp(3, 9).toInt();
       for (var i = 0; i < pans; i++) {
-        final c = Offset(
-          b.left + 60 + rnd() * (b.width - 120),
-          b.top + 60 + rnd() * (b.height - 120),
-        );
-        g.pans.add(
-          _blobPath(c, 46 + rnd() * 62, 26 + rnd() * 30, rnd, wobble: 0.3),
-        );
-        g.panCentres.add(c);
+        for (var attempt = 0; attempt < 14; attempt++) {
+          final c = Offset(
+            b.left + 60 + rnd() * (b.width - 120),
+            b.top + 60 + rnd() * (b.height - 120),
+          );
+          final rx = 46 + rnd() * 62;
+          final ry = 26 + rnd() * 30;
+          if (!_fenSpotIsFree(keepOut, c, rx, ry)) continue;
+          g.pans.add(_blobPath(c, rx, ry, rnd, wobble: 0.3));
+          g.panCentres.add(c);
+          break;
+        }
       }
       // BONES — what the fen has eaten and kept. The one pale thing down
       // here, and the reason a Plant hand is worth bringing.
       final bones = 3 + (rnd() * 3).floor();
       for (var i = 0; i < bones; i++) {
-        g.bones.add(
-          Offset(
+        for (var attempt = 0; attempt < 14; attempt++) {
+          final c = Offset(
             b.left + 70 + rnd() * (b.width - 140),
             b.top + 90 + rnd() * (b.height - 170),
-          ),
-        );
-        g.boneLean.add((rnd() - 0.5) * 2.2);
+          );
+          if (!_fenSpotIsFree(keepOut, c, 22, 26)) continue;
+          g.bones.add(c);
+          g.boneLean.add((rnd() - 0.5) * 2.2);
+          break;
+        }
       }
       final roots = (b.width / 130).clamp(4, 12).toInt();
       for (var i = 0; i < roots; i++) {
@@ -1807,6 +2452,70 @@ extension SinkingAltarFen on PlanetDungeonGame {
     }
   }
 
+  /// WHERE THE FEN MAY NOT GROW.
+  ///
+  /// The floor used to be scattered uniformly across the room, which put moss
+  /// hummocks and cotton-grass on top of the doorways, the wallow, the altar
+  /// and the head of every crossing. It all draws UNDER the fixtures, so
+  /// nothing was hidden — but at the same size and brightness as the things
+  /// you press, which is the same problem wearing a different hat: the mire
+  /// gate offered one 54px pad and about fifty pieces of scenery to find it
+  /// among. The ground stays off the furniture now.
+  List<Rect> _fenKeepOut(DungeonRoom room) {
+    final out = <Rect>[];
+    final b = room.bounds;
+    for (final door in room.doors) {
+      // The doorway, and the stretch of floor in front of it a crossing runs
+      // down — a ford head stands 150px in, and that ribbon is the mechanic.
+      out.add(door.rect.inflate(46));
+      final r = door.rect;
+      final inward = r.center.dx <= b.left + 40
+          ? Rect.fromLTWH(r.right, r.top - 40, 176, r.height + 80)
+          : r.center.dx >= b.right - 40
+          ? Rect.fromLTWH(r.left - 176, r.top - 40, 176, r.height + 80)
+          : r.center.dy <= b.top + 40
+          ? Rect.fromLTWH(r.left - 40, r.bottom, r.width + 80, 176)
+          : r.center.dy >= b.bottom - 40
+          ? Rect.fromLTWH(r.left - 40, r.top - 176, r.width + 80, 176)
+          : r.inflate(60);
+      out.add(inward);
+    }
+    final fen = room.fen;
+    if (fen != null) {
+      void clear(Offset? at, [double radius = 62]) {
+        if (at != null) out.add(Rect.fromCircle(center: at, radius: radius));
+      }
+
+      clear(fen.knoll?.wallow, 70);
+      clear(fen.moor?.basin, 74);
+      clear(fen.altar?.socket, 90);
+      clear(fen.sough, 70);
+      clear(fen.leadHead, 66);
+      clear(fen.sinkPit, 74);
+      clear(fen.anchor, 78);
+      for (final cut in fen.peatCuts ?? const <Offset>[]) {
+        clear(cut, 54);
+      }
+      for (final ford in kBogFords) {
+        clear(ford.headIn(room.id), 86);
+      }
+    }
+    return out;
+  }
+
+  /// A spot the ground may take: its blob has to clear every fixture.
+  bool _fenSpotIsFree(List<Rect> keepOut, Offset c, double rx, double ry) {
+    final bounds = Rect.fromCenter(
+      center: c,
+      width: rx * 2 + 10,
+      height: ry * 2 + 10,
+    );
+    for (final r in keepOut) {
+      if (r.overlaps(bounds)) return false;
+    }
+    return true;
+  }
+
   /// Deterministic from the room's own size, so a room looks the same every
   /// time you walk into it and no two rooms look alike.
   FenGround _buildBogGround(DungeonRoom room) {
@@ -1818,40 +2527,50 @@ extension SinkingAltarFen on PlanetDungeonGame {
       return (seed >> 8) / 0x3FFFFF;
     }
 
+    final keepOut = _fenKeepOut(room);
+
     // POOLS. Irregular closed curves lying in the low ground — never round,
     // never rectangular; a pool in peat has a ragged lip.
-    final pools = (b.width * b.height / 62000).clamp(4, 11).toInt();
+    final pools = (b.width * b.height / 95000).clamp(3, 7).toInt();
     for (var i = 0; i < pools; i++) {
-      final c = Offset(
-        b.left + 40 + rnd() * (b.width - 80),
-        b.top + 40 + rnd() * (b.height - 80),
-      );
-      final rx = 34 + rnd() * 58;
-      final ry = rx * (0.34 + rnd() * 0.3);
-      g.pools.add(_blobPath(c, rx, ry, rnd, wobble: 0.34));
-      g.poolCentres.add(c);
+      for (var attempt = 0; attempt < 14; attempt++) {
+        final c = Offset(
+          b.left + 40 + rnd() * (b.width - 80),
+          b.top + 40 + rnd() * (b.height - 80),
+        );
+        final rx = 34 + rnd() * 58;
+        final ry = rx * (0.34 + rnd() * 0.3);
+        if (!_fenSpotIsFree(keepOut, c, rx, ry)) continue;
+        g.pools.add(_blobPath(c, rx, ry, rnd, wobble: 0.34));
+        g.poolCentres.add(c);
+        break;
+      }
     }
 
     // HUMMOCKS. Sphagnum mounds standing between the water, each with a
     // lighter moss cap sitting on its crown so the ground has relief.
-    final mounds = (b.width * b.height / 34000).clamp(6, 20).toInt();
+    final mounds = (b.width * b.height / 56000).clamp(4, 12).toInt();
     for (var i = 0; i < mounds; i++) {
-      final c = Offset(
-        b.left + 30 + rnd() * (b.width - 60),
-        b.top + 30 + rnd() * (b.height - 60),
-      );
-      final rx = 26 + rnd() * 40;
-      final ry = rx * (0.42 + rnd() * 0.22);
-      g.hummocks.add(_blobPath(c, rx, ry, rnd, wobble: 0.22));
-      g.mossCaps.add(
-        _blobPath(
-          c.translate(0, -ry * 0.30),
-          rx * 0.72,
-          ry * 0.5,
-          rnd,
-          wobble: 0.26,
-        ),
-      );
+      for (var attempt = 0; attempt < 14; attempt++) {
+        final c = Offset(
+          b.left + 30 + rnd() * (b.width - 60),
+          b.top + 30 + rnd() * (b.height - 60),
+        );
+        final rx = 26 + rnd() * 40;
+        final ry = rx * (0.42 + rnd() * 0.22);
+        if (!_fenSpotIsFree(keepOut, c, rx, ry)) continue;
+        g.hummocks.add(_blobPath(c, rx, ry, rnd, wobble: 0.22));
+        g.mossCaps.add(
+          _blobPath(
+            c.translate(0, -ry * 0.30),
+            rx * 0.72,
+            ry * 0.5,
+            rnd,
+            wobble: 0.26,
+          ),
+        );
+        break;
+      }
     }
 
     // BOG-OAK. Two or three black stumps half-risen out of the peat: the fen
@@ -1860,24 +2579,32 @@ extension SinkingAltarFen on PlanetDungeonGame {
     // has kept").
     final oaks = 2 + (rnd() * 2).floor();
     for (var i = 0; i < oaks; i++) {
-      g.bogOak.add(
-        Offset(
+      for (var attempt = 0; attempt < 14; attempt++) {
+        final c = Offset(
           b.left + 60 + rnd() * (b.width - 120),
           b.top + 70 + rnd() * (b.height - 140),
-        ),
-      );
-      g.bogOakLean.add((rnd() - 0.5) * 0.6);
+        );
+        if (!_fenSpotIsFree(keepOut, c, 26, 38)) continue;
+        g.bogOak.add(c);
+        g.bogOakLean.add((rnd() - 0.5) * 0.6);
+        break;
+      }
     }
 
-    // COTTON-GRASS. Scattered pale tufts — the only light thing down here.
-    final tufts = (b.width * b.height / 17000).clamp(10, 40).toInt();
+    // COTTON-GRASS. Scattered pale tufts — the only light thing down here,
+    // which is exactly why there are far fewer of them: on a floor this dark
+    // the palest colour in the room should be something you can press.
+    final tufts = (b.width * b.height / 30000).clamp(6, 16).toInt();
     for (var i = 0; i < tufts; i++) {
-      g.cotton.add(
-        Offset(
+      for (var attempt = 0; attempt < 14; attempt++) {
+        final c = Offset(
           b.left + 20 + rnd() * (b.width - 40),
           b.top + 20 + rnd() * (b.height - 40),
-        ),
-      );
+        );
+        if (!_fenSpotIsFree(keepOut, c, 14, 16)) continue;
+        g.cotton.add(c);
+        break;
+      }
     }
     return g;
   }
@@ -2055,6 +2782,18 @@ extension SinkingAltarFen on PlanetDungeonGame {
     final g = _bogGround(room);
     final t = bog.clock;
 
+    // Everything the fen grows stays inside the room's own edge. Pools and
+    // hummocks used to run over the rounded slab and out into the dark, which
+    // blurs the one line that says where the floor stops. Clipped to the
+    // STAGE exactly — `_renderPlainFloor` lays it at deflate(8), radius 34 —
+    // so a cut blob ends under the border rather than flat across it.
+    final stage = RRect.fromRectAndRadius(
+      room.bounds.deflate(8),
+      const Radius.circular(34),
+    );
+    canvas.save();
+    canvas.clipRRect(stage);
+
     // The peat itself: a dark wash over the generic slab so the ground reads
     // as saturated rather than paved.
     canvas.drawRRect(
@@ -2168,6 +2907,11 @@ extension SinkingAltarFen on PlanetDungeonGame {
     // same way, from the same cause, and it is how a dungeon ends up
     // unstartable.
     if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
+      // THE WEED IS THE ONE THING NOT CLIPPED TO THE STAGE. It floats, and a
+      // mat of it cut off flat along the room's edge is the same straight
+      // seam this render has always refused — so it runs out into the dark
+      // and thins on its own. The GROUND stays inside the edge.
+      canvas.restore();
       // It lies on the WATER, out where the crossings are — not over the
       // knoll you are standing on. A mat thrown across the whole room hides
       // the sarsen, the wallow and the ground under your own feet, and then
@@ -2214,6 +2958,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
             ..color = const Color(0xFF5D6B33).withValues(alpha: 0.42),
         );
       }
+      canvas.save();
+      canvas.clipRRect(stage);
     }
 
     // Cotton-grass.
@@ -2233,6 +2979,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
         Paint()..color = _fenCotton.withValues(alpha: 0.55),
       );
     }
+    canvas.restore();
   }
 
   /// A CROSSING, DRAWN AS A CROSSING.
@@ -2734,8 +3481,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
 
   /// THE SINKING ALTAR — the room the planet is named for, and it was a flat
   /// brown disc. It is a socket cut for the sarsen: a stone collar sunk in
-  /// the peat, packed with the bog-resin cap until **Plant+Mud→Poison** eats
-  /// it, and then an open throat with nothing in it but the shape of a stone.
+  /// the peat, an open throat with nothing in it but the shape of a stone
+  /// until Plant's roots carry the sarsen home.
   void _renderSinkingAltar(Canvas canvas, SinkingAltarSocket altar) {
     final c = altar.socket;
     // The apron of old, trodden peat round the socket.
@@ -2764,34 +3511,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       Rect.fromCenter(center: c, width: 96, height: 52),
       Paint()..color = const Color(0xFF120F0B),
     );
-    if (!_fen.socketOpen) {
-      // THE RESIN CAP: a domed, glossy plug of bog-resin, with the grain of
-      // something that set while it was running.
-      canvas.drawOval(
-        Rect.fromCenter(center: c.translate(0, -2), width: 92, height: 48),
-        Paint()..color = const Color(0xFF5A3F1E),
-      );
-      for (var i = 0; i < 4; i++) {
-        canvas.drawArc(
-          Rect.fromCenter(
-            center: c.translate(0, -2),
-            width: 74 - i * 17.0,
-            height: 38 - i * 9.0,
-          ),
-          pi * 0.15,
-          pi * 0.7,
-          false,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4
-            ..color = const Color(0xFF7A5A2C).withValues(alpha: 0.6),
-        );
-      }
-      canvas.drawOval(
-        Rect.fromCenter(center: c.translate(-14, -12), width: 26, height: 11),
-        Paint()..color = const Color(0xFF9A7638).withValues(alpha: 0.35),
-      );
-    } else if (!_fen.sarsenSeated) {
+    if (!_fen.sarsenSeated) {
       // Open, and shaped for one thing. A ledge inside the throat says what
       // goes in it without a word.
       canvas.drawOval(
@@ -3125,22 +3845,19 @@ extension SinkingAltarFen on PlanetDungeonGame {
   /// The sarsen — the fen's fallen standing stone. Lying in the silt where it
   /// went down, or upright once it is being walked.
   void _renderSarsen(Canvas canvas, Offset at, {bool fallen = false}) {
-    // A stone lying in silt is pressed into it: the ground goes first, then
-    // the stone, or the slab reads as a translucent shard floating on the
-    // floor — which is what the fallen one looked like at the gate.
     if (fallen) {
-      canvas.drawOval(
-        Rect.fromCenter(center: at.translate(4, 10), width: 116, height: 44),
-        Paint()..color = Colors.black.withValues(alpha: 0.34),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: at.translate(0, 8), width: 128, height: 48),
-        Paint()..color = _fenSlurry.withValues(alpha: 0.30),
-      );
+      _renderFallenSarsen(canvas, at);
+      return;
     }
+    // It is heavy: the ground under it is pressed down. UNDER the stone —
+    // drawn on top, a translucent black oval sat across the stone's foot and
+    // made the whole slab read as see-through.
+    canvas.drawOval(
+      Rect.fromCenter(center: at.translate(0, 14), width: 60, height: 20),
+      Paint()..color = Colors.black.withValues(alpha: 0.45),
+    );
     canvas.save();
     canvas.translate(at.dx, at.dy);
-    if (fallen) canvas.rotate(1.36);
     final body = Path()
       ..moveTo(-23, 16)
       ..lineTo(-16, -64)
@@ -3162,31 +3879,150 @@ extension SinkingAltarFen on PlanetDungeonGame {
       body,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFF3A362F),
+        ..strokeWidth = 1.4
+        ..color = const Color(0xFF2E2A24),
     );
-    // Lichen, and the old peat line it stood in.
     canvas.drawCircle(
       const Offset(-6, -40),
       6,
-      Paint()..color = _fenMoss.withValues(alpha: 0.4),
+      Paint()..color = _fenMoss.withValues(alpha: 0.6),
     );
     canvas.drawLine(
       const Offset(-20, -4),
       const Offset(21, -6),
       Paint()
         ..strokeWidth = 2
-        ..color = const Color(0xFF2F2A22).withValues(alpha: 0.7),
+        ..color = const Color(0xFF2F2A22),
     );
     canvas.restore();
-    // It is heavy: the ground under it is pressed down.
+  }
+
+  /// THE FALLEN SARSEN — a standing stone lying where it fell, half sunk in
+  /// the gate's silt. It was the standing stone turned on its side: a flat
+  /// four-sided shape with no thickness, pale against the peat, with a
+  /// shadow drawn OVER it — it read as a translucent sheet of glass, not the
+  /// heaviest thing on the planet. Now it is a slab: a lit top, a thick dark
+  /// flank, a broken butt end, cracks and lichen, and the silt lapping up
+  /// its near edge, all of it opaque.
+  void _renderFallenSarsen(Canvas canvas, Offset at) {
+    // The hollow it has pressed into the silt, and the wet rim round it.
     canvas.drawOval(
-      Rect.fromCenter(
-        center: at.translate(0, fallen ? 4 : 14),
-        width: fallen ? 86 : 56,
-        height: fallen ? 26 : 18,
-      ),
-      Paint()..color = Colors.black.withValues(alpha: 0.32),
+      Rect.fromCenter(center: at.translate(2, 14), width: 176, height: 60),
+      Paint()..color = _fenPeat,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at.translate(2, 14), width: 176, height: 60),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = _fenSlurry.withValues(alpha: 0.8),
+    );
+
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    canvas.rotate(-0.08);
+    // The top face: long, a little tapered, the head end rounded off by
+    // weather and the butt end snapped.
+    final top = Path()
+      ..moveTo(-74, -6)
+      ..lineTo(-60, -22)
+      ..lineTo(40, -24)
+      ..quadraticBezierTo(70, -22, 74, -8)
+      ..lineTo(66, 4)
+      ..lineTo(-66, 8)
+      ..close();
+    // The flank under it — the stone's thickness, in shadow.
+    final flank = Path()
+      ..moveTo(-66, 8)
+      ..lineTo(66, 4)
+      ..lineTo(74, -8)
+      ..lineTo(74, 6)
+      ..lineTo(64, 20)
+      ..lineTo(-64, 24)
+      ..lineTo(-74, 10)
+      ..lineTo(-74, -6)
+      ..close();
+    canvas.drawPath(flank, Paint()..color = const Color(0xFF3B3833));
+    canvas.drawPath(top, Paint()..color = const Color(0xFF6B675F));
+    // Light falling across the top from the upper left.
+    canvas.drawPath(
+      Path()
+        ..moveTo(-60, -22)
+        ..lineTo(40, -24)
+        ..quadraticBezierTo(58, -23, 64, -16)
+        ..lineTo(-58, -12)
+        ..close(),
+      Paint()..color = const Color(0xFF7D786E),
+    );
+    // The snapped butt: a rough, darker break face.
+    canvas.drawPath(
+      Path()
+        ..moveTo(-74, -6)
+        ..lineTo(-60, -22)
+        ..lineTo(-66, -4)
+        ..lineTo(-62, 10)
+        ..lineTo(-74, 10)
+        ..close(),
+      Paint()..color = const Color(0xFF4A463F),
+    );
+    final edge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeJoin = StrokeJoin.round
+      ..color = const Color(0xFF26231E);
+    canvas.drawPath(top, edge);
+    canvas.drawPath(flank, edge);
+    // Cracks, and the lichen that has had an age to grow.
+    final crack = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF3A3630);
+    canvas.drawPath(
+      Path()
+        ..moveTo(-20, -22)
+        ..lineTo(-14, -12)
+        ..lineTo(-18, -2)
+        ..lineTo(-12, 6),
+      crack,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(30, -23)
+        ..lineTo(36, -14)
+        ..lineTo(32, -6),
+      crack,
+    );
+    for (final (o, r) in [
+      (const Offset(-40, -12), 7.0),
+      (const Offset(-32, -6), 4.5),
+      (const Offset(12, -16), 5.0),
+      (const Offset(52, -10), 3.5),
+    ]) {
+      canvas.drawCircle(o, r, Paint()..color = _fenMoss);
+    }
+    canvas.restore();
+
+    // The silt lapping up over its near edge: it is IN the ground.
+    canvas.drawPath(
+      Path()
+        ..moveTo(at.dx - 86, at.dy + 26)
+        ..quadraticBezierTo(at.dx - 40, at.dy + 12, at.dx, at.dy + 20)
+        ..quadraticBezierTo(at.dx + 44, at.dy + 28, at.dx + 88, at.dy + 16)
+        ..lineTo(at.dx + 88, at.dy + 40)
+        ..lineTo(at.dx - 86, at.dy + 40)
+        ..close(),
+      Paint()..color = _fenPeat,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(at.dx - 86, at.dy + 26)
+        ..quadraticBezierTo(at.dx - 40, at.dy + 12, at.dx, at.dy + 20)
+        ..quadraticBezierTo(at.dx + 44, at.dy + 28, at.dx + 88, at.dy + 16),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = _fenSlurry,
     );
   }
 

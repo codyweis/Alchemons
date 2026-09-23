@@ -8,6 +8,7 @@ import 'package:alchemons/audio/audio.dart';
 // dark alchemical panel, bracket corners, monospace headings, amber glow.
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_rewards.dart';
@@ -26,7 +27,6 @@ import 'package:flutter/material.dart';
 /// apart again.
 class _C {
   static const bg = CosmicScreenStyles.bg0;
-  static const panel = CosmicScreenStyles.bg1;
   static const amber = CosmicScreenStyles.amber;
   static const amberBright = CosmicScreenStyles.amberBright;
   static const border = CosmicScreenStyles.borderAccent;
@@ -230,180 +230,6 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     );
   }
 
-  Widget _panel() {
-    // The panel was a fixed 400 wide. A 412pt phone left six points of air on
-    // each side and anything narrower — a 375pt iPhone SE — overflowed the
-    // screen outright.
-    final maxWidth = MediaQuery.sizeOf(context).width - 36;
-    return CustomPaint(
-      painter: const DungeonBracketPainter(
-        color: _C.amberBright,
-        bracketSize: 18,
-        strokeWidth: 2.4,
-      ),
-      child: Container(
-        width: maxWidth < 400 ? maxWidth : 400,
-        constraints: const BoxConstraints(maxHeight: 600),
-        padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [CosmicScreenStyles.bg2, _C.panel],
-          ),
-          // ONE FRAME, NOT A HALO. A 2px bright-gold border wrapped in a
-          // 46px amber bloom is how a slot machine announces a win; the
-          // bracket chrome around this panel already says "important", and
-          // the turning light behind it already says "rare". The blur was
-          // also the most expensive thing on the screen.
-          border: Border.all(color: _C.amber, width: 1.2),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0xCC000000),
-              blurRadius: 24,
-              offset: Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _header(),
-            const SizedBox(height: 14),
-            _starRow(),
-            const SizedBox(height: 16),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    // The Star 3 CHOICE leads the scroll while unresolved so
-                    // it sits at the top of the fold, never hidden under the
-                    // granted-reward lists. (It must live INSIDE the scroll
-                    // area — pinned outside it, its fixed height overflowed
-                    // the panel on small screens.)
-                    if (_needStar3 && _choice == null) _rewardBlock(2),
-                    for (final s in widget.stars)
-                      if (!(s == 2 && _needStar3 && _choice == null))
-                        _rewardBlock(s),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _bottomButton(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _header() {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _headerRule(),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 10),
-              child: Icon(
-                Icons.star_rounded,
-                color: _C.amberBright,
-                size: 14,
-                shadows: [Shadow(color: _C.amber, blurRadius: 4)],
-              ),
-            ),
-            _headerRule(),
-          ],
-        ),
-        const SizedBox(height: 8),
-        // This popup is offered AT THE ACCOMPLISHMENT — the moment a star
-        // banks, mid-run — not when the expedition ends. It used to announce
-        // 'EXPEDITION COMPLETE' over a count of one, which told the player
-        // both that they were finished (they are not; they are still in the
-        // dungeon) and nothing whatsoever about what they had just done.
-        // Naming the star answers the only live question: what did I get?
-        Text(
-          _title,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: _C.amberBright,
-            fontFamily: 'monospace',
-            fontSize: 15,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2.4,
-          ),
-        ),
-        if (_subtitle != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            _subtitle!,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: _C.muted,
-              fontSize: 11,
-              letterSpacing: 0.4,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _headerRule() {
-    return Container(
-      width: 64,
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            _C.border.withValues(alpha: 0.0),
-            _C.amber.withValues(alpha: 0.7),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Only the stars being awarded right now.
-  ///
-  /// This used to draw all three slots, filling the earned ones and outlining
-  /// the rest — so claiming a single star showed one lit star beside two empty
-  /// sockets and read as "1 of 3", a progress bar at the moment of a reward.
-  /// Progress already lives in the HUD tracker the star flies into; the popup
-  /// is here to hand something over.
-  Widget _starRow() {
-    final awarded = widget.stars.toList()..sort();
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (var n = 0; n < awarded.length; n++)
-          ScaleTransition(
-            scale: CurvedAnimation(
-              parent: _intro,
-              curve: Interval(
-                0.15 + n * 0.18,
-                (0.55 + n * 0.18).clamp(0.0, 1.0),
-                curve: Curves.easeOutBack,
-              ),
-            ),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6),
-              child: Icon(
-                Icons.star_rounded,
-                color: _C.amberBright,
-                size: 38,
-                // A halo, not a flare. 14px of bloom on a 38px glyph is most of
-                // the glyph again, and three of them in a row read as arcade
-                // signage rather than as an earned mark.
-                shadows: [Shadow(color: _C.amber, blurRadius: 6)],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
   /// The actual item art the rest of the game uses: the metallic gold coin,
   /// the branded glowing powerup orbs, and the extractor artwork.
   Widget _rewardArt(String line, double size) {
@@ -471,35 +297,188 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     );
   }
 
-  /// Shown above the Star-3 choice cards: the relic is guaranteed, the
-  /// choice is on top of it.
-  Widget _relicBanner() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12, left: 2),
-      child: Row(
-        children: [
-          _relicArt(30),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  guardianRelicName(widget.element).toUpperCase(),
-                  style: const TextStyle(
-                    color: _C.amberBright,
-                    fontFamily: 'monospace',
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.4,
+  // ── THE PANEL — the survival surge's chrome ───────────────────────────
+  //
+  // Star rewards used to be a list of text lines under a row of star glyphs,
+  // in a panel of their own design. Survival's surge offer is the dialog the
+  // game already does best: a near-black plate with bracket corners, and each
+  // thing on it a CARD whose colour says what kind of thing it is before a
+  // word is read. A star payout is the same kind of moment, so it wears the
+  // same clothes: every reward is a card, and the Star 3 choice is three of
+  // them to pick between.
+
+  Widget _panel() {
+    final maxWidth = MediaQuery.sizeOf(context).width - 36;
+    return CustomPaint(
+      painter: const DungeonBracketPainter(
+        color: _C.amber,
+        bracketSize: 14,
+        strokeWidth: 1.3,
+      ),
+      child: Container(
+        width: maxWidth < 400 ? maxWidth : 400,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height - 60,
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+        decoration: BoxDecoration(
+          color: _C.bg.withValues(alpha: 0.97),
+          border: Border.all(color: _C.amber.withValues(alpha: 0.30)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x99000000),
+              blurRadius: 28,
+              spreadRadius: 4,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _header(),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // The Star 3 CHOICE leads the scroll while unresolved so
+                    // it sits at the top of the fold, never hidden under the
+                    // granted-reward lists.
+                    if (_needStar3 && _choice == null) _rewardBlock(2),
+                    for (final s in widget.stars)
+                      if (!(s == 2 && _needStar3 && _choice == null))
+                        _rewardBlock(s),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            _bottomButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The star itself, as a struck medallion, then its name. Several stars
+  /// at once (a run ended holding more than one) stand side by side.
+  Widget _header() {
+    final awarded = widget.stars.toList()..sort();
+    final size = awarded.length == 1 ? 68.0 : 50.0;
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var n = 0; n < awarded.length; n++)
+              ScaleTransition(
+                scale: CurvedAnimation(
+                  parent: _intro,
+                  curve: Interval(
+                    0.1 + n * 0.15,
+                    (0.55 + n * 0.15).clamp(0.0, 1.0),
+                    curve: Curves.easeOutBack,
                   ),
                 ),
-                const SizedBox(height: 2),
-                const Text(
-                  'Guardian Relic. Yours with any choice below',
-                  style: TextStyle(color: _C.muted, fontSize: 10.5),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: _starMedallion(size),
                 ),
-              ],
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // The caption, unless the title already IS the caption (an unnamed
+        // star, or several at once).
+        if (!_title.endsWith('SECURED'))
+          Text(
+            widget.stars.length == 1 ? 'STAR SECURED' : 'STARS SECURED',
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: _C.muted,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 2.4,
+            ),
+          ),
+        const SizedBox(height: 4),
+        Text(
+          _title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: _C.text,
+            fontSize: 19,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.6,
+          ),
+        ),
+        if (_subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            _subtitle!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: _C.muted, fontSize: 11),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// A gold medallion with the star struck into it — a coin of the game's
+  /// own minting, not an icon from a font.
+  Widget _starMedallion(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const RadialGradient(
+          center: Alignment(-0.3, -0.35),
+          colors: [
+            CosmicScreenStyles.amberGlow,
+            _C.amberBright,
+            Color(0xFF8A6A2C),
+          ],
+          stops: [0.0, 0.5, 1.0],
+        ),
+        border: Border.all(color: const Color(0xFFFFF1C8), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: _C.amberBright.withValues(alpha: 0.35),
+            blurRadius: size * 0.35,
+          ),
+        ],
+      ),
+      child: Icon(
+        Icons.star_rounded,
+        size: size * 0.6,
+        color: const Color(0xFF3A2A0E),
+      ),
+    );
+  }
+
+  /// A section heading: monospace label, then a rule out to the edge.
+  Widget _sectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Text(
+            text,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: _C.muted,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.8,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: _C.border.withValues(alpha: 0.35),
             ),
           ),
         ],
@@ -510,249 +489,297 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   Widget _rewardBlock(int star) {
     final lines = _lines[star];
     final needChoice = star == 2 && _choice == null;
-    // NO BOX. This used to be a bordered, rounded, filled panel sitting
-    // inside the bordered panel — and the choice cards were bordered boxes
-    // inside THAT, with a bordered medallion inside each of those. Four
-    // frames deep is what made the popup read as nested rather than
-    // designed. A section is a heading, a rule, and its contents.
+    final label = needChoice ? 'CHOOSE YOUR REWARD' : 'STAR ${star + 1}';
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.star_rounded,
-                size: 12,
-                color: _C.amber.withValues(alpha: 0.9),
-              ),
-              const SizedBox(width: 6),
-              // Flexible, because a heading in a fixed-width face is one font
-              // substitution away from being wider than the panel — which is
-              // exactly how it overflowed on a 320pt screen.
-              Flexible(
-                child: Text(
-                  // The choice block is the only one that needs a heading, and
-                  // "STAR 3" is not it: the popup's title already names the
-                  // star in inch-high letters directly above. Say the thing the
-                  // player has to DO.
-                  needChoice ? 'CHOOSE YOUR REWARD' : 'STAR ${star + 1}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _C.amber,
-                    fontFamily: 'monospace',
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.6,
+          _sectionLabel(label),
+          if (needChoice) ...[
+            if (_relicIncoming)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _StaggerIn(
+                  index: 0,
+                  child: _rewardCard(
+                    '+1 ${guardianRelicName(widget.element)}, Guardian Relic',
+                    tagOverride: 'GUARANTEED',
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              // The rule runs out to the panel edge and does the job the box
-              // used to: it separates without enclosing.
+            for (var i = 0; i < Star3Choice.values.length; i++) ...[
+              _StaggerIn(
+                index: i + (_relicIncoming ? 1 : 0),
+                child: _choiceCard(Star3Choice.values[i]),
+              ),
+              if (i < Star3Choice.values.length - 1) const SizedBox(height: 8),
+            ],
+          ] else if (lines == null)
+            const SizedBox(
+              height: 60,
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _C.amber,
+                  ),
+                ),
+              ),
+            )
+          else
+            for (var i = 0; i < lines.length; i++) ...[
+              _StaggerIn(index: i, child: _rewardCard(lines[i])),
+              if (i < lines.length - 1) const SizedBox(height: 8),
+            ],
+        ],
+      ),
+    );
+  }
+
+  /// What a reward line IS, for its card: accent, tag, amount and name.
+  ({Color accent, String tag, String amount, String name}) _describe(
+    String line,
+  ) {
+    final m = RegExp(r'^\+(\d+)\s+(.*)$').firstMatch(line);
+    final amount = m == null ? '' : '+${m.group(1)}';
+    var name = m == null ? line : m.group(2)!;
+    if (line.contains('Guardian Relic')) {
+      name = name.replaceAll(', Guardian Relic', '');
+      return (
+        accent: _legible(elementColor(widget.element)),
+        tag: 'GUARDIAN RELIC',
+        amount: amount,
+        name: name,
+      );
+    }
+    if (line.contains('Gold')) {
+      return (
+        accent: _C.amberBright,
+        tag: 'CURRENCY',
+        amount: amount,
+        name: name,
+      );
+    }
+    if (line.contains('Extractor')) {
+      return (
+        accent: CosmicScreenStyles.teal,
+        tag: 'FUSION',
+        amount: amount,
+        name: name,
+      );
+    }
+    for (final t in AlchemicalPowerupType.values) {
+      if (line.toLowerCase().contains(t.statKey)) {
+        return (
+          accent: _legible(t.color),
+          tag: 'POWERUP',
+          amount: amount,
+          name: name,
+        );
+      }
+    }
+    return (accent: _C.amber, tag: 'REWARD', amount: amount, name: name);
+  }
+
+  /// ONE REWARD, AS A SURGE CARD: the accent washing in from a solid spine,
+  /// a medallion with the item's own art, the amount large and the name
+  /// under it, and a tag saying what kind of thing it is.
+  Widget _rewardCard(String line, {String? tagOverride}) {
+    final d = _describe(line);
+    return _surgeCard(
+      accent: d.accent,
+      art: _rewardArt(line, 26),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (d.amount.isNotEmpty)
+                  Text(
+                    d.amount,
+                    style: TextStyle(
+                      color: Color.lerp(_C.text, d.accent, 0.45),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                    ),
+                  ),
+                const SizedBox(height: 3),
+                Text(
+                  d.name.toUpperCase(),
+                  style: const TextStyle(
+                    color: _C.text,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    height: 1.15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _MiniTag(label: tagOverride ?? d.tag, color: d.accent),
+        ],
+      ),
+    );
+  }
+
+  /// The card chrome every reward and choice shares (survival's surge card).
+  Widget _surgeCard({
+    required Color accent,
+    required Widget art,
+    required Widget child,
+    bool selected = false,
+    bool dim = false,
+  }) {
+    final wash = dim ? 0.16 : (selected ? 0.46 : 0.34);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color.lerp(CosmicScreenStyles.bg2, accent, wash)!,
+              Color.lerp(CosmicScreenStyles.bg2, accent, wash * 0.25)!,
+              CosmicScreenStyles.bg1,
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ),
+          border: Border.all(
+            color: accent.withValues(
+              alpha: selected ? 1.0 : (dim ? 0.3 : 0.55),
+            ),
+            width: selected ? 1.8 : 1.0,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 5,
+                color: accent.withValues(alpha: dim ? 0.5 : 1),
+              ),
               Expanded(
-                child: Container(
-                  height: 1,
-                  color: _C.border.withValues(alpha: 0.45),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: CosmicScreenStyles.bg0.withValues(alpha: 0.7),
+                          border: Border.all(
+                            color: accent.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        child: art,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: child),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
-          // "CONFIRM BELOW" in cyan used to live on this row — an instruction
-          // in another screen's accent colour, telling the player to read the
-          // button that is already telling them the same thing.
-          const SizedBox(height: 10),
-          if (needChoice) ...[
-            if (_relicIncoming) _relicBanner(),
-            _choiceCards(),
-          ] else
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 350),
-              child: lines == null
-                  ? const SizedBox(
-                      key: ValueKey('wait'),
-                      height: 18,
-                      child: Text('…', style: TextStyle(color: _C.muted)),
-                    )
-                  : Column(
-                      key: const ValueKey('lines'),
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (final l in lines)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Row(
-                              children: [
-                                _rewardArt(l, 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    l,
-                                    style: const TextStyle(
-                                      color: _C.text,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-            ),
-        ],
+        ),
       ),
     );
   }
 
-  /// Choice-card art: the gold coin, a twin pair of powerup orbs, or the
-  /// extractor artwork — the items as the player knows them.
-  Widget _choiceArt(Star3Choice c, double size, {required bool selected}) {
-    final art = switch (c) {
-      Star3Choice.gold => CoinIcon.gold(size: size),
-      Star3Choice.extractors => InstantExtractorGlyph(size: size),
-      Star3Choice.powerups => SizedBox(
-        width: size * 1.3,
-        height: size,
-        child: Stack(
-          children: [
-            Positioned(
-              left: 0,
-              top: size * 0.12,
-              child: _powerupOrb(AlchemicalPowerupType.speed, size * 0.74),
-            ),
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: _powerupOrb(AlchemicalPowerupType.beauty, size * 0.74),
-            ),
-          ],
-        ),
-      ),
-    };
-    // THE MEDALLION. The three arts are a metallic coin sprite, two glowing
-    // orbs and a UI png that carries its own pale halo — side by side they
-    // read as three things borrowed from three places. A common dark disc
-    // with a thin rim makes them one set of choices, and it gives the png's
-    // halo something to sit on instead of floating.
-    return Container(
-      width: size * 1.62,
-      height: size * 1.62,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: selected
-            ? const Color(0xFF241C10)
-            : Colors.black.withValues(alpha: 0.32),
-        border: Border.all(
-          color: selected
-              ? _C.amberBright.withValues(alpha: 0.85)
-              : _C.border.withValues(alpha: 0.20),
-          width: selected ? 1.4 : 1.0,
-        ),
-      ),
-      child: art,
-    );
-  }
+  Color _choiceAccent(Star3Choice c) => switch (c) {
+    Star3Choice.gold => _C.amberBright,
+    Star3Choice.powerups => const Color(0xFF9B8CFF),
+    Star3Choice.extractors => CosmicScreenStyles.teal,
+  };
 
-  /// Star-3 choice cards. First tap highlights a card; the bottom button (or a
-  /// second tap on the same card) confirms — no accidental one-tap claims.
-  Widget _choiceCards() {
-    // IntrinsicHeight bounds the stretch: equal-height cards measured from
-    // the tallest. Without it the stretch meets the parent Column's
-    // unbounded height and the whole popup fails layout
-    // ("BoxConstraints forces an infinite height" on End Run).
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _choiceArt(Star3Choice c, double size) => switch (c) {
+    Star3Choice.gold => CoinIcon.gold(size: size),
+    Star3Choice.extractors => InstantExtractorGlyph(size: size),
+    Star3Choice.powerups => SizedBox(
+      width: size * 1.2,
+      height: size,
+      child: Stack(
         children: [
-          for (final c in Star3Choice.values)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: _choiceCard(c),
-              ),
-            ),
+          Positioned(
+            left: 0,
+            top: size * 0.1,
+            child: _powerupOrb(AlchemicalPowerupType.speed, size * 0.7),
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: _powerupOrb(AlchemicalPowerupType.beauty, size * 0.7),
+          ),
         ],
       ),
-    );
-  }
+    ),
+  };
 
+  /// A Star 3 choice. First tap highlights it; a second tap (or the button)
+  /// claims it — no accidental one-tap claims.
   Widget _choiceCard(Star3Choice c) {
     final selected = _highlighted == c;
+    final accent = _choiceAccent(c);
     return GestureDetector(
       onTap: context.soundAction(
         _busy
             ? null
             : () {
                 if (selected) {
-                  _pickStar3(c); // second tap on the highlighted card confirms
+                  _pickStar3(c);
                 } else {
                   setState(() => _highlighted = c);
                 }
               },
       ),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.fromLTRB(6, 12, 6, 10),
-        decoration: BoxDecoration(
-          // Warm, not the HUD's blue-black: a gold reward highlighted in navy
-          // looked like a different screen's component had wandered in.
-          // A CARD ONLY ONCE YOU TOUCH IT. Three bordered boxes side by side
-          // inside a bordered section inside a bordered panel is the nesting;
-          // unselected these are just their contents on the panel's own
-          // ground, and the border arrives with the choice. The bloom is gone
-          // for the same reason the panel's is.
-          color: selected
-              ? const Color(0xFF1E1810)
-              : Colors.white.withValues(alpha: 0.02),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: selected
-                ? _C.amberBright
-                : _C.border.withValues(alpha: 0.22),
-            width: selected ? 1.6 : 1.0,
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
+      child: _surgeCard(
+        accent: accent,
+        selected: selected,
+        dim: _highlighted != null && !selected,
+        art: _choiceArt(c, 26),
+        child: Row(
           children: [
-            _choiceArt(c, 28, selected: selected),
-            const SizedBox(height: 9),
-            // FIXED height, two lines' worth. "10 Fusion Extractors" wraps and
-            // the other two do not, so without this its subtitle sat a line
-            // lower than its neighbours' and the row lost its baseline.
-            SizedBox(
-              height: 30,
-              child: Text(
-                star3ChoiceTitle(c),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                style: TextStyle(
-                  color: selected ? _C.amberBright : _C.text,
-                  fontSize: 11.5,
-                  height: 1.24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3,
-                ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    star3ChoiceTitle(c).toUpperCase(),
+                    style: TextStyle(
+                      color: Color.lerp(_C.text, accent, 0.3),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    star3ChoiceSubtitle(c),
+                    style: const TextStyle(
+                      color: _C.muted,
+                      fontSize: 11.5,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 5),
-            Text(
-              star3ChoiceSubtitle(c),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              style: TextStyle(
-                color: selected ? _C.text.withValues(alpha: 0.8) : _C.muted,
-                fontSize: 9,
-                height: 1.3,
-              ),
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 180),
+              opacity: selected ? 1 : 0,
+              child: Icon(Icons.check_circle_rounded, color: accent, size: 22),
             ),
           ],
         ),
@@ -760,19 +787,19 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     );
   }
 
-  /// Bottom button morphs through the flow:
-  ///   choose → highlight → CONFIRM (choice) → CONTINUE.
+  /// The button morphs through the flow: choose → CLAIM (choice) → CONTINUE.
+  /// Filled amber when there is something to press, like survival's.
   Widget _bottomButton() {
     final awaitingChoice = _needStar3 && _choice == null;
     final String label;
     final bool enabled;
     final VoidCallback? action;
     if (awaitingChoice && _highlighted == null) {
-      label = 'SELECT A STAR 3 REWARD';
+      label = 'PICK A REWARD';
       enabled = false;
       action = null;
     } else if (awaitingChoice) {
-      label = 'CONFIRM, ${star3ChoiceTitle(_highlighted!).toUpperCase()}';
+      label = 'CLAIM ${star3ChoiceTitle(_highlighted!).toUpperCase()}';
       enabled = !_busy;
       action = () => _pickStar3(_highlighted!);
     } else {
@@ -782,39 +809,126 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     }
     return GestureDetector(
       onTap: context.soundAction(enabled ? action : null),
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 200),
-        opacity: enabled ? 1.0 : 0.4,
-        child: CustomPaint(
-          painter: DungeonBracketPainter(
-            color: _C.amberBright.withValues(alpha: enabled ? 0.8 : 0.35),
-            bracketSize: 8,
-            strokeWidth: 1.2,
-          ),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 13),
-            decoration: BoxDecoration(
-              color: _C.bg.withValues(alpha: 0.85),
-              border: Border.all(
-                color: _C.amberBright.withValues(alpha: enabled ? 0.9 : 0.4),
-                width: 1.2,
-              ),
+      child: CustomPaint(
+        painter: DungeonBracketPainter(
+          color: _C.amberBright.withValues(alpha: enabled ? 0.9 : 0.3),
+          bracketSize: 8,
+          strokeWidth: 1.2,
+        ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: enabled ? _C.amberBright : CosmicScreenStyles.bg2,
+            border: Border.all(
+              color: enabled ? _C.amberBright : CosmicScreenStyles.borderDim,
             ),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: _C.amberBright,
-                fontFamily: 'monospace',
-                fontWeight: FontWeight.w900,
-                fontSize: 12,
-                letterSpacing: 1.6,
-              ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: enabled ? _C.bg : _C.muted,
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+              letterSpacing: 1.8,
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Lifts a colour until it holds its own as an accent on the near-black
+/// plate (the survival surge's rule: earthy element colours otherwise land
+/// on the panel's own background).
+Color _legible(Color c) {
+  final hsl = HSLColor.fromColor(c);
+  return hsl
+      .withSaturation(hsl.saturation.clamp(0.45, 1.0))
+      .withLightness(hsl.lightness.clamp(0.58, 0.78))
+      .toColor();
+}
+
+/// The surge card's kind tag.
+class _MiniTag extends StatelessWidget {
+  const _MiniTag({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: color,
+          fontSize: 8.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.0,
+        ),
+      ),
+    );
+  }
+}
+
+/// Cards arrive one after another, sliding up — the reward is counted out,
+/// not dumped.
+class _StaggerIn extends StatefulWidget {
+  const _StaggerIn({required this.index, required this.child});
+  final int index;
+  final Widget child;
+
+  @override
+  State<_StaggerIn> createState() => _StaggerInState();
+}
+
+class _StaggerInState extends State<_StaggerIn>
+    with SingleTickerProviderStateMixin {
+  // The wait is part of the animation (an Interval), not a Future.delayed:
+  // a bare timer outlives the widget if the popup closes early.
+  late final int _delayMs = 260 + widget.index * 110;
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: Duration(milliseconds: _delayMs + 380),
+  )..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final start = _delayMs / (_delayMs + 380);
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        final t = Interval(
+          start,
+          1,
+          curve: Curves.easeOutCubic,
+        ).transform(_c.value);
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * 16),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }

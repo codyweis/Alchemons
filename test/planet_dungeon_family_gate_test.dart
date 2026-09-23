@@ -205,8 +205,7 @@ void main() {
 
       _attemptAt(game, 'rib_hall', stand);
       game.askForRoomHint();
-      expect(game.hintText, 'Only an Earth horn\'s force shifts this bone');
-      game.askForRoomHint();
+      expect(game.hintText, 'Only an Earth Horn can shift this bone');
       expect(game.hintChannel, DungeonHintChannel.blocked);
       expect(game.discoveredClouds, contains('gate:earth_horn'));
       expect(discoveries, ['gate:earth_horn']);
@@ -225,8 +224,7 @@ void main() {
 
       _attemptAt(game, 'moon_well', mouth.position);
       game.askForRoomHint();
-      expect(game.hintText, 'Only a Water pip slips down this pipe-mouth');
-      game.askForRoomHint();
+      expect(game.hintText, 'Only a Water Pip fits down this pipe');
       expect(game.hintChannel, DungeonHintChannel.blocked);
       expect(discoveries, ['gate:water_pip']);
     });
@@ -242,8 +240,7 @@ void main() {
 
       _attemptAt(game, 'twin_conduit', conduitA.position);
       game.askForRoomHint();
-      expect(game.hintText, 'Only a Lightning horn\'s grip holds this current');
-      game.askForRoomHint();
+      expect(game.hintText, 'Only a Lightning Horn can hold this current');
       expect(game.hintChannel, DungeonHintChannel.blocked);
       expect(discoveries, ['gate:lightning_horn']);
     });

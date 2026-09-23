@@ -33,8 +33,12 @@
 //    exists only while the DEEP lies in shadow — the one arrangement its own
 //    beat keeps taking away. The arena's floor-vane is your hand on the same
 //    finger.
-//  • Lost Maxim — THE ABYSS (§6): stand utterly still in the abyssal font, in
-//    total darkness, for a full minute, doing nothing at all.
+//  • Lost Maxim — THE ABYSS: THE FOURTH FINGER. The font's hole has a bottom,
+//    and it shows only while the DEEP stands in LIGHT — the one arrangement
+//    the whole lower vault punishes, and one you can only make from the
+//    arena's vane. On it lies a gnomon that fell an age ago, chained to a
+//    rusted ring at the rim: Spirit reads the chain, a Poison pip eats the
+//    rust, and Dark hauls it up a length a press.
 //
 // NON-STRANDABILITY (see `solveEclipseVault`): a global flip that swaps walls
 // and doors is the purest stranding machine in the set — a flip can close the
@@ -64,14 +68,6 @@ const double _kVaultReach = 70.0;
 /// How close the second body of a Poison+Spirit braid must stand (§6's
 /// recipe — it substitutes the ELEMENT, never a family).
 const double _kVaultBraidReach = 150.0;
-
-/// A full minute (§6, "The Abyss"). The maxim is meant to be hard to stumble
-/// into; this is the whole difficulty.
-const double _kAbyssSeconds = 60.0;
-
-/// How far a body may drift and still count as standing utterly still. A few
-/// pixels of joystick noise must not cost the vigil.
-const double _kAbyssDrift = 6.0;
 
 /// Seconds an inversion's WIPE takes to cross the room. Purely visual.
 const double _kVaultWipeSeconds = 0.45;
@@ -141,8 +137,8 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     final span = _vaultSpanFor(room, door)!;
     final where = leafWord(span.leaf!);
     return span.cut == SpanCut.lightWalk
-        ? 'No floor under it, $where lies in shadow'
-        : 'Solid stone, $where stands in the light';
+        ? 'No floor here while $where is in shadow'
+        : 'Solid wall while $where is in light';
   }
 
   // ── Verbs ────────────────────────────────────────────────
@@ -153,17 +149,13 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
   /// fight's errand must never be eaten by a strike.
   bool _tryVaultVerb(DungeonCreature a) {
     if (!_isVault) return false;
-    final took =
-        _tryPallCurtain(a) ||
+    return _tryPallCurtain(a) ||
         _tryShadowVane(a) ||
         _tryGnomon(a) ||
         _tryShadowStone(a) ||
         _tryShadowAnchor(a) ||
+        _tryAbyss(a) ||
         _trySnuffer(a);
-    // Any act at all breaks the vigil — the abyss answers a party that does
-    // nothing, and "nothing" includes turning the world inside out.
-    if (took) _breakVigil();
-    return took;
   }
 
   /// The planet's verb is element-only DARK (§4), and **Poison+Spirit→Dark**
@@ -190,11 +182,12 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     if (pos == null || entryDoorRevealed) return false;
     if ((a.position - pos).distance > _kVaultReach) return false;
     if (a.member.element != 'Dark') {
-      _setBlockedHint('Only Dark takes hold of its own cloth');
+      _setBlockedHint('Only Dark can pull this cloth down');
       return true;
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
+    _cue(SoundCue.dungeonGateOpen);
     _setHint('The pall comes off the arch, and Nythralor is not one shape');
     _spawnAlchemyBurst(
       pos,
@@ -216,7 +209,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     if (g == null) return false;
     if ((a.position - g.shaft).distance > _kVaultReach) return false;
     if (!_vaultHasNightHand(a)) {
-      _setBlockedHint('Only Dark takes hold of a shadow');
+      _setBlockedHint('This needs Dark, or Poison and Spirit together');
       return true;
     }
     _throwShadow(g, g.shaft);
@@ -232,7 +225,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kVaultReach) return false;
     if (!_vaultHasNightHand(a)) {
-      _setBlockedHint('Only Dark takes hold of a shadow');
+      _setBlockedHint('This needs Dark, or Poison and Spirit together');
       return true;
     }
     final g = vaultGnomonById('gn_stair');
@@ -249,9 +242,12 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     final left = vault.shadowOf(g.id);
     final entered = vault.turn(g.id)!;
     vault.wipe = _kVaultWipeSeconds;
-    _setHint(
-      'The shadow leaves ${leafWord(left)} and lies down over '
-      '${leafWord(entered)}',
+    _cue(SoundCue.dungeonSwitch);
+    _cue(SoundCue.elementDark);
+    // A CONSEQUENCE, not narration (§5.7): a turn has just shut every passage
+    // cut through the quarter the shadow left, somewhere you cannot see.
+    speakConsequence(
+      'The shadow moves from ${leafWord(left)} to ${leafWord(entered)}',
       3.0,
     );
     _spawnAlchemyBurst(
@@ -296,17 +292,17 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         return true;
       }
       if (a.member.element != s.element) {
-        _setBlockedHint('This stone answers ${s.element}');
+        _setBlockedHint('This stone needs ${s.element}');
         return true;
       }
       if (!vault.isDark(s.leaf)) {
         _setBlockedHint(
-          '${leafWord(s.leaf)} stands in the light, the stone '
-          'has nothing to read',
+          '${leafWord(s.leaf)} is in light. This stone needs it in shadow',
         );
         return true;
       }
       vault.stonesSeated.add(s.id);
+      _cue(SoundCue.dungeonStepStone);
       _spawnAlchemyBurst(
         s.position,
         producedElement: 'Dark',
@@ -377,17 +373,17 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
               _stampFamilyGate(gate);
             } else {
               _setBlockedHint(
-                'Only a Poison small enough to work inside the ring eats this '
-                'rust',
+                'Only a Pip is small enough to clear this ring',
               );
             }
             return true;
           case InteractionResult.blockedElement:
           case InteractionResult.blockedStat:
-            _setBlockedHint('The rust in the ring answers Poison');
+            _setBlockedHint('Only a Pip is small enough to clear this ring');
             return true;
         }
         vault.anchorsOpen.add(an.id);
+        _cue(SoundCue.elementPoison);
         _setHint('The rust goes off the ring, and the ring goes through');
         _spawnAlchemyBurst(
           ring,
@@ -401,8 +397,9 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
 
       if (a.member.element == 'Spirit' && !vault.anchorsRead.contains(an.id)) {
         vault.anchorsRead.add(an.id);
+        _cue(SoundCue.dungeonInteract);
         final far = an.other(currentRoomId)!;
-        _setInsightHint('The far end comes out in ${_roomWord(far)}', 4.0);
+        _setInsightHint('This portal comes out in ${_roomWord(far)}', 4.0);
         return true;
       }
 
@@ -412,14 +409,14 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         final mine = _leafOf(currentRoomId)!;
         _setBlockedHint(
           vault.isLit(mine)
-              ? 'No hole here, ${leafWord(mine)} stands in the light'
-              : 'The far side stands in the light',
+              ? 'The portal is closed while ${leafWord(mine)} is in light'
+              : 'The far end of this portal is in light',
         );
         // Name the far quarter only once the scout has read it: an unread
         // ring is supposed to be a hole into somewhere.
         if (vault.anchorsRead.contains(an.id)) {
           _setBlockedHint(
-            'The ring is open, but ${leafWord(farLeaf)} stands in the light',
+            'The ring is clear, but ${leafWord(farLeaf)} is in light',
           );
         }
         return true;
@@ -443,6 +440,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     _spreadCreaturesAround(arrive);
     _doorCooldown = 0.5;
     _clearHints();
+    _cue(SoundCue.cosmicPortalOpen);
     _spawnAlchemyBurst(
       arrive,
       producedElement: 'Dark',
@@ -459,12 +457,14 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       announce: false,
     );
     if (!vault.everyPortalWalked) {
-      _setHint(
-        first
-            ? 'You come out somewhere else, and something comes out with you'
-            : 'Through, and out again',
-        3.0,
-      );
+      // The first transit is a consequence — something came through with
+      // you — and says so; every later one is the animation's to carry.
+      if (first) {
+        speakConsequence(
+          'You come out somewhere else, and something follows you through',
+          3.0,
+        );
+      }
       return;
     }
     final idx = _anchorStarRoom?.eclipse?.starIndex;
@@ -485,17 +485,18 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kVaultReach) return false;
     if ((conduitEnergy['B'] ?? 0) > 0) return false;
     if (!_vaultHasNightHand(a)) {
-      _setBlockedHint('Only Dark puts out a light for good');
+      _setBlockedHint('This needs Dark, or Poison and Spirit together');
       return true;
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The lamps will not gutter, they answer only a bearer of the '
-        '${layout.starName(0)} and ${layout.starName(1)}',
+        'The lamps need the ${layout.starName(0)} and '
+        '${layout.starName(1)} first',
       );
       return true;
     }
     conduitEnergy['B'] = double.infinity;
+    _cue(SoundCue.dungeonSwitch);
     _setHint('Every lamp in the nave goes out at once, and stays out');
     _spawnAlchemyBurst(
       pos,
@@ -532,68 +533,183 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       if (vault.shadowOf(g.id) == EclipseLeaf.deep) {
         vault.turn(g.id);
         vault.wipe = _kVaultWipeSeconds;
-        _setHint(
-          'Noctryos takes the shadow off the Deep, and the vault turns over '
-          'above you',
+        _cue(SoundCue.dungeonHazardTrigger);
+        // A closing announces itself (§5.7): this runs from update, where a
+        // plain line is dropped unasked, and the beat has just shut the gulf
+        // and the slot above you.
+        speakConsequence(
+          'Noctryos pulls the shadow off the Deep, and the vault flips above '
+          'you',
         );
       }
     }
   }
 
   // ── The Lost Maxim · THE ABYSS ───────────────────────────
+  //
+  // THE FOURTH FINGER (2026-09-19; the §7 maxim standard, and Mud's lesson
+  // that the best place to hide a secret is the state your own stars punish).
+  //
+  // It used to be a WAIT: a full minute standing still in the dark font. A
+  // condition, not a puzzle, and §7's table graded it exactly that. It is a
+  // CHAIN now, and every link is a thing this planet already taught:
+  //
+  //   1. LIGHT THE DEEP FROM INSIDE IT. Every objective in the lower vault
+  //      wants the Deep in shadow — the gulf, the slot, the causeway, the
+  //      reliquary's very existence, Noctryos' lull. The one hand that can
+  //      light it from below is the arena's vane, behind the rood door. Turn
+  //      it, and the slot and the gulf are gone; walk back to the font by the
+  //      undercroft, which is a light-walk and is there now.
+  //   2. THE HOLE HAS A BOTTOM. Light falls into the abyss for the first time
+  //      and shows what lies on it: a gnomon, fallen an age ago, chained to a
+  //      rusted ring at the rim. Nothing is pressed for this; the room is the
+  //      clue.
+  //   3. SPIRIT READS THE CHAIN — the job it does at every anchor here:
+  //      three lengths, and the finger at the end of them.
+  //   4. A POISON PIP EATS THE RUST off the rim's ring — the same verb, the
+  //      same declared gate, as every anchor ring on the planet.
+  //   5. DARK HAULS, a length a press — the repeated beat. Three, and the
+  //      finger stands at the rim: the rite of three over it.
+  //
+  // Nothing here asks for a family the riddle did not name (the Pip gate is
+  // the anchors' own), a wrong hand answers with a puff and a sentence, and
+  // the star path never passes it: every star wants the Deep dark down here.
 
-  /// §6's "The Abyss": stand utterly still in the total-darkness chamber for
-  /// a full minute, casting no light. Deliberately beyond what the stars
-  /// demand (§ "Easter eggs") — it wants the deep in shadow, the whole party
-  /// in the font, and a full minute of doing NOTHING, which is the one thing
-  /// a dungeon never asks for.
-  ///
-  /// "Casting no light" is approximated the only honest way the engine can
-  /// today: any successful vault verb breaks the vigil (see `_tryVaultVerb`),
-  /// as does any body moving more than [_kAbyssDrift].
-  void _updateAbyss(DungeonRoom room, double dt) {
-    if (room.eclipse?.abyss == null ||
-        vault.abyssGazed ||
-        discoveredClouds.contains(kDarkAbyssEggId) ||
-        !vault.isDark(EclipseLeaf.deep)) {
-      _breakVigil();
-      return;
+  /// Light on the bottom of the well: the whole secret exists only now.
+  bool get abyssLit => vault.isLit(EclipseLeaf.deep);
+
+  /// The rusted ring the chain runs to, on the rim of the well.
+  Offset _abyssRing(Offset abyss) => abyss + const Offset(62, -30);
+
+  /// The abyss, in the light. Spirit reads, Poison frees, Dark hauls.
+  bool _tryAbyss(DungeonCreature a) {
+    final pos = currentRoom.eclipse?.abyss;
+    if (pos == null) return false;
+    if (discoveredClouds.contains(kDarkAbyssEggId)) return false;
+    final ring = _abyssRing(pos);
+    final atRing = (a.position - ring).distance <= _kVaultReach;
+    final atWell = (a.position - pos).distance <= _kVaultReach + 20;
+    if (!atRing && !atWell) return false;
+    if (!abyssLit) {
+      // In the dark the hole is a hole. WHAT is missing, in one clause.
+      _setBlockedHint('Too dark to see the bottom');
+      return true;
     }
-    final now = [for (final c in creatures) c.position];
-    final marks = vault.abyssMarks;
-    var still = marks.length == now.length;
-    if (still) {
-      for (var i = 0; i < now.length; i++) {
-        if ((now[i] - marks[i]).distance > _kAbyssDrift) {
-          still = false;
-          break;
-        }
+    final el = a.member.element;
+
+    // ── 3 · the chain, read ──
+    // (A Spirit hand that has already read falls through to the haul, where
+    // it may stand as half of the Poison+Spirit braid.)
+    if (el == 'Spirit' && !vault.abyssRead) {
+      vault.abyssRead = true;
+      _cue(SoundCue.dungeonInteract);
+      _spawnAlchemyBurst(
+        pos,
+        producedElement: 'Spirit',
+        particleCount: 14,
+        intensity: 0.7,
+      );
+      _setInsightHint(
+        'Three lengths of chain, with a gnomon on the end',
+        4.0,
+      );
+      return true;
+    }
+
+    // ── 4 · the rust, eaten ──
+    // (A Poison hand once the ring is clean falls through to the haul, as
+    // the other half of the braid.)
+    if (el == 'Poison' && !vault.abyssChainFree) {
+      // The anchors' own gate, declared on the layout: a ring is a ring.
+      const req = DungeonInteractionRequirement(
+        element: kAnyElement,
+        requiredFamily: DungeonAbility.smallAccess,
+      );
+      switch (evaluateInteraction(a.member, req)) {
+        case InteractionResult.passed:
+        case InteractionResult.passedViaRecipe:
+          vault.abyssChainFree = true;
+          _cue(SoundCue.elementPoison);
+          _spawnAlchemyBurst(
+            ring,
+            producedElement: 'Poison',
+            reagentElements: const ['Dark'],
+            particleCount: 22,
+            intensity: 1.0,
+          );
+          return true;
+        default:
+          _spawnAlchemyBurst(
+            ring,
+            producedElement: 'Poison',
+            particleCount: 8,
+            intensity: 0.5,
+          );
+          _setBlockedHint(
+            'Only a Pip is small enough to clear this ring',
+          );
+          return true;
       }
     }
-    if (!still) {
-      vault.abyssMarks = now;
-      vault.abyssStillness = 0;
-      return;
+
+    // ── 5 · the hauls ──
+    if (!_vaultHasNightHand(a)) {
+      _spawnAlchemyBurst(
+        pos,
+        producedElement: el,
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint('Only Dark can haul this chain');
+      return true;
     }
-    vault.abyssStillness += dt;
-    if (vault.abyssStillness < _kAbyssSeconds) return;
-    vault.abyssGazed = true;
-    // THE RITE OF THREE pays this out (see `beginMaximRite`) — the reaction
-    // is built from the trio that came down and hands over the gold itself.
-    beginMaximRite(kDarkAbyssEggId, room.eclipse!.abyss!);
+    if (!vault.abyssRead) {
+      _spawnAlchemyBurst(
+        pos,
+        producedElement: 'Dark',
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint(
+        'No telling how long this chain is',
+      );
+      return true;
+    }
+    if (!vault.abyssChainFree) {
+      _spawnAlchemyBurst(
+        ring,
+        producedElement: 'Dark',
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint(
+        'Rust has the ring locked. The chain won\'t move',
+      );
+      return true;
+    }
+    if (vault.abyssRaised) return false;
+    vault.abyssHauls++;
+    _cue(SoundCue.dungeonBlockMove);
     _spawnAlchemyBurst(
-      room.eclipse!.abyss!,
+      ring,
+      producedElement: 'Dark',
+      reagentElements: const ['Spirit'],
+      particleCount: 16,
+      intensity: 0.9,
+    );
+    if (!vault.abyssRaised) return true;
+    // The finger stands. THE RITE OF THREE pays this out (see
+    // `beginMaximRite`).
+    _cue(SoundCue.dungeonGateOpen);
+    beginMaximRite(kDarkAbyssEggId, pos);
+    _spawnAlchemyBurst(
+      pos,
       producedElement: 'Dark',
       reagentElements: const ['Spirit', 'Poison'],
       particleCount: 44,
       intensity: 1.5,
     );
-  }
-
-  void _breakVigil() {
-    if (!_isVault) return;
-    vault.abyssStillness = 0;
-    vault.abyssMarks = const [];
+    return true;
   }
 
   // ── Per-frame ────────────────────────────────────────────
@@ -601,7 +717,6 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
   void _updateVault(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isVault) return;
     if (vault.wipe > 0) vault.wipe = max(0.0, vault.wipe - dt);
-    _updateAbyss(room, dt);
     _updateNoctryos(room, dt);
   }
 
@@ -627,13 +742,6 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         label: 'PORTALS',
         value: '$n/${kVaultAnchors.length}',
         fraction: n / kVaultAnchors.length,
-      );
-    }
-    if (hall?.abyss != null && vault.abyssStillness > 0) {
-      return DungeonProgressReadout(
-        label: 'STILL',
-        value: '${vault.abyssStillness.floor()}s',
-        fraction: (vault.abyssStillness / _kAbyssSeconds).clamp(0.0, 1.0),
       );
     }
     final marks = [
@@ -663,35 +771,34 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _vaultObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Noctryos\' Totality, the eclipse keeps the last star';
+      return 'Noctryos\' Totality. The last star is here';
     }
     if (room.eclipse?.snuffer != null) {
-      return 'The Eclipse Nave, the rite waits on the lamps';
+      return 'The Eclipse Nave. The rite happens here';
     }
     if (room.eclipse?.analemma != null) {
       return hasStar(room.eclipse!.starIndex!)
           ? null
-          : 'The Analemma Court, four stones, and none of them seated';
+          : 'The Analemma Court. Four stones need seating on the dial';
     }
     if (room.eclipse?.starIndex == 1) {
       return hasStar(1)
           ? null
-          : 'The Ossuary Ring, three rings, and every one of them rusted';
+          : 'The Ossuary Ring. Three rusted portal rings';
     }
     if (room.vaultCache != null) {
-      return 'A room that is not here in the light, something is bottled '
-          'against the wall';
+      return 'A hidden room. Something is stored here';
     }
     if (room.eclipse?.abyss != null) {
-      return 'The Abyssal Font, the floor stops being a floor';
+      return 'The Abyssal Font';
     }
     if (vaultGnomonIn(room.id) != null) {
-      return 'A gnomon stands here, and its shadow is somewhere';
+      return 'A gnomon. Turning it moves a shadow';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Pall Porch, one way out, and the other one is not there'
-          : 'The Pall Porch, the arch is hung shut';
+          ? 'The Pall Porch'
+          : 'The Pall Porch. A cloth hangs over the arch';
     }
     return null;
   }
@@ -728,67 +835,72 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     final tier = revealHintTier(a.member.statIntelligence);
     if (room.eclipse?.analemma != null) {
       _setInsightHint(switch (tier) {
-        0 => 'Four stones, and the dial under them is a figure of eight',
+        0 => 'Each stone belongs to one quarter of the vault',
         1 =>
-          'Each stone reads one quarter of the vault, and it will only '
-              'read a quarter that is dark',
+          'A stone only seats while its quarter is in shadow',
         _ =>
-          'You will not seat all four in one shape of this place. There '
-              'are three shadows for four quarters, and every one of them is '
-              'always somewhere, so come back with the vault turned',
+          'You can\'t shadow all four quarters at once. Seat the stones '
+              'you can, turn the gnomons, then come back for the rest',
       });
       return;
     }
     if (vaultAnchorsIn(room.id).isNotEmpty) {
       _setInsightHint(switch (tier) {
-        0 => 'The rings go somewhere, and the rust says nobody has',
+        0 => 'Each ring is a portal, rusted shut',
         1 =>
-          'A hole wants dark at both ends, it is a hole in the dark, and '
-              'nowhere else',
+          'A portal only works while both of its ends are in shadow',
         _ =>
-          'Rust first, and only something small enough to work inside the '
-              'ring gets it off. Then both ends in shadow at once, and no two '
-              'of these three rings want the same shape of the vault',
+          'A Pip can clear the rust. Then put both ends in shadow and '
+              'step through. Each of the three rings needs a different '
+              'arrangement',
       });
       return;
     }
     if (vaultGnomonIn(room.id) != null) {
       final g = vaultGnomonIn(room.id)!;
       _setInsightHint(switch (tier) {
-        0 => 'The finger holds a shadow, and it is only holding the one',
+        0 => 'This gnomon casts one shadow',
         1 =>
-          'It stands between ${leafWord(g.upper)} and ${leafWord(g.lower)}. '
-              'Turn it and the shadow crosses over',
+          'It moves its shadow between ${leafWord(g.upper)} and '
+              '${leafWord(g.lower)}',
         _ =>
-          'Whatever you open with it, you shut something else. The shadow '
-              'is in ${leafWord(vault.shadowOf(g.id))} now, and the moment it '
-              'is not, everything cut through there is stone',
+          'Its shadow is on ${leafWord(vault.shadowOf(g.id))} now. Turning it '
+              'opens paths on one side and closes them on the other',
       });
+      return;
+    }
+    if (room.eclipse?.abyss != null &&
+        !discoveredClouds.contains(kDarkAbyssEggId)) {
+      // ONE OBLIQUE LINE and nothing after it (the §7 maxim standard). It
+      // does not tier and it does not track progress.
+      _setInsightHint(
+        'Nobody has ever seen the bottom of this. It would take light to '
+        'find it',
+      );
       return;
     }
     if (room.vaultCache != null || room.eclipse?.abyss != null) {
       _setInsightHint(switch (tier) {
-        0 => 'The wall on that side is not the same wall twice',
+        0 => 'That wall changes with the shadows',
         1 =>
-          'There is a room through there, and only while the Deep lies in '
+          'There\'s a room through there, but only while the Deep is in '
               'shadow',
         _ =>
-          'The way down here wants the Ossuary dark and the slot wants the '
-              'Deep dark, and one finger cannot hold both. Bring the '
-              'Ossuary\'s shadow off the other one before you come down',
+          'Getting down here needs the Ossuary in shadow, and the room needs '
+              'the Deep in shadow. One gnomon can\'t do both, so use the '
+              'other gnomon for the Ossuary first',
       });
       return;
     }
     // Anywhere in the vault, insight reads the ECLIPSE — which is the planet.
     _setInsightHint(switch (tier) {
-      0 => 'Nothing here is where the light says it is',
+      0 => 'Turning a gnomon flips which paths are open',
       1 =>
-        'Every way between two quarters is a hole in the dark; every way '
-            'inside one is a walk in the light. Nothing else is a door',
+        'Paths between quarters only open in shadow. Paths inside a quarter '
+            'only open in light',
       _ =>
-        'Three gnomons, four quarters, one shadow each. Two quarters are '
-            'always dark and never more than two are lit, and never two that '
-            'share a finger. Plan the shape before you walk it',
+        'Three gnomons, four quarters, one shadow each. Plan which quarters '
+            'you need in shadow before you walk',
     });
   }
 
@@ -796,17 +908,21 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
   /// a closed eye, but the real driver is the eclipse: a shadowed quarter
   /// goes darker than the room it is.
   double get _vaultMoodTarget {
+    // A LOT DARKER (2026-09-19, from the author). The porch and the court
+    // sat ABOVE the shader's baseline (0.5), so the top of the vault read as
+    // a blue dusk; nothing on this planet is brighter than baseline now, and
+    // the deep is as far toward black as the shader's shaping allows.
     final base = switch (currentRoomId) {
-      'pall_porch' => 0.70,
-      'analemma_court' => 0.60,
-      'shade_gallery' => 0.50,
-      'penumbral_walk' => 0.46,
-      'gnomon_stair' => 0.40,
-      'ossuary_ring' => 0.34,
-      'abyssal_font' => 0.16,
-      'umbral_reliquary' => 0.20,
-      'eclipse_nave' => 0.30,
-      _ => guardianAwake ? 0.12 : 0.24,
+      'pall_porch' => 0.34,
+      'analemma_court' => 0.30,
+      'shade_gallery' => 0.26,
+      'penumbral_walk' => 0.24,
+      'gnomon_stair' => 0.20,
+      'ossuary_ring' => 0.16,
+      'abyssal_font' => 0.06,
+      'umbral_reliquary' => 0.08,
+      'eclipse_nave' => 0.12,
+      _ => guardianAwake ? 0.04 : 0.10,
     };
     final leaf = layout.rooms[currentRoomId]?.eclipse?.leaf;
     if (leaf == null) return base;
@@ -1139,7 +1255,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
 
     if (dark) {
       // ── UMBRA · the room as an absence ───────────────────
-      canvas.drawRect(b, Paint()..color = _kVaultVoid.withValues(alpha: 0.52));
+      canvas.drawRect(b, Paint()..color = _kVaultVoid.withValues(alpha: 0.40));
       // The exchange: what the architecture shaded is now the only floor with
       // anything on it, and the fissure's light is a bar of nothing.
       canvas.drawPath(
@@ -1377,78 +1493,178 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     }
   }
 
+  static const Color _kVaultRust = Color(0xFF9A5A2C);
+  static const Color _kVaultBronze = Color(0xFF6B5A2E);
+
+  /// A stone finger: a tapered obelisk on a collar, drawn the same way as a
+  /// gnomon and as the abyss's raised fourth finger.
+  void _drawFinger(Canvas canvas, Offset at, {double h = 60, double w = 16}) {
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: at + Offset(0, h * 0.34),
+        width: w * 2.6,
+        height: w,
+      ),
+      Paint()..color = _kVaultBronze.withValues(alpha: 0.9),
+    );
+    final body = Path()
+      ..moveTo(at.dx - w / 2, at.dy + h * 0.3)
+      ..lineTo(at.dx - w * 0.3, at.dy - h * 0.5)
+      ..lineTo(at.dx, at.dy - h * 0.66)
+      ..lineTo(at.dx + w * 0.3, at.dy - h * 0.5)
+      ..lineTo(at.dx + w / 2, at.dy + h * 0.3)
+      ..close();
+    canvas.drawPath(body, Paint()..color = _kVaultVoid);
+    canvas.drawPath(
+      body,
+      Paint()
+        ..color = _kVaultViolet
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    // Black glass: one cold gleam down the edge.
+    canvas.drawLine(
+      at + Offset(-w * 0.18, -h * 0.4),
+      at + Offset(-w * 0.3, h * 0.2),
+      Paint()
+        ..color = _kVaultBone.withValues(alpha: 0.35)
+        ..strokeWidth = 1.2,
+    );
+  }
+
+  /// The shadow a finger throws: a hard wedge lying away from its base toward
+  /// the quarter it is holding. Direction is the whole read.
+  Path _shadowWedge(Offset at, bool down, double length) {
+    final sgn = down ? 1.0 : -1.0;
+    final base = at.dy + sgn * 22;
+    final tip = base + sgn * length;
+    return Path()
+      ..moveTo(at.dx - 10, base)
+      ..lineTo(at.dx + 10, base)
+      ..lineTo(at.dx + 4, tip)
+      ..lineTo(at.dx - 4, tip)
+      ..close();
+  }
+
   void _renderVaultObjects(Canvas canvas, DungeonRoom room) {
     final hall = room.eclipse;
     if (hall == null) return;
 
-    // THE GNOMON: a finger with its shadow drawn as a hard bar lying toward
-    // the quarter it is holding — up the room for its upper quarter, down for
-    // its lower. The shadow's DIRECTION is the whole read.
+    // THE GNOMON: a finger of black glass on a bronze collar, and the hard
+    // wedge of shadow it throws toward the quarter it is holding — up the
+    // room for its upper quarter, down for its lower. WHERE YOU STAND TELLS
+    // YOU WHAT THE PRESS WILL DO: with a night-hand in reach the OTHER wedge
+    // is ghosted in, so the turn can be read before it is made.
     final g = vaultGnomonIn(room.id);
     if (g != null) {
       final at = g.shaft;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: at, width: 14, height: 46),
-          const Radius.circular(4),
-        ),
-        Paint()..color = _kVaultVoid,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: at, width: 14, height: 46),
-          const Radius.circular(4),
-        ),
-        Paint()
-          ..color = _kVaultViolet
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
       final down = vault.shadowOf(g.id) == g.lower;
-      final bar = Rect.fromLTWH(
-        at.dx - 7,
-        down ? at.dy + 23 : at.dy - 79,
-        14,
-        56,
+      final a = active;
+      final inReach =
+          a != null &&
+          (a.position - at).distance <= _kVaultReach &&
+          _vaultHasNightHand(a);
+      final wedge = _shadowWedge(at, down, 78);
+      canvas.drawPath(
+        wedge,
+        Paint()..color = _kVaultVoid.withValues(alpha: 0.85),
       );
-      canvas.drawRect(bar, Paint()..color = _kVaultVoid.withValues(alpha: 0.8));
-      canvas.drawRect(
-        bar,
+      canvas.drawPath(
+        wedge,
         Paint()
-          ..color = _kVaultViolet.withValues(alpha: 0.55)
+          ..color = _kVaultViolet.withValues(alpha: 0.6)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5,
       );
+      if (inReach) {
+        final ghost = _shadowWedge(at, !down, 78);
+        canvas.drawPath(
+          ghost,
+          Paint()
+            ..color = _kVaultViolet.withValues(
+              alpha: 0.25 + 0.15 * sin(_time * 4),
+            )
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5,
+        );
+      }
+      _drawFinger(canvas, at);
     }
 
-    // THE ANALEMMA: the figure-of-eight dial and its four stones. A seated
-    // stone is a filled square, an unseated one an outline — and one whose
-    // quarter is dark right now gets a violet ring, so the court tells you
-    // what is available without telling you how.
+    // THE ANALEMMA: the figure-of-eight dial cut into the floor with its hour
+    // ticks, and four stone plinths standing on it — a top face and a near
+    // face, so a stone is a block and not an index card. A seated stone is
+    // black glass with its quarter's mark cut in; one whose quarter is dark
+    // right now wears a violet ring, so the court says what is available
+    // without saying how.
     if (hall.analemma != null) {
       final c = hall.analemma!;
       final ring = Paint()
         ..color = _kVaultBone.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2;
-      canvas.drawCircle(c + const Offset(0, -34), 46, ring);
-      canvas.drawCircle(c + const Offset(0, 34), 46, ring);
+      for (final dy in [-34.0, 34.0]) {
+        final cc = c + Offset(0, dy);
+        canvas.drawCircle(cc, 46, ring);
+        for (var i = 0; i < 12; i++) {
+          final t = i * pi / 6;
+          canvas.drawLine(
+            cc + Offset(cos(t), sin(t)) * 46,
+            cc + Offset(cos(t), sin(t)) * (i % 3 == 0 ? 38 : 42),
+            Paint()
+              ..color = _kVaultBone.withValues(alpha: 0.35)
+              ..strokeWidth = 1.2,
+          );
+        }
+      }
       for (final s in kShadowStones) {
         final seated = vault.stonesSeated.contains(s.id);
-        final r = Rect.fromCenter(center: s.position, width: 20, height: 20);
-        canvas.drawRect(
-          r,
-          Paint()
-            ..color = seated ? _kVaultVoid : _kVaultBone.withValues(alpha: 0.25)
-            ..style = seated ? PaintingStyle.fill : PaintingStyle.stroke
-            ..strokeWidth = 2,
+        final top = Rect.fromCenter(
+          center: s.position + const Offset(0, -5),
+          width: 24,
+          height: 16,
         );
+        final face = Rect.fromLTWH(top.left, top.bottom, top.width, 9);
+        canvas.drawRect(
+          face,
+          Paint()
+            ..color = (seated ? _kVaultVoid : _kVaultPewter).withValues(
+              alpha: seated ? 0.95 : 0.55,
+            ),
+        );
+        canvas.drawRect(
+          top,
+          Paint()
+            ..color = seated
+                ? _kVaultVoid
+                : _kVaultBone.withValues(alpha: 0.28),
+        );
+        canvas.drawRect(
+          top,
+          Paint()
+            ..color = (seated ? _kVaultViolet : _kVaultBone).withValues(
+              alpha: seated ? 0.9 : 0.6,
+            )
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6,
+        );
+        if (seated) {
+          canvas.drawLine(
+            top.center + const Offset(-6, 0),
+            top.center + const Offset(6, 0),
+            Paint()
+              ..color = _kVaultViolet
+              ..strokeWidth = 2,
+          );
+        }
         if (!seated && vault.isDark(s.leaf)) {
           canvas.drawCircle(
             s.position,
-            16,
+            18,
             Paint()
-              ..color = _kVaultViolet.withValues(alpha: 0.75)
+              ..color = _kVaultViolet.withValues(
+                alpha: 0.6 + 0.2 * sin(_time * 3),
+              )
               ..style = PaintingStyle.stroke
               ..strokeWidth = 2,
           );
@@ -1456,91 +1672,340 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       }
     }
 
-    // THE ANCHORS: an iron ring, rusted (bone) or eaten clean (violet), with
-    // a filled centre once the hole on the far side is actually open.
+    // THE ANCHORS: an iron ring set in a dark socket. Rusted, it weeps rust
+    // down the stone; eaten clean it is violet; and once the hole on the far
+    // side is actually open the socket goes to nothing with a slow turn in it.
     for (final an in vaultAnchorsIn(room.id)) {
-      final at = an.ringIn(room.id)!;
-      final unlocked = vault.anchorsOpen.contains(an.id);
-      canvas.drawCircle(
-        at,
-        14,
-        Paint()
-          ..color = unlocked
-              ? _kVaultViolet
-              : _kVaultBone.withValues(alpha: 0.5)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3,
+      _drawIronRing(
+        canvas,
+        an.ringIn(room.id)!,
+        vault.anchorsOpen.contains(an.id),
+        through:
+            vault.anchorsOpen.contains(an.id) &&
+            vault.portalOpen(an, _vaultLeaves),
       );
-      if (unlocked && vault.portalOpen(an, _vaultLeaves)) {
-        canvas.drawCircle(at, 10, Paint()..color = _kVaultVoid);
-      }
     }
 
-    // THE SNUFFER: three lamps, alight until the rite puts them out.
+    // THE SNUFFER: three lamps on brackets, alight until the rite puts them
+    // out. A flame is a shape that moves, not a yellow dot.
     if (hall.snuffer != null) {
       final lit = (conduitEnergy['B'] ?? 0) <= 0;
       for (var i = 0; i < 3; i++) {
-        final at = hall.snuffer! + Offset(-34.0 + i * 34.0, 0);
-        canvas.drawCircle(
-          at,
-          9,
+        final at = hall.snuffer! + Offset(-40.0 + i * 40.0, 0);
+        canvas.drawLine(
+          at + const Offset(0, 26),
+          at + const Offset(0, 8),
           Paint()
-            ..color = lit ? _kVaultEmber : _kVaultBone.withValues(alpha: 0.22),
-        );
-      }
-    }
-
-    // THE PALL: the cloth over the arch, while it is still there.
-    if (hall.pallCurtain != null && !entryDoorRevealed) {
-      final at = hall.pallCurtain!;
-      canvas.drawRect(
-        Rect.fromCenter(center: at, width: 54, height: 96),
-        Paint()..color = _kVaultVoid.withValues(alpha: 0.9),
-      );
-    }
-
-    // THE ABYSS: a hole with nothing drawn inside it, and a bone rim.
-    if (hall.abyss != null) {
-      canvas.drawCircle(hall.abyss!, 54, Paint()..color = _kVaultVoid);
-      canvas.drawCircle(
-        hall.abyss!,
-        54,
-        Paint()
-          ..color = _kVaultBone.withValues(alpha: 0.3)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
-      if (vault.abyssStillness > 0) {
-        canvas.drawCircle(
-          hall.abyss!,
-          54 * (vault.abyssStillness / _kAbyssSeconds).clamp(0.0, 1.0),
-          Paint()
-            ..color = _kVaultViolet.withValues(alpha: 0.5)
-            ..style = PaintingStyle.stroke
+            ..color = _kVaultBronze
             ..strokeWidth = 3,
         );
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: at + const Offset(0, 28),
+            width: 18,
+            height: 6,
+          ),
+          Paint()..color = _kVaultBronze.withValues(alpha: 0.8),
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(
+              center: at + const Offset(0, 4),
+              width: 16,
+              height: 12,
+            ),
+            const Radius.circular(3),
+          ),
+          Paint()..color = (lit ? _kVaultBronze : _kVaultVoid),
+        );
+        if (lit) {
+          final f = 0.8 + 0.2 * sin(_time * 9 + i * 2.1);
+          final flame = Path()
+            ..moveTo(at.dx, at.dy - 22 * f)
+            ..quadraticBezierTo(at.dx + 7, at.dy - 8, at.dx, at.dy - 2)
+            ..quadraticBezierTo(at.dx - 7, at.dy - 8, at.dx, at.dy - 22 * f)
+            ..close();
+          canvas.drawPath(
+            flame,
+            Paint()..color = _kVaultEmber.withValues(alpha: 0.9),
+          );
+          canvas.drawCircle(
+            at + const Offset(0, -8),
+            3,
+            Paint()..color = Colors.white.withValues(alpha: 0.8),
+          );
+          for (var k = 2; k >= 1; k--) {
+            canvas.drawCircle(
+              at + const Offset(0, -10),
+              14.0 * k,
+              Paint()..color = _kVaultEmber.withValues(alpha: 0.06),
+            );
+          }
+        } else {
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                center: at + const Offset(0, 4),
+                width: 16,
+                height: 12,
+              ),
+              const Radius.circular(3),
+            ),
+            Paint()
+              ..color = _kVaultViolet.withValues(alpha: 0.5)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.4,
+          );
+        }
       }
     }
 
-    // THE VANE: the arena's hand on the stair gnomon.
+    // THE PALL: a cloth knotted across the arch, in folds, while it hangs.
+    if (hall.pallCurtain != null && !entryDoorRevealed) {
+      final at = hall.pallCurtain!;
+      final cloth = Rect.fromCenter(center: at, width: 58, height: 100);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(cloth, const Radius.circular(6)),
+        Paint()..color = _kVaultVoid.withValues(alpha: 0.92),
+      );
+      for (var i = 0; i < 5; i++) {
+        final x = cloth.left + 8 + i * 10.5;
+        canvas.drawPath(
+          Path()
+            ..moveTo(x, cloth.top + 10)
+            ..quadraticBezierTo(
+              x + (i.isEven ? 5 : -5),
+              cloth.center.dy,
+              x,
+              cloth.bottom - 4,
+            ),
+          Paint()
+            ..color = _kVaultViolet.withValues(alpha: 0.35)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4,
+        );
+      }
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(at.dx, cloth.top + 8),
+          width: 22,
+          height: 12,
+        ),
+        Paint()..color = _kVaultViolet.withValues(alpha: 0.7),
+      );
+    }
+
+    // THE ABYSS: a well with a bone rim. In the dark it is a hole with nothing
+    // drawn in it. In the LIGHT it has a bottom — courses of pewter stepping
+    // down, and on the floor of it the fourth finger, fallen, on its chain to
+    // the rusted ring at the rim. Read, the chain shows its three lengths;
+    // freed, the ring is clean; hauled, the finger rises a length a press and
+    // finally stands at the rim.
+    if (hall.abyss != null) {
+      final at = hall.abyss!;
+      final found = discoveredClouds.contains(kDarkAbyssEggId);
+      final lit = abyssLit || found;
+      canvas.drawCircle(at, 58, Paint()..color = _kVaultVoid);
+      canvas.drawCircle(
+        at,
+        58,
+        Paint()
+          ..color = _kVaultBone.withValues(alpha: 0.35)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3,
+      );
+      final ring = _abyssRing(at);
+      if (lit) {
+        // Courses stepping down: the well has a bottom.
+        for (var i = 0; i < 3; i++) {
+          canvas.drawCircle(
+            at + Offset(0, 4.0 * i),
+            48.0 - i * 12,
+            Paint()
+              ..color = _kVaultPewter.withValues(alpha: 0.18 - i * 0.04)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 8,
+          );
+        }
+        canvas.drawCircle(
+          at + const Offset(0, 12),
+          16,
+          Paint()..color = _kVaultPewter.withValues(alpha: 0.22),
+        );
+        final raised = found || vault.abyssRaised;
+        if (!raised) {
+          // Where the finger lies, by how much chain is in: on the floor of
+          // the well, then a course up per haul.
+          final t = vault.abyssHauls / EclipseVault.abyssChainLengths;
+          final lie = Offset.lerp(
+            at + const Offset(0, 12),
+            ring + const Offset(-22, 14),
+            t,
+          )!;
+          final len = 34 + 12 * t;
+          canvas.save();
+          canvas.translate(lie.dx, lie.dy);
+          canvas.rotate(-0.9 + 0.9 * t);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                center: Offset.zero,
+                width: len,
+                height: 10 + 3 * t,
+              ),
+              const Radius.circular(2),
+            ),
+            Paint()..color = _kVaultVoid,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                center: Offset.zero,
+                width: len,
+                height: 10 + 3 * t,
+              ),
+              const Radius.circular(2),
+            ),
+            Paint()
+              ..color = _kVaultViolet.withValues(alpha: 0.8)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.4,
+          );
+          canvas.restore();
+          // The chain, from the finger up to the ring.
+          final chain = Paint()
+            ..color = (vault.abyssChainFree ? _kVaultBone : _kVaultRust)
+                .withValues(alpha: 0.75)
+            ..strokeWidth = 2.2
+            ..strokeCap = StrokeCap.round;
+          const seg = 7.0;
+          final d = ring - lie;
+          final n = (d.distance / seg).floor();
+          for (var i = 0; i < n; i += 2) {
+            canvas.drawLine(
+              lie + d * (i / n),
+              lie + d * (min(n, i + 1) / n),
+              chain,
+            );
+          }
+          if (vault.abyssRead) {
+            // Three lengths, read: the marks a walker leaves along a road.
+            for (var i = 1; i <= EclipseVault.abyssChainLengths; i++) {
+              final q = lie + d * (i / (EclipseVault.abyssChainLengths + 1));
+              canvas.drawCircle(
+                q,
+                3.5,
+                Paint()..color = _kVaultViolet.withValues(alpha: 0.9),
+              );
+            }
+          }
+        } else {
+          _drawFinger(canvas, ring + const Offset(-4, -24), h: 64, w: 16);
+        }
+        _drawIronRing(
+          canvas,
+          ring,
+          vault.abyssChainFree || found,
+          through: false,
+          small: true,
+        );
+      }
+    }
+
+    // THE VANE: a floor disc with a graduated rim, and a handle lying to the
+    // quarter the stair gnomon's shadow is in — the arena's hand on the same
+    // finger.
     if (hall.shadowVane != null) {
       final at = hall.shadowVane!;
       final down = vault.shadowOf('gn_stair') == EclipseLeaf.deep;
       canvas.drawCircle(
         at,
-        22,
+        26,
+        Paint()..color = _kVaultVoid.withValues(alpha: 0.7),
+      );
+      canvas.drawCircle(
+        at,
+        26,
         Paint()
-          ..color = _kVaultViolet.withValues(alpha: down ? 0.85 : 0.35)
+          ..color = _kVaultViolet.withValues(alpha: down ? 0.85 : 0.4)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3,
       );
+      for (var i = 0; i < 8; i++) {
+        final t = i * pi / 4;
+        canvas.drawLine(
+          at + Offset(cos(t), sin(t)) * 26,
+          at + Offset(cos(t), sin(t)) * 21,
+          Paint()
+            ..color = _kVaultBone.withValues(alpha: 0.45)
+            ..strokeWidth = 1.2,
+        );
+      }
+      final tip = at + Offset(0, down ? 22 : -22);
       canvas.drawLine(
         at,
-        at + Offset(0, down ? 22 : -22),
+        tip,
         Paint()
           ..color = _kVaultViolet
-          ..strokeWidth = 4,
+          ..strokeWidth = 5
+          ..strokeCap = StrokeCap.round,
       );
+      canvas.drawCircle(
+        tip,
+        5,
+        Paint()..color = _kVaultBone.withValues(alpha: 0.9),
+      );
+      canvas.drawCircle(at, 4, Paint()..color = _kVaultBronze);
+    }
+  }
+
+  /// An iron ring in a socket. Rusted (weeping down the stone), eaten clean
+  /// (violet), or [through]: a hole in the dark, with a slow turn in it.
+  void _drawIronRing(
+    Canvas canvas,
+    Offset at,
+    bool clean, {
+    required bool through,
+    bool small = false,
+  }) {
+    final r = small ? 11.0 : 15.0;
+    canvas.drawCircle(
+      at,
+      r + 5,
+      Paint()..color = _kVaultVoid.withValues(alpha: 0.75),
+    );
+    if (through) {
+      canvas.drawCircle(at, r - 3, Paint()..color = _kVaultVoid);
+      canvas.drawArc(
+        Rect.fromCircle(center: at, radius: r - 6),
+        _time * 1.6,
+        2.2,
+        false,
+        Paint()
+          ..color = _kVaultViolet.withValues(alpha: 0.6)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+    }
+    canvas.drawCircle(
+      at,
+      r,
+      Paint()
+        ..color = clean ? _kVaultViolet : _kVaultRust.withValues(alpha: 0.9)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = small ? 3 : 4,
+    );
+    if (!clean) {
+      for (var i = 0; i < 3; i++) {
+        final x = at.dx - 6 + i * 6.0;
+        canvas.drawLine(
+          Offset(x, at.dy + r),
+          Offset(x + 1, at.dy + r + 9 + (i == 1 ? 6 : 0)),
+          Paint()
+            ..color = _kVaultRust.withValues(alpha: 0.55)
+            ..strokeWidth = 2,
+        );
+      }
     }
   }
 

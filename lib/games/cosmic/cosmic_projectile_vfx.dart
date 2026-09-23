@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'mane_alchemical_vfx.dart';
+import 'mask_trap_vfx.dart';
+export 'mask_trap_vfx.dart';
 
 /// Kin's growing Spirit wisp. Kept here so its tier silhouette is identical in
 /// survival, open space, dungeons, and preview sheets.
@@ -114,7 +116,37 @@ void drawAdvancedAbilityBeam({
   required double alpha,
   double time = 0,
   bool particles = true,
+  String? wingElement,
 }) {
+  if (const {
+    'Lightning',
+    'Ice',
+    'Water',
+    'Dark',
+    'Air',
+    'Dust',
+    'Lava',
+    'Blood',
+    'Earth',
+    'Light',
+    'Spirit',
+    'Crystal',
+    'Steam',
+    'Mud',
+    'Plant',
+  }.contains(wingElement)) {
+    drawWingElementBeam(
+      canvas: canvas,
+      start: start,
+      end: end,
+      element: wingElement!,
+      width: width,
+      alpha: alpha,
+      time: time,
+      details: particles,
+    );
+    return;
+  }
   final a = alpha.clamp(0.0, 1.0);
   canvas.drawLine(
     start,
@@ -168,6 +200,373 @@ void drawAdvancedAbilityBeam({
   }
 }
 
+/// Wing's elemental beam materials, shared by both game modes.
+/// Geometry is bounded and deterministic: detail reduction removes accents,
+/// while preserving the identifying silhouette. End caps mark the beam tip,
+/// not a confirmed damage event (a beam can end in empty space).
+void drawWingElementBeam({
+  required ui.Canvas canvas,
+  required ui.Offset start,
+  required ui.Offset end,
+  required String element,
+  required double width,
+  required double alpha,
+  required double time,
+  bool details = true,
+}) {
+  final length = (end - start).distance;
+  if (length < 0.01 || alpha <= 0) return;
+  final a = alpha.clamp(0.0, 1.0);
+  final w = max(1.2, width);
+  final color = elementColor(element);
+  final bright = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.72)!;
+  final paint = ui.Paint()..strokeCap = ui.StrokeCap.round;
+  canvas.save();
+  canvas.translate(start.dx, start.dy);
+  canvas.rotate(atan2(end.dy - start.dy, end.dx - start.dx));
+  void line(ui.Path path, ui.Color ink, double thickness, double opacity) {
+    canvas.drawPath(
+      path,
+      paint
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = thickness
+        ..color = ink.withValues(alpha: opacity * a),
+    );
+  }
+
+  void dot(double x, double y, double radius, ui.Color ink, double opacity) {
+    canvas.drawCircle(
+      ui.Offset(x, y),
+      radius,
+      paint
+        ..style = ui.PaintingStyle.fill
+        ..color = ink.withValues(alpha: opacity * a),
+    );
+  }
+
+  final axis = ui.Path()
+    ..moveTo(0, 0)
+    ..lineTo(length, 0);
+  if (element == 'Lightning') {
+    // A solid conducting spine surrounded by rapidly changing angular arcs.
+    line(axis, color, w * 1.55, 0.12);
+    line(axis, color, w * 0.62, 0.65);
+    line(axis, bright, w * 0.20, 0.95);
+    final phase = (time * 22).floor();
+    for (var strand = 0; strand < (details ? 3 : 1); strand++) {
+      final arc = ui.Path()..moveTo(0, 0);
+      for (var i = 1; i < 18; i++) {
+        final t = i / 18;
+        final noise = sin(i * 19.7 + phase * 5.3 + strand * 13.1);
+        arc.lineTo(
+          length * t,
+          noise * w * (0.65 + strand * 0.22) * sin(t * pi),
+        );
+      }
+      arc.lineTo(length, 0);
+      line(arc, strand == 0 ? bright : color, max(1, w * 0.065), 0.9);
+    }
+    dot(0, 0, w * 0.48, bright, 0.85);
+    dot(length, 0, w * 0.25, bright, 0.9);
+  } else if (element == 'Water') {
+    // Two continuous ribbons braid around a translucent water column.
+    line(axis, color, w * 1.8, 0.12);
+    line(axis, color, w * 0.65, 0.48);
+    for (var strand = 0; strand < 2; strand++) {
+      final ribbon = ui.Path();
+      for (var i = 0; i <= 32; i++) {
+        final t = i / 32;
+        final y =
+            sin(t * pi * 5 - time * 5 + strand * pi) * w * 0.47 * sin(t * pi);
+        if (i == 0) {
+          ribbon.moveTo(0, y);
+        } else {
+          ribbon.lineTo(length * t, y);
+        }
+      }
+      line(ribbon, strand == 0 ? bright : color, w * 0.22, 0.85);
+    }
+    if (details) {
+      for (var i = 0; i < 4; i++) {
+        final t = (time * 0.65 + i / 4) % 1;
+        dot(
+          length * t,
+          sin(t * pi * 5 - time * 5) * w * 0.4,
+          max(1.2, w * 0.16),
+          const ui.Color(0xFFCFFFEA),
+          0.8,
+        );
+      }
+    }
+    canvas.drawOval(
+      ui.Rect.fromCenter(
+        center: ui.Offset(length, 0),
+        width: w * 0.7,
+        height: w * 1.9,
+      ),
+      paint
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = max(1, w * 0.12)
+        ..color = const ui.Color(0xFFCFFFEA).withValues(alpha: a * 0.7),
+    );
+  } else if (element == 'Ice') {
+    // A straight crystalline lance with broken, asymmetric frost facets.
+    line(axis, color, w * 1.6, 0.13);
+    line(axis, color, w * 0.7, 0.6);
+    line(axis, bright, w * 0.23, 0.95);
+    for (var i = 0; i < (details ? 9 : 4); i++) {
+      final t = (i + 1) / (details ? 10 : 5);
+      final x = length * t;
+      final side = i.isEven ? 1.0 : -1.0;
+      final height = w * (0.7 + 0.2 * sin(time * 3 + i));
+      final shard = ui.Path()
+        ..moveTo(x - w * 0.6, 0)
+        ..lineTo(x, height * side)
+        ..lineTo(x + w * 0.9, 0)
+        ..close();
+      canvas.drawPath(
+        shard,
+        paint
+          ..style = ui.PaintingStyle.fill
+          ..color = bright.withValues(alpha: a * 0.45),
+      );
+      line(shard, bright, max(0.7, w * 0.055), 0.7);
+    }
+  } else if (element == 'Dark') {
+    // Violet rims preserve a genuinely dark interior, even at low detail.
+    final pulse = 0.8 + 0.2 * sin(time * 13);
+    line(axis, color, w * 2.0, 0.18 * pulse);
+    line(axis, const ui.Color(0xFFAB68EF), w * 0.95, 0.8 * pulse);
+    line(axis, const ui.Color(0xFF10091F), w * 0.58, 0.98);
+    if (details) {
+      for (var i = 0; i < 6; i++) {
+        final t = (time * 0.75 + i / 6) % 1;
+        final x = t * length;
+        final slash = ui.Path()
+          ..moveTo(x - w * 0.45, -w * 0.7)
+          ..lineTo(x, 0)
+          ..lineTo(x - w * 0.45, w * 0.7);
+        line(slash, const ui.Color(0xFFCBA3FF), max(1, w * 0.10), 0.65);
+      }
+    }
+  } else if (element == 'Air') {
+    line(axis, color, w * 1.3, 0.10);
+    line(axis, bright, w * 0.18, 0.8);
+    // Open, forward-bowing pressure fronts, not closed water ripples.
+    for (var i = 0; i < (details ? 6 : 3); i++) {
+      final t = (time * 0.9 + i / (details ? 6 : 3)) % 1;
+      final x = length * t;
+      final gust = ui.Path()
+        ..moveTo(x - w, -w * 0.9)
+        ..quadraticBezierTo(x + w, 0, x - w, w * 0.9);
+      line(gust, bright, max(1, w * 0.13), 0.65 * sin(t * pi));
+    }
+  } else if (element == 'Dust') {
+    line(axis, color, w * 1.25, 0.24);
+    line(axis, bright, w * 0.22, 0.7);
+    // Dry, tumbling grains in an uneven sand stream.
+    for (var i = 0; i < (details ? 18 : 6); i++) {
+      final t = (time * 0.38 + i * 0.618) % 1;
+      final x = length * t;
+      final y = sin(i * 9.1 + time * 2) * w * 0.85;
+      final r = w * (0.10 + 0.10 * (0.5 + 0.5 * sin(i * 4.7)));
+      final grain = ui.Path()
+        ..moveTo(x - r, y)
+        ..lineTo(x, y - r)
+        ..lineTo(x + r, y)
+        ..lineTo(x, y + r)
+        ..close();
+      line(grain, i.isEven ? bright : color, max(1, w * 0.1), 0.65);
+    }
+  } else if (element == 'Lava') {
+    line(axis, const ui.Color(0xFF522015), w * 1.35, 0.9);
+    line(axis, color, w * 0.7, 0.9);
+    line(axis, const ui.Color(0xFFFFD277), w * 0.2, 0.95);
+    // Dark plates break up a molten vein; gold seams stay visible between them.
+    for (var i = 0; i < (details ? 10 : 5); i++) {
+      final x = length * (i + 0.5) / (details ? 10 : 5);
+      final side = i.isEven ? 1.0 : -1.0;
+      final crust = ui.Path()
+        ..moveTo(x - w, side * w * 0.65)
+        ..lineTo(x - w * 0.35, side * w * 0.14)
+        ..lineTo(x + w * 0.45, side * w * 0.36)
+        ..lineTo(x + w, side * w * 0.7);
+      line(crust, const ui.Color(0xFF793725), w * 0.24, 0.95);
+      if (details) {
+        dot(
+          x,
+          side * w * (0.85 + 0.2 * sin(time * 4 + i)),
+          w * 0.12,
+          const ui.Color(0xFFFFB34E),
+          0.65,
+        );
+      }
+    }
+  } else if (element == 'Blood') {
+    line(axis, const ui.Color(0xFF650D29), w * 1.1, 0.7);
+    line(axis, color, w * 0.52, 0.95);
+    line(axis, const ui.Color(0xFFFFAEC0), w * 0.13, 0.9);
+    // Narrow lancet head, with short pulses traveling toward its point.
+    final tip = ui.Path()
+      ..moveTo(length - w * 2, -w * 0.6)
+      ..lineTo(length, 0)
+      ..lineTo(length - w * 2, w * 0.6);
+    line(tip, bright, max(1, w * 0.15), 0.85);
+    if (details) {
+      for (var i = 0; i < 3; i++) {
+        final t = (time * 0.8 + i / 3) % 1;
+        final pulse = ui.Path()
+          ..moveTo(length * t - w, 0)
+          ..lineTo(length * t, -w * 0.32)
+          ..lineTo(length * t + w, 0);
+        line(pulse, bright, w * 0.17, 0.8);
+      }
+    }
+  } else if (element == 'Earth') {
+    line(axis, const ui.Color(0xFF5E4630), w * 1.4, 0.8);
+    line(axis, color, w * 0.8, 0.9);
+    line(axis, const ui.Color(0xFFF0CE92), w * 0.18, 0.9);
+    // Squared mineral collars make this a heavy, structured beam.
+    for (var i = 0; i < (details ? 7 : 4); i++) {
+      final x = length * (i + 0.5) / (details ? 7 : 4);
+      final collar = ui.Path()
+        ..moveTo(x - w * 0.35, -w * 0.65)
+        ..lineTo(x + w * 0.35, -w * 0.65)
+        ..lineTo(x + w * 0.6, 0)
+        ..lineTo(x + w * 0.35, w * 0.65)
+        ..lineTo(x - w * 0.35, w * 0.65);
+      line(collar, bright, max(1, w * 0.16), 0.65);
+    }
+  } else if (element == 'Light') {
+    line(axis, color, w * 1.65, 0.13);
+    line(axis, color, w * 0.65, 0.75);
+    line(axis, const ui.Color(0xFFFFFFEB), w * 0.24, 0.98);
+    // Thin parallel gold rays and restrained four-point glints.
+    for (final side in [-1.0, 1.0]) {
+      final ray = ui.Path()
+        ..moveTo(0, 0)
+        ..lineTo(length * 0.2, side * w * 0.65)
+        ..lineTo(length * 0.8, side * w * 0.65)
+        ..lineTo(length, 0);
+      line(ray, bright, max(0.8, w * 0.07), 0.6);
+    }
+    if (details) {
+      for (var i = 0; i < 3; i++) {
+        final t = (time * 0.3 + i / 3) % 1;
+        final x = length * t;
+        final glint = ui.Path()
+          ..moveTo(x - w * 0.7, 0)
+          ..lineTo(x + w * 0.7, 0)
+          ..moveTo(x, -w * 0.65)
+          ..lineTo(x, w * 0.65);
+        line(glint, const ui.Color(0xFFFFFFEB), max(1, w * 0.09), 0.85);
+      }
+    }
+  } else if (element == 'Spirit') {
+    line(axis, color, w * 1.6, 0.12);
+    line(axis, bright, w * 0.15, 0.65);
+    for (var strand = 0; strand < (details ? 3 : 2); strand++) {
+      final wisp = ui.Path();
+      for (var i = 0; i <= 28; i++) {
+        final t = i / 28;
+        final y =
+            sin(t * pi * 3 - time * 2.4 + strand * 2.1) * w * 0.7 * sin(t * pi);
+        if (i == 0) {
+          wisp.moveTo(0, y);
+        } else {
+          wisp.lineTo(length * t, y);
+        }
+      }
+      line(
+        wisp,
+        strand == 0 ? bright : color,
+        w * (strand == 0 ? 0.16 : 0.28),
+        0.6,
+      );
+    }
+    for (var i = 0; i < (details ? 3 : 1); i++) {
+      final t = (time * 0.45 + i / 3) % 1;
+      dot(length * t, 0, w * 0.25, bright, 0.7 * sin(t * pi));
+    }
+  } else if (element == 'Crystal') {
+    line(axis, color, w * 1.2, 0.2);
+    line(axis, bright, w * 0.2, 0.9);
+    // Symmetrical hollow prisms distinguish Crystal from Ice's jagged teeth.
+    for (var i = 0; i < (details ? 7 : 4); i++) {
+      final x = length * (i + 0.5) / (details ? 7 : 4);
+      final facet = ui.Path()
+        ..moveTo(x - w, 0)
+        ..lineTo(x, -w * 0.7)
+        ..lineTo(x + w, 0)
+        ..lineTo(x, w * 0.7)
+        ..close();
+      line(facet, color, w * 0.28, 0.7);
+      line(facet, bright, max(0.8, w * 0.08), 0.9);
+      final seam = ui.Path()
+        ..moveTo(x, -w * 0.7)
+        ..lineTo(x, w * 0.7);
+      line(seam, const ui.Color(0xFFC1A6FF), max(0.8, w * 0.08), 0.7);
+    }
+  } else if (element == 'Steam') {
+    line(axis, color, w * 1.5, 0.12);
+    line(axis, bright, w * 0.26, 0.8);
+    // Offset vapor curls expand as they move outward along the pressure jet.
+    for (var i = 0; i < (details ? 9 : 4); i++) {
+      final t = (time * 0.5 + i / (details ? 9 : 4)) % 1;
+      final x = length * t;
+      final side = i.isEven ? 1.0 : -1.0;
+      final r = w * (0.3 + t * 0.65);
+      final curl = ui.Path()
+        ..moveTo(x - r, 0)
+        ..cubicTo(x - r, -side * r * 1.5, x + r, -side * r * 1.5, x + r, 0);
+      line(curl, bright, max(1, w * 0.18), 0.45 * sin(t * pi));
+    }
+  } else if (element == 'Mud') {
+    line(axis, const ui.Color(0xFF60442F), w * 1.3, 0.8);
+    line(axis, color, w * 0.72, 0.9);
+    line(axis, const ui.Color(0xFFD1AC75), w * 0.12, 0.7);
+    // Slow uneven clots hang from a dense slurry stream.
+    for (var i = 0; i < (details ? 9 : 4); i++) {
+      final t = (time * 0.18 + i / (details ? 9 : 4)) % 1;
+      final side = i.isEven ? 1.0 : -1.0;
+      final x = length * t;
+      final y = side * w * 0.45;
+      dot(x, y, w * (0.28 + 0.1 * sin(i * 3.7)), color, 0.9);
+      if (details) {
+        dot(
+          x - w * 0.08,
+          y - w * 0.1,
+          w * 0.09,
+          const ui.Color(0xFFD1AC75),
+          0.7,
+        );
+      }
+    }
+  } else if (element == 'Plant') {
+    line(axis, color, w * 0.6, 0.85);
+    line(axis, const ui.Color(0xFFD8FF9E), w * 0.13, 0.85);
+    // Alternating leaves grow from the continuous beam's central stem.
+    for (var i = 0; i < (details ? 8 : 4); i++) {
+      final x = length * (i + 0.5) / (details ? 8 : 4);
+      final side = i.isEven ? 1.0 : -1.0;
+      final reach = w * (0.85 + 0.12 * sin(time * 3 + i));
+      final leaf = ui.Path()
+        ..moveTo(x, 0)
+        ..quadraticBezierTo(x - w, side * reach, x + w * 0.4, side * reach)
+        ..quadraticBezierTo(x + w, side * reach * 0.3, x, 0)
+        ..close();
+      canvas.drawPath(
+        leaf,
+        paint
+          ..style = ui.PaintingStyle.fill
+          ..color = color.withValues(alpha: a * 0.8),
+      );
+      line(leaf, const ui.Color(0xFFD8FF9E), max(0.8, w * 0.08), 0.65);
+    }
+  }
+  canvas.restore();
+}
+
 /// Canonical Wing beam charge telegraph.
 void drawAdvancedWingBeamCharge({
   required ui.Canvas canvas,
@@ -178,7 +577,7 @@ void drawAdvancedWingBeamCharge({
 }) {
   final t = progress.clamp(0.0, 1.0);
   final pulse = 0.78 + 0.22 * sin(time * 7.0);
-  final radius = 20 + 34 * t;
+  final radius = 38 - 23 * t;
   canvas.drawCircle(
     origin,
     radius,
@@ -186,7 +585,7 @@ void drawAdvancedWingBeamCharge({
   );
   canvas.drawCircle(
     origin,
-    radius * 0.48,
+    5 + 10 * t,
     ui.Paint()
       ..color = ui.Color.lerp(
         color,
@@ -197,7 +596,7 @@ void drawAdvancedWingBeamCharge({
   for (var i = 0; i < 5; i++) {
     final a = time * 5.5 + i * pi * 2 / 5;
     canvas.drawLine(
-      origin + ui.Offset(cos(a), sin(a)) * radius * 0.55,
+      origin + ui.Offset(cos(a), sin(a)) * radius * 1.5,
       origin + ui.Offset(cos(a + 0.22), sin(a + 0.22)) * radius,
       ui.Paint()
         ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.45 * t)
@@ -217,6 +616,7 @@ void drawAdvancedWingBeamRing({
   required String element,
   required double alpha,
   required double time,
+  bool details = true,
 }) {
   final fade = alpha.clamp(0.0, 1.0);
   final poison = element == 'Poison';
@@ -291,6 +691,66 @@ void drawAdvancedWingBeamRing({
         )!.withValues(alpha: 0.9 * fade)
         ..strokeWidth = width * 1.1,
     );
+  }
+  // Material accents follow the existing perimeter without changing its area.
+  final accentPaint = ui.Paint()..strokeCap = ui.StrokeCap.round;
+  final count = details ? (poison ? 16 : 24) : 8;
+  final bright = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.6)!;
+  for (var i = 0; i < count; i++) {
+    final angle = i * pi * 2 / count + time * (poison ? 0.12 : 0.32);
+    final radial = ui.Offset(cos(angle), sin(angle));
+    final tangent = ui.Offset(-sin(angle), cos(angle));
+    final base = center + radial * radius;
+    if (poison) {
+      // Hollow blisters and curling fumes, distinct from Fire's sharp tongues.
+      final breath = 0.5 + 0.5 * sin(time * 2.5 + i * 2.1);
+      final bubble = base + radial * width * breath;
+      canvas.drawCircle(
+        bubble,
+        width * (0.3 + breath * 0.25),
+        accentPaint
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = max(1, width * 0.12)
+          ..color = bright.withValues(alpha: fade * 0.65),
+      );
+      if (details) {
+        final curl = ui.Path()..moveTo(base.dx, base.dy);
+        final control = base + radial * width * 2 + tangent * width;
+        final tip = base + radial * width * 2.4 - tangent * width * 0.3;
+        curl.quadraticBezierTo(control.dx, control.dy, tip.dx, tip.dy);
+        canvas.drawPath(
+          curl,
+          accentPaint
+            ..strokeWidth = width * 0.22
+            ..color = color.withValues(alpha: fade * 0.30),
+        );
+      }
+    } else {
+      final flicker = 0.6 + 0.4 * sin(time * 9 + i * 2.7);
+      final left = base - tangent * width * 0.65;
+      final right = base + tangent * width * 0.65;
+      final tip =
+          base + radial * width * (1.0 + flicker) + tangent * width * 0.7;
+      final flame = ui.Path()
+        ..moveTo(left.dx, left.dy)
+        ..quadraticBezierTo(base.dx, base.dy, tip.dx, tip.dy)
+        ..quadraticBezierTo(right.dx, right.dy, left.dx, left.dy)
+        ..close();
+      canvas.drawPath(
+        flame,
+        accentPaint
+          ..style = ui.PaintingStyle.fill
+          ..color = color.withValues(alpha: fade * 0.8),
+      );
+      canvas.drawLine(
+        base,
+        ui.Offset.lerp(base, tip, 0.6)!,
+        accentPaint
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = max(1, width * 0.16)
+          ..color = const ui.Color(0xFFFFDE91).withValues(alpha: fade * 0.9),
+      );
+    }
   }
 }
 
@@ -460,6 +920,7 @@ void drawAdvancedKinSupportAura({
   double iceChargeProgress = 0,
   bool lightningActive = false,
   bool fireOrbitalActive = false,
+
   /// What the reborn flame actually burns. The orbit is drawn in proportion to
   /// it so a Beauty-heavy Fire kin looks as wide as it hits.
   double fireOrbitalRadius = 70,
@@ -4910,6 +5371,7 @@ bool drawMaskElementalProjectileVisual({
   required ui.Offset position,
   required ui.Color color,
   required double time,
+  bool reduceAmbient = false,
 }) {
   if (drawAlchemicalManeVisual(
     canvas: canvas,
@@ -4926,6 +5388,16 @@ bool drawMaskElementalProjectileVisual({
 
   final element = projectile.element;
   if (element == null) return false;
+
+  if (drawMaskTrapFixture(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    time: time,
+    reduced: reduceAmbient,
+  )) {
+    return true;
+  }
 
   // Stationary placements with a tick effect (Pip Fire pools, Pip
   // Dust clouds, Mud trail puffs, Pip Poison line segments, Plant
@@ -7168,8 +7640,8 @@ void drawMaskPlantWormyTendrils({
 
   final t = time;
   final reach = max(vine.snareRadius, vine.effectRadius);
-  final dark = ui.Color.lerp(color, const ui.Color(0xFF1F4F22), 0.45)!;
-  final bright = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
+  const dark = ui.Color(0xFF3D4731);
+  const bright = ui.Color(0xFF9AA681);
   // Feed flash: abilityGrowthTimer is bumped to 1.0 on regular feeds and 2.0
   // on tendril-unlock feeds. Pump stroke width + brightness briefly so the
   // cast lands with weight.
@@ -8580,9 +9052,10 @@ void drawMysticGroveVine({
   required double time,
   required ui.Color plant,
 }) {
+  plant = ui.Color.lerp(plant, const ui.Color(0xFF384333), 0.78)!;
   final a = alpha;
   final grow = growth;
-  final bright = ui.Color.lerp(plant, const ui.Color(0xFFFFFFFF), 0.45)!;
+  final bright = ui.Color.lerp(plant, const ui.Color(0xFFCCDBA5), 0.60)!;
 
   final spine = mysticGroveVineSpine(
     root: root,
@@ -8608,6 +9081,33 @@ void drawMysticGroveVine({
     ),
     ui.Paint()..color = bright.withValues(alpha: 0.30 * a),
   );
+
+  // Root buttresses and broken bark grain keep the large vines organic.
+  for (var i = 0; i < 5; i++) {
+    final side = i.isEven ? 1.0 : -1.0;
+    final rootlet = <ui.Offset>[
+      root.translate(0, -14 * grow),
+      root + ui.Offset(side * (16 + i * 3), -5) * grow,
+      root + ui.Offset(side * (30 + i * 6), 5 + sin(i * 2.1) * 4) * grow,
+    ];
+    canvas.drawPath(
+      _tapered(rootlet, 7 * grow, 0.3),
+      ui.Paint()..color = plant.withValues(alpha: 0.85 * a),
+    );
+  }
+  for (var i = 0; i < 3; i++) {
+    final grain = <ui.Offset>[
+      for (var k = 0; k < spine.length; k++)
+        spine[k].translate(
+          (i - 1) * 3 * grow + sin(k * 1.7 + seed + i) * grow,
+          0,
+        ),
+    ];
+    canvas.drawPath(
+      _tapered(grain, 1.1 * grow, 0.1),
+      ui.Paint()..color = const ui.Color(0xFF18251E).withValues(alpha: 0.8 * a),
+    );
+  }
 
   // Leaves peel off the stem, alternating sides and curling back toward the
   // tip — narrow blades rather than broad ones, to match the stem.
@@ -8681,7 +9181,7 @@ void drawMysticGroveVine({
     // The spitter's flower: curved petals that peel open as it fires and fold
     // back after, around a throat that brightens with the shot.
     final fire = swing;
-    const petals = 6;
+    const petals = 4;
     for (var i = 0; i < petals; i++) {
       final pa =
           aimAngle +
@@ -8700,16 +9200,30 @@ void drawMysticGroveVine({
         ui.Paint()..color = plant.withValues(alpha: 0.62 * a),
       );
     }
-    final throat = (16.5 + 6.0 * fire) * grow;
-    canvas.drawCircle(
-      head,
-      throat,
-      ui.Paint()..color = plant.withValues(alpha: 0.92 * a),
+    final throat = (12.0 + 6.0 * fire) * grow;
+    final pod = ui.Rect.fromCenter(
+      center: head,
+      width: throat * 1.25,
+      height: throat * 2.2,
     );
-    canvas.drawCircle(
-      head,
-      throat * (0.34 + 0.30 * fire),
-      ui.Paint()..color = bright.withValues(alpha: (0.60 + 0.35 * fire) * a),
+    canvas.drawOval(
+      pod,
+      ui.Paint()..color = const ui.Color(0xFF17251E).withValues(alpha: a),
+    );
+    canvas.drawOval(
+      pod,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 2 * grow
+        ..color = plant.withValues(alpha: 0.9 * a),
+    );
+    canvas.drawOval(
+      ui.Rect.fromCenter(
+        center: head,
+        width: (1.5 + 5 * fire) * grow,
+        height: throat * 1.25,
+      ),
+      ui.Paint()..color = bright.withValues(alpha: (0.45 + 0.5 * fire) * a),
     );
   }
 }
@@ -9001,53 +9515,83 @@ void drawMysticFlora({
 
   switch (element) {
     case 'Plant':
-      // A sprout: a curling stem with a couple of leaves and a flower on top.
-      final h = 26.0 * grow;
-      final stem = <ui.Offset>[
-        for (var i = 0; i <= 6; i++)
-          () {
-            final f = i / 6;
-            return ui.Offset(
-              at.dx + sin(f * 2.2 + seed) * 6.0 * f + sway * 10 * f,
-              at.dy - h * f,
-            );
-          }(),
-      ];
-      canvas.drawPath(
-        _tapered(stem, 3.4 * grow, 1.0 * grow),
-        ui.Paint()..color = tint.withValues(alpha: 0.80 * bloom),
-      );
-      for (var i = 0; i < 2; i++) {
-        final at2 = stem[2 + i * 2];
+      // Old roots, thorns and a sealed seed pod; light lives in the sap.
+      const bark = ui.Color(0xFF52634F);
+      const sap = ui.Color(0xFFB8CEA0);
+      for (var i = 0; i < 4; i++) {
         final side = i.isEven ? 1.0 : -1.0;
-        final len = (11.0 - i * 2.0) * grow;
-        final leaf = <ui.Offset>[
-          for (var k = 0; k <= 4; k++)
-            () {
-              final lf = k / 4;
-              return at2 + ui.Offset(side * len * lf, -len * 0.34 * lf * lf);
-            }(),
+        final roots = <ui.Offset>[
+          for (var k = 0; k <= 7; k++)
+            at +
+                ui.Offset(
+                      side * (10 + i * 4) * k / 7,
+                      sin(k / 7 * 4 + seed + i) * 3 + k / 7 * 4,
+                    ) *
+                    grow,
         ];
         canvas.drawPath(
-          _tapered(leaf, 4.2 * grow, 0.6),
-          ui.Paint()..color = tint.withValues(alpha: 0.62 * bloom),
+          _tapered(roots, 3.4 * grow, 0.2),
+          ui.Paint()..color = bark.withValues(alpha: 0.8 * bloom),
         );
       }
-      // The flower, opening with the bloom.
-      final crown = stem.last;
-      for (var i = 0; i < 5; i++) {
-        final pa = seed + i * (pi * 2 / 5) + sway;
-        canvas.drawCircle(
-          crown + ui.Offset(cos(pa), sin(pa)) * (4.4 * grow),
-          2.6 * grow,
-          ui.Paint()..color = bright.withValues(alpha: 0.82 * bloom),
+      final spine = <ui.Offset>[
+        for (var i = 0; i <= 8; i++)
+          at + ui.Offset(sin(i * 0.7 + seed) * 3 + sway * i, -i * 3.9) * grow,
+      ];
+      canvas.drawPath(
+        _tapered(spine, 5.0 * grow, 0.7),
+        ui.Paint()..color = bark.withValues(alpha: 0.95 * bloom),
+      );
+      canvas.drawPath(
+        _tapered(spine, 0.8 * grow, 0.15),
+        ui.Paint()..color = sap.withValues(alpha: 0.48 * bloom),
+      );
+      for (var i = 2; i < 7; i += 2) {
+        final side = i == 4 ? -1.0 : 1.0;
+        final thorn = [
+          spine[i],
+          spine[i] + ui.Offset(side * 9, -3) * grow,
+          spine[i] + ui.Offset(side * 13, -11) * grow,
+        ];
+        canvas.drawPath(
+          _tapered(thorn, 2.7 * grow, 0.1),
+          ui.Paint()..color = bark.withValues(alpha: bloom),
         );
       }
+      final crown = spine.last;
       canvas.drawCircle(
         crown,
-        2.4 * grow,
+        9 * grow,
         ui.Paint()
-          ..color = const ui.Color(0xFFFFE9A8).withValues(alpha: 0.92 * bloom),
+          ..shader = ui.Gradient.radial(crown, 9 * grow, [
+            sap.withValues(alpha: 0.22 * bloom),
+            sap.withValues(alpha: 0),
+          ]),
+      );
+      final pod = ui.Path()
+        ..moveTo(crown.dx, crown.dy - 7 * grow)
+        ..quadraticBezierTo(
+          crown.dx + 6 * grow,
+          crown.dy + 3 * grow,
+          crown.dx,
+          crown.dy + 6 * grow,
+        )
+        ..quadraticBezierTo(
+          crown.dx - 6 * grow,
+          crown.dy + 3 * grow,
+          crown.dx,
+          crown.dy - 7 * grow,
+        );
+      canvas.drawPath(
+        pod,
+        ui.Paint()..color = const ui.Color(0xFF27382E).withValues(alpha: bloom),
+      );
+      canvas.drawLine(
+        crown + ui.Offset(0, -4 * grow),
+        crown + ui.Offset(0, 3 * grow),
+        ui.Paint()
+          ..strokeWidth = max(0.6, grow)
+          ..color = sap.withValues(alpha: 0.88 * bloom),
       );
 
     case 'Fire':
@@ -9355,32 +9899,11 @@ void drawMysticDawnStar({
 }) {
   if (alpha <= 0.01) return;
   final t = charge.clamp(0.0, 1.0);
-
-  // A body, not a flare.
-  //
-  // The first version was nested translucent discs with spokes — which is what
-  // a light source looks like, and exactly not what everything else in this
-  // game's sky looks like. The planets are lit SPHERES: a radial gradient with
-  // its highlight up and to the left, the colour in the middle, and real
-  // shadow on the far side. This is built the same way, so the thing hanging
-  // outside the arena belongs to the same solar system as the home planet.
-  final core = 132.0 * (0.42 + 0.58 * t) + 200.0 * flare;
-  final gold = const ui.Color(0xFFFFE6A8);
-  // No dark end to this palette. A Light world's star is a source, and a
-  // source has no dark side to it — shading the far limb made it read as a
-  // rock being lit by something else, which is the one thing it is not.
-  final warm = const ui.Color(0xFFFFC14D);
-  final white = const ui.Color(0xFFFFFFFF);
-  final breath = 0.96 + 0.04 * sin(time * 0.9);
-  final r = core * breath;
-
-  // Atmosphere: a couple of discs rather than a blur, since blurring in the
-  // per-frame paint is the single worst thing for frame time in this renderer.
-  // One gradient rather than stacked discs. Discs at low alpha over a
-  // near-black sky banded into visible brown rings with hard edges — the exact
-  // thing a corona must not have. A radial shader fading to transparent gives
-  // the same falloff smoothly, and still no blur.
-  final halo = r * 2.1;
+  final release = flare.clamp(0.0, 1.0);
+  final r = (55 + 73 * t) * (0.985 + 0.015 * sin(time * 0.9));
+  const gold = ui.Color(0xFFD6B975);
+  const ivory = ui.Color(0xFFFFF0CC);
+  final halo = r * (1.8 + release * 0.8);
   canvas.drawCircle(
     at,
     halo,
@@ -9389,86 +9912,113 @@ void drawMysticDawnStar({
         at,
         halo,
         [
-          gold.withValues(alpha: 0.34 * alpha * (0.55 + 0.45 * t)),
-          gold.withValues(alpha: 0.13 * alpha * (0.55 + 0.45 * t)),
-          gold.withValues(alpha: 0.0),
+          gold.withValues(alpha: 0),
+          gold.withValues(alpha: (0.18 + t * 0.18 + release * 0.22) * alpha),
+          gold.withValues(alpha: 0),
         ],
-        const [0.42, 0.66, 1.0],
+        const [0.25, 0.56, 1],
       ),
   );
-
-  // Rays, BEHIND the body — drawn over it they cross the sphere and it stops
-  // reading as solid, which is how the game's own Light planet does it too.
-  // Short and lazy while it is dark, long and even as dawn approaches: the
-  // progress bar for this world, readable from across the arena.
-  final ray = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round
-    ..strokeWidth = 2.8 + 5.6 * t
-    ..color = gold.withValues(alpha: (0.22 + 0.46 * t) * alpha);
-  for (var i = 0; i < 12; i++) {
-    final ang = i * (pi * 2 / 12) + time * 0.14;
-    final dir = ui.Offset(cos(ang), sin(ang));
-    final inner = r * 1.06;
-    final reach =
-        inner +
-        (34.0 + 210.0 * t) *
-            (i.isEven ? 1.0 : 0.58) *
-            (0.85 + 0.15 * sin(time * 1.6 + i));
-    canvas.drawLine(at + dir * inner, at + dir * reach, ray);
-  }
-
-  // The lit body. Light comes from the upper left, as it does on every planet
-  // in this game.
-  final light = ui.Offset(at.dx - r * 0.3, at.dy - r * 0.3);
+  // Charge gathers around a dark solar body. Dawn opens the sealed light
+  // rather than inflating an opaque white disc across the battlefield.
   canvas.drawCircle(
     at,
     r,
     ui.Paint()
       ..shader = ui.Gradient.radial(
-        light,
-        r * 1.6,
+        at - ui.Offset(r * 0.25, r * 0.2),
+        r * 1.4,
         [
-          // Glowing through, not lit from outside: white core, warm gold at the
-          // limb, and nothing darker than the gold anywhere on it. It still
-          // brightens as it charges — warm at dark, near-white at dawn.
-          white.withValues(alpha: alpha),
-          ui.Color.lerp(gold, white, 0.20 + 0.55 * t)!.withValues(alpha: alpha),
-          ui.Color.lerp(warm, gold, 0.25 + 0.60 * t)!.withValues(alpha: alpha),
+          const ui.Color(0xFF292431).withValues(alpha: alpha),
+          const ui.Color(0xFF0A0812).withValues(alpha: alpha),
+          const ui.Color(0xFF6E5638).withValues(alpha: alpha),
         ],
-        const [0.0, 0.55, 1.0],
+        const [0, 0.68, 1],
       ),
   );
-
-  // Specular highlight, squashed the way a curved surface returns it.
-  canvas.drawOval(
-    ui.Rect.fromCenter(
-      center: ui.Offset(at.dx - r * 0.32, at.dy - r * 0.34),
-      width: r * 0.46,
-      height: r * 0.20,
-    ),
-    ui.Paint()..color = white.withValues(alpha: (0.30 + 0.35 * t) * alpha),
-  );
-
-  // A lit edge at all times, so the limb glows instead of simply stopping.
-  canvas.drawCircle(
-    at,
-    r * 0.99,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 2.0 + 2.5 * t
-      ..color = white.withValues(alpha: (0.22 + 0.40 * t) * alpha),
-  );
-
-  // The break itself: a hard white rim, only in the moment it goes off.
-  if (flare > 0.01) {
+  final ink = ui.Paint()..style = ui.PaintingStyle.stroke;
+  for (var i = 0; i < 9; i++) {
+    final start = i * pi * 2 / 9 + time * 0.025;
+    final sweep = 0.36 + 0.24 * t + 0.04 * sin(time + i);
+    canvas.drawArc(
+      ui.Rect.fromCircle(center: at, radius: r * (1.01 + 0.025 * sin(i * 2.1))),
+      start,
+      sweep,
+      false,
+      ink
+        ..strokeWidth = 2 + 3 * t
+        ..color = gold.withValues(alpha: (0.48 + t * 0.4) * alpha),
+    );
+    // Curved corona filaments replace the evenly spaced straight sun rays.
+    final tongue = ui.Path();
+    for (var k = 0; k <= 10; k++) {
+      final f = k / 10;
+      final angle = start + f * (0.20 + 0.18 * sin(i * 2.7));
+      final reach =
+          r *
+          (1.02 +
+              f * (0.10 + 0.26 * t) * (0.65 + 0.35 * sin(i * 2.1 + time)) +
+              sin(f * 7 + i) * 0.012 * f);
+      final point = at + ui.Offset(cos(angle), sin(angle)) * reach;
+      if (k == 0) {
+        tongue.moveTo(point.dx, point.dy);
+      } else {
+        tongue.lineTo(point.dx, point.dy);
+      }
+    }
+    canvas.drawPath(
+      tongue,
+      ink
+        ..strokeWidth = 1 + t * 1.4
+        ..color = ivory.withValues(alpha: (0.25 + t * 0.4) * alpha),
+    );
+  }
+  // Broken orbital engravings stay subdued so the charged limb reads first.
+  for (var i = 0; i < 3; i++) {
+    canvas.drawArc(
+      ui.Rect.fromCircle(center: at, radius: r * 1.42),
+      i * pi * 2 / 3 - time * 0.045,
+      1.4,
+      false,
+      ink
+        ..strokeWidth = 0.9
+        ..color = gold.withValues(alpha: 0.28 * alpha),
+    );
+  }
+  for (var i = 0; i < 24; i++) {
+    final angle = i * pi / 12 - time * 0.045;
+    final dir = ui.Offset(cos(angle), sin(angle));
+    canvas.drawLine(
+      at + dir * r * 1.4,
+      at + dir * r * (i % 3 == 0 ? 1.49 : 1.44),
+      ink
+        ..strokeWidth = 1
+        ..color = gold.withValues(alpha: 0.35 * alpha),
+    );
+  }
+  if (release > 0.01) {
+    final wave = r * (1.1 + (1 - release) * 1.5);
     canvas.drawCircle(
       at,
-      r * 1.06,
+      wave,
+      ink
+        ..strokeWidth = 2 + 6 * release
+        ..color = ivory.withValues(alpha: release * 0.85 * alpha),
+    );
+    canvas.drawCircle(
+      at,
+      r,
       ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 3.0 + 10.0 * flare
-        ..color = white.withValues(alpha: 0.70 * flare * alpha),
+        ..shader = ui.Gradient.radial(
+          at,
+          r,
+          [
+            ivory.withValues(alpha: release * 0.5 * alpha),
+            gold.withValues(alpha: release * 0.12 * alpha),
+            gold.withValues(alpha: 0),
+          ],
+          const [0, 0.6, 1],
+        ),
     );
   }
 }

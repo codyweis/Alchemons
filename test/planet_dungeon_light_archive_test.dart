@@ -22,6 +22,9 @@
 // the exposure star measured rather than asserted, the two hard gates, §4's
 // first-descent guarantee, the vault trick and the guardian.
 
+import 'dart:math' show atan2, cos, sin;
+
+import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
@@ -69,6 +72,7 @@ PlanetDungeonGame harness(
   List<CosmicPartyMember> party, {
   void Function(int)? onStar,
   void Function(String)? onCloud,
+  void Function(SoundCue)? onSound,
 }) {
   final game = PlanetDungeonGame(
     element: 'Light',
@@ -76,6 +80,7 @@ PlanetDungeonGame harness(
     initialStarMask: 0,
     onStarEarned: onStar ?? (_) {},
     onCloudDiscovered: onCloud,
+    onSound: onSound,
     onPlayerDown: () => fail('the scripted run must never wipe'),
     onChanged: () {},
   );
@@ -751,38 +756,67 @@ void main() {
       step(g, 'solarin_oculus');
       expect(layout.rooms['solarin_oculus']!.guardian!.starIndex, 2);
 
-      // ── the vault, and the maxim: everything out, and walk ──
+      // ── THE INDEX (the lost maxim): the hall's two maps ─
+      // 1 · BLAZE. Every beacon high until all ten cells are lit — the state
+      // every star forbids. Ledger first, up the stone stair and out the
+      // back door of its bay.
       step(g, 'reading_floor');
-      step(g, 'catalogue_walk');
-      pressBeacon(g, light, 'bc_ledger', times: 4); // 1 → 2 → 3 → 4 → 0
-      // With the ledger out, the walk's three glass leaves are all holes — so
-      // the way home is the ledger beacon again, thrown just far enough.
-      pressBeacon(g, light, 'bc_ledger'); // 0 → 1
+      step(g, 'catalogue_walk'); // the down-step: ledger inward, lit at 1
+      pressBeacon(g, light, 'bc_ledger', times: 3); // 1 → 4: shelf+ledger high
+      // The narthex, through the dark heart (its sills are dark still).
       step(g, 'reading_floor');
       step(g, 'oculus_stair');
       step(g, 'lumen_threshold');
-      pressBeacon(g, light, 'bc_narthex', times: 3); // 0 → 1 → 2 → 3
-      step(g, 'catalogue_walk');
-      pressBeacon(g, light, 'bc_ledger', times: 4); // 1 → 2 → 3 → 4 → 0
+      pressBeacon(g, light, 'bc_narthex', times: 2); // 0 → 2: court+arcade high
+      step(g, 'shadow_court');
+      pressBeacon(g, light, 'bc_oriel', times: 4); // 0 → 4: arcade+shelf high
       step(g, 'lumen_threshold');
-      pressBeacon(g, light, 'bc_narthex', times: 2); // 3 → 4 → 0
+      pressBeacon(g, light, 'bc_narthex', times: 2); // 2 → 4: door+court high
+      expect(
+        g.archive.lumens,
+        BeaconArchive.allCells.length,
+        reason: 'blazing',
+      );
+      expect(g.indexWhole, isTrue);
+
+      // 2 · READ. Crystal, at the catalogue, with the index whole.
+      step(g, 'catalogue_walk'); // the lightwell leaf: door rim lit
+      final catalogue = layout.rooms['catalogue_walk']!.hall!.catalogue!;
+      act(g, crystal, 'catalogue_walk', catalogue);
+      expect(g.archive.indexRead, isTrue);
+      final named = g.archive.indexSocket;
+
+      // 3 · DOUSE, in the one order that leaves a road into the dark heart:
+      // the ledger from its bay (the lightwell home stays lit), the oriel from
+      // the court (the narthex leaf stays lit), and the narthex LAST from the
+      // doorway, whose undercroft is mirror and opens as the light dies.
+      pressBeacon(g, light, 'bc_ledger'); // 4 → 0
+      step(g, 'lumen_threshold');
+      step(g, 'shadow_court');
+      pressBeacon(g, light, 'bc_oriel'); // 4 → 0
+      step(g, 'lumen_threshold');
+      pressBeacon(g, light, 'bc_narthex'); // 4 → 0
       expect(g.archive.lumens, 0, reason: 'not one lumen on the whole hall');
 
-      // The crossing starts at the door and shows nothing the whole way.
-      g.update(1 / 60);
-      expect(g.archive.hushWalk, isTrue);
+      // 4 · THE SLAB, in total darkness, to the Spirit pip.
       step(g, 'oculus_stair');
-      g.update(1 / 60);
+      final slabs = layout.rooms['oculus_stair']!.hall!.indexSockets;
+      act(g, spirit, 'oculus_stair', slabs[named]);
+      expect(g.riteActive, isTrue);
+      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+      for (var tick = 0; tick < 300; tick++) {
+        g.update(1 / 60);
+      }
+      expect(clouds, contains(kLightAfraidEggId));
+
+      // And the vault, which the same darkness opens.
       step(g, 'sunless_reliquary');
       for (final c in g.creatures) {
         c.position = layout.rooms['sunless_reliquary']!.vaultCache!;
       }
-      g.update(1 / 60);
-      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
-      for (var tick = 0; tick < 200; tick++) {
+      for (var tick = 0; tick < 60; tick++) {
         g.update(1 / 60);
       }
-      expect(clouds, contains(kLightAfraidEggId));
       expect(clouds, contains('cache:light_vault'));
 
       // Nothing the run did can have stranded it.
@@ -802,6 +836,218 @@ void main() {
       for (final e in kComingSoonDungeons) {
         expect(kPlanetDungeonLayouts, isNot(contains(e)));
       }
+    });
+  });
+
+  group('the Lost Maxim — AFRAID OF THE LIGHT · the index', () {
+    // The §7 maxim standard: a CHAIN across the hall's two maps — blaze it
+    // whole, read the index, put it out in an order that leaves a road, draw
+    // the volume in total darkness. Every link proved against the same code
+    // the buttons call.
+    final catalogue = layout.rooms['catalogue_walk']!.hall!.catalogue!;
+    final slabs = layout.rooms['oculus_stair']!.hall!.indexSockets;
+
+    void blaze(PlanetDungeonGame g) {
+      g.archive.lamp['bc_narthex'] = 4;
+      g.archive.lamp['bc_oriel'] = 4;
+      g.archive.lamp['bc_ledger'] = 4;
+      expect(g.archive.lumens, BeaconArchive.allCells.length);
+    }
+
+    void douse(PlanetDungeonGame g) {
+      g.archive.lamp['bc_narthex'] = 0;
+      g.archive.lamp['bc_oriel'] = 0;
+      g.archive.lamp['bc_ledger'] = 0;
+      expect(g.archive.lumens, 0);
+    }
+
+    test('ten lumens is REACHABLE, and it is the state every star forbids', () {
+      final g = harness(_idealTrio())..entryDoorRevealed = true;
+      blaze(g);
+      expect(g.archive.underHush, isFalse);
+      for (final e in kCourtEffigies) {
+        expect(g.archive.canRead(e), isFalse, reason: '${e.id} needs a shadow');
+      }
+      // Every heart sill is glare; every rim leaf is a floor.
+      for (final sill in kArchiveSills) {
+        if (sill.cut == SillCut.mirrorSill) {
+          expect(g.archive.sillOpen(sill), isFalse);
+        }
+        if (sill.cut == SillCut.glassLeaf) {
+          expect(g.archive.sillOpen(sill), isTrue);
+        }
+      }
+    });
+
+    test('the index is whole only when the whole hall is lit', () {
+      final g = harness(_idealTrio())..entryDoorRevealed = true;
+      g.archive.lamp['bc_narthex'] = 2; // the keepers' blaze, four lumens
+      act(g, crystal, 'catalogue_walk', catalogue);
+      expect(g.archive.indexRead, isFalse);
+      expect(g.hintHasAnswer, isTrue);
+      g.askForRoomHint();
+      expect(g.hintText, contains('6 of the index\'s ten panes are dark'));
+      blaze(g);
+      act(g, light, 'catalogue_walk', catalogue);
+      expect(g.archive.indexRead, isFalse, reason: 'only Crystal reads it');
+      act(g, crystal, 'catalogue_walk', catalogue);
+      expect(g.archive.indexRead, isTrue);
+    });
+
+    test('the slab wants TOTAL darkness, the read, and a Spirit pip', () {
+      final g = harness(_idealTrio())..entryDoorRevealed = true;
+      g.archive.indexSocket = 2;
+      // Unread, in the dark: nothing filed.
+      douse(g);
+      act(g, spirit, 'oculus_stair', slabs[2]);
+      expect(g.riteActive, isFalse);
+      // Read, but one lumen showing: afraid of the light.
+      blaze(g);
+      act(g, crystal, 'catalogue_walk', catalogue);
+      g.archive.lamp['bc_narthex'] = 0;
+      g.archive.lamp['bc_oriel'] = 0;
+      g.archive.lamp['bc_ledger'] = 1; // ledger low: two lumens
+      act(g, spirit, 'oculus_stair', slabs[2]);
+      expect(g.riteActive, isFalse);
+      // Dark, read, the wrong slab: nothing filed under this one.
+      douse(g);
+      act(g, spirit, 'oculus_stair', slabs[0]);
+      expect(g.riteActive, isFalse);
+      // Dark, read, the right slab, the wrong family: the slips' own gate.
+      final noPip = harness(_plainTrio())..entryDoorRevealed = true;
+      noPip.archive.indexSocket = 2;
+      noPip.archive.indexRead = true;
+      douse(noPip);
+      act(noPip, spirit, 'oculus_stair', slabs[2]);
+      expect(noPip.riteActive, isFalse);
+      // Dark, read, the right slab, the pip: the rite.
+      act(g, spirit, 'oculus_stair', slabs[2]);
+      expect(g.riteActive, isTrue);
+    });
+
+    test('the roll names a real slab, and a fresh one each run', () {
+      final seen = <int>{};
+      for (var i = 0; i < 40; i++) {
+        final g = harness(_idealTrio());
+        expect(g.archive.indexSocket, inInclusiveRange(0, slabs.length - 1));
+        expect(g.archive.indexRead, isFalse);
+        seen.add(g.archive.indexSocket);
+      }
+      expect(seen.length, greaterThan(1));
+    });
+
+    test(
+      'nothing is consumed: every wrong beat leaves the archive as it was',
+      () {
+        final g = harness(_idealTrio())..entryDoorRevealed = true;
+        blaze(g);
+        act(g, light, 'catalogue_walk', catalogue); // wrong hand
+        act(g, spirit, 'oculus_stair', slabs[0]); // lit
+        expect(g.archive.indexRead, isFalse);
+        expect(g.archive.lumens, BeaconArchive.allCells.length);
+        expect(g.riteActive, isFalse);
+      },
+    );
+
+    test(
+      'the douse ORDER is the puzzle: the last beacon out must be the narthex',
+      () {
+        // Put the ledger out last and you stand in the ledger bay on glass with
+        // no floor — every way out of it is a leaf, and every leaf is dark.
+        final g = harness(_idealTrio())..entryDoorRevealed = true;
+        g.archive.lamp['bc_narthex'] = 0;
+        g.archive.lamp['bc_oriel'] = 0;
+        g.archive.lamp['bc_ledger'] = 0;
+        final walk = layout.rooms['catalogue_walk']!;
+        for (final d in walk.doors) {
+          expect(g.isDoorHidden(walk, d), isTrue, reason: d.targetRoomId);
+        }
+        // ...and the press is its own undo, so it is a re-plan, never a strand.
+        expect(g.solveBeaconArchive().strandable, 0);
+        // From the doorway, the same darkness OPENS the undercroft.
+        final door = layout.rooms['lumen_threshold']!;
+        expect(
+          g.isDoorLocked(door, doorFrom('lumen_threshold', 'oculus_stair')),
+          isFalse,
+        );
+      },
+    );
+
+    test('the star path never passes it', () {
+      // Every star wants the hush; ten lumens is five times the hush, and
+      // nothing on the authored line ever lights the hall whole.
+      expect(BeaconArchive.allCells.length, greaterThan(kArchiveHush * 4));
+    });
+  });
+
+  group('Solarin — the pillars really shade you', () {
+    test('a body behind a pillar does not burn, even in the glare', () {
+      final g = harness(_idealTrio())..entryDoorRevealed = true;
+      final arena = layout.rooms['solarin_oculus']!;
+      g.currentRoomId = 'solarin_oculus';
+      g.guardianAwake = true;
+      final eye = arena.guardian!.position;
+      final pillar = arena.hall!.gazePillars.first;
+      // Aim the glare straight down the pillar's bearing.
+      final d = pillar - eye;
+      g.archive.glare = atan2(d.dy, d.dx);
+      // One body in the pillar's shadow (behind it), one in the open glare.
+      final behind = eye + d * 1.4;
+      final exposed =
+          eye +
+          Offset(cos(g.archive.glare + 0.1), sin(g.archive.glare + 0.1)) *
+              (d.distance * 0.6);
+      final shaded = g.creatures[0]..position = behind;
+      final burnt = g.creatures[1]..position = exposed;
+      g.creatures[2].position = behind;
+      final hpShaded = shaded.hp;
+      final hpBurnt = burnt.hp;
+      for (var i = 0; i < 30; i++) {
+        g.update(1 / 60);
+        g.archive.glare = atan2(d.dy, d.dx); // hold the gaze on the pillar
+      }
+      expect(shaded.hp, hpShaded, reason: 'the pillar shades');
+      expect(burnt.hp, lessThan(hpBurnt), reason: 'the open floor burns');
+    });
+  });
+
+  group('the archive is AUDIBLE', () {
+    test('every beat of the hall speaks', () {
+      final heard = <SoundCue>[];
+      final g = harness(_idealTrio(), onSound: heard.add);
+      act(
+        g,
+        light,
+        'lumen_threshold',
+        layout.rooms['lumen_threshold']!.hall!.doorShutter!,
+      );
+      expect(heard, contains(SoundCue.dungeonGateOpen));
+      heard.clear();
+      pressBeacon(g, light, 'bc_narthex');
+      expect(heard, contains(SoundCue.dungeonSwitch));
+      heard.clear();
+      // The keepers' blaze plus one: over the hush, the wardens lift.
+      g.archive.lamp['bc_narthex'] = 0;
+      g.archive.lamp['bc_oriel'] = 0;
+      pressBeacon(
+        g,
+        light,
+        'bc_oriel',
+        times: 2,
+      ); // 0 → 2: arcade high, 2 lumens... then more
+      pressBeacon(g, light, 'bc_oriel'); // → 3: arcade+shelf low
+      expect(heard, contains(SoundCue.dungeonHazardTrigger));
+      heard.clear();
+      g.archive.lamp['bc_narthex'] = 4;
+      g.archive.lamp['bc_oriel'] = 4;
+      g.archive.lamp['bc_ledger'] = 4;
+      act(
+        g,
+        crystal,
+        'catalogue_walk',
+        layout.rooms['catalogue_walk']!.hall!.catalogue!,
+      );
+      expect(heard, contains(SoundCue.dungeonInteract));
     });
   });
 }

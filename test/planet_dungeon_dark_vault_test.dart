@@ -21,6 +21,7 @@
 // promise rules every safe road is built on, the two hard gates, §4's
 // first-descent guarantee, the vault trick and the guardian.
 
+import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
@@ -68,6 +69,7 @@ PlanetDungeonGame harness(
   List<CosmicPartyMember> party, {
   void Function(int)? onStar,
   void Function(String)? onCloud,
+  void Function(SoundCue)? onSound,
 }) {
   final game = PlanetDungeonGame(
     element: 'Dark',
@@ -77,6 +79,7 @@ PlanetDungeonGame harness(
     onCloudDiscovered: onCloud,
     onPlayerDown: () => fail('the scripted run must never wipe'),
     onChanged: () {},
+    onSound: onSound,
   );
   game.currentRoomId = game.layout.entranceRoomId;
   for (final m in party) {
@@ -591,29 +594,10 @@ void main() {
       step(g, 'umbral_reliquary');
       expect(layout.rooms['umbral_reliquary']!.vaultCache, isNotNull);
 
-      // ── THE ABYSS (the lost maxim) ──────────────────────
+      // (The lost maxim wants the Deep LIT while you stand in the font, and
+      // the only hand that can do that from below is the arena's vane — so
+      // it comes after the rite, at the end of this run.)
       step(g, 'abyssal_font');
-      final rim = layout.rooms['abyssal_font']!.eclipse!.abyss!;
-      for (var t = 0.0; t < _kAbyssRunSeconds; t += 1 / 30) {
-        // "Utterly still" is the whole maxim, so the test holds the party on
-        // its mark every frame — otherwise the combat sim's steering drifts
-        // them and the vigil resets, which is exactly what it is there to do.
-        for (final c in g.creatures) {
-          c
-            ..position = rim
-            ..lastSafe = rim;
-        }
-        g.update(1 / 30);
-      }
-      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
-      for (var tick = 0; tick < 200; tick++) {
-        g.update(1 / 60);
-      }
-      expect(
-        clouds,
-        contains('egg:dark_abyss'),
-        reason: 'a full minute of standing utterly still in the dark',
-      );
 
       // ── STAR 1 · the three portals ──────────────────────
       // Every ring: the rust first, then both ends in shadow at once.
@@ -667,6 +651,34 @@ void main() {
       // ── STAR 2 · Noctryos ───────────────────────────────
       step(g, 'noctryos_totality');
       expect(layout.rooms['noctryos_totality']!.guardian!.starIndex, 2);
+
+      // ── THE ABYSS (the lost maxim) ──────────────────────
+      // The vane lights the Deep from below — the one arrangement the whole
+      // lower vault punishes: the gulf and the slot are gone behind you.
+      final arena = layout.rooms['noctryos_totality']!;
+      act(g, dark, 'noctryos_totality', arena.eclipse!.shadowVane!);
+      expect(g.vault.isLit(EclipseLeaf.deep), isTrue);
+      expect(
+        g.vault.spanOpen(vaultSpanBetween('abyssal_font', 'umbral_reliquary')!),
+        isFalse,
+      );
+      step(g, 'eclipse_nave'); // the rood door, phase-free
+      step(g, 'abyssal_font'); // the undercroft, a light-walk, there now
+      final well = layout.rooms['abyssal_font']!.eclipse!.abyss!;
+      act(g, spirit, 'abyssal_font', well); // three lengths of chain
+      expect(g.vault.abyssRead, isTrue);
+      act(g, poison, 'abyssal_font', well); // the rust off the ring
+      expect(g.vault.abyssChainFree, isTrue);
+      for (var i = 0; i < EclipseVault.abyssChainLengths; i++) {
+        act(g, dark, 'abyssal_font', well); // a length a press
+      }
+      expect(g.vault.abyssRaised, isTrue);
+      expect(g.riteActive, isTrue);
+      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+      for (var tick = 0; tick < 300; tick++) {
+        g.update(1 / 60);
+      }
+      expect(clouds, contains('egg:dark_abyss'));
 
       // Nothing the run did can have stranded it.
       expect(g.solveEclipseVault().strandable, 0);
@@ -790,7 +802,179 @@ void main() {
       }
     });
   });
-}
 
-/// Slightly over the authored minute, so the vigil actually completes.
-const double _kAbyssRunSeconds = 61.0;
+  group('the Lost Maxim — THE ABYSS · the fourth finger', () {
+    // The §7 maxim standard: a CHAIN — light the Deep from inside it, read
+    // the chain, eat the rust, haul three times. Every link proved against
+    // the same code the buttons call.
+    final well = layout.rooms['abyssal_font']!.eclipse!.abyss!;
+
+    /// The party in the font, the Deep lit under them (the vane's doing).
+    PlanetDungeonGame litFont({void Function(String)? onCloud}) {
+      final g = harness(_idealTrio(), onCloud: onCloud)
+        ..entryDoorRevealed = true;
+      g.vault.shadow['gn_stair'] = EclipseLeaf.ossuary; // the Deep in light
+      g.currentRoomId = 'abyssal_font';
+      expect(g.vault.isLit(EclipseLeaf.deep), isTrue);
+      return g;
+    }
+
+    test('in the dark the hole has no bottom, and nothing answers', () {
+      final g = harness(_idealTrio())..entryDoorRevealed = true;
+      g.vault.shadow['gn_stair'] = EclipseLeaf.deep;
+      for (final idx in [dark, poison, spirit]) {
+        act(g, idx, 'abyssal_font', well);
+      }
+      expect(g.vault.abyssRead, isFalse);
+      expect(g.vault.abyssChainFree, isFalse);
+      expect(g.vault.abyssHauls, 0);
+      expect(g.hintHasAnswer, isTrue);
+      g.askForRoomHint();
+      expect(g.hintText, contains('see the bottom'));
+    });
+
+    test('the Deep can only be lit from below by the vane', () {
+      // Every other control of the Deep stands upstairs, behind the gulf it
+      // shuts: the state the secret hides in is one you make from the arena.
+      final g = harness(_idealTrio())..entryDoorRevealed = true;
+      final vane = layout.rooms['noctryos_totality']!.eclipse!.shadowVane!;
+      g.vault.shadow['gn_stair'] = EclipseLeaf.deep;
+      act(g, dark, 'noctryos_totality', vane);
+      expect(g.vault.isLit(EclipseLeaf.deep), isTrue);
+      expect(vaultGnomonIn('abyssal_font'), isNull);
+      expect(vaultGnomonIn('eclipse_nave'), isNull);
+      // And the undercroft carries you back to the font while it is lit.
+      expect(
+        g.vault.spanOpen(vaultSpanBetween('eclipse_nave', 'abyssal_font')!),
+        isTrue,
+      );
+    });
+
+    test('Spirit reads the chain, and until it has, Dark hauls nothing', () {
+      final g = litFont();
+      act(g, dark, 'abyssal_font', well);
+      expect(g.vault.abyssHauls, 0);
+      act(g, spirit, 'abyssal_font', well);
+      expect(g.vault.abyssRead, isTrue);
+      act(g, spirit, 'abyssal_font', well); // a second read changes nothing
+      expect(g.vault.abyssRead, isTrue);
+    });
+
+    test('a Poison PIP eats the rust, the anchors\' own declared gate', () {
+      final g = litFont();
+      act(g, poison, 'abyssal_font', well);
+      expect(g.vault.abyssChainFree, isTrue);
+      // The wrong family is refused.
+      final noPip = harness([
+        _member(0, 'Dark', 'mask'),
+        _member(1, 'Poison', 'horn'),
+        _member(2, 'Spirit', 'mane'),
+      ])..entryDoorRevealed = true;
+      noPip.vault.shadow['gn_stair'] = EclipseLeaf.ossuary;
+      act(noPip, poison, 'abyssal_font', well);
+      expect(noPip.vault.abyssChainFree, isFalse);
+    });
+
+    test('rust holds the chain even after the read', () {
+      final g = litFont();
+      act(g, spirit, 'abyssal_font', well);
+      act(g, dark, 'abyssal_font', well);
+      expect(g.vault.abyssHauls, 0);
+    });
+
+    test('THREE HAULS, and the finger stands: the rite pays out', () {
+      final clouds = <String>[];
+      final g = litFont(onCloud: clouds.add);
+      act(g, spirit, 'abyssal_font', well);
+      act(g, poison, 'abyssal_font', well);
+      for (var i = 1; i <= EclipseVault.abyssChainLengths; i++) {
+        act(g, dark, 'abyssal_font', well);
+        expect(g.vault.abyssHauls, i);
+        expect(g.riteActive, i == EclipseVault.abyssChainLengths);
+      }
+      for (var tick = 0; tick < 300; tick++) {
+        g.update(1 / 60);
+      }
+      expect(clouds, contains(kDarkAbyssEggId));
+      // Found once, the well is done: nothing answers at it again.
+      act(g, dark, 'abyssal_font', well);
+      expect(g.riteActive, isFalse);
+    });
+
+    test('the braid hauls too: Poison and Spirit together stand as Dark', () {
+      final g = litFont();
+      act(g, spirit, 'abyssal_font', well);
+      act(g, poison, 'abyssal_font', well);
+      // `act` stands the whole party on the spot, so Poison's press has a
+      // Spirit within braid reach.
+      act(g, poison, 'abyssal_font', well);
+      expect(g.vault.abyssHauls, 1);
+    });
+
+    test('nothing is consumed: a wrong beat is a puff and a sentence', () {
+      final g = litFont();
+      act(g, dark, 'abyssal_font', well); // before the read
+      expect(g.vault.abyssRead, isFalse);
+      expect(g.vault.abyssChainFree, isFalse);
+      expect(g.vault.abyssHauls, 0);
+      expect(g.vault.isLit(EclipseLeaf.deep), isTrue);
+    });
+
+    test('the star path never passes it', () {
+      // Every star wants the Deep in shadow down here; the secret wants it
+      // lit, and only the vane behind the rood door can do that.
+      expect(
+        vaultSpanBetween('gnomon_stair', 'abyssal_font')!.leaf,
+        EclipseLeaf.deep,
+      );
+      expect(
+        vaultSpanBetween('abyssal_font', 'umbral_reliquary')!.leaf,
+        EclipseLeaf.deep,
+      );
+      expect(layout.finaleDoor!.roomId, 'eclipse_nave');
+    });
+  });
+
+  group('the vault is AUDIBLE', () {
+    // A planet with no cue in it is a planet nobody hears, and this one had
+    // none. These are the beats the eclipse is made of.
+    test('every beat of the vault speaks', () {
+      final heard = <SoundCue>[];
+      final g = harness(_idealTrio(), onSound: heard.add);
+
+      // The pall.
+      act(
+        g,
+        dark,
+        'pall_porch',
+        layout.rooms['pall_porch']!.eclipse!.pallCurtain!,
+      );
+      expect(heard, contains(SoundCue.dungeonGateOpen));
+
+      // A stone (the Pall lies in shadow at the opening).
+      heard.clear();
+      act(g, dark, 'analemma_court', stoneAt('stone_pall'));
+      expect(heard, contains(SoundCue.dungeonStepStone));
+
+      // A turn.
+      heard.clear();
+      turnGnomon(g, dark, 'gn_porch');
+      expect(heard, contains(SoundCue.dungeonSwitch));
+
+      // The rust off a ring.
+      heard.clear();
+      final an = vaultAnchorById('an_court')!;
+      act(g, poison, 'analemma_court', an.nearRing);
+      expect(heard, contains(SoundCue.elementPoison));
+
+      // A haul.
+      heard.clear();
+      g.vault.shadow['gn_stair'] = EclipseLeaf.ossuary;
+      final well = layout.rooms['abyssal_font']!.eclipse!.abyss!;
+      act(g, spirit, 'abyssal_font', well);
+      act(g, poison, 'abyssal_font', well);
+      act(g, dark, 'abyssal_font', well);
+      expect(heard, contains(SoundCue.dungeonBlockMove));
+    });
+  });
+}

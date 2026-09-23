@@ -31,9 +31,12 @@
 //    beat bursts spores that put the party back in its own body and rots one
 //    vine out in the crypt, so it un-makes your roads while you fight it. Its
 //    lull exists only while you are small enough to be at the stem.
-//  • Lost Maxim — THE UNSEEN SHADE: tend the seed under the giant root with
-//    all three elements while TINY, then come back at your own size to see
-//    what it became.
+//  • Lost Maxim — THE UNSEEN SHADE: the seed nobody planted lies where the
+//    giant root's TRUNK throws its shade — the trap the whole planet warns you
+//    off, because that trunk costs the only small road to the islet. Grow it,
+//    and under its shade a small body tends the seed the altar's own three
+//    ways in the altar's own order; then come back at your own size and see
+//    what grew.
 //
 // NON-STRANDABILITY (the design's one real danger — see `solveVerdantCrypt`):
 // a trunk fills the fissure it grew in, and the crypt's small graph is made of
@@ -125,11 +128,11 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
   String _cryptDoorHint(DungeonRoom room, DungeonDoor door) {
     final span = _cryptSpanFor(room, door)!;
     if (!crypt.spanExists(span)) {
-      return 'Grown shut, a trunk stands where the crack was';
+      return 'A trunk has grown over this crack';
     }
     return span.size == SpanSize.tinyOnly
-        ? 'Too big by far, ${span.look} takes a smaller body'
-        : 'Too small by far, ${span.look} wants a longer leg';
+        ? 'You\'re too big for ${span.look}. Shrink at a seed-gall'
+        : 'You\'re too small for ${span.look}. Grow back at a seed-gall';
   }
 
   // ── Verbs ────────────────────────────────────────────────
@@ -175,11 +178,12 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if (pos == null || entryDoorRevealed) return false;
     if ((a.position - pos).distance > _kCryptReach) return false;
     if (a.member.element != 'Plant') {
-      _setBlockedHint('Only Plant unknots its own briar');
+      _setBlockedHint('Only Plant can untangle this briar');
       return true;
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
+    _cue(SoundCue.dungeonGateOpen);
     _setHint('The briar lets go of the gate, Verdanthos opens both its ways');
     _spawnAlchemyBurst(
       pos,
@@ -201,7 +205,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kCryptReach) return false;
     if (!_cryptHasGreenHand(a)) {
-      _setBlockedHint('Only Plant wakes a seed-gall');
+      _setBlockedHint('Only Plant can wake a seed-gall');
       return true;
     }
     _shiftScale(otherScale(crypt.scale), pos);
@@ -213,10 +217,13 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
   void _shiftScale(PlantScale to, Offset at) {
     if (crypt.scale == to) return;
     crypt.scale = to;
-    _setHint(
+    _cue(SoundCue.dungeonSwitch);
+    _cue(SoundCue.elementPlant);
+    // A CONSEQUENCE (§5.7): every passage in the crypt just changed for you.
+    speakConsequence(
       to == PlantScale.tiny
-          ? 'The gall takes you in, and the moss stands up into a forest'
-          : 'The gall lets you go, and the forest lies back down as moss',
+          ? 'The gall shrinks you. The moss is a forest now'
+          : 'The gall lets you go, back at full size',
       3.0,
     );
     _spawnAlchemyBurst(
@@ -238,26 +245,28 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kCryptReach) return false;
     if (a.member.element != 'Mud') {
-      _setBlockedHint('Only Mud turns this litter');
+      _setBlockedHint('Only Mud can turn this mulch');
       return true;
     }
     if (crypt.isFallow) {
-      _setBlockedHint('Nothing to turn, the crypt already lies fallow');
+      _setBlockedHint('Nothing to reset. The crypt is as it started');
       return true;
     }
     if (crypt.armedPitRoom != currentRoomId) {
       crypt.armedPitRoom = currentRoomId;
       crypt.armedPitTimer = _kMulchArmSeconds;
       // Attempt-edged and explicit: the most expensive verb on the planet
-      // never fires on one careless press.
-      _setHint(
-        'The litter steams. Turn it again and the season takes back every '
-        'road you have grown',
+      // never fires on one careless press — and it is SPOKEN, because a
+      // warning nobody is shown is not a warning (§5.7).
+      _cue(SoundCue.dungeonSwitch);
+      speakConsequence(
+        'The mulch steams. Turn it again to reset every plant in the crypt',
         _kMulchArmSeconds,
       );
       return true;
     }
     crypt.wither();
+    _cue(SoundCue.dungeonWallBreak);
     // The season sloughs the party out with the leaf-fall. Without this the
     // valve could not save a small body on the islet, whose only small road
     // is the very creeper the withering takes away — see the no-strand proof.
@@ -265,9 +274,10 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     _spreadCreaturesAround(layout.entranceSpawn);
     _doorCooldown = 0.5;
     _clearHints();
-    _setHint(
-      'The whole crypt goes brown at once, every vine down to mould, and the '
-      'gate puts you out in your own body',
+    // A closing announces itself (§5.7): every road you grew is gone.
+    speakConsequence(
+      'The crypt resets. Every plant is gone and you\'re back at full size '
+      'at the gate',
       4.6,
     );
     _spawnAlchemyBurst(
@@ -307,18 +317,19 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if (lamp == null || crypt.lampsLit.contains(lamp.id)) return false;
     if ((a.position - lamp.position).distance > _kCryptReach) return false;
     if (a.member.element != 'Light') {
-      _setBlockedHint('Only Light takes in a dead wick');
+      _setBlockedHint('Only Light can light this lamp');
       return true;
     }
     if (crypt.scale != lamp.reach) {
       _setBlockedHint(
         lamp.reach == PlantScale.huge
-            ? 'The sconce stands a whole world above your head'
-            : 'No hand this size goes into a wick that small',
+            ? 'Too high to reach while small'
+            : 'Too tiny to light at full size',
       );
       return true;
     }
     crypt.lampsLit.add(lamp.id);
+    _cue(SoundCue.elementLight);
     _spawnAlchemyBurst(
       lamp.position,
       producedElement: 'Light',
@@ -362,24 +373,23 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if (crypt.scale != bloomStepScale(step)) {
       // A GOAL, not a method (§5.6): what is wrong, in one clause.
       _setBlockedHint(switch (step) {
-        BloomStep.loam => 'No hand this size carries loam enough for this bowl',
+        BloomStep.loam => 'Too small to carry enough loam',
         BloomStep.seed =>
-          'The bowl is a walled field, no body this big gets '
-              'down into it',
-        BloomStep.sun => 'A light held this low never reaches over the rim',
+          'Too big to get down into the bowl',
+        BloomStep.sun => 'Too small for the light to reach over the rim',
       });
       return true;
     }
     switch (step) {
       case BloomStep.loam:
         if (a.member.element != 'Mud') {
-          _setBlockedHint('The dry bowl answers Mud');
+          _setBlockedHint('The bowl needs loam first. Only Mud has it');
           return true;
         }
         _setHint('Loam goes in over the old ash, and settles');
       case BloomStep.seed:
         if (!_cryptHasGreenHand(a)) {
-          _setBlockedHint('Only Plant sets a seed');
+          _setBlockedHint('Only Plant can set the seed');
           return true;
         }
         _setHint('The seed goes down into the dark, and the dark stirs');
@@ -409,17 +419,22 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
               _stampFamilyGate(gate);
             } else {
               _setBlockedHint(
-                'Only a Light that can show what is not there passes for a sun',
+                'Only a Light Mask can stand in for the sun',
               );
             }
             return true;
           case InteractionResult.blockedElement:
           case InteractionResult.blockedStat:
-            _setBlockedHint('The seed wants a sun, it answers Light');
+            _setBlockedHint('The seed needs sunlight. Only Light can give it');
             return true;
         }
     }
     crypt.bloomStep++;
+    _cue(switch (step) {
+      BloomStep.loam => SoundCue.elementMud,
+      BloomStep.seed => SoundCue.elementPlant,
+      BloomStep.sun => SoundCue.elementLight,
+    });
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Plant',
@@ -444,17 +459,18 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kCryptReach) return false;
     if ((conduitEnergy['B'] ?? 0) > 0) return false;
     if (a.member.element != 'Mud') {
-      _setBlockedHint('The baked clay answers Mud alone');
+      _setBlockedHint('Only Mud can soften this clay');
       return true;
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The clay will not slake, it answers only a bearer of the '
-        '${layout.starName(0)} and ${layout.starName(1)}',
+        'The clay needs the ${layout.starName(0)} and '
+        '${layout.starName(1)} first',
       );
       return true;
     }
     conduitEnergy['B'] = double.infinity;
+    _cue(SoundCue.dungeonSwitch);
     _setHint(
       'The clay slumps off the sepulchre, and the hall lets out a '
       'breath',
@@ -482,17 +498,24 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       if (!crypt.canPlant(b.id)) {
         _setBlockedHint(
           crypt.stateOf(b.id) == VineState.trunk
-              ? 'A trunk owns this ground now'
-              : 'A creeper owns this ground now',
+              ? 'A trunk already grows here'
+              : 'A creeper already grows here',
         );
         return true;
       }
       if (!_cryptHasGreenHand(a)) {
-        _setBlockedHint('Only Plant sets a seed');
+        _setBlockedHint('Only Plant can plant here');
         return true;
       }
       final grown = crypt.plant(b.id)!;
-      _setHint(_bedGrowthLine(b, grown), 3.4);
+      _cue(
+        grown == VineState.trunk
+            ? SoundCue.dungeonBlockMove
+            : SoundCue.elementPlant,
+      );
+      // A CONSEQUENCE (§5.7): a trunk has just filled the crack it grew in,
+      // and a creeper has just opened a road for the size you are not.
+      speakConsequence(_bedGrowthLine(b, grown), 3.4);
       _spawnAlchemyBurst(
         b.crown,
         producedElement: 'Plant',
@@ -516,11 +539,10 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
 
   String _bedGrowthLine(SeedBed bed, VineState grown) {
     if (grown == VineState.creeper) {
-      return 'A green thread runs out of ${bed.look}. Hardly anything at all, '
-          'at this size';
+      return 'A creeper grows out of ${bed.look}. Small creatures can '
+          'climb it';
     }
-    return 'It comes up wood, and it comes up fast, and ${bed.look} is not '
-        'there any more';
+    return 'A trunk grows, and ${bed.look} is filled in';
   }
 
   // ── Star 2 · BOTANICA ────────────────────────────────────
@@ -534,7 +556,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kCryptReach) return false;
     if (crypt.isTiny) return false;
     if (!_cryptHasGreenHand(a)) {
-      _setBlockedHint('Only Plant wakes a seed-gall');
+      _setBlockedHint('Only Plant can wake a seed-gall');
       return true;
     }
     _shiftScale(PlantScale.tiny, pos);
@@ -561,11 +583,14 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       _botanicaBitLastFrame = false;
       crypt.scale = PlantScale.huge;
       final rotted = _rotOneVine();
-      _setHint(
+      _cue(SoundCue.dungeonHazardTrigger);
+      // A closing announces itself (§5.7): from update, where a plain line is
+      // dropped unasked, and a road out in the crypt has just gone black.
+      speakConsequence(
         rotted == null
-            ? 'Spores burst, and you come up out of the roots at your own size'
-            : 'Spores burst, you come up at your own size, and somewhere out '
-                  'there a vine goes black',
+            ? 'Spores burst and you\'re back at full size'
+            : 'Spores burst. You\'re back at full size, and one of your vines '
+                  'rots',
       );
     }
   }
@@ -583,42 +608,115 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
   }
 
   // ── The Lost Maxim · THE UNSEEN SHADE ────────────────────
+  //
+  // THE SHADE THE TRAP THROWS (2026-09-19; the §7 maxim standard, and Mud's
+  // lesson that the best place to hide a secret is the state your own stars
+  // punish).
+  //
+  // It was already close (§7 graded it ▶): three tendings small, then a look
+  // from your own size. What it lacked was a PLACE with a reason, an order,
+  // and any hint at all. It hangs off the planet's own trap now:
+  //
+  //   1. GROW THE GIANT ROOT'S TRUNK. Plant b_root while SMALL and it comes
+  //      up wood — the bough over the gallery wall that fills the worm-run
+  //      and costs the only small road to the islet: the state the layout
+  //      header calls THE TRAP, the one every hint on this planet warns you
+  //      off, and 142 of the 448 states the withering exists for. Nothing is
+  //      pressed for the secret here; the bough THROWS A SHADE across the
+  //      gallery floor, and the seed nobody planted lies in it.
+  //   2. UNDER THE SHADE, SMALL, TEND IT THE ALTAR'S OWN THREE WAYS in the
+  //      altar's own order — loam (Mud), seed (Plant), sun (Light): the
+  //      repeated beat, and the planet's own three verbs. Out of order is a
+  //      puff and a sentence, and nothing is spent.
+  //   3. COME BACK AT YOUR OWN SIZE. The nearest gall from the gallery, for
+  //      a small body, is the porch's — out along the moss walk and back.
+  //      What grew in the shade is only visible to a body that can stand
+  //      back from it; a Plant hand at your own size and the rite of three.
+  //
+  // Nothing here asks for a family the riddle did not name, and the star
+  // path never passes it: the authored descent grows b_root as a CREEPER,
+  // and no star wants its trunk.
 
-  /// The seed nobody planted, under the giant root. Deliberately beyond what
-  /// the stars demand (§ "Easter eggs"): it only exists for a body small
-  /// enough to be under there, it wants all three of the crypt's elements,
-  /// and the thing it becomes can only be seen from your own size — which
-  /// means one last trip back to a gall to look at it.
+  /// The giant root's trunk stands: the bough is throwing its shade.
+  bool get shadeThrown => crypt.stateOf('b_root') == VineState.trunk;
+
   bool _tryShadeSeed(DungeonCreature a) {
     if (discoveredClouds.contains(kPlantUnseenShadeEggId)) return false;
     final pos = currentRoom.grove?.shadeSeed;
     if (pos == null || crypt.shadeRisen) return false;
     if ((a.position - pos).distance > _kCryptReach) return false;
-    const wants = ['Mud', 'Light', 'Plant'];
-    if (crypt.tendedBy.length < wants.length) {
-      // A huge body cannot even see under the root, let alone tend anything.
-      if (!crypt.isTiny) return false;
-      final el = a.member.element;
-      if (!wants.contains(el) || crypt.tendedBy.contains(el)) return false;
-      crypt.tendedBy.add(el);
-      _setHint(
-        crypt.tendedBy.length < wants.length
-            ? 'The little seed takes it, and asks for the rest'
-            : 'The seed has everything it wants, and nothing here can see it '
-                  'grow',
-        4.0,
-      );
+    final el = a.member.element;
+    if (!crypt.shadeTended) {
+      // ── 1 · the shade ──
+      if (!shadeThrown) {
+        // WHAT is missing (§5.6): nothing here casts a shadow yet.
+        _setBlockedHint('Nothing here throws shade');
+        return true;
+      }
+      if (!crypt.isTiny) {
+        _setBlockedHint(
+          'Something tiny in the shade. You need to be small',
+        );
+        return true;
+      }
+      // ── 2 · the three tendings, in the ground's order ──
+      final want = VerdantCrypt.shadeWants[crypt.shadeStep];
+      if (el != want) {
+        _spawnAlchemyBurst(
+          pos,
+          producedElement: el,
+          particleCount: 8,
+          intensity: 0.5,
+        );
+        _setBlockedHint(switch (crypt.shadeStep) {
+          0 => 'It needs loam first',
+          1 => 'It has loam. Now it needs a seed',
+          _ => 'It has loam and a seed. Now it needs sun',
+        });
+        return true;
+      }
+      crypt.shadeStep++;
+      _cue(switch (el) {
+        'Mud' => SoundCue.elementMud,
+        'Plant' => SoundCue.elementPlant,
+        _ => SoundCue.elementLight,
+      });
       _spawnAlchemyBurst(
         pos,
         producedElement: 'Plant',
         reagentElements: [el],
-        particleCount: 16,
+        particleCount: 14 + crypt.shadeStep * 4,
+        intensity: 0.7 + crypt.shadeStep * 0.15,
       );
       return true;
     }
-    // Tended three ways, and now it wants to be LOOKED at from above.
-    if (crypt.isTiny) return false;
+    // ── 3 · looked at, from your own size ──
+    if (crypt.isTiny) {
+      _spawnAlchemyBurst(
+        pos,
+        producedElement: el,
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint(
+        'It has everything it needs. Come back at full size',
+      );
+      return true;
+    }
+    if (el != 'Plant') {
+      _spawnAlchemyBurst(
+        pos,
+        producedElement: el,
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint(
+        'Something has grown in the shade. Only Plant can gather it',
+      );
+      return true;
+    }
     crypt.shadeRisen = true;
+    _cue(SoundCue.dungeonGateOpen);
     // THE RITE OF THREE pays this out (see `beginMaximRite`).
     beginMaximRite(kPlantUnseenShadeEggId, pos);
     _spawnAlchemyBurst(
@@ -676,37 +774,37 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _cryptObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Botanica\'s Heart, the flower keeps the last star';
+      return 'Botanica\'s Heart. The last star is here';
     }
     if (room.grove?.sepulchre != null) {
-      return 'The Bloom Hall, the rite waits on the sepulchre';
+      return 'The Bloom Hall. The rite happens here';
     }
     if (room.grove?.growthAltar != null) {
       return hasStar(room.grove!.starIndex!)
           ? null
-          : 'The Islet, the heart-seed has slept a long age';
+          : 'The Islet. The growth altar is dry';
     }
     if (room.vaultCache != null) {
-      return 'Inside the altar\'s own rim, something is bottled here';
+      return 'Inside the altar\'s rim. Something is stored here';
     }
     if (room.grove?.lampId != null && !hasStar(0)) {
       return crypt.lampsLit.contains(room.grove!.lampId)
           ? null
-          : 'A grave-lamp stands dead here';
+          : 'An unlit grave-lamp';
     }
     if (room.id == 'crypt_niche') {
-      return 'The Crypt Niche, nothing this deep was built for you';
+      return 'The Crypt Niche';
     }
     if (room.id == 'pollen_stair') {
-      return 'The Pollen Stair, a gall hangs at the turn of it';
+      return 'The Pollen Stair. A seed-gall hangs here';
     }
     if (room.id == 'fern_gallery') {
-      return 'The Fern Gallery, one root has swallowed half the wall';
+      return 'The Fern Gallery';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Root Porch, the crypt runs west, and under itself'
-          : 'The Root Porch, the lich-gate is knotted shut';
+          ? 'The Root Porch'
+          : 'The Root Porch. Dead briar knots the gate shut';
     }
     return null;
   }
@@ -739,59 +837,63 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     final tier = revealHintTier(a.member.statIntelligence);
     if (room.grove?.growthAltar != null) {
       _setInsightHint(switch (tier) {
-        0 => 'The bowl has been dry so long the ash in it has set',
+        0 => 'The altar needs three things, in order',
         1 =>
-          'It wants three things, and it will only take them in the order '
-              'the ground puts them in',
+          'Loam, then a seed, then sunlight. Each one needs a different size',
         _ =>
-          'Loam first, and only a big hand carries enough; then the seed, '
-              'and only a small body gets down there to set it; then a sun, '
-              'and this crypt has none, someone must show it one',
+          'Mud brings loam at full size. Plant sets the seed while small. '
+              'Then a Light Mask at full size gives it sun',
       });
       return;
     }
     if (room.grove?.lampId != null) {
       _setInsightHint(switch (tier) {
-        0 =>
-          'Three of these are dead, and they were not all cut for the same '
-              'mourner',
+        0 => 'Three grave-lamps, and not all at the same size',
         1 =>
-          'Two hang at a mourner\'s eye and one is a thumb\'s width deep in '
-              'a wall',
+          'Two lamps are high on the walls. One is a tiny wick in a crack',
         _ =>
-          'You will not light all three in one body. The niche is cracks '
-              'all the way in, and the sconces are a whole world above them',
+          'Light the two big ones at full size, then shrink at a seed-gall '
+              'to light the tiny one',
       });
       return;
     }
     if (room.vaultCache != null || room.grove?.growthAltar != null) {
-      _setInsightHint('The rim is cut with a door, and it is a hand high');
+      _setInsightHint('There\'s a tiny door in the rim, only big enough when small');
+      return;
+    }
+    if (room.grove?.shadeSeed != null &&
+        shadeThrown &&
+        !discoveredClouds.contains(kPlantUnseenShadeEggId)) {
+      // ONE OBLIQUE LINE and nothing after it (the §7 maxim standard). It
+      // takes over from the bed's teaching only once the trap is sprung and
+      // the bough is throwing its shade.
+      _setInsightHint(
+        'Something small lies in the trunk\'s shade. It wants what the altar '
+        'wanted, in the same order',
+      );
       return;
     }
     if (cryptBedsIn(room.id).isNotEmpty) {
       _setInsightHint(switch (tier) {
-        0 => 'Something could still be made to grow here',
+        0 => 'Plant can grow something in this bed',
         1 =>
-          'What comes up depends on how deep the seed goes, and that '
-              'depends on the hand',
+          'What grows depends on your size when you plant it',
         _ =>
-          'A big hand only presses a seed into the surface and gets a '
-              'thread; a small one climbs down and sets it at the root, and '
-              'gets wood, and the wood fills the crack it came out of',
+          'Planted at full size, it grows a creeper small creatures can '
+              'climb. Planted small, it grows a trunk for full size, and the '
+              'trunk fills the crack it grew from',
       });
       return;
     }
     // Anywhere in the crypt, insight reads the SIZE — which is the planet.
     _setInsightHint(switch (tier) {
-      0 => 'Half of this place was built for something else',
+      0 => 'Some passages are for small creatures, some for full size',
       1 =>
-        'Cracks and grates take a small body; rills and treads and boughs '
-            'want a long leg. The galls are the only place that changes',
+        'Cracks and grates need you small. Rills, treads and boughs need full '
+            'size. Seed-galls switch your size',
       _ =>
-        'There are three galls in the whole crypt, and nothing else on this '
-            'planet will change your size. Plan the road at both sizes before '
-            'you plant anything, and the litter is the only take-back, and it '
-            'takes back all of it at once',
+        'Only three seed-galls change your size. Plan both sizes before you '
+            'plant. Mud at a mulch pit resets every plant if you get stuck',
     });
   }
 
@@ -2420,18 +2522,48 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       }
     }
 
-    // A seed-gall: a hollow swelling on the root, breathing.
+    // A seed-gall: a hollow swelling on a stub of root, BREATHING — the slit
+    // in it opens and closes, and it is the only thing in the crypt that
+    // changes your size, so it has to look alive. (It was three concentric
+    // circles, which is a target.)
     final gall = g.bole ?? g.rootBole;
     if (gall != null) {
-      canvas.drawCircle(gall, 30, Paint()..color = _kCryptBark);
-      canvas.drawCircle(
-        gall,
-        18,
-        Paint()..color = _kCryptGreen.withValues(alpha: 0.85),
+      final breath = 0.5 + 0.5 * sin(_time * 1.6);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: gall + const Offset(0, 26),
+            width: 92,
+            height: 22,
+          ),
+          const Radius.circular(10),
+        ),
+        Paint()..color = _kCryptBark.withValues(alpha: 0.9),
       );
-      canvas.drawCircle(
-        gall,
-        crypt.isTiny ? 7 : 11,
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: gall,
+          width: 66 + breath * 4,
+          height: 56 + breath * 3,
+        ),
+        Paint()..color = _kCryptBark,
+      );
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: gall + const Offset(-8, -8),
+          width: 30,
+          height: 20,
+        ),
+        Paint()..color = const Color(0xFF8A6A46).withValues(alpha: 0.6),
+      );
+      // The slit, and the green inside it.
+      final slit = 6.0 + breath * 8;
+      canvas.drawOval(
+        Rect.fromCenter(center: gall, width: 26, height: slit + 18),
+        Paint()..color = _kCryptGreen.withValues(alpha: 0.9),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: gall, width: 12, height: slit),
         Paint()..color = _kCryptDeep,
       );
     }
@@ -2458,30 +2590,81 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       }
     }
 
-    // The grave-lamp.
+    // The grave-lamp: a bone sconce on a bracket, with a cup, and a FLAME in
+    // it once it is lit — a flame is a shape that moves, not a yellow dot.
+    // The sconces are cut at a mourner's eye and the niche's wick at a thumb.
     final lamp = _lampIn(room);
     if (lamp != null) {
       final lit = crypt.lampsLit.contains(lamp.id);
       final tall = lamp.reach == PlantScale.huge;
-      final body = Rect.fromCenter(
-        center: lamp.position,
-        width: tall ? 34 : 16,
-        height: tall ? 52 : 22,
+      final k = tall ? 1.0 : 0.5;
+      final at = lamp.position;
+      // Bracket arm from the wall, and the sconce body.
+      canvas.drawLine(
+        at + Offset(0, 30 * k),
+        at + Offset(0, 8 * k),
+        Paint()
+          ..strokeWidth = 4 * k
+          ..color = const Color(0xFF6E5A3C),
       );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(body, const Radius.circular(6)),
-        Paint()..color = _kCryptBone.withValues(alpha: 0.7),
+      canvas.drawPath(
+        Path()
+          ..moveTo(at.dx - 17 * k, at.dy - 6 * k)
+          ..lineTo(at.dx + 17 * k, at.dy - 6 * k)
+          ..lineTo(at.dx + 10 * k, at.dy + 12 * k)
+          ..lineTo(at.dx - 10 * k, at.dy + 12 * k)
+          ..close(),
+        Paint()..color = _kCryptBone.withValues(alpha: 0.85),
       );
-      canvas.drawCircle(
-        lamp.position - Offset(0, tall ? 16 : 6),
-        tall ? 10 : 5,
-        Paint()..color = lit ? _kCryptLamp : _kCryptDeep.withValues(alpha: 0.8),
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: at + Offset(0, -6 * k),
+          width: 34 * k,
+          height: 8 * k,
+        ),
+        Paint()..color = _kCryptDeep.withValues(alpha: 0.8),
       );
       if (lit) {
+        final f = 0.8 + 0.2 * sin(_time * 9 + at.dx);
+        final flame = Path()
+          ..moveTo(at.dx, at.dy - (6 + 30 * f) * k)
+          ..quadraticBezierTo(
+            at.dx + 9 * k,
+            at.dy - 14 * k,
+            at.dx,
+            at.dy - 6 * k,
+          )
+          ..quadraticBezierTo(
+            at.dx - 9 * k,
+            at.dy - 14 * k,
+            at.dx,
+            at.dy - (6 + 30 * f) * k,
+          )
+          ..close();
+        canvas.drawPath(
+          flame,
+          Paint()..color = _kCryptLamp.withValues(alpha: 0.92),
+        );
         canvas.drawCircle(
-          lamp.position - Offset(0, tall ? 16 : 6),
-          tall ? 22 : 12,
-          Paint()..color = _kCryptLamp.withValues(alpha: 0.2),
+          at + Offset(0, -14 * k),
+          3 * k,
+          Paint()..color = Colors.white.withValues(alpha: 0.8),
+        );
+        for (var i = 2; i >= 1; i--) {
+          canvas.drawCircle(
+            at + Offset(0, -16 * k),
+            (18 + i * 10) * k,
+            Paint()..color = _kCryptLamp.withValues(alpha: 0.06),
+          );
+        }
+      } else {
+        // A dead wick, blackened.
+        canvas.drawLine(
+          at + Offset(0, -6 * k),
+          at + Offset(2 * k, -16 * k),
+          Paint()
+            ..strokeWidth = 2 * k
+            ..color = _kCryptDeep,
         );
       }
     }
@@ -2547,11 +2730,30 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       }
     }
 
-    // The seed nobody planted — only a body small enough to be under the root
-    // ever sees it (the Lost Maxim), and what it became is only visible from
-    // your own size.
+    // THE UNSEEN SHADE (the Lost Maxim). While the giant root's trunk stands,
+    // its bough throws a shade across the gallery floor from the bed to the
+    // far wall; the seed nobody planted lies in it, and only a small body
+    // sees it. What grew there is only visible from your own size.
     final shade = g.shadeSeed;
     if (shade != null) {
+      final bed = cryptBedsIn(room.id).firstOrNull;
+      if (shadeThrown && bed != null && !crypt.shadeRisen) {
+        final from = bed.crown;
+        final dir = shade - from;
+        final n = Offset(-dir.dy, dir.dx) / dir.distance;
+        final sway = sin(_time * 0.7) * 6;
+        final wedge = Path()
+          ..moveTo(from.dx + n.dx * 22, from.dy + n.dy * 22)
+          ..lineTo(shade.dx + n.dx * 70 + sway, shade.dy + n.dy * 70)
+          ..lineTo(shade.dx - n.dx * 70 + sway, shade.dy - n.dy * 70)
+          ..lineTo(from.dx - n.dx * 22, from.dy - n.dy * 22)
+          ..close();
+        canvas.drawPath(
+          wedge,
+          Paint()
+            ..color = _kCryptDeep.withValues(alpha: crypt.isTiny ? 0.55 : 0.38),
+        );
+      }
       if (crypt.shadeRisen && !crypt.isTiny) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
@@ -2569,15 +2771,56 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
           72,
           Paint()..color = _kCryptGreen.withValues(alpha: 0.7),
         );
-      } else if (crypt.isTiny && !crypt.shadeRisen) {
-        canvas.drawCircle(shade, 10, Paint()..color = const Color(0xFF9CB47A));
-        canvas.drawCircle(
+      } else if (crypt.isTiny && !crypt.shadeRisen && shadeThrown) {
+        // Loam, then a sprout, then a sprout with light on it.
+        if (crypt.shadeStep >= 1) {
+          canvas.drawOval(
+            Rect.fromCenter(
+              center: shade + const Offset(0, 6),
+              width: 46,
+              height: 22,
+            ),
+            Paint()..color = _kCryptSoil.withValues(alpha: 0.9),
+          );
+        }
+        canvas.drawCircle(shade, 9, Paint()..color = const Color(0xFF9CB47A));
+        if (crypt.shadeStep >= 2) {
+          canvas.drawLine(
+            shade,
+            shade + const Offset(0, -22),
+            Paint()
+              ..strokeWidth = 3
+              ..color = _kCryptGreen,
+          );
+          canvas.drawOval(
+            Rect.fromCenter(
+              center: shade + const Offset(6, -22),
+              width: 14,
+              height: 8,
+            ),
+            Paint()..color = _kCryptGreen,
+          );
+        }
+        if (crypt.shadeStep >= 3) {
+          canvas.drawCircle(
+            shade + const Offset(0, -18),
+            22,
+            Paint()..color = _kCryptLamp.withValues(alpha: 0.18),
+          );
+        }
+      } else if (crypt.shadeTended && !crypt.shadeRisen && !crypt.isTiny) {
+        // From your own size, before the look: a sapling where the shade lay.
+        canvas.drawLine(
           shade,
-          10 + 4.0 * crypt.tendedBy.length,
+          shade + const Offset(0, -34),
           Paint()
-            ..color = _kCryptGreen.withValues(alpha: 0.4)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2,
+            ..strokeWidth = 4
+            ..color = _kCryptBark,
+        );
+        canvas.drawCircle(
+          shade + const Offset(0, -40),
+          16,
+          Paint()..color = _kCryptGreen.withValues(alpha: 0.85),
         );
       }
     }

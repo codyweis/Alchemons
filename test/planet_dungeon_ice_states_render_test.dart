@@ -130,10 +130,6 @@ void main() {
         openTheFloor(g);
         g.flueState['flue_a'] = RimeFlueState.scoured;
       });
-      await shoot('head_chute_spent', 'rime_head', headStand, (g) {
-        openTheFloor(g);
-        g.spentChutes.add('flue_a');
-      });
 
       final ring =
           kPlanetDungeonLayouts['Ice']!.rooms['mirror_gallery']!.rime!.mirrors!;
@@ -205,6 +201,34 @@ void main() {
         g.chartTriumph = 1.4;
       });
 
+      // THE STRANGER: the shaft above ridden bare, the lamp across from its
+      // bearing, and a thirteenth star out past the chart.
+      await shoot('pool_stranger', 'mirror_gallery', ring.frameAt(6), (g) {
+        g.lodestoneLit = true;
+        g.update(1 / 60);
+        for (var i = 0; i < 12; i++) {
+          g.frameOffset[i] = 0;
+        }
+        g.silveredFrames
+          ..clear()
+          ..addAll([0, 1, 2, 11, 10]);
+        g.flueState['flue_a'] = RimeFlueState.scoured;
+        g.strangerFrame = 1;
+        g.creatures[1].position = ring.frameAt(7);
+      });
+
+      // THE LENS, at rest and turned: the tube and the lit notch must move.
+      final lens = kPlanetDungeonLayouts['Ice']!.rooms['shelf_lens']!;
+      final mount = lens.rime!.telescope!;
+      await shoot('lens_rest', 'shelf_lens', mount + const Offset(0, 70), (g) {
+        g.telescopeNotch = 0;
+      });
+      await shoot('lens_turned', 'shelf_lens', mount + const Offset(0, 70), (
+        g,
+      ) {
+        g.telescopeNotch = 4;
+      });
+
       final grid0 =
           kPlanetDungeonLayouts['Ice']!.rooms['orrery_floor']!.rime!.orrery!;
       await shoot(
@@ -264,6 +288,29 @@ void main() {
 
       // Every pair inside a room must be a different picture. This is the
       // whole point: a flue's three states, a pool that is dead or reading,
+      // THE ROOF OF THE HOLLOW: snow over everything; bared panes saying
+      // what they lie on; the throat open; the wyrm awake under it.
+      const wyrm = [30, 29, 28, 37, 38];
+      const shore = Offset(400, 70);
+      await shoot('roof_snow', 'star_font', shore, (g) {
+        g.seedRoofForTest(wyrm);
+      });
+      await shoot('roof_bared', 'star_font', shore, (g) {
+        g.seedRoofForTest(wyrm);
+        g.roofBare.addAll([0, 1, 10, 19, 29, 30, 31]);
+      });
+      await shoot('roof_throat', 'star_font', shore, (g) {
+        g.seedRoofForTest(wyrm);
+        g.roofBare.addAll([0, 1, 10, 19, 29, 31, 30]);
+        g.roofThroat = 30;
+      });
+      await shoot('roof_awake', 'star_font', shore, (g) {
+        g.seedRoofForTest(wyrm);
+        g.roofBare.addAll([0, 1, 10, 19, 29, 31, 30]);
+        g.roofThroat = 30;
+        g.guardianAwake = true;
+      });
+
       // a road laid, a pillar up or down.
       const groups = [
         [
@@ -272,7 +319,6 @@ void main() {
           'head_open',
           'head_stair',
           'head_scoured',
-          'head_chute_spent',
         ],
         [
           'pool_dead',
@@ -281,7 +327,9 @@ void main() {
           'chart_forked',
           'chart_other_side',
           'chart_triumph',
+          'pool_stranger',
         ],
+        ['lens_rest', 'lens_turned'],
         [
           'orrery_bare',
           'orrery_road',
@@ -289,6 +337,7 @@ void main() {
           'orrery_preview_seats',
         ],
         ['hollow_down', 'hollow_standing'],
+        ['roof_snow', 'roof_bared', 'roof_throat', 'roof_awake'],
       ];
       for (final g in groups) {
         for (var i = 0; i < g.length; i++) {

@@ -64,14 +64,14 @@ void main() {
   ) async {
     await pumpPopup(tester, const [2]);
     // The three choice cards are on screen and tappable.
-    expect(find.text('25 Gold'), findsOneWidget);
-    expect(find.text('10 Powerups'), findsOneWidget);
-    expect(find.text('10 Fusion Extractors'), findsOneWidget);
+    expect(find.text('25 GOLD'), findsOneWidget);
+    expect(find.text('10 POWERUPS'), findsOneWidget);
+    expect(find.text('10 FUSION EXTRACTORS'), findsOneWidget);
     // Highlight then confirm a choice — still no layout exceptions.
-    await tester.tap(find.text('25 Gold'));
+    await tester.tap(find.text('25 GOLD'));
     await tester.pump(const Duration(milliseconds: 250));
     expect(tester.takeException(), isNull);
-    await tester.tap(find.text('25 Gold'));
+    await tester.tap(find.text('25 GOLD'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(tester.takeException(), isNull);
   });
@@ -153,25 +153,26 @@ void main() {
       expect(find.text('CHOOSE YOUR REWARD'), findsNothing);
     });
 
-    testWidgets('the three cards are one row, at one height', (tester) async {
-      // "10 Fusion Extractors" wraps and the other two titles do not, so the
-      // card contents used to sit at three different heights.
+    testWidgets('the three choices are one column of equal cards', (
+      tester,
+    ) async {
+      // The survival-surge layout: one card per choice, stacked, each the
+      // panel's full width, so a long title never has to wrap beside a short
+      // one.
       await pumpPopup(tester, const [2]);
-      final cards = tester
-          .widgetList<AnimatedContainer>(find.byType(AnimatedContainer))
-          .length;
-      expect(cards, greaterThanOrEqualTo(3));
       final boxes = [
-        for (final t in ['25 Gold', '10 Powerups', '10 Fusion Extractors'])
+        for (final t in ['25 GOLD', '10 POWERUPS', '10 FUSION EXTRACTORS'])
           tester.getRect(find.text(t)),
       ];
       for (final b in boxes.skip(1)) {
         expect(
-          (b.top - boxes.first.top).abs(),
+          (b.left - boxes.first.left).abs(),
           lessThan(1.0),
-          reason: 'card titles must start on the same line: $boxes',
+          reason: 'card titles share one left edge: $boxes',
         );
       }
+      expect(boxes[1].top, greaterThan(boxes[0].top));
+      expect(boxes[2].top, greaterThan(boxes[1].top));
     });
   });
 }

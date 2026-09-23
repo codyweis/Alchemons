@@ -707,7 +707,11 @@ class AbilityPreviewGame extends CosmicSurvivalGame {
   // ── Camera ──────────────────────────────────────────────────────────────
 
   @override
-  void cameraGesture({required Offset panDelta, required double scale}) {
+  void cameraGesture({
+    required Offset panDelta,
+    required double scale,
+    Offset? focalPoint,
+  }) {
     final zoom = (cameraGestureStartZoom * scale).clamp(
       cameraZoomMin,
       cameraZoomMax,

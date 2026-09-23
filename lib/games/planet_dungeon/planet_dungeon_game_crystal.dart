@@ -34,8 +34,12 @@
 //    from under it AND the keep upstairs shunts with it.
 //  • Vault — THE WAITING FACET, drawn in from its berth when the hollow comes
 //    to rest in the mouth cell (see `_tryBerthChain`).
-//  • Lost Maxim — KNOW THYSELF: stand all three bodies inside the split the
-//    Shard Hearth throws when it is standing in the lit row.
+//  • Lost Maxim — KNOW THYSELF: THE BLACK CELL, WEDGED. Ride the Black Cell
+//    into the one corner where both its doorways meet the frame — the jam
+//    the keep's whole valve exists to rescue you from — and its glass shows
+//    nothing but the three of you. The smallest body finds the flaw, Lightning
+//    runs it three times, and Crystal reads the three shapes. The anneal is
+//    the way back out, as it always was.
 //
 // PARITY, NOT STRANDING (the design's one real danger — see the layout
 // header and test/planet_dungeon_crystal_keep_test.dart). Because every slide
@@ -102,6 +106,14 @@ class PrismLabyrinth {
   /// The beat-edge the mystic's strike is detected on.
   bool bitLastFrame = false;
 
+  /// THE BLACK CELL (the Lost Maxim): the flaw found in its glass, and how
+  /// many times Lightning has run it. Per run, like every slide.
+  bool knowCrack = false;
+  int knowStrikes = 0;
+
+  /// Strikes it takes to craze the black glass clear.
+  static const int knowStrikesToClear = 3;
+
   void reset() {
     field.reset();
     clock = 0;
@@ -109,6 +121,8 @@ class PrismLabyrinth {
     shearFrom = Offset.zero;
     choirHollow = 8;
     bitLastFrame = false;
+    knowCrack = false;
+    knowStrikes = 0;
   }
 }
 
@@ -137,7 +151,6 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     prism.clock += dt;
     if (prism.shear > 0) prism.shear = max(0.0, prism.shear - dt);
     _checkKeepStars();
-    _checkKnowThyself(room);
     _updatePrismalith(room, dt);
   }
 
@@ -156,24 +169,131 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     }
   }
 
-  /// THE LOST MAXIM (§6 easter eggs #11) — KNOW THYSELF. The Shard Hearth is
-  /// the only chamber that SPLITS a beam rather than merely bending it, so the
-  /// split exists in exactly the arrangements Star 0 forbids. Stand all three
-  /// bodies in it at once and the keep throws back three shapes. No hint
-  /// anywhere teaches this.
-  void _checkKnowThyself(DungeonRoom room) {
-    if (discoveredClouds.contains(kCrystalKnowThyselfEgg)) return;
-    final cell = _cellOf(room);
-    if (cell == null || !kKeepBeamRow.contains(cell)) return;
-    final f = _keep;
-    if (!f.beamLive) return;
-    if (f.chamberAt(cell)?.id != 'hearth') return;
-    final live = creatures.where((c) => c.alive).toList();
-    if (live.length < 3) return;
-    for (final c in live) {
-      if (!kBeamBand.contains(c.position)) return;
+  // ── The Lost Maxim · KNOW THYSELF ────────────────────────
+  //
+  // THE BLACK CELL, WEDGED (2026-09-19; the §7 maxim standard, and Mud's
+  // lesson that the best place to hide a secret is the state your own stars
+  // punish).
+  //
+  // It used to be positional and one beat: stand all three bodies in the
+  // split the hearth throws, in an arrangement Star 0 forbids. No chain, and
+  // nothing anywhere taught it. It is a CHAIN now, and it lives in the one
+  // state this planet was built to rescue you from:
+  //
+  //   1. WEDGE YOURSELF. The Black Cell is cut on two faces, north and west.
+  //      Ride it into the north-west socket and both its doorways meet the
+  //      keep's own frame: a sealed glass box with you inside, the jam the
+  //      reachability search counted 7,404 times and the anneal exists for.
+  //      Nothing is pressed for this; inside, every wall is black glass and
+  //      the only thing in it is the three of you.
+  //   2. THE SMALLEST FINDS THE FLAW — the rite's own declared Pip gate, the
+  //      body that slips a crack, finds the hairline in the east face.
+  //   3. LIGHTNING RUNS IT, three strikes — the entry rite's verb, the one
+  //      hand in the party that cracks glass. The repeated beat; the glass
+  //      crazes further with each, and at the third it goes clear.
+  //   4. CRYSTAL READS THE GLASS — the mask's own job on this planet — and
+  //      the three shapes on the far wall resolve into one. The rite of three.
+  //
+  // Then the anneal, which rings you out onto the oriel: the way out of a
+  // wedge has always been the way out of a wedge. Nothing here asks for a
+  // family the riddle did not name, a wrong hand answers with a puff and a
+  // sentence, and the star path never passes it — no star wants a body in
+  // the Black Cell, least of all in a corner.
+
+  /// Every doorway of [chamber], standing in [cell], meets the outer frame:
+  /// no way in and no doorway out. (Not a strand — the plate you rode in on
+  /// rides you back, and the anneal is always there — but a sealed box.)
+  bool _chamberSealed(int cell, PrismChamber chamber) {
+    for (final facet in const [kFacetN, kFacetE, kFacetS, kFacetW]) {
+      if (!chamber.cut(facet)) continue;
+      if (keepNeighbourToward(cell, facet) >= 0) return false;
+    }
+    return true;
+  }
+
+  /// The party stands inside the Black Cell with both its doorways against
+  /// the frame.
+  bool get blackCellSealed {
+    final cell = _cellOf(currentRoom);
+    if (cell == null) return false;
+    final ch = _keep.chamberAt(cell);
+    return ch != null && ch.id == 'onyx' && _chamberSealed(cell, ch);
+  }
+
+  /// Inside the Black Cell: the flaw, the strikes, the reading.
+  bool _tryBlackCell(DungeonCreature a) {
+    final cell = _cellOf(currentRoom);
+    if (cell == null) return false;
+    final ch = _keep.chamberAt(cell);
+    if (ch == null || ch.id != 'onyx') return false;
+    if (discoveredClouds.contains(kCrystalKnowThyselfEgg)) return false;
+    if ((a.position - kChamberHeart).distance > _kKeepReach + 30) return false;
+    if (!_chamberSealed(cell, ch)) {
+      // WHAT is missing (§5.6): a doorway is still in this glass somewhere.
+      _setBlockedHint('One of this room\'s doorways still meets another');
+      return true;
+    }
+    final el = a.member.element;
+    // ── 2 · the flaw ──
+    if (!prism.knowCrack) {
+      if (abilityForFamily(a.member.family) != DungeonAbility.smallAccess) {
+        _spawnAlchemyBurst(
+          kChamberHeart,
+          producedElement: el,
+          particleCount: 8,
+          intensity: 0.5,
+        );
+        _setBlockedHint('Only a small creature can find the flaw');
+        return true;
+      }
+      prism.knowCrack = true;
+      _cue(SoundCue.dungeonInteract);
+      _spawnAlchemyBurst(
+        kChamberHeart,
+        producedElement: el,
+        particleCount: 14,
+        intensity: 0.7,
+      );
+      return true;
+    }
+    // ── 3 · three strikes ──
+    if (prism.knowStrikes < PrismLabyrinth.knowStrikesToClear) {
+      if (el != 'Lightning') {
+        _spawnAlchemyBurst(
+          kChamberHeart,
+          producedElement: el,
+          particleCount: 8,
+          intensity: 0.5,
+        );
+        _setBlockedHint('Something needs to run through this flaw');
+        return true;
+      }
+      prism.knowStrikes++;
+      _cue(SoundCue.elementLightning);
+      _spawnAlchemyBurst(
+        kChamberHeart,
+        producedElement: 'Crystal',
+        reagentElements: const ['Lightning'],
+        particleCount: 16 + prism.knowStrikes * 4,
+        intensity: 0.8 + prism.knowStrikes * 0.15,
+      );
+      return true;
+    }
+    // ── 4 · the reading ──
+    if (el != 'Crystal') {
+      _spawnAlchemyBurst(
+        kChamberHeart,
+        producedElement: el,
+        particleCount: 8,
+        intensity: 0.5,
+      );
+      _setBlockedHint(
+        'Three shapes in the glass. Only Crystal can read them',
+      );
+      return true;
     }
     // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    _cue(SoundCue.dungeonGateOpen);
     beginMaximRite(kCrystalKnowThyselfEgg, kChamberHeart);
     _spawnAlchemyBurst(
       kChamberHeart,
@@ -182,6 +302,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       particleCount: 42,
       intensity: 1.5,
     );
+    return true;
   }
 
   /// §7 — the guardian fights WITH the planet's rule. Prismalith stands over
@@ -204,7 +325,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       prism.bitLastFrame = false;
       _shuntChoirFloor();
       _keep.guardianShunt();
-      _setHint('Prismalith rings, the floor goes over, and the keep with it');
+      _cue(SoundCue.dungeonHazardTrigger);
+      // A closing announces itself (§5.7): this runs from update, where a
+      // plain line is dropped unasked, and the keep upstairs has just moved.
+      speakConsequence(
+        'Prismalith rings. The floor shifts, and the keep with it',
+      );
     }
   }
 
@@ -259,11 +385,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final to = layout.rooms[door.targetRoomId]?.prism?.cell?.index;
     if (from != null && to != null) {
       if (f.chamberAt(from) == null || f.chamberAt(to) == null) {
-        return 'This wall is not cut through';
+        return 'No doorway on this wall';
       }
-      return 'The glass does not meet here';
+      return 'The doorways on the two sides don\'t line up';
     }
-    return 'The keep stands shut on this arch';
+    return 'This arch is shut';
   }
 
   // ── Verbs ────────────────────────────────────────────────
@@ -280,6 +406,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         _tryBerthChain(a) ||
         _tryAnneal(a) ||
         _tryChoirPlate(a) ||
+        _tryBlackCell(a) ||
         _tryShunt(a);
   }
 
@@ -290,11 +417,13 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (face == null || entryDoorRevealed) return false;
     if ((a.position - face).distance > _kKeepReach) return false;
     if (a.member.element != 'Lightning') {
-      _setBlockedHint('Only Lightning cracks this sheet');
+      _setBlockedHint('Only Lightning can crack this glass');
       return true;
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
+    _cue(SoundCue.dungeonGateOpen);
+    _cue(SoundCue.elementLightning);
     _setHint('The face crazes open, a threshold, and a keep behind it');
     _spawnAlchemyBurst(
       face,
@@ -315,16 +444,17 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if ((a.position - kWestLamp).distance > _kKeepReach) return false;
     final f = _keep;
     if (f.lampLit) {
-      _setBlockedHint('The lamp is already burning');
+      _setBlockedHint('The lamp is already lit');
       return true;
     }
     final direct = a.member.element == 'Light';
     final braid = _keepBraidReady(a);
     if (!direct && !braid) {
-      _setBlockedHint('The lamp answers only Light');
+      _setBlockedHint('The lamp needs Light. Crystal and Spirit together can make it');
       return true;
     }
     f.lampLit = true;
+    _cue(SoundCue.elementLight);
     _setHint('The lamp takes, and a light lies down the middle of the keep');
     _spawnAlchemyBurst(
       kWestLamp,
@@ -370,6 +500,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       return true;
     }
     f.hearthKindled = true;
+    _cue(SoundCue.elementLightning);
     _setHint('The shard takes the strike and holds the heat', 3.4);
     _spawnAlchemyBurst(
       kChamberHeart,
@@ -390,17 +521,18 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if ((a.position - pos).distance > _kKeepReach) return false;
     if ((conduitEnergy['B'] ?? 0) > 0) return false;
     if (a.member.element != 'Crystal') {
-      _setBlockedHint('The font answers Crystal alone');
+      _setBlockedHint('Only Crystal can use the font');
       return true;
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The font refuses the offering, it answers only a bearer of the '
-        '${layout.starName(0)} and ${layout.starName(1)}',
+        'The font needs the ${layout.starName(0)} and '
+        '${layout.starName(1)} first',
       );
       return true;
     }
     conduitEnergy['B'] = double.infinity;
+    _cue(SoundCue.dungeonSwitch);
     _setHint('The font rings true and holds the note');
     _spawnAlchemyBurst(
       pos,
@@ -429,12 +561,13 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if ((a.position - kBerthChain).distance > _kKeepReach) return false;
     final f = _keep;
     if (a.member.element != 'Crystal') {
-      _setBlockedHint('The chain answers only Crystal');
+      _setBlockedHint('Only Crystal can pull the chain');
       return true;
     }
     if (f.facetStanding) {
       if (!f.withdrawFacet(cell)) return true;
-      _setHint('The facet slides out, and the hollow comes back in');
+      _cue(SoundCue.dungeonBlockMove);
+      speakConsequence('The facet slides out, and the empty slot is back');
       _spawnAlchemyBurst(
         kBerthChain,
         producedElement: 'Crystal',
@@ -444,12 +577,14 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       return true;
     }
     if (!f.canCallFacet(cell)) {
-      _setBlockedHint('The chain is slack, the berth has nowhere to send it');
+      _setBlockedHint('The chain is slack. The empty slot has to be here');
       return true;
     }
     f.callFacet(cell);
-    _setHint(
-      'Something comes in out of the east wall, and the keep sets solid',
+    _cue(SoundCue.dungeonBlockMove);
+    // A CONSEQUENCE (§5.7): the whole keep has just been set solid.
+    speakConsequence(
+      'A room slides in from the east wall and fills the keep',
       4.0,
     );
     _spawnAlchemyBurst(
@@ -474,12 +609,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kKeepReach) return false;
     if (a.member.element != 'Crystal') {
-      _setBlockedHint('Only Crystal rings this boss');
+      _setBlockedHint('Only Crystal can ring this boss');
       return true;
     }
     final f = _keep;
     if (cell == null && !f.hollowBerthed && _keepAtOpening) {
-      _setBlockedHint('The keep already stands as it opened');
+      _setBlockedHint('The keep is already in its starting layout');
       return true;
     }
     f.anneal();
@@ -490,8 +625,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     prism.shear = 0;
     prism.shearFrom = Offset.zero;
     _clearHints();
-    _setHint(
-      'The whole keep rings back to true, and puts you out of its face',
+    _cue(SoundCue.dungeonWallBreak);
+    // A closing announces itself (§5.7): every slide you made is gone.
+    speakConsequence(
+      'The keep resets to its starting layout, and you\'re back outside',
       4.2,
     );
     _spawnAlchemyBurst(
@@ -530,6 +667,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (guardianAwake && guardianVulnerable) return false;
     if (!keepNeighbours(prism.choirHollow).contains(standing)) return false;
     _slideChoirPlate(standing);
+    _cue(SoundCue.dungeonBlockMove);
     _spawnAlchemyBurst(
       a.position,
       producedElement: 'Crystal',
@@ -563,13 +701,13 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         return true;
       }
       if (f.facetStanding) {
-        _setBlockedHint('The keep is full, nothing has anywhere to go');
+        _setBlockedHint('The keep is full. Nothing can slide');
         return true;
       }
       if (inSocket) {
         if (f.chamberAt(target) == null) continue;
       } else if (f.hollowCell != target) {
-        _setBlockedHint('Glass on glass, there is nothing to give');
+        _setBlockedHint('That side isn\'t the empty slot');
         return true;
       }
       _rideShunt(inSocket ? target : cell, target, facet);
@@ -584,6 +722,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   void _rideShunt(int chamberCell, int target, int facet) {
     final f = _keep;
     if (f.shunt(chamberCell) < 0) return;
+    _cue(SoundCue.dungeonBlockMove);
     currentRoomId = kKeepCellRooms[target];
     prism.shear = _kKeepShearSeconds;
     prism.shearFrom = switch (facet) {
@@ -675,27 +814,27 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final f = _keep;
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The keep stands above you, and it does not stand still'
-          : 'The keep\'s face is one unbroken sheet';
+          ? 'The keep is above you. Its rooms slide around'
+          : 'The keep\'s entrance is sealed behind a sheet of glass';
     }
     if (room.prism?.facetFont != null) {
-      return 'The tuning hall waits on a crack and a font';
+      return 'The tuning hall. The rite needs the crack and the font';
     }
     if (room.guardian != null) {
-      return 'Prismalith stands on a floor with a piece missing';
+      return 'Prismalith\'s hall. The last star is here';
     }
     final cell = _cellOf(room);
     if (cell == null) return null;
     final chamber = f.chamberAt(cell);
-    if (chamber == null) return 'An empty socket, and the keep\'s works below';
-    if (chamber.id == 'waiting') return 'Something was kept in here';
+    if (chamber == null) return 'The empty slot. Rooms can slide into it';
+    if (chamber.id == 'waiting') return 'The waiting facet. Something is stored here';
     if (chamber.id == 'hearth' && !f.hearthKindled) {
-      return 'The hearth\'s shard is stone cold';
+      return 'The Shard Hearth. Its shard is cold';
     }
     if (cell == kKeepBeamRow.first && !f.lampLit) {
-      return 'The west lamp is out, and the rose has nothing to read';
+      return 'The west lamp is out, so no light reaches the rose';
     }
-    if (chamber.throne) return '${chamber.name} sits unserved';
+    if (chamber.throne) return '${chamber.name}, not yet facing the hearth';
     return null;
   }
 
@@ -706,6 +845,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       if (room.guardian != null) {
         _setAmbientHint('The choir holds its breath in nine pieces');
       }
+      return;
+    }
+    if (blackCellSealed) {
+      _setAmbientHint(
+        'Three of you on the far wall, and every one looking back',
+      );
       return;
     }
     switch ((prism.clock ~/ 17) % 3) {
@@ -727,60 +872,70 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final f = _keep;
     if (room.guardian != null) {
       _setInsightHint(switch (tier) {
-        0 => 'It is standing on something it does not want moved',
-        1 => 'Nothing reaches it through glass, only through the gap',
+        0 => 'Prismalith can only be hit over the gap in the floor',
+        1 => 'Slide the gap under Prismalith, then strike',
         _ =>
-          'Bring the gap under it and strike; it will ring the floor out '
-              'from under itself every time you land one',
+          'Slide the gap under it and strike. Each hit shifts the floor, so '
+              'move the gap back under it after every one',
       });
       return;
     }
     if (room.prism?.facetFont != null) {
       _setInsightHint(switch (tier) {
-        0 => 'Two notes, and the hall wants both',
-        1 => 'One is a crack too fine for a hand; the other is a font',
+        0 => 'The rite needs the crack and the font',
+        1 => 'The crack needs a small creature. The font needs Crystal',
         _ =>
-          'The crack takes only the smallest body in your party; the font '
-              'answers any Crystal, once both stars are yours',
+          'A Pip can work the crack. Any Crystal can use the font once you '
+              'have both stars',
       });
       return;
     }
     final cell = _cellOf(room);
+    if (cell != null &&
+        f.chamberAt(cell)?.id == 'onyx' &&
+        !discoveredClouds.contains(kCrystalKnowThyselfEgg)) {
+      // ONE OBLIQUE LINE and nothing after it (the §7 maxim standard). It
+      // does not tier and it does not track progress.
+      _setInsightHint(
+        'The black glass only shows whoever is inside it. Slide it to where '
+        'none of its doorways meet another, and look',
+      );
+      return;
+    }
     if (cell != null && kKeepBeamRow.contains(cell)) {
       _setInsightHint(switch (tier) {
-        0 => 'The rose was cut for one colour and it is not this one',
+        0 => 'The rose needs the light to arrive as one exact colour',
         1 =>
-          'A light only crosses glass that is cut on BOTH the west and the '
-              'east, and each one it crosses bends it further round',
+          'Light only passes rooms with doorways on both the west and east, '
+              'and each room it passes shifts its colour',
         _ =>
-          'Five of the eight let a light through, and their bends add: '
-              'the rose reads $kRoseHue, and exactly one set of three makes it. '
-              'The hearth is not in that set',
+          'Five rooms let light through and their shifts add up. The rose '
+              'wants $kRoseHue, and only one set of three makes it. The hearth '
+              'is not in that set',
       });
       return;
     }
     if (cell != null && f.chamberAt(cell)?.id == 'hearth') {
       _setInsightHint(switch (tier) {
-        0 => 'The thrones were cut to face a hearth',
-        1 => 'All three at once, and only the middle cell has faces enough',
+        0 => 'The three thrones need to face the hearth',
+        1 =>
+          'All three at once, and only the middle slot has enough sides for '
+              'that',
         _ =>
-          'Put the hearth in the middle and bring the crimson, the verdant '
-              'and the azure onto three open faces of it, and note what that '
-              'costs the rose',
+          'Put the hearth in the middle slot, then slide the crimson, verdant '
+              'and azure thrones against three of its open doorways',
       });
       return;
     }
     // Anywhere in the keep, insight reads the RULE — which is the planet.
     _setInsightHint(switch (tier) {
-      0 => 'The keep is nine sockets and eight rooms. One socket is empty',
+      0 => 'Nine slots, eight rooms, one empty slot',
       1 =>
-        'A room only goes where the hollow is, and it takes you with it. '
-            'A doorway is only a doorway when the glass on both sides agrees',
+        'A room can only slide into the empty slot, and you ride with it. '
+            'You can only walk through where both rooms have a doorway',
       _ =>
-        'Every slide is undone by sliding back, so nothing here is lost'
-            'but half of all the ways these rooms could lie, they never will. '
-            'The frame rings back to true from any boss, at the price of every '
-            'slide you made',
+        'Any slide can be undone by sliding back. If you get stuck, Crystal '
+            'can ring any tuning boss to reset the keep',
     });
   }
 
@@ -890,6 +1045,9 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         canvas.translate(dx, dy);
       }
       _renderChamber(canvas, room, cell, chamber);
+      if (chamber.id == 'onyx' && _chamberSealed(cell, chamber)) {
+        _renderBlackCellMirror(canvas, room);
+      }
       canvas.restore();
       if (prism.shear > 0) _renderShearEdge(canvas, room);
       // The seam belongs to the SOCKET, so it is drawn after the restore and
@@ -899,6 +1057,75 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
 
     _renderCellFrame(canvas, room, cell);
     _renderIndexPlate(canvas, cell);
+  }
+
+  /// THE BLACK CELL, WEDGED: black glass on every wall and nothing in it but
+  /// the party — each body thrown back off the east and the south faces, a
+  /// moment late. The flaw, once found, is a hairline in the east face; each
+  /// strike crazes it further, and at the third the black goes clear.
+  void _renderBlackCellMirror(Canvas canvas, DungeonRoom room) {
+    final inner = room.bounds.deflate(16);
+    final struck = prism.knowStrikes;
+    final clear = struck >= PrismLabyrinth.knowStrikesToClear;
+    final found = discoveredClouds.contains(kCrystalKnowThyselfEgg);
+    canvas.drawRect(
+      inner,
+      Paint()
+        ..color = _keepVoid.withValues(alpha: clear || found ? 0.18 : 0.46),
+    );
+    // Reflections: off the east face and off the south face, a beat behind.
+    for (final c in creatures) {
+      if (!c.alive) continue;
+      final p = c.position;
+      final east = Offset(2 * inner.right - p.dx - 12, p.dy);
+      final south = Offset(p.dx, 2 * inner.bottom - p.dy - 12);
+      for (final r in [east, south]) {
+        if (!inner.inflate(30).contains(r)) continue;
+        canvas.drawCircle(
+          r,
+          11,
+          Paint()..color = _keepVoid.withValues(alpha: 0.85),
+        );
+        canvas.drawCircle(
+          r,
+          11,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = _keepSheen.withValues(alpha: clear ? 0.8 : 0.55),
+        );
+        // The eye of it, looking back.
+        canvas.drawCircle(
+          r,
+          3.5,
+          Paint()..color = _keepSheen.withValues(alpha: clear ? 0.9 : 0.6),
+        );
+      }
+    }
+    if (!prism.knowCrack && !found) return;
+    // The flaw, and the craze that runs out of it with every strike.
+    final flaw = Offset(inner.right, inner.center.dy - 10);
+    canvas.drawLine(
+      flaw,
+      flaw + const Offset(-34, 14),
+      Paint()
+        ..strokeWidth = 1.2
+        ..color = Colors.white.withValues(alpha: 0.7),
+    );
+    final n = found ? PrismLabyrinth.knowStrikesToClear : struck;
+    for (var k = 0; k < n; k++) {
+      for (var i = 0; i < 4; i++) {
+        final a = pi + (i - 1.5) * 0.35 + k * 0.18;
+        final len = 60.0 + k * 55 + i * 9;
+        canvas.drawLine(
+          flaw,
+          flaw + Offset(cos(a) * len, sin(a) * len),
+          Paint()
+            ..strokeWidth = 1.0
+            ..color = _keepSheen.withValues(alpha: 0.45),
+        );
+      }
+    }
   }
 
   /// THE SOCKET BED — what a room-sized slab of glass is actually shoved
