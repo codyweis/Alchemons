@@ -43,7 +43,8 @@
 //     heap's weight presses the old lintels down and cracks the party wall
 //     open in the undercity below (see THE VAULT TRICK).
 //
-// DIGGING is one atomic transfer: a mound at 1 goes to 0 and a neighbour of
+// DIGGING (Dust's own hand — the city is Dust's to dig; Air+Earth stand in
+// only while Dust is down) is one atomic transfer: a mound at 1 goes to 0 and a neighbour of
 // your choosing goes from ≤1 to +1. So **every dig bares one thing and buries
 // another, and costs you two street crossings to gain one cellar.** A bared
 // mound can never be re-heaped by hand and a drifted mound is packed too hard
@@ -51,11 +52,15 @@
 // and Mud's hardening are.
 //
 // THE STRATEGIC QUESTION (§5.5): *conservation — uncovering one thing buries
-// another.* The sharpest instance is authored on purpose: the observatory's
-// roof is the street's only bridge to the court, and the spoil that comes off
-// it must land either on the roof bump (which cracks the vault open below) or
-// on the agora (which raises the ramp to the terrace). One spadeful, three
-// consequences, and you commit before you have seen the far side.
+// another.* The sharpest instance is Star 1: the armillary needs TWO squares
+// bared at once — the observatory's roof and the kiln square its sighting
+// tube opens onto ([kArmillarySights]). Two spoils, and only the agora and the
+// bump have room; throw the kiln's onto the agora and the roof can no longer
+// be reached, throw the roof's onto the bump and the terrace cannot. One
+// assignment works, it must be planned before the first spadeful, and it
+// leaves both streets to the court cut — so the sirocco is part of the way
+// on. (Until 2026-09-23 the star needed the roof alone: nine end ledgers,
+// one spadeful thrown either way, no plan.)
 //
 // THE VAULT TRICK (§5.5): the SUNKEN HOUSE. It is *a fully buried building
 // visible only as a roof bump on the streets* — no door, no marker, just a
@@ -230,6 +235,14 @@ const List<DustMound> kDustMounds = [
   ),
 ];
 
+/// THE ARMILLARY'S TWO SIGHTS (Star 1). The instrument reads the sky
+/// overhead through the observatory's roof, and the zenith down a bronze
+/// SIGHTING TUBE whose top opens on the kiln square up on the terrace. Both
+/// squares must be BARED at once. Each dig's spoil needs a home, the agora
+/// and the bump are the only two with room, and only one assignment leaves a
+/// road to the other dig — see `_tryArmillary`.
+const List<String> kArmillarySights = ['m_roof', 'm_kiln'];
+
 /// The mound with this id, or null.
 DustMound? dustMoundById(String id) {
   for (final m in kDustMounds) {
@@ -366,6 +379,26 @@ const DriftField kSealYard = DriftField(
   art: ['^S^^.', 'S#..^', '^S^^.'],
 );
 
+/// The yard as it lies once the Seal Star is won — one of the solved ledgers
+/// the search reaches (pinned in `test/planet_dungeon_dust_seals_test.dart`).
+/// A banked star keeps its seals bare: a new run opens on this, and the
+/// sirocco puts the yard back to it rather than re-burying the bronzes
+/// (Mud's lesson — what a won star DID stays done).
+/// Same codes as [DriftField.art]; `o` marks each bared seal.
+const List<String> kSealYardWonArt = ['^o^^^', 'o#^.^', '^o^^^'];
+
+/// [kSealYardWonArt] as a row-major ledger (-1 at pillars).
+List<int> get sealYardWonLoads => [
+  for (final row in kSealYardWonArt)
+    for (final ch in row.split(''))
+      switch (ch) {
+        '#' => -1,
+        '^' => 2,
+        'o' => 0,
+        _ => 1,
+      },
+];
+
 // ─────────────────────────────────────────────────────────
 // STAR 2 — ASHDJINN'S EXCAVATION
 // ─────────────────────────────────────────────────────────
@@ -427,7 +460,16 @@ class RuinsOfTime {
   String? armedVaneRoom;
   double armedVaneTimer = 0;
 
-  /// The city as its dead left it: every mound buried, the yard as authored.
+  /// The Seal Star is banked: the yard's resting state is its SOLVED ledger,
+  /// not the authored one. Set by the game from the star mask.
+  bool sealsKept = false;
+
+  /// Where the yard rests — what a new run opens on and what the sirocco
+  /// restores. Both ledgers hold the same loads, so conservation is untouched.
+  List<int> get yardBaseline =>
+      sealsKept ? sealYardWonLoads : kSealYard.openingLoads;
+
+  /// The city as its dead left it: every mound buried, the yard at rest.
   void reset() {
     mound.clear();
     for (final m in kDustMounds) {
@@ -435,7 +477,7 @@ class RuinsOfTime {
     }
     drift
       ..clear()
-      ..addAll(kSealYard.openingLoads);
+      ..addAll(yardBaseline);
     hollowPit = 0;
     hollowBank = kHollowLoads;
     spoilFrom.clear();
@@ -575,9 +617,9 @@ class RuinsOfTime {
     for (final m in kDustMounds) {
       if (loadsOn(m.id) != 1) return false;
     }
-    final opening = kSealYard.openingLoads;
+    final rest = yardBaseline;
     for (var i = 0; i < drift.length; i++) {
-      if (drift[i] != opening[i]) return false;
+      if (drift[i] != rest[i]) return false;
     }
     return true;
   }
@@ -591,9 +633,9 @@ class RuinsOfTime {
     for (final m in kDustMounds) {
       mound[m.id] = 1;
     }
-    final opening = kSealYard.openingLoads;
+    final rest = yardBaseline;
     for (var i = 0; i < drift.length; i++) {
-      drift[i] = opening[i];
+      drift[i] = rest[i];
     }
     spoilFrom.clear();
     armedVaneRoom = null;
@@ -628,6 +670,10 @@ class DustRuins {
   /// Star 1: the great armillary on its island, across the roofless span.
   final Offset? armillary;
 
+  /// Star 1's second sight: the mouth of the bronze sighting tube that runs
+  /// up to the kiln square (see [kArmillarySights]).
+  final Offset? sightTube;
+
   /// The rite's second half: the hourglass court's great glass (element-only
   /// Dust; latches conduit 'B').
   final Offset? glassCourt;
@@ -650,6 +696,7 @@ class DustRuins {
     this.windVane,
     this.gateSilt,
     this.armillary,
+    this.sightTube,
     this.glassCourt,
     this.hollowCut,
     this.tallyPits,
@@ -671,8 +718,7 @@ const DungeonLayout dustLayout = DungeonLayout(
   stars: [
     DungeonStarSpec(
       name: 'Seal Star',
-      earnAnnouncement:
-          'The Seal Star is yours. All three seals are uncovered',
+      earnAnnouncement: 'The Seal Star is yours. All three seals are uncovered',
     ),
     DungeonStarSpec(
       name: 'Armillary Star',
@@ -685,11 +731,16 @@ const DungeonLayout dustLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('ashen_gate', 'seal_street'),
   finaleDoor: DungeonDoorRef('sand_court', 'ashdjinn_hollow'),
   riteAnnouncement:
-      'Seal and Armillary are won. The great glass in the court comes loose',
+      'Seal and Armillary are won. The great glass in the Hourglass Court '
+      'can be turned now',
   finaleSealedHint:
       'The court stays shut until you have the Seal and Armillary stars',
   guardianSealedHint:
-      'Ashdjinn won\'t wake until the great glass is turned',
+      'Ashdjinn won\'t wake until the false wall is broken and the great '
+      'glass is turned',
+  riteWakeLine:
+      'The wall is down and the glass is running. Ashdjinn is awake in the '
+      'hollow',
   mercyShrineRoomId: 'undercity',
   // Ideal: Dustmask · Airwing · Earthhorn — hinted by VERB, never body part
   // (§4): the sight that reads ash, the one the ground cannot keep, and the
@@ -714,13 +765,13 @@ const DungeonLayout dustLayout = DungeonLayout(
       objectId: 'armillary',
       element: kAnyElement,
       family: 'Wing',
-      hintLine: 'Only an Air Wing can fly across this gap',
+      hintLine: 'Only a Wing can fly across this gap',
     ),
     DungeonFamilyGate(
       objectId: 'A',
       element: kAnyElement,
       family: 'Horn',
-      hintLine: 'Only an Earth Horn can break through this wall',
+      hintLine: 'Only a Horn can break through this wall',
     ),
   ],
   rooms: {
@@ -982,10 +1033,11 @@ const DungeonLayout dustLayout = DungeonLayout(
     // ── EXCAVATION · THE OBSERVATORY (Star 1) ─────────────
     // The prize under the roof walk. The armillary stands on an island inside
     // a ROOFLESS SPAN — the instrument moat — which is why the star is the
-    // planet's Air+WING gate (§6: "Airwing can cross what the dig destroyed").
-    // It reads nothing while the roof is on: the sky only comes down through
-    // the hole you made, so Star 1 needs m_roof BARED, and baring it deletes
-    // the street's only bridge to the court. That is the whole star.
+    // planet's WING gate (§6: "Airwing can cross what the dig destroyed").
+    // It reads nothing until it has the sky twice: overhead through the roof,
+    // and down the bronze sighting tube in the east wall, whose top opens on
+    // the kiln square (its tag carries the kiln's survey mark). See
+    // [kArmillarySights] and the header's STRATEGIC QUESTION.
     'observatory': DungeonRoom(
       id: 'observatory',
       bounds: Rect.fromLTWH(0, 0, 880, 560),
@@ -1009,7 +1061,11 @@ const DungeonLayout dustLayout = DungeonLayout(
           targetSpawn: Offset(475, 130),
         ),
       ],
-      ruins: DustRuins(starIndex: 1, armillary: Offset(440, 300)),
+      ruins: DustRuins(
+        starIndex: 1,
+        armillary: Offset(440, 300),
+        sightTube: Offset(700, 190),
+      ),
     ),
 
     // ── EXCAVATION · THE KILN CELLAR ──────────────────────

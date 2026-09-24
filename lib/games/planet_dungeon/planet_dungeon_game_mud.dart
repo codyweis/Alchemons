@@ -1655,6 +1655,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
   }
 
   void _renderBog(Canvas canvas, DungeonRoom room) {
+    _renderBogShell(canvas, room);
+    _renderGlassDoorPlugs(canvas, room);
     _renderFordHeads(canvas, room);
     _renderPlankRoad(canvas, room);
     _renderKnollFurniture(canvas, room);
@@ -2259,7 +2261,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
         // Better than half of the floor is gone under silt. A dense, even
         // course of identical slabs is a BRICK WALL laid flat, which is what
         // the first cut of this looked like.
-        if (rnd() < 0.58) continue;
+        if (rnd() < 0.72) continue;
         final c = Offset(x + fw / 2, y + fh / 2);
         final tilt = (rnd() - 0.5) * 0.22;
         final sx = fw * (0.62 + rnd() * 0.5);
@@ -2366,11 +2368,35 @@ extension SinkingAltarFen on PlanetDungeonGame {
       canvas.restore();
     }
 
-    for (final f in g.flags) {
+    // SUNK FLAGS, carved and not drawn: each slab lies proud of the silt
+    // with its shadow under it and the light on its upper lip, so the fane's
+    // floor reads as a pavement going under rather than a field of flat
+    // rectangles (§7.11 — decoration is carved, never glazed).
+    for (var i = 0; i < g.flags.length; i++) {
+      final f = g.flags[i];
+      canvas.drawPath(
+        f.shift(const Offset(0, 5)),
+        Paint()..color = Colors.black.withValues(alpha: 0.30),
+      );
       canvas.drawPath(
         f,
-        Paint()..color = const Color(0xFF2B2C28).withValues(alpha: 0.55),
+        Paint()
+          ..color = Color.lerp(
+            const Color(0xFF2B2A24),
+            const Color(0xFF34322A),
+            (i * 37 % 10) / 10,
+          )!.withValues(alpha: 0.62),
       );
+      canvas.save();
+      canvas.clipPath(f);
+      canvas.drawPath(
+        f.shift(const Offset(0, 3)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = const Color(0xFF6A6450).withValues(alpha: 0.22),
+      );
+      canvas.restore();
       canvas.drawPath(
         f,
         Paint()
@@ -2379,6 +2405,12 @@ extension SinkingAltarFen on PlanetDungeonGame {
           ..color = const Color(0xFF07090A).withValues(alpha: 0.8),
       );
     }
+    // …and the silt closes back over them, so the pavement lies UNDER the
+    // water and the things standing on it stay the brightest thing here.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(34)),
+      Paint()..color = const Color(0xFF0B0E10).withValues(alpha: 0.28),
+    );
 
     for (var i = 0; i < g.drums.length; i++) {
       final c = g.drums[i];
@@ -3043,11 +3075,20 @@ extension SinkingAltarFen on PlanetDungeonGame {
         ..strokeWidth = 1.1
         ..color = const Color(0xFF5E5B52),
     );
-    // The watercourse's mark, cut into the face and picked out in its ink.
+    // The watercourse's mark, in a rondel of its own coloured glass set into
+    // the face — the one fact the planet's rule turns on, lit (§7.11).
+    paintRondel(
+      canvas,
+      at.translate(0, -2),
+      9,
+      _kPeatGlass,
+      fill: Color.lerp(ink, const Color(0xFF14120E), 0.55),
+      lead: 2.2,
+    );
     _drawSloughMark(
       canvas,
       at.translate(0, -2),
-      ink,
+      Color.lerp(ink, Colors.white, 0.35)!,
       kSloughOrder[ford.slough] ?? 0,
     );
     // …and the notches: how far down this water the crossing lies.
@@ -3299,6 +3340,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
             ..color = _fenPeat.withValues(alpha: 0.85),
         );
     }
+    _drawFordGlass(canvas, ford, at, norm);
   }
 
   void _renderKnollFurniture(Canvas canvas, DungeonRoom room) {
@@ -3443,26 +3485,9 @@ extension SinkingAltarFen on PlanetDungeonGame {
     final bowl = Rect.fromCenter(center: basin, width: 66, height: 24);
     canvas.drawOval(bowl, Paint()..color = _fenPeat.withValues(alpha: 0.95));
     canvas.drawOval(bowl.deflate(3), Paint()..color = const Color(0xFF17140F));
+    // The offering, as glass: the sky in still water, or a smoked bowl.
+    _drawOfferingGlass(canvas, bowl.deflate(5), holding: holding);
     if (holding) {
-      // Still water, right to the rim, and the sky in it.
-      canvas.drawOval(
-        bowl.deflate(5),
-        Paint()..color = const Color(0xFF2E4A4E),
-      );
-      canvas.drawOval(
-        bowl.deflate(5),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = _fenSheen.withValues(alpha: 0.5),
-      );
-      canvas.drawLine(
-        Offset(basin.dx - 14, basin.dy - 1),
-        Offset(basin.dx + 10, basin.dy - 2),
-        Paint()
-          ..strokeWidth = 1.4
-          ..color = _fenSheen.withValues(alpha: 0.35),
-      );
     } else if (!dryFooted) {
       // SODDEN GROUND DRINKS IT. A shallow lick of water in the bottom and
       // a bead running out under the plinth — the bowl is losing it.
@@ -3781,10 +3806,19 @@ extension SinkingAltarFen on PlanetDungeonGame {
     // seed going under as it thickens. This is the only readout the secret
     // has, and it is the thing itself.
     final k = bog.sinkThickness;
-    canvas.drawOval(
-      Rect.fromCenter(center: sink.translate(0, 5), width: 130, height: 74),
-      Paint()..color = _fenPeat.withValues(alpha: 0.9),
-    );
+    // A cutters' well-head: a collar of set stones round the pit, so the one
+    // readout this secret has sits in something made (§7.11).
+    paintCarvedDisc(canvas, sink, 70, 40, 8, _kPeatGlass);
+    for (var j = 0; j < 12; j++) {
+      final a = j / 12 * 2 * pi;
+      canvas.drawLine(
+        sink + Offset(cos(a) * 60, sin(a) * 33),
+        sink + Offset(cos(a) * 70, sin(a) * 40),
+        Paint()
+          ..strokeWidth = 1.4
+          ..color = _kPeatGlass.joint.withValues(alpha: 0.8),
+      );
+    }
     canvas.drawOval(
       Rect.fromCenter(center: sink, width: 116, height: 62),
       Paint()
@@ -3825,21 +3859,9 @@ extension SinkingAltarFen on PlanetDungeonGame {
         );
       }
     }
-    if (discoveredClouds.contains(kMudNoLotusEggId)) {
-      // It came up anyway.
-      for (var i = 0; i < 8; i++) {
-        final a = i / 8 * pi * 2;
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: sink + Offset(cos(a) * 20, sin(a) * 11),
-            width: 26,
-            height: 13,
-          ),
-          Paint()..color = const Color(0xFFF2D7E6).withValues(alpha: 0.75),
-        );
-      }
-      canvas.drawCircle(sink, 9, Paint()..color = const Color(0xFFF7E9A8));
-    }
+    // It came up anyway — a lotus of leaded glass, opening as the rite binds
+    // and open for good (planet_dungeon_game_mud_art.dart).
+    _drawGlassLotus(canvas, sink);
   }
 
   /// The sarsen — the fen's fallen standing stone. Lying in the silt where it

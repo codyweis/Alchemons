@@ -132,6 +132,11 @@ class MoltenWorks {
   double spoil = 0;
   Offset spoilAt = Offset.zero;
 
+  /// The Black Glass as SHOWN: 0 → 1 as it sets in the slag pit (docs §7.11,
+  /// the maxim leaves a mark). Negative = not seen yet, so a mirror found on
+  /// an earlier descent is simply there rather than setting again.
+  double blackGlass = -1;
+
   /// Whether the die's first stamp has been explained. The hit, the steam and
   /// the colour change carry every one after it — saying it again each time a
   /// charge passes is the chatter §5.6 exists to stop.
@@ -161,6 +166,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     if (!_isFoundry) return;
     final w = works;
     w.clock += dt;
+    _updateWorksGlass(dt);
     if (w.firedamp > 0) w.firedamp = max(0.0, w.firedamp - dt);
     if (w.headCool > 0) w.headCool -= dt;
     if (w.flash > 0) w.flash = max(0.0, w.flash - dt * 1.6);
@@ -1088,9 +1094,10 @@ extension MoltenReliquary on PlanetDungeonGame {
   // rule) and nothing off-screen is drawn at all.
 
   void _renderFoundry(Canvas canvas, DungeonRoom room) {
-    _renderWorksFloor(canvas, room);
+    _renderWorksFabric(canvas, room);
+    _renderGlassDoorPlugs(canvas, room);
     _renderChannels(canvas, room);
-    _renderWorksBridges(canvas, room);
+    _renderWorksOver(canvas, room);
     _renderCastings(canvas, room);
     _renderFixtures(canvas, room);
     _renderPourBead(canvas, room);
@@ -1107,217 +1114,6 @@ extension MoltenReliquary on PlanetDungeonGame {
       _renderWorksStar(canvas, spot.position);
     }
     _renderTapBeacon(canvas, room);
-  }
-
-  /// A CRUST WITH SOMETHING UNDER IT. The floor of this works is not a floor
-  /// that was laid — it is the top of a flow that stopped, and it has not
-  /// finished cooling. Black basalt, split by a network of fissures with heat
-  /// still in them, breathing.
-  ///
-  /// It has been wrong twice, the same way both times. First a 96px ruled
-  /// GRID; then cast-iron plates in running bond, which was better material
-  /// and still a lattice — reported from play as *"too tiley"*, and the note
-  /// that matters with it: **it needs to look dangerous.** Regular anything
-  /// reads as safe, because regularity is what people build. A room you are
-  /// meant to be careful in cannot be tiled.
-  void _renderWorksFloor(Canvas canvas, DungeonRoom room) {
-    final b = room.bounds;
-    // Heat from below: the ground is darkest where it is thickest, and the
-    // glow rises toward the bottom of the room where the flow is shallow.
-    canvas.drawRect(
-      b,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          b.topCenter,
-          b.bottomCenter,
-          const [Color(0xFF0A0907), Color(0xFF16100C), Color(0xFF241410)],
-          const [0.0, 0.55, 1.0],
-        ),
-    );
-
-    // Deterministic per room, so nothing crawls between frames.
-    var seed = room.id.codeUnits.fold<int>(97, (a, c) => (a * 131 + c) % 65521);
-    double rnd() {
-      seed = (seed * 1103515245 + 12345) % 2147483648;
-      return seed / 2147483648;
-    }
-
-    final pulse = 0.5 + 0.5 * sin(works.clock * 0.8);
-
-    // COOLED PLATES OF CRUST — irregular polygons, not tiles. Each is a
-    // slightly different black, and none of them share an edge direction.
-    for (var i = 0; i < 26; i++) {
-      final cx = b.left + rnd() * b.width;
-      final cy = b.top + rnd() * b.height;
-      final rx = 70 + rnd() * 130;
-      final ry = 50 + rnd() * 90;
-      final rot = rnd() * pi;
-      final sides = 5 + (rnd() * 3).floor();
-      final path = Path();
-      for (var k = 0; k <= sides; k++) {
-        final a = rot + k * 2 * pi / sides;
-        final wob = 0.72 + rnd() * 0.5;
-        final pt = Offset(cx + cos(a) * rx * wob, cy + sin(a) * ry * wob);
-        k == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
-      }
-      path.close();
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = Color.lerp(
-            const Color(0xFF15120F),
-            const Color(0xFF0B0A09),
-            rnd(),
-          )!,
-      );
-    }
-
-    // THE FISSURES. Wandering cracks with heat in them — parted dark
-    // shoulders, a bright seam, each breathing on its own phase.
-    //
-    // The first cut of these ran nearly straight and nearly as long as the
-    // room, which came out as a game of pick-up-sticks: rock does not split
-    // in straight lines that long. They meander now, over more and shorter
-    // steps, and the big ones throw off branches, because a crack that
-    // forks is the difference between a fissure and a scratch.
-    void crack(Offset from, double len, double angle, double heat, int idx) {
-      final steps = 7;
-      var at = from;
-      var a = angle;
-      final pts = <Offset>[at];
-      for (var k = 0; k < steps; k++) {
-        a += (rnd() - 0.5) * 0.8; // it wanders as it goes
-        at = at + Offset(cos(a), sin(a)) * (len / steps);
-        pts.add(at);
-      }
-      final breath = 0.55 + 0.45 * sin(works.clock * (0.5 + heat) + idx * 1.3);
-      final path = Path()..moveTo(pts.first.dx, pts.first.dy);
-      for (final pt in pts.skip(1)) {
-        path.lineTo(pt.dx, pt.dy);
-      }
-      // Thin and mostly DEAD. Uniformly thick, uniformly bright cracks
-      // read as painted worms; a crust is mostly cold, and what makes the
-      // hot ones frightening is that they are the exception.
-      final w = 1.6 + 4.2 * heat * heat;
-      // The parted shoulders.
-      canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = w + 4
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..color = const Color(0xFF070605).withValues(alpha: 0.9),
-      );
-      // The bloom, faked with a wide low-alpha pass — no blur filter, which
-      // is this repo's main source of per-frame jank.
-      canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = w + 7
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..color = _worksEdge.withValues(alpha: 0.05 + 0.09 * heat * breath),
-      );
-      canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = w
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..color = Color.lerp(
-            const Color(0xFF3A1304),
-            _worksEdge,
-            heat * heat * breath,
-          )!.withValues(alpha: 0.42 + 0.42 * heat),
-      );
-      if (heat > 0.55) {
-        canvas.drawPath(
-          path,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..strokeCap = StrokeCap.round
-            ..color = Color.lerp(
-              _worksEdge,
-              _worksCore,
-              0.5 * breath,
-            )!.withValues(alpha: 0.45 * heat),
-        );
-      }
-      // A branch off the middle of the bigger ones.
-      if (len > 120 && idx % 3 != 2) {
-        // Recurses exactly one level: a branch is 0.45 of its parent and
-        // the longest parent is 200, so the child is always under the 120
-        // that gates this.
-        crack(
-          pts[3],
-          len * 0.45,
-          a + (rnd() < 0.5 ? 1.1 : -1.1),
-          heat * 0.7,
-          idx + 41,
-        );
-      }
-    }
-
-    for (var i = 0; i < 34; i++) {
-      crack(
-        Offset(b.left + rnd() * b.width, b.top + rnd() * b.height),
-        70 + rnd() * 130,
-        rnd() * 2 * pi,
-        // Skewed low: a few fissures carry real heat and most are scars.
-        pow(rnd(), 1.7).toDouble(),
-        i,
-      );
-    }
-
-    // ASH AND CINDER on top of it all, so the crust is not clean.
-    for (var i = 0; i < 30; i++) {
-      final at = Offset(b.left + rnd() * b.width, b.top + rnd() * b.height);
-      canvas.drawCircle(
-        at,
-        2.0 + rnd() * 5,
-        Paint()
-          ..color = const Color(
-            0xFF2A241E,
-          ).withValues(alpha: 0.35 + rnd() * 0.3),
-      );
-    }
-
-    // The runs are hotter than anything around them, and the ground knows.
-    for (final ch in works.line.line.channelsIn(room.id)) {
-      for (final seg in ch.segments) {
-        if (seg.roomId != room.id) continue;
-        canvas.drawRect(
-          seg.rect.inflate(34),
-          Paint()..color = const Color(0xFF491A08).withValues(alpha: 0.18),
-        );
-        canvas.drawRect(
-          seg.rect.inflate(15),
-          Paint()..color = const Color(0xFF5E2109).withValues(alpha: 0.22),
-        );
-      }
-    }
-
-    // EMBERS drifting up off the crust. A handful, cheap, and the thing that
-    // makes a still image of this floor read as a place that is still burning.
-    for (var i = 0; i < 16; i++) {
-      final ex = b.left + rnd() * b.width;
-      final base = b.top + rnd() * b.height;
-      final t = ((works.clock * (0.10 + 0.06 * (i % 4)) + i / 16) % 1.0);
-      canvas.drawCircle(
-        Offset(ex + sin(t * 5 + i) * 9, base - 54 * t),
-        1.6 + 1.4 * (1 - t),
-        Paint()
-          ..color = Color.lerp(
-            _worksCore,
-            _worksEdge,
-            t,
-          )!.withValues(alpha: 0.42 * (1 - t) * pulse),
-      );
-    }
   }
 
   /// THE WARD PLATE. A lock on the door that answers to a key.
@@ -1360,29 +1156,8 @@ extension MoltenReliquary on PlanetDungeonGame {
         Rect.fromCenter(center: at, width: 30, height: 36),
         inset: 5,
       );
-      // The keyhole: a round ward over a bit-slot — the shape of the key.
-      canvas.drawCircle(
-        at - const Offset(0, 4),
-        6,
-        Paint()..color = const Color(0xFF0B0D10),
-      );
-      canvas.drawPath(
-        Path()
-          ..moveTo(at.dx - 3.4, at.dy - 1)
-          ..lineTo(at.dx + 3.4, at.dy - 1)
-          ..lineTo(at.dx + 2.2, at.dy + 9)
-          ..lineTo(at.dx - 2.2, at.dy + 9)
-          ..close(),
-        Paint()..color = const Color(0xFF0B0D10),
-      );
-      canvas.drawCircle(
-        at - const Offset(0, 4),
-        6,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.8
-          ..color = tint,
-      );
+      // The keyhole, in glass — the shape of the key.
+      _drawWardGlass(canvas, at, turned: turned, holding: holding);
       if (turned) {
         // Thrown: the bolt is back, and it stays visibly back.
         canvas.drawLine(
@@ -1703,59 +1478,6 @@ extension MoltenReliquary on PlanetDungeonGame {
     }
   }
 
-  /// THE WALKWAYS. A plate laid over a runner, with handrails, so the party
-  /// crosses where the works meant them to.
-  ///
-  /// These are why the line can be laid out honestly at all. Without them a
-  /// channel is an absolute wall and every arm that reaches a wall fences off
-  /// part of it — which is what made the switch yard's fork unreadable
-  /// through three separate re-plumbings, each one trading one confusion for
-  /// another. With a crossing, the junction can sit in the MIDDLE of the room
-  /// and each arm can run to the wall its own door is in. Signs were the
-  /// wrong answer to that; this is the right one.
-  void _renderWorksBridges(Canvas canvas, DungeonRoom room) {
-    for (final b in works.line.line.bridgesIn(room.id)) {
-      final r = b.rect;
-      final acrossX = r.width >= r.height;
-      // The deck.
-      _ironPlate(canvas, r, radius: 2);
-      final grate = Paint()
-        ..strokeWidth = 2
-        ..color = const Color(0xFF10141A).withValues(alpha: 0.7);
-      if (acrossX) {
-        for (var x = r.left + 7; x < r.right - 4; x += 9) {
-          canvas.drawLine(Offset(x, r.top + 4), Offset(x, r.bottom - 4), grate);
-        }
-      } else {
-        for (var y = r.top + 7; y < r.bottom - 4; y += 9) {
-          canvas.drawLine(Offset(r.left + 4, y), Offset(r.right - 4, y), grate);
-        }
-      }
-      // Handrails down the two long sides — the thing that says WALK HERE
-      // rather than "a lid someone left on the trough".
-      final rail = Paint()
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round
-        ..color = _worksIronLit;
-      final posts = Paint()..color = const Color(0xFF8898A6);
-      if (acrossX) {
-        for (final y in [r.top - 5.0, r.bottom + 5.0]) {
-          canvas.drawLine(Offset(r.left + 3, y), Offset(r.right - 3, y), rail);
-          for (var x = r.left + 5; x < r.right - 2; x += 18) {
-            canvas.drawCircle(Offset(x, y), 2.2, posts);
-          }
-        }
-      } else {
-        for (final x in [r.left - 5.0, r.right + 5.0]) {
-          canvas.drawLine(Offset(x, r.top + 3), Offset(x, r.bottom - 3), rail);
-          for (var y = r.top + 5; y < r.bottom - 2; y += 18) {
-            canvas.drawCircle(Offset(x, y), 2.2, posts);
-          }
-        }
-      }
-    }
-  }
-
   /// Is this channel actually going to carry metal right now?
   ///
   /// Three states, and the room used to draw all three identically — every
@@ -1799,44 +1521,9 @@ extension MoltenReliquary on PlanetDungeonGame {
         final r = seg.rect;
         final horiz = seg.horizontal;
 
-        // REFRACTORY LIP — firebrick, laid in courses along the run, with a
-        // lit inner edge where the heat has glazed it.
-        canvas.drawRect(r.inflate(9), Paint()..color = const Color(0xFF15181B));
-        canvas.drawRect(r.inflate(7), Paint()..color = const Color(0xFF2C2620));
-        final course = Paint()
-          ..strokeWidth = 1
-          ..color = const Color(0xFF15110D).withValues(alpha: 0.8);
+        // The refractory lip is baked with the room (planet_dungeon_game_lava_art.dart);
+        // only the metal in it is live.
         final span = horiz ? r.width : r.height;
-        for (var k = 22.0; k < span; k += 26) {
-          if (horiz) {
-            canvas.drawLine(
-              Offset(r.left + k, r.top - 7),
-              Offset(r.left + k, r.top - 1),
-              course,
-            );
-            canvas.drawLine(
-              Offset(r.left + k, r.bottom + 1),
-              Offset(r.left + k, r.bottom + 7),
-              course,
-            );
-          } else {
-            canvas.drawLine(
-              Offset(r.left - 7, r.top + k),
-              Offset(r.left - 1, r.top + k),
-              course,
-            );
-            canvas.drawLine(
-              Offset(r.right + 1, r.top + k),
-              Offset(r.right + 7, r.top + k),
-              course,
-            );
-          }
-        }
-        // The glaze: hot brick right at the metal.
-        canvas.drawRect(
-          r.inflate(2),
-          Paint()..color = const Color(0xFF6B3411).withValues(alpha: 0.85),
-        );
 
         // PLUGGED: set solid, and it looks it. Cold blue-grey metal filling
         // the trough end to end, with the shrinkage crack down the middle
@@ -1912,46 +1599,56 @@ extension MoltenReliquary on PlanetDungeonGame {
             );
           }
         }
-        // CRUST: cooled skin riding the surface. Evenly spaced slabs of one
-        // length read as conveyor treads — a ladder laid in the trough — so
-        // the spacing and the length both vary, deterministically, and the
-        // skin never covers the same fraction twice running.
-        final skin = Paint()
-          ..color = const Color(0xFF23100A).withValues(alpha: 0.62);
-        // Slabs that do not all reach both banks: some ride the near side,
-        // some the far, some the whole width. Full-width pills of one length
-        // read as sausage links; skin breaks unevenly and the metal shows
-        // past it, which is the whole reason to draw skin at all.
+        // CRUST: the cooled skin is MOST of the surface, in angular plates,
+        // and the white-hot body shows only in the seams between them — a
+        // trench of burning metal, not a bright bar with blobs on it. (The
+        // blobs were rounded pills on a lit bar, and from play the line read
+        // as tubing.) Deterministic per segment, so nothing crawls.
         final thick = horiz ? r.height : r.width;
-        var k = 10.0;
-        var i = 0;
-        while (k < span) {
-          final len = 8.0 + ((i * 37) % 9) * 4.0;
-          final side = (i * 29) % 3; // 0 near bank, 1 far bank, 2 full
-          final near = side == 1 ? thick * 0.42 : 3.0;
-          final far = side == 0 ? thick * 0.42 : 3.0;
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(
-              horiz
-                  ? Rect.fromLTWH(
-                      r.left + k,
-                      r.top + near,
-                      len,
-                      thick - near - far,
-                    )
-                  : Rect.fromLTWH(
-                      r.left + near,
-                      r.top + k,
-                      thick - near - far,
-                      len,
-                    ),
-              const Radius.circular(2.5),
-            ),
-            skin,
+        final plate = Paint()
+          ..color = const Color(0xFF1E0B06).withValues(alpha: 0.88);
+        final seam = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..strokeJoin = StrokeJoin.round
+          ..color = _worksEdge.withValues(
+            alpha: state == _RunState.live ? 0.55 + 0.2 * pulse : 0.25,
           );
-          k += len + 9.0 + ((i * 53) % 7) * 5.0;
+        Offset at(double along, double across) => horiz
+            ? Offset(r.left + along, r.top + across)
+            : Offset(r.left + across, r.top + along);
+        var k = 2.0;
+        var i = (r.left * 7 + r.top * 13).round().abs();
+        while (k < span - 2) {
+          final len = 12.0 + (i * 37 % 9) * 3.5;
+          final gap = 3.0 + (i * 53 % 5) * 2.2;
+          final end = min(span - 2, k + len);
+          // Each plate is a skewed quad, its corners pulled in off the banks
+          // by different amounts, so no two seams run parallel.
+          final a0 = 1.5 + (i * 11 % 4) * 1.2;
+          final a1 = thick - 1.5 - (i * 17 % 4) * 1.2;
+          final sk = ((i * 29 % 7) - 3) * 1.3;
+          final quad = Path()
+            ..moveTo(at(k + sk, a0).dx, at(k + sk, a0).dy)
+            ..lineTo(
+              at(end + sk * 0.4, a0 + 1).dx,
+              at(end + sk * 0.4, a0 + 1).dy,
+            )
+            ..lineTo(at(end - sk, a1).dx, at(end - sk, a1).dy)
+            ..lineTo(at(k - sk * 0.4, a1 - 1).dx, at(k - sk * 0.4, a1 - 1).dy)
+            ..close();
+          canvas.drawPath(quad, plate);
+          canvas.drawPath(quad, seam);
+          k = end + gap;
           i++;
         }
+        // Depth: the lip throws a shadow down the near bank of the trench.
+        canvas.drawRect(
+          horiz
+              ? Rect.fromLTWH(r.left, r.top, r.width, thick * 0.22)
+              : Rect.fromLTWH(r.left, r.top, thick * 0.22, r.height),
+          Paint()..color = Colors.black.withValues(alpha: 0.35),
+        );
         // A shut arm is standing metal: darker, and no longer glowing.
         if (state == _RunState.shut) {
           canvas.drawRect(
@@ -2160,6 +1857,7 @@ extension MoltenReliquary on PlanetDungeonGame {
             Paint()..color = _worksIronLit,
           );
           _rivets(canvas, belly, inset: 13);
+          _drawCrucibleGlass(canvas, belly, s.tapWoken);
           // Trunnion pins.
           for (final side in const [-1.0, 1.0]) {
             canvas.drawCircle(
@@ -2231,6 +1929,19 @@ extension MoltenReliquary on PlanetDungeonGame {
                 ..strokeWidth = 2
                 ..color = _worksCold.withValues(alpha: 0.85),
             );
+            // The hood's lip is frosted glass while it is down.
+            for (var i = 0; i < 6; i++) {
+              final w = (hood.width - 12) / 6;
+              paintPane(
+                canvas,
+                Path()..addRect(
+                  Rect.fromLTWH(hood.left + 6 + i * w, hood.bottom - 7, w, 7),
+                ),
+                _worksCold.withValues(alpha: 0.85),
+                _kWorksGlass,
+                lead: 1.4,
+              );
+            }
             // Frost feathering off the lip — the only cold thing on the planet.
             for (var i = 0; i < 7; i++) {
               final x = hood.left + 12 + i * (hood.width - 24) / 6;
@@ -2287,13 +1998,15 @@ extension MoltenReliquary on PlanetDungeonGame {
               Paint()..color = _worksIronLit.withValues(alpha: 0.8),
             );
           }
-          canvas.drawCircle(
-            Offset(acc.center.dx, acc.top + 9),
-            5,
-            Paint()
-              ..color = s.dieWoken
-                  ? const Color(0xFFBFE0EA)
-                  : const Color(0xFF12161A),
+          // The pressure gauge, in glass: dark until steam charges it.
+          paintRondel(
+            canvas,
+            Offset(acc.center.dx, acc.top + 10),
+            6.5,
+            _kWorksGlass,
+            fill: s.dieWoken ? const Color(0xFFBFE0EA) : _kWorksGlass.smoke,
+            rim: s.dieWoken ? 1.0 : 0.5,
+            lead: 1.8,
           );
           if (s.dieWoken && _fx.ready) {
             drawGlow(
@@ -2326,12 +2039,14 @@ extension MoltenReliquary on PlanetDungeonGame {
           for (var i = 0; i < 4; i++) {
             final y = p.dy - 24 + i * 11.0;
             final half = 34 - i * 5.0;
-            canvas.drawRect(
-              Rect.fromLTRB(p.dx - half, y, p.dx + half, y + 5),
-              Paint()
-                ..color = open
-                    ? _worksDamp.withValues(alpha: 0.55)
-                    : const Color(0xFF12161A),
+            // Glass slats: open, the flue's gas shows green through them.
+            paintPane(
+              canvas,
+              Path()
+                ..addRect(Rect.fromLTRB(p.dx - half, y, p.dx + half, y + 6)),
+              open ? _worksDamp.withValues(alpha: 0.7) : _kWorksGlass.smoke,
+              _kWorksGlass,
+              lead: 1.6,
             );
           }
           canvas.drawRect(
@@ -2379,7 +2094,9 @@ extension MoltenReliquary on PlanetDungeonGame {
           // too fast to be iron. It has to look like the one thing in this
           // works that is not hot and not dead — a black mirror, with the
           // room's own fires moving on it.
-          if (s.slagTaken && !discoveredClouds.contains(kLavaBlackGlassEggId)) {
+          if (s.slagTaken &&
+              !discoveredClouds.contains(kLavaBlackGlassEggId) &&
+              works.blackGlass <= 0) {
             final glass = Path();
             for (var i = 0; i < 7; i++) {
               final a = i * 2 * pi / 7 - 0.3;
@@ -2420,6 +2137,7 @@ extension MoltenReliquary on PlanetDungeonGame {
               );
             }
           }
+          _drawBlackGlass(canvas, p);
         case FoundryNodeKind.junction:
           // THE GATE ITSELF. A junction used to be nothing on the floor —
           // just a place two troughs met, with the answer only on the lever's
@@ -2496,14 +2214,7 @@ extension MoltenReliquary on PlanetDungeonGame {
       if (lever != null) {
         final set = s.settingOf(n.switchId!);
         final ways = max(1, n.switchLabels.length);
-        _ironPlate(
-          canvas,
-          Rect.fromCenter(
-            center: lever + const Offset(0, 15),
-            width: 40,
-            height: 14,
-          ),
-        );
+        _drawLeverBase(canvas, lever);
         final quad = Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5
@@ -2518,14 +2229,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         for (var i = 0; i < ways; i++) {
           final a = pi + 0.45 + (pi - 0.9) * (ways == 1 ? 0.5 : i / (ways - 1));
           final at = lever + const Offset(0, 10) + Offset(cos(a), sin(a)) * 26;
-          canvas.drawCircle(
-            at,
-            3.0,
-            Paint()
-              ..color = i == set
-                  ? const Color(0xFFFFC98A)
-                  : _worksIronLit.withValues(alpha: 0.7),
-          );
+          _drawNotchBead(canvas, at, i == set);
         }
         final ang =
             pi + 0.45 + (pi - 0.9) * (ways == 1 ? 0.5 : set / (ways - 1));
@@ -2557,6 +2261,21 @@ extension MoltenReliquary on PlanetDungeonGame {
     // clamps holding the halves together. A plain dark rect said nothing
     // about how casting works.
     _ironPlate(canvas, cavity.inflate(7), radius: 2);
+    // THE FLASK'S GLASS says what the form takes, and then what it holds:
+    // the wanted metal's colour while empty, silver with a good casting in
+    // it, smoked once it has been spoiled.
+    final wantTint = switch (n.wants ?? PourForm.plain) {
+      PourForm.plain => const Color(0xFFFFD9A0),
+      PourForm.stamped => _worksWarded,
+      PourForm.gassed => _worksDamp,
+    };
+    if (held == null) {
+      _drawFlaskGlass(canvas, cavity, wantTint, 0.62);
+    } else if (s.cast(held)) {
+      _drawFlaskGlass(canvas, cavity, _kWorksGlass.silver, 0.8);
+    } else {
+      _drawFlaskGlass(canvas, cavity, _kWorksGlass.smoke, 0.95);
+    }
     canvas.drawRect(cavity, Paint()..color = const Color(0xFF2A2119)); // sand
     // The parting line across the middle of the flask.
     canvas.drawLine(
@@ -2834,24 +2553,38 @@ extension MoltenReliquary on PlanetDungeonGame {
         ..color = Color.lerp(_worksEdge, _worksCore, 0.52 + 0.22 * pulse)!,
     );
 
-    // Broken crust riding round, uneven, some of it only on one bank.
-    final skin = Paint()
+    // CRUST: cooled plates riding round, covering most of the ring, with the
+    // burning body showing only in the seams — the same trench of metal as
+    // every runner in the works, not a lit tube.
+    final plate = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.butt
-      ..color = const Color(0xFF23100A).withValues(alpha: 0.62);
-    for (var i = 0; i < 22; i++) {
-      final a0 = i * 2 * pi / 22;
-      final span = 0.05 + ((i * 37) % 7) * 0.012;
-      skin.strokeWidth = (i % 3 == 2) ? 20 : 10;
-      final off = (i % 3 == 0) ? 5.0 : ((i % 3 == 1) ? -5.0 : 0.0);
+      ..strokeWidth = 19
+      ..color = const Color(0xFF1E0B06).withValues(alpha: 0.86);
+    var a0 = works.clock * 0.02; // the crust rides the flow, slowly
+    var i = 0;
+    while (a0 < works.clock * 0.02 + 2 * pi - 0.05) {
+      final len = 0.07 + (i * 37 % 9) * 0.012;
+      final gap = 0.018 + (i * 53 % 5) * 0.008;
       canvas.drawArc(
-        Rect.fromCircle(center: c, radius: r + off),
+        Rect.fromCircle(center: c, radius: r + ((i * 29 % 3) - 1) * 1.5),
         a0,
-        span,
+        len,
         false,
-        skin,
+        plate,
       );
+      a0 += len + gap;
+      i++;
     }
+    // Depth: the inner bank's shadow falls across the ring.
+    canvas.drawCircle(
+      c,
+      r - 7,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..color = Colors.black.withValues(alpha: 0.35),
+    );
 
     // And it FLOWS — bands travelling round the ring, so the heart reads as
     // circulating metal rather than as a drawn circle.
@@ -2887,10 +2620,20 @@ extension MoltenReliquary on PlanetDungeonGame {
         radius: 2,
       );
       // The lip: bright while it can pour, dark while it is cooling off.
-      canvas.drawRect(
-        Rect.fromLTWH(body.left + 6, body.bottom - 5, body.width - 12, 5),
-        Paint()..color = live ? _worksCore : const Color(0xFF1A1F24),
-      );
+      for (var k = 0; k < 4; k++) {
+        final w = (body.width - 12) / 4;
+        paintPane(
+          canvas,
+          Path()..addRect(
+            Rect.fromLTWH(body.left + 6 + k * w, body.bottom - 7, w, 7),
+          ),
+          live
+              ? _kWorksGlass.heat(0.8 + 0.1 * sin(works.clock * 4 + k))
+              : _kWorksGlass.smoke,
+          _kWorksGlass,
+          lead: 1.4,
+        );
+      }
       if (live && _fx.ready) {
         drawGlow(
           canvas,

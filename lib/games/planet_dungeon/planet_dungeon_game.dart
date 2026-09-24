@@ -24,6 +24,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/shared/companion_stance.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/planet_dungeon/burn_field.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_glass.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
@@ -51,6 +52,24 @@ import 'package:flutter/material.dart';
 
 part 'planet_dungeon_game_air.dart';
 part 'planet_dungeon_game_fire.dart';
+part 'planet_dungeon_game_fire_art.dart';
+part 'planet_dungeon_game_glass.dart';
+part 'planet_dungeon_game_lava_art.dart';
+part 'planet_dungeon_game_air_art.dart';
+part 'planet_dungeon_game_lightning_art.dart';
+part 'planet_dungeon_game_earth_art.dart';
+part 'planet_dungeon_game_water_art.dart';
+part 'planet_dungeon_game_steam_art.dart';
+part 'planet_dungeon_game_poison_art.dart';
+part 'planet_dungeon_game_ice_art.dart';
+part 'planet_dungeon_game_mud_art.dart';
+part 'planet_dungeon_game_dust_art.dart';
+part 'planet_dungeon_game_crystal_art.dart';
+part 'planet_dungeon_game_plant_art.dart';
+part 'planet_dungeon_game_spirit_art.dart';
+part 'planet_dungeon_game_dark_art.dart';
+part 'planet_dungeon_game_light_art.dart';
+part 'planet_dungeon_game_blood_art.dart';
 part 'planet_dungeon_game_water.dart';
 part 'planet_dungeon_game_earth.dart';
 part 'planet_dungeon_game_lightning.dart';
@@ -360,7 +379,7 @@ class PlanetDungeonGame extends FlameGame {
     // The fen opens with every crossing quaking mire and the sarsen in the
     // gate's silt — seeded here for the same reason as the shaft.
     _resetBogState();
-    _resetRuinsState();
+    _resetRuinsState(initialStarMask);
     _resetKeepState();
     _resetGraveState();
     _resetCryptState();
@@ -527,6 +546,7 @@ class PlanetDungeonGame extends FlameGame {
   // Let meteor craters. Shared struct + shared painter, so the dungeon's
   // landings are pixel-identical to survival's.
   final List<LetSkyfallImpact> _letSkyfallImpacts = [];
+  final List<HornFx> _hornFx = [];
 
   /// Hard ceiling on live projectiles — survival's number (220), for the same
   /// reason. See [_trimProjectilePool].
@@ -928,6 +948,73 @@ class PlanetDungeonGame extends FlameGame {
   List<TextPainter>? _epitaphGhostLines; // cached — never built per frame
   List<TextPainter>? _epitaphSootLines;
   List<TextPainter>? _epitaphFireLines;
+  List<TextPainter>? _epitaphFireLead; // the fire lines' lead outline
+
+  // The cathedral's glass, as SHOWN (docs §7.11: change is animated, never a
+  // pop). Every value below follows puzzle state that already exists — the
+  // glass decides nothing, it only lights and darkens. A negative value means
+  // "not seen yet": the first frame snaps to the truth, so a star banked in an
+  // earlier session does not replay its ignition every time the run loads.
+  final Map<int, double> _torchCatch = {};
+  double _muralGlow = 0;
+  final Map<int, double> _petalHeat = {};
+  int _ritePrevProgress = 0;
+  double _riteSnuff = 0;
+  double _riteBlaze = -1;
+  final List<double> _roseStars = [-1, -1, -1];
+  final Map<String, double> _bellWindow = {};
+  double _altarWake = -1;
+  double _roostWake = -1;
+
+  /// Air's storm altar as SHOWN: its rose lights from the heart as it opens.
+  double _altarShown = -1;
+
+  /// Earth's Palm crystal as SHOWN: 0 → 1 as it grows through the hand.
+  double _palmGrow = -1;
+
+  /// Water's Frozen Moon rosette as SHOWN: 0 → 1 as the ice frosts out.
+  double _frostMoon = -1;
+
+  /// Steam's Hidden Harmony inlay as SHOWN: 0 → 1 as it sinks into the stone.
+  double _harmonySet = -1;
+
+  /// Poison's Dose heart as SHOWN: 0 → 1 as it blooms at the cross.
+  double _doseHeart = -1;
+
+  /// Ice's caught stranger as SHOWN: 0 → 1 as it assembles in the lens.
+  double _starCaught = -1;
+
+  /// Mud's glass lotus as SHOWN: 0 → 1 as it opens.
+  double _lotusOpen = -1;
+
+  /// Mud's crossings as SHOWN, by ford id: (how far set as sod, how far
+  /// sunk as drowned), each easing 0 → 1 so a drag runs down the glass.
+  final Map<String, (double, double)> _fordGlass = {};
+
+  /// Dust's tally window as SHOWN: 0 → 1 as its five panes light in turn.
+  double _tallyShown = -1;
+
+  /// Dust's spadeful in the air: where it left, where it lands (null when it
+  /// lands in another room), and seconds since the throw.
+  (Offset, Offset?, double)? _sandThrow;
+
+  /// Crystal's Black Cell mirror as SHOWN: 0 → 1 as it silvers.
+  double _mirrorShown = -1;
+
+  /// Plant's shade tree as SHOWN: 0 → 1 as it grows.
+  double _shadeGrown = -1;
+
+  /// Spirit's dream window as SHOWN: 0 → 1 as its panes light.
+  double _dreamShown = -1;
+
+  /// Dark's fourth finger as SHOWN: 0 → 1 as it rises at the rim.
+  double _fingerShown = -1;
+
+  /// Light's afraid volume as SHOWN: 0 → 1 as it opens in its slab.
+  double _volumeShown = -1;
+
+  /// Blood's garnet hearts as SHOWN: 0 → 1 as they light on every cock.
+  double _lifeShown = -1;
 
   bool get _isCathedral => layout.element == 'Fire';
 
@@ -2537,6 +2624,37 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
+  // ── HAPTICS (2026-09-24) ─────────────────────────────────
+  /// The screen answers these with the phone's own haptics (and a setting
+  /// switches them off). The game only says WHAT happened.
+  void Function(DungeonHaptic kind)? onHaptic;
+  double _hapticHp = -1;
+  double _hapticHitCd = 0;
+  bool _hapticDoorSeen = false;
+
+  void _haptic(DungeonHaptic kind) => onHaptic?.call(kind);
+
+  /// Edges the game cannot hand over as events: a hit landing on the active
+  /// creature (rate-limited, so a swarm does not buzz the phone
+  /// continuously), and the entry door coming open.
+  void _tickHaptics(double dt) {
+    if (_hapticHitCd > 0) _hapticHitCd -= dt;
+    final a = active;
+    final hp = a?.hp ?? -1;
+    if (a != null &&
+        _hapticHp >= 0 &&
+        hp < _hapticHp - 2 &&
+        _hapticHitCd <= 0) {
+      _haptic(DungeonHaptic.hit);
+      _hapticHitCd = 0.45;
+    }
+    if (a != null && (_hapticHitCd <= 0 || hp > _hapticHp)) _hapticHp = hp;
+    if (entryDoorRevealed && !_hapticDoorSeen) {
+      if (_hapticHp >= 0) _haptic(DungeonHaptic.big);
+      _hapticDoorSeen = true;
+    }
+  }
+
   /// Set whenever a verb refuses a press. Read and cleared by
   /// `activateAbility`, so a refusal can SOUND like one.
   bool _refusedThisPress = false;
@@ -2614,6 +2732,7 @@ class PlanetDungeonGame extends FlameGame {
     // The fen was seeded in the constructor, before the banked stars were
     // known; seed it again now so a won star's stone and basins stay done.
     _resetBogState();
+    _resetRuinsState(); // the same, for Sablis's seal yard
     entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
     _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
     _entryRevealPrev = _entryReveal;
@@ -2919,6 +3038,7 @@ class PlanetDungeonGame extends FlameGame {
 
   @override
   void update(double dt) {
+    _tickHaptics(dt);
     super.update(dt);
     _time += dt;
     visitedRooms.add(currentRoomId);
@@ -3083,23 +3203,37 @@ class PlanetDungeonGame extends FlameGame {
     _updateStormCell(a, room, dt);
     _updateMercyShrine(a, room);
     _updateCathedral(a, room, dt);
+    if (_isSpire) _updateSkyGlass(dt);
     _updateBurn(room, dt);
     _updateTemple(a, room, dt);
+    if (_isTemple) _updateTempleGlass(dt);
     _updateBarrow(a, room, dt);
+    if (_isBarrow) _updateBarrowGlass(dt);
     _updateCircuit(a, room, dt);
     _updatePressure(a, room, dt);
+    if (_isVapor) _updateSteamGlass(dt);
     _updateGeyserField(a, room, dt);
     _updateFoundry(a, room, dt);
     _updateMonastery(a, room, dt);
+    if (_isVenom) _updateVenomGlass(dt);
     _updateShaft(a, room, dt);
+    if (_isShaft) _updateIceGlass(dt);
     _updateBog(a, room, dt);
+    if (_isBog) _updateMudGlass(dt);
     _updateRuins(a, room, dt);
+    if (_isRuins) _updateDustGlass(dt);
     _updateKeep(a, room, dt);
+    if (_isKeep) _updateCrystalGlass(dt);
     _updateGrave(a, room, dt);
+    if (_isWake) _updateSpiritGlass(dt);
     _updateCrypt(a, room, dt);
+    if (_isCrypt) _updatePlantGlass(dt);
     _updateVault(a, room, dt);
+    if (_isVault) _updateDarkGlass(dt);
     _updateArchive(a, room, dt);
+    if (_isArchive) _updateLightGlass(dt);
     _updateHeart(a, room, dt);
+    if (_isHeart) _updateBloodGlass(dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -3925,15 +4059,27 @@ class PlanetDungeonGame extends FlameGame {
       altarOpen = true;
       guardianAwake = true;
       guardianHp = maxGuardianHp;
-      _setHint('Both conduits sing, the altar wakes its guardian');
+      // The storm conduits and their Lightning wake are the Air pilot's. Every
+      // later planet that latches A+B here wakes in its OWN element — Sablis
+      // was waking Ashdjinn with four yellow Lightning wisps in a sand court.
+      final wakeEl = _isSpire ? 'Lightning' : layout.element;
+      // A planet that names its wake SPEAKS it: this runs from update, where
+      // an ordinary line is dropped unasked, and a guardian waking is a
+      // consequence the player must hear (§5.7).
+      final wakeLine = layout.riteWakeLine;
+      if (wakeLine != null) {
+        speakConsequence(wakeLine);
+      } else {
+        _setHint('Both conduits sing, the altar wakes its guardian');
+      }
       _spawnAlchemyBurst(
         room.bounds.center,
-        producedElement: 'Lightning',
-        reagentElements: const ['Air', 'Fire'],
+        producedElement: wakeEl,
+        reagentElements: _isSpire ? const ['Air', 'Fire'] : [layout.element],
         unstable: true,
       );
       spawnWispWave(
-        element: 'Lightning',
+        element: wakeEl,
         center: room.bounds.center,
         count: 4,
         unstable: true,
@@ -4198,6 +4344,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateCombatEnemies(dt);
     _updateCombatProjectiles(dt);
     updateLetSkyfallImpacts(_letSkyfallImpacts, dt);
+    updateHornFx(_hornFx, dt);
     _updateWingBeams(dt);
     _updateIdleCompanionAttacks();
     _updateIdleCompanionMovement(dt, currentRoom);
@@ -6577,6 +6724,7 @@ class PlanetDungeonGame extends FlameGame {
           creature.hp = (creature.hp - creature.maxHp * (sac / comp.maxHp))
               .clamp(1.0, creature.maxHp);
           comp.hitFlash = 1.0;
+          pushHornFx(_hornFx, HornFx.sacrifice(position: creature.position));
           comp.chargeDamage += sac * 0.25;
         }
       }
@@ -7109,7 +7257,11 @@ class PlanetDungeonGame extends FlameGame {
         piercing: true,
         radiusMultiplier: 1.2,
         visualScale: isFire ? 1.0 : 1.15,
-        visualStyle: ProjectileVisualStyle.sigil,
+        // Ice's wall is drawn as survival draws it: faceted blocks, not a
+        // ground sigil.
+        visualStyle: isFire
+            ? ProjectileVisualStyle.sigil
+            : ProjectileVisualStyle.hornImpact,
         sourceSlotIndex: comp.slotIndex,
         abilityFamily: 'horn',
         tickEffect: isFire ? AbilityEffectKind.burn : AbilityEffectKind.slow,
@@ -7127,6 +7279,15 @@ class PlanetDungeonGame extends FlameGame {
     DungeonCreature creature,
   ) {
     _hornSweepDamage(comp, creature, comp.chargeFinalSweepRadius);
+    pushHornFx(
+      _hornFx,
+      HornFx.slam(
+        position: creature.position,
+        angle: creature.angle,
+        radius: comp.chargeFinalSweepRadius,
+        element: comp.member.element,
+      ),
+    );
     // Horn+Lightning: brew the storm for 3s, then discharge.
     if (comp.member.family.toLowerCase() == 'horn' &&
         comp.member.element == 'Lightning' &&
@@ -7816,6 +7977,13 @@ class PlanetDungeonGame extends FlameGame {
           sourceSlot,
           max(2, (comp.maxHp * 0.05 * bloodScale).round()).toDouble(),
         );
+        final idx = combatCompanions.indexOf(comp);
+        if (idx >= 0 && idx < creatures.length) {
+          pushHornFx(
+            _hornFx,
+            HornFx.siphon(from: enemy.position, to: creatures[idx].position),
+          );
+        }
         break;
     }
   }
@@ -8700,6 +8868,9 @@ class PlanetDungeonGame extends FlameGame {
     final before = _cuesEmitted;
     _refusedThisPress = false;
     final took = _dispatchAbility(a);
+    if (took) {
+      _haptic(_refusedThisPress ? DungeonHaptic.refuse : DungeonHaptic.success);
+    }
     if (took && _cuesEmitted == before) {
       // A REFUSAL SOUNDS LIKE ONE. A locked object consumes the press and
       // says why in the capsule; it used to get the same cue as a press that
@@ -10069,6 +10240,7 @@ class PlanetDungeonGame extends FlameGame {
   void earnStar(int starIndex) {
     if (starIndex < 0 || starIndex > 2) return;
     if (_earnedStars.contains(starIndex)) return;
+    _haptic(DungeonHaptic.big);
     if (starIndex < 2 && !isRaid) _cue(SoundCue.dungeonPuzzleSolved);
     _earnedStars.add(starIndex);
     starMask |= (1 << starIndex);
@@ -10208,6 +10380,85 @@ class PlanetDungeonGame extends FlameGame {
         puff: _fx.puff,
       );
       _drawSporeDrift(canvas, vp);
+    } else if (_isHeart) {
+      // A DARK RED HAZE, low. The generic sky clouds lay grey fog over the
+      // meat of every chamber (§7.11).
+      drawDriftingClouds(
+        canvas,
+        vp,
+        _time,
+        primary: const Color(0xFF3A1016),
+        secondary: const Color(0xFF28080E),
+        count: 5,
+        maxAlpha: 0.10,
+        puff: _fx.puff,
+      );
+    } else if (_isArchive) {
+      // ARCHIVE DUST: a faint warm haze. The generic sky clouds lay over the
+      // lit bays as grey fog and washed the stacks out (§7.11).
+      drawDriftingClouds(
+        canvas,
+        vp,
+        _time,
+        primary: const Color(0xFF3A3528),
+        secondary: const Color(0xFF2A2A30),
+        count: 5,
+        maxAlpha: 0.08,
+        puff: _fx.puff,
+      );
+    } else if (_isVault) {
+      // VAULT DUST in a sealed dark: low, violet-black, barely moving. The
+      // generic sky clouds lay over the lit quarters as pale fog (§7.11).
+      drawDriftingClouds(
+        canvas,
+        vp,
+        _time,
+        primary: const Color(0xFF2A2436),
+        secondary: const Color(0xFF1E1A28),
+        count: 5,
+        maxAlpha: 0.09,
+        puff: _fx.puff,
+      );
+    } else if (_isWake) {
+      // GRAVE MIST, low and cold. The generic sky clouds are pale grey and
+      // made every barrow the same fogged slab (§7.11).
+      drawDriftingClouds(
+        canvas,
+        vp,
+        _time,
+        primary: const Color(0xFF2A3A44),
+        secondary: const Color(0xFF232A30),
+        count: 6,
+        maxAlpha: 0.10,
+        puff: _fx.puff,
+      );
+    } else if (_isRuins) {
+      // BLOWN SAND, low and dark. The generic sky clouds are pale grey and
+      // lay over every street like fog banks (§7.11).
+      drawDriftingClouds(
+        canvas,
+        vp,
+        _time,
+        primary: const Color(0xFF4A3A22),
+        secondary: const Color(0xFF3A2C18),
+        count: 5,
+        maxAlpha: 0.09,
+        puff: _fx.puff,
+      );
+    } else if (_isBog) {
+      // FEN HAZE, low and dark. The generic sky clouds are pale grey, and
+      // through a peat floor they read as fog banks lying on the knolls —
+      // the one thing that made every Mud room look washed out (§7.11).
+      drawDriftingClouds(
+        canvas,
+        vp,
+        _time,
+        primary: const Color(0xFF2E3424),
+        secondary: const Color(0xFF3A3020),
+        count: 5,
+        maxAlpha: 0.09,
+        puff: _fx.puff,
+      );
     } else {
       drawDriftingClouds(
         canvas,
@@ -10262,6 +10513,8 @@ class PlanetDungeonGame extends FlameGame {
     // Mud's heave and settling spill OUT of doorways (the wallows), so their
     // top layer goes over the door frames.
     if (_isBog) _renderBogOverDoors(canvas, room);
+    // Spirit: a crossing the OTHER world holds is shown over its shut glass.
+    if (_isWake) _renderGraveOverDoors(canvas, room);
     if (_isSpire) _renderSpireWinds(canvas, room);
     _renderClouds(canvas, room);
     _renderAnchors(canvas, room);
@@ -10274,6 +10527,7 @@ class PlanetDungeonGame extends FlameGame {
       _renderLetSkyfallTelegraphs(canvas);
       _renderCombatProjectiles(canvas);
       _renderLetSkyfallImpacts(canvas);
+      drawHornFx(canvas, _hornFx);
       _renderCombatEnemies(canvas);
       _renderRefusalPulse(canvas);
       _renderCreatures(canvas);
@@ -10601,6 +10855,12 @@ class PlanetDungeonGame extends FlameGame {
     };
   }
 
+  /// TEST-ONLY: bake the glow, mote and puff sprites a mounted game loads in
+  /// `onLoad`. Without them every glow in a headless render is missing, and a
+  /// planet whose animations are mostly light looks dead in the audit.
+  @visibleForTesting
+  Future<void> debugLoadFx() => _fx.load();
+
   /// TEST-ONLY seam: paint a room's landmarks straight onto a canvas.
   ///
   /// A headless Flame game never mounts, so `render` is unreachable from a
@@ -10815,7 +11075,7 @@ class PlanetDungeonGame extends FlameGame {
         ? 0.38
         : 0.0;
 
-    _drawCelestialCompass(
+    _drawGlassCompass(
       canvas,
       c,
       170,
@@ -10992,6 +11252,9 @@ class PlanetDungeonGame extends FlameGame {
       );
     }
 
+    // A glass planet's door comes up out of the stone on this same clock
+    // (planet_dungeon_game_glass.dart); the veil below would double it.
+    if (_isGlassPlanet) return;
     final veil = Rect.fromCenter(center: door, width: 76, height: 124);
     // The sealing veil dissolves as it ignites…
     if (ignite < 1.0) {
@@ -11229,168 +11492,6 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
-  void _drawCelestialCompass(
-    Canvas canvas,
-    Offset c,
-    double r, {
-    double windProgress = 0,
-    double loomProgress = 0,
-    double stormProgress = 0,
-    double spin = 0,
-  }) {
-    // THE INSTRUMENT IS SET INTO THE FLOOR.
-    //
-    // This was hairline circles and eight thin spokes on bare stone — a
-    // wireframe drawn over the room rather than a thing built into it, and
-    // the hub is the room the player passes through most. It sits in a sunk
-    // disc now with a brass kerb, the way the choir's ember-walk does.
-    canvas.drawCircle(
-      c,
-      r * 1.14,
-      Paint()..color = const Color(0xFF0C1119).withValues(alpha: 0.42),
-    );
-    canvas.drawCircle(
-      c,
-      r * 1.14,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.2
-        ..color = const Color(0xFF74613A).withValues(alpha: 0.7),
-    );
-    canvas.drawCircle(
-      c,
-      r * 1.09,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFFC4A35A).withValues(alpha: 0.28),
-    );
-
-    _drawRuneCircle(
-      canvas,
-      c,
-      r,
-      const Color(0xFFC4A35A).withValues(alpha: 0.34),
-    );
-
-    // Spokes: cardinals are cut deep in brass, the diagonals are scratch
-    // lines. Eight identical hairlines read as a diagram; a heavier four
-    // reads as an instrument that has a north.
-    for (var i = 0; i < 8; i++) {
-      final a = i * pi / 4 + spin;
-      final cardinal = i.isEven;
-      final u = Offset(cos(a), sin(a));
-      canvas.drawLine(
-        c + u * r * 0.2,
-        c + u * r * (cardinal ? 0.95 : 0.58),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = cardinal ? 2.6 : 1.1
-          ..color =
-              (cardinal ? const Color(0xFFC4A35A) : const Color(0xFF5BC8E8))
-                  .withValues(alpha: cardinal ? 0.42 : 0.20),
-      );
-    }
-
-    // The boss of the rose — the star sits on something.
-    canvas.drawCircle(
-      c,
-      26,
-      Paint()..color = const Color(0xFF17202C).withValues(alpha: 0.85),
-    );
-    canvas.drawCircle(
-      c,
-      26,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = const Color(0xFF74613A).withValues(alpha: 0.75),
-    );
-    _drawStarGlyph(
-      canvas,
-      c,
-      18,
-      const Color(0xFFE4C16A).withValues(alpha: 0.65),
-    );
-    _drawCompassProgressArc(
-      canvas,
-      c,
-      r * 0.62,
-      windProgress,
-      const Color(0xFF5BC8E8),
-      -pi / 2,
-    );
-    _drawCompassProgressArc(
-      canvas,
-      c,
-      r * 0.82,
-      loomProgress,
-      const Color(0xFFE4C16A),
-      pi * 0.18,
-    );
-    _drawCompassProgressArc(
-      canvas,
-      c,
-      r * 1.02,
-      stormProgress,
-      const Color(0xFFFFFF8A),
-      pi * 0.72,
-      electric: true,
-    );
-    final total = (windProgress + loomProgress + stormProgress) / 3;
-    if (total > 0.02) {
-      canvas.drawCircle(
-        c,
-        28 + 10 * total,
-        Paint()
-          ..color = Color.lerp(
-            const Color(0xFF5BC8E8),
-            const Color(0xFFE4C16A),
-            loomProgress.clamp(0.0, 1.0),
-          )!.withValues(alpha: 0.08 + 0.16 * total),
-      );
-    }
-  }
-
-  void _drawCompassProgressArc(
-    Canvas canvas,
-    Offset c,
-    double r,
-    double progress,
-    Color color,
-    double start, {
-    bool electric = false,
-  }) {
-    final p = progress.clamp(0.0, 1.0).toDouble();
-    if (p <= 0.01) return;
-    final pulse = 0.78 + 0.22 * sin(_time * (electric ? 9 : 3.6) + r * 0.02);
-    final rect = Rect.fromCircle(center: c, radius: r);
-    canvas.drawArc(
-      rect,
-      start,
-      pi * 2 * p,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = electric ? 2.2 : 1.8
-        ..strokeCap = StrokeCap.round
-        ..color = color.withValues(alpha: (0.28 + 0.48 * p) * pulse),
-    );
-    if (p >= 1) {
-      for (var i = 0; i < 8; i++) {
-        final a = start + i * pi * 2 / 8 + _time * (electric ? 0.18 : 0.06);
-        final pos = c + Offset(cos(a), sin(a)) * r;
-        _drawStarGlyph(
-          canvas,
-          pos,
-          electric ? 4.0 : 3.2,
-          Color.lerp(color, Colors.white, 0.35)!.withValues(alpha: 0.72),
-        );
-      }
-    }
-  }
-
   void _drawVerticalSpireGhost(Canvas canvas, Rect b) {
     final p = Paint()
       ..style = PaintingStyle.stroke
@@ -11550,26 +11651,7 @@ class PlanetDungeonGame extends FlameGame {
     Offset c,
     double r, {
     bool stormVariant = false,
-  }) {
-    final col = stormVariant
-        ? const Color(0xFF090B12)
-        : const Color(0xFF111723);
-    for (var i = 0; i < 9; i++) {
-      final a = -pi * 0.95 + i * pi * 1.9 / 8;
-      final pos = c + Offset(cos(a), sin(a)) * r * (0.72 + 0.08 * (i % 3));
-      final h = 48 + (i % 4) * 12.0;
-      final rect = Rect.fromCenter(center: pos, width: 28, height: h);
-      canvas.save();
-      canvas.translate(pos.dx, pos.dy);
-      canvas.rotate(a + pi / 2);
-      canvas.translate(-pos.dx, -pos.dy);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(8)),
-        Paint()..color = col.withValues(alpha: stormVariant ? 0.88 : 0.78),
-      );
-      canvas.restore();
-    }
-  }
+  }) => _drawGlassCrownStones(canvas, c, r, storm: stormVariant);
 
   void _drawStarPedestal(Canvas canvas, Offset c, {required bool active}) {
     final col = active ? const Color(0xFFE4C16A) : const Color(0xFF74613A);
@@ -12256,29 +12338,11 @@ class PlanetDungeonGame extends FlameGame {
       r * 0.58,
       const Color(0xFF5BC8E8).withValues(alpha: 0.19),
     );
-    final corePulse =
-        0.14 + 0.10 * filledAnchors.length / max(1, room.anchors.length);
-    if (_fx.ready) {
-      drawGlow(
-        canvas,
-        _fx.glow!,
-        c,
-        78,
-        const Color(0xFF5BC8E8).withValues(alpha: corePulse),
-      );
-    }
-    canvas.drawCircle(
+    // The loom's heart, in glass: it brightens with every echo laid in.
+    _drawGlassLoomCore(
+      canvas,
       c,
-      42,
-      Paint()..color = const Color(0xFF111723).withValues(alpha: 0.92),
-    );
-    canvas.drawCircle(
-      c,
-      42,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = const Color(0xFFE4C16A).withValues(alpha: 0.42),
+      filledAnchors.length / max(1, room.anchors.length),
     );
     for (final an in room.anchors) {
       final filled = filledAnchors.containsKey(an.id);
@@ -12319,104 +12383,8 @@ class PlanetDungeonGame extends FlameGame {
   /// The rune hall's mural: a wall diagram of the twin-conduit sync. Partial
   /// for everyone (one pylon lit, the other a question); a Mask's reveal
   /// completes it — both pylons arcing to the altar IN UNISON.
-  void _drawStormMural(Canvas canvas, DungeonRoom room) {
-    final b = room.bounds;
-    final c = Offset(b.center.dx, b.top + 140);
-    const cyan = Color(0xFF5BC8E8);
-    const gold = Color(0xFFC4A35A);
-    final complete = revealTier >= 1;
-
-    // Stone panel.
-    final panel = Rect.fromCenter(center: c, width: 340, height: 150);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(panel, const Radius.circular(12)),
-      Paint()..color = const Color(0xFF0B0F18).withValues(alpha: 0.78),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(panel, const Radius.circular(12)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = gold.withValues(alpha: 0.4),
-    );
-
-    final leftPylon = c + const Offset(-110, 28);
-    final rightPylon = c + const Offset(110, 28);
-    final altarGlyph = c + const Offset(0, -34);
-
-    void pylonGlyph(Offset p, bool lit) {
-      final path = Path()
-        ..moveTo(p.dx - 12, p.dy + 14)
-        ..lineTo(p.dx, p.dy - 16)
-        ..lineTo(p.dx + 12, p.dy + 14)
-        ..close();
-      canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = (lit ? cyan : gold).withValues(alpha: lit ? 0.8 : 0.35),
-      );
-    }
-
-    canvas.drawCircle(
-      altarGlyph,
-      11,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = gold.withValues(alpha: 0.6),
-    );
-
-    if (complete) {
-      // The lesson: both arcs pulse IN UNISON.
-      final sync = 0.5 + 0.5 * sin(_time * 3.0);
-      pylonGlyph(leftPylon, true);
-      pylonGlyph(rightPylon, true);
-      final arcPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
-        ..strokeCap = StrokeCap.round
-        ..color = cyan.withValues(alpha: 0.25 + 0.5 * sync);
-      for (final p in [leftPylon, rightPylon]) {
-        final mid = Offset(
-          (p.dx + altarGlyph.dx) / 2 + sin(_time * 9) * 5,
-          (p.dy + altarGlyph.dy) / 2 - 10,
-        );
-        canvas.drawPath(
-          Path()
-            ..moveTo(p.dx, p.dy - 14)
-            ..lineTo(mid.dx, mid.dy)
-            ..lineTo(altarGlyph.dx, altarGlyph.dy + 9),
-          arcPaint,
-        );
-      }
-      canvas.drawCircle(
-        altarGlyph,
-        11,
-        Paint()..color = cyan.withValues(alpha: 0.15 + 0.25 * sync),
-      );
-    } else {
-      // Partial: one pylon dimly remembered, the other unread.
-      pylonGlyph(leftPylon, true);
-      pylonGlyph(rightPylon, false);
-      canvas.drawPath(
-        Path()
-          ..moveTo(leftPylon.dx, leftPylon.dy - 14)
-          ..lineTo(
-            (leftPylon.dx + altarGlyph.dx) / 2,
-            (leftPylon.dy + altarGlyph.dy) / 2 - 10,
-          )
-          ..lineTo(altarGlyph.dx, altarGlyph.dy + 9),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..strokeCap = StrokeCap.round
-          ..color = cyan.withValues(alpha: 0.18),
-      );
-      _drawTinyLabel(canvas, rightPylon + const Offset(0, 24), '?');
-    }
-  }
+  void _drawStormMural(Canvas canvas, DungeonRoom room) =>
+      _drawGlassStormMural(canvas, room);
 
   void _drawStormFloor(Canvas canvas, Rect b) {
     final scar = Paint()
@@ -12466,34 +12434,8 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
-  void _drawStormAltar(Canvas canvas, Offset c, {required bool active}) {
-    _drawAnvilLightningRods(canvas, c, 170, 8, dim: !active);
-    final col = active ? const Color(0xFF5BC8E8) : const Color(0xFF74613A);
-    if (_fx.ready) {
-      drawGlow(
-        canvas,
-        _fx.glow!,
-        c,
-        active ? 88 : 48,
-        col.withValues(alpha: active ? 0.36 : 0.12),
-      );
-    }
-    canvas.drawCircle(
-      c,
-      66,
-      Paint()..color = const Color(0xFF090B12).withValues(alpha: 0.94),
-    );
-    for (var i = 0; i < 3; i++) {
-      canvas.drawCircle(
-        c,
-        34 + i * 16,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.3
-          ..color = col.withValues(alpha: active ? 0.42 : 0.18),
-      );
-    }
-  }
+  void _drawStormAltar(Canvas canvas, Offset c, {required bool active}) =>
+      _drawGlassStormAltar(canvas, c, active: active);
 
   void _renderCurrents(Canvas canvas, DungeonRoom room) {
     final mote = _fx.mote;
@@ -12598,24 +12540,9 @@ class PlanetDungeonGame extends FlameGame {
         6,
         const Color(0xFF9FB3D6).withValues(alpha: 0.55),
       );
-      // THE SOCKET, not a circle on a diagram.
-      //
-      // Five bare rings with '?' chips under them read as a flowchart. An
-      // anchor is a thing on the loom: a sunk seat, a brass collar, and four
-      // grips waiting for something to be laid into them.
-      canvas.drawCircle(
-        an.position,
-        15,
-        Paint()..color = const Color(0xFF0B1017).withValues(alpha: 0.55),
-      );
-      canvas.drawCircle(
-        an.position,
-        16,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = filled ? 2.4 : 1.8
-          ..color = col.withValues(alpha: filled ? 0.95 : 0.6),
-      );
+      // THE SOCKET, not a circle on a diagram: a gold-rimmed glass seat,
+      // frosted until an echo is laid in, sky-lit once one is.
+      _drawGlassAnchor(canvas, an.position, filled: filled);
       if (!filled) {
         // Empty grips: four short jaws around the seat, open and waiting.
         final jaw = Paint()
@@ -12678,6 +12605,12 @@ class PlanetDungeonGame extends FlameGame {
     if (_roomCleared(room)) return; // altar solved — conduits & guardian gone
     for (final c in room.conduits) {
       final live = altarOpen || (conduitEnergy[c.id] ?? 0) > 0;
+      // Sablis's conduit is not a storm pylon: it is the false wall the
+      // riddle names, and a Horn shoulders through it.
+      if (_isRuins) {
+        _drawFalseWall(canvas, c.position, broken: live);
+        continue;
+      }
       final col = live ? const Color(0xFF5BC8E8) : const Color(0xFF74613A);
       final pulse = live ? 0.6 + 0.4 * sin(_time * 10) : 1.0;
       if (_fx.ready) {
@@ -12860,15 +12793,19 @@ class PlanetDungeonGame extends FlameGame {
         ..strokeWidth = 1.2
         ..color = color.withValues(alpha: charged ? 0.85 : 0.38),
     );
-    final channel = Rect.fromCenter(
-      center: c + const Offset(0, -2),
-      width: 8,
-      height: 54,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(channel, const Radius.circular(6)),
-      Paint()..color = color.withValues(alpha: charged ? 0.70 : 0.20),
-    );
+    if (_isGlassPlanet) {
+      _drawConduitGlass(canvas, c, color, charged);
+    } else {
+      final channel = Rect.fromCenter(
+        center: c + const Offset(0, -2),
+        width: 8,
+        height: 54,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(channel, const Radius.circular(6)),
+        Paint()..color = color.withValues(alpha: charged ? 0.70 : 0.20),
+      );
+    }
     for (var i = 0; i < 3; i++) {
       final y = c.dy - 22 + i * 19.0;
       canvas.drawLine(
@@ -13693,6 +13630,8 @@ class PlanetDungeonGame extends FlameGame {
         _renderSteamFloor(canvas, room);
       } else if (_isBog) {
         _renderBogFloor(canvas, room);
+      } else if (_isSpire) {
+        _renderSkyStage(canvas, room);
       } else {
         _renderPlainFloor(canvas, b, room.id == layout.entranceRoomId);
       }
@@ -13999,6 +13938,11 @@ class PlanetDungeonGame extends FlameGame {
   /// A solid floating island: cached procedural top/underside paths, readable
   /// flat walkable surface, jagged hanging stone, and sparse rune/debris detail.
   void _renderFloatingIsland(Canvas canvas, Rect rect, {required bool sigil}) {
+    if (_isSpire) {
+      _renderSkyIsland(canvas, rect);
+      if (sigil) _drawSigil(canvas, rect);
+      return;
+    }
     final stormVariant = _isStormRoom(currentRoom);
     final geom = _cachedIslandGeometry(rect, stormVariant: stormVariant);
 
@@ -14243,6 +14187,17 @@ class PlanetDungeonGame extends FlameGame {
       // [DungeonDoor.chromeless]). Painting a frame over it hides the thing
       // the player is meant to read.
       if (d.chromeless) continue;
+      // A glass planet's doorways are glass in the stone (§7.11).
+      if (_isGlassPlanet && _doorOnWall(room, d)) {
+        _drawGlassDoor(canvas, room, d);
+        continue;
+      }
+      // Mud's wallows lie IN the fen, not in a wall: a stone collar with a
+      // glass lid, never a UI frame.
+      if (_isBog && (_isWallowDoor(room, d) || _isRisenWallowDoor(room, d))) {
+        _drawWallowHatch(canvas, d.rect, open: !isDoorLocked(room, d));
+        continue;
+      }
       final r = d.rect;
       // Sealed star-gated door: a dark slab. The FINALE door reads as a
       // barred ritual seal that SHOWS PROGRESS — one star gem per required
@@ -14943,14 +14898,14 @@ class PlanetDungeonGame extends FlameGame {
   void _renderKinBeams(Canvas canvas) {
     for (final beam in _kinBeams) {
       final fade = (beam.life / 0.34).clamp(0.0, 1.0).toDouble();
-      drawAdvancedAbilityBeam(
+      // Same kin laser survival draws.
+      drawKinLaser(
         canvas: canvas,
         start: beam.origin,
         end: beam.end,
         color: beam.color,
-        width: 3.4,
+        width: 2.6,
         alpha: fade,
-        time: _time,
       );
     }
   }
@@ -15038,44 +14993,6 @@ class PlanetDungeonGame extends FlameGame {
       color: color,
       time: _time,
     )) {
-      return true;
-    }
-    if (projectile.abilityFamily == 'kin' &&
-        projectile.element == 'Spirit' &&
-        projectile.followSourceCompanion) {
-      final tier = projectile.effectCount.clamp(1, 4);
-      final spirit = elementColor('Spirit');
-      final white = Color.lerp(spirit, Colors.white, 0.55)!;
-      final scale = 1.0 + 0.35 * (tier - 1);
-      canvas.drawCircle(
-        position,
-        14.0 * scale,
-        Paint()..color = spirit.withValues(alpha: 0.16 + 0.04 * tier),
-      );
-      canvas.drawCircle(
-        position,
-        8.5 * scale,
-        Paint()..color = spirit.withValues(alpha: 0.30 + 0.06 * tier),
-      );
-      canvas.drawCircle(
-        position,
-        4.0 * scale,
-        Paint()..color = white.withValues(alpha: 0.55 + 0.10 * tier),
-      );
-      canvas.drawCircle(
-        position,
-        1.4 + 0.4 * tier,
-        Paint()..color = Colors.white.withValues(alpha: 0.95),
-      );
-      for (var i = 0; i < tier - 1; i++) {
-        final a = _time * 2.4 + i * (pi * 2 / max(1, tier - 1));
-        final r = 9.0 * scale + 2.0;
-        canvas.drawCircle(
-          position + Offset(cos(a) * r, sin(a) * r),
-          1.6,
-          Paint()..color = white.withValues(alpha: 0.85),
-        );
-      }
       return true;
     }
 
@@ -15298,6 +15215,16 @@ class PlanetDungeonGame extends FlameGame {
             const [0.0, 0.52, 1.0],
           ),
       );
+      // Horn+Plant root: thorned vines climbing over the body.
+      if (enemy.hornPlantRootTimer > 0) {
+        drawHornPlantRootWrap(
+          canvas: canvas,
+          r: enemy.radius,
+          time: _time,
+          seed: enemy.hashCode % 17 * 0.37,
+          strength: (enemy.hornPlantRootTimer / 0.4).clamp(0.0, 1.0),
+        );
+      }
       canvas.restore();
 
       final barW = enemy.radius * 2.2;
@@ -15435,6 +15362,8 @@ class PlanetDungeonGame extends FlameGame {
           angle: c.angle,
           sweepRadius: chargingComp.chargeSweepRadius,
           overshootDistance: chargingComp.chargeOvershootDistance,
+          element: chargingComp.member.element,
+          time: _time,
         );
       }
       if (isActive) {
@@ -15535,6 +15464,11 @@ class PlanetDungeonGame extends FlameGame {
       final shieldHp = i < combatCompanions.length
           ? combatCompanions[i].shieldHp
           : 0;
+      if (i < combatCompanions.length &&
+          combatCompanions[i].member.family.toLowerCase() == 'horn' &&
+          combatCompanions[i].member.element == 'Poison') {
+        drawHornPoisonAura(canvas: canvas, radius: 140, time: _time);
+      }
       if (shieldHp > 0) {
         drawAdvancedCompanionShield(canvas: canvas, time: _time);
       }
@@ -15565,4 +15499,19 @@ class PlanetDungeonGame extends FlameGame {
       canvas.restore();
     }
   }
+}
+
+/// What the dungeon tells the phone to feel (see `onHaptic`).
+enum DungeonHaptic {
+  /// A verb that worked: a dig, a give, a pour.
+  success,
+
+  /// A press the world refused.
+  refuse,
+
+  /// The active creature was hurt.
+  hit,
+
+  /// A star, a door opening, a rite: the big moments.
+  big,
 }

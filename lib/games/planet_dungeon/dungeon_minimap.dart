@@ -12,6 +12,7 @@ import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_chart_layout.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:flutter/material.dart';
@@ -1002,7 +1003,8 @@ class _DungeonFullMapPainter extends CustomPainter {
     final known = _knownRoomsOf(game);
     final hatches = <String, Color>{};
     final fenMarks = <(Offset, BogFord)>[];
-    _drawCorridors(canvas, chart, hatches, known, fenMarks);
+    final ruinsMarks = <(Offset, MoundState)>[];
+    _drawCorridors(canvas, chart, hatches, known, fenMarks, ruinsMarks);
     for (final e in chart.rooms.entries) {
       if (!known.contains(e.key)) continue;
       final room = game.layout.rooms[e.key];
@@ -1010,6 +1012,7 @@ class _DungeonFullMapPainter extends CustomPainter {
     }
     // Hatches sit INSIDE their rooms, so they go on after the room fills.
     _drawFenMarks(canvas, fenMarks);
+    _drawRuinsMarks(canvas, ruinsMarks);
     hatches.forEach((id, color) {
       final box = chart.rooms[id];
       if (box == null || !known.contains(id)) return;
@@ -1076,6 +1079,7 @@ class _DungeonFullMapPainter extends CustomPainter {
     Map<String, Color> hatches,
     Set<String> known,
     List<(Offset, BogFord)> fenMarks,
+    List<(Offset, MoundState)> ruinsMarks,
   ) {
     final seen = <String>{};
     final paint = Paint()
@@ -1154,6 +1158,19 @@ class _DungeonFullMapPainter extends CustomPainter {
             alpha = 0.7;
           case null:
             break;
+        }
+        // SABLIS'S STREETS ARE ITS LEDGER: a crossing over a dug-out square is
+        // a trench and one under a heap is a dune, and both are shut. The
+        // chart says which, so a plan can be made without walking every
+        // street to find out (checklist item 6).
+        final street = _ruinsStreetState(room.id, to.id);
+        if (street != null && street != MoundState.buried) {
+          color = street == MoundState.bared
+              ? const Color(0xFF8A6A40)
+              : const Color(0xFFE2CFA4);
+          width = street == MoundState.bared ? 2.0 : 5.0;
+          alpha = 0.9;
+          ruinsMarks.add((Offset.lerp(a, b, 0.5)!, street));
         }
         paint
           ..strokeWidth = width
@@ -1336,6 +1353,53 @@ class _DungeonFullMapPainter extends CustomPainter {
             ..strokeWidth = 1.6
             ..strokeCap = StrokeCap.round
             ..color = teal.withValues(alpha: 0.8),
+        );
+      }
+    }
+  }
+
+  /// What the buried city has made of the street between two rooms, or null
+  /// when this is not Sablis or the corridor is not a mound's crossing (the
+  /// holes, ramps and drift tunnels only draw when they are open anyway).
+  MoundState? _ruinsStreetState(String from, String to) {
+    if (game.layout.element != 'Dust') return null;
+    for (final m in kDustMounds) {
+      if ((m.crossFrom == from && m.crossTo == to) ||
+          (m.crossFrom == to && m.crossTo == from)) {
+        return game.ruins.stateOf(m.id);
+      }
+    }
+    return null;
+  }
+
+  /// A shut street's mark at the middle of its corridor: a dark pit for a
+  /// trench, a pale crested heap for a dune — the same two shapes the rooms
+  /// draw, at map size.
+  void _drawRuinsMarks(Canvas canvas, List<(Offset, MoundState)> marks) {
+    for (final (at, state) in marks) {
+      if (state == MoundState.bared) {
+        final pit = Rect.fromCenter(center: at, width: 24, height: 14);
+        canvas.drawOval(pit, Paint()..color = const Color(0xFF0B0806));
+        canvas.drawOval(
+          pit,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = const Color(0xFFB08A55),
+        );
+      } else {
+        final heap = Path()
+          ..moveTo(at.dx - 14, at.dy + 7)
+          ..quadraticBezierTo(at.dx - 4, at.dy - 13, at.dx + 5, at.dy - 9)
+          ..quadraticBezierTo(at.dx + 11, at.dy - 3, at.dx + 14, at.dy + 7)
+          ..close();
+        canvas.drawPath(heap, Paint()..color = const Color(0xFFE2CFA4));
+        canvas.drawPath(
+          heap,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..color = const Color(0xFF6A5031),
         );
       }
     }

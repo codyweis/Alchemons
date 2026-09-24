@@ -1,3 +1,4 @@
+import 'package:alchemons/games/cosmic/vfx_shapes.dart';
 import 'dart:math';
 import 'dart:ui';
 
@@ -152,19 +153,26 @@ void drawMysticWorldAmbience({
         stroke(path, 0.48 * (1 - phase), 1.4, glow: true);
         oval(ember, 3, 4, 0.75 * (1 - phase), fill: true);
       case 'Lava':
-        final path = Path()
-          ..moveTo(p.dx - 38, p.dy + 18)
-          ..lineTo(p.dx - 12, p.dy + 8)
-          ..lineTo(p.dx + 2, p.dy + 13)
-          ..lineTo(p.dx + 19, p.dy - 9)
-          ..lineTo(p.dx + 43, p.dy - 13);
-        stroke(path, 0.42 + 0.13 * sin(t * 0.7 + i), 2.1, glow: true);
-        stroke(
-          Path()
-            ..moveTo(p.dx + 2, p.dy + 13)
-            ..lineTo(p.dx + 10, p.dy + 31),
-          0.3,
-          1,
+        // A glowing seam in dark rock — filled and tapered, not a scribble.
+        final seam = [
+          for (var k = 0; k <= 6; k++)
+            Offset(
+              p.dx - 40 + 82 * k / 6,
+              p.dy + 16 - 28 * k / 6 + sin(k / 6 * pi) * 5 * (n - 0.5),
+            ),
+        ];
+        final heat = 0.6 + 0.25 * sin(t * 0.7 + i);
+        vfxFillPath(
+          canvas,
+          vfxRibbon(seam, 7, 1),
+          const Color(0xFF1A0804),
+          0.7 * alpha,
+        );
+        vfxFillPath(
+          canvas,
+          vfxRibbon(seam, 2.4, 0.4),
+          color,
+          heat * 0.7 * alpha,
         );
       case 'Water':
         final drop = p.translate(phase * 25, phase * 80 - 40);
@@ -230,98 +238,81 @@ void drawMysticWorldAmbience({
           0.30 * (1 - phase),
         );
       case 'Plant':
-        final path = Path()
-          ..moveTo(p.dx - 40, p.dy + 28)
-          ..cubicTo(
-            p.dx - 10,
-            p.dy + 16,
-            p.dx - 20,
-            p.dy - 16,
-            p.dx + 27,
-            p.dy - 27,
-          );
-        stroke(path, 0.27, 2.4);
-        for (var k = 0; k < 3; k++) {
-          final x = p.dx - 20 + k * 13;
-          stroke(
-            Path()
-              ..moveTo(x, p.dy + 10 - k * 10)
-              ..quadraticBezierTo(
-                x + 15,
-                p.dy + 14 - k * 10,
-                x + 19,
-                p.dy + 4 - k * 10,
-              ),
-            0.25,
-            1,
+        // A creeper: a tapered stem with leaves along it.
+        final stem = [
+          for (var k = 0; k <= 8; k++)
+            Offset(
+              p.dx - 40 + 67 * k / 8,
+              p.dy + 28 - 55 * k / 8 + sin(k * 0.9 + i) * 6,
+            ),
+        ];
+        vfxFillPath(canvas, vfxRibbon(stem, 4, 0.6), color, 0.3 * alpha);
+        for (var k = 2; k <= 6; k += 2) {
+          final side = k % 4 == 0 ? 1.0 : -1.0;
+          vfxFillPath(
+            canvas,
+            vfxLeaf(stem[k], 11, -pi / 4 + side * 0.9 + sin(t + i + k) * 0.1),
+            color,
+            0.32 * alpha,
           );
         }
-        oval(p.translate(22, -24), 2, 3, 0.35 + 0.15 * sin(t + i), fill: true);
       case 'Poison':
         oval(p, 75, 27, 0.055, fill: true);
         final bubble = p.translate(sin(t + i) * 5, -phase * 24);
         oval(bubble, 9 + phase * 12, 10 + phase * 14, 0.28 * sin(phase * pi));
         oval(p.translate(24, 9), 32, 8, 0.15);
       case 'Spirit':
+        // A soul drifting up with a veil trailing under it.
         final head = p.translate(sin(t * 0.4 + i) * 14, -phase * 30);
-        stroke(
-          Path()
-            ..moveTo(head.dx, head.dy)
-            ..cubicTo(
-              head.dx - 16,
-              head.dy + 16,
-              head.dx + 18,
-              head.dy + 24,
-              head.dx - 8,
-              head.dy + 51,
-            ),
-          0.19,
-          2.0,
-          glow: true,
+        final veil = [
+          for (var k = 0; k <= 6; k++)
+            head + Offset(sin(t * 2 + k * 0.9 + i) * 5 * k / 6, 48 * k / 6),
+        ];
+        final fade = sin(phase * pi).clamp(0.2, 1.0);
+        vfxFillPath(
+          canvas,
+          vfxRibbon(veil, 9, 0.5),
+          color,
+          0.18 * fade * alpha,
         );
-        oval(head, 3, 8, 0.43, fill: true);
+        vfxFillPath(
+          canvas,
+          vfxDrop(head, 3.5, pi / 2),
+          color,
+          0.5 * fade * alpha,
+        );
       case 'Dark':
+        // Shadow drawn in toward the middle, and a mote falling with it.
         final toward = center - p;
         final dir = toward / toward.distance;
         final side = Offset(-dir.dy, dir.dx);
-        stroke(
-          Path()
-            ..moveTo(p.dx, p.dy)
-            ..quadraticBezierTo(
-              p.dx + dir.dx * 50 + side.dx * 25,
-              p.dy + dir.dy * 50 + side.dy * 25,
-              p.dx + dir.dx * 85,
-              p.dy + dir.dy * 85,
-            ),
-          0.18,
-          1.2,
-        );
+        final wisp = [
+          for (var k = 0; k <= 6; k++)
+            p + dir * (85 * k / 6) + side * (sin(k / 6 * pi) * 22),
+        ];
+        vfxFillPath(canvas, vfxRibbon(wisp, 5, 0.5), color, 0.16 * alpha);
         final mote = p + dir * phase * 75;
         oval(mote, 3, 3, 0.35 * sin(phase * pi), fill: true);
       case 'Blood':
+        // A vein pulsing, with a drop running down it.
         final pulse = 0.7 + 0.3 * pow(max(0.0, sin(t * 1.3)), 6);
-        stroke(
-          Path()
-            ..moveTo(p.dx, p.dy - 33)
-            ..lineTo(p.dx + 5, p.dy - 9)
-            ..lineTo(p.dx - 3, p.dy + 8)
-            ..lineTo(p.dx + 8, p.dy + 34),
-          0.32 * pulse,
-          1.4,
+        final vein = [
+          Offset(p.dx, p.dy - 33),
+          Offset(p.dx + 5, p.dy - 9),
+          Offset(p.dx - 3, p.dy + 8),
+          Offset(p.dx + 8, p.dy + 34),
+        ];
+        vfxFillPath(
+          canvas,
+          vfxRibbon(vein, 4.5, 0.8),
+          color,
+          0.3 * pulse * alpha,
         );
-        stroke(
-          Path()
-            ..moveTo(p.dx + 5, p.dy - 9)
-            ..lineTo(p.dx + 22, p.dy - 18),
-          0.22 * pulse,
-          0.9,
-        );
-        oval(
-          p.translate(3, phase * 48 - 15),
-          2.5,
-          5,
-          0.35 * sin(phase * pi),
-          fill: true,
+        vfxFillPath(
+          canvas,
+          vfxDrop(p.translate(3, phase * 48 - 15), 2.6, pi / 2),
+          color,
+          0.5 * sin(phase * pi) * alpha,
         );
     }
     canvas.restore();

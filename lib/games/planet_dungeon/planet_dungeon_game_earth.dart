@@ -1437,9 +1437,7 @@ extension BuriedGiant on PlanetDungeonGame {
   String? _barrowObjectiveHint(DungeonRoom room) {
     switch (room.id) {
       case 'barrow_gate':
-        return entryDoorRevealed
-            ? null
-            : 'Barrow Gate. The lintel has fallen';
+        return entryDoorRevealed ? null : 'Barrow Gate. The lintel has fallen';
       case 'rib_hall':
         return 'Rib Hall. The marrow needs bridging';
       case 'pillar_crypt':
@@ -1531,144 +1529,13 @@ extension BuriedGiant on PlanetDungeonGame {
 
   /// Barrow flooring: bone-ochre packed earth — TRANSLUCENT (alpha ≈
   /// 0.5–0.6) so the strata shader glows through.
-  void _renderBarrowFloor(Canvas canvas, DungeonRoom room) {
-    final b = room.bounds;
-    final rr = RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(26));
-    canvas.drawRRect(
-      rr,
-      Paint()
-        ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, [
-          const Color(0xFF1E1812).withValues(alpha: 0.50),
-          const Color(0xFF120E08).withValues(alpha: 0.58),
-        ]),
-    );
-    // THE GROUND IS STRATA, NOT GRAPH PAPER.
-    //
-    // It used to be a 110px square grid of seams. Every room in the barrow
-    // therefore sat on a sheet of graph paper, which is the single biggest
-    // reason nine chambers of a BURIED BODY read as diagrams of their own
-    // mechanics. Earth is the one planet whose ground is the story: the giant
-    // sank through ages, and the ages are still lying on top of it in bands.
-    //
-    // Bands, then, with irregular boundaries — a straight line is a drawing
-    // and a wavering one is a deposit. Deterministic per room (seeded off the
-    // bounds), so the ground does not crawl between frames.
-    final seed = (b.width * 31 + b.height * 17).toInt();
-    double wob(int i, double x) =>
-        sin((x + seed + i * 137) * 0.0121 + i * 2.3) * (5 + (i % 3) * 3.5);
-
-    const bands = 7;
-    for (var i = 1; i < bands; i++) {
-      final y = b.top + b.height * i / bands;
-      // The band's own body, laid under its boundary so the seam sits ON a
-      // change of colour rather than floating over one flat tone.
-      final path = Path()..moveTo(b.left, y + wob(i, b.left));
-      for (var x = b.left; x <= b.right; x += 26) {
-        path.lineTo(x, y + wob(i, x));
-      }
-      path.lineTo(b.right, b.bottom);
-      path.lineTo(b.left, b.bottom);
-      path.close();
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color =
-              (i.isEven ? const Color(0xFF241B12) : const Color(0xFF1A140D))
-                  .withValues(alpha: 0.34),
-      );
-      // The seam itself: a pale line of older grit pressed between the ages.
-      final seam = Path()..moveTo(b.left, y + wob(i, b.left));
-      for (var x = b.left; x <= b.right; x += 26) {
-        seam.lineTo(x, y + wob(i, x));
-      }
-      canvas.drawPath(
-        seam,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = const Color(0xFF8A6E48).withValues(alpha: 0.10),
-      );
-    }
-
-    // BONE FLECK AND ROOT. What is actually in the dirt over a giant: chips
-    // of it, and the roots that came down looking for it. Sparse, small and
-    // deterministic — this is texture, not a particle system.
-    final chip = Paint()
-      ..color = const Color(0xFFB8A070).withValues(alpha: 0.13);
-    final root = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF4A3A22).withValues(alpha: 0.4);
-    for (var i = 0; i < 34; i++) {
-      final u = ((i * 2654435761) % 1000) / 1000.0;
-      final v = ((i * 40503 + seed) % 997) / 997.0;
-      final at = Offset(
-        b.left + 20 + u * (b.width - 40),
-        b.top + 20 + v * (b.height - 40),
-      );
-      if (i % 4 == 0) {
-        // A root thread, feeling downward.
-        canvas.drawPath(
-          Path()
-            ..moveTo(at.dx, at.dy)
-            ..quadraticBezierTo(
-              at.dx + 7 * (i.isEven ? 1 : -1),
-              at.dy + 13,
-              at.dx + 2 * (i.isEven ? -1 : 1),
-              at.dy + 27,
-            ),
-          root,
-        );
-      } else {
-        // A chip of the giant, edge-on.
-        canvas.save();
-        canvas.translate(at.dx, at.dy);
-        canvas.rotate(u * pi);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(
-              center: Offset.zero,
-              width: 5 + (i % 3) * 2.0,
-              height: 2,
-            ),
-            const Radius.circular(1),
-          ),
-          chip,
-        );
-        canvas.restore();
-      }
-    }
-    if (_fx.ready) {
-      final cols = (b.width / 130).clamp(3, 9).toInt();
-      for (var i = 0; i < cols; i++) {
-        final x = b.left + (i + 0.5) / cols * b.width;
-        drawPuff(
-          canvas,
-          _fx.puff!,
-          Offset(x, b.top + 8),
-          120,
-          const Color(0xFF171208).withValues(alpha: 0.55),
-        );
-        drawPuff(
-          canvas,
-          _fx.puff!,
-          Offset(x, b.bottom - 8),
-          120,
-          const Color(0xFF120E08).withValues(alpha: 0.6),
-        );
-      }
-    }
-    canvas.drawRRect(
-      rr,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFFD8B878).withValues(alpha: 0.12),
-    );
-  }
+  /// THE GROUND IS STRATA, NOT GRAPH PAPER — baked once per room inside the
+  /// barrow's carved walls (planet_dungeon_game_earth_art.dart).
+  void _renderBarrowFloor(Canvas canvas, DungeonRoom room) =>
+      _renderBarrowFabric(canvas, room);
 
   void _renderBarrow(Canvas canvas, DungeonRoom room) {
+    _renderGlassDoorPlugs(canvas, room);
     switch (room.id) {
       case 'barrow_gate':
         _drawBarrowLintel(canvas);
@@ -2701,15 +2568,7 @@ extension BuriedGiant on PlanetDungeonGame {
       if (sealed) {
         // SEALED: crystal grown out of the mouth, and it never leaks.
         for (final (dx, h) in const [(-6.0, 16.0), (1.0, 24.0), (7.0, 13.0)]) {
-          final base = at + Offset(dx, 2);
-          canvas.drawPath(
-            Path()
-              ..moveTo(base.dx - 3.5, base.dy)
-              ..lineTo(base.dx, base.dy - h)
-              ..lineTo(base.dx + 3.5, base.dy)
-              ..close(),
-            Paint()..color = const Color(0xFFB8E0D8).withValues(alpha: 0.85),
-          );
+          _drawCrystalBlade(canvas, at + Offset(dx, 2), 4, h, heat: 0.3);
         }
       } else if (locked) {
         // BURNING, AND BLEEDING BACK. The arc is the socket's remaining life,
@@ -2735,15 +2594,7 @@ extension BuriedGiant on PlanetDungeonGame {
             )!.withValues(alpha: 0.9),
         );
       }
-      canvas.drawCircle(
-        at,
-        9,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.8
-          ..color = (locked ? const Color(0xFFB8E0D8) : const Color(0xFF6E5A3A))
-              .withValues(alpha: 0.85),
-      );
+      _drawGlassMouth(canvas, at, locked: locked, bared: bared);
       if (locked) {
         // The grown crystal lock: a shard cluster that GROWS from the socket.
         final grow = done ? 1.0 : (_crystalGrow[pillar.id] ?? 1.0);
@@ -2759,21 +2610,14 @@ extension BuriedGiant on PlanetDungeonGame {
             ).withValues(alpha: (0.2 + 0.06 * sin(_time * 2.2 + p.dx)) * grow),
           );
         }
-        final shard = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = const Color(0xFFD8F0EA).withValues(alpha: 0.85);
-        final fill = Paint()
-          ..color = const Color(0xFFB8E0D8).withValues(alpha: 0.20 * grow);
         for (final (dx, h) in const [(-8.0, 14.0), (0.0, 20.0), (8.0, 12.0)]) {
-          final base = p + Offset(dx, 36);
-          final path = Path()
-            ..moveTo(base.dx - 4, base.dy)
-            ..lineTo(base.dx, base.dy - h * eased)
-            ..lineTo(base.dx + 4, base.dy)
-            ..close();
-          canvas.drawPath(path, fill);
-          canvas.drawPath(path, shard);
+          _drawCrystalBlade(
+            canvas,
+            p + Offset(dx, 36),
+            4.5,
+            h * eased,
+            heat: 0.55,
+          );
         }
         // A bright growth-spark at the tip while it's still crystallising.
         if (grow < 1.0 && _fx.ready) {
@@ -3000,7 +2844,7 @@ extension BuriedGiant on PlanetDungeonGame {
     // ── THE CHAIN, standing in the hand ──
     // Everything the player has done so far is visible IN the palm, which is
     // what lets the next step be worked out instead of guessed.
-    if (!won) {
+    if (!won && _palmGrow <= 0) {
       if (palmStage == 0) {
         // Empty, and open. One grain of crystal light in the crease: the
         // room's only tell, and it says nothing about what to bring.
@@ -3092,206 +2936,13 @@ extension BuriedGiant on PlanetDungeonGame {
       return;
     }
 
-    // ── TAKEN ROOT, AND IT HAS BEEN GROWING FOR AN AGE ──
-    //
-    // Not a glyph placed in the hand: a formation that came UP through it.
-    // The crystal follows the creases out to the fingers, stains the bone
-    // where it met it, and stands in a cluster of blades of three sizes.
-    if (_fx.ready) {
-      drawGlow(
-        canvas,
-        _fx.glow!,
-        c + const Offset(0, 6),
-        86,
-        const Color(
-          0xFFB8E0D8,
-        ).withValues(alpha: 0.16 + 0.05 * sin(_time * 1.3)),
-      );
-    }
-    // The stain: where crystal met bone, the bone went green-white.
-    canvas.drawPath(
-      palm,
-      Paint()..color = const Color(0xFFB8E0D8).withValues(alpha: 0.09),
-    );
-    // Veins running the creases out into the fingers.
-    final vein = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFD8F0EA).withValues(alpha: 0.34);
-    for (var i = 0; i < 4; i++) {
-      final t = i / 3;
-      canvas.drawPath(
-        Path()
-          ..moveTo(c.dx, c.dy + 10)
-          ..quadraticBezierTo(
-            c.dx - 40 + t * 80,
-            c.dy - 6,
-            c.dx - 66 + t * 132,
-            c.dy - 30,
-          ),
-        vein,
-      );
-    }
-    // The cluster. Blades of three heights, each a solid body with a lit
-    // facet, leaning off one another the way crystal actually grows.
-    const blades = [
-      (-34.0, 46.0, -0.22),
-      (-16.0, 74.0, -0.08),
-      (2.0, 104.0, 0.02),
-      (20.0, 66.0, 0.14),
-      (38.0, 38.0, 0.26),
-    ];
-    for (final (dx, h, lean) in blades) {
-      final base = c + Offset(dx, 18);
-      final tip = base + Offset(sin(lean) * h, -cos(lean) * h);
-      final w = 7.0 + h * 0.075;
-      final body = Path()
-        ..moveTo(base.dx - w, base.dy)
-        ..lineTo(tip.dx - w * 0.22, tip.dy)
-        ..lineTo(tip.dx + w * 0.22, tip.dy)
-        ..lineTo(base.dx + w, base.dy)
-        ..close();
-      canvas.drawPath(
-        body,
-        Paint()..color = const Color(0xFF2E5A56).withValues(alpha: 0.85),
-      );
-      // The lit facet down one side — this is what makes it read as faceted
-      // rather than as a triangle.
-      canvas.drawPath(
-        Path()
-          ..moveTo(base.dx - w, base.dy)
-          ..lineTo(tip.dx - w * 0.22, tip.dy)
-          ..lineTo(tip.dx, tip.dy)
-          ..lineTo(base.dx, base.dy)
-          ..close(),
-        Paint()..color = const Color(0xFFB8E0D8).withValues(alpha: 0.55),
-      );
-      canvas.drawPath(
-        body,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = const Color(0xFFD8F0EA).withValues(alpha: 0.75),
-      );
-      // A slow gleam travelling the blade, so the thing is alive and not a
-      // decal — one moving highlight per blade, no blur.
-      final g = (sin(_time * 0.7 + dx * 0.05) * 0.5 + 0.5);
-      canvas.drawCircle(
-        Offset.lerp(base, tip, 0.25 + g * 0.5)!,
-        1.8,
-        Paint()..color = Colors.white.withValues(alpha: 0.35 + 0.3 * g),
-      );
-    }
+    // ── TAKEN ROOT ── the crystal comes up through the hand as the rite
+    // binds, and stays (planet_dungeon_game_earth_art.dart).
+    _drawPalmCrystal(canvas, c, palm);
   }
 
-  void _drawBoneMural(Canvas canvas, DungeonRoom room) {
-    final b = room.bounds;
-    final panel = Rect.fromCenter(
-      center: Offset(b.center.dx, b.top + 120),
-      width: 470,
-      height: 130,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(panel, const Radius.circular(10)),
-      Paint()..color = const Color(0xFF120D07).withValues(alpha: 0.8),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(panel, const Radius.circular(10)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = const Color(0xFF8A6E48).withValues(alpha: 0.7),
-    );
-    final ink = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..color = const Color(0xFFD8B878).withValues(alpha: 0.55);
-    // The eye glyph…
-    final eyeP = Offset(panel.left + 90, panel.center.dy);
-    canvas.drawOval(Rect.fromCenter(center: eyeP, width: 56, height: 30), ink);
-    canvas.drawCircle(eyeP, 8, ink);
-    // …watching a scale: beam, pivot, two pans with stones.
-    final pivot = Offset(panel.center.dx + 60, panel.center.dy - 14);
-    canvas.drawLine(
-      pivot + const Offset(-80, 8),
-      pivot + const Offset(80, -8),
-      ink,
-    );
-    canvas.drawLine(pivot, pivot + const Offset(0, 30), ink);
-    for (final side in const [-1.0, 1.0]) {
-      final panC = pivot + Offset(side * 80, side * -8 + 22);
-      canvas.drawArc(
-        Rect.fromCircle(center: panC, radius: 16),
-        0,
-        pi,
-        false,
-        ink,
-      );
-      canvas.drawCircle(panC + const Offset(-5, -4), 3.4, ink);
-      canvas.drawCircle(panC + const Offset(5, -4), 3.4, ink);
-    }
-
-    // …its gaze BENT through the crystal lens that stands between them. This
-    // is the diagram's teaching: the eye reads the scale only via the prism.
-    final lensP = Offset((eyeP.dx + pivot.dx) / 2 - 16, panel.center.dy + 6);
-    final beam = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(
-        0xFFB8E0D8,
-      ).withValues(alpha: 0.30 + 0.12 * sin(_time * 2.4));
-    canvas.drawLine(
-      eyeP + const Offset(26, 2),
-      lensP - const Offset(0, 4),
-      beam,
-    );
-    canvas.drawLine(
-      lensP - const Offset(0, 4),
-      pivot + const Offset(0, 2),
-      beam,
-    );
-    // A little plinth under the lens.
-    canvas.drawLine(
-      lensP + const Offset(-12, 12),
-      lensP + const Offset(12, 12),
-      ink,
-    );
-    // The crystal lens itself: a faceted gem.
-    final gem = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..strokeJoin = StrokeJoin.round
-      ..color = const Color(0xFFD8F0EA).withValues(alpha: 0.8);
-    final gemPath = Path()
-      ..moveTo(lensP.dx, lensP.dy - 16)
-      ..lineTo(lensP.dx + 9, lensP.dy + 2)
-      ..lineTo(lensP.dx, lensP.dy + 11)
-      ..lineTo(lensP.dx - 9, lensP.dy + 2)
-      ..close();
-    canvas.drawPath(
-      gemPath,
-      Paint()..color = const Color(0xFFB8E0D8).withValues(alpha: 0.16),
-    );
-    canvas.drawPath(gemPath, gem);
-    canvas.drawLine(
-      lensP + const Offset(-9, 2),
-      lensP + const Offset(9, 2),
-      gem,
-    );
-    if (_fx.ready) {
-      drawGlow(
-        canvas,
-        _fx.mote!,
-        lensP - const Offset(0, 2),
-        6,
-        const Color(
-          0xFFD8F0EA,
-        ).withValues(alpha: 0.30 + 0.12 * sin(_time * 3.0)),
-      );
-    }
-  }
+  void _drawBoneMural(Canvas canvas, DungeonRoom room) =>
+      _drawGlassBoneMural(canvas, room);
 
   void _drawEyeAndScale(Canvas canvas, DungeonRoom room) {
     final scale = room.stoneScale;
@@ -3313,26 +2964,9 @@ extension BuriedGiant on PlanetDungeonGame {
         const Color(0xFFB8E0D8).withValues(alpha: 0.10 + 0.18 * eyeGlow),
       );
     }
-    final iris = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = const Color(0xFFB8E0D8).withValues(alpha: 0.4 + 0.4 * eyeGlow);
-    canvas.drawOval(
-      Rect.fromCenter(center: eyeC, width: 120, height: 64),
-      iris,
-    );
-    canvas.drawCircle(eyeC, 22, iris);
-    // The pupil: while blind it TRACKS the active creature (the giant watches
-    // you, eased in _updateBarrow); once the lens stands it locks on the prism.
-    final pupil = eyeC + _eyeLook;
-    canvas.drawCircle(
-      pupil,
-      9,
-      Paint()
-        ..color = const Color(
-          0xFFD8F0EA,
-        ).withValues(alpha: 0.25 + 0.5 * eyeGlow + 0.08 * sin(_time * 2.6)),
-    );
+    // A leaded rondel of crystal; the pupil wanders while it is blind
+    // (eased in _updateBarrow) and locks on the prism once it stands.
+    _drawGlassEye(canvas, eyeC, _eyeLook, eyeGlow);
 
     // The gaze prism on its plinth (and the beam, once it stands).
     _drawGazePrism(canvas, scale, eyeC, seeing);
@@ -3491,24 +3125,13 @@ extension BuriedGiant on PlanetDungeonGame {
           ).withValues(alpha: (0.20 + 0.07 * sin(_time * 2.0)) * grow),
         );
       }
-      final shard = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.8
-        ..color = const Color(0xFFD8F0EA).withValues(alpha: 0.9);
-      final shardFill = Paint()
-        ..color = const Color(0xFFB8E0D8).withValues(alpha: 0.18 * grow);
       final apexY = p.dy + 10 - 36 * eased; // grows up from the core
-      final prismPath = Path()
-        ..moveTo(p.dx - 9, p.dy + 10)
-        ..lineTo(p.dx, apexY)
-        ..lineTo(p.dx + 9, p.dy + 10)
-        ..close();
-      canvas.drawPath(prismPath, shardFill);
-      canvas.drawPath(prismPath, shard);
-      canvas.drawLine(
-        p + const Offset(-4, -4),
-        Offset(p.dx + 4, apexY + 16),
-        shard,
+      _drawCrystalBlade(
+        canvas,
+        p + const Offset(0, 10),
+        9,
+        36 * eased,
+        heat: 0.5,
       );
       // A growth-spark riding the apex while it crystallises.
       if (grow < 1.0 && _fx.ready) {

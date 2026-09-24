@@ -283,7 +283,8 @@ extension FrozenObservatory on PlanetDungeonGame {
       return 'Running water. You can\'t climb it';
     }
     return switch (_flue(flue.id)) {
-      RimeFlueState.scoured => 'Bare ice. This shaft can\'t be frozen into steps now',
+      RimeFlueState.scoured =>
+        'Bare ice. This shaft can\'t be frozen into steps now',
       _ => 'Loose snow. Freeze it into steps to climb',
     };
   }
@@ -1497,9 +1498,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     guardianHp = PlanetDungeonGame.maxGuardianHp;
     _shake = PlanetDungeonGame._kArrivalShake;
     _cue(SoundCue.dungeonGateOpen);
-    speakConsequence(
-      'The wyrm stirs under the ice',
-    );
+    speakConsequence('The wyrm stirs under the ice');
     final t = roofThroat;
     _spawnAlchemyBurst(
       t == null ? roof.bounds.center : roof.centerAt(t),
@@ -1629,13 +1628,11 @@ extension FrozenObservatory on PlanetDungeonGame {
       // A READING: the line IS the payload, so it is remembered for the hint
       // button (§5.6) — the picture under the glass says the same thing.
       final read = switch (under) {
-        IceRoofUnder.rock ||
-        IceRoofUnder.pier => 'Stone under this ice',
+        IceRoofUnder.rock || IceRoofUnder.pier => 'Stone under this ice',
         IceRoofUnder.hollow =>
           'Dark water under this ice, drifting away from something',
         IceRoofUnder.body => 'The wyrm\'s body is under this ice',
-        IceRoofUnder.head =>
-          'The wyrm\'s head is under this ice',
+        IceRoofUnder.head => 'The wyrm\'s head is under this ice',
       };
       if (under != IceRoofUnder.rock &&
           under != IceRoofUnder.pier &&
@@ -1830,6 +1827,11 @@ extension FrozenObservatory on PlanetDungeonGame {
           canvas.drawRect(r, rim);
       }
     }
+    // The whole roof is ONE WINDOW, every pane held in lead.
+    _drawRoofLead(canvas, [
+      for (var c = 0; c < roof.count; c++)
+        if (!roofIsThroat(c)) roof.rectOf(c).deflate(1.5),
+    ]);
     // WHAT THE HAND WOULD WORK ON, before it does (plan, then commit).
     final a = active;
     if (a != null &&
@@ -2061,7 +2063,9 @@ extension FrozenObservatory on PlanetDungeonGame {
       case 'Ice':
         if (!strangerSeen) {
           // WHAT is missing (§5.6), never how to get it.
-          _setBlockedHint('The lens shows nothing. Point it where the water saw a star');
+          _setBlockedHint(
+            'The lens shows nothing. Point it where the water saw a star',
+          );
           return true;
         }
         if (telescopeNotch != strangerFrame) {
@@ -2245,9 +2249,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (rimefallFrozen) {
       rimefallFrozen = false;
       _cue(SoundCue.elementIce);
-      speakConsequence(
-        'Frowyrm roars, and the rimefall far above breaks',
-      );
+      speakConsequence('Frowyrm roars, and the rimefall far above breaks');
     }
   }
 
@@ -2408,7 +2410,8 @@ extension FrozenObservatory on PlanetDungeonGame {
     final tier = revealHintTier(a.member.statIntelligence);
     if (room.rime?.orrery != null) {
       _setInsightHint(switch (tier) {
-        0 => 'The blocks only slide on ice. Ice glazes the floor, Light melts it',
+        0 =>
+          'The blocks only slide on ice. Ice glazes the floor, Light melts it',
         1 =>
           'A shoved block slides until the ice ends. Each kerb only opens '
               'one way, shown by its arrow',
@@ -2879,6 +2882,8 @@ extension FrozenObservatory on PlanetDungeonGame {
       canvas.drawPath(s.path, s.paint);
     }
     canvas.restore();
+    _renderIceShell(canvas, room);
+    _renderGlassDoorPlugs(canvas, room);
 
     _renderFlueMouths(canvas, room);
     _renderOrrery(canvas, room);
@@ -4114,6 +4119,7 @@ extension FrozenObservatory on PlanetDungeonGame {
           );
         }
       }
+      if (!lode) _drawMirrorTracery(canvas, glass);
       // The frame itself, over the glass, with a lit inner bead.
       canvas.drawRRect(
         RRect.fromRectAndRadius(frame, const Radius.circular(5)),
@@ -4202,9 +4208,9 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (pillar != null) _drawHoarfrost(canvas, pillar, hoarfrostWhole);
 
     final lens = ice.telescope;
-    if (lens != null && !discoveredClouds.contains(kIceStarWalkerEggId)) {
-      _drawTelescope(canvas, lens);
-    }
+    // The instrument STAYS once the stranger is found: it is where the
+    // maxim's mark lives (the star caught in its lens).
+    if (lens != null) _drawTelescope(canvas, lens);
   }
 
   /// THE RIMEFALL — the shaft's one guaranteed ladder, and the object the
@@ -4518,8 +4524,13 @@ extension FrozenObservatory on PlanetDungeonGame {
         ..strokeWidth = 1.6
         ..color = _kShaftBrassLit.withValues(alpha: 0.65),
     );
-    // The objective, with a cold gleam in it.
+    // The objective, with a cold gleam in it — and, once found, the
+    // stranger caught in it for good.
     final eye = along(54) + lift;
+    if (_starCaught > 0) {
+      _drawCaughtStar(canvas, eye);
+      return;
+    }
     canvas.drawCircle(eye, 11, Paint()..color = const Color(0xFF0B2733));
     canvas.drawCircle(
       eye,

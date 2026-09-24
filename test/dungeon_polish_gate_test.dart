@@ -14,7 +14,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 
 void main() {
-  test('the polished set is the eight that have had the pass', () {
+  test('the polished set is the ten that have had the pass', () {
     expect(kPolishedDungeons, {
       'Fire',
       'Air',
@@ -27,6 +27,9 @@ void main() {
       // been played; §7.9's "ten left" list was stale, not the planet
       // unfinished.
       'Poison',
+      // Mud and Ice, 2026-09-23: the pass done, and played.
+      'Mud',
+      'Ice',
     });
   });
 

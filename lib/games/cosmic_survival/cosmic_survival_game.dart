@@ -1647,6 +1647,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // painter lives in the shared vfx module so cosmic and the dungeon draw the
   // identical landing.
   final List<LetSkyfallImpact> _letSkyfallImpacts = [];
+  final List<HornFx> _hornFx = [];
   int _timeDilationWave = 0;
   double _timeDilationTimer = 0;
   double _timeDilationSlowFactor = 1.0;
@@ -2807,6 +2808,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             _damageEnemy(e, comp.chargeDamage, sourceSlotIndex: slotIndex);
           }
         }
+        if (comp.member.family.toLowerCase() == 'horn') {
+          pushHornFx(
+            _hornFx,
+            HornFx.slam(
+              position: comp.position,
+              angle: comp.angle,
+              radius: comp.chargeFinalSweepRadius,
+              element: comp.member.element,
+            ),
+          );
+        }
         // Horn+Lightning: instead of releasing the chain blast now,
         // start a 3s storm-brewing wind-up. The horn keeps holding
         // still, the brewing visual telegraphs the coming discharge,
@@ -3645,6 +3657,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             if (sac > 0 && comp.currentHp - sac > 1) {
               comp.currentHp -= sac;
               comp.hitFlash = 1.0;
+              pushHornFx(_hornFx, HornFx.sacrifice(position: comp.position));
               // Scale impact damage up: ~1× sac per 4 HP sacrificed
               // (tuned so a 200-HP sacrifice adds a meaty bump).
               comp.chargeDamage += sac * 0.25;
@@ -16514,6 +16527,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           max: 1.40,
         );
         final heal = max(2, (comp.maxHp * 0.05 * bloodScale).round());
+        pushHornFx(
+          _hornFx,
+          HornFx.siphon(from: enemy.position, to: comp.position),
+        );
         final before = comp.currentHp;
         comp.currentHp = min(comp.maxHp, comp.currentHp + heal);
         if (comp.slotIndex >= 0) {
@@ -17081,7 +17098,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _renderHornSpiritSwarm(CosmicSurvivalCompanion comp) {
     if (_vfx.length >= 130) return;
     final center = comp.position;
-    final totalWindUp = 1.0;
+    // Matches Spirit's windUpTime in cosmic_data.dart.
+    final totalWindUp = 2.0;
     final elapsed = (totalWindUp - comp.windUpTimer).clamp(0.0, totalWindUp);
     final t = elapsed / totalWindUp;
     final orbR = 14.0 + 12.0 * sin(elapsed * 4.0);
@@ -19808,6 +19826,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     _vfx.removeWhere((p) => p.dead);
     updateLetSkyfallImpacts(_letSkyfallImpacts, dt);
+    updateHornFx(_hornFx, dt);
     for (final beam in _beamFx) {
       beam.update(dt);
     }
@@ -20751,32 +20770,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       for (final beam in _kinLaserBeams) {
         if (beam.dead) continue;
         final t = (beam.life / _KinLaserBeam.maxLife).clamp(0.0, 1.0);
-        // Soft outer glow stroke
-        canvas.drawLine(
-          beam.origin,
-          beam.end,
-          Paint()
-            ..strokeWidth = 5.0
-            ..strokeCap = StrokeCap.round
-            ..color = beam.color.withValues(alpha: 0.22 * t),
-        );
-        // Middle glow stroke
-        canvas.drawLine(
-          beam.origin,
-          beam.end,
-          Paint()
-            ..strokeWidth = 2.2
-            ..strokeCap = StrokeCap.round
-            ..color = beam.color.withValues(alpha: 0.65 * t),
-        );
-        // Thin white-hot core
-        canvas.drawLine(
-          beam.origin,
-          beam.end,
-          Paint()
-            ..strokeWidth = 0.9
-            ..strokeCap = StrokeCap.round
-            ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.95 * t),
+        drawKinLaser(
+          canvas: canvas,
+          start: beam.origin,
+          end: beam.end,
+          color: beam.color,
+          width: 2.6,
+          alpha: t,
         );
       }
     }
@@ -21169,6 +21169,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         reduceAmbient: _reduceAmbientVfx,
       );
     }
+
+    drawHornFx(
+      canvas,
+      _hornFx,
+      reduceAmbient: _reduceAmbientVfx,
+    );
 
     // VFX particles
     for (var i = 0; i < _vfx.length; i++) {
@@ -22313,26 +22319,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         fireOrbitalRadius: comp.kinFireFlameRadius,
         lavaPlateActive: comp.kinLavaPlateTimer > 0,
         darkCloakActive: comp.kinDarkCloakTimer > 0,
+        steamPressure: comp.kinSteamBoilerTimer > 0
+            ? comp.kinSteamBoilerStacks / 10
+            : 0,
       );
     }
 
     // Universal Lava plate overlay — paints a molten glow ring around
     // every active companion (Lava kin or not) while any Lava kin's
     // plate is up, so the team-wide buff is visible.
-    if (_isAnyKinLavaPlateActive()) {
-      final pulse = 0.78 + 0.22 * sin(stats.timeElapsed * 3);
-      const ember = Color(0xFFFF7A20);
-      canvas.drawCircle(
-        Offset.zero,
-        20,
-        Paint()..color = ember.withValues(alpha: 0.20 * pulse),
-      );
-      canvas.drawCircle(
-        Offset.zero,
-        14,
-        Paint()
-          ..color = const Color(0xFFFFC080).withValues(alpha: 0.18 * pulse),
-      );
+    if (_isAnyKinLavaPlateActive() &&
+        !(comp.member.family.toLowerCase() == 'kin' &&
+            comp.member.element == 'Lava')) {
+      drawKinLavaPlate(canvas: canvas, time: stats.timeElapsed, scale: 0.85);
     }
 
     // Kin auto-attack charge build-up: while kinAutoChargeTimer > 0,
@@ -22472,6 +22471,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
 
+    // Horn+Poison: the reach of the always-on toxic aura.
+    if (comp.member.family.toLowerCase() == 'horn' &&
+        comp.member.element == 'Poison') {
+      drawHornPoisonAura(
+        canvas: canvas,
+        radius: 140,
+        time: stats.timeElapsed,
+      );
+    }
+
     // Shield bubble
     if (comp.shieldHp > 0) {
       drawAdvancedCompanionShield(canvas: canvas, time: stats.timeElapsed);
@@ -22489,6 +22498,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         angle: comp.angle,
         sweepRadius: comp.chargeSweepRadius,
         overshootDistance: comp.chargeOvershootDistance,
+        element: comp.member.element,
+        time: stats.timeElapsed,
       );
     }
 

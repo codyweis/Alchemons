@@ -352,9 +352,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
           if (gate != null) {
             _stampFamilyGate(gate);
           } else {
-            _setBlockedHint(
-              'Only Dark can graft this vessel',
-            );
+            _setBlockedHint('Only Dark can graft this vessel');
           }
           return true;
         case InteractionResult.blockedElement:
@@ -925,6 +923,9 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
 
   void _renderHeart(Canvas canvas, DungeonRoom room) {
     _renderHeartGround(canvas, room);
+    // The porphyry walls, baked (planet_dungeon_game_blood_art.dart).
+    _renderHeartShell(canvas, room);
+    _renderGlassDoorPlugs(canvas, room);
     _renderHeartLumens(canvas, room);
     _renderHeartObjects(canvas, room);
     _renderHeartTurn(canvas, room);
@@ -978,11 +979,15 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     // wet against; then a rust wash that thickens as the chamber fills. Both
     // sit inside the FLOOR TRANSLUCENCY RULE — the sky shader is the room's
     // mood and has to keep showing through the meat.
-    final rr = RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(30));
-    canvas.drawRRect(rr, Paint()..color = _kHeartInk.withValues(alpha: 0.46));
+    // Square to the room: the porphyry walls are its edge now (§7.11).
+    final rr = RRect.fromRectAndRadius(b, Radius.zero);
+    // DARKER THAN IT WAS (2026-09-24): one red for floor, tissue and
+    // signal made every chamber unreadable. The meat recedes now, and the
+    // crimson is spent on what MOVES — the beat and the flow.
+    canvas.drawRRect(rr, Paint()..color = _kHeartInk.withValues(alpha: 0.6));
     canvas.drawRRect(
       rr,
-      Paint()..color = _kHeartRust.withValues(alpha: 0.12 + 0.18 * fill),
+      Paint()..color = _kHeartRust.withValues(alpha: 0.05 + 0.12 * fill),
     );
 
     // THE BREATH, in one matrix. The tissue grows a little over half a
@@ -1021,7 +1026,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       final k = p.swell * swell;
       final paint = Paint()
         ..color = p.color.withValues(
-          alpha: (p.alpha * (1 + 0.35 * k)).clamp(0.0, 1.0),
+          alpha: (p.alpha * 0.78 * (1 + 0.35 * k)).clamp(0.0, 1.0),
         );
       if (p.stroke > 0) {
         paint
@@ -1032,6 +1037,17 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       canvas.drawPath(p.path, paint);
     }
     canvas.restore();
+
+    // THE BEAT, IN THE WALL. A vein runs round the inside of the porphyry and
+    // floods on every thump — the one thing on the planet that should be
+    // felt from anywhere in the room. One stroke.
+    canvas.drawRect(
+      b.deflate(16),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3 + 3 * swell
+        ..color = _kHeartCrimson.withValues(alpha: 0.18 + 0.6 * swell),
+    );
 
     if (heart.phase == PulsePhase.flatline) {
       // The pause is drawn by ABSENCE: one hard bone hairline across the
@@ -1056,7 +1072,19 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       if (isDoorHidden(room, d)) continue;
       final p = _heartPassageFor(room, d);
       if (p == null || p.kind == PassageKind.mural) continue;
-      final at = d.rect.center;
+      // Stood off the wall, a pace into the room, so the glass doorway does
+      // not cover what the passage is doing.
+      final b = room.bounds;
+      final dc = d.rect.center;
+      final at =
+          dc +
+          (dc.dx <= b.left + 40
+              ? const Offset(48, 0)
+              : dc.dx >= b.right - 40
+              ? const Offset(-48, 0)
+              : dc.dy <= b.top + 40
+              ? const Offset(0, 62)
+              : const Offset(0, -48));
       final live = heart.carriesFrom(p, room.id);
       if (p.kind == PassageKind.valve) {
         final paint = Paint()
@@ -1093,6 +1121,13 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
               : _kHeartRust.withValues(alpha: 0.55),
       );
       if (!live) continue;
+      // The flow, moving: a bright bead running down the bore on the beat.
+      final ft = (heart.clock * 0.9) % 1.0;
+      canvas.drawCircle(
+        at.translate(-18 + 36 * ft, 0),
+        4,
+        Paint()..color = const Color(0xFFFFE4E8).withValues(alpha: 0.85),
+      );
       // Which way it runs. A collateral carries both ways, so it gets two.
       final forward = room.id == p.from;
       final both = p.kind == PassageKind.collateral;
@@ -1200,17 +1235,9 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         width: 18,
         height: 44,
       );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(stub, const Radius.circular(8)),
-        Paint()
-          ..color =
-              (grafted
-                      ? _kHeartCrimson
-                      : dead
-                      ? _kHeartInk
-                      : _kHeartRust)
-                  .withValues(alpha: 0.9),
-      );
+      // The stub is a vessel of garnet glass (§7.11): lit while it carries,
+      // smoked while it is dead, dull while it has never been turned.
+      _drawVesselGlass(canvas, stub, grafted: grafted, dead: dead);
       if (grafted) {
         // Flow: a bright thread running down the lumen.
         final t = (_time * 1.2) % 1.0;
@@ -1250,6 +1277,8 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
           ..strokeCap = StrokeCap.round,
       );
       canvas.drawCircle(at, 3, Paint()..color = _kHeartInk);
+      // THE BLOOD IS THE LIFE, kept: a garnet heart on every cock.
+      if (_lifeShown > 0) _drawLifeHeart(canvas, at, kHeartCocks.indexOf(c));
       if (flagged && !turned) {
         // The Light hand's flag: a clean ring for a sound vessel, a broken one
         // for a thrombus. Earned information, drawn on the object.

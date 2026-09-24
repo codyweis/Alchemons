@@ -15,6 +15,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
@@ -150,6 +151,21 @@ void main() {
         g.ruins.dig('m_roof', 'm_agora');
       });
 
+      await shoot('observatory_both_sights', 'observatory', obsStand, (g) {
+        g.ruins.dig('m_kiln', 'm_bump');
+        g.ruins.dig('m_roof', 'm_agora');
+      });
+
+      // A WON STAR DRAWS WON (Mud's lesson): the armillary set under a roof
+      // the sirocco put back, and the yard resting on its solved ledger.
+      await shoot('observatory_won_roof_on', 'observatory', obsStand, (g) {
+        g.starMask = 2;
+      });
+      await shoot('yard_won', 'seal_street', g0.centerAt(2, 1), (g) {
+        g.starMask = 1;
+        g.ruins.drift.setAll(0, sealYardWonLoads);
+      });
+
       // THE GRANARY: the count unread, one pit answering, five answering.
       const granaryStand = Offset(230, 120);
       await shoot('granary_unread', 'granary', granaryStand, (g) {});
@@ -173,6 +189,51 @@ void main() {
         g.ruins.buryHollow();
       });
 
+      // THE COURT: the rite untouched, and both halves done.
+      const courtStand = Offset(380, 420);
+      await shoot('court_sealed', 'sand_court', courtStand, (g) {});
+      await shoot('court_rite_done', 'sand_court', courtStand, (g) {
+        g.conduitEnergy['A'] = double.infinity;
+        g.conduitEnergy['B'] = double.infinity;
+      });
+
+      // THE CHART: every street shut by the ledger says so on the map — a
+      // trench and a dune are marked, not drawn as open road.
+      Future<int> chart(
+        String name,
+        void Function(PlanetDungeonGame g) f,
+      ) async {
+        final g = _game()
+          ..entryDoorRevealed = true
+          ..currentRoomId = 'seal_street';
+        g.visitedRooms.addAll(layout.rooms.keys);
+        f(g);
+        const size = Size(880, 980);
+        final rec = ui.PictureRecorder();
+        debugPaintFullMap(g, Canvas(rec), size);
+        final img = await rec.endRecording().toImage(880, 980);
+        if (out.existsSync()) {
+          final png = await img.toByteData(format: ui.ImageByteFormat.png);
+          File(
+            'build/room_audit/DustState_$name.png',
+          ).writeAsBytesSync(png!.buffer.asUint8List());
+        }
+        final raw = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+        final b = raw!.buffer.asUint8List();
+        var h = 17;
+        for (var i = 0; i < b.length; i += 97) {
+          h = (h * 31 + b[i]) & 0x3FFFFFFF;
+        }
+        return h;
+      }
+
+      final level = await chart('map_level', (g) {});
+      final dug = await chart('map_dug', (g) {
+        g.ruins.dig('m_roof', 'm_agora');
+        g.ruins.dig('m_kiln', 'm_bump');
+      });
+      expect(level, isNot(dug), reason: 'the chart must show a shut street');
+
       expect(layout.rooms['granary']!.ruins!.tallyPits, hasLength(5));
 
       // Every pair inside a room must be a different picture.
@@ -180,7 +241,14 @@ void main() {
         ['gate_silted', 'gate_open', 'gate_vane_armed'],
         ['walk_buried', 'walk_roof_bared_bump_heaped', 'walk_roof_heaped'],
         ['yard_opening', 'yard_west_seal_bare'],
-        ['observatory_roof_on', 'observatory_roof_off'],
+        [
+          'observatory_roof_on',
+          'observatory_roof_off',
+          'observatory_won_roof_on',
+          'observatory_both_sights',
+        ],
+        ['yard_opening', 'yard_won'],
+        ['court_sealed', 'court_rite_done'],
         ['granary_unread', 'granary_one_lit', 'granary_all_lit'],
         ['hollow_open', 'hollow_buried'],
       ];

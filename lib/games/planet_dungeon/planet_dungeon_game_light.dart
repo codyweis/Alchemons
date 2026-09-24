@@ -553,9 +553,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         particleCount: 8,
         intensity: 0.5,
       );
-      _setBlockedHint(
-        'Ten panes of glass. Only Crystal can read them',
-      );
+      _setBlockedHint('Ten panes of glass. Only Crystal can read them');
       return true;
     }
     if (!indexWhole) {
@@ -628,9 +626,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         particleCount: 8,
         intensity: 0.5,
       );
-      _setBlockedHint(
-        'Only a Spirit Pip can reach under these slabs',
-      );
+      _setBlockedHint('Only a Spirit Pip can reach under these slabs');
       return true;
     }
     if (abilityForFamily(a.member.family) != abilityForFamily(gate.family)) {
@@ -657,9 +653,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         particleCount: 8,
         intensity: 0.5,
       );
-      _setBlockedHint(
-        'Five slabs, and no telling which one yet',
-      );
+      _setBlockedHint('Five slabs, and no telling which one yet');
       return true;
     }
     if (best != archive.indexSocket) {
@@ -870,8 +864,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'You\'ve been able to see that shrine since the entrance',
         1 => 'The path to it is mirror floor, which you can\'t cross while lit',
-        _ =>
-          'Turn every beacon off and walk here in the dark',
+        _ => 'Turn every beacon off and walk here in the dark',
       });
       return;
     }
@@ -1221,10 +1214,13 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     // Clipped to the stage the shared floor already laid, so the bay keeps the
     // sky-island silhouette every other planet has and the archive's own
     // material simply replaces what is inside it.
-    canvas.clipRRect(g.clip);
+    // Square to the room: the archive's walls are its edge now (§7.11).
+    canvas.clipRect(room.bounds);
     canvas.drawPicture(g.fabric);
     _renderArchiveLight(canvas, room, g);
     canvas.restore();
+    _renderArchiveShell(canvas, room);
+    _renderGlassDoorPlugs(canvas, room);
     _renderArchiveSills(canvas, room);
     _renderArchiveObjects(canvas, room);
     _renderArchiveGlare(canvas, room);
@@ -1560,20 +1556,8 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
             22,
             22,
           );
-          canvas.drawRect(
-            pane,
-            Paint()
-              ..color = lit
-                  ? _kArchiveGold.withValues(alpha: 0.85)
-                  : _kArchiveSlate.withValues(alpha: 0.35),
-          );
-          canvas.drawRect(
-            pane,
-            Paint()
-              ..color = _kArchiveStone.withValues(alpha: 0.5)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1,
-          );
+          // A pane of archive glass, lit with its cell (§7.11).
+          _drawIndexPane(canvas, pane, lit, i + band);
           if (sectorHasStack(sec) && band == 1) {
             // The stack's mark on its inward pane: the pane a low beam leaves dark.
             canvas.drawLine(
@@ -1640,7 +1624,8 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         final named = i == archive.indexSocket;
         final glow =
             named && !found && archive.indexRead && archive.lumens == 0;
-        final open = named && found;
+        // Open from the rite's first beat, so the volume is watched opening.
+        final open = named && (found || _ritePendingEgg == kLightAfraidEggId);
         final slab = Rect.fromCenter(center: at, width: 46, height: 30);
         canvas.drawRRect(
           RRect.fromRectAndRadius(
@@ -1678,6 +1663,12 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
               ..style = PaintingStyle.stroke
               ..strokeWidth = 2,
           );
+        }
+        // AFRAID OF THE LIGHT, kept: the volume, in its open slab
+        // (planet_dungeon_game_light_art.dart).
+        if (open) {
+          _drawAfraidVolume(canvas, at);
+          continue;
         }
         // The numeral: i+1 strokes.
         for (var k = 0; k <= i; k++) {

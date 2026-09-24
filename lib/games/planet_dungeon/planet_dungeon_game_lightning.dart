@@ -303,25 +303,7 @@ extension StormCircuit on PlanetDungeonGame {
     canvas.save();
     canvas.translate(m.position.dx, m.position.dy);
     canvas.rotate(ang);
-    final plate = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset.zero, width: 42, height: 8),
-      const Radius.circular(4),
-    );
-    canvas.drawRRect(plate, Paint()..color = const Color(0xFFEAF6FF));
-    canvas.drawLine(
-      const Offset(-19, -2),
-      const Offset(19, -2),
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.95)
-        ..strokeWidth = 1.3,
-    );
-    canvas.drawLine(
-      const Offset(-19, 3),
-      const Offset(19, 3),
-      Paint()
-        ..color = const Color(0xFF26303C)
-        ..strokeWidth = 2.4,
-    );
+    _drawSilverVane(canvas, 42, live: live);
     canvas.restore();
     // The pivot bolt through the middle of the vane.
     canvas.drawCircle(
@@ -1351,9 +1333,7 @@ extension StormCircuit on PlanetDungeonGame {
           return true;
         }
         if (rotorOverspeed <= 0) {
-          _setBlockedHint(
-            'Not enough charge here to fuse',
-          );
+          _setBlockedHint('Not enough charge here to fuse');
           return true;
         }
         weldedBreakers.add(t.id);
@@ -1841,137 +1821,18 @@ extension StormCircuit on PlanetDungeonGame {
 
   // ── Rendering ────────────────────────────────────────────
 
-  void _renderCircuitFloor(Canvas canvas, DungeonRoom room) {
-    // THE FLOOR OF A STORM-WORKS, NOT GRAPH PAPER.
-    //
-    // It was a 96px square lattice, which is what every chamber of this
-    // planet was standing on — and it is the single reason a dungeon whose
-    // premise is "the dungeon IS a living circuit" reads as a circuit
-    // DIAGRAM. A circuit in a building is not a grid: it is iron plate
-    // bolted down in courses, with cable runs buried in it and the burn
-    // marks of everything that has ever arced across it.
-    _renderPlainFloor(canvas, room.bounds, room.id == layout.entranceRoomId);
-    final b = room.bounds;
-    final seed = (b.width * 13 + b.height * 7).toInt();
-
-    // PLATE COURSES. Long iron sheets laid across the room, offset row to
-    // row like brickwork so the joins never line up into a grid.
-    const plateH = 118.0;
-    var row = 0;
-    for (var y = b.top; y < b.bottom; y += plateH) {
-      final off = (row.isEven ? 0.0 : 150.0);
-      final h = min(plateH, b.bottom - y);
-      canvas.drawRect(
-        Rect.fromLTWH(b.left, y, b.width, h),
-        Paint()
-          ..color =
-              (row.isEven ? const Color(0xFF10161F) : const Color(0xFF0C1219))
-                  .withValues(alpha: 0.5),
-      );
-      // The course join, and a lit top edge so the plate has thickness.
-      canvas.drawLine(
-        Offset(b.left, y),
-        Offset(b.right, y),
-        Paint()
-          ..strokeWidth = 1.2
-          ..color = const Color(0xFF8FB6D8).withValues(alpha: 0.06),
-      );
-      // Vertical joins between sheets in this course.
-      for (var x = b.left + off + 300; x < b.right; x += 300) {
-        canvas.drawLine(
-          Offset(x, y + 2),
-          Offset(x, y + h - 2),
-          Paint()
-            ..strokeWidth = 1.0
-            ..color = const Color(0xFF04070C).withValues(alpha: 0.55),
-        );
-      }
-      // RIVETS along the course, because bolted plate is what says iron.
-      for (var x = b.left + 40 + off * 0.2; x < b.right - 20; x += 74) {
-        canvas.drawCircle(
-          Offset(x, y + 7),
-          2.0,
-          Paint()..color = const Color(0xFF6E8CA8).withValues(alpha: 0.16),
-        );
-        canvas.drawCircle(
-          Offset(x, y + 6),
-          1.1,
-          Paint()..color = const Color(0xFFBFE6FF).withValues(alpha: 0.10),
-        );
-      }
-      row++;
-    }
-
-    // CABLE RUNS sunk into the plate — three heavy conduits crossing the
-    // room, sagging a little, with clamps holding them down. This is the
-    // building's own wiring, and it is what the puzzles' bright wires are
-    // laid on TOP of.
-    for (var i = 0; i < 3; i++) {
-      final y = b.top + b.height * (0.24 + i * 0.26) + (seed % 17) - 8;
-      final path = Path()..moveTo(b.left, y);
-      for (var x = b.left; x <= b.right; x += 60) {
-        path.lineTo(x, y + sin((x + seed) * 0.006 + i) * 7);
-      }
-      canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 7
-          ..color = const Color(0xFF0A0F16).withValues(alpha: 0.65),
-      );
-      canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.2
-          ..color = const Color(0xFF3E5A72).withValues(alpha: 0.30),
-      );
-      for (var x = b.left + 90; x < b.right - 40; x += 210) {
-        final yy = y + sin((x + seed) * 0.006 + i) * 7;
-        canvas.drawRect(
-          Rect.fromCenter(center: Offset(x, yy), width: 14, height: 12),
-          Paint()..color = const Color(0xFF1A2430).withValues(alpha: 0.8),
-        );
-      }
-    }
-
-    // SCORCH. Old arcs have been crossing this room for a long time; each
-    // leaves a bloom and a few branching scars in the iron.
-    for (var i = 0; i < 5; i++) {
-      final u = ((i * 2654435761) % 1000) / 1000.0;
-      final v = ((i * 40503 + seed) % 997) / 997.0;
-      final at = Offset(
-        b.left + 60 + u * (b.width - 120),
-        b.top + 60 + v * (b.height - 120),
-      );
-      canvas.drawCircle(
-        at,
-        22.0 + (i % 3) * 9,
-        Paint()..color = const Color(0xFF05080D).withValues(alpha: 0.45),
-      );
-      final scar = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF7FA8C8).withValues(alpha: 0.10);
-      for (var k = 0; k < 4; k++) {
-        final a = u * pi * 2 + k * 1.6;
-        final mid = at + Offset(cos(a), sin(a)) * 16;
-        canvas.drawPath(
-          Path()
-            ..moveTo(at.dx, at.dy)
-            ..lineTo(mid.dx, mid.dy)
-            ..lineTo(mid.dx + cos(a + 0.7) * 13, mid.dy + sin(a + 0.7) * 13),
-          scar,
-        );
-      }
-    }
-  }
+  /// THE FLOOR OF A STORM-WORKS, NOT GRAPH PAPER: bolted iron plate in
+  /// courses with the building's cable runs sunk in it, inside walls of the
+  /// same iron-stone — baked once per room (planet_dungeon_game_lightning_art).
+  void _renderCircuitFloor(Canvas canvas, DungeonRoom room) =>
+      _renderCircuitFabric(canvas, room);
 
   /// The zero-sum darkness overlay: one cheap eased tint over a dead wing's
   /// fabric (alpha-capped so the storm shader still glows through). Drawn
   /// UNDER creatures/enemies so the living stay readable in the dark.
   void _renderCircuitDarkness(Canvas canvas, DungeonRoom room) {
+    // The storm outside, lighting the works (planet_dungeon_game_lightning_art).
+    _renderStormFlash(canvas, room);
     final d = _trunkDark[room.id] ?? 0;
     if (d <= 0.01) return;
     canvas.drawRect(
@@ -1982,6 +1843,8 @@ extension StormCircuit on PlanetDungeonGame {
   }
 
   void _renderCircuit(Canvas canvas, DungeonRoom room) {
+    _renderGlassDoorPlugs(canvas, room);
+    _renderCableCurrent(canvas, room);
     if (room.id == layout.dynamoRoomId) {
       _renderDynamoCourt(canvas, room);
       return;
@@ -2012,10 +1875,22 @@ extension StormCircuit on PlanetDungeonGame {
             conducting &&
             _poweredNodes.contains(n.id) &&
             _poweredNodes.contains(nb);
+        if (live) {
+          // A halo round a live line: one wide faint stroke, no blur.
+          canvas.drawLine(
+            n.position,
+            other.position,
+            Paint()
+              ..strokeCap = StrokeCap.round
+              ..strokeWidth = 12
+              ..color = const Color(0xFF6BA8FF).withValues(alpha: 0.16),
+          );
+        }
         wirePaint
           ..color = live ? const Color(0xFF9FD4FF) : const Color(0x3354708F)
           ..strokeWidth = live ? 3.2 : 1.6;
         canvas.drawLine(n.position, other.position, wirePaint);
+        if (live) _drawWireCrackle(canvas, n.position, other.position);
         if (live && _fx.ready) {
           // a travelling spark bead
           final t = (_time * 1.6 + n.position.dx * 0.01) % 1.0;
@@ -2286,38 +2161,11 @@ extension StormCircuit on PlanetDungeonGame {
     // struck across the bed and out into the floor, with the welds still
     // standing cold in every breaker. This is what the secret leaves behind,
     // and it is visible from the doorway.
-    if (thunderboltWon) {
-      final burn = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF9FD4FF).withValues(alpha: 0.30);
-      for (var i = 0; i < 6; i++) {
-        final a = i * pi / 3 + 0.4;
-        final u = Offset(cos(a), sin(a));
-        canvas.drawPath(
-          Path()
-            ..moveTo(c.dx + u.dx * 58, c.dy + u.dy * 58)
-            ..lineTo(
-              c.dx + u.dx * 104 + u.dy * 16,
-              c.dy + u.dy * 104 - u.dx * 16,
-            )
-            ..lineTo(c.dx + u.dx * 168, c.dy + u.dy * 168),
-          burn,
-        );
-      }
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          c,
-          120,
-          const Color(
-            0xFF6BA8FF,
-          ).withValues(alpha: 0.10 + 0.04 * sin(_time * 1.1)),
-        );
-      }
-    }
+    _drawFulgurite(
+      canvas,
+      c,
+      thunderboltWon ? max(_thunderboltGlow, 1.0) : _thunderboltGlow,
+    );
 
     // The rotor: brass rings + spinning spokes (faster while feeding, and
     // running away with itself while Air has it over its limit).
@@ -2353,38 +2201,14 @@ extension StormCircuit on PlanetDungeonGame {
         ),
       );
     }
-    canvas.drawCircle(c, 56, Paint()..color = const Color(0xFF1A222E));
-    canvas.drawCircle(
+    // The rotor: a rose of glass turning with the works.
+    _drawGlassRotor(
+      canvas,
       c,
-      56,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = const Color(0xFFE9D27A),
-    );
-    canvas.drawCircle(
-      c,
-      40,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = const Color(0x5954708F),
-    );
-    final spoke = Paint()
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 3
-      ..color = live
-          ? const Color(0xFF9FD4FF).withValues(alpha: 0.85)
-          : const Color(0xFF6E89A6);
-    for (var i = 0; i < 6; i++) {
-      final ang = spin + i * pi / 3;
-      final dir = Offset(cos(ang), sin(ang));
-      canvas.drawLine(c + dir * 12, c + dir * 50, spoke);
-    }
-    canvas.drawCircle(
-      c,
-      9,
-      Paint()..color = live ? const Color(0xFFBFE6FF) : const Color(0xFF54708F),
+      spin,
+      live: live,
+      over: over,
+      won: thunderboltWon,
     );
 
     // The breakers: squat pylons, thrown-in when their trunk is fed.
@@ -2689,20 +2513,7 @@ extension StormCircuit on PlanetDungeonGame {
       if (_fx.ready && lit) {
         drawGlow(canvas, _fx.glow!, recv, 40, const Color(0xFF6BA8FF));
       }
-      canvas.drawCircle(
-        recv,
-        13,
-        Paint()
-          ..color = lit ? const Color(0xFFEAF6FF) : const Color(0xFF2A3646),
-      );
-      canvas.drawCircle(
-        recv,
-        13,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5
-          ..color = const Color(0xFF8FB8E0),
-      );
+      _drawGlassHead(canvas, recv, 13, live: lit);
     }
 
     // The gate to the storm core.
@@ -2732,23 +2543,7 @@ extension StormCircuit on PlanetDungeonGame {
     if (_fx.ready && on) {
       drawGlow(canvas, _fx.glow!, pos, 40, col);
     }
-    canvas.drawCircle(
-      pos,
-      26,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = on ? 4 : 2.5
-        ..color = on ? col : col.withValues(alpha: 0.55),
-    );
-    // Inner element glyph (a mote), faint when empty (a "stand here" hint).
-    canvas.drawCircle(
-      pos,
-      8,
-      Paint()..color = col.withValues(alpha: on ? 0.95 : 0.4),
-    );
-    if (!on && _fx.ready) {
-      drawGlow(canvas, _fx.glow!, pos, 18, col.withValues(alpha: 0.5));
-    }
+    _drawGlassPad(canvas, pos, col, on);
   }
 
   /// EVERY PIECE OF THIS CIRCUIT IS BOLTED TO SOMETHING.
@@ -2795,27 +2590,8 @@ extension StormCircuit on PlanetDungeonGame {
         ..strokeWidth = 1.4
         ..color = const Color(0xFF7FA8C8).withValues(alpha: 0.22),
     );
-    // Insulator rings: three discs, widest at the bottom.
-    for (var i = 0; i < 3; i++) {
-      final y = at.dy + 9 - i * 6.0;
-      final w = 30.0 - i * 5;
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(at.dx, y), width: w, height: 7),
-        Paint()
-          ..color = (live ? tone : const Color(0xFF8A9AAA)).withValues(
-            alpha: live ? 0.42 : 0.28,
-          ),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(at.dx, y - 1.5), width: w, height: 7),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1
-          ..color = const Color(
-            0xFFDCEAF6,
-          ).withValues(alpha: live ? 0.30 : 0.14),
-      );
-    }
+    // Insulators: three discs of glass, widest at the bottom.
+    _drawGlassInsulators(canvas, at, tone, live);
   }
 
   void _drawCircuitNode(
@@ -2838,23 +2614,18 @@ extension StormCircuit on PlanetDungeonGame {
     if (_fx.ready && live) {
       drawGlow(canvas, _fx.glow!, n.position, 30, const Color(0xFF6BA8FF));
     }
+    if (live) _drawPostCrackle(canvas, n.position);
 
     switch (n.kind) {
       case CircuitNodeKind.source:
         // A pylon with a drain-timer arc.
         final r = 16.0;
-        canvas.drawCircle(
+        _drawGlassHead(
+          canvas,
           n.position,
           r,
-          Paint()..color = const Color(0xFF241B12),
-        );
-        canvas.drawCircle(
-          n.position,
-          r,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3
-            ..color = glowColor,
+          live: live,
+          cold: const Color(0xFF3A2C14),
         );
         final maxC = _circuitChargeMax[n.id] ?? 0;
         final cur = circuitCharge[n.id] ?? 0;
@@ -2910,31 +2681,7 @@ extension StormCircuit on PlanetDungeonGame {
         canvas.save();
         canvas.translate(n.position.dx, n.position.dy);
         canvas.rotate(barAng);
-        final plate = RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset.zero, width: 40, height: 7),
-          const Radius.circular(3.5),
-        );
-        // The reflective FRONT face (lit when live) and a dark backing so the
-        // plate reads as one-sided and angled, not a floating stick.
-        canvas.drawRRect(
-          plate,
-          Paint()
-            ..color = live ? const Color(0xFFEAF6FF) : const Color(0xFF7E93AB),
-        );
-        canvas.drawLine(
-          const Offset(-18, -1.6),
-          const Offset(18, -1.6),
-          Paint()
-            ..color = Colors.white.withValues(alpha: live ? 0.95 : 0.45)
-            ..strokeWidth = 1.3,
-        );
-        canvas.drawLine(
-          const Offset(-18, 2.6),
-          const Offset(18, 2.6),
-          Paint()
-            ..color = const Color(0xFF26303C)
-            ..strokeWidth = 2.2,
-        );
+        _drawSilverVane(canvas, 40, live: live);
         canvas.restore();
         // Pivot hub.
         canvas.drawCircle(
@@ -2945,20 +2692,7 @@ extension StormCircuit on PlanetDungeonGame {
         );
         break;
       case CircuitNodeKind.sink:
-        canvas.drawCircle(
-          n.position,
-          10,
-          Paint()
-            ..color = live ? const Color(0xFFE9F6FF) : const Color(0xFF2A3646),
-        );
-        canvas.drawCircle(
-          n.position,
-          10,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..color = glowColor,
-        );
+        _drawGlassHead(canvas, n.position, 10, live: live);
         break;
       case CircuitNodeKind.bus:
         canvas.drawCircle(n.position, 6, Paint()..color = glowColor);
@@ -2981,30 +2715,8 @@ extension StormCircuit on PlanetDungeonGame {
       }
       return;
     }
-    // A solid crackling shutter.
-    final rr = RRect.fromRectAndRadius(rect, const Radius.circular(4));
-    canvas.drawRRect(rr, Paint()..color = const Color(0xFF1B2530));
-    canvas.drawRRect(
-      rr,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = const Color(0xFF6E89A6),
-    );
-    // arcing energy bars
-    final spark = Paint()
-      ..color = const Color(0x885FB8FF)
-      ..strokeWidth = 1.4;
-    final n = (rect.height / 18).floor();
-    for (var i = 1; i < n; i++) {
-      final y = rect.top + rect.height * i / n;
-      final jitter = sin(_time * 8 + i) * 3;
-      canvas.drawLine(
-        Offset(rect.left + 3, y),
-        Offset(rect.right - 3, y + jitter),
-        spark,
-      );
-    }
+    // A shutter of smoked leaded glass, the charge crackling in it.
+    _drawGlassShutter(canvas, rect);
   }
 
   void _drawSocket(Canvas canvas, CellSocket sock) {
@@ -3021,17 +2733,7 @@ extension StormCircuit on PlanetDungeonGame {
     // A CRADLE, not a ring. Something is meant to be SET into this, so it
     // has a mount, a seat and two contact horns waiting for the cell.
     _drawCircuitPost(canvas, sock.position, c, energized);
-    canvas.drawOval(
-      Rect.fromCenter(center: sock.position, width: 44, height: 18),
-      Paint()..color = const Color(0xFF141C26),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: sock.position, width: 44, height: 18),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..color = c,
-    );
+    _drawGlassSeat(canvas, sock.position, c, energized: energized);
     // Contact horns, curling up out of the seat to hold what is set in it.
     for (final side in const [-1.0, 1.0]) {
       canvas.drawPath(

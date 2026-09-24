@@ -1686,6 +1686,10 @@ class DungeonLayout {
   /// never the method (§5.6). Null falls back to a generic line.
   final String? guardianSealedHint;
 
+  /// Spoken when both rite conduits latch and the guardian wakes. Null falls
+  /// back to the Air pilot's storm-conduit line.
+  final String? riteWakeLine;
+
   /// Room whose centre mends the party once per run (null = none).
   final String? mercyShrineRoomId;
 
@@ -1726,6 +1730,7 @@ class DungeonLayout {
     this.riteAnnouncement,
     this.finaleSealedHint,
     this.guardianSealedHint,
+    this.riteWakeLine,
     this.mercyShrineRoomId,
     this.riddle = const [],
     this.familyGates = const [],

@@ -374,8 +374,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       // A GOAL, not a method (§5.6): what is wrong, in one clause.
       _setBlockedHint(switch (step) {
         BloomStep.loam => 'Too small to carry enough loam',
-        BloomStep.seed =>
-          'Too big to get down into the bowl',
+        BloomStep.seed => 'Too big to get down into the bowl',
         BloomStep.sun => 'Too small for the light to reach over the rim',
       });
       return true;
@@ -418,9 +417,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
             if (gate != null) {
               _stampFamilyGate(gate);
             } else {
-              _setBlockedHint(
-                'Only a Light Mask can stand in for the sun',
-              );
+              _setBlockedHint('Only a Light Mask can stand in for the sun');
             }
             return true;
           case InteractionResult.blockedElement:
@@ -654,9 +651,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
         return true;
       }
       if (!crypt.isTiny) {
-        _setBlockedHint(
-          'Something tiny in the shade. You need to be small',
-        );
+        _setBlockedHint('Something tiny in the shade. You need to be small');
         return true;
       }
       // ── 2 · the three tendings, in the ground's order ──
@@ -698,9 +693,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
         particleCount: 8,
         intensity: 0.5,
       );
-      _setBlockedHint(
-        'It has everything it needs. Come back at full size',
-      );
+      _setBlockedHint('It has everything it needs. Come back at full size');
       return true;
     }
     if (el != 'Plant') {
@@ -849,8 +842,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if (room.grove?.lampId != null) {
       _setInsightHint(switch (tier) {
         0 => 'Three grave-lamps, and not all at the same size',
-        1 =>
-          'Two lamps are high on the walls. One is a tiny wick in a crack',
+        1 => 'Two lamps are high on the walls. One is a tiny wick in a crack',
         _ =>
           'Light the two big ones at full size, then shrink at a seed-gall '
               'to light the tiny one',
@@ -858,7 +850,9 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       return;
     }
     if (room.vaultCache != null || room.grove?.growthAltar != null) {
-      _setInsightHint('There\'s a tiny door in the rim, only big enough when small');
+      _setInsightHint(
+        'There\'s a tiny door in the rim, only big enough when small',
+      );
       return;
     }
     if (room.grove?.shadeSeed != null &&
@@ -876,8 +870,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if (cryptBedsIn(room.id).isNotEmpty) {
       _setInsightHint(switch (tier) {
         0 => 'Plant can grow something in this bed',
-        1 =>
-          'What grows depends on your size when you plant it',
+        1 => 'What grows depends on your size when you plant it',
         _ =>
           'Planted at full size, it grows a creeper small creatures can '
               'climb. Planted small, it grows a trunk for full size, and the '
@@ -1148,6 +1141,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
 
   void _renderCrypt(Canvas canvas, DungeonRoom room) {
     _renderCryptGround(canvas, room);
+    _renderGlassDoorPlugs(canvas, room);
     _renderCryptSpans(canvas, room);
     _renderCryptBeds(canvas, room);
     _renderCryptObjects(canvas, room);
@@ -1245,123 +1239,9 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       );
     }
 
-    // ── the ledger stones ──────────────────────────────────
-    // A funerary floor is grave slabs, every one cut for a different body and
-    // laid at a different century, so no two are the same size and none of
-    // them line up. They come out of a recursive split of the room (see
-    // `_buildCryptGround`) precisely so that they CANNOT tile.
-    final shadow = Paint()
-      ..color = const Color(0xFF000000).withValues(alpha: 0.30);
-    for (var i = 0; i < g.slabs.length; i++) {
-      final tone = g.slabTone[i];
-      // At tiny each slab is a mesa you stand on top of, so it throws a real
-      // shadow into the joint beside it; at huge it is flush paving and the
-      // shadow is only a suggestion of a lip.
-      canvas.save();
-      canvas.translate(1.5, tiny ? 6 : 2.5);
-      canvas.drawPath(g.slabs[i], shadow);
-      canvas.restore();
-      canvas.drawPath(
-        g.slabs[i],
-        Paint()
-          ..color = Color.lerp(
-            _kCryptStoneCold,
-            _kCryptStone,
-            tone,
-          )!.withValues(alpha: 0.36),
-      );
-      // The lit upper edge. One stroke, clipped to the slab so it reads as
-      // the top face catching the light rather than an outline round it.
-      canvas.save();
-      canvas.clipPath(g.slabs[i]);
-      canvas.translate(0, tiny ? 3 : 1.2);
-      canvas.drawPath(
-        g.slabs[i],
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = tiny ? 4 : 1.6
-          ..color = _kCryptBone.withValues(alpha: 0.13 + 0.10 * tone),
-      );
-      canvas.restore();
-    }
-
-    // ── the joints, which are the crypt's small graph ──────
-    // This is the load-bearing drawing on the planet. The cracks a small body
-    // walks are the SAME lines a large one steps over without noticing, so
-    // they are one cached set of polylines rendered at two depths.
-    for (var i = 0; i < g.seams.length; i++) {
-      final w = g.seamWidth[i];
-      if (tiny) {
-        // A ravine: banked rim, black section, and a fringe of moss where the
-        // light stops. The rim goes down first and wider, so the crack reads
-        // as something cut INTO the ground.
-        canvas.drawPath(
-          g.seams[i],
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = w + 5
-            ..color = _kCryptSoil.withValues(alpha: 0.85),
-        );
-        canvas.drawPath(
-          g.seams[i],
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = w
-            ..color = _kCryptSeam.withValues(alpha: 0.88),
-        );
-        if (w > 12) {
-          // Only the big ones get a lit wall — otherwise every hairline in
-          // the room sprouted a highlight and the floor turned to tinsel.
-          canvas.save();
-          canvas.translate(0, -w * 0.30);
-          canvas.drawPath(
-            g.seams[i],
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2
-              ..color = _kCryptMoss.withValues(alpha: 0.35),
-          );
-          canvas.restore();
-        }
-      } else {
-        canvas.drawPath(
-          g.seams[i],
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = w > 12 ? 2.4 : 1.2
-            ..color = _kCryptSeam.withValues(alpha: 0.42),
-        );
-      }
-    }
-
-    // ── worn epitaphs ──────────────────────────────────────
-    // Two or three strokes of a name nobody can read any more. At your own
-    // size they are shallow scratches; at tiny they are trenches you could
-    // lose a leg in, which is the joke the whole planet is built on.
-    for (var i = 0; i < g.carvings.length; i++) {
-      final c = g.carvings[i];
-      final a = g.carvingAngle[i];
-      final len = g.carvingLen[i];
-      final dx = cos(a) * len, dy = sin(a) * len;
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = tiny ? 5 : 1.4
-        ..color = _kCryptSeam.withValues(alpha: tiny ? 0.55 : 0.26);
-      for (var k = -1; k <= 1; k++) {
-        final o = Offset(
-          -dy / len * k * (tiny ? 13 : 7),
-          dx / len * k * (tiny ? 13 : 7),
-        );
-        canvas.drawLine(
-          c + o - Offset(dx / 2, dy / 2),
-          c + o + Offset(dx / 2, dy / 2),
-          p,
-        );
-      }
-    }
+    // The ledger stones, their joints and their epitaphs never move: baked
+    // once per room at each of the two sizes (planet_dungeon_game_plant_art).
+    _renderCryptLedger(canvas, room, g, tiny);
 
     // ── the seeps ──────────────────────────────────────────
     for (var i = 0; i < g.seeps.length; i++) {
@@ -1396,7 +1276,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     for (var i = 0; i < g.moss.length; i++) {
       canvas.drawPath(
         g.moss[i],
-        Paint()..color = _kCryptMoss.withValues(alpha: tiny ? 0.30 : 0.26),
+        Paint()..color = _kCryptMoss.withValues(alpha: tiny ? 0.30 : 0.14),
       );
       if (tiny) {
         final c = g.mossCentre[i];
@@ -1449,6 +1329,150 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
             0xFFE8E2A8,
           ).withValues(alpha: 0.20 * (1 - ph) + 0.05),
       );
+    }
+  }
+
+  void _paintCryptLedger(Canvas canvas, _CryptGround g, bool tiny) {
+    // ── the ledger stones ──────────────────────────────────
+    // A funerary floor is grave slabs, every one cut for a different body and
+    // laid at a different century, so no two are the same size and none of
+    // them line up. They come out of a recursive split of the room (see
+    // `_buildCryptGround`) precisely so that they CANNOT tile.
+    //
+    // QUIETER AT YOUR OWN SIZE (2026-09-24): sixty slabs at full contrast
+    // made every chamber the same busy mosaic, louder than the vines and
+    // beds that are the puzzle. Up here the paving is one worn floor with
+    // its joints; only at tiny does each slab stand up as terrain.
+    final shadow = Paint()
+      ..color = const Color(0xFF000000).withValues(alpha: tiny ? 0.30 : 0.12);
+    if (!tiny) {
+      // One worn floor, its joints doing the talking (drawn below).
+      for (final slab in g.slabs) {
+        canvas.drawPath(
+          slab,
+          Paint()
+            ..color = Color.lerp(
+              _kCryptStoneCold,
+              _kCryptStone,
+              0.35,
+            )!.withValues(alpha: 0.22),
+        );
+      }
+    }
+    for (var i = 0; i < g.slabs.length && tiny; i++) {
+      final tone = tiny ? g.slabTone[i] : 0.3 + g.slabTone[i] * 0.3;
+      // At tiny each slab is a mesa you stand on top of, so it throws a real
+      // shadow into the joint beside it; at huge it is flush paving and the
+      // shadow is only a suggestion of a lip.
+      canvas.save();
+      canvas.translate(1.5, tiny ? 6 : 2.5);
+      canvas.drawPath(g.slabs[i], shadow);
+      canvas.restore();
+      canvas.drawPath(
+        g.slabs[i],
+        Paint()
+          ..color = Color.lerp(
+            _kCryptStoneCold,
+            _kCryptStone,
+            tone,
+          )!.withValues(alpha: tiny ? 0.36 : 0.24),
+      );
+      // The lit upper edge. One stroke, clipped to the slab so it reads as
+      // the top face catching the light rather than an outline round it.
+      canvas.save();
+      canvas.clipPath(g.slabs[i]);
+      canvas.translate(0, tiny ? 3 : 1.2);
+      canvas.drawPath(
+        g.slabs[i],
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = tiny ? 4 : 1.6
+          ..color = _kCryptBone.withValues(
+            alpha: tiny ? 0.13 + 0.10 * tone : 0.05 + 0.04 * tone,
+          ),
+      );
+      canvas.restore();
+    }
+
+    // ── the joints, which are the crypt's small graph ──────
+    // This is the load-bearing drawing on the planet. The cracks a small body
+    // walks are the SAME lines a large one steps over without noticing, so
+    // they are one cached set of polylines rendered at two depths.
+    for (var i = 0; i < g.seams.length; i++) {
+      final w = g.seamWidth[i];
+      if (tiny) {
+        // A ravine: banked rim, black section, and a fringe of moss where the
+        // light stops. The rim goes down first and wider, so the crack reads
+        // as something cut INTO the ground.
+        canvas.drawPath(
+          g.seams[i],
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = w + 5
+            ..color = _kCryptSoil.withValues(alpha: 0.85),
+        );
+        canvas.drawPath(
+          g.seams[i],
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = w
+            ..color = _kCryptSeam.withValues(alpha: 0.88),
+        );
+        if (w > 12) {
+          // Only the big ones get a lit wall — otherwise every hairline in
+          // the room sprouted a highlight and the floor turned to tinsel.
+          canvas.save();
+          canvas.translate(0, -w * 0.30);
+          canvas.drawPath(
+            g.seams[i],
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2
+              ..color = _kCryptMoss.withValues(alpha: 0.35),
+          );
+          canvas.restore();
+        }
+      } else {
+        canvas.drawPath(
+          g.seams[i],
+          Paint()
+            ..style = PaintingStyle.stroke
+            // Faint at your own size (2026-09-24): with the slabs one tone
+            // the joints became a web across the floor. The wide ones (the
+            // roads you walk small) still show; hairlines barely do.
+            ..strokeWidth = w > 12 ? 2.0 : 1.0
+            ..color = _kCryptSeam.withValues(alpha: w > 12 ? 0.3 : 0.14),
+        );
+      }
+    }
+
+    // ── worn epitaphs ──────────────────────────────────────
+    // Two or three strokes of a name nobody can read any more. At your own
+    // size they are shallow scratches; at tiny they are trenches you could
+    // lose a leg in, which is the joke the whole planet is built on.
+    for (var i = 0; i < g.carvings.length; i++) {
+      final c = g.carvings[i];
+      final a = g.carvingAngle[i];
+      final len = g.carvingLen[i];
+      final dx = cos(a) * len, dy = sin(a) * len;
+      final p = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = tiny ? 5 : 1.4
+        ..color = _kCryptSeam.withValues(alpha: tiny ? 0.55 : 0.26);
+      for (var k = -1; k <= 1; k++) {
+        final o = Offset(
+          -dy / len * k * (tiny ? 13 : 7),
+          dx / len * k * (tiny ? 13 : 7),
+        );
+        canvas.drawLine(
+          c + o - Offset(dx / 2, dy / 2),
+          c + o + Offset(dx / 2, dy / 2),
+          p,
+        );
+      }
     }
   }
 
@@ -2667,6 +2691,8 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
             ..color = _kCryptDeep,
         );
       }
+      // The flame burns in a chimney of leaded glass (§7.11).
+      _drawLampChimney(canvas, at, k, lit);
     }
 
     // The growth altar, and the little door cut in its rim (§5.5's vault
@@ -2689,13 +2715,8 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
               ? const Color(0xFF4A3A22)
               : _kCryptDeep.withValues(alpha: 0.6),
       );
-      if (crypt.bloomStep >= 2) {
-        canvas.drawCircle(
-          altar,
-          crypt.bloomWoken ? 26 : 9,
-          Paint()..color = crypt.bloomWoken ? _kCryptLamp : _kCryptGreen,
-        );
-      }
+      // The bowl's three steps as glass: loam, seed, sun (§7.11).
+      _drawAltarGlass(canvas, altar, bowl.deflate(crypt.isTiny ? 26 : 12));
       // The rim door.
       canvas.drawRect(
         Rect.fromLTWH(bowl.right - 14, bowl.center.dy - 9, 14, 18),
@@ -2754,23 +2775,11 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
             ..color = _kCryptDeep.withValues(alpha: crypt.isTiny ? 0.55 : 0.38),
         );
       }
-      if (crypt.shadeRisen && !crypt.isTiny) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(
-              center: shade + const Offset(0, -40),
-              width: 40,
-              height: 180,
-            ),
-            const Radius.circular(10),
-          ),
-          Paint()..color = _kCryptBark,
-        );
-        canvas.drawCircle(
-          shade - const Offset(0, 150),
-          72,
-          Paint()..color = _kCryptGreen.withValues(alpha: 0.7),
-        );
+      if ((crypt.shadeRisen ||
+              discoveredClouds.contains(kPlantUnseenShadeEggId)) &&
+          !crypt.isTiny) {
+        // What grew in the shade: a tree of leaded glass, kept for good.
+        _drawShadeTree(canvas, shade);
       } else if (crypt.isTiny && !crypt.shadeRisen && shadeThrown) {
         // Loam, then a sprout, then a sprout with light on it.
         if (crypt.shadeStep >= 1) {

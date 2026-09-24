@@ -59,11 +59,12 @@ PlanetDungeonGame harness(
   void Function(int)? onStar,
   void Function(String)? onCloud,
   void Function(SoundCue)? onSound,
+  int starMask = 0,
 }) {
   final game = PlanetDungeonGame(
     element: 'Dust',
     party: party,
-    initialStarMask: 0,
+    initialStarMask: starMask,
     onStarEarned: onStar ?? (_) {},
     onCloudDiscovered: onCloud,
     onSound: onSound,
@@ -139,6 +140,10 @@ const double east = 0.0;
 const double west = 3.14159265;
 const double north = -1.5707963;
 const double south = 1.5707963;
+
+/// The kiln sits above the city line, between the agora and the bump: its
+/// spoil goes south-EAST to the bump (south-west would be the agora).
+const double kilnToBump = 0.785398;
 
 Offset crownOf(String moundId) => dustMoundById(moundId)!.streetPos;
 String roomOf(String moundId) => dustMoundById(moundId)!.roomId;
@@ -462,7 +467,7 @@ void main() {
       expect(game.isDoorHidden(gate, hole), isTrue, reason: 'no hole yet');
 
       // Dig the gate square, throwing east onto the agora.
-      actFacing(game, earth, 'ashen_gate', crownOf('m_gate'), east);
+      actFacing(game, dust, 'ashen_gate', crownOf('m_gate'), east);
       expect(game.ruins.stateOf('m_gate'), MoundState.bared);
       expect(game.ruins.stateOf('m_agora'), MoundState.drifted);
       expect(game.ruins.conserved, isTrue);
@@ -488,28 +493,48 @@ void main() {
         'are for the run', () {
       final game = harness(_idealTrio());
       game.entryDoorRevealed = true;
-      actFacing(game, earth, 'ashen_gate', crownOf('m_gate'), east);
+      actFacing(game, dust, 'ashen_gate', crownOf('m_gate'), east);
       // Re-dig the trench: nothing there.
-      actFacing(game, earth, 'ashen_gate', crownOf('m_gate'), east);
+      actFacing(game, dust, 'ashen_gate', crownOf('m_gate'), east);
       expect(game.ruins.stateOf('m_gate'), MoundState.bared);
       // Dig the dune: a spade will not bite it.
-      actFacing(game, earth, 'seal_street', crownOf('m_agora'), west);
+      actFacing(game, dust, 'seal_street', crownOf('m_agora'), west);
       expect(game.ruins.stateOf('m_agora'), MoundState.drifted);
       expect(game.ruins.stateOf('m_gate'), MoundState.bared);
       expect(game.ruins.conserved, isTrue);
     });
+
+    test(
+      'the city is DUST\'s to dig — Air+Earth stand in only when it is down',
+      () {
+        // Earth used to dig every square Dust did, which left Dust's own hand
+        // two one-press objects. The yard is still Dust-or-Earth; the city is
+        // Dust's, and the recipe braid covers a downed Dust hand (§4).
+        final game = harness(_idealTrio())..entryDoorRevealed = true;
+        actFacing(game, earth, 'ashen_gate', crownOf('m_gate'), east);
+        expect(game.ruins.stateOf('m_gate'), MoundState.buried);
+        actFacing(game, air, 'ashen_gate', crownOf('m_gate'), east);
+        expect(game.ruins.stateOf('m_gate'), MoundState.buried);
+
+        // Dust goes down: Earth with Air beside it now carries the spade.
+        game.creatures[dust].hp = 0;
+        actFacing(game, earth, 'ashen_gate', crownOf('m_gate'), east);
+        expect(game.ruins.stateOf('m_gate'), MoundState.bared);
+        expect(game.ruins.conserved, isTrue);
+      },
+    );
 
     test('aim decides who gets buried — the trade is made with the body', () {
       // The observatory's spoil goes either onto the bump (the vault) or back
       // onto the agora (the terrace ramp). That is the planet's sharpest
       // decision, and it is one flick of the stick.
       final vaultWay = harness(_idealTrio())..entryDoorRevealed = true;
-      actFacing(vaultWay, earth, 'roof_walk', crownOf('m_roof'), east);
+      actFacing(vaultWay, dust, 'roof_walk', crownOf('m_roof'), east);
       expect(vaultWay.ruins.stateOf('m_bump'), MoundState.drifted);
       expect(vaultWay.ruins.stateOf('m_agora'), MoundState.buried);
 
       final rampWay = harness(_idealTrio())..entryDoorRevealed = true;
-      actFacing(rampWay, earth, 'roof_walk', crownOf('m_roof'), west);
+      actFacing(rampWay, dust, 'roof_walk', crownOf('m_roof'), west);
       expect(rampWay.ruins.stateOf('m_agora'), MoundState.drifted);
       expect(rampWay.ruins.stateOf('m_bump'), MoundState.buried);
     });
@@ -523,13 +548,13 @@ void main() {
       expect(game.isDoorHidden(under, crack), isTrue);
 
       // Baring the bump shows tiles and nothing else.
-      actFacing(game, earth, 'roof_walk', crownOf('m_bump'), west);
+      actFacing(game, dust, 'roof_walk', crownOf('m_bump'), west);
       expect(game.ruins.stateOf('m_bump'), MoundState.bared);
       expect(game.isDoorHidden(under, crack), isTrue);
 
       // Heap it instead, and the party wall gives below.
       final g2 = harness(_idealTrio())..entryDoorRevealed = true;
-      actFacing(g2, earth, 'roof_walk', crownOf('m_roof'), east);
+      actFacing(g2, dust, 'roof_walk', crownOf('m_roof'), east);
       expect(g2.ruins.stateOf('m_bump'), MoundState.drifted);
       expect(g2.isDoorHidden(under, crack), isFalse);
 
@@ -550,7 +575,7 @@ void main() {
         _member(1, 'Air', 'kin'),
         _member(2, 'Earth', 'let'),
       ])..entryDoorRevealed = true;
-      actFacing(game, earth, 'ashen_gate', crownOf('m_gate'), east);
+      actFacing(game, dust, 'ashen_gate', crownOf('m_gate'), east);
       expect(game.ruins.isLevelled, isFalse);
 
       final vane = game.layout.rooms['ashen_gate']!.ruins!.windVane!;
@@ -596,36 +621,104 @@ void main() {
       expect(game.hasStar(1), isFalse, reason: 'this room has no sky yet');
     });
 
-    test('the roof is the bridge: taking it banks the star and deletes the '
-        'street to the court', () {
-      final earned = <int>[];
-      final game = harness(_idealTrio(), onStar: earned.add)
-        ..entryDoorRevealed = true;
-      final walk = game.layout.rooms['roof_walk']!;
-      final bridge = walk.doors.firstWhere(
-        (d) => d.targetRoomId == 'sand_court',
-      );
-      final down = walk.doors.firstWhere(
-        (d) => d.targetRoomId == 'observatory',
-      );
-      expect(game.isDoorLocked(walk, bridge), isFalse);
-      expect(game.isDoorHidden(walk, down), isTrue);
+    test(
+      'one sight is not enough: the roof AND the kiln tube, then the star',
+      () {
+        final earned = <int>[];
+        final game = harness(_idealTrio(), onStar: earned.add)
+          ..entryDoorRevealed = true;
+        final walk = game.layout.rooms['roof_walk']!;
+        final bridge = walk.doors.firstWhere(
+          (d) => d.targetRoomId == 'sand_court',
+        );
+        final down = walk.doors.firstWhere(
+          (d) => d.targetRoomId == 'observatory',
+        );
+        final obs = game.layout.rooms['observatory']!;
 
-      actFacing(game, earth, 'roof_walk', crownOf('m_roof'), east);
-      expect(
-        game.isDoorLocked(walk, bridge),
-        isTrue,
-        reason:
-            'the bridge WAS '
-            'the roof',
-      );
-      expect(game.isDoorHidden(walk, down), isFalse);
+        // The roof alone: the way down opens and the bridge goes — and the
+        // rings still refuse, because the tube is choked.
+        actFacing(game, dust, 'roof_walk', crownOf('m_roof'), west);
+        expect(
+          game.isDoorLocked(walk, bridge),
+          isTrue,
+          reason: 'the bridge WAS the roof',
+        );
+        expect(game.isDoorHidden(walk, down), isFalse);
+        act(game, air, 'observatory', obs.ruins!.armillary!);
+        expect(earned, isEmpty, reason: 'one sight of two');
+        expect(game.armillarySeesSky, isFalse);
 
-      final obs = game.layout.rooms['observatory']!;
-      act(game, air, 'observatory', obs.ruins!.armillary!);
-      expect(earned, contains(1));
-      expect(game.hasStar(1), isTrue);
-    });
+        // The kiln square, onto the bump: the second sight.
+        actFacing(game, dust, 'high_terrace', crownOf('m_kiln'), kilnToBump);
+        expect(game.ruins.stateOf('m_kiln'), MoundState.bared);
+        expect(game.armillarySeesSky, isTrue);
+        act(game, air, 'observatory', obs.ruins!.armillary!);
+        expect(earned, contains(1));
+      },
+    );
+
+    test(
+      'exactly ONE city satisfies both sights, and both throws are forced',
+      () {
+        // The star used to need the roof alone: nine end ledgers, one spadeful
+        // either way. Walk the city with the PLAYER's moves only (doors as the
+        // engine gates them, digs by the real rules, no sirocco) and collect
+        // every ledger with both sights bared from which the observatory is
+        // stood in. There must be one, and it must be kiln→bump, roof→agora.
+        final game = harness(_idealTrio())..entryDoorRevealed = true;
+        final ids = [for (final m in kDustMounds) m.id];
+        void setL(List<int> l) {
+          for (var i = 0; i < ids.length; i++) {
+            game.ruins.mound[ids[i]] = l[i];
+          }
+        }
+
+        List<String> exits(String room, List<int> l) {
+          setL(l);
+          final r = game.layout.rooms[room]!;
+          return [
+            for (final d in r.doors)
+              if (!game.isDoorHidden(r, d) && !game.isDoorLocked(r, d))
+                d.targetRoomId,
+          ];
+        }
+
+        final start = ('ashen_gate', List.filled(ids.length, 1));
+        final seen = <String>{'${start.$1}|${start.$2.join()}'};
+        final queue = [start];
+        final finals = <String>{};
+        for (var h = 0; h < queue.length; h++) {
+          final (room, l) = queue[h];
+          final sees = kArmillarySights.every((id) => l[ids.indexOf(id)] == 0);
+          if (sees && room == 'observatory') finals.add(l.join());
+          final next = <(String, List<int>)>[
+            for (final t in exits(room, l)) (t, l),
+          ];
+          for (final m in dustMoundsIn(room)) {
+            if (l[ids.indexOf(m.id)] != 1) continue;
+            for (final n in m.neighbours) {
+              if (l[ids.indexOf(n)] > 1) continue;
+              final nl = [...l];
+              nl[ids.indexOf(m.id)] = 0;
+              nl[ids.indexOf(n)] += 1;
+              next.add((room, nl));
+            }
+          }
+          for (final (r, nl) in next) {
+            if (seen.add('$r|${nl.join()}')) queue.add((r, nl));
+          }
+        }
+        // gate 1 · agora 2 (the roof's spoil) · roof 0 · bump 2 (the kiln's) ·
+        // kiln 0.
+        expect(finals, {'12020'});
+        expect(
+          finals.contains(kDustTally.values.join()),
+          isFalse,
+          reason: 'the star\'s city is never the dead\'s count',
+        );
+      },
+    );
 
     test(
       'the armillary is a VERB-ONLY wing gate: any wing, no other family',
@@ -636,7 +729,8 @@ void main() {
           _member(1, 'Air', 'pip'), // wrong family on purpose
           _member(2, 'Earth', 'horn'),
         ], onCloud: stamped.add)..entryDoorRevealed = true;
-        actFacing(game, earth, 'roof_walk', crownOf('m_roof'), east);
+        actFacing(game, dust, 'high_terrace', crownOf('m_kiln'), kilnToBump);
+        actFacing(game, dust, 'roof_walk', crownOf('m_roof'), west);
         final obs = game.layout.rooms['observatory']!;
 
         // Dust cannot turn it at all.
@@ -672,7 +766,72 @@ void main() {
     });
   });
 
+  group('WHAT A WON STAR DID STAYS DONE (Mud\'s lesson)', () {
+    test('a banked Seal Star opens a new run with the seals already bare', () {
+      final fresh = harness(_idealTrio());
+      expect(fresh.ruins.sealsBare, isFalse);
+
+      final won = harness(_idealTrio(), starMask: 1);
+      expect(won.ruins.sealsBare, isTrue, reason: 'the bronzes stay found');
+      expect(won.ruins.drift, sealYardWonLoads);
+      expect(won.ruins.conserved, isTrue);
+    });
+
+    test('the sirocco levels the city but never re-buries a won yard', () {
+      final game = harness(_idealTrio(), starMask: 1)..entryDoorRevealed = true;
+      actFacing(game, dust, 'ashen_gate', crownOf('m_gate'), east);
+      expect(game.ruins.isLevelled, isFalse);
+      final vane = game.layout.rooms['ashen_gate']!.ruins!.windVane!;
+      act(game, air, 'ashen_gate', vane);
+      act(game, air, 'ashen_gate', vane);
+      expect(game.ruins.levellings, 1);
+      expect(game.ruins.stateOf('m_gate'), MoundState.buried);
+      expect(game.ruins.sealsBare, isTrue);
+      expect(game.ruins.conserved, isTrue);
+    });
+  });
+
   group('the rite and the guardian', () {
+    test('the rite wakes Ashdjinn in DUST, not the Air pilot\'s Lightning', () {
+      final game = harness(_idealTrio());
+      final court = game.layout.rooms['sand_court']!;
+      game.earnStar(0);
+      game.earnStar(1);
+      act(
+        game,
+        earth,
+        'sand_court',
+        court.conduits.firstWhere((c) => c.id == 'A').position,
+      );
+      act(game, dust, 'sand_court', court.ruins!.glassCourt!);
+      game.update(1 / 60);
+      expect(game.guardianAwake, isTrue);
+      expect(game.combatEnemies, isNotEmpty, reason: 'the wake brings wisps');
+      expect(game.combatEnemies.map((e) => e.element).toSet(), {
+        'Dust',
+      }, reason: 'four yellow Lightning wisps used to rise in the sand court');
+    });
+
+    test('a grounded body at the moat\'s edge still meets the Wing gate', () {
+      // Nothing that cannot fly can reach the island, so the refusal has to
+      // be answered from the edge — or the chip never stamps for the party
+      // that most needs to read it.
+      final stamped = <String>[];
+      final game = harness([
+        _member(0, 'Dust', 'mask'),
+        _member(1, 'Air', 'pip'),
+        _member(2, 'Earth', 'horn'),
+      ], onCloud: stamped.add)..entryDoorRevealed = true;
+      actFacing(game, dust, 'high_terrace', crownOf('m_kiln'), kilnToBump);
+      actFacing(game, dust, 'roof_walk', crownOf('m_roof'), west);
+      final obs = game.layout.rooms['observatory']!;
+      final edge = obs.ruins!.armillary! + const Offset(-190, 0);
+      expect(obs.gaps.any((g) => g.rect.contains(edge)), isFalse);
+      act(game, air, 'observatory', edge);
+      expect(stamped, contains('gate:any_wing'));
+      expect(game.hasStar(1), isFalse);
+    });
+
     test('the glass refuses until both stars are banked, then turns', () {
       final game = harness(_idealTrio());
       final court = game.layout.rooms['sand_court']!;
@@ -723,7 +882,7 @@ void main() {
 
     test('the storm re-buries your work — and the ledger still balances', () {
       final game = harness(_idealTrio())..entryDoorRevealed = true;
-      actFacing(game, earth, 'ashen_gate', crownOf('m_gate'), east);
+      actFacing(game, dust, 'ashen_gate', crownOf('m_gate'), east);
       expect(game.ruins.stateOf('m_gate'), MoundState.bared);
       expect(game.ruins.stateOf('m_agora'), MoundState.drifted);
 
@@ -772,14 +931,14 @@ void main() {
     void layTheCity(PlanetDungeonGame game) {
       actFacing(
         game,
-        earth,
+        dust,
         'high_terrace',
         crownOf('m_kiln'),
         bearing('m_kiln', 'm_bump'),
       );
       actFacing(
         game,
-        earth,
+        dust,
         'seal_street',
         crownOf('m_agora'),
         bearing('m_agora', 'm_roof'),
@@ -830,7 +989,7 @@ void main() {
         // never rises, so the kiln's crown cannot be reached without a sirocco.
         actFacing(
           game,
-          earth,
+          dust,
           'seal_street',
           crownOf('m_agora'),
           bearing('m_agora', 'm_roof'),
@@ -892,7 +1051,7 @@ void main() {
       expect(game.tallyLit('m_gate'), isTrue);
       actFacing(
         game,
-        earth,
+        dust,
         'ashen_gate',
         crownOf('m_gate'),
         bearing('m_gate', 'm_agora'),
@@ -934,7 +1093,7 @@ void main() {
       final game = harness(_idealTrio())..entryDoorRevealed = true;
       actFacing(
         game,
-        earth,
+        dust,
         'roof_walk',
         crownOf('m_roof'),
         bearing('m_roof', 'm_agora'),
@@ -964,7 +1123,7 @@ void main() {
 
       // A spadeful.
       heard.clear();
-      actFacing(game, earth, 'ashen_gate', crownOf('m_gate'), east);
+      actFacing(game, dust, 'ashen_gate', crownOf('m_gate'), east);
       expect(heard, contains(SoundCue.elementDust));
 
       // The vane winding, then the sirocco.

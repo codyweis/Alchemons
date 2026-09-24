@@ -88,19 +88,19 @@ void main() {
   });
 
   group('the action pad', () {
-    test('is round, and the weapons are the big ones', () {
-      // "More attacky" is mostly size and shape: two heavy discs with the
-      // verb tucked above them, instead of three stacked rectangles.
+    test('is round, the verb is the big seat, and it never swaps', () {
+      // 2026-09-24: the planet's verb is the big disc (icon only), and the
+      // pad never rearranges when enemies arrive; ATTACK is big only in a
+      // room with no verb at all. The old layout (74px weapons, a 54px verb
+      // above) put the thing you press most in the smallest spot.
       expect(source, contains('Widget _roundAction('));
+      expect(source, contains('const big = 84.0, small = 44.0;'));
+      expect(source, contains('primary = utility(big);'));
+      expect(source, contains('primary = attack(big);'));
       expect(
-        RegExp(r'diameter: 74').hasMatch(source),
-        isTrue,
-        reason: 'ATTACK and SPECIAL are the 74px discs',
-      );
-      expect(
-        RegExp(r'diameter: 54').hasMatch(source),
-        isTrue,
-        reason: 'the utility verb is the smaller disc above them',
+        source,
+        contains('final fighting = !hasUtility;'),
+        reason: 'enemies arriving must not swap the buttons under the thumb',
       );
       expect(
         source.contains('BoxShape.circle'),
@@ -109,37 +109,23 @@ void main() {
       );
     });
 
-    test('the utility button sits above the pair, not beside it', () {
-      // Column order is the layout: utility, gap, then the weapons Row.
-      final util = source.indexOf('_utilityButton(');
-      final row = source.indexOf("label: 'ATTACK'");
-      expect(util, greaterThan(0));
-      expect(util, lessThan(row));
-    });
-
-    test('nothing on the pad is pinned to 154px any more', () {
+    test('the controls live in a tray the room never runs under', () {
+      expect(source, contains('Widget _controlTray('));
       expect(
-        RegExp(r'width: 154').hasMatch(source),
-        isFalse,
-        reason: 'the old utility/drop bars were fixed 154px slabs',
-      );
-    });
-
-    test('the cooldown is a rim arc, not a rising shade', () {
-      // The old spent-state was a black rectangle creeping up the button,
-      // which read as a progress bar wearing a button.
-      expect(source, contains('_ActionRingPainter'));
-      expect(source, contains('charge: dimmed ? 0 : 1 - cooldownFraction'));
-      expect(
-        source.contains('heightFactor: cooldownFraction'),
-        isFalse,
-        reason: 'the rising black shade is retired',
+        source,
+        contains(
+          'bottom: _trayHeight(context),\n              child: GameWidget(game: game)',
+        ),
+        reason: 'the game is laid out ABOVE the tray, not under it',
       );
     });
 
     test('the countdown reuses the label slot', () {
       // A badge pinned to a corner would sit on top of the rim now.
-      expect(source, contains('caption: cooldownText ?? label'));
+      expect(
+        source,
+        contains('caption: cooldownText ?? (small ? null : label)'),
+      );
     });
 
     test('the glide meter moved onto the utility rim', () {

@@ -433,12 +433,14 @@ _MonasteryGround _buildMonasteryGround(DungeonRoom room) {
         (tl.dx + tr.dx + br.dx + bl.dx) / 4,
         (tl.dy + tr.dy + br.dy + bl.dy) / 4,
       );
-      Offset inset(Offset p) => Offset.lerp(p, mid, 2.6 / (p - mid).distance)!;
+      // A HAIRLINE (2026-09-24): at 2.6px the bed showed between every
+      // stone and the floor became a web of joints, louder than the beds.
+      Offset inset(Offset p) => Offset.lerp(p, mid, 1.0 / (p - mid).distance)!;
       final a = inset(tl), bq = inset(tr), cq = inset(br), d = inset(bl);
       // Split rather than sawn: a bend halfway across, so it reads as stone
       // that gave rather than a line ruled over it.
       Path? crack;
-      if (rnd() < 0.16) {
+      if (rnd() < 0.06) {
         final ang = rnd() * pi;
         final dir = Offset(cos(ang), sin(ang));
         final bend = mid + Offset(-dir.dy, dir.dx) * 5;
@@ -968,6 +970,22 @@ class VenomMonastery {
   /// instanceId → how many brews this alchemon has given to.
   final Map<String, int> given = {};
 
+  /// Hands that have given to the ENTRANCE pot in the lazar gate (one each,
+  /// and none of it counts against the brewing gives).
+  final Set<String> entryGiven = {};
+
+  /// The entrance pot's brew going up, 1 → 0, the moment the last hand gives.
+  double entryBrew = 0;
+
+  /// THE BOIL-OVER, in seconds since it began; negative when the pot is
+  /// quiet. Starts when the gives left can no longer make the brews still
+  /// needed; halfway through it the bottles burst and the gives come back.
+  double boilOver = -1;
+
+  /// How many bottles were standing when it boiled over (for the shards).
+  int boilBottles = 0;
+  bool boilApplied = false;
+
   /// What is in the pot right now, in the order it went in.
   final List<String> pot = [];
 
@@ -1253,6 +1271,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.wispCircle = -1;
     m.wispNudge = 0;
     m.given.clear();
+    m.entryGiven.clear();
+    m.entryBrew = 0;
+    m.boilOver = -1;
+    m.boilBottles = 0;
+    m.boilApplied = false;
     m.pot.clear();
     m.carriedPotion = null;
     m.woken.clear();
@@ -1768,25 +1791,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final room = currentRoom;
     final m = monastery;
 
-    // 0) Entry rite — a Poison creature softens the quarantine wax.
+    // 0) Entry rite — THE ENTRANCE POT. One gift from every hand in the
+    //    party, any element, and the draught it brews runs the wax off the
+    //    door. It teaches the pot's one verb before the verb costs anything.
     if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
+      if (_tryEntrancePot(a, room)) return true;
       final door = room.doors.first;
       if ((a.position - door.rect.center).distance <= 96) {
-        if (a.member.element != 'Poison') {
-          _setBlockedHint('The quarantine wax answers only Poison');
-          return true;
-        }
-        entryDoorRevealed = true;
-        _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId);
-        speakConsequence(
-          'The wax softens and runs. The lazaret stands open.',
-          3.4,
-        );
-        _spawnAlchemyBurst(
-          door.rect.center,
-          producedElement: 'Poison',
-          particleCount: 26,
-          intensity: 1.1,
+        _setBlockedHint(
+          'The door is waxed shut. The pot in the middle opens it: one gift '
+          'from each of you.',
         );
         return true;
       }
@@ -1801,7 +1815,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     //    crypt, where the carrion font wears the same shape.
     if (room.apothecary != null) {
       if (_tryBottleBench(a, room)) return true;
-      if (_tryCauldron(a, room)) return true;
+      if (_tryCauldron(a, room)) {
+        _checkBrewStrand(room);
+        return true;
+      }
     }
 
     // 3) The censer: administer what is in hand.
@@ -2265,6 +2282,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     ];
     out.sort((a, b) => a.$2.dx.compareTo(b.$2.dx));
     return out;
+  }
+
+  /// Whether the house already holds [p] — bottled, in a hand, poured into
+  /// its plague, or (the vial) already in the font.
+  bool _brewAlreadyMade(PlaguePotion p) {
+    final m = monastery;
+    if (m.bottled.contains(p.id) || m.carriedPotion == p.id) return true;
+    if (p.id == kPureVial.id) return m.cloisterOpen;
+    return m.woken.contains(p.id) || m.slain.contains(p.id);
   }
 
   /// GIVE THE BREW TO THE PLAGUE. It wakes, it comes out into the walk, and
@@ -3479,7 +3505,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final m = monastery;
     switch (room.id) {
       case 'lazar_gate':
-        return entryDoorRevealed ? null : 'The quarantine door is waxed shut.';
+        return entryDoorRevealed
+            ? null
+            : 'The pot in the middle opens the door. Each of you gives once.';
       case 'apothecary':
         if (m.carriedPotion != null) {
           final held = brewById(m.carriedPotion);
@@ -3775,6 +3803,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     _renderLazarGloom(canvas, room);
     // The cressets, ON TOP of the dark they are burning against.
     _renderLazarLamps(canvas, room);
+    // The Dose, scored in glass at the cross's crossing — also ABOVE the dark:
+    // it is the maxim's mark, and a mark in the gloom is no mark at all.
+    final prior = room.priorsSeal;
+    if (prior != null) {
+      _drawDoseRose(canvas, prior.position + const Offset(0, -40));
+    }
     // AFTER the gloom. Drawn under it the burst was darkened by the very
     // thing it should be lighting — and worse, the gloom centres on the
     // PARTY, so during the cut the doorway sat in the dark ring and the
@@ -3902,8 +3936,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // are cut into.
     final crack = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
-      ..color = const Color(0xFF0A0D09).withValues(alpha: 0.7);
+      ..strokeWidth = 1.0
+      ..color = const Color(0xFF0A0D09).withValues(alpha: 0.45);
     // ONE PAINT for every stone in the room. This is the longest loop on the
     // planet, and a fresh Paint per stone per frame is an allocation bill for
     // a floor that has not changed since the room was built.
@@ -3962,6 +3996,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         canvas.drawLine(at, at + Offset(cos(a), sin(a)) * len, straw);
       }
     }
+
+    // A WARD OF ITS OWN (2026-09-24). The four wards share one plan — beds,
+    // board, grate — and two of them could not be told apart. Each of those
+    // now has a thing set in its floor that the others do not.
+    _renderWardInlay(canvas, room);
 
     // THE RUNNEL. Everything in a lazar house runs somewhere, and it is cut
     // in the floor with a fall on it rather than ruled across the bottom of
@@ -4921,7 +4960,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// How solid the floor is. Below about 0.6 the flags stop reading as stone
   /// and the room becomes a window; above about 0.85 the sky may as well not
   /// be there.
-  static const double _kLazarFloorAlpha = 0.72;
+  // 0.84 since 2026-09-24: at 0.72 the sky's bright veins read through as a web
+  // of cracks across every room, louder than anything on the floor.
+  static const double _kLazarFloorAlpha = 0.84;
 
   /// How long the plague takes to come through a broken seal.
   static const double _kSealBurstSeconds = 1.7;
@@ -5875,7 +5916,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       final c = still.cistern;
       _renderLarder(canvas, room);
       _renderCauldron(canvas, c);
+      if (monastery.boilOver >= 0) _drawBoilOver(canvas, c, _benchAt(still));
     }
+    if (room.id == layout.entranceRoomId) _drawEntrancePot(canvas);
 
     final ward = room.ward;
     if (ward != null) {
@@ -6046,16 +6089,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           Rect.fromCenter(center: at, width: 26, height: 20),
           radius: 3,
         );
-        canvas.drawOval(
-          Rect.fromCenter(center: at, width: 15, height: 11),
-          Paint()..color = const Color(0xFF07090A),
-        );
-        if (!full) continue;
         final col = _brewColour(potion);
-        canvas.drawOval(
-          Rect.fromCenter(center: at, width: 13, height: 9),
-          Paint()..color = col.withValues(alpha: 0.92),
-        );
+        _drawSocketLens(canvas, at, full ? col : null);
+        if (!full) continue;
         canvas.drawCircle(
           at,
           13 + 3 * sin(_time * 2.0 + i),
@@ -6197,21 +6233,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (_fx.ready) {
       drawGlow(canvas, _fx.glow!, at, 34, col.withValues(alpha: 0.24));
     }
-
-    // How many colours are home, on the cross itself, so the errand has a
-    // score you can read without pressing anything.
-    if (seal != null && m.wispStage > 0) {
-      for (var i = 0; i < kWispOrder.length; i++) {
-        canvas.drawCircle(
-          Offset(seal.position.dx - 16 + i * 16, seal.position.dy - 82),
-          4,
-          Paint()
-            ..color = i < m.wispStage
-                ? elementColor(kWispOrder[i])
-                : const Color(0xFF241E28),
-        );
-      }
-    }
+    // How many colours are home is scored in glass on the cross itself
+    // (`_drawDoseRose`), so the errand keeps its mark after it is done.
   }
 
   /// THE BOARD OVER THE DOOR. The house nailed up what this ward needs, and
@@ -6354,10 +6377,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     canvas.drawOval(bowl.deflate(4), Paint()..color = const Color(0xFF070A08));
     // What is standing in it: sick green until the vial goes in, then clear.
     final water = done ? const Color(0xFFD8F0E4) : _venomSick;
-    canvas.drawOval(
-      bowl.deflate(9),
-      Paint()..color = water.withValues(alpha: done ? 0.55 : 0.30),
-    );
+    _drawFontGlass(canvas, bowl.deflate(9), water, done);
     for (var i = 0; i < 2; i++) {
       final k = ((_time * 0.4 + i * 0.5) % 1.0);
       canvas.drawOval(

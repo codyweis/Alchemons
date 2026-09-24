@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'cosmic_data.dart';
+import 'vfx_shapes.dart';
 
 const _elements = {
   'Crystal',
@@ -228,27 +229,38 @@ bool drawMaskTrapFixture({
       );
     }
   } else if (element == 'Light') {
-    // Uneven pale incision, with no closed outline or ornamental crosshair.
-    final tear = ui.Path()
-      ..moveTo(-r * 0.04, -r * 0.7)
-      ..cubicTo(r * 0.07, -r * 0.46, -r * 0.11, -r * 0.28, 0, -r * 0.09)
-      ..cubicTo(r * 0.07, r * 0.1, -r * 0.04, r * 0.39, r * 0.03, r * 0.62);
-    stroke(tear, const ui.Color(0xFFBDB7A0), 0.035, r * 0.26);
-    stroke(tear, const ui.Color(0xFFBDB7A0), 0.08, r * 0.10);
-    stroke(tear, const ui.Color(0xFFE0DCCD), 0.82, max(0.8, r * 0.018));
-    for (var i = 0; i < (reduced ? 4 : 11); i++) {
+    // A slit in the world with light behind it: a narrow lit lens, widest at
+    // the middle, over a pale spill. Thin by nature, but never a hairline.
+    _maskLightSpill(
+      canvas,
+      ui.Offset.zero,
+      r * 0.55,
+      const ui.Color(0xFFE4D6AB),
+      0.16,
+      squash: 1.6,
+    );
+    ui.Path lens(double halfWidth) => ui.Path()
+      ..moveTo(-r * 0.04, -r * 0.72)
+      ..quadraticBezierTo(halfWidth * 1.6, -r * 0.1, r * 0.03, r * 0.64)
+      ..quadraticBezierTo(-halfWidth * 1.6, r * 0.05, -r * 0.04, -r * 0.72)
+      ..close();
+    final breathe = 0.85 + 0.15 * sin(time * 1.3 + seed);
+    fill(lens(r * 0.11 * breathe), const ui.Color(0xFFBDB7A0), 0.16);
+    fill(lens(r * 0.05 * breathe), const ui.Color(0xFFE0DCCD), 0.5);
+    fill(lens(r * 0.018), const ui.Color(0xFFF6F2E4), 0.9);
+    for (var i = 0; i < (reduced ? 4 : 9); i++) {
       final t = (time * 0.14 + i * 0.618) % 1;
       final side = i.isEven ? 1.0 : -1.0;
-      final x = side * r * (0.08 + 0.55 * (1 - t));
-      final y = r * sin(i * 7.7 + seed) * 0.7;
+      final x = side * r * (0.08 + 0.45 * (1 - t));
+      final y = r * sin(i * 7.7 + seed) * 0.6;
       canvas.drawCircle(
         ui.Offset(x, y),
-        max(0.7, r * 0.01),
+        max(0.9, r * 0.014),
         paint
           ..style = ui.PaintingStyle.fill
           ..color = const ui.Color(
-            0xFFB4AF9C,
-          ).withValues(alpha: sin(t * pi) * 0.32),
+            0xFFD8D2BC,
+          ).withValues(alpha: sin(t * pi) * 0.45),
       );
     }
   } else if (element == 'Water') {
@@ -367,11 +379,13 @@ void _drawRemainingMask(
 ) {
   final element = p.element!;
   final paint = ui.Paint()..strokeCap = ui.StrokeCap.round;
-  void fill(ui.Path shape, int color, double a) => canvas.drawPath(
+  void fill(ui.Path shape, Object color, double a) => canvas.drawPath(
     shape,
     paint
       ..style = ui.PaintingStyle.fill
-      ..color = ui.Color(color).withValues(alpha: a),
+      ..color = (color is ui.Color ? color : ui.Color(color as int)).withValues(
+        alpha: a.clamp(0.0, 1.0),
+      ),
   );
   void line(ui.Path shape, int color, double a, double width) =>
       canvas.drawPath(
@@ -481,55 +495,328 @@ void _drawRemainingMask(
         );
       }
     }
-  } else if (element == 'Blood' || element == 'Mud' || element == 'Earth') {
-    final blood = element == 'Blood';
-    final earth = element == 'Earth';
-    final base = blood
-        ? 0xFF270C16
-        : earth
-        ? 0xFF242920
-        : 0xFF29221D;
-    final edge = blood
-        ? 0xFF9C5966
-        : earth
-        ? 0xFF8A9B73
-        : 0xFF8B7965;
-    fill(patch(0, 0, r * 0.9, 0.57, seed), base, 0.94);
-    for (var i = 0; i < (reduced ? 4 : 9); i++) {
+  } else if (element == 'Blood') {
+    // A living blob: glossy, round, and it beats. Veins run out of it toward
+    // whatever it has fed on.
+    final beat = pow(max(0.0, sin(time * 2.4 + seed)), 6).toDouble();
+    final swell = 1 + 0.05 * beat + flash * 0.06;
+    _maskLightSpill(
+      canvas,
+      ui.Offset.zero,
+      r * 1.05,
+      const ui.Color(0xFFAA3658),
+      0.10 + 0.10 * beat,
+      squash: 0.6,
+    );
+    for (var i = 0; i < (reduced ? 3 : 6); i++) {
       final a = i * 2.399 + seed;
-      final distance = earth ? 0.28 + 0.38 * (0.5 + 0.5 * sin(i * 5.7)) : 0.62;
-      final x = cos(a) * r * distance;
-      final y = sin(a) * r * distance * 0.5;
-      if (earth) {
-        // Mineral spring: scattered weathered stones and upward healing motes.
-        fill(patch(x, y, r * 0.14, 0.65, i.toDouble()), 0xFF53574B, 0.75);
-        final t = (time * 0.2 + i * 0.618) % 1;
-        fleck(
-          x,
-          y - t * r * 0.4,
-          r * 0.025,
-          0xFFB8C59C,
-          sin(t * pi) * (0.4 + flash * 0.35),
+      final spine = <ui.Offset>[
+        for (var k = 0; k <= 6; k++)
+          ui.Offset(
+            cos(a + sin(k * 1.3 + i) * 0.12) * r * (0.35 + 0.6 * k / 6),
+            sin(a + sin(k * 1.3 + i) * 0.12) * r * (0.35 + 0.6 * k / 6) * 0.58,
+          ),
+      ];
+      fill(
+        vfxRibbon(spine, r * 0.07, r * 0.008),
+        const ui.Color(0xFF4A0F1C),
+        0.8,
+      );
+      fill(
+        vfxRibbon(spine, r * 0.025, r * 0.004),
+        const ui.Color(0xFF9C3048),
+        0.35 + 0.25 * beat,
+      );
+    }
+    fill(
+      vfxBlob(
+        ui.Offset.zero,
+        r * 0.6 * swell,
+        seed,
+        n: 14,
+        wobble: 0.07,
+        squash: 0.62,
+      ),
+      const ui.Color(0xFF22060C),
+      0.96,
+    );
+    fill(
+      vfxBlob(
+        const ui.Offset(0, -2),
+        r * 0.42 * swell,
+        seed + 2,
+        n: 12,
+        wobble: 0.1,
+        squash: 0.6,
+      ),
+      const ui.Color(0xFF5A1422),
+      0.55 + 0.2 * beat,
+    );
+    canvas.save();
+    canvas.scale(1, 0.6);
+    fill(
+      vfxCrescent(
+        ui.Offset(-r * 0.05, -r * 0.05),
+        r * 0.46 * swell,
+        r * 0.07,
+        -pi * 0.72,
+        1.3,
+      ),
+      const ui.Color(0xFFE08A9A),
+      0.26,
+    );
+    canvas.restore();
+  } else if (element == 'Mud') {
+    // Sprawling, matte sludge. Bubbles swell and burst on a slow cycle.
+    _maskLightSpill(
+      canvas,
+      ui.Offset.zero,
+      r,
+      const ui.Color(0xFF7A6448),
+      0.08,
+      squash: 0.6,
+    );
+    fill(
+      vfxBlob(ui.Offset.zero, r * 0.9, seed, n: 11, wobble: 0.22, squash: 0.55),
+      const ui.Color(0xFF231B14),
+      0.94,
+    );
+    fill(
+      vfxBlob(
+        ui.Offset(r * 0.08, -r * 0.03),
+        r * 0.58,
+        seed + 5,
+        n: 9,
+        wobble: 0.25,
+        squash: 0.52,
+      ),
+      const ui.Color(0xFF4A3B2B),
+      0.42,
+    );
+    for (var i = 0; i < (reduced ? 3 : 6); i++) {
+      final ph = (time * 0.32 + i * 0.618 + seed) % 1.0;
+      final a = i * 2.399 + seed;
+      final c = ui.Offset(
+        cos(a) * r * 0.5 * (0.4 + 0.6 * vfxHash(seed + i)),
+        sin(a) * r * 0.26,
+      );
+      if (ph < 0.85) {
+        final g = ph / 0.85;
+        final br = r * (0.03 + 0.06 * g);
+        canvas.drawCircle(
+          c,
+          br,
+          paint
+            ..style = ui.PaintingStyle.fill
+            ..color = const ui.Color(0xFF5E4C39).withValues(alpha: 0.8),
+        );
+        canvas.drawCircle(
+          c + ui.Offset(-br * 0.35, -br * 0.4),
+          br * 0.3,
+          paint..color = const ui.Color(0xFFA08A66).withValues(alpha: 0.45 * g),
         );
       } else {
-        final surface = ui.Path()
-          ..moveTo(x - r * 0.12, y)
-          ..quadraticBezierTo(
-            x,
-            y - r * (blood ? 0.035 : 0.075),
-            x + r * 0.13,
-            y,
-          );
-        line(surface, edge, blood ? 0.37 : 0.30, r * 0.012);
-        if (blood && !reduced) {
-          final vein = ui.Path()
-            ..moveTo(x, y)
-            ..quadraticBezierTo(x * 0.6, y + r * 0.1, x * 0.25, y * 0.4);
-          line(vein, 0xFF772239, 0.3 + 0.1 * sin(time * 1.4 + i), r * 0.025);
-        }
+        final pop = (ph - 0.85) / 0.15;
+        canvas.save();
+        canvas.translate(c.dx, c.dy);
+        canvas.scale(1, 0.55);
+        fill(
+          vfxCrescent(
+            ui.Offset.zero,
+            r * (0.09 + 0.08 * pop),
+            r * 0.02,
+            -pi / 2,
+            pi * 1.6,
+          ),
+          const ui.Color(0xFF8B7965),
+          0.35 * (1 - pop),
+        );
+        canvas.restore();
       }
     }
-  } else if (element == 'Poison' || element == 'Dust' || element == 'Steam') {
+  } else if (element == 'Earth') {
+    // A mineral spring ringed in stone, with light welling up out of it — the
+    // one pool here that is on your side.
+    final breathe = 0.85 + 0.15 * sin(time * 1.4 + seed) + flash * 0.2;
+    fill(
+      vfxBlob(ui.Offset.zero, r * 0.8, seed, n: 14, wobble: 0.06, squash: 0.58),
+      const ui.Color(0xFF151C14),
+      0.94,
+    );
+    _maskLightSpill(
+      canvas,
+      const ui.Offset(0, -2),
+      r * 0.72,
+      const ui.Color(0xFF9CC48A),
+      0.34 * breathe,
+      squash: 0.56,
+    );
+    _maskLightSpill(
+      canvas,
+      const ui.Offset(0, -2),
+      r * 0.3,
+      const ui.Color(0xFFE2EFC4),
+      0.3 * breathe,
+      squash: 0.56,
+    );
+    for (var i = 0; i < (reduced ? 7 : 12); i++) {
+      final a = i * pi * 2 / (reduced ? 7 : 12) + seed;
+      final c = ui.Offset(cos(a) * r * 0.8, sin(a) * r * 0.8 * 0.58);
+      final sr = r * (0.075 + 0.04 * vfxHash(seed + i));
+      fill(
+        vfxBlob(c, sr, seed + i * 3, n: 6, wobble: 0.25, squash: 0.75),
+        const ui.Color(0xFF3E4638),
+        0.95,
+      );
+      fill(
+        vfxBlob(
+          c + ui.Offset(-sr * 0.2, -sr * 0.3),
+          sr * 0.55,
+          seed + i * 7,
+          n: 5,
+          wobble: 0.2,
+          squash: 0.7,
+        ),
+        const ui.Color(0xFF8A9B73),
+        0.35,
+      );
+    }
+    for (var i = 0; i < (reduced ? 3 : 6); i++) {
+      final t = (time * 0.35 + i * 0.618) % 1;
+      final x = sin(i * 4.3 + seed) * r * 0.45;
+      canvas.drawCircle(
+        ui.Offset(x, sin(i * 2.1) * r * 0.15 - t * r * 0.7),
+        max(1.0, r * 0.018) * (1 - t * 0.5),
+        paint
+          ..style = ui.PaintingStyle.fill
+          ..color = const ui.Color(
+            0xFFD6E6B8,
+          ).withValues(alpha: sin(t * pi) * (0.55 + flash * 0.3)),
+      );
+    }
+  } else if (element == 'Poison') {
+    // A low miasma clinging to the ground: sickly clouds rolling over a dark
+    // stain, spores lifting off them.
+    _maskLightSpill(
+      canvas,
+      ui.Offset.zero,
+      r * 1.1,
+      const ui.Color(0xFF91A85C),
+      0.13,
+      squash: 0.62,
+    );
+    fill(
+      vfxBlob(ui.Offset.zero, r * 0.7, seed, n: 12, wobble: 0.2, squash: 0.55),
+      const ui.Color(0xFF12160A),
+      0.55,
+    );
+    for (var i = 0; i < (reduced ? 3 : 6); i++) {
+      final a = i * 2.399 + seed + time * 0.05;
+      final c = ui.Offset(cos(a) * r * 0.42, sin(a) * r * 0.2);
+      final cr = r * (0.26 + 0.1 * sin(time * 0.6 + i));
+      fill(
+        vfxBlob(
+          c,
+          cr,
+          seed + i * 2 + time * 0.2,
+          n: 9,
+          wobble: 0.14,
+          squash: 0.6,
+        ),
+        const ui.Color(0xFF2E3A1C),
+        0.42,
+      );
+      fill(
+        vfxBlob(
+          c + ui.Offset(0, -cr * 0.18),
+          cr * 0.72,
+          seed + i * 5 + time * 0.2,
+          n: 9,
+          wobble: 0.16,
+          squash: 0.55,
+        ),
+        const ui.Color(0xFF6D7F42),
+        0.2,
+      );
+    }
+    for (var i = 0; i < (reduced ? 4 : 8); i++) {
+      final t = (time * 0.4 + i * 0.618) % 1;
+      canvas.drawCircle(
+        ui.Offset(
+          sin(i * 5.3 + seed) * r * 0.55,
+          cos(i * 3.1) * r * 0.2 - t * r * 0.45,
+        ),
+        max(0.9, r * 0.012),
+        paint
+          ..style = ui.PaintingStyle.fill
+          ..color = const ui.Color(
+            0xFFC8D890,
+          ).withValues(alpha: sin(t * pi) * 0.6),
+      );
+    }
+  } else if (element == 'Dust') {
+    // Not a ground trap: a shield of grit orbiting the creature it guards,
+    // centre left clear so the creature shows through. The heavy stones are
+    // its remaining blocks — one falls away with each shot it stops.
+    _maskLightSpill(
+      canvas,
+      ui.Offset.zero,
+      r,
+      const ui.Color(0xFFAC916D),
+      0.07,
+      squash: 0.8,
+    );
+    final spin = time * 1.1 + seed;
+    canvas.save();
+    canvas.scale(1, 0.8);
+    for (var i = 0; i < 3; i++) {
+      fill(
+        vfxCrescent(
+          ui.Offset.zero,
+          r * (0.78 + 0.08 * i),
+          r * (0.12 - 0.025 * i),
+          spin * (1 + i * 0.3) + i * 2.1,
+          2.2 - i * 0.4,
+        ),
+        const ui.Color(0xFF8C7960),
+        0.18 + flash * 0.12,
+      );
+    }
+    for (var i = 0; i < (reduced ? 6 : 14); i++) {
+      final a = spin * (1.4 + vfxHash(seed + i) * 0.8) + i * 0.449;
+      final d = r * (0.66 + 0.24 * vfxHash(seed + i * 2));
+      canvas.drawCircle(
+        vfxPolar(a, d),
+        max(0.8, r * 0.012),
+        paint
+          ..style = ui.PaintingStyle.fill
+          ..color = const ui.Color(0xFFD6C29E).withValues(alpha: 0.5),
+      );
+    }
+    final stones = p.interceptCharges.clamp(0, 6);
+    for (var i = 0; i < stones; i++) {
+      final a = spin * 0.8 + i * pi * 2 / max(1, stones);
+      final c = vfxPolar(a, r * 0.8);
+      final sr = r * 0.07;
+      fill(
+        vfxBlob(c, sr, seed + i, n: 6, wobble: 0.28),
+        const ui.Color(0xFF3A3024),
+        0.95,
+      );
+      fill(
+        vfxBlob(
+          c + ui.Offset(-sr * 0.25, -sr * 0.3),
+          sr * 0.5,
+          seed + i * 3,
+          n: 5,
+          wobble: 0.2,
+        ),
+        const ui.Color(0xFFB5A286),
+        0.45,
+      );
+    }
+    canvas.restore();
+  } else if (element == 'Steam') {
     final steam = element == 'Steam';
     final dust = element == 'Dust';
     final tint = steam
@@ -584,21 +871,55 @@ void _drawRemainingMask(
       }
     }
   } else if (element == 'Air') {
-    // A pressure pocket is readable through displaced ash and broken eddies.
-    for (var i = 0; i < (reduced ? 4 : 7); i++) {
-      final t = (time * 0.28 + i * 0.618) % 1;
-      final a = i * 2.399 + t * 1.6;
-      final d = r * (0.30 + t * 0.50);
-      final path = ui.Path()
-        ..moveTo(cos(a) * d, sin(a) * d * 0.6)
-        ..quadraticBezierTo(
-          cos(a + 0.35) * d,
-          sin(a + 0.35) * d * 0.5,
-          cos(a + 0.65) * d,
-          sin(a + 0.65) * d * 0.6,
-        );
-      line(path, 0xFF9FAAA5, sin(t * pi) * (0.32 + flash * 0.2), r * 0.012);
+    // A pressure pocket: a pressed-down hollow with wind turning over it,
+    // ash caught in the gusts. Readable at a glance, still quiet.
+    _maskLightSpill(
+      canvas,
+      ui.Offset.zero,
+      r * 0.7,
+      const ui.Color(0xFF05080B),
+      0.4,
+      squash: 0.62,
+    );
+    final spin = time * 1.5 + seed;
+    canvas.save();
+    canvas.scale(1, 0.62);
+    for (var i = 0; i < 3; i++) {
+      fill(
+        vfxSpiralArm(
+          ui.Offset.zero,
+          r * 0.88,
+          spin + i * pi * 2 / 3,
+          1.7,
+          r * 0.13,
+          reach: 0.72,
+        ),
+        const ui.Color(0xFFB6C4C8),
+        0.2 + flash * 0.25,
+      );
+      fill(
+        vfxSpiralArm(
+          ui.Offset.zero,
+          r * 0.88,
+          spin + i * pi * 2 / 3 + 0.12,
+          1.5,
+          r * 0.05,
+          reach: 0.7,
+        ),
+        const ui.Color(0xFFE0EAEC),
+        0.22 + flash * 0.25,
+      );
     }
+    for (var i = 0; i < (reduced ? 3 : 6); i++) {
+      final a = spin * 1.8 + i * 1.047;
+      final d = r * (0.35 + 0.45 * vfxHash(seed + i));
+      fill(
+        vfxLeaf(vfxPolar(a, d), r * 0.06, a + pi / 2),
+        const ui.Color(0xFF9FAAA5),
+        0.55,
+      );
+    }
+    canvas.restore();
   } else if (element == 'Lightning') {
     fill(patch(0, 0, r * 0.8, 0.65, seed), 0xFF25272A, 0.32);
     // Brief branching discharges crawl through a charged patch of ground.
@@ -647,22 +968,57 @@ void _drawRemainingMask(
     }
   } else if (element == 'Plant') {
     // Rootstock only: the shared, gameplay-driven tendrils render above it.
-    fill(patch(0, 0, r * 0.62, 0.55, seed), 0xFF1E271D, 0.65);
-    for (var i = 0; i < (reduced ? 4 : 7); i++) {
-      final a = i * 2.399 + seed;
-      final root = ui.Path()
-        ..moveTo(0, r * 0.06)
-        ..cubicTo(
-          cos(a) * r * 0.18,
-          -r * 0.15,
-          cos(a) * r * 0.32,
-          sin(a) * r * 0.2,
-          cos(a) * r * 0.55,
-          sin(a) * r * 0.34,
+    // Roots split from a buried stump and run out into the stone at uneven
+    // lengths, forking once — a root system, not a creature.
+    fill(
+      vfxBlob(ui.Offset.zero, r * 0.6, seed, n: 12, wobble: 0.2, squash: 0.55),
+      const ui.Color(0xFF1A2317),
+      0.8,
+    );
+    final roots = reduced ? 5 : 9;
+    for (var i = 0; i < roots; i++) {
+      final a = i * pi * 2 / roots + (vfxHash(seed + i) - 0.5) * 0.5;
+      final len = r * (0.4 + 0.35 * vfxHash(seed + i * 3.3));
+      final bend = (vfxHash(seed + i * 5.1) - 0.5) * 0.5;
+      ui.Offset at(double t, double off) => ui.Offset(
+        cos(a + bend * t + off) * len * t,
+        sin(a + bend * t + off) * len * t * 0.56,
+      );
+      final spine = [for (var k = 0; k <= 6; k++) at(k / 6, 0)];
+      fill(
+        vfxRibbon(spine, r * 0.075, r * 0.01),
+        const ui.Color(0xFF34402A),
+        0.95,
+      );
+      fill(
+        vfxRibbon(spine, r * 0.022, r * 0.004),
+        const ui.Color(0xFF84906C),
+        0.28 + flash * 0.25,
+      );
+      if (i.isEven && !reduced) {
+        final fork = [
+          for (var k = 0; k <= 4; k++)
+            at(0.55 + 0.35 * k / 4, 0.35 * k / 4 * (i % 4 == 0 ? 1 : -1)),
+        ];
+        fill(
+          vfxRibbon(fork, r * 0.035, r * 0.006),
+          const ui.Color(0xFF34402A),
+          0.9,
         );
-      line(root, 0xFF3D4731, 0.85, r * 0.045);
-      line(root, 0xFF84906C, 0.30 + flash * 0.25, r * 0.010);
+      }
     }
+    fill(
+      vfxBlob(
+        ui.Offset.zero,
+        r * 0.15,
+        seed + 3,
+        n: 9,
+        wobble: 0.3,
+        squash: 0.62,
+      ),
+      const ui.Color(0xFF26301F),
+      0.98,
+    );
   } else if (element == 'Spirit') {
     drawMaskSpiritRemnant(
       canvas: canvas,
@@ -822,45 +1178,49 @@ void drawMaskSpiritRemnant({
   double alpha = 1,
   bool reduced = false,
 }) {
+  // A soul-flame hovering over its own cold light. The ship has to go and
+  // collect these, so unlike the traps it is meant to be spotted from across
+  // the field — but it is still a small flame, not a beacon.
   final r = radius;
-  final paint = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round;
+  final paint = ui.Paint()..style = ui.PaintingStyle.fill;
   canvas.save();
   canvas.translate(position.dx, position.dy);
-  final sway = sin(time * 1.3) * r * 0.08;
-  for (var i = 0; i < (reduced ? 2 : 4); i++) {
-    final wisp = ui.Path()
-      ..moveTo(sway + r * 0.02, -r * 0.12)
-      ..cubicTo(
-        -r * 0.18,
-        r * 0.04,
-        r * 0.20,
-        r * 0.28,
-        sin(time + i) * r * 0.25,
-        r * (0.38 + i * 0.09),
-      );
-    canvas.drawPath(
-      wisp,
-      paint
-        ..strokeWidth = r * 0.11
-        ..color = const ui.Color(0xFF818D9E).withValues(alpha: 0.06 * alpha),
-    );
-    canvas.drawPath(
-      wisp,
-      paint
-        ..strokeWidth = max(0.8, r * 0.012)
-        ..color = const ui.Color(
-          0xFFADB6B9,
-        ).withValues(alpha: (0.25 - i * 0.035) * alpha),
-    );
-  }
-  canvas.drawLine(
-    ui.Offset(sway, -r * 0.10),
-    ui.Offset(sway + r * 0.02, -r * 0.16),
-    paint
-      ..strokeWidth = max(1, r * 0.018)
-      ..color = const ui.Color(0xFFD0D4CA).withValues(alpha: 0.7 * alpha),
+  _maskLightSpill(
+    canvas,
+    ui.Offset.zero,
+    r * 0.8,
+    const ui.Color(0xFFA8B8D8),
+    0.22 * alpha,
+    squash: 0.6,
   );
+  final bob = sin(time * 1.6) * r * 0.05;
+  final flicker = 0.9 + 0.1 * sin(time * 7.3);
+  final c = ui.Offset(sin(time * 1.1) * r * 0.03, -r * 0.3 + bob);
+  // Tail streams upward; head sits low and round.
+  final lean = pi / 2 + sin(time * 2.3) * 0.12;
+  canvas.drawPath(
+    vfxDrop(c, r * 0.24 * flicker, lean),
+    paint..color = const ui.Color(0xFF6A7C98).withValues(alpha: 0.42 * alpha),
+  );
+  canvas.drawPath(
+    vfxDrop(c + ui.Offset(0, r * 0.03), r * 0.14 * flicker, lean),
+    paint..color = const ui.Color(0xFFDCE6F4).withValues(alpha: 0.72 * alpha),
+  );
+  canvas.drawCircle(
+    c + ui.Offset(0, r * 0.03),
+    max(1.0, r * 0.035),
+    paint..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.85 * alpha),
+  );
+  if (!reduced) {
+    for (var i = 0; i < 2; i++) {
+      final a = time * 1.9 + i * pi;
+      canvas.drawCircle(
+        c + ui.Offset(cos(a) * r * 0.28, sin(a) * r * 0.1),
+        max(0.8, r * 0.018),
+        paint
+          ..color = const ui.Color(0xFFDCE6F4).withValues(alpha: 0.55 * alpha),
+      );
+    }
+  }
   canvas.restore();
 }

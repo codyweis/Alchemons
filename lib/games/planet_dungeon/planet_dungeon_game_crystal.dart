@@ -287,9 +287,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         particleCount: 8,
         intensity: 0.5,
       );
-      _setBlockedHint(
-        'Three shapes in the glass. Only Crystal can read them',
-      );
+      _setBlockedHint('Three shapes in the glass. Only Crystal can read them');
       return true;
     }
     // THE RITE OF THREE pays this out (see `beginMaximRite`).
@@ -450,7 +448,9 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final direct = a.member.element == 'Light';
     final braid = _keepBraidReady(a);
     if (!direct && !braid) {
-      _setBlockedHint('The lamp needs Light. Crystal and Spirit together can make it');
+      _setBlockedHint(
+        'The lamp needs Light. Crystal and Spirit together can make it',
+      );
       return true;
     }
     f.lampLit = true;
@@ -827,7 +827,9 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (cell == null) return null;
     final chamber = f.chamberAt(cell);
     if (chamber == null) return 'The empty slot. Rooms can slide into it';
-    if (chamber.id == 'waiting') return 'The waiting facet. Something is stored here';
+    if (chamber.id == 'waiting') {
+      return 'The waiting facet. Something is stored here';
+    }
     if (chamber.id == 'hearth' && !f.hearthKindled) {
       return 'The Shard Hearth. Its shard is cold';
     }
@@ -1003,6 +1005,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   static const List<double> _kRailX = [104, 312];
 
   void _renderKeep(Canvas canvas, DungeonRoom room) {
+    _renderGlassDoorPlugs(canvas, room);
     final cell = _cellOf(room);
     if (cell != null) {
       _renderKeepCell(canvas, room, cell);
@@ -1356,6 +1359,37 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       () => _buildChamberGlass(r, chamber),
     );
 
+    // The glass never changes: baked once per chamber (§7.11), and carried
+    // through the shear by the translate round this call.
+    canvas.drawPicture(
+      _chamberGlassCache.putIfAbsent(
+        '${chamber.id}|${r.left},${r.top},${r.width}x${r.height}',
+        () {
+          final rec = ui.PictureRecorder();
+          _paintChamberGlass(Canvas(rec), r, chamber, gl, glass);
+          return rec.endRecording();
+        },
+      ),
+    );
+
+    // KNOW THYSELF, kept: the Black Cell's medallion silvered for good
+    // (planet_dungeon_game_crystal_art.dart).
+    if (chamber.id == 'onyx') {
+      _drawKnowThyselfMirror(canvas, r.deflate(22).center);
+    }
+    if (chamber.id == 'hearth') _renderShardHearth(canvas);
+    if (chamber.throne) _renderThrone(canvas, glass);
+    if (chamber.id == 'waiting') _renderWaitingFacet(canvas, glass);
+    _renderBeamThrough(canvas, cell, chamber);
+  }
+
+  void _paintChamberGlass(
+    Canvas c,
+    Rect r,
+    PrismChamber chamber,
+    _KeepGlass gl,
+    Color glass,
+  ) {
     // The slab, bedded. One faint body tone, then the panes over it, so a
     // dropped pane never leaves a hole in the glass.
     //
@@ -1364,7 +1398,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     // flat slab of brown with scratches on it — the runways underneath it
     // vanished, and with them the whole reason to have drawn a bearing bed.
     // You are meant to see the machinery THROUGH the glass.
-    canvas.drawRect(r, Paint()..color = glass.withValues(alpha: 0.12));
+    c.drawRect(r, Paint()..color = glass.withValues(alpha: 0.12));
     final fill = Paint();
     // Every pane colour, jamb colour and bevel colour is resolved at BUILD
     // time, so the render loop allocates no Colors and does no lerping.
@@ -1381,10 +1415,17 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.9
       ..color = _keepSheen.withValues(alpha: 0.1);
+    // The lattice is glazed in light came, so its diamonds read as a screen
+    // over the bed rather than as bars across it.
+    final latticeCame = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..color = _keepVoid.withValues(alpha: 0.16);
     for (var i = 0; i < gl.panes.length; i++) {
-      canvas.drawPath(gl.panes[i], fill..color = gl.paneColours[i]);
-      canvas.drawPath(gl.panes[i], came);
-      canvas.drawPath(gl.panes[i], lead);
+      final light = i >= gl.latticeFrom && i < gl.latticeTo;
+      c.drawPath(gl.panes[i], fill..color = gl.paneColours[i]);
+      c.drawPath(gl.panes[i], light ? latticeCame : came);
+      if (!light) c.drawPath(gl.panes[i], lead);
     }
     // The arris the grinding wheel left on each pane. These were long white
     // diagonals crossing the whole slab and read as somebody had keyed it
@@ -1394,41 +1435,36 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       ..strokeCap = StrokeCap.round
       ..color = Colors.white.withValues(alpha: 0.09);
     for (final s in gl.arrises) {
-      canvas.drawLine(s.$1, s.$2, wheelMark);
+      c.drawLine(s.$1, s.$2, wheelMark);
     }
     // THE RIM BEVEL — the slab's edge is ground off all round. One clip, not
     // one per pane: this is the cost-conscious version of the same read.
-    canvas.save();
-    canvas.clipRect(r);
-    canvas.drawRect(
+    c.save();
+    c.clipRect(r);
+    c.drawRect(
       r,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 16
         ..color = gl.bevel,
     );
-    canvas.drawRect(
+    c.drawRect(
       r.deflate(8),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2
         ..color = _keepSheen.withValues(alpha: 0.18),
     );
-    canvas.restore();
+    c.restore();
     // Chips out of the corners, because a slab that has been shoved into
     // stone a few thousand times is not still sharp.
     for (final p in gl.chips) {
-      canvas.drawPath(p, Paint()..color = _keepVoid.withValues(alpha: 0.5));
+      c.drawPath(p, Paint()..color = _keepVoid.withValues(alpha: 0.5));
     }
 
     for (final facet in const [kFacetN, kFacetE, kFacetS, kFacetW]) {
-      if (chamber.cut(facet)) _renderFacetDoorway(canvas, r, facet, gl.jamb);
+      if (chamber.cut(facet)) _renderFacetDoorway(c, r, facet, gl.jamb);
     }
-
-    if (chamber.id == 'hearth') _renderShardHearth(canvas);
-    if (chamber.throne) _renderThrone(canvas, glass);
-    if (chamber.id == 'waiting') _renderWaitingFacet(canvas, glass);
-    _renderBeamThrough(canvas, cell, chamber);
   }
 
   /// A CUT FACE IS A DOORWAY, NOT A BADGE. This used to be a bright bar
@@ -3322,65 +3358,103 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     return out;
   }
 
-  /// A chamber's leadwork: the slab split by five free cuts into irregular
-  /// panes, each ground to its own depth. Cached per chamber id, never per
-  /// cell — a chamber has to be recognisable wherever the keep has put it.
+  /// A chamber's leadwork, as a WINDOW rather than a shattered sheet
+  /// (docs/dungeons.md §7.11). Five free cuts ran long black lines across
+  /// every slab and read as cracks; the chamber is now glazed the way a
+  /// glazier would: a border of its own colour in quarries round the edge,
+  /// a faint diamond lattice over the middle you can see the bed through, and
+  /// a medallion at the heart whose petal count is the chamber's own — so
+  /// colour AND shape say which of the eight has arrived. Cached per chamber
+  /// id, never per cell.
   _KeepGlass _buildChamberGlass(Rect slab, PrismChamber chamber) {
     final glass = Color(chamber.argb);
     final rng = _KeepRng(_keepHash(chamber.id));
-    var polys = <List<Offset>>[
-      [slab.topLeft, slab.topRight, slab.bottomRight, slab.bottomLeft],
-    ];
-    for (var k = 0; k < 5; k++) {
-      final p = Offset(
-        slab.left + rng.range(0.14, 0.86) * slab.width,
-        slab.top + rng.range(0.14, 0.86) * slab.height,
-      );
-      final a = rng.range(0, pi);
-      final n = Offset(cos(a), sin(a));
-      final next = <List<Offset>>[];
-      for (final poly in polys) {
-        for (final s in const [1.0, -1.0]) {
-          final cut = _clipHalf(poly, p, n * s);
-          if (cut.length >= 3 && _polyArea(cut) > 260) next.add(cut);
-        }
-      }
-      polys = next;
-    }
     final panes = <Path>[];
     final paneColours = <Color>[];
     final arrises = <(Offset, Offset)>[];
-    for (final poly in polys) {
-      final path = Path()..moveTo(poly.first.dx, poly.first.dy);
-      for (var i = 1; i < poly.length; i++) {
-        path.lineTo(poly[i].dx, poly[i].dy);
-      }
-      path.close();
-      panes.add(path);
-      // A wide spread, so the panes read as separate pieces of glass ground
-      // to different depths rather than as one wash with lines on it.
-      //
-      // AND A LIFT TOWARD THE SHEEN, which is the fix for the two chambers
-      // alpha alone could never carry: the Black Cell came out as a hole in
-      // the socket and the Pale Cell as nothing at all, because varying the
-      // opacity of near-black or near-white glass over dark stone varies
-      // almost nothing. Ground glass really does go lighter where the wheel
-      // has been over it, so every pane is lifted as well as thinned.
-      final tone = 0.07 + rng.next() * rng.next() * 0.4;
+    const band = 22.0;
+    final inner = slab.deflate(band);
+
+    // THE BORDER: quarries of the chamber's colour, the strongest glass on it.
+    void quarry(Rect q) {
+      panes.add(Path()..addRect(q));
       paneColours.add(
         Color.lerp(
           glass,
           _keepSheen,
-          rng.next() * 0.4,
-        )!.withValues(alpha: tone),
+          rng.next() * 0.25,
+        )!.withValues(alpha: 0.34 + rng.next() * 0.14),
       );
-      // The wheel mark: one bright line inside each pane, all of them running
-      // the same way, which is what ground glass looks like and what a
-      // hand-drawn lattice never does.
-      final c = _polyCentre(poly);
-      final len = 7.0 + rng.next() * 13;
+      final c = q.center;
+      final len = min(q.width, q.height) * 0.28;
       arrises.add((c + Offset(-len, -len * 0.52), c + Offset(len, len * 0.52)));
     }
+
+    final nx = max(3, (slab.width / 64).round());
+    for (var k = 0; k < nx; k++) {
+      final x0 = slab.left + slab.width * k / nx;
+      final x1 = slab.left + slab.width * (k + 1) / nx;
+      quarry(Rect.fromLTRB(x0, slab.top, x1, inner.top));
+      quarry(Rect.fromLTRB(x0, inner.bottom, x1, slab.bottom));
+    }
+    final ny = max(2, (inner.height / 64).round());
+    for (var k = 0; k < ny; k++) {
+      final y0 = inner.top + inner.height * k / ny;
+      final y1 = inner.top + inner.height * (k + 1) / ny;
+      quarry(Rect.fromLTRB(slab.left, y0, inner.left, y1));
+      quarry(Rect.fromLTRB(inner.right, y0, slab.right, y1));
+    }
+
+    // THE LATTICE: diamond quarries over the middle, thin and pale — the
+    // machinery underneath is meant to show through (§ the alphas note).
+    final latticeFrom = panes.length;
+    final field = Path()..addRect(inner);
+    const hx = 34.0, hy = 26.0;
+    var row = 0;
+    for (var y = inner.top; y < inner.bottom + hy; y += hy, row++) {
+      for (
+        var x = inner.left + (row.isOdd ? hx : 0);
+        x < inner.right + hx;
+        x += hx * 2
+      ) {
+        final d = Path()
+          ..moveTo(x, y - hy)
+          ..lineTo(x + hx, y)
+          ..lineTo(x, y + hy)
+          ..lineTo(x - hx, y)
+          ..close();
+        final cut = Path.combine(PathOperation.intersect, d, field);
+        if (cut.getBounds().isEmpty) continue;
+        panes.add(cut);
+        paneColours.add(
+          Color.lerp(
+            glass,
+            _keepSheen,
+            0.45 + rng.next() * 0.2,
+          )!.withValues(alpha: 0.05 + rng.next() * 0.07),
+        );
+      }
+    }
+
+    final latticeTo = panes.length;
+
+    // THE MEDALLION: the chamber's mark, in its full colour.
+    final c = inner.center;
+    final n = _kChamberPetals[chamber.id] ?? 6;
+    for (var k = 0; k < n; k++) {
+      final a0 = -pi / 2 + k * 2 * pi / n;
+      panes.add(sectorPath(c, 16, 50, a0, a0 + 2 * pi / n));
+      paneColours.add(
+        Color.lerp(
+          glass,
+          _keepSheen,
+          k.isEven ? 0.05 : 0.22,
+        )!.withValues(alpha: 0.58),
+      );
+    }
+    panes.add(Path()..addOval(Rect.fromCircle(center: c, radius: 16)));
+    paneColours.add(_keepSheen.withValues(alpha: 0.42));
+
     // Chips out of the slab's corners.
     final chips = <Path>[];
     for (final c in [
@@ -3409,6 +3483,8 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       paneColours: paneColours,
       arrises: arrises,
       chips: chips,
+      latticeFrom: latticeFrom,
+      latticeTo: latticeTo,
       // A ground edge is always lighter than the body it was cut out of, so
       // the jambs and the rim bevel are the chamber's own colour lifted.
       jamb: Color.lerp(glass, _keepSheen, 0.34)!,
@@ -3451,6 +3527,22 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
 // things allowed to move are a beam glint and a sheen crossing the face.
 
 final Map<String, _KeepGround> _keepGroundCache = {};
+
+/// Each chamber's glass, baked (§7.11).
+final Map<String, ui.Picture> _chamberGlassCache = {};
+
+/// A chamber's medallion petal count: its mark, alongside its colour.
+const Map<String, int> _kChamberPetals = {
+  'hearth': 8,
+  'cinnabar': 3,
+  'beryl': 4,
+  'lazuli': 5,
+  'citrine': 6,
+  'selenite': 7,
+  'amethyst': 9,
+  'onyx': 10,
+  'waiting': 12,
+};
 
 abstract class _KeepGround {}
 
@@ -3513,11 +3605,17 @@ class _KeepGlass extends _KeepGround {
   final Color jamb;
   final Color bevel;
 
+  /// The lattice's panes, [latticeFrom] up to [latticeTo] — glazed light.
+  final int latticeFrom;
+  final int latticeTo;
+
   _KeepGlass({
     required this.panes,
     required this.paneColours,
     required this.arrises,
     required this.chips,
+    required this.latticeFrom,
+    required this.latticeTo,
     required this.jamb,
     required this.bevel,
   });
@@ -3544,44 +3642,6 @@ int _keepHash(String s) {
     h = ((h ^ s.codeUnitAt(i)) * 16777619) & 0x7fffffff;
   }
   return h;
-}
-
-/// Sutherland-Hodgman half-plane clip — keeps the side of the line through
-/// [p] with normal [n] that the normal points into. Five of these in a row
-/// turn a rectangle into a plausible leaded light.
-List<Offset> _clipHalf(List<Offset> poly, Offset p, Offset n) {
-  final out = <Offset>[];
-  for (var i = 0; i < poly.length; i++) {
-    final a = poly[i];
-    final b = poly[(i + 1) % poly.length];
-    final da = (a.dx - p.dx) * n.dx + (a.dy - p.dy) * n.dy;
-    final db = (b.dx - p.dx) * n.dx + (b.dy - p.dy) * n.dy;
-    if (da >= 0) out.add(a);
-    if ((da >= 0) != (db >= 0)) {
-      final t = da / (da - db);
-      out.add(Offset(a.dx + (b.dx - a.dx) * t, a.dy + (b.dy - a.dy) * t));
-    }
-  }
-  return out;
-}
-
-double _polyArea(List<Offset> p) {
-  var a = 0.0;
-  for (var i = 0; i < p.length; i++) {
-    final q = p[(i + 1) % p.length];
-    a += p[i].dx * q.dy - q.dx * p[i].dy;
-  }
-  return a.abs() / 2;
-}
-
-Offset _polyCentre(List<Offset> p) {
-  var x = 0.0;
-  var y = 0.0;
-  for (final v in p) {
-    x += v.dx;
-    y += v.dy;
-  }
-  return Offset(x / p.length, y / p.length);
 }
 
 /// Clip the segment [a]–[b] to [r], or null when it misses. Used to lay a

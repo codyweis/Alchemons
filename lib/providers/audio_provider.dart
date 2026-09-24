@@ -32,6 +32,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   static const String _kMasterEnabled = 'audio.master_enabled';
   static const String _kMusicEnabled = 'audio.music_enabled';
   static const String _kSoundsEnabled = 'audio.sounds_enabled';
+  static const String _kHapticsEnabled = 'audio.haptics_enabled';
   static const String _kCosmicMusicCycleIndex =
       'audio.cosmic_music_cycle_index';
 
@@ -107,6 +108,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   bool _masterEnabled = true;
   bool _musicEnabled = true;
   bool _soundsEnabled = true;
+  bool _hapticsEnabled = true;
   int _cosmicCycleIndex = 0;
   String? _lastCosmicMusicAsset;
   bool _advancingCosmicTrack = false;
@@ -127,6 +129,10 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   bool get masterEnabled => _masterEnabled;
   bool get musicEnabled => _musicEnabled;
   bool get soundsEnabled => _soundsEnabled;
+
+  /// Vibration feedback in play (the dungeons). Lives with the sound
+  /// settings because it is the same kind of choice.
+  bool get hapticsEnabled => _hapticsEnabled;
 
   bool get effectiveMusicEnabled => _masterEnabled && _musicEnabled;
   bool get effectiveSoundsEnabled => _masterEnabled && _soundsEnabled;
@@ -154,6 +160,10 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     _musicEnabled = await _readBoolSetting(_kMusicEnabled, defaultValue: true);
     _soundsEnabled = await _readBoolSetting(
       _kSoundsEnabled,
+      defaultValue: true,
+    );
+    _hapticsEnabled = await _readBoolSetting(
+      _kHapticsEnabled,
       defaultValue: true,
     );
     _cosmicCycleIndex = await _readIntSetting(
@@ -227,6 +237,14 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     _syncSounds();
     notifyListeners();
     await _db.settingsDao.setSetting(_kSoundsEnabled, enabled ? '1' : '0');
+  }
+
+  Future<void> setHapticsEnabled(bool enabled) async {
+    await _bootstrapFuture;
+    if (_hapticsEnabled == enabled) return;
+    _hapticsEnabled = enabled;
+    notifyListeners();
+    await _db.settingsDao.setSetting(_kHapticsEnabled, enabled ? '1' : '0');
   }
 
   Future<void> playHomeMusic() => playMusic(MusicCue.home);

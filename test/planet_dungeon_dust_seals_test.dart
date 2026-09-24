@@ -336,6 +336,32 @@ void main() {
       expect(game.ruins.sealsBare, isTrue, reason: 'after $search.shortest');
       expect(earned, contains(0));
       expect(game.hasStar(0), isTrue);
+
+      // What the star did stays done: the sirocco levels the CITY and no
+      // longer re-buries the bronzes the player just uncovered.
+      expect(game.ruins.sealsKept, isTrue);
+      final vane = game.layout.rooms['seal_street']!.ruins!.windVane!;
+      game.setActive(air);
+      for (final c in game.creatures) {
+        c
+          ..position = vane
+          ..lastSafe = vane;
+      }
+      game.ruins.dig('m_gate', 'm_agora'); // something for the wind to level
+      game.activateAbility();
+      game.activateAbility();
+      expect(game.ruins.levellings, 1);
+      expect(game.ruins.sealsBare, isTrue, reason: 'the won yard stays won');
+      expect(game.ruins.conserved, isTrue);
+    });
+
+    test('the won yard a new run opens on is a real solved ledger', () {
+      // `kSealYardWonArt` is what a banked star's yard rests at. It must be a
+      // state the rules can actually reach, with every seal bare, holding
+      // exactly the yard's loads.
+      expect(search.states.containsKey(_enc(sealYardWonLoads)), isTrue);
+      expect(_solved(sealYardWonLoads), isTrue);
+      expect(_sum(sealYardWonLoads), kSealYard.totalLoads);
     });
 
     test('a spade will not bite a heap, and only the wind lifts a crest', () {
@@ -397,108 +423,120 @@ void main() {
     });
   });
 
-  group('THE WHOLE DESCENT, walked without a single sirocco', () {
-    test(
-      'the ideal trio takes both stars and reaches the rite on one line',
-      () {
-        // The proof that the planet is not merely un-strandable but PLAYABLE:
-        // one route from the gate to the guardian's door in which every door
-        // used is genuinely open at the moment it is used, and the valve is
-        // never touched. It turns on the planet's sharpest decision — the
-        // observatory's spoil goes WEST onto the agora, and the dune it raises
-        // is the road onward. Throw it east instead and you get the vault, and
-        // you pay a sirocco for the way on. Either is a run; that is the star.
-        final earned = <int>[];
-        final game = harness(_idealTrio(), onStar: earned.add);
-        const g = kSealYard;
+  group('THE WHOLE DESCENT, walked door by door', () {
+    test('the ideal trio takes both stars, pays one sirocco, and reaches the '
+        'rite', () {
+      // The proof that the planet is not merely un-strandable but PLAYABLE:
+      // one route from the gate to the guardian's door in which every door
+      // used is genuinely open at the moment it is used. It turns on the
+      // Armillary Star's plan: both of its sights dug out, the kiln's spoil
+      // on the bump and the roof's on the agora — the one assignment that
+      // leaves a road to the second dig. It cuts both streets to the court,
+      // so the sirocco is part of the way on (Mud's lesson: the reset is in
+      // the solution), and a won yard rides through it untouched.
+      final earned = <int>[];
+      final game = harness(_idealTrio(), onStar: earned.add);
+      const g = kSealYard;
 
-        void press(int idx, String room, Offset p, [double aim = 0]) {
-          game.currentRoomId = room;
-          game.setActive(idx);
-          for (final c in game.creatures) {
-            c
-              ..position = p
-              ..lastSafe = p
-              ..angle = aim
-              ..aimAngle = aim;
-          }
-          game.activateAbility();
-          expect(game.ruins.conserved, isTrue, reason: 'ledger, in $room');
+      void press(int idx, String room, Offset p, [double aim = 0]) {
+        game.currentRoomId = room;
+        game.setActive(idx);
+        for (final c in game.creatures) {
+          c
+            ..position = p
+            ..lastSafe = p
+            ..angle = aim
+            ..aimAngle = aim;
         }
+        game.activateAbility();
+        expect(game.ruins.conserved, isTrue, reason: 'ledger, in $room');
+      }
 
-        // 1 · The gate. Dust parts the silt and Sablis opens.
+      // 1 · The gate. Dust parts the silt and Sablis opens.
+      press(
+        dust,
+        'ashen_gate',
+        game.layout.rooms['ashen_gate']!.ruins!.gateSilt!,
+      );
+      expect(game.entryDoorRevealed, isTrue);
+      expect(_canPass(game, 'ashen_gate', 'seal_street'), isTrue);
+
+      // 2 · The seal street. The yard, solved on the shortest line.
+      for (final mv in search.shortest) {
         press(
-          dust,
-          'ashen_gate',
-          game.layout.rooms['ashen_gate']!.ruins!.gateSilt!,
+          mv.scour ? air : earth,
+          'seal_street',
+          g.centerAt(mv.c, mv.r),
+          atan2(mv.dr.toDouble(), mv.dc.toDouble()),
         );
-        expect(game.entryDoorRevealed, isTrue);
-        expect(_canPass(game, 'ashen_gate', 'seal_street'), isTrue);
+      }
+      expect(earned, contains(0));
 
-        // 2 · The seal street. The yard, solved on the shortest line.
-        for (final mv in search.shortest) {
-          press(
-            mv.scour ? air : earth,
-            'seal_street',
-            g.centerAt(mv.c, mv.r),
-            atan2(mv.dr.toDouble(), mv.dc.toDouble()),
-          );
-        }
-        expect(earned, contains(0));
-        expect(_canPass(game, 'seal_street', 'roof_walk'), isTrue);
+      // 3 · Round by the court to the terrace, while both streets stand.
+      expect(_canPass(game, 'seal_street', 'roof_walk'), isTrue);
+      expect(_canPass(game, 'roof_walk', 'sand_court'), isTrue);
+      expect(_canPass(game, 'sand_court', 'high_terrace'), isTrue);
 
-        // 3 · The roof walk. Strip the observatory's roof, throwing WEST.
-        press(
-          earth,
-          'roof_walk',
-          dustMoundById('m_roof')!.streetPos,
-          3.14159265,
-        );
-        expect(game.ruins.stateOf('m_roof'), MoundState.bared);
-        expect(game.ruins.stateOf('m_agora'), MoundState.drifted);
-        // The bridge to the court is gone — that is the cost, paid up front.
-        expect(_canPass(game, 'roof_walk', 'sand_court'), isFalse);
-        expect(_canPass(game, 'roof_walk', 'observatory'), isTrue);
+      // 4 · The kiln square, thrown onto the bump (south-east). The tube's
+      // top is open; the vault cracks below as a side effect.
+      press(dust, 'high_terrace', dustMoundById('m_kiln')!.streetPos, 0.785);
+      expect(game.ruins.stateOf('m_kiln'), MoundState.bared);
+      expect(game.ruins.stateOf('m_bump'), MoundState.drifted);
+      expect(_canPass(game, 'high_terrace', 'kiln_cellar'), isTrue);
 
-        // 4 · The observatory. The sky is down; the Wing crosses the span.
-        press(
-          air,
-          'observatory',
-          game.layout.rooms['observatory']!.ruins!.armillary!,
-        );
-        expect(earned, contains(1));
+      // 5 · Down through the kiln and round the tunnels to the roof walk.
+      expect(_canPass(game, 'kiln_cellar', 'undercity'), isTrue);
+      expect(_canPass(game, 'undercity', 'windcatch'), isTrue);
+      expect(_canPass(game, 'windcatch', 'ashen_gate'), isTrue);
+      expect(_canPass(game, 'ashen_gate', 'seal_street'), isTrue);
+      expect(_canPass(game, 'seal_street', 'roof_walk'), isTrue);
 
-        // 5 · Out through the tunnels and back up the dune you raised.
-        expect(_canPass(game, 'observatory', 'undercity'), isTrue);
-        expect(_canPass(game, 'undercity', 'windcatch'), isTrue);
-        expect(_canPass(game, 'windcatch', 'ashen_gate'), isTrue);
-        expect(_canPass(game, 'ashen_gate', 'seal_street'), isTrue);
-        expect(
-          _canPass(game, 'seal_street', 'high_terrace'),
-          isTrue,
-          reason: 'the ramp IS the observatory\'s spoil',
-        );
-        expect(_canPass(game, 'high_terrace', 'sand_court'), isTrue);
-        expect(game.ruins.levellings, 0, reason: 'no sirocco was ever needed');
+      // 6 · The observatory roof, thrown WEST onto the agora.
+      press(dust, 'roof_walk', dustMoundById('m_roof')!.streetPos, 3.14159265);
+      expect(game.ruins.stateOf('m_roof'), MoundState.bared);
+      expect(game.ruins.stateOf('m_agora'), MoundState.drifted);
+      expect(_canPass(game, 'roof_walk', 'observatory'), isTrue);
 
-        // 6 · The rite. Earth+HORN through the false wall, Dust on the glass.
-        final court = game.layout.rooms['sand_court']!;
-        press(
-          earth,
-          'sand_court',
-          court.conduits.firstWhere((c) => c.id == 'A').position,
-        );
-        expect(game.conduitEnergy['A'], double.infinity);
-        press(dust, 'sand_court', court.ruins!.glassCourt!);
-        expect(game.conduitEnergy['B'], double.infinity);
+      // 7 · The observatory. Both sights open; the Wing crosses the span.
+      press(
+        air,
+        'observatory',
+        game.layout.rooms['observatory']!.ruins!.armillary!,
+      );
+      expect(earned, contains(1));
 
-        // …and the hollow answers.
-        game.update(1 / 60);
-        expect(game.guardianAwake, isTrue);
-        expect(_canPass(game, 'sand_court', 'ashdjinn_hollow'), isTrue);
-        expect(game.ruins.conserved, isTrue);
-      },
-    );
+      // 8 · Both streets to the court are cut. The wind is the way on.
+      expect(_canPass(game, 'roof_walk', 'sand_court'), isFalse);
+      expect(_canPass(game, 'high_terrace', 'sand_court'), isFalse);
+      expect(_canPass(game, 'observatory', 'undercity'), isTrue);
+      expect(_canPass(game, 'undercity', 'windcatch'), isTrue);
+      final vane = game.layout.rooms['windcatch']!.ruins!.windVane!;
+      press(air, 'windcatch', vane);
+      press(air, 'windcatch', vane);
+      expect(game.ruins.levellings, 1);
+      expect(game.ruins.sealsBare, isTrue, reason: 'a won yard stays won');
+      expect(_canPass(game, 'windcatch', 'ashen_gate'), isTrue);
+      expect(_canPass(game, 'ashen_gate', 'seal_street'), isTrue);
+      expect(_canPass(game, 'seal_street', 'roof_walk'), isTrue);
+      expect(_canPass(game, 'roof_walk', 'sand_court'), isTrue);
+
+      // 6 · The rite. Earth+HORN through the false wall, Dust on the glass.
+      final court = game.layout.rooms['sand_court']!;
+      press(
+        earth,
+        'sand_court',
+        court.conduits.firstWhere((c) => c.id == 'A').position,
+      );
+      expect(game.conduitEnergy['A'], double.infinity);
+      press(dust, 'sand_court', court.ruins!.glassCourt!);
+      expect(game.conduitEnergy['B'], double.infinity);
+
+      // …and the hollow answers.
+      game.update(1 / 60);
+      expect(game.guardianAwake, isTrue);
+      expect(_canPass(game, 'sand_court', 'ashdjinn_hollow'), isTrue);
+      expect(game.ruins.conserved, isTrue);
+    });
   });
 }
 

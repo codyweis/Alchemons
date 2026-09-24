@@ -1480,6 +1480,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           onChanged: (v) => audio.setSoundsEnabled(v),
                           accent: t.amberBright,
                         ),
+                        const SizedBox(height: 8),
+                        _NotificationToggleRow(
+                          icon: AppIcons.touch_app_rounded,
+                          title: 'HAPTICS',
+                          subtitle:
+                              'Vibration when you act, get hit or earn a star',
+                          value: audio.hapticsEnabled,
+                          enabled: audio.isLoaded,
+                          onChanged: (v) => audio.setHapticsEnabled(v),
+                          accent: t.amberBright,
+                        ),
                       ],
                     ),
                   ),

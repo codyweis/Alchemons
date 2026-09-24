@@ -19,6 +19,7 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/horn_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
@@ -618,47 +619,6 @@ void drawEnemy({
       ..maskFilter = null,
   );
 
-  // Horn+Plant root visual: green vines wrap the enemy. Layered
-  // soft green halo + 4 curved vine arcs spiraling around the
-  // perimeter. Pulses while rooted.
-  if (enemy.rootTimer > 0) {
-    final rootPulse = 0.78 + 0.22 * sin(elapsed * 3.0 + enemy.angle);
-    const plantColor = Color(0xFF6BBE52);
-    const darkPlant = Color(0xFF2F6E22);
-    // Soft green halo at the wrap radius.
-    canvas.drawCircle(
-      Offset.zero,
-      r * 1.55,
-      Paint()
-        ..color = plantColor.withValues(alpha: 0.22 * rootPulse)
-        ..maskFilter = null,
-    );
-    // 4 curved vine arcs around the enemy.
-    final vinePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round
-      ..color = darkPlant.withValues(alpha: 0.75 * rootPulse);
-    for (var i = 0; i < 4; i++) {
-      final base = i * pi / 2 + elapsed * 0.6;
-      final start = Offset(cos(base), sin(base)) * r * 0.5;
-      final mid = Offset(cos(base + 0.55), sin(base + 0.55)) * r * 1.25;
-      final end = Offset(cos(base + 1.1), sin(base + 1.1)) * r * 0.7;
-      final path = Path()
-        ..moveTo(start.dx, start.dy)
-        ..quadraticBezierTo(mid.dx, mid.dy, end.dx, end.dy);
-      canvas.drawPath(path, vinePaint);
-    }
-    // Small leaf pips on each vine tip.
-    final leafPaint = Paint()
-      ..color = plantColor.withValues(alpha: 0.85 * rootPulse)
-      ..maskFilter = null;
-    for (var i = 0; i < 4; i++) {
-      final a = i * pi / 2 + elapsed * 0.6 + 1.1;
-      canvas.drawCircle(Offset(cos(a), sin(a)) * r * 0.7, 2.3, leafPaint);
-    }
-  }
-
   if (enemy.isElite && enemy.eliteAffix != null) {
     canvas.drawCircle(
       Offset.zero,
@@ -955,6 +915,17 @@ void drawEnemy({
     time: elapsed,
     alpha: 0.8,
   );
+
+  // Horn+Plant root: thorned vines climbing over the body (horn_vfx.dart).
+  if (enemy.rootTimer > 0) {
+    drawHornPlantRootWrap(
+      canvas: canvas,
+      r: r,
+      time: elapsed,
+      seed: enemy.angle,
+      strength: (enemy.rootTimer / 0.4).clamp(0.0, 1.0),
+    );
+  }
 
   if (!reduceLabels && enemy.isElite && enemy.eliteAffix != null) {
     final label = switch (enemy.eliteAffix!) {

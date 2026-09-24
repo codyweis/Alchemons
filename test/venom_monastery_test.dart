@@ -613,12 +613,26 @@ void main() {
       );
       final t = game.monastery.triage;
 
-      // ── Entry rite: the quarantine wax answers Poison.
+      // ── Entry rite: the entrance pot takes one gift from every hand.
       expect(game.entryDoorRevealed, isFalse);
-      actAt(game, 'lazar_gate', plant, gateDoor);
-      expect(game.entryDoorRevealed, isFalse, reason: 'Plant is not physic');
       actAt(game, 'lazar_gate', poison, gateDoor);
+      expect(
+        game.entryDoorRevealed,
+        isFalse,
+        reason: 'the door is not the verb any more — the pot is',
+      );
+      final gatePot =
+          game.layout.rooms['lazar_gate']!.bounds.center + const Offset(0, 10);
+      actAt(game, 'lazar_gate', poison, gatePot);
+      actAt(game, 'lazar_gate', plant, gatePot);
+      expect(game.entryDoorRevealed, isFalse, reason: 'Mud has not given');
+      actAt(game, 'lazar_gate', mud, gatePot);
       expect(game.entryDoorRevealed, isTrue);
+      expect(
+        game.monastery.given,
+        isEmpty,
+        reason: 'entrance gifts never count against the brewing gives',
+      );
 
       // ── A ward is not a room until you break its seal (§5.5 topology).
       final amb = game.layout.rooms['ambulatory']!;

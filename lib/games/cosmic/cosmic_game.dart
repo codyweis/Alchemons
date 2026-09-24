@@ -540,6 +540,7 @@ class CosmicGame extends FlameGame with PanDetector {
   // Let meteor craters. Shared struct + shared painter, so open space draws
   // the identical landing survival and the dungeon do.
   final List<LetSkyfallImpact> _letSkyfallImpacts = [];
+  final List<HornFx> _hornFx = [];
   final List<_BeamFx> _beamFx = [];
   double _openKinPrevShipHealth = -1;
   double _openKinLastShipDamage = 0;
@@ -1400,7 +1401,7 @@ class CosmicGame extends FlameGame with PanDetector {
     if (comp.isCharging && comp.chargeTarget != null) {
       final chargeTargetDist = (comp.chargeTarget! - shipPos).distance;
       if (chargeTargetDist > _companionTetherEngageRange) {
-        _releaseCompanionChargeBurst(comp);
+        _releaseCompanionChargeBurst(comp, slam: false);
         comp.chargeTimer = 0;
         comp.chargeTarget = null;
         comp.chargeHitIds = null;
@@ -1787,9 +1788,24 @@ class CosmicGame extends FlameGame with PanDetector {
     }
   }
 
-  void _releaseCompanionChargeBurst(CosmicCompanion comp) {
+  /// [slam] is false when the charge is cut short (tether) rather than landed.
+  void _releaseCompanionChargeBurst(
+    CosmicCompanion comp, {
+    bool slam = true,
+  }) {
     final pending = comp.pendingChargeBurst;
     if (pending == null) return;
+    if (slam) {
+      pushHornFx(
+        _hornFx,
+        HornFx.slam(
+          position: comp.position,
+          angle: comp.angle,
+          radius: comp.chargeFinalSweepRadius,
+          element: comp.member.element,
+        ),
+      );
+    }
     final delta = comp.position - (comp.pendingChargeOrigin ?? comp.position);
     for (final p in pending) {
       p.position += delta;
@@ -1803,6 +1819,15 @@ class CosmicGame extends FlameGame with PanDetector {
   void _releaseGarrisonChargeBurst(_GarrisonCreature g) {
     final pending = g.pendingChargeBurst;
     if (pending == null) return;
+    pushHornFx(
+      _hornFx,
+      HornFx.slam(
+        position: g.position,
+        angle: g.faceAngle,
+        radius: g.chargeFinalSweepRadius,
+        element: g.member.element,
+      ),
+    );
     final delta = g.position - (g.pendingChargeOrigin ?? g.position);
     for (final p in pending) {
       p.position += delta;
@@ -3396,6 +3421,7 @@ class CosmicGame extends FlameGame with PanDetector {
     _updateOpenWingBeams(dt);
     updateMaskRuntime(dt);
     updateLetSkyfallImpacts(_letSkyfallImpacts, dt);
+    updateHornFx(_hornFx, dt);
 
     // ── zoom animation ──
     if (!_zoomAnimComplete) {
@@ -9682,6 +9708,8 @@ class CosmicGame extends FlameGame with PanDetector {
               angle: g.faceAngle,
               sweepRadius: g.chargeSweepRadius,
               overshootDistance: g.chargeOvershootDistance,
+              element: g.member.element,
+              time: _elapsed,
               scale: g.spriteScale,
             );
           }
@@ -10463,6 +10491,8 @@ class CosmicGame extends FlameGame with PanDetector {
         age: impact.t,
       );
     }
+
+    drawHornFx(canvas, _hornFx);
 
     // ── companion projectiles ──
     for (final cp in companionProjectiles) {
@@ -11886,6 +11916,10 @@ class CosmicGame extends FlameGame with PanDetector {
           darkCloakActive: comp.kinDarkCloakTimer > 0,
         );
       }
+      if (comp.member.family.toLowerCase() == 'horn' &&
+          comp.member.element == 'Poison') {
+        drawHornPoisonAura(canvas: canvas, radius: 140, time: _elapsed);
+      }
       if (comp.hasShield) {
         drawAdvancedCompanionShield(
           canvas: canvas,
@@ -11902,6 +11936,8 @@ class CosmicGame extends FlameGame with PanDetector {
           angle: comp.angle,
           sweepRadius: comp.chargeSweepRadius,
           overshootDistance: comp.chargeOvershootDistance,
+          element: comp.member.element,
+          time: _elapsed,
           scale: animScale,
         );
       }

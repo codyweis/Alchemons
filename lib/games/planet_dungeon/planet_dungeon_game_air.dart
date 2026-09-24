@@ -1300,7 +1300,9 @@ extension WindCrownSpire on PlanetDungeonGame {
           : 'The crown opens once every wind is awake';
     }
     if (room.guardian != null) {
-      return hasStar(2) ? null : 'Something huge rides the storm. The last star is here';
+      return hasStar(2)
+          ? null
+          : 'Something huge rides the storm. The last star is here';
     }
     if (room.stormRods.isNotEmpty) {
       return 'The twin conduits are dark';
@@ -1581,33 +1583,7 @@ extension WindCrownSpire on PlanetDungeonGame {
           col.withValues(alpha: (woken ? 0.30 : 0.34) * pulse),
         );
       }
-      // The shrine: a squat cairn with a breath-slot cut through it.
-      final body = Rect.fromCenter(center: s.position, width: 22, height: 30);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(body, const Radius.circular(4)),
-        Paint()..color = const Color(0xFF241F18).withValues(alpha: 0.86),
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(body, const Radius.circular(4)),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..color = col.withValues(alpha: 0.9 * pulse),
-      );
-      final slot = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..strokeCap = StrokeCap.round
-        ..color = col.withValues(alpha: 0.85 * pulse);
-      for (var i = 0; i < 3; i++) {
-        final y = s.position.dy - 8 + i * 8.0;
-        final lean = woken ? 6.0 * swell * sin(_time * 3 + i) : 0.0;
-        canvas.drawLine(
-          Offset(s.position.dx - 6 + lean, y),
-          Offset(s.position.dx + 6 + lean, y),
-          slot,
-        );
-      }
+      _drawGlassShrine(canvas, s.position, swell: swell, woken: woken);
     }
   }
 
@@ -1655,19 +1631,9 @@ extension WindCrownSpire on PlanetDungeonGame {
       );
       base.color = col.withValues(alpha: 0.92);
       canvas.drawLine(rod.position + const Offset(0, 4), top, base);
-      // Rank notches — the ordering IS the puzzle, so it must be countable.
-      final notch = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = col.withValues(alpha: 0.55);
-      for (var i = 1; i <= rank; i++) {
-        final y = rod.position.dy + 4 - i * unit;
-        canvas.drawLine(
-          Offset(rod.position.dx - 6, y),
-          Offset(rod.position.dx + 6, y),
-          notch,
-        );
-      }
+      // Rank, in glass beads — the ordering IS the puzzle, so it must be
+      // countable.
+      _drawRodBeads(canvas, rod.position, rank, unit);
       cap.color = col.withValues(alpha: 0.95);
       canvas.drawCircle(top, 4.2, cap);
       if (_fx.ready && rank > 0) {
@@ -1894,31 +1860,15 @@ extension WindCrownSpire on PlanetDungeonGame {
         col.withValues(alpha: 0.28),
       );
     }
-    // The mouth: the gust shrine's cairn, turned to face the way it breathes.
-    final body = Rect.fromCenter(center: v.position, width: 24, height: 24);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(body, const Radius.circular(5)),
-      Paint()..color = const Color(0xFF241F18).withValues(alpha: 0.86),
+    // The mouth: a glass eye on its stone, its breath cut into the lead.
+    _drawGlassVent(
+      canvas,
+      v.position,
+      dir,
+      swell: swell,
+      open: open,
+      culprit: culprit,
     );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(body, const Radius.circular(5)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
-        ..color = col.withValues(alpha: 0.9 * pulse),
-    );
-    // THE CARVING — the direction, readable BEFORE the mouth is ever touched:
-    // a shaft cut through the stone and a chevron at its head.
-    final carve = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.7
-      ..strokeCap = StrokeCap.round
-      ..color = col.withValues(alpha: 0.92 * pulse);
-    final head = v.position + dir * 15;
-    canvas.drawLine(v.position - dir * 13, head, carve);
-    final wing = Offset(-dir.dy, dir.dx);
-    canvas.drawLine(head, head - dir * 8 + wing * 6, carve);
-    canvas.drawLine(head, head - dir * 8 - wing * 6, carve);
     // THE CHAFF — loose grit already drifting the way the mouth breathes, so
     // the carving is never the only signal.
     final chaff = Paint()
@@ -2362,48 +2312,20 @@ extension PlanetDungeonFourWindsRender on PlanetDungeonGame {
       final flare = _windRuneFlare[i] ?? 0.0;
       final wear = i < firstWindWear.length ? firstWindWear[i] : 0.0;
 
-      canvas.save();
-      canvas.translate(at.dx, at.dy);
-      canvas.rotate(a + pi / 2);
-      final body = Rect.fromCenter(center: Offset.zero, width: 34, height: 64);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(body, const Radius.circular(8)),
-        Paint()..color = const Color(0xFF111723).withValues(alpha: 0.82),
-      );
-      final edge = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = spoken ? 1.8 : 1.0
-        ..color = const Color(
-          0xFF5BC8E8,
-        ).withValues(alpha: spoken ? 0.75 : 0.2 + flare * 0.5);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(body, const Radius.circular(8)),
-        edge,
-      );
-
-      // THE RUNE. Three strokes; erosion eats them from the outside in, so a
-      // long-blown face is nearly bare and a sheltered one is nearly whole.
-      // Unscoured stone shows only the middle stroke, dim — there is a mark
-      // there, but not enough of it to compare.
-      final mark = Paint()
-        ..strokeWidth = 1.5
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF8FE6FF).withValues(
-          alpha: spoken
-              ? 0.9
-              : cleaned
-              ? 0.30 + 0.42 * (1 - wear)
-              : 0.16 + flare * 0.5,
-        );
+      // A carved standing stone, its rune set in the face as glass: smoked
+      // while the rime is on it, cleaned glass once Fire has burned it off —
+      // with only as many strokes as the wind has left — and sky-lit once
+      // its wind has been spoken.
       final strokes = !cleaned ? 1 : (3 - (wear * 2.2).floor()).clamp(1, 3);
-      for (var k = 0; k < strokes; k++) {
-        final dy = (k - (strokes - 1) / 2) * 8.0;
-        // The surviving strokes are also SHORTER on a worn face — the wind
-        // takes the ends of a mark before it takes the middle.
-        final half = 9.0 * (cleaned ? (1 - wear * 0.55) : 0.8);
-        canvas.drawLine(Offset(-half, dy), Offset(half, dy), mark);
-      }
-      canvas.restore();
+      _drawWindPillar(
+        canvas,
+        at,
+        strokes: strokes,
+        spoken: spoken,
+        cleaned: cleaned,
+        wear: wear,
+        flare: flare,
+      );
 
       if (flare > 0 && _fx.ready) {
         drawGlow(
@@ -2455,10 +2377,8 @@ extension PlanetDungeonFourWindsInsight on PlanetDungeonGame {
     switch (firstWindStage) {
       case 0:
         return switch (tier) {
-          <= 0 =>
-            'The compass is a machine, not a decoration',
-          1 =>
-            'The machine has no power. Its centre needs CURRENT',
+          <= 0 => 'The compass is a machine, not a decoration',
+          1 => 'The machine has no power. Its centre needs CURRENT',
           _ =>
             'The machine has no power and the stones are frosted over. Run '
                 'current through the centre to start it',
@@ -2466,15 +2386,13 @@ extension PlanetDungeonFourWindsInsight on PlanetDungeonGame {
       case 1:
         return switch (tier) {
           <= 0 => 'The compass has power, but every face is frosted over',
-          _ =>
-            'Frost hides the four faces. Burn it off to compare them',
+          _ => 'Frost hides the four faces. Burn it off to compare them',
         };
       case 2:
         final left = firstWindOrder.length - firstWindSpoken.length;
         return switch (tier) {
           <= 0 => 'The faces are clear, and each is worn differently',
-          1 =>
-            'The wind wore the four faces unequally. $left still to wake',
+          1 => 'The wind wore the four faces unequally. $left still to wake',
           _ =>
             'The wind wore the faces unequally. The most worn has been '
                 'blowing the longest',

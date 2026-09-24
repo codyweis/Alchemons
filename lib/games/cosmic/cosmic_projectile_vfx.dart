@@ -3,57 +3,34 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'mane_alchemical_vfx.dart';
+import 'horn_vfx.dart';
+import 'mystic_world_vfx.dart';
+import 'kin_vfx.dart';
+import 'pip_vfx.dart';
+import 'wing_vfx.dart';
 import 'mask_trap_vfx.dart';
+export 'horn_vfx.dart';
+export 'mystic_world_vfx.dart';
+export 'kin_vfx.dart';
+export 'pip_vfx.dart';
+export 'wing_vfx.dart';
 export 'mask_trap_vfx.dart';
 
-/// Kin's growing Spirit wisp. Kept here so its tier silhouette is identical in
-/// survival, open space, dungeons, and preview sheets.
+/// Kin signature pieces — the Spirit wisp, escorts, wall, cloud, updraft,
+/// dust banks, mud tracks. Every game calls this first for companion
+/// projectiles; the art lives in kin_vfx.dart.
 bool drawKinSpiritWispVisual({
   required ui.Canvas canvas,
   required Projectile projectile,
   required ui.Offset position,
   required ui.Color color,
   required double time,
-}) {
-  if (projectile.abilityFamily != 'kin' ||
-      projectile.element != 'Spirit' ||
-      !projectile.followSourceCompanion) {
-    return false;
-  }
-  final tier = projectile.effectCount.clamp(1, 4);
-  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
-  final scale = 1.0 + 0.35 * (tier - 1);
-  canvas.drawCircle(
-    position,
-    14.0 * scale,
-    ui.Paint()..color = color.withValues(alpha: 0.16 + 0.04 * tier),
-  );
-  canvas.drawCircle(
-    position,
-    8.5 * scale,
-    ui.Paint()..color = color.withValues(alpha: 0.30 + 0.06 * tier),
-  );
-  canvas.drawCircle(
-    position,
-    4.0 * scale,
-    ui.Paint()..color = white.withValues(alpha: 0.55 + 0.10 * tier),
-  );
-  canvas.drawCircle(
-    position,
-    1.4 + 0.4 * tier,
-    ui.Paint()..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.95),
-  );
-  final motes = tier - 1;
-  for (var i = 0; i < motes; i++) {
-    final a = time * 2.4 + i * (pi * 2 / max(1, motes));
-    canvas.drawCircle(
-      position + ui.Offset(cos(a), sin(a)) * (9.0 * scale + 2.0),
-      1.6,
-      ui.Paint()..color = white.withValues(alpha: 0.85),
-    );
-  }
-  return true;
-}
+}) => drawKinPieceVisual(
+  canvas: canvas,
+  projectile: projectile,
+  position: position,
+  time: time,
+);
 
 /// The shared moving Mystic cast. Mystic's large world fixtures remain a
 /// survival-only system; the projectile itself still follows the global
@@ -118,28 +95,15 @@ void drawAdvancedAbilityBeam({
   bool particles = true,
   String? wingElement,
 }) {
-  if (const {
-    'Lightning',
-    'Ice',
-    'Water',
-    'Dark',
-    'Air',
-    'Dust',
-    'Lava',
-    'Blood',
-    'Earth',
-    'Light',
-    'Spirit',
-    'Crystal',
-    'Steam',
-    'Mud',
-    'Plant',
-  }.contains(wingElement)) {
-    drawWingElementBeam(
+  // Wing beams have their own art (wing_vfx.dart). Element-less beams — Kin
+  // lasers, and the tiny arcs and glints other abilities route through the
+  // beam list — keep the plain three-layer line below.
+  if (wingElement != null) {
+    drawWingBeam(
       canvas: canvas,
       start: start,
       end: end,
-      element: wingElement!,
+      element: wingElement,
       width: width,
       alpha: alpha,
       time: time,
@@ -200,10 +164,7 @@ void drawAdvancedAbilityBeam({
   }
 }
 
-/// Wing's elemental beam materials, shared by both game modes.
-/// Geometry is bounded and deterministic: detail reduction removes accents,
-/// while preserving the identifying silhouette. End caps mark the beam tip,
-/// not a confirmed damage event (a beam can end in empty space).
+/// Wing's elemental beam, shared by every game mode (art in wing_vfx.dart).
 void drawWingElementBeam({
   required ui.Canvas canvas,
   required ui.Offset start,
@@ -213,400 +174,33 @@ void drawWingElementBeam({
   required double alpha,
   required double time,
   bool details = true,
-}) {
-  final length = (end - start).distance;
-  if (length < 0.01 || alpha <= 0) return;
-  final a = alpha.clamp(0.0, 1.0);
-  final w = max(1.2, width);
-  final color = elementColor(element);
-  final bright = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.72)!;
-  final paint = ui.Paint()..strokeCap = ui.StrokeCap.round;
-  canvas.save();
-  canvas.translate(start.dx, start.dy);
-  canvas.rotate(atan2(end.dy - start.dy, end.dx - start.dx));
-  void line(ui.Path path, ui.Color ink, double thickness, double opacity) {
-    canvas.drawPath(
-      path,
-      paint
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = thickness
-        ..color = ink.withValues(alpha: opacity * a),
-    );
-  }
+}) => drawWingBeam(
+  canvas: canvas,
+  start: start,
+  end: end,
+  element: element,
+  width: width,
+  alpha: alpha,
+  time: time,
+  details: details,
+);
 
-  void dot(double x, double y, double radius, ui.Color ink, double opacity) {
-    canvas.drawCircle(
-      ui.Offset(x, y),
-      radius,
-      paint
-        ..style = ui.PaintingStyle.fill
-        ..color = ink.withValues(alpha: opacity * a),
-    );
-  }
-
-  final axis = ui.Path()
-    ..moveTo(0, 0)
-    ..lineTo(length, 0);
-  if (element == 'Lightning') {
-    // A solid conducting spine surrounded by rapidly changing angular arcs.
-    line(axis, color, w * 1.55, 0.12);
-    line(axis, color, w * 0.62, 0.65);
-    line(axis, bright, w * 0.20, 0.95);
-    final phase = (time * 22).floor();
-    for (var strand = 0; strand < (details ? 3 : 1); strand++) {
-      final arc = ui.Path()..moveTo(0, 0);
-      for (var i = 1; i < 18; i++) {
-        final t = i / 18;
-        final noise = sin(i * 19.7 + phase * 5.3 + strand * 13.1);
-        arc.lineTo(
-          length * t,
-          noise * w * (0.65 + strand * 0.22) * sin(t * pi),
-        );
-      }
-      arc.lineTo(length, 0);
-      line(arc, strand == 0 ? bright : color, max(1, w * 0.065), 0.9);
-    }
-    dot(0, 0, w * 0.48, bright, 0.85);
-    dot(length, 0, w * 0.25, bright, 0.9);
-  } else if (element == 'Water') {
-    // Two continuous ribbons braid around a translucent water column.
-    line(axis, color, w * 1.8, 0.12);
-    line(axis, color, w * 0.65, 0.48);
-    for (var strand = 0; strand < 2; strand++) {
-      final ribbon = ui.Path();
-      for (var i = 0; i <= 32; i++) {
-        final t = i / 32;
-        final y =
-            sin(t * pi * 5 - time * 5 + strand * pi) * w * 0.47 * sin(t * pi);
-        if (i == 0) {
-          ribbon.moveTo(0, y);
-        } else {
-          ribbon.lineTo(length * t, y);
-        }
-      }
-      line(ribbon, strand == 0 ? bright : color, w * 0.22, 0.85);
-    }
-    if (details) {
-      for (var i = 0; i < 4; i++) {
-        final t = (time * 0.65 + i / 4) % 1;
-        dot(
-          length * t,
-          sin(t * pi * 5 - time * 5) * w * 0.4,
-          max(1.2, w * 0.16),
-          const ui.Color(0xFFCFFFEA),
-          0.8,
-        );
-      }
-    }
-    canvas.drawOval(
-      ui.Rect.fromCenter(
-        center: ui.Offset(length, 0),
-        width: w * 0.7,
-        height: w * 1.9,
-      ),
-      paint
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = max(1, w * 0.12)
-        ..color = const ui.Color(0xFFCFFFEA).withValues(alpha: a * 0.7),
-    );
-  } else if (element == 'Ice') {
-    // A straight crystalline lance with broken, asymmetric frost facets.
-    line(axis, color, w * 1.6, 0.13);
-    line(axis, color, w * 0.7, 0.6);
-    line(axis, bright, w * 0.23, 0.95);
-    for (var i = 0; i < (details ? 9 : 4); i++) {
-      final t = (i + 1) / (details ? 10 : 5);
-      final x = length * t;
-      final side = i.isEven ? 1.0 : -1.0;
-      final height = w * (0.7 + 0.2 * sin(time * 3 + i));
-      final shard = ui.Path()
-        ..moveTo(x - w * 0.6, 0)
-        ..lineTo(x, height * side)
-        ..lineTo(x + w * 0.9, 0)
-        ..close();
-      canvas.drawPath(
-        shard,
-        paint
-          ..style = ui.PaintingStyle.fill
-          ..color = bright.withValues(alpha: a * 0.45),
-      );
-      line(shard, bright, max(0.7, w * 0.055), 0.7);
-    }
-  } else if (element == 'Dark') {
-    // Violet rims preserve a genuinely dark interior, even at low detail.
-    final pulse = 0.8 + 0.2 * sin(time * 13);
-    line(axis, color, w * 2.0, 0.18 * pulse);
-    line(axis, const ui.Color(0xFFAB68EF), w * 0.95, 0.8 * pulse);
-    line(axis, const ui.Color(0xFF10091F), w * 0.58, 0.98);
-    if (details) {
-      for (var i = 0; i < 6; i++) {
-        final t = (time * 0.75 + i / 6) % 1;
-        final x = t * length;
-        final slash = ui.Path()
-          ..moveTo(x - w * 0.45, -w * 0.7)
-          ..lineTo(x, 0)
-          ..lineTo(x - w * 0.45, w * 0.7);
-        line(slash, const ui.Color(0xFFCBA3FF), max(1, w * 0.10), 0.65);
-      }
-    }
-  } else if (element == 'Air') {
-    line(axis, color, w * 1.3, 0.10);
-    line(axis, bright, w * 0.18, 0.8);
-    // Open, forward-bowing pressure fronts, not closed water ripples.
-    for (var i = 0; i < (details ? 6 : 3); i++) {
-      final t = (time * 0.9 + i / (details ? 6 : 3)) % 1;
-      final x = length * t;
-      final gust = ui.Path()
-        ..moveTo(x - w, -w * 0.9)
-        ..quadraticBezierTo(x + w, 0, x - w, w * 0.9);
-      line(gust, bright, max(1, w * 0.13), 0.65 * sin(t * pi));
-    }
-  } else if (element == 'Dust') {
-    line(axis, color, w * 1.25, 0.24);
-    line(axis, bright, w * 0.22, 0.7);
-    // Dry, tumbling grains in an uneven sand stream.
-    for (var i = 0; i < (details ? 18 : 6); i++) {
-      final t = (time * 0.38 + i * 0.618) % 1;
-      final x = length * t;
-      final y = sin(i * 9.1 + time * 2) * w * 0.85;
-      final r = w * (0.10 + 0.10 * (0.5 + 0.5 * sin(i * 4.7)));
-      final grain = ui.Path()
-        ..moveTo(x - r, y)
-        ..lineTo(x, y - r)
-        ..lineTo(x + r, y)
-        ..lineTo(x, y + r)
-        ..close();
-      line(grain, i.isEven ? bright : color, max(1, w * 0.1), 0.65);
-    }
-  } else if (element == 'Lava') {
-    line(axis, const ui.Color(0xFF522015), w * 1.35, 0.9);
-    line(axis, color, w * 0.7, 0.9);
-    line(axis, const ui.Color(0xFFFFD277), w * 0.2, 0.95);
-    // Dark plates break up a molten vein; gold seams stay visible between them.
-    for (var i = 0; i < (details ? 10 : 5); i++) {
-      final x = length * (i + 0.5) / (details ? 10 : 5);
-      final side = i.isEven ? 1.0 : -1.0;
-      final crust = ui.Path()
-        ..moveTo(x - w, side * w * 0.65)
-        ..lineTo(x - w * 0.35, side * w * 0.14)
-        ..lineTo(x + w * 0.45, side * w * 0.36)
-        ..lineTo(x + w, side * w * 0.7);
-      line(crust, const ui.Color(0xFF793725), w * 0.24, 0.95);
-      if (details) {
-        dot(
-          x,
-          side * w * (0.85 + 0.2 * sin(time * 4 + i)),
-          w * 0.12,
-          const ui.Color(0xFFFFB34E),
-          0.65,
-        );
-      }
-    }
-  } else if (element == 'Blood') {
-    line(axis, const ui.Color(0xFF650D29), w * 1.1, 0.7);
-    line(axis, color, w * 0.52, 0.95);
-    line(axis, const ui.Color(0xFFFFAEC0), w * 0.13, 0.9);
-    // Narrow lancet head, with short pulses traveling toward its point.
-    final tip = ui.Path()
-      ..moveTo(length - w * 2, -w * 0.6)
-      ..lineTo(length, 0)
-      ..lineTo(length - w * 2, w * 0.6);
-    line(tip, bright, max(1, w * 0.15), 0.85);
-    if (details) {
-      for (var i = 0; i < 3; i++) {
-        final t = (time * 0.8 + i / 3) % 1;
-        final pulse = ui.Path()
-          ..moveTo(length * t - w, 0)
-          ..lineTo(length * t, -w * 0.32)
-          ..lineTo(length * t + w, 0);
-        line(pulse, bright, w * 0.17, 0.8);
-      }
-    }
-  } else if (element == 'Earth') {
-    line(axis, const ui.Color(0xFF5E4630), w * 1.4, 0.8);
-    line(axis, color, w * 0.8, 0.9);
-    line(axis, const ui.Color(0xFFF0CE92), w * 0.18, 0.9);
-    // Squared mineral collars make this a heavy, structured beam.
-    for (var i = 0; i < (details ? 7 : 4); i++) {
-      final x = length * (i + 0.5) / (details ? 7 : 4);
-      final collar = ui.Path()
-        ..moveTo(x - w * 0.35, -w * 0.65)
-        ..lineTo(x + w * 0.35, -w * 0.65)
-        ..lineTo(x + w * 0.6, 0)
-        ..lineTo(x + w * 0.35, w * 0.65)
-        ..lineTo(x - w * 0.35, w * 0.65);
-      line(collar, bright, max(1, w * 0.16), 0.65);
-    }
-  } else if (element == 'Light') {
-    line(axis, color, w * 1.65, 0.13);
-    line(axis, color, w * 0.65, 0.75);
-    line(axis, const ui.Color(0xFFFFFFEB), w * 0.24, 0.98);
-    // Thin parallel gold rays and restrained four-point glints.
-    for (final side in [-1.0, 1.0]) {
-      final ray = ui.Path()
-        ..moveTo(0, 0)
-        ..lineTo(length * 0.2, side * w * 0.65)
-        ..lineTo(length * 0.8, side * w * 0.65)
-        ..lineTo(length, 0);
-      line(ray, bright, max(0.8, w * 0.07), 0.6);
-    }
-    if (details) {
-      for (var i = 0; i < 3; i++) {
-        final t = (time * 0.3 + i / 3) % 1;
-        final x = length * t;
-        final glint = ui.Path()
-          ..moveTo(x - w * 0.7, 0)
-          ..lineTo(x + w * 0.7, 0)
-          ..moveTo(x, -w * 0.65)
-          ..lineTo(x, w * 0.65);
-        line(glint, const ui.Color(0xFFFFFFEB), max(1, w * 0.09), 0.85);
-      }
-    }
-  } else if (element == 'Spirit') {
-    line(axis, color, w * 1.6, 0.12);
-    line(axis, bright, w * 0.15, 0.65);
-    for (var strand = 0; strand < (details ? 3 : 2); strand++) {
-      final wisp = ui.Path();
-      for (var i = 0; i <= 28; i++) {
-        final t = i / 28;
-        final y =
-            sin(t * pi * 3 - time * 2.4 + strand * 2.1) * w * 0.7 * sin(t * pi);
-        if (i == 0) {
-          wisp.moveTo(0, y);
-        } else {
-          wisp.lineTo(length * t, y);
-        }
-      }
-      line(
-        wisp,
-        strand == 0 ? bright : color,
-        w * (strand == 0 ? 0.16 : 0.28),
-        0.6,
-      );
-    }
-    for (var i = 0; i < (details ? 3 : 1); i++) {
-      final t = (time * 0.45 + i / 3) % 1;
-      dot(length * t, 0, w * 0.25, bright, 0.7 * sin(t * pi));
-    }
-  } else if (element == 'Crystal') {
-    line(axis, color, w * 1.2, 0.2);
-    line(axis, bright, w * 0.2, 0.9);
-    // Symmetrical hollow prisms distinguish Crystal from Ice's jagged teeth.
-    for (var i = 0; i < (details ? 7 : 4); i++) {
-      final x = length * (i + 0.5) / (details ? 7 : 4);
-      final facet = ui.Path()
-        ..moveTo(x - w, 0)
-        ..lineTo(x, -w * 0.7)
-        ..lineTo(x + w, 0)
-        ..lineTo(x, w * 0.7)
-        ..close();
-      line(facet, color, w * 0.28, 0.7);
-      line(facet, bright, max(0.8, w * 0.08), 0.9);
-      final seam = ui.Path()
-        ..moveTo(x, -w * 0.7)
-        ..lineTo(x, w * 0.7);
-      line(seam, const ui.Color(0xFFC1A6FF), max(0.8, w * 0.08), 0.7);
-    }
-  } else if (element == 'Steam') {
-    line(axis, color, w * 1.5, 0.12);
-    line(axis, bright, w * 0.26, 0.8);
-    // Offset vapor curls expand as they move outward along the pressure jet.
-    for (var i = 0; i < (details ? 9 : 4); i++) {
-      final t = (time * 0.5 + i / (details ? 9 : 4)) % 1;
-      final x = length * t;
-      final side = i.isEven ? 1.0 : -1.0;
-      final r = w * (0.3 + t * 0.65);
-      final curl = ui.Path()
-        ..moveTo(x - r, 0)
-        ..cubicTo(x - r, -side * r * 1.5, x + r, -side * r * 1.5, x + r, 0);
-      line(curl, bright, max(1, w * 0.18), 0.45 * sin(t * pi));
-    }
-  } else if (element == 'Mud') {
-    line(axis, const ui.Color(0xFF60442F), w * 1.3, 0.8);
-    line(axis, color, w * 0.72, 0.9);
-    line(axis, const ui.Color(0xFFD1AC75), w * 0.12, 0.7);
-    // Slow uneven clots hang from a dense slurry stream.
-    for (var i = 0; i < (details ? 9 : 4); i++) {
-      final t = (time * 0.18 + i / (details ? 9 : 4)) % 1;
-      final side = i.isEven ? 1.0 : -1.0;
-      final x = length * t;
-      final y = side * w * 0.45;
-      dot(x, y, w * (0.28 + 0.1 * sin(i * 3.7)), color, 0.9);
-      if (details) {
-        dot(
-          x - w * 0.08,
-          y - w * 0.1,
-          w * 0.09,
-          const ui.Color(0xFFD1AC75),
-          0.7,
-        );
-      }
-    }
-  } else if (element == 'Plant') {
-    line(axis, color, w * 0.6, 0.85);
-    line(axis, const ui.Color(0xFFD8FF9E), w * 0.13, 0.85);
-    // Alternating leaves grow from the continuous beam's central stem.
-    for (var i = 0; i < (details ? 8 : 4); i++) {
-      final x = length * (i + 0.5) / (details ? 8 : 4);
-      final side = i.isEven ? 1.0 : -1.0;
-      final reach = w * (0.85 + 0.12 * sin(time * 3 + i));
-      final leaf = ui.Path()
-        ..moveTo(x, 0)
-        ..quadraticBezierTo(x - w, side * reach, x + w * 0.4, side * reach)
-        ..quadraticBezierTo(x + w, side * reach * 0.3, x, 0)
-        ..close();
-      canvas.drawPath(
-        leaf,
-        paint
-          ..style = ui.PaintingStyle.fill
-          ..color = color.withValues(alpha: a * 0.8),
-      );
-      line(leaf, const ui.Color(0xFFD8FF9E), max(0.8, w * 0.08), 0.65);
-    }
-  }
-  canvas.restore();
-}
-
-/// Canonical Wing beam charge telegraph.
+/// Canonical Wing beam charge telegraph (art in wing_vfx.dart).
 void drawAdvancedWingBeamCharge({
   required ui.Canvas canvas,
   required ui.Offset origin,
   required ui.Color color,
   required double progress,
   required double time,
-}) {
-  final t = progress.clamp(0.0, 1.0);
-  final pulse = 0.78 + 0.22 * sin(time * 7.0);
-  final radius = 38 - 23 * t;
-  canvas.drawCircle(
-    origin,
-    radius,
-    ui.Paint()..color = color.withValues(alpha: 0.18 * pulse),
-  );
-  canvas.drawCircle(
-    origin,
-    5 + 10 * t,
-    ui.Paint()
-      ..color = ui.Color.lerp(
-        color,
-        const ui.Color(0xFFFFFFFF),
-        0.5,
-      )!.withValues(alpha: 0.36 * pulse),
-  );
-  for (var i = 0; i < 5; i++) {
-    final a = time * 5.5 + i * pi * 2 / 5;
-    canvas.drawLine(
-      origin + ui.Offset(cos(a), sin(a)) * radius * 1.5,
-      origin + ui.Offset(cos(a + 0.22), sin(a + 0.22)) * radius,
-      ui.Paint()
-        ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.45 * t)
-        ..strokeWidth = 1.2
-        ..strokeCap = ui.StrokeCap.round,
-    );
-  }
-}
+}) => drawWingBeamCharge(
+  canvas: canvas,
+  origin: origin,
+  color: color,
+  progress: progress,
+  time: time,
+);
 
-/// Canonical churning perimeter for Fire/Poison Wing fields.
+/// Canonical perimeter for Fire/Poison Wing fields (art in wing_vfx.dart).
 void drawAdvancedWingBeamRing({
   required ui.Canvas canvas,
   required ui.Offset center,
@@ -617,301 +211,72 @@ void drawAdvancedWingBeamRing({
   required double alpha,
   required double time,
   bool details = true,
-}) {
-  final fade = alpha.clamp(0.0, 1.0);
-  final poison = element == 'Poison';
-  canvas.drawCircle(
-    center,
-    radius,
-    ui.Paint()..color = color.withValues(alpha: 0.05 * fade),
-  );
-  final wobScale = poison ? 0.045 : 0.03;
-  const segments = 54;
-  final path = ui.Path();
-  for (var i = 0; i <= segments; i++) {
-    final angle = i * pi * 2 / segments;
-    final wob = poison
-        ? sin(angle * 5 + time * 2.6) * radius * wobScale
-        : sin(angle * 8 - time * 4.0) * radius * wobScale;
-    final p = center + ui.Offset(cos(angle), sin(angle)) * (radius + wob);
-    if (i == 0) {
-      path.moveTo(p.dx, p.dy);
-    } else {
-      path.lineTo(p.dx, p.dy);
-    }
-  }
-  path.close();
-  canvas.drawPath(
-    path,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeCap = ui.StrokeCap.round
-      ..color = color.withValues(alpha: 0.20 * fade)
-      ..strokeWidth = width * 2.4,
-  );
-  canvas.drawPath(
-    path,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeCap = ui.StrokeCap.round
-      ..color = color.withValues(alpha: 0.85 * fade)
-      ..strokeWidth = width * 0.85,
-  );
-  canvas.drawCircle(
-    center,
-    radius * (poison ? 0.86 : 0.9),
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..color = color.withValues(alpha: 0.42 * fade)
-      ..strokeWidth = width * 0.5,
-  );
-  if (poison) {
-    for (var i = 0; i < 9; i++) {
-      final angle = i * pi * 2 / 9 + time * 0.6;
-      final r = radius + sin(angle * 3 + time * 2.6) * radius * wobScale;
-      canvas.drawCircle(
-        center + ui.Offset(cos(angle), sin(angle)) * r,
-        2.2 + sin(time * 3.0 + i),
-        ui.Paint()..color = color.withValues(alpha: 0.55 * fade),
-      );
-    }
-  } else {
-    canvas.drawArc(
-      ui.Rect.fromCircle(center: center, radius: radius),
-      (time * 3.4) % (pi * 2),
-      pi * 0.55,
-      false,
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeCap = ui.StrokeCap.round
-        ..color = ui.Color.lerp(
-          color,
-          const ui.Color(0xFFFFFFFF),
-          0.5,
-        )!.withValues(alpha: 0.9 * fade)
-        ..strokeWidth = width * 1.1,
-    );
-  }
-  // Material accents follow the existing perimeter without changing its area.
-  final accentPaint = ui.Paint()..strokeCap = ui.StrokeCap.round;
-  final count = details ? (poison ? 16 : 24) : 8;
-  final bright = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.6)!;
-  for (var i = 0; i < count; i++) {
-    final angle = i * pi * 2 / count + time * (poison ? 0.12 : 0.32);
-    final radial = ui.Offset(cos(angle), sin(angle));
-    final tangent = ui.Offset(-sin(angle), cos(angle));
-    final base = center + radial * radius;
-    if (poison) {
-      // Hollow blisters and curling fumes, distinct from Fire's sharp tongues.
-      final breath = 0.5 + 0.5 * sin(time * 2.5 + i * 2.1);
-      final bubble = base + radial * width * breath;
-      canvas.drawCircle(
-        bubble,
-        width * (0.3 + breath * 0.25),
-        accentPaint
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = max(1, width * 0.12)
-          ..color = bright.withValues(alpha: fade * 0.65),
-      );
-      if (details) {
-        final curl = ui.Path()..moveTo(base.dx, base.dy);
-        final control = base + radial * width * 2 + tangent * width;
-        final tip = base + radial * width * 2.4 - tangent * width * 0.3;
-        curl.quadraticBezierTo(control.dx, control.dy, tip.dx, tip.dy);
-        canvas.drawPath(
-          curl,
-          accentPaint
-            ..strokeWidth = width * 0.22
-            ..color = color.withValues(alpha: fade * 0.30),
-        );
-      }
-    } else {
-      final flicker = 0.6 + 0.4 * sin(time * 9 + i * 2.7);
-      final left = base - tangent * width * 0.65;
-      final right = base + tangent * width * 0.65;
-      final tip =
-          base + radial * width * (1.0 + flicker) + tangent * width * 0.7;
-      final flame = ui.Path()
-        ..moveTo(left.dx, left.dy)
-        ..quadraticBezierTo(base.dx, base.dy, tip.dx, tip.dy)
-        ..quadraticBezierTo(right.dx, right.dy, left.dx, left.dy)
-        ..close();
-      canvas.drawPath(
-        flame,
-        accentPaint
-          ..style = ui.PaintingStyle.fill
-          ..color = color.withValues(alpha: fade * 0.8),
-      );
-      canvas.drawLine(
-        base,
-        ui.Offset.lerp(base, tip, 0.6)!,
-        accentPaint
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = max(1, width * 0.16)
-          ..color = const ui.Color(0xFFFFDE91).withValues(alpha: fade * 0.9),
-      );
-    }
-  }
-}
+}) => drawWingRing(
+  canvas: canvas,
+  center: center,
+  radius: radius,
+  width: width,
+  element: element,
+  alpha: alpha,
+  time: time,
+  details: details,
+);
 
-/// Shared active shield language: a cyan barrier with rotating hot arcs.
+/// Shared creature shield (art in kin_vfx.dart).
 void drawAdvancedCompanionShield({
   required ui.Canvas canvas,
   required double time,
   double scale = 1,
-}) {
-  final radius = 22 * scale;
-  canvas.drawCircle(
-    ui.Offset.zero,
-    radius,
-    ui.Paint()
-      ..color = const ui.Color(
-        0xFF00BCD4,
-      ).withValues(alpha: 0.25 + 0.1 * sin(time * 3))
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 2 * scale,
-  );
-  final hot = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round
-    ..strokeWidth = 1.8 * scale
-    ..color = const ui.Color(0xFF8FE6FF).withValues(alpha: 0.62);
-  final rect = ui.Rect.fromCircle(
-    center: ui.Offset.zero,
-    radius: radius + scale,
-  );
-  for (var i = 0; i < 3; i++) {
-    canvas.drawArc(rect, time * 1.6 + i * pi * 2 / 3, pi * 0.42, false, hot);
-  }
-}
+}) => drawShieldWard(canvas: canvas, time: time, scale: scale);
 
 /// Shared Horn dash trail. All modes pass local creature coordinates.
+/// The art lives in horn_vfx.dart.
 void drawAdvancedChargeTrail({
   required ui.Canvas canvas,
   required ui.Color color,
   required double angle,
   required double sweepRadius,
   required double overshootDistance,
+  String? element,
+  double time = 0,
   double scale = 1,
 }) {
-  final width = (sweepRadius / 48.0).clamp(0.70, 2.20);
-  final length = (overshootDistance / 80.0).clamp(0.65, 2.10);
-  canvas.drawCircle(
-    ui.Offset.zero,
-    28 * width * scale,
-    ui.Paint()..color = color.withValues(alpha: 0.35),
+  drawHornChargeWake(
+    canvas: canvas,
+    color: color,
+    angle: angle,
+    sweepRadius: sweepRadius,
+    overshootDistance: overshootDistance,
+    element: element,
+    time: time,
+    scale: scale,
   );
-  for (var i = 0; i < 4; i++) {
-    final trailAngle = angle + pi;
-    final trailDistance = (7.0 + i * 7.0) * length * scale;
-    canvas.drawCircle(
-      ui.Offset(cos(trailAngle), sin(trailAngle)) * trailDistance,
-      (5.0 - i) * width * scale,
-      ui.Paint()..color = color.withValues(alpha: (1.0 - i / 4.0) * 0.34),
-    );
-  }
 }
 
-/// Shared Kin basic-attack charge aura and aimed focal pip.
+/// Shared Kin laser charge (art in kin_vfx.dart).
 void drawAdvancedKinCharge({
   required ui.Canvas canvas,
   required ui.Color color,
   required double progress,
   required double time,
   ui.Offset? aimDirection,
-}) {
-  final t = progress.clamp(0.0, 1.0);
-  final pulse = 0.85 + 0.15 * sin(time * 12 + progress * 8);
-  for (final layer in <(double, double)>[
-    (26 + 6 * t, 0.22),
-    (18 + 4 * t, 0.42),
-  ]) {
-    canvas.drawCircle(
-      ui.Offset.zero,
-      layer.$1,
-      ui.Paint()..color = color.withValues(alpha: layer.$2 * t * pulse),
-    );
-  }
-  canvas.drawCircle(
-    ui.Offset.zero,
-    9 + 3 * t,
-    ui.Paint()
-      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.65 * t * pulse),
-  );
-  for (var i = 0; i < 2 + (t * 4).round(); i++) {
-    final a = time * (2.7 + i * 0.31) + i * 2.399;
-    final r = 12 + (12 + 8 * t) * ((i + 1) / 7);
-    canvas.drawCircle(
-      ui.Offset(cos(a), sin(a)) * r,
-      0.9 + 0.16 * i + 0.4 * t,
-      ui.Paint()
-        ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.75 * t),
-    );
-  }
-  if (aimDirection == null || aimDirection.distance <= 0.01) return;
-  final direction = aimDirection / aimDirection.distance;
-  canvas.drawCircle(
-    direction * (18.0 + 14.0 * t),
-    1.4 + 1.4 * t,
-    ui.Paint()..color = color.withValues(alpha: 0.85 * pulse),
-  );
-}
+}) => drawKinCharge(
+  canvas: canvas,
+  color: color,
+  progress: progress,
+  time: time,
+  aimDirection: aimDirection,
+);
 
-/// Shared Kin healing aura, built from geometry instead of per-frame blur.
+/// Shared blessing (art in kin_vfx.dart).
 void drawAdvancedBlessingAura({
   required ui.Canvas canvas,
   required double time,
   double scale = 1,
   double opacity = 1,
-}) {
-  final pulse = 0.5 + 0.4 * sin(time * 4.0);
-  final baseAlpha = pulse * 0.65 * opacity;
-  final radius = 24 * scale;
-  if (pulse > 0.82) {
-    canvas.drawCircle(
-      ui.Offset.zero,
-      radius * 0.48,
-      ui.Paint()
-        ..color = const ui.Color(
-          0xFF69F0AE,
-        ).withValues(alpha: (baseAlpha * 1.7).clamp(0.0, 1.0)),
-    );
-  } else {
-    canvas.drawCircle(
-      ui.Offset.zero,
-      radius * 0.22,
-      ui.Paint()
-        ..color = const ui.Color(
-          0xFF69F0AE,
-        ).withValues(alpha: baseAlpha * 0.95),
-    );
-    for (final ring in <(double, double)>[(3, 1), (8, 0.85), (18, 0.55)]) {
-      canvas.drawCircle(
-        ui.Offset.zero,
-        radius,
-        ui.Paint()
-          ..color = const ui.Color(
-            0xFF69F0AE,
-          ).withValues(alpha: baseAlpha * ring.$2)
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = ring.$1 * scale,
-      );
-    }
-  }
-  for (var i = 0; i < 4; i++) {
-    final angle = i * pi / 2 + time * 2;
-    final distance = (18.0 + 4 * sin(time * 3 + i)) * scale;
-    canvas.drawCircle(
-      ui.Offset(cos(angle), sin(angle)) * distance,
-      2.5 * scale,
-      ui.Paint()
-        ..color = const ui.Color(0xFF69F0AE).withValues(alpha: 0.6 * opacity),
-    );
-  }
-}
+}) => drawBlessing(canvas: canvas, time: time, scale: scale, opacity: opacity);
 
-/// Shared family-specific Kin support states. Callers enable only the states
-/// their combat simulation currently has active.
+/// What shows on a kin while its support runs (art in kin_vfx.dart).
 void drawAdvancedKinSupportAura({
   required ui.Canvas canvas,
   required String element,
@@ -926,89 +291,21 @@ void drawAdvancedKinSupportAura({
   double fireOrbitalRadius = 70,
   bool lavaPlateActive = false,
   bool darkCloakActive = false,
-}) {
-  final iceT = iceChargeProgress.clamp(0.0, 1.0);
-  if (element == 'Ice' && iceT > 0) {
-    final ice = color;
-    final white = ui.Color.lerp(ice, const ui.Color(0xFFFFFFFF), 0.6)!;
-    canvas.drawCircle(
-      ui.Offset.zero,
-      26 + 14 * iceT,
-      ui.Paint()..color = ice.withValues(alpha: 0.20 * iceT),
-    );
-    canvas.drawCircle(
-      ui.Offset.zero,
-      18 + 8 * iceT,
-      ui.Paint()..color = white.withValues(alpha: 0.35 * iceT),
-    );
-    for (var i = 0; i < 5; i++) {
-      final a = time * 2.4 + i * pi * 2 / 5;
-      canvas.drawCircle(
-        ui.Offset(cos(a), sin(a)) * (28 + 6 * iceT),
-        1.4,
-        ui.Paint()..color = white.withValues(alpha: 0.85 * iceT),
-      );
-    }
-  }
-  if (element == 'Lightning' && lightningActive) {
-    final lightning = color;
-    final hot = ui.Color.lerp(lightning, const ui.Color(0xFFFFFFFF), 0.55)!;
-    final pulse = 0.78 + 0.22 * sin(time * 14);
-    canvas.drawCircle(
-      ui.Offset.zero,
-      30,
-      ui.Paint()..color = lightning.withValues(alpha: 0.22 * pulse),
-    );
-    canvas.drawCircle(
-      ui.Offset.zero,
-      18,
-      ui.Paint()..color = hot.withValues(alpha: 0.42 * pulse),
-    );
-    for (var i = 0; i < 3; i++) {
-      final a = time * (5.7 + i * 0.8) + i * 2.1;
-      canvas.drawLine(
-        ui.Offset(cos(a), sin(a)) * (13.0 + i * 1.7),
-        ui.Offset(cos(a + 0.12), sin(a + 0.12)) * (29.0 + i * 2.3),
-        ui.Paint()
-          ..strokeWidth = 1.2
-          ..color = hot.withValues(alpha: 0.85 * pulse),
-      );
-    }
-  }
-  if (element == 'Fire' && fireOrbitalActive) {
-    final orbit = 32 * (fireOrbitalRadius / 70);
-    for (var i = 0; i < 3; i++) {
-      final a = time * 3.2 + i * pi * 2 / 3;
-      final p = ui.Offset(cos(a), sin(a)) * orbit;
-      canvas.drawCircle(
-        p,
-        6,
-        ui.Paint()..color = const ui.Color(0xFFFFB060).withValues(alpha: 0.50),
-      );
-      canvas.drawCircle(
-        p,
-        3.2,
-        ui.Paint()..color = const ui.Color(0xFFFFE7B0).withValues(alpha: 0.85),
-      );
-    }
-  }
-  if (element == 'Lava' && lavaPlateActive) {
-    final pulse = 0.80 + 0.20 * sin(time * 3);
-    canvas.drawCircle(
-      ui.Offset.zero,
-      22,
-      ui.Paint()
-        ..color = const ui.Color(0xFFFF7A20).withValues(alpha: 0.18 * pulse),
-    );
-  }
-  if (element == 'Dark' && darkCloakActive) {
-    canvas.drawCircle(
-      ui.Offset.zero,
-      24,
-      ui.Paint()..color = const ui.Color(0xFF1A0A2A).withValues(alpha: 0.35),
-    );
-  }
-}
+
+  /// Steam boiler stacks as a fraction of the cap (0 when not boiling).
+  double steamPressure = 0,
+}) => drawKinSupportEffects(
+  canvas: canvas,
+  element: element,
+  time: time,
+  iceChargeProgress: iceChargeProgress,
+  lightningActive: lightningActive,
+  fireOrbitalActive: fireOrbitalActive,
+  fireOrbitalRadius: fireOrbitalRadius,
+  lavaPlateActive: lavaPlateActive,
+  darkCloakActive: darkCloakActive,
+  steamPressure: steamPressure,
+);
 
 bool drawPipElementalProjectileVisual({
   required ui.Canvas canvas,
@@ -1028,677 +325,14 @@ bool drawPipElementalProjectileVisual({
       projectile.interceptCharges > 0;
   if (!hasPipTempoSignals) return false;
 
-  final vs = projectile.visualScale.clamp(0.72, 2.3).toDouble();
-  final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
-  final perp = ui.Offset(-dir.dy, dir.dx);
-  final tailLen = (projectile.bounceCount > 0 ? 18.0 : 13.0) * vs;
-  final tail = position - dir * tailLen;
-  final pulse = 0.72 + 0.28 * sin(time * 7.0 + projectile.life * 2.0);
-  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.45)!;
-  final fillPaint = ui.Paint();
-  final strokePaint = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round;
-  final linePaint = ui.Paint()..strokeCap = ui.StrokeCap.round;
-
-  void drawTail({double width = 3.2, double alpha = 0.26}) {
-    linePaint
-      ..color = color.withValues(alpha: alpha)
-      ..strokeWidth = width * vs
-      ..maskFilter = null;
-    canvas.drawLine(tail, position, linePaint);
-  }
-
-  void drawDartHead({double length = 6.0, double width = 4.0}) {
-    // Longer and keener than the call sites ask for.
-    //
-    // Every element passes a length between 4.8 and 7.0, which built a stubby
-    // little wedge — and it used to sit inside a soft halo several times its
-    // size, so the shape may as well not have been there. Stretched here
-    // rather than at thirteen call sites, and swept back into a barb instead
-    // of a flat-based triangle, so the thing reads as a dart at the size it
-    // actually draws at.
-    final reach = length * 1.45;
-    final tip = position + dir * reach * 0.62 * vs;
-    final back = position - dir * reach * 0.48 * vs;
-    final barb = position - dir * reach * 0.18 * vs;
-    final span = perp * width * vs;
-    final path = ui.Path()
-      ..moveTo(tip.dx, tip.dy)
-      // Out to the barb, back to the swept tail, and mirrored — a flat base
-      // reads as a triangle, a swept one reads as a point that is travelling.
-      ..lineTo(barb.dx + span.dx, barb.dy + span.dy)
-      ..lineTo(back.dx + span.dx * 0.30, back.dy + span.dy * 0.30)
-      ..lineTo(back.dx - span.dx * 0.30, back.dy - span.dy * 0.30)
-      ..lineTo(barb.dx - span.dx, barb.dy - span.dy)
-      ..close();
-    fillPaint.color = color.withValues(alpha: 0.92);
-    canvas.drawPath(path, fillPaint);
-    // A hot spine down the middle rather than a blob on the nose, so the
-    // brightest part of the dart is its edge.
-    linePaint
-      ..color = white.withValues(alpha: 0.80)
-      ..strokeWidth = 1.15 * vs
-      ..maskFilter = null;
-    canvas.drawLine(barb, tip, linePaint);
-  }
-
-  if (projectile.abilityFamily == 'pip') {
-    // Special-only frame: makes pip specials read clearly distinct from
-    // basics. Basics share the dart silhouette below but skip this block.
-    // Layered translucent circles fake a soft halo without MaskFilter.blur.
-    final specialPulse = 0.78 + 0.22 * sin(time * 6.5 + projectile.life * 2.5);
-
-    // A glow with a direction, not a ball.
-    //
-    // This used to be four concentric translucent circles out to twenty-one
-    // times scale, which is several times the dart inside them. Whatever the
-    // dart was doing, a pip special read as a soft glowing bead: no axis, no
-    // point, and identical across all seventeen elements but for hue. On the
-    // one family whose whole identity is a small fast thing that ricochets,
-    // the silhouette said "slow floating orb".
-    //
-    // Stretched along travel instead, so the glow says which way the dart is
-    // going and stays out of the way of its shape.
-    drawDirectionalBloom(
-      canvas: canvas,
-      centre: position,
-      travelDir: dir,
-      length: 13.0 * vs,
-      width: 4.6 * vs,
-      color: color,
-      alpha: 0.30 * specialPulse,
-    );
-
-    // Long comet ribbon — visually stretches the projectile so a moving
-    // salvo reads as guided missiles, not basic-attack sprinkle.
-    final ribbonTail = position - dir * 34.0 * vs;
-    canvas.drawLine(
-      ribbonTail,
-      position,
-      ui.Paint()
-        ..shader = ui.Gradient.linear(
-          ribbonTail,
-          position,
-          [
-            color.withValues(alpha: 0.0),
-            color.withValues(alpha: 0.34 * specialPulse),
-            white.withValues(alpha: 0.62 * specialPulse),
-          ],
-          const [0.0, 0.55, 1.0],
-        )
-        ..strokeWidth = 3.4 * vs
-        ..strokeCap = ui.StrokeCap.round,
-    );
-
-    // How much ricochet is left, drawn on the dart.
-    //
-    // Bouncing is the family's entire premise and nothing on screen said
-    // anything about it — a dart with five bounces banked looked exactly like
-    // one on its last. Chevrons stacked behind the head, one per remaining
-    // bounce, so a Lightning salvo visibly carries more than a Lava one and
-    // every dart visibly spends itself as it chains.
-    final banked = projectile.bounceCount.clamp(0, 5);
-    for (var i = 0; i < banked; i++) {
-      final back = position - dir * (7.0 + i * 4.2) * vs;
-      final spanV = perp * (3.0 - i * 0.28) * vs;
-      final tipV = dir * 2.6 * vs;
-      strokePaint
-        ..color = white.withValues(
-          alpha: (0.66 - i * 0.09).clamp(0.0, 1.0) * specialPulse,
-        )
-        ..strokeWidth = 1.25 * vs
-        ..maskFilter = null;
-      canvas.drawPath(
-        ui.Path()
-          ..moveTo(back.dx + spanV.dx, back.dy + spanV.dy)
-          ..lineTo(back.dx + tipV.dx, back.dy + tipV.dy)
-          ..lineTo(back.dx - spanV.dx, back.dy - spanV.dy),
-        strokePaint,
-      );
-    }
-
-    // Element-specific special accent telegraphs the kill/hit identity.
-    // Each accent is intentionally cheap (handful of draws, no blur)
-    // so a salvo of pip specials stays performant.
-    switch (element) {
-      case 'Fire':
-        // Trailing embers — preview of the fire pool that drops on kill.
-        for (var i = 0; i < 3; i++) {
-          final t = (time * 1.4 + i * 0.31) % 1.0;
-          final emberPos =
-              position -
-              dir * (10.0 + t * 22.0) * vs +
-              perp * sin(time * 4 + i) * 3.0 * vs;
-          fillPaint
-            ..color = const ui.Color(
-              0xFFFFD160,
-            ).withValues(alpha: (1 - t) * 0.72)
-            ..maskFilter = null;
-          canvas.drawCircle(emberPos, 1.6 * vs * (1.0 - t * 0.5), fillPaint);
-        }
-        break;
-      case 'Lightning':
-        // Branching sub-arcs — telegraph "double the ricochet" identity.
-        for (var i = 0; i < 2; i++) {
-          final side = i.isEven ? -1.0 : 1.0;
-          final phase = time * 6.0 + i * pi + projectile.life * 4.0;
-          final p1 = position - dir * 5.0 * vs + perp * side * 3.0 * vs;
-          final p2 =
-              position -
-              dir * 14.0 * vs +
-              perp * side * (8.0 + sin(phase) * 3.0) * vs;
-          final p3 = position - dir * 22.0 * vs + perp * side * 4.0 * vs;
-          final arc = ui.Path()
-            ..moveTo(p1.dx, p1.dy)
-            ..lineTo(p2.dx, p2.dy)
-            ..lineTo(p3.dx, p3.dy);
-          canvas.drawPath(
-            arc,
-            strokePaint
-              ..color = white.withValues(alpha: 0.58 * specialPulse)
-              ..strokeWidth = 1.3 * vs
-              ..maskFilter = null,
-          );
-        }
-        break;
-      case 'Ice':
-        // Orbiting frost motes — telegraph freeze on hit.
-        for (var i = 0; i < 3; i++) {
-          final a = time * 2.2 + i * pi * 2 / 3;
-          final p = position + ui.Offset(cos(a), sin(a)) * 9.0 * vs;
-          fillPaint
-            ..color = white.withValues(alpha: 0.72)
-            ..maskFilter = null;
-          canvas.drawCircle(p, 1.35 * vs, fillPaint);
-        }
-        break;
-      case 'Crystal':
-        // Rotating crystal facets — telegraph taunt crystal on kill.
-        for (var i = 0; i < 3; i++) {
-          final a = time * 1.6 + i * pi * 2 / 3 + projectile.life;
-          final c = position + ui.Offset(cos(a), sin(a)) * 8.0 * vs;
-          final facet = ui.Path()
-            ..moveTo(c.dx, c.dy - 2.2 * vs)
-            ..lineTo(c.dx + 1.7 * vs, c.dy)
-            ..lineTo(c.dx, c.dy + 2.2 * vs)
-            ..lineTo(c.dx - 1.7 * vs, c.dy)
-            ..close();
-          fillPaint
-            ..color = white.withValues(alpha: 0.62)
-            ..maskFilter = null;
-          canvas.drawPath(facet, fillPaint);
-        }
-        break;
-      case 'Lava':
-        // Dripping molten blobs — heavy "burns on hit" identity.
-        for (var i = 0; i < 3; i++) {
-          final t = (time * 1.0 + i * 0.4) % 1.0;
-          final drip =
-              position -
-              dir * (8.0 + t * 12.0) * vs +
-              perp * sin(time * 3 + i) * 1.5 * vs;
-          fillPaint
-            ..color = const ui.Color(
-              0xFFFFB060,
-            ).withValues(alpha: (1 - t) * 0.82)
-            ..maskFilter = null;
-          canvas.drawCircle(drip, (2.5 - t * 1.2) * vs, fillPaint);
-        }
-        break;
-      case 'Mud':
-        // Muddy splash gobs — telegraph the permanent mud-trail tag.
-        for (var i = 0; i < 4; i++) {
-          final t = (time * 1.1 + i * 0.27) % 1.0;
-          final p =
-              position -
-              dir * (6.0 + t * 16.0) * vs +
-              perp * sin(time * 2.0 + i * 1.7) * 4.0 * vs;
-          fillPaint
-            ..color = color.withValues(alpha: (1 - t) * 0.58)
-            ..maskFilter = null;
-          canvas.drawCircle(p, (1.9 - t * 0.8) * vs, fillPaint);
-        }
-        break;
-      case 'Plant':
-        // Orbiting spores — telegraph alchemy bonus on kill.
-        for (var i = 0; i < 4; i++) {
-          final a = time * 1.8 + i * pi / 2;
-          final p = position + ui.Offset(cos(a), sin(a)) * 7.5 * vs;
-          fillPaint
-            ..color = const ui.Color(0xFFB0FFB0).withValues(alpha: 0.58)
-            ..maskFilter = null;
-          canvas.drawCircle(p, 1.25 * vs, fillPaint);
-        }
-        break;
-      case 'Spirit':
-        // Trailing wisps — telegraph kill-stacking toward empower window.
-        for (var i = 0; i < 3; i++) {
-          final t = (time * 0.9 + i * 0.33) % 1.0;
-          final p =
-              position -
-              dir * (8.0 + t * 18.0) * vs +
-              perp * sin(time * 2 + i * 2) * 5.0 * vs;
-          fillPaint
-            ..color = white.withValues(alpha: (1 - t) * 0.55)
-            ..maskFilter = null;
-          canvas.drawCircle(p, (2.3 - t) * vs, fillPaint);
-        }
-        break;
-      case 'Dust':
-        // Scattering motes — telegraph dust cloud on kill.
-        for (var i = 0; i < 5; i++) {
-          final a = time * 2.5 + i * pi * 2 / 5;
-          final p =
-              position + ui.Offset(cos(a), sin(a)) * (5.0 + (i % 2) * 3.0) * vs;
-          fillPaint
-            ..color = color.withValues(alpha: 0.48)
-            ..maskFilter = null;
-          canvas.drawCircle(p, 0.95 * vs, fillPaint);
-        }
-        break;
-      case 'Air':
-        // Spiraling wind streaks behind — telegraph knockback on survivors.
-        for (var i = 0; i < 2; i++) {
-          final side = i.isEven ? -1.0 : 1.0;
-          final streak = ui.Path();
-          for (var j = 0; j < 5; j++) {
-            final t = j / 4;
-            final phase = time * 3.0 + side * 2.0 + t * pi;
-            final pt =
-                position -
-                dir * t * 18.0 * vs +
-                perp * side * sin(phase) * 4.5 * vs;
-            if (j == 0) {
-              streak.moveTo(pt.dx, pt.dy);
-            } else {
-              streak.lineTo(pt.dx, pt.dy);
-            }
-          }
-          canvas.drawPath(
-            streak,
-            strokePaint
-              ..color = white.withValues(alpha: 0.42 * specialPulse)
-              ..strokeWidth = 1.15 * vs
-              ..maskFilter = null,
-          );
-        }
-        break;
-      case 'Blood':
-        // Trailing blood drops — telegraph self-heal on kill.
-        for (var i = 0; i < 3; i++) {
-          final t = (time * 1.0 + i * 0.33) % 1.0;
-          final p =
-              position -
-              dir * (7.0 + t * 14.0) * vs +
-              perp * sin(time * 3 + i) * 2.0 * vs;
-          fillPaint
-            ..color = const ui.Color(
-              0xFFFF6060,
-            ).withValues(alpha: (1 - t) * 0.78)
-            ..maskFilter = null;
-          canvas.drawCircle(p, (1.9 - t * 0.8) * vs, fillPaint);
-        }
-        break;
-      case 'Water':
-        // Trailing droplets — telegraph splash chain.
-        for (var i = 0; i < 4; i++) {
-          final t = (time * 1.2 + i * 0.25) % 1.0;
-          final p =
-              position -
-              dir * (5.0 + t * 15.0) * vs +
-              perp * sin(time * 2.5 + i * 1.5) * 4.0 * vs;
-          fillPaint
-            ..color = color.withValues(alpha: (1 - t) * 0.62)
-            ..maskFilter = null;
-          canvas.drawCircle(p, (1.7 - t * 0.7) * vs, fillPaint);
-        }
-        break;
-      case 'Steam':
-        // Rising steam puffs — telegraph steam cloud / atk-speed ramp.
-        for (var i = 0; i < 3; i++) {
-          final t = (time * 1.0 + i * 0.4) % 1.0;
-          final puff =
-              position -
-              dir * (4.0 + t * 12.0) * vs +
-              perp * sin(time + i) * 3.0 * vs -
-              ui.Offset(0, t * 6.0 * vs);
-          fillPaint
-            ..color = color.withValues(alpha: (1 - t) * 0.34)
-            ..maskFilter = null;
-          canvas.drawCircle(puff, (3.0 + t * 1.5) * vs, fillPaint);
-        }
-        break;
-      case 'Earth':
-        // Tumbling pebbles trailing — heavy hit-hard identity.
-        for (var i = 0; i < 3; i++) {
-          final t = (time * 1.0 + i * 0.35) % 1.0;
-          final p =
-              position -
-              dir * (8.0 + t * 14.0) * vs +
-              perp * sin(time * 4 + i * 2) * 3.0 * vs;
-          fillPaint
-            ..color = color.withValues(alpha: (1 - t) * 0.72)
-            ..maskFilter = null;
-          canvas.drawCircle(p, (1.9 - t * 0.6) * vs, fillPaint);
-        }
-        break;
-      case 'Poison':
-        // Bubbling particles — telegraph DoT on hit.
-        for (var i = 0; i < 4; i++) {
-          final a = time * 2.0 + i * pi / 2 + projectile.life;
-          final p = position + ui.Offset(cos(a), sin(a)) * 7.0 * vs;
-          fillPaint
-            ..color = const ui.Color(0xFFC080FF).withValues(alpha: 0.58)
-            ..maskFilter = null;
-          canvas.drawCircle(p, 1.35 * vs, fillPaint);
-        }
-        break;
-      case 'Light':
-        // Radiating sparkles — telegraph orb heal on kill.
-        for (var i = 0; i < 6; i++) {
-          final a = time * 1.5 + i * pi / 3;
-          final p = position + ui.Offset(cos(a), sin(a)) * 10.0 * vs;
-          fillPaint
-            ..color = white.withValues(alpha: 0.55 * specialPulse)
-            ..maskFilter = null;
-          canvas.drawCircle(p, 0.95 * vs, fillPaint);
-        }
-        break;
-      default:
-        break;
-    }
-  }
-
-  switch (element) {
-    case 'Fire':
-      drawTail(width: 5.0, alpha: 0.34);
-      for (var i = 0; i < 2; i++) {
-        final offset = (i == 0 ? -1.0 : 1.0) * 3.0 * vs;
-        fillPaint.color = const ui.Color(0xFFFFD28A).withValues(alpha: 0.62);
-        canvas.drawCircle(
-          tail + perp * offset + dir * (i * 3.0 * vs),
-          1.8 * vs,
-          fillPaint,
-        );
-      }
-      drawDartHead(length: 6.6, width: 3.4);
-      break;
-    case 'Lightning':
-      final bolt = ui.Path()
-        ..moveTo(tail.dx, tail.dy)
-        ..lineTo(
-          position.dx - dir.dx * 8 * vs + perp.dx * 3.5 * vs,
-          position.dy - dir.dy * 8 * vs + perp.dy * 3.5 * vs,
-        )
-        ..lineTo(
-          position.dx - dir.dx * 3 * vs - perp.dx * 3.0 * vs,
-          position.dy - dir.dy * 3 * vs - perp.dy * 3.0 * vs,
-        )
-        ..lineTo(position.dx, position.dy);
-      canvas.drawPath(
-        bolt,
-        strokePaint
-          ..color = white.withValues(alpha: 0.92)
-          ..strokeWidth = 1.8 * vs
-          ..maskFilter = null,
-      );
-      drawDartHead(length: 5.2, width: 3.2);
-      break;
-    case 'Water':
-      for (final side in [-1.0, 1.0]) {
-        final path = ui.Path()
-          ..moveTo(
-            tail.dx + perp.dx * side * 2.4 * vs,
-            tail.dy + perp.dy * side * 2.4 * vs,
-          )
-          ..quadraticBezierTo(
-            position.dx - dir.dx * 5 * vs + perp.dx * side * 5 * vs,
-            position.dy - dir.dy * 5 * vs + perp.dy * side * 5 * vs,
-            position.dx,
-            position.dy,
-          );
-        canvas.drawPath(
-          path,
-          strokePaint
-            ..color = color.withValues(alpha: 0.38)
-            ..strokeWidth = 1.4 * vs
-            ..maskFilter = null,
-        );
-      }
-      drawDartHead(length: 5.8, width: 3.4);
-      break;
-    case 'Ice':
-      drawTail(width: 3.8, alpha: 0.22);
-      _drawFrostStar(canvas, position, white, 5.5 * vs, vs, time);
-      drawDartHead(length: 7.0, width: 3.0);
-      break;
-    case 'Steam':
-      for (var i = 0; i < 3; i++) {
-        final drift = i.toDouble();
-        canvas.drawCircle(
-          tail +
-              dir * drift * 4.0 * vs +
-              perp * sin(time * 3 + drift) * 2.5 * vs,
-          (2.8 + drift * 0.6) * vs,
-          ui.Paint()
-            ..color = color.withValues(alpha: 0.14)
-            ..maskFilter = null,
-        );
-      }
-      drawDartHead(length: 5.4, width: 3.2);
-      break;
-    case 'Earth':
-      drawTail(width: 3.0, alpha: 0.18);
-      canvas.drawCircle(
-        position,
-        4.8 * vs,
-        fillPaint..color = color.withValues(alpha: 0.82),
-      );
-      for (var i = 0; i < 3; i++) {
-        final a = time * 0.2 + i * pi * 2 / 3;
-        linePaint
-          ..color = white.withValues(alpha: 0.30)
-          ..strokeWidth = 0.8 * vs
-          ..maskFilter = null;
-        canvas.drawLine(
-          position,
-          position + ui.Offset(cos(a), sin(a)) * 5.2 * vs,
-          linePaint,
-        );
-      }
-      break;
-    case 'Lava':
-      drawTail(width: 5.6, alpha: 0.30);
-      canvas.drawCircle(
-        position,
-        5.4 * vs,
-        fillPaint..color = color.withValues(alpha: 0.90),
-      );
-      canvas.drawCircle(
-        position + dir * 1.6 * vs - perp * 1.2 * vs,
-        1.8 * vs,
-        fillPaint..color = const ui.Color(0xFFFFE0A0).withValues(alpha: 0.78),
-      );
-      break;
-    case 'Mud':
-      drawTail(width: 4.8, alpha: 0.24);
-      canvas.drawOval(
-        ui.Rect.fromCenter(center: position, width: 9.0 * vs, height: 6.0 * vs),
-        fillPaint..color = color.withValues(alpha: 0.86),
-      );
-      break;
-    case 'Dust':
-      drawTail(width: 2.4, alpha: 0.18);
-      for (var i = 0; i < 5; i++) {
-        final a = time * 1.7 + i * pi * 2 / 5;
-        canvas.drawCircle(
-          position - dir * 4.0 * vs + ui.Offset(cos(a), sin(a)) * 4.2 * vs,
-          0.85 * vs,
-          fillPaint..color = color.withValues(alpha: 0.42),
-        );
-      }
-      drawDartHead(length: 4.8, width: 2.7);
-      break;
-    case 'Crystal':
-      drawTail(width: 3.4, alpha: 0.24);
-      final path = ui.Path()
-        ..moveTo(
-          position.dx + dir.dx * 6.8 * vs,
-          position.dy + dir.dy * 6.8 * vs,
-        )
-        ..lineTo(
-          position.dx + perp.dx * 4.0 * vs,
-          position.dy + perp.dy * 4.0 * vs,
-        )
-        ..lineTo(
-          position.dx - dir.dx * 5.2 * vs,
-          position.dy - dir.dy * 5.2 * vs,
-        )
-        ..lineTo(
-          position.dx - perp.dx * 4.0 * vs,
-          position.dy - perp.dy * 4.0 * vs,
-        )
-        ..close();
-      fillPaint.color = color.withValues(alpha: 0.82);
-      canvas.drawPath(path, fillPaint);
-      canvas.drawCircle(
-        position + dir * 1.8 * vs,
-        1.4 * vs,
-        fillPaint..color = white.withValues(alpha: 0.8),
-      );
-      break;
-    case 'Air':
-      for (var i = 0; i < 2; i++) {
-        final path = ui.Path();
-        for (var j = 0; j < 6; j++) {
-          final t = j / 5;
-          final p =
-              position -
-              dir * (12 - t * 12) * vs +
-              perp * sin(t * pi + i * pi) * 4.5 * vs;
-          if (j == 0) {
-            path.moveTo(p.dx, p.dy);
-          } else {
-            path.lineTo(p.dx, p.dy);
-          }
-        }
-        canvas.drawPath(
-          path,
-          strokePaint
-            ..color = color.withValues(alpha: 0.30)
-            ..strokeWidth = 1.1 * vs
-            ..maskFilter = null,
-        );
-      }
-      drawDartHead(length: 5.0, width: 2.8);
-      break;
-    case 'Plant':
-      drawTail(width: 3.0, alpha: 0.20);
-      final vine = ui.Path()
-        ..moveTo(tail.dx, tail.dy)
-        ..quadraticBezierTo(
-          position.dx - dir.dx * 7 * vs + perp.dx * 5 * vs,
-          position.dy - dir.dy * 7 * vs + perp.dy * 5 * vs,
-          position.dx,
-          position.dy,
-        );
-      canvas.drawPath(
-        vine,
-        strokePaint
-          ..color = color.withValues(alpha: 0.50)
-          ..strokeWidth = 1.8 * vs
-          ..maskFilter = null,
-      );
-      drawDartHead(length: 5.8, width: 3.2);
-      break;
-    case 'Poison':
-      drawTail(width: 3.6, alpha: 0.24);
-      canvas.drawCircle(
-        position,
-        5.2 * vs * pulse,
-        fillPaint
-          ..color = color.withValues(alpha: 0.24)
-          ..maskFilter = null,
-      );
-      fillPaint
-        ..color = const ui.Color(0xFFD98CFF).withValues(alpha: 0.65)
-        ..maskFilter = null;
-      canvas.drawCircle(position + perp * 2.2 * vs, 1.3 * vs, fillPaint);
-      drawDartHead(length: 5.4, width: 3.4);
-      break;
-    case 'Spirit':
-      drawTail(width: 3.2, alpha: 0.20);
-      _drawSpiritHalo(canvas, position, color, 6.2 * vs, vs, time);
-      drawDartHead(length: 5.3, width: 3.0);
-      break;
-    case 'Dark':
-      drawTail(width: 4.2, alpha: 0.24);
-      canvas.drawCircle(
-        position,
-        6.2 * vs,
-        fillPaint
-          ..color = const ui.Color(0xFF05020A).withValues(alpha: 0.70)
-          ..maskFilter = null,
-      );
-      drawDartHead(length: 6.2, width: 3.6);
-      break;
-    case 'Light':
-      drawTail(width: 3.4, alpha: 0.22);
-      _drawLightCrown(canvas, position, color, 5.6 * vs, vs, time);
-      drawDartHead(length: 5.4, width: 3.0);
-      break;
-    case 'Blood':
-      drawTail(width: 4.8, alpha: 0.26);
-      canvas.drawCircle(
-        position,
-        5.8 * vs,
-        fillPaint
-          ..color = color.withValues(alpha: 0.84)
-          ..maskFilter = null,
-      );
-      canvas.drawCircle(
-        position + dir * 1.5 * vs,
-        1.8 * vs,
-        fillPaint..color = const ui.Color(0xFFFFB4B4).withValues(alpha: 0.68),
-      );
-      break;
-    default:
-      drawTail();
-      drawDartHead();
-  }
-
-  // Remaining bounces used to be told THREE ways at once: a stroked ring sized
-  // by the count, a set of dots orbiting the head, and (once the special frame
-  // added them) chevrons behind it. Stacked on top of the element accents,
-  // every dart ended up wearing a halo of circles and the shape underneath was
-  // lost — which is most of why the family read as beads rather than darts.
-  //
-  // The chevrons are kept because they are the only one of the three that has
-  // a direction: they sit behind the head and point the way it is going, so
-  // they say "travelling and spending itself" rather than "orbited by rings".
-  //
-  // Intercept charges keep a ring of their own, below: that one marks a real
-  // radius the dart defends, so a circle is the honest shape for it.
-  if (projectile.interceptCharges > 0) {
-    strokePaint
-      ..color = white.withValues(alpha: 0.46)
-      ..strokeWidth = 0.9 * vs
-      ..maskFilter = null;
-    canvas.drawCircle(position, 8.0 * vs, strokePaint);
-  }
-  if (projectile.snareRadius > 0) {
-    strokePaint
-      ..color = color.withValues(alpha: 0.26)
-      ..strokeWidth = 1.0 * vs
-      ..maskFilter = null;
-    canvas.drawCircle(
-      position,
-      (projectile.snareRadius * 0.13).clamp(5.5, 12.0) * vs,
-      strokePaint,
-    );
-  }
-
+  // The art lives in pip_vfx.dart.
+  drawPipDart(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    time: time,
+    special: projectile.abilityFamily == 'pip',
+  );
   return true;
 }
 
@@ -3096,548 +1730,24 @@ bool drawHornElementalProjectileVisual({
   required ui.Color color,
   required double time,
 }) {
-  final element = projectile.element;
-  if (element == null ||
+  if (projectile.element == null ||
       projectile.visualStyle != ProjectileVisualStyle.hornImpact) {
     return false;
   }
-
-  final vs = projectile.visualScale.clamp(0.75, 3.1).toDouble();
-  final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
-  final perp = ui.Offset(-dir.dy, dir.dx);
-  final pulse = 0.72 + 0.28 * sin(time * 4.2 + projectile.life * 1.8);
-  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.42)!;
-  final radius = (7.0 * projectile.radiusMultiplier * vs).clamp(7.0, 34.0);
-  final tailLen = (projectile.stationary ? 5.0 : 18.0) * vs;
-  final tail = position - dir * tailLen;
-
-  void drawRamCore({double width = 5.0, double glow = 12.0}) {
-    if (!projectile.stationary) {
-      canvas.drawLine(
-        tail,
-        position,
-        ui.Paint()
-          ..color = color.withValues(alpha: 0.22)
-          ..strokeWidth = glow * vs
-          ..strokeCap = ui.StrokeCap.round
-          ..maskFilter = null,
-      );
-    }
-    final head = ui.Path()
-      ..moveTo(
-        position.dx + dir.dx * radius * 0.95,
-        position.dy + dir.dy * radius * 0.95,
-      )
-      ..lineTo(
-        position.dx - dir.dx * radius * 0.55 + perp.dx * radius * 0.72,
-        position.dy - dir.dy * radius * 0.55 + perp.dy * radius * 0.72,
-      )
-      ..lineTo(
-        position.dx - dir.dx * radius * 0.25,
-        position.dy - dir.dy * radius * 0.25,
-      )
-      ..lineTo(
-        position.dx - dir.dx * radius * 0.55 - perp.dx * radius * 0.72,
-        position.dy - dir.dy * radius * 0.55 - perp.dy * radius * 0.72,
-      )
-      ..close();
-    canvas.drawPath(
-      head,
-      ui.Paint()
-        ..color = color.withValues(alpha: 0.88)
-        ..maskFilter = null,
-    );
-    canvas.drawPath(
-      head,
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = max(1.0, width * 0.26) * vs
-        ..color = white.withValues(alpha: 0.64),
+  // The art lives in horn_vfx.dart.
+  if (!drawHornZoneVisual(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    time: time,
+  )) {
+    drawHornMote(
+      canvas: canvas,
+      projectile: projectile,
+      position: position,
+      time: time,
     );
   }
-
-  void drawGuardRings() {
-    final snareR = projectile.snareRadius > 0
-        ? (projectile.snareRadius * 0.25).clamp(14.0, 62.0)
-        : 0.0;
-    final tauntR = projectile.tauntRadius > 0
-        ? (projectile.tauntRadius * 0.15).clamp(18.0, 68.0)
-        : 0.0;
-    final interceptR = projectile.interceptRadius > 0
-        ? (projectile.interceptRadius * 0.72).clamp(16.0, 52.0)
-        : 0.0;
-    final guardR = max(snareR, max(tauntR, interceptR));
-    if (guardR <= 0) return;
-
-    // Per design feedback: removed the outer stroke-ring "indicator
-    // outline" on guard zones — just the inner soft fill + intercept
-    // spokes carry the read without a hard outline.
-    if (projectile.tauntRadius > 0) {
-      canvas.drawCircle(
-        position,
-        guardR * 0.58,
-        ui.Paint()
-          ..color = color.withValues(alpha: 0.09)
-          ..maskFilter = null,
-      );
-    }
-    if (projectile.interceptCharges > 0) {
-      for (var i = 0; i < 4; i++) {
-        final a = time * 1.8 + i * pi / 2;
-        canvas.drawLine(
-          position + ui.Offset(cos(a), sin(a)) * guardR * 0.55,
-          position + ui.Offset(cos(a), sin(a)) * guardR,
-          ui.Paint()
-            ..color = white.withValues(alpha: 0.46)
-            ..strokeWidth = 1.4 * vs
-            ..strokeCap = ui.StrokeCap.round,
-        );
-      }
-    }
-  }
-
-  switch (element) {
-    case 'Lightning':
-      if (projectile.stationary &&
-          projectile.tickEffect == AbilityEffectKind.chain) {
-        // Horn+Lightning chain shockwave — minimal painter; the
-        // burst visual is a particle storm spawned survival-side
-        // (one-shot on release + per-frame flash sparkles). Painter
-        // just renders a bright pulsing core so there's a stable
-        // anchor under the particle cloud.
-        final pulse2 = 0.78 + 0.22 * sin(time * 8.0 + projectile.life * 6.0);
-        canvas.drawCircle(
-          position,
-          18.0 * vs * pulse2,
-          ui.Paint()
-            ..color = color.withValues(alpha: 0.18 * pulse2)
-            ..maskFilter = null,
-        );
-        canvas.drawCircle(
-          position,
-          10.0 * vs * pulse2,
-          ui.Paint()
-            ..color = white.withValues(alpha: 0.55 * pulse2)
-            ..maskFilter = null,
-        );
-        canvas.drawCircle(
-          position,
-          4.0 * vs,
-          ui.Paint()
-            ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.90)
-            ..maskFilter = null,
-        );
-      } else {
-        drawRamCore(width: 3.2, glow: 8.0);
-        for (var i = 0; i < 2; i++) {
-          final side = i == 0 ? -1.0 : 1.0;
-          canvas.drawLine(
-            tail + perp * side * 5.0 * vs,
-            position + dir * 5.0 * vs - perp * side * 4.0 * vs,
-            ui.Paint()
-              ..color = white.withValues(alpha: 0.62)
-              ..strokeWidth = 1.2 * vs
-              ..strokeCap = ui.StrokeCap.round,
-          );
-        }
-      }
-      break;
-    case 'Water':
-      if (projectile.stationary) {
-        // Whirlpool — faint hazy disc, no hard rings or bright pip.
-        // The spiral pull motion is conveyed entirely by the per-
-        // frame particle stream spawned survival-side.
-        final whirlR = max(40.0, projectile.radiusMultiplier * 18.0 + 20.0);
-        final pulseW = 0.82 + 0.18 * sin(time * 2.3 + projectile.life * 1.6);
-        for (var i = 4; i >= 1; i--) {
-          canvas.drawCircle(
-            position,
-            whirlR * (0.45 + i * 0.16),
-            ui.Paint()
-              ..color = color.withValues(alpha: (0.025 + i * 0.022) * pulseW)
-              ..maskFilter = null,
-          );
-        }
-      } else {
-        drawRamCore(width: 4.2, glow: 10.0);
-        for (final side in [-1.0, 1.0]) {
-          final path = ui.Path()
-            ..moveTo(tail.dx, tail.dy)
-            ..quadraticBezierTo(
-              position.dx + perp.dx * side * 12.0 * vs,
-              position.dy + perp.dy * side * 12.0 * vs,
-              position.dx + dir.dx * 8.0 * vs,
-              position.dy + dir.dy * 8.0 * vs,
-            );
-          canvas.drawPath(
-            path,
-            ui.Paint()
-              ..color = color.withValues(alpha: 0.34)
-              ..style = ui.PaintingStyle.stroke
-              ..strokeWidth = 1.7 * vs
-              ..strokeCap = ui.StrokeCap.round,
-          );
-        }
-      }
-      break;
-    case 'Ice':
-      if (projectile.stationary) {
-        // Ice wall segment / frost field: soft layered halo + small
-        // bright core pip. Crystalline frost detail is conveyed by
-        // the per-frame frost-mote particle drift survival-side.
-        final iceR = max(20.0, projectile.radiusMultiplier * 16.0 + 8.0);
-        final pulseI = 0.82 + 0.18 * sin(time * 3.0 + projectile.life * 1.6);
-        for (var i = 3; i >= 1; i--) {
-          canvas.drawCircle(
-            position,
-            iceR * (0.45 + i * 0.18),
-            ui.Paint()
-              ..color = color.withValues(alpha: (0.06 + i * 0.04) * pulseI)
-              ..maskFilter = null,
-          );
-        }
-        canvas.drawCircle(
-          position,
-          4.0 * vs,
-          ui.Paint()
-            ..color = white.withValues(alpha: 0.65 * pulseI)
-            ..maskFilter = null,
-        );
-        canvas.drawCircle(
-          position,
-          2.0 * vs,
-          ui.Paint()
-            ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.85)
-            ..maskFilter = null,
-        );
-      } else {
-        drawRamCore(width: 5.8, glow: 12.0);
-        _drawFrostStar(canvas, position, white, radius * 1.25, vs, time);
-      }
-      break;
-    case 'Steam':
-      if (projectile.stationary) {
-        // Steam geyser: soft white-blue glow + bright core. Rising
-        // steam puffs come from the per-frame particle hook.
-        final steamR = max(38.0, projectile.radiusMultiplier * 18.0 + 18.0);
-        final pulseS = 0.80 + 0.20 * sin(time * 3.2 + projectile.life * 2.0);
-        for (var i = 3; i >= 1; i--) {
-          canvas.drawCircle(
-            position,
-            steamR * (0.5 + i * 0.18),
-            ui.Paint()
-              ..color = color.withValues(alpha: (0.05 + i * 0.04) * pulseS)
-              ..maskFilter = null,
-          );
-        }
-        canvas.drawCircle(
-          position,
-          5.0 * vs,
-          ui.Paint()
-            ..color = white.withValues(alpha: 0.55 * pulseS)
-            ..maskFilter = null,
-        );
-        canvas.drawCircle(
-          position,
-          2.4 * vs,
-          ui.Paint()
-            ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.85)
-            ..maskFilter = null,
-        );
-      } else {
-        drawRamCore(width: 5.6, glow: 13.0);
-        for (var i = 0; i < 4; i++) {
-          final drift = i.toDouble();
-          canvas.drawCircle(
-            position + perp * sin(time * 2.2 + drift) * 8.0 * vs,
-            (6.0 + drift) * vs,
-            ui.Paint()
-              ..color = color.withValues(alpha: 0.12)
-              ..maskFilter = null,
-          );
-        }
-      }
-      break;
-    case 'Earth':
-      if (projectile.stationary) {
-        // Substitute clone — much softer. The cracked-earth pool
-        // underneath does most of the silhouette work; the chunky
-        // asteroid body on top is now translucent and rim-less so
-        // it reads as a hazy stone presence rather than a solid
-        // sprite cutout. No outline stroke.
-        final earthRadius = max(36.0, radius * 2.4);
-        _paintEarthPool(canvas, position, earthRadius, color, time, pulse, vs);
-        final body = ui.Path();
-        const points = 13;
-        final wobBase = earthRadius * 0.58;
-        for (var i = 0; i < points; i++) {
-          final a = i * pi * 2 / points;
-          final wob = wobBase * (0.88 + 0.20 * sin(i * 2.17 + 0.7));
-          final p = position + ui.Offset(cos(a), sin(a)) * wob;
-          if (i == 0) {
-            body.moveTo(p.dx, p.dy);
-          } else {
-            body.lineTo(p.dx, p.dy);
-          }
-        }
-        body.close();
-        final base = ui.Color.lerp(color, const ui.Color(0xFF4A362B), 0.32)!;
-        final high = ui.Color.lerp(color, const ui.Color(0xFFE2C6A8), 0.30)!;
-        final low = ui.Color.lerp(color, const ui.Color(0xFF241915), 0.45)!;
-        // Translucent body fill, no outline.
-        canvas.drawPath(body, ui.Paint()..color = base.withValues(alpha: 0.42));
-        // Soft highlight + shadow lobes (alpha halved).
-        canvas.drawCircle(
-          position + ui.Offset(-wobBase * 0.22, -wobBase * 0.18),
-          wobBase * 0.30,
-          ui.Paint()..color = high.withValues(alpha: 0.18),
-        );
-        canvas.drawCircle(
-          position + ui.Offset(wobBase * 0.20, wobBase * 0.20),
-          wobBase * 0.26,
-          ui.Paint()..color = low.withValues(alpha: 0.14),
-        );
-      } else {
-        drawRamCore(width: 7.0, glow: 15.0);
-        _drawCrackedPlate(canvas, position, color, radius * 1.4, vs, time);
-      }
-      break;
-    case 'Lava':
-      drawRamCore(width: 7.2, glow: 16.0);
-      canvas.drawCircle(
-        position + dir * 2.0 * vs - perp * 2.0 * vs,
-        2.4 * vs,
-        ui.Paint()..color = const ui.Color(0xFFFFE0A0).withValues(alpha: 0.78),
-      );
-      break;
-    case 'Mud':
-      drawRamCore(width: 7.0, glow: 15.0);
-      canvas.drawOval(
-        ui.Rect.fromCenter(
-          center: position,
-          width: radius * 2.2,
-          height: radius * 1.25,
-        ),
-        ui.Paint()
-          ..color = color.withValues(alpha: 0.18)
-          ..maskFilter = null,
-      );
-      break;
-    case 'Dust':
-      if (projectile.stationary) {
-        // Dust cyclone — extra-faint hazy disc. The bulk of the
-        // visual is the per-frame swirling dust motes spawned
-        // survival-side. No bright core, just a soft cloud.
-        final dustR = max(36.0, projectile.radiusMultiplier * 18.0 + 16.0);
-        final pulseD = 0.85 + 0.15 * sin(time * 2.4 + projectile.life * 1.6);
-        for (var i = 3; i >= 1; i--) {
-          canvas.drawCircle(
-            position,
-            dustR * (0.45 + i * 0.20),
-            ui.Paint()
-              ..color = color.withValues(alpha: (0.03 + i * 0.025) * pulseD)
-              ..maskFilter = null,
-          );
-        }
-      } else {
-        drawRamCore(width: 3.0, glow: 8.0);
-        _drawDustCloud(canvas, position, color, radius * 1.2, vs, time);
-      }
-      break;
-    case 'Crystal':
-      if (projectile.orbitRadius > 0 && projectile.holdOrbit) {
-        // Horn+Crystal orbital shard — minimal body. Per-frame
-        // _VfxParticle sparkles do the visual work. Painter only
-        // draws a bright sparkle pip so each shard has a clear
-        // pivot point as it orbits the horn.
-        final pipR = 2.4 * vs;
-        final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
-        canvas.drawCircle(
-          position,
-          pipR * 1.8,
-          ui.Paint()
-            ..color = white.withValues(alpha: 0.30 * pulse)
-            ..maskFilter = null,
-        );
-        canvas.drawCircle(
-          position,
-          pipR,
-          ui.Paint()
-            ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.85)
-            ..maskFilter = null,
-        );
-      } else {
-        drawRamCore(width: 4.8, glow: 10.0);
-        _drawCrystalSigil(canvas, position, color, radius * 1.1, vs, time);
-      }
-      break;
-    case 'Air':
-      drawRamCore(width: 3.5, glow: 9.0);
-      _drawAirSwirl(canvas, position, color, radius * 1.15, vs, time);
-      break;
-    case 'Plant':
-      drawRamCore(width: 5.2, glow: 12.0);
-      _drawVinePatch(canvas, position, color, radius * 1.1, vs, time);
-      break;
-    case 'Poison':
-      drawRamCore(width: 5.2, glow: 12.0);
-      canvas.drawCircle(
-        position,
-        radius * 1.35,
-        ui.Paint()
-          ..color = color.withValues(alpha: 0.12)
-          ..maskFilter = null,
-      );
-      break;
-    case 'Spirit':
-      if (projectile.decoy) {
-        // Horn+Spirit phantom decoy — minimal body. The visible
-        // bulk comes from the per-frame _VfxParticle wisps spawned
-        // in the projectile update. Painter only draws a faint
-        // bright core pip so there's something to anchor the
-        // particle swarm to.
-        final corePip = 2.2 * vs;
-        final ghostColor = ui.Color.lerp(
-          color,
-          const ui.Color(0xFFFFFFFF),
-          0.6,
-        )!;
-        canvas.drawCircle(
-          position,
-          corePip * 1.6,
-          ui.Paint()
-            ..color = ghostColor.withValues(alpha: 0.30 * pulse)
-            ..maskFilter = null,
-        );
-        canvas.drawCircle(
-          position,
-          corePip,
-          ui.Paint()
-            ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.85)
-            ..maskFilter = null,
-        );
-      } else {
-        drawRamCore(width: 4.5, glow: 11.0);
-        _drawSpiritHalo(canvas, position, color, radius * 1.25, vs, time);
-      }
-      break;
-    case 'Dark':
-      if (projectile.stationary) {
-        // Void zone: deep dark core with soft layered halo. Inward
-        // suck particles are spawned per-frame survival-side so the
-        // pull motion reads visually.
-        final voidR = max(40.0, projectile.radiusMultiplier * 18.0 + 24.0);
-        final pulseD = 0.78 + 0.22 * sin(time * 2.0 + projectile.life * 1.6);
-        for (var i = 3; i >= 1; i--) {
-          canvas.drawCircle(
-            position,
-            voidR * (0.45 + i * 0.20),
-            ui.Paint()
-              ..color = color.withValues(alpha: (0.08 + i * 0.04) * pulseD)
-              ..maskFilter = null,
-          );
-        }
-        canvas.drawCircle(
-          position,
-          voidR * 0.45,
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFF05020A,
-            ).withValues(alpha: 0.72 * pulseD)
-            ..maskFilter = null,
-        );
-        canvas.drawCircle(
-          position,
-          4.0 * vs,
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFB89AFF,
-            ).withValues(alpha: 0.55 * pulseD)
-            ..maskFilter = null,
-        );
-      } else {
-        drawRamCore(width: 5.2, glow: 13.0);
-        canvas.drawCircle(
-          position,
-          radius * 1.1,
-          ui.Paint()
-            ..color = const ui.Color(0xFF05020A).withValues(alpha: 0.48)
-            ..maskFilter = null,
-        );
-      }
-      break;
-    case 'Light':
-      if (projectile.stationary && projectile.reflectsProjectiles) {
-        // Horn+Light barrier: soft glowing dome instead of a
-        // crystal-crown silhouette. Several layered translucent
-        // rings with a bright pulsing core — reads as a protective
-        // bubble. Sized off the projectile's visualScale * radiusMul.
-        final domeR = max(60.0, projectile.radiusMultiplier * 20.0 + 70.0);
-        final pulse2 = 0.85 + 0.15 * sin(time * 2.0 + projectile.life * 1.4);
-        // 5 layered glow rings from soft to bright.
-        for (var i = 5; i >= 1; i--) {
-          canvas.drawCircle(
-            position,
-            domeR * (0.55 + i * 0.10),
-            ui.Paint()
-              ..color = color.withValues(alpha: (0.05 + i * 0.02) * pulse2)
-              ..maskFilter = null,
-          );
-        }
-        // Bright core wash.
-        canvas.drawCircle(
-          position,
-          domeR * 0.55,
-          ui.Paint()
-            ..color = ui.Color.lerp(
-              color,
-              const ui.Color(0xFFFFFFFF),
-              0.55,
-            )!.withValues(alpha: 0.22 * pulse2)
-            ..maskFilter = null,
-        );
-        // Hard rim line so the protection boundary reads clearly.
-        canvas.drawCircle(
-          position,
-          domeR,
-          ui.Paint()
-            ..style = ui.PaintingStyle.stroke
-            ..strokeWidth = 1.8
-            ..color = color.withValues(alpha: 0.42 * pulse2),
-        );
-        // Subtle slow-rotating sparkle ring along the perimeter so
-        // the dome feels alive rather than static.
-        for (var i = 0; i < 8; i++) {
-          final a = time * 0.6 + i * pi / 4;
-          canvas.drawCircle(
-            position + ui.Offset(cos(a), sin(a)) * domeR,
-            1.6,
-            ui.Paint()
-              ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.65)
-              ..maskFilter = null,
-          );
-        }
-      } else {
-        drawRamCore(width: 4.5, glow: 11.0);
-        _drawLightCrown(canvas, position, color, radius * 1.2, vs, time);
-      }
-      break;
-    case 'Blood':
-      drawRamCore(width: 5.5, glow: 13.0);
-      canvas.drawCircle(
-        position,
-        radius * 0.8 * pulse,
-        ui.Paint()
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 1.6 * vs
-          ..color = white.withValues(alpha: 0.48),
-      );
-      break;
-    default:
-      drawRamCore();
-  }
-
-  drawGuardRings();
   return true;
 }
 
@@ -3673,26 +1783,13 @@ void _drawMaskGroundZone({
   switch (element) {
     case 'Poison':
       if (projectile.abilityFamily == 'horn') {
-        // Horn passive trail — faint translucent splotch, no rim
-        // outline, much subtler than the standard poison pool so
-        // a moving horn doesn't paint a heavy green carpet.
-        canvas.drawCircle(
-          position,
-          zoneSize * 0.85,
-          ui.Paint()
-            ..color = color.withValues(alpha: 0.10 * pulse)
-            ..maskFilter = null,
-        );
-        canvas.drawCircle(
-          position,
-          zoneSize * 0.45,
-          ui.Paint()
-            ..color = ui.Color.lerp(
-              color,
-              const ui.Color(0xFF2B0E3A),
-              0.35,
-            )!.withValues(alpha: 0.13 * pulse)
-            ..maskFilter = null,
+        drawHornTrailPatch(
+          canvas: canvas,
+          element: 'Poison',
+          position: position,
+          radius: zoneSize,
+          time: time,
+          fade: (projectile.life / 0.5).clamp(0.0, 1.0),
         );
       } else {
         _paintPoisonPool(canvas, position, zoneSize, color, time, pulse, vs);
@@ -3703,10 +1800,14 @@ void _drawMaskGroundZone({
       break;
     case 'Mud':
       if (projectile.abilityFamily == 'horn') {
-        // Horn passive trail — looser, fainter, less geometric than
-        // the standard mud pool. Splatter-blob shape + low alpha so
-        // the running trail doesn't dominate the screen.
-        _paintHornMudTrail(canvas, position, zoneSize, color, time, pulse, vs);
+        drawHornTrailPatch(
+          canvas: canvas,
+          element: 'Mud',
+          position: position,
+          radius: zoneSize,
+          time: time,
+          fade: (projectile.life / 0.5).clamp(0.0, 1.0),
+        );
       } else {
         _paintMudPool(canvas, position, zoneSize, color, time, pulse, vs);
       }
@@ -3739,19 +1840,14 @@ void _drawMaskGroundZone({
         );
       }
       if (projectile.abilityFamily == 'horn') {
-        // Horn Fire trail segment — much fainter than the standard
-        // flame-tongue field. Just a soft warm haze; the dynamic
-        // visual comes from per-frame ember particles spawned
-        // survival-side.
-        for (var i = 3; i >= 1; i--) {
-          canvas.drawCircle(
-            position,
-            zoneSize * (0.40 + i * 0.20),
-            ui.Paint()
-              ..color = color.withValues(alpha: (0.04 + i * 0.025) * pulse)
-              ..maskFilter = null,
-          );
-        }
+        drawHornTrailPatch(
+          canvas: canvas,
+          element: 'Fire',
+          position: position,
+          radius: zoneSize,
+          time: time,
+          fade: (projectile.life / 0.5).clamp(0.0, 1.0),
+        );
       } else {
         _paintFireZone(
           canvas,
@@ -4148,67 +2244,6 @@ void _paintLavaPool(
       0xFFFFD160,
     ).withValues(alpha: twinkle * 0.85 * pulse);
     canvas.drawCircle(p, 1.6 * vs + (h % 9) * 0.12, ember);
-  }
-}
-
-// Horn-passive Mud trail — sloppier and fainter than the standard
-// mud pool. No geometric 90° lump pattern; uses jittered splatter
-// blobs and a soft irregular silhouette so a moving horn paints a
-// looser organic trail. Cheap (handful of draws, no blur).
-void _paintHornMudTrail(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Use the projectile's life/position-driven hash to pick a stable
-  // "blob shape" per puff so it doesn't shimmer between frames.
-  final seed = position.dx.floor() * 7919 + position.dy.floor() * 6113;
-  // Irregular silhouette: 9-point wobbly disc instead of perfect ring.
-  final body = ui.Path();
-  const points = 9;
-  for (var i = 0; i < points; i++) {
-    final a = i * pi * 2 / points;
-    // Stable per-vertex wobble (no time drift — keeps the trail calm).
-    final wob = 0.78 + 0.32 * ((seed + i * 37) % 100) / 100.0;
-    final p = position + ui.Offset(cos(a), sin(a)) * radius * 0.95 * wob;
-    if (i == 0) {
-      body.moveTo(p.dx, p.dy);
-    } else {
-      body.lineTo(p.dx, p.dy);
-    }
-  }
-  body.close();
-  // Soft body fill — much fainter than the standard mud pool's 0.40.
-  canvas.drawPath(
-    body,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.20 * pulse)
-      ..maskFilter = null,
-  );
-  // Faint inner darker patch for a little depth.
-  final innerColor = ui.Color.lerp(color, const ui.Color(0xFF221008), 0.45)!;
-  canvas.drawCircle(
-    position,
-    radius * 0.55,
-    ui.Paint()
-      ..color = innerColor.withValues(alpha: 0.18 * pulse)
-      ..maskFilter = null,
-  );
-  // Scattered splatter dots — random-feeling positions seeded by the
-  // puff so they don't move between frames. 5 dots is enough to read
-  // as "splatter" without overdrawing.
-  final dotPaint = ui.Paint()..maskFilter = null;
-  for (var i = 0; i < 5; i++) {
-    final h = (seed + i * 131) & 0xFFFF;
-    final a = (h % 360) * pi / 180;
-    final r = radius * (0.20 + ((h >> 4) % 80) / 100.0);
-    final p = position + ui.Offset(cos(a), sin(a)) * r;
-    dotPaint.color = innerColor.withValues(alpha: 0.32 * pulse);
-    canvas.drawCircle(p, 1.6 * vs + (h % 9) * 0.18, dotPaint);
   }
 }
 
@@ -5388,6 +3423,16 @@ bool drawMaskElementalProjectileVisual({
 
   final element = projectile.element;
   if (element == null) return false;
+
+  // Pip's kill pools, clouds, beacon, black hole, vein and mud (pip_vfx.dart).
+  if (drawPipGroundVisual(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    time: time,
+  )) {
+    return true;
+  }
 
   if (drawMaskTrapFixture(
     canvas: canvas,
@@ -8916,77 +6961,15 @@ void drawMysticMaw({
   required double alpha,
   required double time,
 }) {
-  final a = alpha;
-  final horizon = horizonRadius * open;
-  final violet = const ui.Color(0xFFB89AFF);
-  final deep = const ui.Color(0xFF12061F);
-
-  // Two beats laid over one another — a slow swell with a faster flutter
-  // inside it — so the hole never settles into a metronome. A single sine was
-  // a machine breathing; this is something alive that does not repeat cleanly.
-  final pulse = 1.0 + 0.075 * sin(time * 0.62) + 0.035 * sin(time * 1.63 + 1.1);
-  // The light bends harder on the swell, which is what actually sells it as
-  // gravity rather than as a circle changing size.
-  final bend = 0.5 + 0.5 * sin(time * 0.62);
-
-  // NO boundary ring. There was one faint circle left marking the reach of the
-  // pull and it still read as a ring drawn around a thing — the drag is legible
-  // from the bodies sliding toward the mouth, which is the honest signal, and
-  // a hole in space does not come with an outline.
-
-  // Accretion: two arcs close to the mouth, shearing against each other.
-  final arcPaint = ui.Paint()..style = ui.PaintingStyle.stroke;
-  for (var ring = 0; ring < 2; ring++) {
-    final rr = horizon * (1.9 + ring * 0.75) * pulse;
-    final turn = spin * (1.0 + ring * 0.5) + ring * 2.1;
-    arcPaint
-      ..strokeWidth = (2.8 - ring * 0.8) * (0.8 + 0.5 * bend)
-      ..color = ui.Color.lerp(
-        violet,
-        const ui.Color(0xFFFFFFFF),
-        ring * 0.25,
-      )!.withValues(alpha: (0.30 - ring * 0.10) * a * (0.7 + 0.6 * bend));
-    canvas.drawArc(
-      ui.Rect.fromCircle(center: centre, radius: rr),
-      turn,
-      2.4 - ring * 0.5,
-      false,
-      arcPaint,
-    );
-  }
-
-  // The hole: a hard black disc with a bright rim, so it reads as an absence
-  // rather than as a dark sphere.
-  canvas.drawCircle(
-    centre,
-    horizon * 1.35 * pulse,
-    ui.Paint()..color = deep.withValues(alpha: 0.55 * a),
-  );
-  canvas.drawCircle(
-    centre,
-    horizon * pulse,
-    ui.Paint()..color = const ui.Color(0xFF000000).withValues(alpha: 0.96 * a),
-  );
-  canvas.drawCircle(
-    centre,
-    horizon * pulse,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.8 + 1.6 * bend
-      ..color = violet.withValues(alpha: (0.55 + 0.40 * bend) * a),
-  );
-  // Light bending round the rim, sweeping with the swell.
-  canvas.drawArc(
-    ui.Rect.fromCircle(center: centre, radius: horizon * 1.12 * pulse),
-    -spin * 0.8,
-    1.2 + 0.7 * bend,
-    false,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..color = const ui.Color(
-        0xFFFFFFFF,
-      ).withValues(alpha: (0.35 + 0.45 * bend) * a),
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticMaw(
+    canvas: canvas,
+    centre: centre,
+    horizonRadius: horizonRadius,
+    open: open,
+    spin: spin,
+    alpha: alpha,
+    time: time,
   );
 }
 
@@ -9242,55 +7225,18 @@ void drawMysticRevenant({
   required double time,
   required double seed,
 }) {
-  final a = alpha * (life < 1.5 ? (life / 1.5).clamp(0.0, 1.0) : 1.0);
-  final pulse = 0.72 + 0.28 * sin(time * 4.2 + seed);
-  final rr = radius * (0.55 + 0.45 * rise);
-
-  // A short wake behind the heading, so it reads as something moving
-  // under its own will rather than a floating pickup.
-  final v = velocity;
-  if (v.distance > 1) {
-    final back = -v / v.distance;
-    for (var i = 1; i <= 3; i++) {
-      canvas.drawCircle(
-        position + back * (rr * 1.25 * i),
-        rr * (0.72 - i * 0.16),
-        ui.Paint()
-          ..color = const ui.Color(0xFFAFC4FF).withValues(alpha: 0.16 * a / i),
-      );
-    }
-  }
-
-  canvas.drawCircle(
-    position,
-    rr * 2.1,
-    ui.Paint()
-      ..color = const ui.Color(0xFF8FA8FF).withValues(alpha: 0.14 * a * pulse),
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticRevenant(
+    canvas: canvas,
+    position: position,
+    velocity: velocity,
+    radius: radius,
+    rise: rise,
+    life: life,
+    alpha: alpha,
+    time: time,
+    seed: seed,
   );
-  canvas.drawCircle(
-    position,
-    rr,
-    ui.Paint()..color = const ui.Color(0xFFE8EEFF).withValues(alpha: 0.82 * a),
-  );
-  canvas.drawCircle(
-    position,
-    rr * 0.46,
-    ui.Paint()
-      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.95 * a * pulse),
-  );
-  // The turn itself: a ring that expands once as the body changes sides.
-  if (rise < 1) {
-    canvas.drawCircle(
-      position,
-      rr * (1.4 + rise * 3.2),
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1.8
-        ..color = const ui.Color(
-          0xFFFFFFFF,
-        ).withValues(alpha: 0.55 * (1.0 - rise) * a),
-    );
-  }
 }
 
 /// One bolt from a Lightning Mystic's storm: a jagged fall out of the dark
@@ -9349,16 +7295,12 @@ void drawMysticLightningBolt({
   canvas.drawPath(path, glow);
 
   // Ground flash, spreading as it dies.
-  final flash = (onBoss ? 58.0 : 38.0) * (1.0 + (1.0 - t) * 1.6);
-  canvas.drawCircle(
-    strike,
-    flash,
-    ui.Paint()..color = const ui.Color(0xFF9FCCFF).withValues(alpha: 0.20 * a),
-  );
-  canvas.drawCircle(
-    strike,
-    flash * 0.34,
-    ui.Paint()..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.55 * a),
+  paintMysticBoltImpact(
+    canvas: canvas,
+    strike: strike,
+    t: t,
+    a: a,
+    onBoss: onBoss,
   );
 }
 
@@ -9375,53 +7317,14 @@ void drawMysticQuake({
   required double progress,
   required ui.Color earth,
 }) {
-  final t = progress.clamp(0.0, 1.0);
-  if (t >= 1) return;
-  // Races out and slows, the way a front loses energy.
-  final eased = 1.0 - (1.0 - t) * (1.0 - t);
-  final a = (1.0 - t) * (1.0 - t);
-  final r = radius * eased;
-
-  // Subtler than it was. The screen itself shakes for a quake now, so the ring
-  // only has to say WHERE the front is — a heavy ring with bright cracks was
-  // doing all the work of conveying force on its own, and looked like a decal
-  // for it.
-  final ring = ui.Paint()..style = ui.PaintingStyle.stroke;
-  ring
-    ..strokeWidth = 10.0 * a + 1.5
-    ..color = earth.withValues(alpha: 0.20 * a);
-  canvas.drawCircle(centre, r, ring);
-  ring
-    ..strokeWidth = 3.0 * a + 0.8
-    ..color = ui.Color.lerp(
-      earth,
-      const ui.Color(0xFFFFE2A8),
-      0.5,
-    )!.withValues(alpha: 0.34 * a);
-  canvas.drawCircle(centre, r * 0.97, ring);
-
-  // Cracks: short radial splits trailing the front.
-  final crack = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeWidth = 2.2
-    ..strokeCap = ui.StrokeCap.round
-    ..color = earth.withValues(alpha: 0.24 * a);
-  for (var i = 0; i < 8; i++) {
-    final ang = i * (pi * 2 / 8) + 0.21;
-    final dir = ui.Offset(cos(ang), sin(ang));
-    final inner = r * 0.72;
-    final jag = ui.Path()
-      ..moveTo(centre.dx + dir.dx * inner, centre.dy + dir.dy * inner);
-    for (var k = 1; k <= 3; k++) {
-      final f = inner + (r - inner) * (k / 3);
-      final off = ui.Offset(-dir.dy, dir.dx) * (sin(i * 2.7 + k) * 12.0);
-      jag.lineTo(
-        centre.dx + dir.dx * f + off.dx,
-        centre.dy + dir.dy * f + off.dy,
-      );
-    }
-    canvas.drawPath(jag, crack);
-  }
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticQuake(
+    canvas: canvas,
+    centre: centre,
+    radius: radius,
+    progress: progress,
+    earth: earth,
+  );
 }
 
 /// One patch of a Poison Mystic's trail.
@@ -9438,36 +7341,15 @@ void drawMysticPoisonPatch({
   required double time,
   required ui.Color poison,
 }) {
-  if (alpha <= 0.01) return;
-  final body = ui.Paint()..color = poison.withValues(alpha: 0.20 * alpha);
-  for (var i = 0; i < 5; i++) {
-    final ang = seed + i * 1.27;
-    final off = ui.Offset(cos(ang), sin(ang)) * (radius * 0.30);
-    canvas.drawCircle(
-      centre + off,
-      radius * (0.62 + 0.16 * sin(seed + i)),
-      body,
-    );
-  }
-  canvas.drawCircle(
-    centre,
-    radius * 0.58,
-    ui.Paint()..color = poison.withValues(alpha: 0.26 * alpha),
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticPoisonPatch(
+    canvas: canvas,
+    centre: centre,
+    radius: radius,
+    alpha: alpha,
+    seed: seed,
+    time: time,
   );
-
-  // Bubbles surfacing and popping, so the patch is alive rather than a stain.
-  final bubble = ui.Paint()
-    ..color = ui.Color.lerp(
-      poison,
-      const ui.Color(0xFFEAFFD0),
-      0.6,
-    )!.withValues(alpha: 0.55 * alpha);
-  for (var i = 0; i < 3; i++) {
-    final phase = (time * 0.7 + seed + i * 0.41) % 1.0;
-    final ang = seed * 2.1 + i * 2.09;
-    final at = centre + ui.Offset(cos(ang), sin(ang)) * (radius * 0.42);
-    canvas.drawCircle(at, (1.4 + 2.6 * phase) * (1.0 - phase), bubble);
-  }
 }
 
 /// Ground cover a Mystic world grows on the map — small, per-element, and
@@ -9504,6 +7386,18 @@ void drawMysticFlora({
   required double time,
   required ui.Color tint,
 }) {
+  // Fire, Poison, Ice and Spirit are drawn in mystic_world_vfx.dart.
+  if (paintMysticFlora(
+    canvas: canvas,
+    at: at,
+    element: element,
+    size: size,
+    bloom: bloom,
+    seed: seed,
+    time: time,
+  )) {
+    return;
+  }
   if (bloom <= 0.02) return;
   final grow = bloom * size;
   // Every element's ground cover was built against Plant's sprout and came out
@@ -9787,49 +7681,14 @@ void drawMysticStormCharge({
   required double seed,
   required double time,
 }) {
-  final t = progress.clamp(0.0, 1.0);
-  // Comes up fast and holds, so the mark is legible for most of the wind-up
-  // rather than only at the end.
-  final a = (t * 3.2).clamp(0.0, 1.0);
-  const outer = 96.0;
-  final ring = outer * (1.0 - 0.62 * t);
-  final pale = const ui.Color(0xFFBFE0FF);
-
-  canvas.drawCircle(
-    at,
-    ring,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.4 + 2.2 * t
-      ..color = pale.withValues(alpha: 0.34 * a),
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticStormCharge(
+    canvas: canvas,
+    at: at,
+    progress: progress,
+    seed: seed,
+    time: time,
   );
-  // Sparks running inward along the ring, converging on the point.
-  final spark = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round
-    ..strokeWidth = 1.6
-    ..color = pale.withValues(alpha: 0.55 * a);
-  for (var i = 0; i < 6; i++) {
-    final ang = seed + i * (pi * 2 / 6) + time * 2.4;
-    final dir = ui.Offset(cos(ang), sin(ang));
-    canvas.drawLine(at + dir * ring, at + dir * (ring * 0.62), spark);
-  }
-  // The ground under it brightening as the charge builds.
-  canvas.drawCircle(
-    at,
-    ring * 0.30,
-    ui.Paint()..color = pale.withValues(alpha: 0.10 + 0.45 * t * t),
-  );
-  // A last hard pip at the moment before it lands.
-  if (t > 0.82) {
-    final snap = (t - 0.82) / 0.18;
-    canvas.drawCircle(
-      at,
-      4.0 + 10.0 * snap,
-      ui.Paint()
-        ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.8 * snap),
-    );
-  }
 }
 
 /// A Crystal world's shard, waiting to be collected.
@@ -9841,47 +7700,13 @@ void drawMysticCrystalShard({
   required double time,
   required ui.Color tint,
 }) {
-  if (alpha <= 0.01) return;
-  // Turns slowly and catches the light, so it reads as something valuable
-  // rather than as another projectile lying on the floor.
-  final spin = time * 1.1 + seed;
-  final facet = 0.72 + 0.28 * sin(time * 2.6 + seed);
-  final bob = sin(time * 2.2 + seed) * 2.0;
-  final c = at + ui.Offset(0, bob);
-  final bright = ui.Color.lerp(tint, const ui.Color(0xFFFFFFFF), 0.55)!;
-
-  canvas.drawCircle(
-    c,
-    13.0,
-    ui.Paint()..color = tint.withValues(alpha: 0.14 * alpha * facet),
-  );
-  // A cut gem: two mirrored tapers meeting at the waist.
-  final h = 9.0;
-  final w = 5.4;
-  final dir = ui.Offset(cos(spin), sin(spin));
-  final side = ui.Offset(-dir.dy, dir.dx);
-  final body = ui.Path()
-    ..moveTo(c.dx + dir.dx * h, c.dy + dir.dy * h)
-    ..lineTo(c.dx + side.dx * w, c.dy + side.dy * w)
-    ..lineTo(c.dx - dir.dx * h, c.dy - dir.dy * h)
-    ..lineTo(c.dx - side.dx * w, c.dy - side.dy * w)
-    ..close();
-  canvas.drawPath(
-    body,
-    ui.Paint()..color = tint.withValues(alpha: 0.88 * alpha),
-  );
-  canvas.drawPath(
-    body,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.1
-      ..color = bright.withValues(alpha: 0.75 * alpha),
-  );
-  canvas.drawCircle(
-    c,
-    2.0 * facet,
-    ui.Paint()
-      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.9 * alpha),
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticCrystalShard(
+    canvas: canvas,
+    at: at,
+    alpha: alpha,
+    seed: seed,
+    time: time,
   );
 }
 
@@ -9897,130 +7722,15 @@ void drawMysticDawnStar({
   required double alpha,
   required double time,
 }) {
-  if (alpha <= 0.01) return;
-  final t = charge.clamp(0.0, 1.0);
-  final release = flare.clamp(0.0, 1.0);
-  final r = (55 + 73 * t) * (0.985 + 0.015 * sin(time * 0.9));
-  const gold = ui.Color(0xFFD6B975);
-  const ivory = ui.Color(0xFFFFF0CC);
-  final halo = r * (1.8 + release * 0.8);
-  canvas.drawCircle(
-    at,
-    halo,
-    ui.Paint()
-      ..shader = ui.Gradient.radial(
-        at,
-        halo,
-        [
-          gold.withValues(alpha: 0),
-          gold.withValues(alpha: (0.18 + t * 0.18 + release * 0.22) * alpha),
-          gold.withValues(alpha: 0),
-        ],
-        const [0.25, 0.56, 1],
-      ),
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticDawnStar(
+    canvas: canvas,
+    at: at,
+    charge: charge,
+    flare: flare,
+    alpha: alpha,
+    time: time,
   );
-  // Charge gathers around a dark solar body. Dawn opens the sealed light
-  // rather than inflating an opaque white disc across the battlefield.
-  canvas.drawCircle(
-    at,
-    r,
-    ui.Paint()
-      ..shader = ui.Gradient.radial(
-        at - ui.Offset(r * 0.25, r * 0.2),
-        r * 1.4,
-        [
-          const ui.Color(0xFF292431).withValues(alpha: alpha),
-          const ui.Color(0xFF0A0812).withValues(alpha: alpha),
-          const ui.Color(0xFF6E5638).withValues(alpha: alpha),
-        ],
-        const [0, 0.68, 1],
-      ),
-  );
-  final ink = ui.Paint()..style = ui.PaintingStyle.stroke;
-  for (var i = 0; i < 9; i++) {
-    final start = i * pi * 2 / 9 + time * 0.025;
-    final sweep = 0.36 + 0.24 * t + 0.04 * sin(time + i);
-    canvas.drawArc(
-      ui.Rect.fromCircle(center: at, radius: r * (1.01 + 0.025 * sin(i * 2.1))),
-      start,
-      sweep,
-      false,
-      ink
-        ..strokeWidth = 2 + 3 * t
-        ..color = gold.withValues(alpha: (0.48 + t * 0.4) * alpha),
-    );
-    // Curved corona filaments replace the evenly spaced straight sun rays.
-    final tongue = ui.Path();
-    for (var k = 0; k <= 10; k++) {
-      final f = k / 10;
-      final angle = start + f * (0.20 + 0.18 * sin(i * 2.7));
-      final reach =
-          r *
-          (1.02 +
-              f * (0.10 + 0.26 * t) * (0.65 + 0.35 * sin(i * 2.1 + time)) +
-              sin(f * 7 + i) * 0.012 * f);
-      final point = at + ui.Offset(cos(angle), sin(angle)) * reach;
-      if (k == 0) {
-        tongue.moveTo(point.dx, point.dy);
-      } else {
-        tongue.lineTo(point.dx, point.dy);
-      }
-    }
-    canvas.drawPath(
-      tongue,
-      ink
-        ..strokeWidth = 1 + t * 1.4
-        ..color = ivory.withValues(alpha: (0.25 + t * 0.4) * alpha),
-    );
-  }
-  // Broken orbital engravings stay subdued so the charged limb reads first.
-  for (var i = 0; i < 3; i++) {
-    canvas.drawArc(
-      ui.Rect.fromCircle(center: at, radius: r * 1.42),
-      i * pi * 2 / 3 - time * 0.045,
-      1.4,
-      false,
-      ink
-        ..strokeWidth = 0.9
-        ..color = gold.withValues(alpha: 0.28 * alpha),
-    );
-  }
-  for (var i = 0; i < 24; i++) {
-    final angle = i * pi / 12 - time * 0.045;
-    final dir = ui.Offset(cos(angle), sin(angle));
-    canvas.drawLine(
-      at + dir * r * 1.4,
-      at + dir * r * (i % 3 == 0 ? 1.49 : 1.44),
-      ink
-        ..strokeWidth = 1
-        ..color = gold.withValues(alpha: 0.35 * alpha),
-    );
-  }
-  if (release > 0.01) {
-    final wave = r * (1.1 + (1 - release) * 1.5);
-    canvas.drawCircle(
-      at,
-      wave,
-      ink
-        ..strokeWidth = 2 + 6 * release
-        ..color = ivory.withValues(alpha: release * 0.85 * alpha),
-    );
-    canvas.drawCircle(
-      at,
-      r,
-      ui.Paint()
-        ..shader = ui.Gradient.radial(
-          at,
-          r,
-          [
-            ivory.withValues(alpha: release * 0.5 * alpha),
-            gold.withValues(alpha: release * 0.12 * alpha),
-            gold.withValues(alpha: 0),
-          ],
-          const [0, 0.6, 1],
-        ),
-    );
-  }
 }
 
 /// A Steam world venting: the arena exhaling, and the front of that exhale
@@ -10037,38 +7747,14 @@ void drawMysticVent({
   required double progress,
   required double time,
 }) {
-  final t = progress.clamp(0.0, 1.0);
-  if (t >= 1) return;
-  final eased = 1.0 - (1.0 - t) * (1.0 - t);
-  final a = (1.0 - t) * (1.0 - t);
-  final r = radius * eased;
-  final pale = const ui.Color(0xFFE6F2FF);
-
-  // The front, as a soft band rather than a line.
-  final band = ui.Paint()..style = ui.PaintingStyle.stroke;
-  for (var i = 0; i < 3; i++) {
-    band
-      ..strokeWidth = (34.0 - i * 10.0) * a + 2.0
-      ..color = pale.withValues(alpha: (0.10 - i * 0.025) * a);
-    canvas.drawCircle(centre, r * (1.0 - i * 0.03), band);
-  }
-  band
-    ..strokeWidth = 3.0 * a + 1.0
-    ..color = pale.withValues(alpha: 0.42 * a);
-  canvas.drawCircle(centre, r, band);
-
-  // Billows rolling along the front — the thing that makes it read as vapour
-  // rather than as a shockwave.
-  final puff = ui.Paint()..color = pale.withValues(alpha: 0.13 * a);
-  for (var i = 0; i < 18; i++) {
-    final ang = i * (pi * 2 / 18) + sin(time * 0.8 + i) * 0.08;
-    final wobble = 1.0 + sin(i * 2.3 + time * 3.0) * 0.05;
-    canvas.drawCircle(
-      centre + ui.Offset(cos(ang), sin(ang)) * (r * wobble),
-      (20.0 + 26.0 * t) * a + 4.0,
-      puff,
-    );
-  }
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticVent(
+    canvas: canvas,
+    centre: centre,
+    radius: radius,
+    progress: progress,
+    time: time,
+  );
 }
 
 /// A ribbon that opens from nothing, bellies out, and closes to nothing again.
@@ -10208,50 +7894,12 @@ void drawMysticLavaMeteor({
   required double progress,
   required double seed,
 }) {
-  final t = progress.clamp(0.0, 1.0);
-  const height = 560.0;
-  // Accelerating, so it reads as falling rather than sliding down a wire.
-  final drop = t * t;
-  final at = impact - ui.Offset(0, height * (1.0 - drop));
-
-  // Ground shadow: wide and faint at range, tight and dark on arrival.
-  canvas.drawCircle(
-    impact,
-    46.0 - 28.0 * t,
-    ui.Paint()
-      ..color = const ui.Color(0xFF000000).withValues(alpha: 0.18 + 0.34 * t),
-  );
-  canvas.drawCircle(
-    impact,
-    (46.0 - 28.0 * t) * 0.62,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..color = const ui.Color(0xFFFF7A1E).withValues(alpha: 0.30 + 0.45 * t),
-  );
-
-  // The rock, with a tail of what is burning off it.
-  final tail = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round
-    ..strokeWidth = 7.0
-    ..color = const ui.Color(0xFFFF7A1E).withValues(alpha: 0.45);
-  canvas.drawLine(at, at - const ui.Offset(0, 58), tail);
-  tail
-    ..strokeWidth = 2.6
-    ..color = const ui.Color(0xFFFFD9A0).withValues(alpha: 0.62);
-  canvas.drawLine(at, at - const ui.Offset(0, 40), tail);
-
-  canvas.drawCircle(
-    at,
-    12.0,
-    ui.Paint()..color = const ui.Color(0xFFFF7A1E).withValues(alpha: 0.20),
-  );
-  canvas.drawCircle(at, 7.0, ui.Paint()..color = const ui.Color(0xFF3A1408));
-  canvas.drawCircle(
-    at + ui.Offset(cos(seed) * 2.0, sin(seed) * 2.0 - 1.5),
-    3.2,
-    ui.Paint()..color = const ui.Color(0xFFFFB060),
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticLavaMeteor(
+    canvas: canvas,
+    impact: impact,
+    progress: progress,
+    seed: seed,
   );
 }
 
@@ -10263,31 +7911,13 @@ void drawMysticScorch({
   required double maxAge,
   required double seed,
 }) {
-  final t = (age / maxAge).clamp(0.0, 1.0);
-  final a = t > 0.72 ? ((1.0 - t) / 0.28).clamp(0.0, 1.0) : 1.0;
-  // Cools through its life: bright at the moment of landing, ash by the end.
-  final heat = (1.0 - t) * (1.0 - t);
-  final r = 34.0 + 14.0 * t;
-
-  canvas.drawCircle(
-    at,
-    r,
-    ui.Paint()..color = const ui.Color(0xFF1C0B04).withValues(alpha: 0.55 * a),
-  );
-  for (var i = 0; i < 5; i++) {
-    final ang = seed + i * 1.26;
-    canvas.drawCircle(
-      at + ui.Offset(cos(ang), sin(ang)) * (r * 0.42),
-      r * 0.34,
-      ui.Paint()
-        ..color = const ui.Color(0xFFFF6A1E).withValues(alpha: 0.30 * heat * a),
-    );
-  }
-  canvas.drawCircle(
-    at,
-    r * 0.30,
-    ui.Paint()
-      ..color = const ui.Color(0xFFFFB060).withValues(alpha: 0.55 * heat * a),
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticScorch(
+    canvas: canvas,
+    at: at,
+    age: age,
+    maxAge: maxAge,
+    seed: seed,
   );
 }
 
@@ -10305,92 +7935,14 @@ void drawMysticMaelstrom({
   required double alpha,
   required double time,
 }) {
-  if (alpha <= 0.01) return;
-  final water = const ui.Color(0xFF3FC8E8);
-  final pale = const ui.Color(0xFFDFF6FF);
-
-  // Subtle. This is the surface the fight happens ON, not an effect playing on
-  // top of it, and the first version painted five bright arms and a ring of
-  // foam over a quarter of the screen — which buried the enemies the player
-  // has to read. Everything here is faint and slow; the loud signal is the
-  // crowd being carried around, not the water.
-
-  // A shallow dish: barely-there shading that deepens toward the eye.
-  canvas.drawCircle(
-    centre,
-    radius,
-    ui.Paint()..color = water.withValues(alpha: 0.030 * alpha),
-  );
-  canvas.drawCircle(
-    centre,
-    radius * 0.60,
-    ui.Paint()..color = water.withValues(alpha: 0.035 * alpha),
-  );
-  canvas.drawCircle(
-    centre,
-    radius * 0.30,
-    ui.Paint()..color = water.withValues(alpha: 0.040 * alpha),
-  );
-
-  // Three arms rather than five, thin, and dim enough to read as a current
-  // under the fight instead of lines drawn over it.
-  final arm = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round;
-  const arms = 3;
-  for (var a = 0; a < arms; a++) {
-    final base = phase + a * (pi * 2 / arms);
-    final path = ui.Path();
-    for (var i = 0; i <= 26; i++) {
-      final f = i / 26;
-      final ang = base + f * 3.1 - (1.0 - f) * 1.6;
-      final r = radius * (0.12 + 0.88 * f);
-      final p = centre + ui.Offset(cos(ang), sin(ang)) * r;
-      if (i == 0) {
-        path.moveTo(p.dx, p.dy);
-      } else {
-        path.lineTo(p.dx, p.dy);
-      }
-    }
-    // Fades out toward the rim, so the edge is soft and the eye is where the
-    // detail collects.
-    arm
-      ..strokeWidth = 5.0
-      ..color = water.withValues(alpha: 0.070 * alpha);
-    canvas.drawPath(path, arm);
-    arm
-      ..strokeWidth = 1.4
-      ..color = pale.withValues(alpha: 0.085 * alpha);
-    canvas.drawPath(path, arm);
-  }
-
-  // A little foam, kept near the eye where it does not compete with anything.
-  final foam = ui.Paint()..color = pale.withValues(alpha: 0.16 * alpha);
-  for (var i = 0; i < 10; i++) {
-    final f = 0.14 + (i % 5) / 5.0 * 0.34;
-    final ang = phase * (0.6 + f) + i * 1.47;
-    canvas.drawCircle(
-      centre + ui.Offset(cos(ang), sin(ang)) * (radius * f),
-      1.2 + 0.8 * sin(time * 3.0 + i),
-      foam,
-    );
-  }
-
-  // The eye. The one piece with any weight to it, because it is the only part
-  // the player needs to locate at a glance.
-  canvas.drawCircle(
-    centre,
-    radius * 0.085,
-    ui.Paint()
-      ..color = const ui.Color(0xFF04121C).withValues(alpha: 0.45 * alpha),
-  );
-  canvas.drawCircle(
-    centre,
-    radius * 0.085,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..color = pale.withValues(alpha: 0.30 * alpha),
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticMaelstrom(
+    canvas: canvas,
+    centre: centre,
+    radius: radius,
+    phase: phase,
+    alpha: alpha,
+    time: time,
   );
 }
 
@@ -10410,87 +7962,14 @@ void drawMysticTornado({
   required double alpha,
   required double time,
 }) {
-  if (alpha <= 0.01) return;
-  final pale = const ui.Color(0xFFDCF0FF);
-  final grit = const ui.Color(0xFFBFC9D8);
-
-  // Third attempt at this shape, and the lesson from the other two is that a
-  // funnel cannot be drawn side-on in a top-down arena.
-  //
-  // Stacked leaning ovals read as a set of hoops. Two swept ribbons read as
-  // two ribbons crossing. What actually reads as a tornado from above is what
-  // you would really see: a dense, fast, opaque column of dust turning on one
-  // spot. It is told apart from the maelstrom by density and speed rather than
-  // by shape — the whirlpool is vast, faint and slow; this is small, solid and
-  // violent, and it is the one that moves.
-
-  // The column: overlapping dust, thickest at the middle.
-  for (var i = 0; i < 5; i++) {
-    final f = i / 4.0;
-    final wob = ui.Offset(
-      cos(phase * 1.7 + i * 1.9) * radius * 0.06,
-      sin(phase * 1.3 + i * 2.3) * radius * 0.05,
-    );
-    canvas.drawCircle(
-      at + wob,
-      radius * (0.86 - 0.52 * f),
-      ui.Paint()..color = grit.withValues(alpha: (0.05 + 0.055 * f) * alpha),
-    );
-  }
-
-  // Streaks wrapping the column. Short arcs rather than long spirals: a long
-  // spiral has to be followed, where a ring of short strokes all leaning the
-  // same way is read instantly as rotation.
-  final streak = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round;
-  for (var band = 0; band < 4; band++) {
-    final bf = band / 3.0;
-    final r = radius * (0.30 + 0.52 * bf);
-    final turn = phase * (2.4 - bf * 0.9) + band * 1.1;
-    streak
-      ..strokeWidth = 4.2 - bf * 2.0
-      ..color = pale.withValues(alpha: (0.30 - bf * 0.05) * alpha);
-    for (var k = 0; k < 3; k++) {
-      canvas.drawArc(
-        ui.Rect.fromCenter(center: at, width: r * 2, height: r * 2 * 0.58),
-        turn + k * 2.09,
-        1.05,
-        false,
-        streak,
-      );
-    }
-  }
-
-  // Grit thrown out and caught again, fastest at the waist.
-  final debris = ui.Paint();
-  for (var i = 0; i < 16; i++) {
-    final f = (i % 6) / 6.0;
-    final ang = phase * 3.4 + i * 1.29;
-    final r = radius * (0.22 + 0.68 * f) * (1.0 + 0.10 * sin(time * 5 + i));
-    debris.color = pale.withValues(alpha: (0.62 - 0.30 * f) * alpha);
-    canvas.drawCircle(
-      at + ui.Offset(cos(ang) * r, sin(ang) * r * 0.58),
-      2.2 - 1.1 * f,
-      debris,
-    );
-  }
-
-  // The eye of it, dark and small, so the middle of the pull is unmistakable.
-  canvas.drawCircle(
-    at,
-    radius * 0.14,
-    ui.Paint()
-      ..color = const ui.Color(0xFF0A1018).withValues(alpha: 0.50 * alpha),
-  );
-
-  // The edge of the lift, flattened — a true circle floats on a field seen at
-  // an angle.
-  canvas.drawOval(
-    ui.Rect.fromCenter(center: at, width: radius * 2, height: radius * 1.24),
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.3
-      ..color = pale.withValues(alpha: 0.18 * alpha),
+  // Art lives in mystic_world_vfx.dart.
+  paintMysticTornado(
+    canvas: canvas,
+    at: at,
+    radius: radius,
+    phase: phase,
+    travelAngle: travelAngle,
+    alpha: alpha,
+    time: time,
   );
 }

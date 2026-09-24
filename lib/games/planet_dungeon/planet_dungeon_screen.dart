@@ -429,6 +429,28 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // always the point of the descent. It just doesn't also render 100 hidden
     // frames while doing it. Thawed in [_thawDungeon].
     game.pauseEngine();
+    // HAPTICS: the game says what happened; the phone says it to the hand,
+    // unless the player switched it off in Settings.
+    game.onHaptic = (kind) {
+      if (!mounted) return;
+      final audio = context.audio;
+      if (audio != null && !audio.hapticsEnabled) return;
+      switch (kind) {
+        case DungeonHaptic.success:
+          HapticFeedback.lightImpact();
+        case DungeonHaptic.refuse:
+          // Two quick taps: "no" feels different from "yes".
+          HapticFeedback.lightImpact();
+          Future<void>.delayed(
+            const Duration(milliseconds: 90),
+            HapticFeedback.lightImpact,
+          );
+        case DungeonHaptic.hit:
+          HapticFeedback.mediumImpact();
+        case DungeonHaptic.big:
+          HapticFeedback.heavyImpact();
+      }
+    };
     setState(() {
       _game = game;
       _ready = true;
@@ -903,7 +925,17 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         backgroundColor: _C.bg,
         body: Stack(
           children: [
-            Positioned.fill(child: GameWidget(game: game)),
+            // THE ROOM STOPS AT THE TRAY (2026-09-24). The controls used to
+            // float over the room and sat on doorways, pits and the party
+            // itself; now the game is laid out above a tray and the camera
+            // frames the room in the space that is left.
+            Positioned(
+              left: 0,
+              top: 0,
+              right: 0,
+              bottom: _trayHeight(context),
+              child: GameWidget(game: game),
+            ),
 
             // STOP FOLLOWING THE POUR. Big, centred and translucent, over
             // the shot itself — because the camera being somewhere else is
@@ -1139,41 +1171,37 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               ),
             ),
 
-            // Joystick (bottom-left).
+            // THE CONTROL TRAY: joystick left, the action pad and the party
+            // right, on a dark strip the room never runs under.
             Positioned(
-              bottom: 24,
-              left: 16,
-              child: SafeArea(
-                child: VirtualJoystick(
-                  onDirectionChanged: (dir) =>
-                      game.joystickDirection = dir ?? Offset.zero,
-                ),
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: _trayHeight(context),
+              child: _controlTray(game),
+            ),
+
+            // The joystick, bigger than the tray is tall: it sits in the
+            // tray's corner and is allowed to rise a little above it.
+            Positioned(
+              left: 12,
+              bottom: MediaQuery.of(context).padding.bottom + 4,
+              child: VirtualJoystick(
+                sizeMultiplier: _kStickDiameter / 104,
+                onDirectionChanged: (dir) {
+                  game.joystickDirection = dir ?? Offset.zero;
+                  _stickHaptic(dir);
+                },
               ),
             ),
 
-            // Action button + creature rail, stacked bottom-right (right
-            // thumb), clear of the bottom-left joystick.
+            // A carried echo's DROP chip rides just above the tray.
             Positioned(
-              bottom: 24,
               right: 16,
-              child: SafeArea(
-                child: ValueListenableBuilder<int>(
-                  valueListenable: _tick,
-                  builder: (_, __, ___) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Nothing to act on in this room and nothing alive in
-                      // it: the cluster would be a control that answers every
-                      // press with a shrug. Corridors are for walking.
-                      if (game.roomOffersAction) ...[
-                        _actionCluster(game),
-                        const SizedBox(height: 12),
-                      ],
-                      _swapRail(game),
-                    ],
-                  ),
-                ),
+              bottom: _trayHeight(context) + 8,
+              child: ValueListenableBuilder<int>(
+                valueListenable: _tick,
+                builder: (_, __, ___) => _dropChip(game),
               ),
             ),
 
@@ -1785,111 +1813,217 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     );
   }
 
+  // 128, not 196: the first tray was a quarter of the screen with an empty
+  // middle, and the party row overflowed it on the Fold (2026-09-24).
+  static const double _kTrayBody = 128;
+
+  /// The joystick's full width. Taller than the tray on purpose (the
+  /// author, 2026-09-24): a thumb control wants size more than it wants to
+  /// stay inside a strip.
+  static const double _kStickDiameter = 136;
+
+  /// JOYSTICK HAPTICS: a click when the stick is taken, and a light tick
+  /// each time it swings into a new eighth of the compass — felt steering,
+  /// rate-limited so a stirring thumb never becomes a buzz. Nothing on
+  /// release.
+  int _stickSector = -1;
+  DateTime _stickTickAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  void _stickHaptic(Offset? dir) {
+    final audio = context.audio;
+    if (audio != null && !audio.hapticsEnabled) return;
+    if (dir == null || dir.distance < 0.25) {
+      _stickSector = -1;
+      return;
+    }
+    final sector =
+        ((math.atan2(dir.dy, dir.dx) / (math.pi / 4)).round() + 8) % 8;
+    if (sector == _stickSector) return;
+    final now = DateTime.now();
+    final first = _stickSector < 0;
+    _stickSector = sector;
+    if (!first && now.difference(_stickTickAt).inMilliseconds < 90) return;
+    _stickTickAt = now;
+    first ? HapticFeedback.selectionClick() : HapticFeedback.lightImpact();
+  }
+
+  /// The tick under the thumb on every control press (off with the setting).
+  void _tapHaptic() {
+    final audio = context.audio;
+    if (audio != null && !audio.hapticsEnabled) return;
+    HapticFeedback.selectionClick();
+  }
+
+  double _trayHeight(BuildContext context) =>
+      _kTrayBody + MediaQuery.of(context).padding.bottom;
+
+  Widget _controlTray(PlanetDungeonGame game) {
+    final bottom = MediaQuery.of(context).padding.bottom;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0805),
+        border: Border(
+          top: BorderSide(color: _C.border.withValues(alpha: 0.9), width: 2),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x99000000),
+            blurRadius: 18,
+            offset: Offset(0, -6),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(12, 6, 10, 6 + bottom),
+        child: ValueListenableBuilder<int>(
+          valueListenable: _tick,
+          builder: (_, __, ___) => Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // The joystick itself is drawn on its own layer (see
+              // `_trayJoystick`) so it can rise above the tray; this keeps
+              // its place in the row.
+              const SizedBox(width: _kStickDiameter),
+              // The party fills the middle — the space that was empty — and
+              // scales down rather than ever overflowing a narrow screen.
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: _swapRail(game),
+                    ),
+                  ),
+                ),
+              ),
+              if (game.roomOffersAction) _actionCluster(game),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Carried-echo drop control (only while holding one). A stadium rather
+  /// than a circle: the cloud's NAME is the point of it.
+  Widget _dropChip(PlanetDungeonGame game) {
+    if (game.carriedCloudType == null) return const SizedBox.shrink();
+    return GestureDetector(
+      onTap: context.soundAction(() {
+        _tapHaptic();
+        game.dropCarriedCloud();
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: _C.bg.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: _C.cyan.withValues(alpha: 0.6)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.outbond_rounded, color: _C.cyan, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              'DROP ${game.carriedCloudType!.toUpperCase()}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _C.cyan,
+                fontFamily: 'monospace',
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.1,
+                height: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// THE ACTION PAD. One big button and two small ones: the planet's own
+  /// verb is the big one (icon only — the glyph is the verb), ATTACK and
+  /// SPECIAL the small pair. Fixed — it does not rearrange for a fight.
   Widget _actionCluster(PlanetDungeonGame game) {
     final ability = game.activeAbility;
     final enabled = game.canAct;
     final glide = ability == DungeonAbility.aerialTraversal;
-    final active = glide && game.flightActive;
+    final flying = glide && game.flightActive;
+    final hasUtility = game.utilityAvailable;
+    // NO SWAPPING (the author, 2026-09-24): buttons that change size when
+    // enemies arrive move under the thumb mid-fight. The verb is always the
+    // big one; ATTACK takes that seat only in a room with no verb at all
+    // (a guardian's arena), where it never changes.
+    final fighting = !hasUtility;
 
-    return Column(
+    Widget utility(double d) => _utilityButton(
+      element: game.active?.member.element ?? widget.element,
+      enabled: enabled,
+      active: flying,
+      charge: glide ? game.flightFraction : 1.0,
+      diameter: d,
+      onTap: context.soundTap(() {
+        _tapHaptic();
+        game.activateAbility();
+      }),
+    );
+    Widget attack(double d) => _combatButton(
+      label: 'ATTACK',
+      icon: Icons.gps_fixed_rounded,
+      diameter: d,
+      cooldownText: game.autoCooldownFraction > 0.02
+          ? game.autoCooldownLabel
+          : null,
+      cooldownFraction: game.autoCooldownFraction,
+      deniedPulse: game.autoDeniedPulse,
+      color: _C.cyan,
+      onTap: () {
+        _tapHaptic();
+        game.activateAutoAttack();
+      },
+    );
+    Widget special(double d) => _combatButton(
+      label: game.abilityIsPassive ? 'PASSIVE' : 'SPECIAL',
+      icon: game.abilityIsPassive
+          ? Icons.all_inclusive_rounded
+          : Icons.auto_awesome_rounded,
+      diameter: d,
+      cooldownText: game.abilityCooldownFraction > 0.02
+          ? game.abilityCooldownLabel
+          : null,
+      cooldownFraction: game.abilityIsPassive
+          ? 0
+          : game.abilityCooldownFraction,
+      dimmed: game.abilityIsPassive,
+      deniedPulse: game.abilityDeniedPulse,
+      color: _C.amberBright,
+      onTap: () {
+        _tapHaptic();
+        game.activateCombatAbility();
+      },
+    );
+
+    const big = 84.0, small = 44.0;
+    final Widget primary;
+    final List<Widget> side;
+    if (!fighting) {
+      primary = utility(big);
+      side = [attack(small), special(small)];
+    } else {
+      primary = attack(big);
+      side = [special(small), if (hasUtility) utility(small)];
+    }
+    return Row(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Carried-echo drop control (only while holding one). A stadium
-        // rather than a circle: the cloud's NAME is the point of it, and it
-        // sizes to that name instead of sitting in a fixed 154px box.
-        if (game.carriedCloudType != null) ...[
-          GestureDetector(
-            onTap: context.soundAction(game.dropCarriedCloud),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: _C.bg.withValues(alpha: 0.86),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: _C.cyan.withValues(alpha: 0.6)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.outbond_rounded, color: _C.cyan, size: 14),
-                  const SizedBox(width: 6),
-                  Text(
-                    'DROP ${game.carriedCloudType!.toUpperCase()}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _C.cyan,
-                      fontFamily: 'monospace',
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.1,
-                      height: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-        // The utility verb, centred over the pair. It used to be a 154px bar
-        // whose label was the literal word "UTILITY" on every planet — a
-        // whole line of chrome spending itself on a word that never changed
-        // and named nothing. The glyph names the VERB instead, which is the
-        // thing the dungeon is actually teaching.
-        //
-        // Gone for the guardian, for the reason raids already dropped it:
-        // there is no puzzle in a boss room, so the verb button would spend
-        // the best spot on the pad answering every press with a shrug.
-        if (game.utilityAvailable) ...[
-          _utilityButton(
-            element: game.active?.member.element ?? widget.element,
-            enabled: enabled,
-            active: active,
-            // While gliding, the rim IS the flight meter — which retires the
-            // separate 90x6 bar that used to float above the pad.
-            charge: glide ? game.flightFraction : 1.0,
-            onTap: context.soundTap(game.activateAbility),
-          ),
-          const SizedBox(height: 6),
-        ],
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // CONTROL FEEDBACK lives here, not in the hint capsule (§5.6):
-            // the rim shows the wait, the countdown names it, and a refused
-            // press throws a flare off the button that refused.
-            _combatButton(
-              label: 'ATTACK',
-              icon: Icons.gps_fixed_rounded,
-              cooldownText: game.autoCooldownFraction > 0.02
-                  ? game.autoCooldownLabel
-                  : null,
-              cooldownFraction: game.autoCooldownFraction,
-              deniedPulse: game.autoDeniedPulse,
-              color: _C.cyan,
-              onTap: context.soundTap(game.activateAutoAttack),
-            ),
-            const SizedBox(width: 6),
-            _combatButton(
-              label: game.abilityIsPassive ? 'PASSIVE' : 'SPECIAL',
-              icon: game.abilityIsPassive
-                  ? Icons.all_inclusive_rounded
-                  : Icons.auto_awesome_rounded,
-              cooldownText: game.abilityCooldownFraction > 0.02
-                  ? game.abilityCooldownLabel
-                  : null,
-              // A passive special has no cast: the button reads spent, not
-              // waiting — no arc, permanently dimmed.
-              cooldownFraction: game.abilityIsPassive
-                  ? 0
-                  : game.abilityCooldownFraction,
-              dimmed: game.abilityIsPassive,
-              deniedPulse: game.abilityDeniedPulse,
-              color: _C.amberBright,
-              onTap: context.soundTap(game.activateCombatAbility),
-            ),
-          ],
-        ),
+        Column(mainAxisSize: MainAxisSize.min, children: side),
+        const SizedBox(width: 2),
+        primary,
       ],
     );
   }
@@ -2006,10 +2140,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     required bool active,
     required double charge,
     required VoidCallback onTap,
+    double diameter = 54,
   }) {
     final color = active ? _C.cyan : _C.amberBright;
     return _roundAction(
-      diameter: 54,
+      diameter: diameter,
       // The ACTIVE creature's element, so a swap visibly changes the button.
       // The glyph stays in the HUD's own amber rather than the element
       // colour: Dark, Mud and Earth are near-black, and this dome is too.
@@ -2018,7 +2153,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       charge: enabled ? charge : 0,
       spent: !enabled,
       teeth: 0, // the verb is not a weapon; it stays smooth
-      iconSize: 20,
+      // Icon only, at any size: the glyph IS the verb.
+      iconSize: diameter * 0.38,
       semantics: 'Use $element ability',
       onTap: enabled ? onTap : null,
     );
@@ -2033,22 +2169,25 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     String? cooldownText,
     double deniedPulse = 0,
     bool dimmed = false,
+    double diameter = 74,
   }) {
     final cooling = cooldownFraction > 0.02;
     final spent = cooling || dimmed;
+    final small = diameter < 60;
     return _roundAction(
-      diameter: 74,
+      diameter: diameter,
       icon: icon,
       color: color,
       // The rim fills as the wait runs out, so "ready" is a whole circle.
       charge: dimmed ? 0 : 1 - cooldownFraction.clamp(0.0, 1.0),
       spent: spent,
       denied: deniedPulse.clamp(0.0, 1.0),
-      teeth: 12,
-      iconSize: 24,
+      teeth: small ? 0 : 12,
+      iconSize: small ? 18 : 26,
       // While cooling the caption IS the countdown — same slot, so the button
-      // never grows a badge that overlaps its own rim.
-      caption: cooldownText ?? label,
+      // never grows a badge that overlaps its own rim. A small button carries
+      // only the countdown; its glyph names it.
+      caption: cooldownText ?? (small ? null : label),
       semantics: label,
       onTap: context.soundAction(onTap),
     );

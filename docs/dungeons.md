@@ -2029,10 +2029,10 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
-**SEVEN of seventeen (2026-09-03): Fire · Air · Water · Earth · Lightning ·
-Steam · Lava.** **MUD (2026-09-13) and ICE (2026-09-15) have each had the
-whole pass except the device session, and are deliberately NOT promoted until
-they have been played — see their entries below.** This list is mirrored in code as `kPolishedDungeons`
+**TEN of seventeen (2026-09-23): Fire · Air · Water · Earth · Lightning ·
+Steam · Lava · Poison · Mud · Ice.** Poison was promoted 2026-09-14; **MUD
+(pass 2026-09-13) and ICE (pass 2026-09-15) were promoted 2026-09-23** on the
+author's account that both have been played. This list is mirrored in code as `kPolishedDungeons`
 (`lib/games/cosmic/cosmic_data.dart`), and it is what decides whether a planet
 offers DESCEND or the coming-soon placard — the other ten keep their gate
 ritual and cannot be descended. Promoting a planet is one line there, pinned
@@ -2556,7 +2556,7 @@ master had made to it in the meantime (Ice came back with the sound funnel
 undone). A per-file merge is only safe if you diff it against what master
 did to that file, not only against what the agent changed.
 
-### ◐ ICE — the pass, minus the device session (2026-09-15)
+### ✅ ICE — complete (pass 2026-09-15, promoted 2026-09-23)
 
 **The suite was green over a run-ending softlock, and that is the whole
 lesson again.** Thirty tests, a full no-strand proof over 122 shaft states,
@@ -2750,9 +2750,8 @@ same question about the STAR.
     really bad right now."* It was Air+Wing on one plinth and Ice on the
     other. The room is THE ROOF OF THE HOLLOW: the ice over the wyrm's lair,
     in panes under snow, and the way in is down through it.
-  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Same
-    sentence as Mud's, for the same reason. `Ice` stays out of
-    `kPolishedDungeons` until it has been played.
+  · ✅ **The device playtest — done; promoted to `kPolishedDungeons`
+    2026-09-23** on the author's account.
 
 ### §9.19 ICE'S RITE — THE ROOF OF THE HOLLOW (2026-09-20)
 
@@ -3614,6 +3613,51 @@ faults were in what the rooms did not SAY), then:
     yard with its press preview, the observatory roofed and roofless, the
     granary unread / one pit / five pits, the hollow's cut open and buried —
     asserted to be DIFFERENT PICTURES.
+  · ✅ **THE MUD CHECKLIST, RUN (2026-09-23).** What Mud taught on device,
+    checked here before Dust's own session:
+      – *Both stars wake the guardian:* yes — the whole descent test walks
+        stars → false wall → glass → `guardianAwake` → the hollow door. But
+        the SHARED altar woke Ashdjinn with the Air pilot's four yellow
+        LIGHTNING wisps and a line nobody saw (update-time `_setHint` is
+        dropped). The altar now wakes in the planet's own element (every
+        planet that latches A+B there, not just Dust) and a layout may name
+        a `riteWakeLine`, which is SPOKEN. Dust's is.
+      – *A won star's world survives the valve and a new run:* it did not.
+        The sirocco and every new run re-buried the three bronzes, and the
+        armillary drew dead under a restored roof. A banked Seal Star now
+        rests the yard on a solved ledger (`kSealYardWonArt`, pinned as a
+        reachable goal by the seals test); the won armillary stays set.
+      – *Clues without cross-room memory:* the chart now marks every street
+        the ledger has shut — a pit for a trench, a heap for a dune — and
+        each spadeful's spoken consequence names both squares it changed.
+      – *Refusals that lie:* a drifted city square said "Only Air can move a
+        dune"; Air moves heaps in the yard, never in the city. The Wing and
+        Horn gates said "Air Wing"/"Earth Horn" but take any Wing/Horn. The
+        Wing gate could never be heard by a grounded party (the island is out
+        of reach), so it now answers from the moat's edge and stamps its chip.
+      – *Props:* conduit A drew as the generic storm obelisk; it is now the
+        riddle's false wall (bricked-up infill, broken into a doorway). The
+        observatory moat's corners double-filled into four dark pits; the
+        hollow's first fill course hung out of the cut. Both fixed.
+      – ✅ **THE ARMILLARY STAR WAS TRIVIAL — now it takes a plan** (the
+        user's pick of two proposals). Nine end ledgers satisfied "roof
+        bared" and one spadeful thrown either way reached one (enumerated
+        against the real doors). The armillary now needs the sky TWICE: the
+        roof, and a bronze sighting tube in the observatory's east wall whose
+        top opens on the kiln square (its tag carries the kiln's survey
+        mark; `kArmillarySights`). Two spoils, two squares with room (agora,
+        bump), and only kiln→bump + roof→agora leaves a road to the second
+        dig: exactly ONE end ledger (12020), pinned by a player-moves search
+        in the ruins test. It cuts both streets to the court, so the sirocco
+        is part of the way on (Mud's lesson), and the vault cracks as a side
+        effect. It shares the kiln→bump spadeful with the Lost Maxim's
+        tally, which is then its mirror (roof bared vs roof heaped); the
+        test still pins that the star's city is never the count.
+      – ✅ **DUST WAS A CHECKBOX — now the city is its job.** Earth dug every
+        square Dust did. The city's five squares are Dust's alone; Air+Earth
+        stand in only while Dust is DOWN (the party clusters, so an always-on
+        braid would hand the job straight back). Earth keeps the yard's
+        spade and the Horn wall; Air the gusts, vanes, Wing and pits.
   · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Same
     sentence as Mud's and Ice's. `Dust` stays out of `kPolishedDungeons`
     until it has been played.
@@ -3681,7 +3725,7 @@ end, wordless past the first nudge, nothing consumed. The star path never
 matches it: the authored descent throws the roof WEST onto the agora, and no
 state on that line agrees with the count.
 
-### ◐ MUD — the pass, minus the device session (2026-09-13)
+### ✅ MUD — complete (pass 2026-09-13, promoted 2026-09-23)
 
 **Mechanically the best-proved planet in the set, and visually unbuilt.** The
 fen's rules had a solver, two independent no-strand searches pinned equal, a
@@ -3839,14 +3883,9 @@ exactly that, which is why it now also asserts the states look different.
     Star keeps its three basins full through every heave and every later
     drag; a banked Sarsen Star keeps the stone seated; and a new run opens
     with both, not with a fallen stone and dry basins.
-  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Begun
-    2026-09-20 — the floor fault above is its first finding, and the planet
-    stays out of `kPolishedDungeons` until a run has been played through. Every planet in the polished seven found
-    its real faults in a device session and none of them in the suite, and
-    this pass is no different in kind from the ones that preceded that
-    session elsewhere — it is what a rendered screenshot and a green suite can
-    see, which the record above says twice is not the same as played. `Mud`
-    stays out of `kPolishedDungeons` until it has been.
+  · ✅ **The device playtest — begun 2026-09-20 (the floor fault above was
+    its first finding) and done; promoted to `kPolishedDungeons` 2026-09-23**
+    on the author's account.
 
 ### §9.9 SPIRIT'S LOST MAXIM — the seventh funeral is yours
 
@@ -5048,6 +5087,442 @@ draws a straight bone: the first pass put it at 0.35 of the reach and 0.30 of
 the drop and the hall came out full of diagonal spears. The hub's ribs — the
 ones that always looked right — use **0.7 of the reach, 0.25 of the drop**, so
 the bone leaves the vault almost sideways and turns down late. Use those.
+
+## 7.11 Art direction — GLASS INLAY (chosen 2026-09-23)
+
+Chosen after mockups of eleven directions (illuminated folio, carved diorama,
+leaded glass, ember chiaroscuro, three stone-and-glass hybrids, and four
+abstract ones). Fire is the pilot; every planet follows it.
+
+**THE RULE: stone is the world, glass is the signal.** A room is a carved
+diorama of the planet's own stone. Leaded glass appears ONLY on things the
+player acts on, reads, or changes. Learned in one room, it holds on every
+planet: *if it's glass, it's part of the puzzle.*
+
+  · **The stone.** Soft three-quarter top-down. The north wall shows its face
+    (lit cornice, dark foot); east, west and south walls show only their tops.
+    Props stand on the floor with a contact shadow. The floor keeps the
+    TRANSLUCENCY RULE (§8): fills at alpha 0.5–0.6, so the shader glows through.
+  · **The glass.** Panes held in near-black came with a faint warm highlight
+    along the lead. Glass sits IN the stone: inlays in the floor, collars on
+    plinths, windows and doors in the walls.
+  · **The pane vocabulary** (shared; each planet tints it):
+      – *frosted* — inert or waiting. Dull and translucent. Never bright.
+      – *clear, with a white streak* — made or active. The brightest glass.
+      – *flame* (per element: the lit/live state) — burning, rung, powered.
+      – *snow / smoked* — sealed or hidden. Opaque.
+      – *bared* — clear but dark, so you see what lies beneath.
+      – *silver* — solved or banked.
+      – *gold-rimmed rondel* — anything you can act on.
+  · **Large surfaces stay mid-tone.** A glass field that covers most of a
+    room cannot be its brightest thing (an Ice mock with near-white snow made
+    the snow the loudest thing in the room). Only what you can act on, and
+    what you have changed, gets bright glass or gold.
+  · **Decoration is carved, never glazed.** Arcades, stalls, piers and beams
+    are stone and wood. A window that says nothing is not allowed to glow.
+  · **Change is animated, never a pop.** Glass lights by spreading (outward
+    from a centre, along the lead, pane by pane), and goes dark by smoking
+    over. A state change the eye did not watch happen is a state change the
+    player missed.
+  · **Cost.** Static stone and dormant glass are baked once per room into a
+    `ui.Picture` (the Light archive's precedent). Per frame: the live panes,
+    flames and baked glow sprites only. No `MaskFilter.blur` anywhere.
+
+The shared kit is `lib/games/planet_dungeon/dungeon_glass.dart`: palettes,
+panes, rondels, lancets, carved walls and plinths. A planet brings a palette
+and its own compositions.
+
+  · ◐ **FIRE — the pilot, built 2026-09-23, not yet played on device.** All
+    ten rooms, in `planet_dungeon_game_fire_art.dart`. Where the glass is,
+    and what it does:
+      – *Doors* are lancets in the stone: open ones glow and breathe motes
+        outward; sealed ones are smoked glass under iron, the chancel gate
+        carrying its two stars. A door not yet revealed is bricked wall, and
+        the narthex's splits along glowing seams as the hearth catches.
+      – *Narthex:* the hearth's fanlight catches from the middle out.
+      – *Nave:* the rose before the chancel gate IS the star count — a third
+        of it sweeps alight per star banked, the boss goes gold on three.
+      – *Scriptorium:* the soot mural is a smoked window. Each corner torch
+        warms its own quarter and sends an ember along the lead; the fourth
+        runs a light front out from the middle and the stations bloom as it
+        passes. Settled it is DEEP amber, so the recorded stations are the
+        brightest glass on it.
+      – *Choir:* the labyrinth is a glass rose with a petal aimed at every
+        brazier; fire runs up the spoke into the petal as each is lit, a wrong
+        flame smokes the whole rose over, the won rite burns it from the heart
+        out. Soot stains a pale-honey glass collar on each plinth (pale so the
+        smoke has something to stain); ash is a soft drift, never a wedge — a
+        triangle there read as a play button.
+      – *Cloister:* the garth is a leaded bed (soil, vine, seep, spent ash are
+        panes; fallen stones stand proud); the burn ring is a ring of panes.
+      – *Bell gallery:* each bell hangs before an oculus that floods when it
+        rings; the declared stand's glass takes fire.
+      – *High altar:* one lancet per bell in the dais face keeps the tally;
+        the black flame's vessel wakes violet.
+      – *Sanctum:* a shattered rose that smoulders violet under the
+        telegraph's warnings — never louder than them.
+    `test/planet_dungeon_fire_glass_render_test.dart` renders every room whole
+    and every one of those states, and asserts they are different pictures
+    (`mkdir -p build/room_audit` for the PNGs). **Found in the renders, worth
+    knowing for the next planet:** a lit pane must keep its lead on top or a
+    run of them melts into one flat shape; any big stone top (a dais) must be
+    dark and jointed or it reads as a UI panel; and the largest glass in a
+    room (mural, roost) sits at partial heat so what it holds can outshine it.
+
+  · ◐ **LAVA — built 2026-09-23, not yet played on device.** Shared pieces
+    moved to `planet_dungeon_game_glass.dart` (doors, hidden-door stone, the
+    live pane) so every planet opts in with a palette; Lava's own art is
+    `planet_dungeon_game_lava_art.dart` with `kBasaltGlass`. Machinery, not a
+    cathedral (§5.5): square-headed factory glass, basalt walls with iron
+    bolted up the face, brass rims. The floor stays a crust, NOT flags (play
+    said tiles read as safe) — baked now, with the fissures mostly dead and a
+    few breathing, where before 26 plates and 34 forked cracks were rebuilt
+    every frame. Glass: levers on glass bases with glass-bead notches (the
+    setting lit); mold flasks rimmed in the colour of the metal they take,
+    silver with a good casting, smoked when spoiled; the crucible's
+    sight-glass, the accumulator's gauge, the cowl's green louvres, the
+    chiller's frosted lip, the ward's glass keyhole (burning while you hold
+    its key, silver once turned), and the heart heads' lips. The metal was
+    reworked too — it read as TUBING (a lit bar with rounded blobs): the
+    crust now covers most of every runner in angular plates, the body shows
+    only in the seams, and the lip shadows the trench. The Black Glass
+    crystallises shard by shard while the rite binds, then stays, with a
+    cool glint so it is found walking in. Test:
+    `test/planet_dungeon_lava_glass_render_test.dart` (LavaGlass_*.png).
+
+  · ◐ **AIR — built 2026-09-23, not yet played on device.**
+    `planet_dungeon_game_air_art.dart`, `kZephyrGlass`. Open sky, so the
+    diorama is carved ISLAND: plain rooms are cloud-slate slabs with a front
+    face, rock trailing underneath and a balustrade for walls; platforms are
+    the same stone. The stone is a THIN tint (flags at 0.3, faint joints) —
+    the first pass laid opaque pale flags and every room became the same grey
+    slab, which is the author's 2026-09-19 note ("the stages all look too
+    similar") all over again. Glass: the hub compass is a rose set in the
+    floor, three rings of panes for the three stars (wind sky-blue, loom
+    gold, storm lightning-white) filling round from north; the First Wind
+    turns it for good. The Four Winds pillars are carved stones with their
+    rune in glass, fewer and shorter panes the more the wind has worn them.
+    Gust shrines have glass breath-slots, gale vents a glass eye with the
+    breath cut in the lead, storm rods count rank in glass beads, the storm
+    altar is a rose that lights from the heart as it opens, the rune hall's
+    mural is a leaded window, the loom's heart and anchors are glass, the
+    conduits a glass channel. Tests: `planet_dungeon_air_glass_render_test`
+    (states) and `planet_dungeon_whole_room_audit_test --dart-define=AUDIT=Air`
+    (every room whole — reusable for every planet).
+    **Second pass (2026-09-24)** — ten of the seventeen rooms were still the
+    same flagged slab with one prop in the middle. Each stage now bakes a
+    carved feature of its own (`_paintSkyGround`, keyed by room id): the
+    entry's landing dais, an anvil sunk in the anvil cloud's floor with its
+    blow-lane scored, three rings cut round the ring cloud, a dais under the
+    spiral with the vents' ring, troughs under the veils, the loom's wheel
+    with a spoke to each anchor, a two-step reliquary, an aisle and column
+    bases up to the rune mural, a channel joining the twin conduits, three
+    steps and eight storm lanes round the altar, the guardian's scored
+    duelling ring, and an octagonal crown terrace on the summit. All carved,
+    all in the bake — no per-frame cost.
+
+  · ◐ **LIGHTNING — built 2026-09-23, not yet played on device.**
+    `planet_dungeon_game_lightning_art.dart`, `kVoltGlass`. A storm-works:
+    bolted iron plate with the cable runs sunk in it, now baked, inside iron-
+    stone walls; square-headed doors (machinery, like Lava). Glass where
+    high-tension equipment really carries it: every post's insulator stack is
+    three discs of glass lit when the line is live, pylons and sinks wear glass
+    heads, mirrors silvered-glass vanes, a closed barrier is a smoked leaded
+    shutter, sockets and station pads are glass in brass, the dynamo's rotor is
+    a turning rose. The Thunderbolt leaves FULGURITE — the glass lightning makes
+    in sand — branching out of the rotor across the court as it happens, and
+    lying there for good (from `thunderboltWon` alone, so a later descent shows
+    it without the ramp). Test: `planet_dungeon_lightning_glass_render_test`.
+
+  · ◐ **EARTH — built 2026-09-23, not yet played on device.**
+    `planet_dungeon_game_earth_art.dart`, `kBarrowGlass`. The strata floor is
+    baked inside carved barrow walls. The glass is CRYSTAL — Earth + Lightning
+    makes it, so it is this planet's own substance — drawn ONE way everywhere
+    (`_drawCrystalBlade`: a body pane and a lit facet in lead): the crypt's
+    locks and seals, the gaze prism, the Palm's cluster. The crypt's socket
+    mouths are glass (frosted buried, smoked bared, lit locked); the giant's
+    eye is a leaded rondel waking with the prism; the bone mural is a window.
+    The Palm now GROWS as the rite binds — veins up the creases, then the
+    blades smallest-first — and stands on every later descent.
+    Test: `planet_dungeon_earth_glass_render_test`.
+
+  · ◐ **WATER — built 2026-09-23, not yet played on device.**
+    `planet_dungeon_game_water_art.dart`, `kTempleGlass`. The temple's water
+    and moon were already carefully drawn and are untouched; the stone is
+    sea-marble, baked and arcaded, with BIG flags and faint joints (the
+    default courses read as a tiled grid again — `paintCarvedRoomShell` now
+    takes `flagCourse` / `jointOpacity`). Sea glass on the working parts: wheel
+    hubs lit on their stand with the stand counted in beads, seals as glass
+    hatches (smoked, their wanted tide in gold; clear once yielded), canal
+    basins as glass bowls, sills counted in beads, dams as panes of ice, the
+    offering bowl filling as live glass, the gate's vigil stars, the mural as
+    a window. The Frozen Moon now sets inside a rosette of ice glass that
+    frosts out from it as the rite binds. Test:
+    `planet_dungeon_water_glass_render_test`.
+
+  · ◐ **STEAM — built 2026-09-23, not yet played on device.**
+    `planet_dungeon_game_steam_art.dart`, `kVaporGlass`. The boiler house
+    kept its 2026-09-02 brickwork; it is now BAKED (it was redrawn every frame)
+    inside iron-banded walls, with square-headed doors. Gauge glass on the
+    working parts: junction wheels and the entry vent carry glass hubs (lit
+    when the main can pay), the firebox is seen through a sight-glass, a
+    crucible corner's wanted elements are panes of their own glass,
+    silver-capped when sealed. HIDDEN HARMONY used to leave only an empty
+    socket ("what you took should leave a hole"); under the maxim rule it now
+    sinks into the plinth as the rite binds and stays as a steam-glass inlay
+    with condensation running on it. Test: `planet_dungeon_steam_glass_render_test`.
+
+  · ◐ **POISON — built 2026-09-23, not yet played on device.**
+    `planet_dungeon_game_poison_art.dart`, `kVenomGlass`. The monastery was
+    already a built house (walls, bays, beds, flags) and keeps its stone.
+    Apothecary glass on what means something: relic sockets at the cross's
+    foot are glass lenses in the brew's colour once full; the lustral font's
+    water is a pane, sick until the vial goes in. THE DOSE used to leave
+    nothing: it is now scored in a glass rondel at the prior's crossing — a
+    pane of each colour as the wisp is walked home in it (the score pips moved
+    here from the wisp), the heart blooming white as the rite binds, kept on
+    every later descent. Drawn ABOVE the ambulatory's gloom, like the
+    cressets: the first render put it under and the gloom ate it.
+    Test: `planet_dungeon_poison_glass_render_test`.
+
+  · ◐ **ICE — built 2026-09-23.** `planet_dungeon_game_ice_art.dart`,
+    `kFrostGlass`. The observatory ground (2026-09-15) stays; it gains walls,
+    the Roof of the Hollow as ONE leaded window (every pane in came), and
+    lancet tracery in every gallery mirror. **The Star-Walker left nothing**
+    (the audit below was wrong: the telescope and the stranger were both
+    REMOVED once found). The telescope now stays, and the stranger is caught in
+    its lens as an eight-pointed leaded star that assembles as the rite binds.
+    Test: `planet_dungeon_ice_glass_render_test`.
+  · ◐ **MUD — built 2026-09-23.** `planet_dungeon_game_mud_art.dart`,
+    `kPeatGlass`. An open fen, so its edge is BANKED PEAT (the same shell in
+    earth), not a wall; the bog itself is untouched. A moor-altar's offering
+    is a pane of still water (the sky in it while it holds, smoked while the
+    ground drinks it). The lotus (No Mud, No Lotus) is leaded pink glass,
+    opening petal by petal as the rite binds, drawn large enough to find
+    across the fane. Doors standing OUT in a room (the wallows) keep their own
+    look — the glass doorway is for doors cut through a wall
+    (`_doorOnWall`). Test: `planet_dungeon_mud_glass_render_test`.
+    **Second pass (2026-09-24)** — the first left Mud with almost no glass
+    and grey fog over every knoll. The fog was the GENERIC sky clouds (pale
+    grey) showing through the peat floor; Mud now has its own low dark fen
+    haze. THE CROSSINGS ARE GLASS: a leaded strip down each crossing's spine
+    shows its state — murky and quaking (mire), clear streaked moss-glass
+    (sod), sunk, cracked and smoked (drowned) — and a drag runs down it pane
+    by pane from the head you worked it at (`_fordGlass`, eased per ford).
+    Marker stones carry their slough's mark in a rondel of its glass. Wallows
+    (knoll and risen) are a stone collar with a round leaded lid: smoked when
+    shut, still water turning when they will take you — never the default
+    door frame. The fane's pavement is thinner, carved (shadow + lit lip) and
+    under a silt wash, so the things standing on it stay brightest; the
+    sink-pit sits in a stone well-head.
+
+  · ◐ **DUST — built 2026-09-24, not polished, never on device.**
+    `planet_dungeon_game_dust_art.dart`, `kSandGlass`. The deck and standing
+    fabric were redrawn EVERY FRAME; they are now baked with a sandstone shell
+    (low face below the streets, where the cut face is the north wall; no
+    arcade — blind arches on a 40px face read as black humps). Lamps stay
+    live. Dust got its own low sand haze (the generic grey clouds lay over
+    every street as fog) and fainter lee banks. Glass: a mound's survey tag is
+    a pane that says its state (frosted buried, lit bared, sanded drifted);
+    bare seals show a lit boss; the great glass is leaded; a vane's blade is
+    a pane lit while wound; granary plates are glass. NOTHING PERISHES now
+    sets a rosette of five panes round the cist, one per mound with its mark,
+    lighting in turn as the rite binds and kept on every later descent.
+    Test: `planet_dungeon_dust_glass_render_test`.
+
+  · ◐ **CRYSTAL — built 2026-09-24, not polished, never on device.**
+    `planet_dungeon_game_crystal_art.dart`, `kPrismGlass`; the chamber glass
+    itself is in `planet_dungeon_game_crystal.dart`. Vitrea is already glass,
+    so the fault was the GLAZING: five free cuts ran long black lines across
+    every chamber and read as cracks. A chamber is now glazed as a window — a
+    border of quarries in its colour, a light diamond lattice you see the bed
+    through, and a medallion whose petal count is the chamber's own mark
+    (`_kChamberPetals`), so colour and shape both say which slab arrived —
+    and it is BAKED per chamber (it was ~20 paths ×3 per frame). Doors are
+    prism glass in the stone. KNOW THYSELF showed only while the Black Cell
+    stood wedged again; now the Black Cell's medallion silvers petal by petal
+    as the rite binds and stays a mirror wherever the keep puts it.
+    Test: `planet_dungeon_crystal_glass_render_test`.
+
+  · ◐ **PLANT — built 2026-09-24, not polished, never on device.**
+    `planet_dungeon_game_plant_art.dart`, `kVerdantGlass`. The crypt already
+    had its architecture and a floor built to read at two sizes, so the stone
+    stays; the ledger stones (~60 slabs clipped and stroked every frame) are
+    BAKED per room per size. Doors are garden glass. A grave-lamp burns in a
+    leaded chimney (smoked while dead); the growth altar's bowl is three
+    panes — loam, seed, sun — lit as each step is laid, gold heart when the
+    bloom wakes. THE UNSEEN SHADE left only a run-state tree (gone next
+    descent): what grew in the shade is now a tree of leaded glass — the
+    trunk rises, the leaves fan open in turn as the rite binds, a gold fruit
+    last — standing in the fern gallery for good.
+    Test: `planet_dungeon_plant_glass_render_test`.
+
+  · ◐ **SPIRIT — built 2026-09-24, not polished, never on device.**
+    `planet_dungeon_game_spirit_art.dart`, `kWraithGlass`. The field was a
+    wash under pale fog with hollow outlines for doors; it now stands inside
+    a baked CHURCHYARD WALL (the same in both worlds — no arcade, the arches
+    read as black humps) under a low cold mist, with grave glass in the
+    doorways. A crossing the other world holds is drawn over its shut glass,
+    doubled and cold (`_renderGraveOverDoors`; the old outline pass is off on
+    glass). A barrow's sigil stone is a rondel of twelve panes — the living
+    half ember to a warm eye, the ring gold once the mark takes. STUFF OF
+    DREAMS left three scratches on a run-state stone: the undug grave's blank
+    headstone is now a lancet of leaded glass whose three lights (the names
+    told — yours) and star light as the rite binds, kept in both worlds.
+    Test: `planet_dungeon_spirit_glass_render_test`.
+
+  · ◐ **DARK — built 2026-09-24, not polished, never on device.**
+    `planet_dungeon_game_dark_art.dart`, `kUmbraGlass`. The vault keeps its
+    inside-out ground (corona stone / umbra edges), now clipped square, and
+    gains baked iron-dark WALLS (the old rounded rim strokes are gone), umbra
+    glass doorways, and a low violet dust instead of the pale fog over every
+    lit quarter. Every gnomon is a finger of BLACK GLASS in two leaded
+    facets (`_drawGlassFinger`). THE FOURTH FINGER rises from the well to
+    the rim as the rite binds, lit violet from inside, and stands there on
+    every later descent. Test: `planet_dungeon_dark_glass_render_test`.
+
+  · ◐ **LIGHT — built 2026-09-24, not polished, never on device.**
+    `planet_dungeon_game_light_art.dart`, `kLumenGlass`. The archive fabric
+    was already baked; it is clipped square inside baked limestone WALLS,
+    with archive glass doorways and a faint warm haze in place of the grey
+    fog over the lit bays. The catalogue's ten cells are panes of archive
+    glass — gold lit, smoked dark — and still the live map. AFRAID OF THE
+    LIGHT left an empty slab: the volume now lies in it, a book of smoked
+    night glass on a gold clasp that opens from the rite's first beat (it
+    keys on `_ritePendingEgg` too, or the rite would play over nothing) and
+    lies open on every later descent.
+    Test: `planet_dungeon_light_glass_render_test`.
+
+  · ◐ **BLOOD — built 2026-09-24, not polished, never on device.**
+    `planet_dungeon_game_blood_art.dart`, `kSanguineGlass`. A living heart
+    is not a building, so the carved edge is PORPHYRY (baked), with garnet
+    glass doorways and a low dark-red haze in place of the grey fog; the
+    beating tissue floor is untouched but clipped square. A stopcock's stub
+    is a garnet glass vessel — lit and flowing while it carries, smoked dead,
+    dull untouched. THE BLOOD IS THE LIFE read run state only: once found,
+    every cock in the eight wears a leaded garnet heart, lighting in turn as
+    the rite binds. Test: `planet_dungeon_blood_glass_render_test`.
+
+**SECOND LOOK, SAME DAY (2026-09-24)** — the author called Dust bad; the
+honest read was that Dust, Blood and Plant each put everything at one value.
+  · DUST → THE NIGHT DIG. Streets were bleached tan; the sky mood is now
+    night (0.3–0.36 on the streets), the ground dark umber, rubble cut ~70%
+    (drums 1–3, sherds 3–8, one heap), and the MOUNDS are the heroes: a
+    pegged, strung slab (buried), a black pit with lamplit amber strata
+    (bared), a moonlit dune with a long shadow (drifted). A dig throws its
+    spadeful visibly — grains on an arc to where it lands, a ring of sand
+    where it falls (`_sandThrow`, 1.1s; over the wall when the target is in
+    another room). A faint survey grid is inked across the streets (baked).
+    THEN, STILL "OVERLY LINED" (the author): Dust ran five line systems at
+    once — the survey grid, ripples, bank combs, flag joints, chalk on every
+    square — plus wind streaks in the sky. The grid and streaks are gone,
+    combs and street flag joints are gone, ripples near-invisible, and a
+    buried square is ONE slab (a cross joint, four pegs). THE SEAL YARD is a
+    board now: a sunken tray, fifteen clean tiles, and sand in exactly two
+    shapes — a low mound (1 load), a tall crested dune with a shadow (2) —
+    seals under the sand, pillars as standing stumps. The tile gaps are the
+    grid; the chalk string, pegs, under-paving and per-cell blobs are gone.
+  · BLOOD. The floor is darker and the tissue recedes (×0.78); the beat
+    floods a vein round the inside of the porphyry on every thump; passage
+    markers stand a pace off the wall (the glass doors hid them) and a
+    carrying lumen runs a bright bead.
+  · PLANT. At your own size the ledger stones are ONE worn floor (joints
+    only); the per-slab mosaic is kept for tiny, where it is terrain. Each
+    room gets its own carved floor motif, baked (`_paintCryptMotif`): a
+    root-boss, a runner, a jointed court, a gallery's frond kerbs, an
+    effigy ledger, a flower, the arena's petal ring.
+  · SPIRIT's barrow is a hill (dark foot, turf, lit crown, flank ribs) with
+    its kerb stones actually visible.
+
+**POISON, FROM PLAY (2026-09-24).** (1) THE BOIL-OVER. The party holds
+exactly the gives the four brews need, and the pot would brew one twice —
+the house became unfinishable until a death. Refusing duplicates was tried
+and dropped (the author: mistakes should be allowed). Instead, after every
+cauldron press, if the gives left (plus what is in the pot) can no longer
+make the brews still wanted, the pot BOILS OVER: foam heaves out, the
+bench's bottles burst into shards at 0.9s, and every gift not already poured
+into a plague comes back (`_applyBoilOver` recounts `given` from the hands
+of poured brews only). Woken/slain plagues and the open font stay. Test:
+the plagues test brews Bloomvenom twice and finishes from what came back.
+(2) THE ENTRANCE POT. The quarantine door no longer opens to one Poison
+press: a pot in the middle of the lazar gate takes ONE gift from every hand,
+any element (pips light in each giver's colour), brews, and the wax runs off
+the door. None of it counts against the brewing gives.
+
+**THE LINE AUDIT (2026-09-24)** — after Dust, the same fault elsewhere:
+  · POISON: flags inset 2.6px → 1.0 (the bed showed between every stone as a
+    web of joints), splits 16% → 6%, floor alpha 0.72 → 0.84 (the sky's
+    bright veins read through). The bell ward's floor carries the bell's
+    mouth and the scriptorium's an illuminated border (`_renderWardInlay`)
+    — the four wards were one room.
+  · LIGHTNING was the opposite — too dark and empty. Cheap light, no blur:
+    a STORM FLASH every ~7s (a double blink, and shafts raking in off the
+    north wall — `_renderStormFlash`, one rect + three paths while lit);
+    live wires carry a halo and throw short crackling arcs (jitter
+    re-rolled ~12×/s, deterministic per wire); live posts pool blue light on
+    the floor and crackle at the head; the cables sunk in every floor glow
+    and carry travelling pulses while the wing is fed.
+  · DARK's umbra was wireframe: the architecture is solid shadow now (fill
+    0.92, rim 0.3), floor flags nearly gone — the strong violet line is
+    kept for what you use.
+  · PLANT: the joints at your own size are faint (wide 0.3, hairline 0.14).
+  · CRYSTAL: the lattice came lighter still (1.0px, 0.16).
+
+**ALL SEVENTEEN PLANETS ARE IN GLASS (2026-09-24).** Every Lost Maxim now
+leaves a permanent piece keyed on the egg id (the table below has no gaps).
+The seven unpolished planets were repainted from renders only — none has been
+played on a device, and none is in `kPolishedDungeons`.
+
+**ALL TEN POLISHED PLANETS ARE IN GLASS (2026-09-23)** — Fire, Lava, Air,
+Lightning, Earth, Water, Steam, Poison, Ice, Mud. The other seven (Dust,
+Crystal, Plant, Spirit, Dark, Light, Blood) followed on 2026-09-24 — see
+below.
+
+**THE MAXIM LEAVES A MARK (the rule, from 2026-09-23 — part of every
+planet's glass pass).** Fire's Ember Epitaph is the model: the solve is
+something you WATCH happen in the world, and what it made stays there for
+good. Every Lost Maxim, as its planet is repainted, must have:
+
+  1. **A watched final beat, in the world.** Not only the shared Rite of Three
+     over the focus: the thing itself transforms on screen — the epitaph's
+     burn-front unscrambling the cipher into fire-glass letters is the bar.
+  2. **A permanent piece, keyed on the PERSISTED egg id** — never on run
+     state. It is standing in its room on every later descent, and it is
+     drawn from `discoveredClouds.contains(<egg id>)` alone, so a fresh game
+     that only knows the id still shows it.
+  3. **Made of the planet's own glass or alchemy.** A maxim's piece is the one
+     place a planet may keep a *trophy* — a window, a relic, a lit inscription
+     that shows what you did. It follows §7.11 (it is something you CHANGED,
+     so it may be bright glass) but it must never be louder than a live
+     puzzle signal in the same room.
+  4. **Pinned by a render test:** the found and unfound rooms are different
+     pictures, and the found shot is taken from a game where the egg id is
+     the only thing set (Fire: `epitaph_won` in the glass render test).
+
+Where the seventeen stand (audited 2026-09-23 from what each renderer reads):
+
+| Planet | Permanent piece today | Verdict |
+|---|---|---|
+| Fire | the epitaph burnt into the mural, the planter's flame kept | ✅ the model |
+| Air | the compass settled (`_fourWindsFound` in its render) | ✅ keyed right — repaint in glass |
+| Earth | the Palm's crystal cluster, leaded, grown as the rite binds | ✅ built 2026-09-23 |
+| Water | the Frozen Moon in its rosette of ice glass, frosted out as the rite binds | ✅ built 2026-09-23 |
+| Steam | Hidden Harmony inlaid in the plinth as steam glass (was an empty socket) | ✅ built 2026-09-23 |
+| Lava | the Black Glass, set in the slag pit as a leaded obsidian mirror (the audit first misread this: the old glass showed only BETWEEN taking the slag and banking the maxim, then vanished) | ✅ built 2026-09-23 |
+| Mud | the lotus in leaded pink glass, opening as the rite binds | ✅ built 2026-09-23 |
+| Dust | the tally rosette round the cist, five leaded panes lit in turn as the rite binds | ✅ built 2026-09-24 |
+| Crystal | the Black Cell's medallion silvered to a mirror, wherever the cell stands (it used to show only while the cell was wedged again) | ✅ built 2026-09-24 |
+| Dark | the fourth finger, black glass lit violet, risen at the well's rim | ✅ built 2026-09-24 |
+| Light | the afraid volume, a book of night glass lying open in its slab | ✅ built 2026-09-24 |
+| Ice | the stranger caught in the telescope's lens as a leaded star (it used to REMOVE the telescope) | ✅ built 2026-09-23 |
+| Lightning | fulgurite branching from the dynamo's rotor, the rose lit, the breakers welded | ✅ built 2026-09-23 |
+| Plant | a tree of leaded glass where the shade lay, grown as the rite binds (it used to read run state) | ✅ built 2026-09-24 |
+| Spirit | the undug grave's headstone as a lit lancet window, in both worlds (it used to read run state) | ✅ built 2026-09-24 |
+| Blood | a leaded garnet heart on every cock in the eight, lit in turn as the rite binds | ✅ built 2026-09-24 |
+| Poison | the Dose scored in a glass rondel at the prior's cross, heart lit | ✅ built 2026-09-23 |
+
+The four ⬜ are the real gaps: today a player who found those secrets comes
+back to a room with no sign of it.
 
 ## 8. Build status
 

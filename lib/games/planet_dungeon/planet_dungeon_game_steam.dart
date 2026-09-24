@@ -281,10 +281,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         if (_blocksPlacement(f.to, currentRoom)) {
           shortThrows++;
           cr.position = cr.lastSafe;
-          _setBlockedHint(
-            'Not enough pressure. The throw falls short',
-            3.0,
-          );
+          _setBlockedHint('Not enough pressure. The throw falls short', 3.0);
         }
       }
     }
@@ -612,7 +609,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       return true;
     }
     if (rock != null) {
-      _setBlockedHint('Your stone is already up. Break it first to raise another');
+      _setBlockedHint(
+        'Your stone is already up. Break it first to raise another',
+      );
       return true;
     }
     final at =
@@ -1674,9 +1673,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         if (code == _mLava) {
           if (freshLava[room.id]?.contains(r * g.cols + c) ?? false) {
             // §5.6 BLOCKED: names what is wrong, never the method.
-            _setBlockedHint(
-              'The molten is still flowing too hot to cool',
-            );
+            _setBlockedHint('The molten is still flowing too hot to cool');
             return true;
           }
           if (steamBreath <= 0) {
@@ -2024,8 +2021,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     return switch (g.starIndex) {
       0 => 'Ember Causeway. Five mouths vent the field, and one is choked',
       1 => 'Cinder Forge. The far shore is across a chasm too wide to jump',
-      _ =>
-        'The Crucible. Four open corners, and no centre yet',
+      _ => 'The Crucible. Four open corners, and no centre yet',
     };
   }
 
@@ -2758,8 +2754,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   void _renderSteamFloor(Canvas canvas, DungeonRoom room) {
     final g = room.molten;
     if (g == null) {
-      _renderPlainFloor(canvas, room.bounds, room.id == layout.entranceRoomId);
-      _drawFoundryFloor(canvas, room);
+      _renderVaporFabric(canvas, room);
       _renderForgeAmbient(canvas, room);
       return;
     }
@@ -2767,8 +2762,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     // outlined tile for every open cell as well is what made the crucible read
     // as a board game rather than a room — the lattice was the loudest thing
     // in it. Same grid, same rules; the empty squares are simply floor now.
-    _renderPlainFloor(canvas, room.bounds, false);
-    _drawFoundryFloor(canvas, room);
+    _renderVaporFabric(canvas, room);
     final grid = _moltenFor(room);
     final (cw, ch) = _cellSize(room, g);
     final cleared = _moltenCleared(room, g);
@@ -3390,6 +3384,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
                 : const Color(0x775A6A74),
         );
       }
+      _drawGaugeHub(canvas, wheel, lit: afford);
       if (_fx.ready && afford) {
         drawGlow(
           canvas,
@@ -3441,26 +3436,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         Paint()..color = const Color(0xFF2B2420),
       );
       final pulse = 0.5 + 0.5 * sin(_moltenPulse * 1.8);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(box.deflate(7), const Radius.circular(4)),
-        Paint()
-          ..color = Color.lerp(
-            const Color(0xFF5A1E08),
-            const Color(0xFFB5400F),
-            pulse,
-          )!.withValues(alpha: 0.8),
-      );
-      final bars = Paint()
-        ..color = const Color(0xCC141A20)
-        ..strokeWidth = 3;
-      for (var k = 1; k < 4; k++) {
-        final x = box.left + box.width * k / 4;
-        canvas.drawLine(
-          Offset(x, box.top + 4),
-          Offset(x, box.bottom - 4),
-          bars,
-        );
-      }
+      _drawFireboxGlass(canvas, box, pulse);
       if (_fx.ready) {
         drawGlow(
           canvas,
@@ -3827,15 +3803,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       ),
       Paint()..color = const Color(0xFF443C31),
     );
-    if (taken) {
-      // An empty socket, and it stays. What you took should leave a hole.
-      canvas.drawCircle(
-        cache + const Offset(0, 8),
-        11,
-        Paint()..color = const Color(0xFF16130F),
-      );
-      return;
-    }
+    // Taken, the sigil is an inlay of steam glass in the plinth, for good —
+    // and it sinks there on the rite's own beat (planet_dungeon_game_steam_art).
+    _drawHarmonyInlay(canvas, cache);
+    if (taken || _harmonySet > 0) return;
 
     // The maxim itself: a turning sigil over the stone.
     final a = _moltenPulse * 0.5;
@@ -3945,42 +3916,15 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         );
       }
 
-      // One arc per element wanted. One element takes the whole ring; two
-      // split it, each half in its own colour.
-      final wants = <String>[
+      // One pane of its own glass per element wanted; two split the ring.
+      _drawCornerGlass(canvas, c, [
         seal.element,
         if (seal.second != null) seal.second!,
-      ];
-      final sweep = 2 * pi / wants.length;
-      for (var i = 0; i < wants.length; i++) {
-        // Lifted toward white: Earth's brown and Steam's grey-blue both sit
-        // close enough to the terrace stone that at reading distance an
-        // unlit socket looked like an EMPTY socket. The corner has to name
-        // its element from across the void or the room is not a plan.
-        final col = Color.lerp(elementColor(wants[i]), Colors.white, 0.22)!;
-        final start = -pi / 2 + i * sweep + (wants.length > 1 ? 0.10 : 0.0);
-        final span = sweep - (wants.length > 1 ? 0.20 : 0.0);
-        canvas.drawArc(
-          Rect.fromCircle(center: c, radius: rOuter),
-          start,
-          span,
-          false,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = shut ? 5 : 3.5
-            ..color = col.withValues(alpha: shut ? 0.98 : 0.72),
-        );
-      }
+      ], shut);
 
       if (shut) {
         // A bolted plate, cross-braced. Flat and final — the corner is spent,
         // and nothing about it should still look like it wants something.
-        canvas.drawCircle(
-          c,
-          rOuter - 6,
-          Paint()..color = const Color(0xFF2A2118).withValues(alpha: 0.95),
-        );
         final brace = Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.4
@@ -4079,6 +4023,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   }
 
   void _renderSteam(Canvas canvas, DungeonRoom room) {
+    _renderGlassDoorPlugs(canvas, room);
     _renderPressureFixtures(canvas, room);
     _drawGeyserField(canvas, room);
     _drawCrucibleSeals(canvas, room);
@@ -4108,6 +4053,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
               ..strokeWidth = 2,
           );
         }
+        _drawGaugeHub(canvas, vent, lit: !lit);
         if (_fx.ready && !lit) {
           drawGlow(canvas, _fx.glow!, vent, 22, const Color(0x338FE0EC));
         }

@@ -1285,9 +1285,7 @@ extension MirrorTide on PlanetDungeonGame {
     // the water runs; still the water and it will hold. The refusal costs
     // nothing and says what it sees, not what to do.
     if (mirrorIsGlass && !mirrorIsTrue) {
-      _setBlockedHint(
-        'The pieces don\'t match the moon in the sky',
-      );
+      _setBlockedHint('The pieces don\'t match the moon in the sky');
       return true;
     }
     if (mirrorIsGlass && !mirrorIsWhole) {
@@ -1485,10 +1483,7 @@ extension MirrorTide on PlanetDungeonGame {
             3.8,
           );
         } else {
-          _setHint(
-            'Two of the four pools hold the true moon',
-            3.8,
-          );
+          _setHint('Two of the four pools hold the true moon', 3.8);
         }
         return;
       case 'reflection_court':
@@ -1576,9 +1571,7 @@ extension MirrorTide on PlanetDungeonGame {
   String? _templeObjectiveHint(DungeonRoom room) {
     switch (room.id) {
       case 'tide_gate':
-        return entryDoorRevealed
-            ? null
-            : 'Tide Gate. The offering-bowl is dry';
+        return entryDoorRevealed ? null : 'Tide Gate. The offering-bowl is dry';
       case 'tide_works':
         // Was a three-step procedure read out at the door: turn, stand,
         // open. State only — the valves and the tide they want are the
@@ -1729,93 +1722,16 @@ extension MirrorTide on PlanetDungeonGame {
   // ── Render: world-space ─────────────────────────────────
 
   /// Drowned-temple flooring: teal-slate flags, a mosaic ring, salt stains.
-  void _renderTempleFloor(Canvas canvas, DungeonRoom room) {
-    final b = room.bounds;
-    final rr = RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(26));
-    // TRANSLUCENT like the Air islands (alpha ≈ 0.5–0.6): the caustic
-    // shader atmosphere must glow through the flags, never be painted over.
-    canvas.drawRRect(
-      rr,
-      Paint()
-        ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, [
-          const Color(0xFF12222A).withValues(alpha: 0.50),
-          const Color(0xFF0A161D).withValues(alpha: 0.58),
-        ]),
-    );
-    final seam = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = const Color(0xFF2A4A56).withValues(alpha: 0.12);
-    for (var x = b.left + 90; x < b.right - 20; x += 110) {
-      canvas.drawLine(Offset(x, b.top + 18), Offset(x, b.bottom - 18), seam);
-    }
-    for (var y = b.top + 90; y < b.bottom - 20; y += 110) {
-      canvas.drawLine(Offset(b.left + 18, y), Offset(b.right - 18, y), seam);
-    }
-    // Mosaic ring at the chamber's heart.
-    canvas.drawCircle(
-      b.center,
-      88,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = const Color(0xFF3A7080).withValues(alpha: 0.22),
-    );
-    canvas.drawCircle(
-      b.center,
-      66,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = const Color(0xFF3A7080).withValues(alpha: 0.14),
-    );
-    // Old salt lines where past tides stood.
-    final salt = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
-      ..color = const Color(0xFF8FA8B0).withValues(alpha: 0.08);
-    canvas.drawLine(
-      Offset(b.left + 26, b.top + 110),
-      Offset(b.right - 26, b.top + 102),
-      salt,
-    );
-    canvas.drawLine(
-      Offset(b.left + 30, b.top + 180),
-      Offset(b.right - 30, b.top + 174),
-      salt,
-    );
-    if (_fx.ready) {
-      final cols = (b.width / 130).clamp(3, 9).toInt();
-      for (var i = 0; i < cols; i++) {
-        final x = b.left + (i + 0.5) / cols * b.width;
-        drawPuff(
-          canvas,
-          _fx.puff!,
-          Offset(x, b.top + 8),
-          120,
-          const Color(0xFF0C1A22).withValues(alpha: 0.55),
-        );
-        drawPuff(
-          canvas,
-          _fx.puff!,
-          Offset(x, b.bottom - 8),
-          120,
-          const Color(0xFF0A161D).withValues(alpha: 0.6),
-        );
-      }
-    }
-    canvas.drawRRect(
-      rr,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFF8FE0EC).withValues(alpha: 0.12),
-    );
-  }
+  /// Sea-marble flags inside an arcaded temple, baked once per room
+  /// (planet_dungeon_game_water_art.dart); translucent, so the caustic shader
+  /// still glows through (§8).
+  void _renderTempleFloor(Canvas canvas, DungeonRoom room) =>
+      _renderTempleFabric(canvas, room);
 
   /// Per-room landmarks + puzzle objects (water surfaces first, under
   /// everything that stands in them).
   void _renderTemple(Canvas canvas, DungeonRoom room) {
+    _renderGlassDoorPlugs(canvas, room);
     _renderTideWater(canvas, room);
     // THE WHEELS ARE DRAWN WHEREVER THEY STAND, not by one room's painter.
     //
@@ -1962,13 +1878,8 @@ extension MirrorTide on PlanetDungeonGame {
 
   void _drawOfferingBowl(Canvas canvas) {
     const c = kTideGateBowl;
-    final stone = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..color = const Color(0xFF4A7080).withValues(alpha: 0.8);
-    canvas.drawCircle(c, 30, stone);
-    canvas.drawCircle(c, 18, stone..strokeWidth = 1.6);
     final fill = _entryReveal.clamp(0.0, 1.0); // 0 dry-cracked → 1 brimming
+    _drawBowlGlass(canvas, c, fill);
     if (fill < 1.0) {
       // Dry: a cracked basin floor, fading as the water rises over it.
       final crack = Paint()
@@ -1977,46 +1888,17 @@ extension MirrorTide on PlanetDungeonGame {
       canvas.drawLine(c + const Offset(-9, -4), c + const Offset(6, 7), crack);
       canvas.drawLine(c + const Offset(2, -9), c + const Offset(8, 3), crack);
     }
-    if (fill > 0.0) {
-      // The water rises as a growing pool with a gently swelling surface, then
-      // settles mirror-still and luminous when full.
-      final rise = Curves.easeOutCubic.transform(fill);
-      final radius = 16.0 * rise;
-      canvas.drawCircle(
+    if (fill > 0.0 && _fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
         c,
-        radius,
-        Paint()..color = const Color(0xFF2A88A8).withValues(alpha: 0.55),
+        30 * Curves.easeOutCubic.transform(fill),
+        const Color(
+          0xFF8FE0EC,
+        ).withValues(alpha: 0.18 + 0.06 * sin(_time * 2.2)),
       );
-      // A brighter meniscus rim on the rising surface.
-      canvas.drawCircle(
-        c,
-        radius,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = const Color(
-            0xFF8FE0EC,
-          ).withValues(alpha: 0.5 + 0.2 * sin(_time * 3.0)),
-      );
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          c,
-          30 * rise,
-          const Color(
-            0xFF8FE0EC,
-          ).withValues(alpha: (0.18 + 0.06 * sin(_time * 2.2)) * rise),
-        );
-      }
     }
-    // Flanking columns by the inner doors.
-    final col = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
-      ..color = const Color(0xFF2A4A56).withValues(alpha: 0.7);
-    canvas.drawLine(const Offset(640, 180), const Offset(640, 360), col);
-    canvas.drawLine(const Offset(672, 190), const Offset(672, 350), col);
   }
 
   void _drawDrownedCourt(Canvas canvas, DungeonRoom room) {
@@ -2166,12 +2048,7 @@ extension MirrorTide on PlanetDungeonGame {
       if (_fx.ready && earnedStar) {
         drawGlow(canvas, _fx.glow!, p, 16, col2.withValues(alpha: 0.35));
       }
-      _drawStarGlyph(
-        canvas,
-        p,
-        7,
-        col2.withValues(alpha: earnedStar ? 0.95 : 0.5),
-      );
+      _drawVigilGlass(canvas, p, earnedStar);
     }
   }
 
@@ -2193,20 +2070,7 @@ extension MirrorTide on PlanetDungeonGame {
     for (final seal in room.tideSeals) {
       final open = done || openedSeals.contains(seal.id);
       final p = seal.position;
-      canvas.drawCircle(
-        p,
-        15,
-        Paint()..color = const Color(0xFF0E222A).withValues(alpha: 0.9),
-      );
-      canvas.drawCircle(
-        p,
-        15,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.2
-          ..color = (open ? const Color(0xFF6FE0C0) : const Color(0xFF4A7080))
-              .withValues(alpha: 0.9),
-      );
+      _drawSealGlass(canvas, p, open: open);
       if (open) {
         if (_fx.ready) {
           drawGlow(
@@ -2227,9 +2091,9 @@ extension MirrorTide on PlanetDungeonGame {
             Paint()
               ..strokeWidth = 2
               ..strokeCap = StrokeCap.round
-              ..color = const Color(
-                0xFF8FE0EC,
-              ).withValues(alpha: 0.4 + 0.2 * sin(_time * 2 + i)),
+              ..color = _kSeaGlass.gold.withValues(
+                alpha: 0.7 + 0.2 * sin(_time * 2 + i),
+              ),
           );
         }
       }
@@ -2259,17 +2123,11 @@ extension MirrorTide on PlanetDungeonGame {
           wheel,
         );
       }
-      // Stand mark beneath: 1-3 wave ticks.
+      _drawWheelHub(canvas, p, current: isCurrent);
+      // Its stand, counted in sea-glass beads beneath.
       final ticks = (valve.level ?? 0) + 1;
       for (var i = 0; i < ticks; i++) {
-        canvas.drawLine(
-          p + Offset(-9 + i * 9.0, 24),
-          p + Offset(-3 + i * 9.0, 24),
-          Paint()
-            ..strokeWidth = 2
-            ..strokeCap = StrokeCap.round
-            ..color = const Color(0xFF8FE0EC).withValues(alpha: 0.6),
-        );
+        _drawSeaBead(canvas, p + Offset(-9 + i * 9.0, 25), lit: isCurrent);
       }
       if (isCurrent && _fx.ready) {
         drawGlow(
@@ -2445,13 +2303,9 @@ extension MirrorTide on PlanetDungeonGame {
       CanalSill.mid => 2,
       _ => 3,
     };
-    final tick = Paint()
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFE4C16A).withValues(alpha: 0.55);
     for (var i = 0; i < notches; i++) {
-      final base = at + g.unit * (i * 6.0);
-      canvas.drawLine(base - normal * 7, base - normal * 12, tick);
+      final base = at + g.unit * (i * 8.0);
+      _drawSeaBead(canvas, base - normal * 10, lit: false, r: 3);
     }
   }
 
@@ -2460,19 +2314,7 @@ extension MirrorTide on PlanetDungeonGame {
   void _drawCanalNode(Canvas canvas, CanalNode node) {
     final p = node.position;
     final r = node.isBasin ? 21.0 : 15.0;
-    canvas.drawCircle(
-      p,
-      r,
-      Paint()..color = const Color(0xFF07141B).withValues(alpha: 0.9),
-    );
-    canvas.drawCircle(
-      p,
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..color = const Color(0xFF4A7080).withValues(alpha: 0.85),
-    );
+    _drawBasinGlass(canvas, p, r);
     if (node.isSpring) {
       // The spring: a mouth with water spilling from it, always running.
       final spill = Paint()
@@ -2538,32 +2380,7 @@ extension MirrorTide on PlanetDungeonGame {
       canvas.drawLine(p + const Offset(9, -9), p + const Offset(-9, 9), iron);
     }
     final ice = _damAnim[node.id] ?? 0;
-    if (ice > 0) {
-      // The dam: an ice cap that GROWS in and thaws back out.
-      final grow = Curves.easeOutBack.transform(ice.clamp(0.0, 1.0));
-      canvas.drawCircle(
-        p,
-        r * 0.92 * grow,
-        Paint()..color = const Color(0xFFCFE4EE).withValues(alpha: 0.6 * ice),
-      );
-      canvas.drawCircle(
-        p,
-        r * 0.92 * grow,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = Colors.white.withValues(alpha: 0.6 * ice),
-      );
-      final crack = Paint()
-        ..strokeWidth = 1
-        ..color = Colors.white.withValues(alpha: 0.4 * ice);
-      canvas.drawLine(
-        p + const Offset(-11, -5) * 1.0,
-        p + const Offset(6, 8),
-        crack,
-      );
-      canvas.drawLine(p + const Offset(3, -13), p + const Offset(8, 5), crack);
-    }
+    if (ice > 0) _drawIceDam(canvas, p, r, ice);
   }
 
   /// The moon-lantern: a small warm lamp on cold water, bobbing where it
@@ -2817,7 +2634,7 @@ extension MirrorTide on PlanetDungeonGame {
         ..strokeWidth = 2
         ..color = const Color(0xFF4A7080).withValues(alpha: 0.6),
     );
-    if (won) {
+    if (won || _frostMoon > 0) {
       // THE FROZEN MOON, FOREVER — and it is a REFLECTION, caught.
       //
       // It used to be a bright disc with two cracks on it, which is a coin
@@ -2888,6 +2705,9 @@ extension MirrorTide on PlanetDungeonGame {
         c + const Offset(16, -8),
         crack,
       );
+      // …set in a rosette of ice glass that frosted out from it as the rite
+      // bound (planet_dungeon_game_water_art.dart).
+      _drawFrostRosette(canvas, c);
       return;
     }
     // THE SURFACE GOING TO GLASS under a Water creature holding still: the
@@ -3005,63 +2825,8 @@ extension MirrorTide on PlanetDungeonGame {
     }
   }
 
-  void _drawTideMural(Canvas canvas, DungeonRoom room) {
-    final b = room.bounds;
-    final panel = Rect.fromCenter(
-      center: Offset(b.center.dx, b.top + 120),
-      width: 470,
-      height: 130,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(panel, const Radius.circular(10)),
-      Paint()..color = const Color(0xFF081820).withValues(alpha: 0.8),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(panel, const Radius.circular(10)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = const Color(0xFF4A7080).withValues(alpha: 0.7),
-    );
-    // Three carved tide-lines with the moon riding the middle one.
-    final ink = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..color = const Color(0xFF8FE0EC).withValues(alpha: 0.5);
-    for (var i = 0; i < 3; i++) {
-      final y = panel.top + 36.0 + i * 28;
-      final path = Path()..moveTo(panel.left + 36, y);
-      var x = panel.left + 36.0;
-      while (x < panel.right - 120) {
-        path.quadraticBezierTo(x + 14, y - 7, x + 28, y);
-        x += 28;
-      }
-      canvas.drawPath(path, ink);
-    }
-    // The moon glyph on the MIDDLE line; ice diamonds flanking it.
-    final moonP = Offset(panel.right - 80, panel.top + 64);
-    canvas.drawCircle(
-      moonP,
-      11,
-      Paint()..color = const Color(0xFFDCE8F0).withValues(alpha: 0.6),
-    );
-    final dia = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..color = const Color(0xFFB8E8F0).withValues(alpha: 0.6);
-    for (final dx in const [-30.0, 30.0]) {
-      final p = moonP + Offset(dx, 0);
-      canvas.drawPath(
-        Path()
-          ..moveTo(p.dx, p.dy - 7)
-          ..lineTo(p.dx + 6, p.dy)
-          ..lineTo(p.dx, p.dy + 7)
-          ..lineTo(p.dx - 6, p.dy)
-          ..close(),
-        dia,
-      );
-    }
-  }
+  void _drawTideMural(Canvas canvas, DungeonRoom room) =>
+      _drawGlassTideMural(canvas, room);
 
   // ── THE MOON WELL · render ─────────────────────────────────
   //

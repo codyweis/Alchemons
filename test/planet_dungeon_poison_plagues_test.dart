@@ -1551,4 +1551,53 @@ void main() {
       );
     });
   });
+
+  test('a brew made twice boils the pot over and gives every hand back', () {
+    // Found on device (2026-09-24): the party holds exactly the gives the
+    // four brews need, so brewing one twice spent hands another brew could
+    // not do without. Mistakes are allowed; stranding is not.
+    final g = _game();
+    _openTheCloister(g);
+    _setDown(g);
+    _press(g, 'Poison', 'apothecary', _pot);
+    _press(g, 'Plant', 'apothecary', _pot);
+    final first = g.monastery.carriedPotion;
+    expect(first, isNotNull);
+    _setDown(g);
+
+    // The same brew again: allowed — and now Plant is spent twice, so the
+    // Plant+Mud brew can never be made. The pot boils over.
+    _press(g, 'Poison', 'apothecary', _pot);
+    _press(g, 'Plant', 'apothecary', _pot);
+    expect(g.monastery.boilOver, greaterThanOrEqualTo(0));
+    for (var i = 0; i < 60 * 3; i++) {
+      g.update(1 / 60);
+    }
+    expect(g.monastery.boilOver, lessThan(0), reason: 'the boil-over ends');
+    expect(g.monastery.bottled, isEmpty, reason: 'the bottles burst');
+    expect(g.monastery.carriedPotion, isNull);
+    expect(g.monastery.cloisterOpen, isTrue, reason: 'the font stays open');
+    // Only the vial's two Poison gives stay spent.
+    expect(g.monastery.given['iPoison'], 2);
+    expect(g.monastery.given['iPlant'] ?? 0, 0);
+    expect(g.monastery.given['iMud'] ?? 0, 0);
+
+    // …and all three brews can be made from what came back.
+    for (final pair in const [
+      ['Poison', 'Plant'],
+      ['Poison', 'Mud'],
+      ['Plant', 'Mud'],
+    ]) {
+      _setDown(g);
+      _press(g, pair[0], 'apothecary', _pot);
+      _press(g, pair[1], 'apothecary', _pot);
+    }
+    _setDown(g);
+    expect(g.monastery.bottled.length, 3);
+    expect(
+      g.monastery.boilOver,
+      lessThan(0),
+      reason: 'no boil-over when it all fits',
+    );
+  });
 }

@@ -2019,6 +2019,10 @@ const Set<String> kPolishedDungeons = <String>{
   // landed with the rest; the record here had simply not caught up, and
   // §7.9's list was stale rather than the planet unfinished.
   'Poison',
+  // Mud and Ice — promoted 2026-09-23 on the author's account: both had the
+  // whole pass (Mud 2026-09-13, Ice 2026-09-15) and have been played.
+  'Mud',
+  'Ice',
 };
 
 /// True if [element]'s descent is ready for a player: built AND polished.

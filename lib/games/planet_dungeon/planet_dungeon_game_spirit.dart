@@ -255,7 +255,9 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   /// method. How the grave got this way is Mask's earned reading.
   String _graveDoorHint(DungeonRoom room, DungeonDoor door) {
     final x = _graveCrossingFor(room, door)!;
-    if (x.cut == GraveCut.livingOnly) return 'Salted. Only the living can cross';
+    if (x.cut == GraveCut.livingOnly) {
+      return 'Salted. Only the living can cross';
+    }
     if (x.cut == GraveCut.ghostOnly) {
       return 'This road only exists in the world of the dead';
     }
@@ -764,7 +766,9 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if (room.guardian != null) {
       return 'Wraithord\'s grave. The last star is here';
     }
-    if (room.vaultCache != null) return 'An unused grave. Something is stored here';
+    if (room.vaultCache != null) {
+      return 'An unused grave. Something is stored here';
+    }
     if (room.grave?.barrow != true) return null;
     if (graveRevenantsIn(room.id).any((r) => !f.isRested(r.id))) {
       return f.isGhost
@@ -938,6 +942,9 @@ extension EchoGraveDungeon on PlanetDungeonGame {
             ? _graveVoid.withValues(alpha: 0.42)
             : _graveSod.withValues(alpha: 0.58),
     );
+    // The churchyard wall, baked (planet_dungeon_game_spirit_art.dart).
+    _renderGraveShell(canvas, room);
+    _renderGlassDoorPlugs(canvas, room);
     _renderGraveGround(canvas, room, ghost);
 
     _renderGraveCrossings(canvas, room, ghost, t);
@@ -1204,6 +1211,9 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     bool ghost,
     double t,
   ) {
+    // A glass doorway says open or shut itself, and the other world's road
+    // is drawn over it (`_renderGraveOverDoors`).
+    if (_isGlassPlanet) return;
     for (final door in room.doors) {
       final x = _graveCrossingFor(room, door);
       if (x == null) continue;
@@ -1250,13 +1260,35 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         mound.shift(const Offset(0, 9)),
         Paint()..color = Colors.black.withValues(alpha: 0.30),
       );
-      canvas.drawOval(mound, Paint()..color = _graveMoss);
+      // A HILL, lit from above: dark at its foot, turf, a lit crown — and
+      // ribs of turf running down its flanks so it has a shape, not a fill.
+      canvas.drawOval(mound, Paint()..color = const Color(0xFF232A1E));
       canvas.drawOval(
         mound
-            .deflate(mound.height * 0.18)
-            .shift(Offset(0, -mound.height * .12)),
-        Paint()..color = Color.lerp(_graveMoss, _graveTurf, 0.45)!,
+            .deflate(mound.height * 0.08)
+            .shift(Offset(0, -mound.height * .06)),
+        Paint()..color = _graveMoss,
       );
+      canvas.drawOval(
+        mound
+            .deflate(mound.height * 0.24)
+            .shift(Offset(0, -mound.height * .16)),
+        Paint()..color = Color.lerp(_graveMoss, const Color(0xFF7A8A5E), 0.45)!,
+      );
+      for (var i = 0; i < 9; i++) {
+        final a = pi + (i + 0.5) / 9 * pi;
+        canvas.drawLine(
+          c +
+              Offset(
+                cos(a) * mound.width * 0.18,
+                sin(a) * mound.height * 0.12 - mound.height * .16,
+              ),
+          c + Offset(cos(a) * mound.width * 0.47, sin(a) * mound.height * 0.44),
+          Paint()
+            ..strokeWidth = 1.4
+            ..color = const Color(0xFF1A2016).withValues(alpha: 0.5),
+        );
+      }
       // The kerb: stones set on end round the foot, thinning at the sides.
       for (var i = 0; i < 18; i++) {
         final a = i / 18 * pi * 2;
@@ -1271,7 +1303,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
           ),
           Paint()
             ..color = _graveStone.withValues(
-              alpha: 0.18 + 0.22 * (sin(a) * 0.5 + 0.5),
+              alpha: 0.5 + 0.4 * (sin(a) * 0.5 + 0.5),
             ),
         );
       }
@@ -1307,6 +1339,13 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   /// whole secret stated in one object: the telling that finishes all six of
   /// the dead has nothing here to work on.
   void _renderUndugGrave(Canvas canvas, Offset at, bool ghost) {
+    _renderUndugGraveBody(canvas, at, ghost);
+    // STUFF OF DREAMS, kept: the blank stone becomes a window, in either
+    // world, once the maxim is found (planet_dungeon_game_spirit_art.dart).
+    if (_dreamShown > 0) _drawDreamWindow(canvas, Offset(at.dx, at.dy - 26));
+  }
+
+  void _renderUndugGraveBody(Canvas canvas, Offset at, bool ghost) {
     final cut = Rect.fromCenter(center: at, width: 86, height: 40);
     if (!ghost) {
       // Scored out and abandoned: four corner marks, no grave.
@@ -1462,14 +1501,16 @@ extension EchoGraveDungeon on PlanetDungeonGame {
 
     // THE SIGIL STONE: the living half only, and only to a warm eye.
     final sig = g.sigilStone;
-    if (sig != null && !ghost && !_field.sigilStamped) {
-      final half = kBarrowSigilHalf[room.id] ?? 0;
-      final a = (half / 12.0) * pi * 2;
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
-        ..color = _graveEmber.withValues(alpha: 0.75);
-      canvas.drawArc(Rect.fromCircle(center: sig, radius: 26), a, pi, false, p);
+    if (sig != null) {
+      // A rondel of twelve panes; the living half lit ember to a warm eye,
+      // the whole ring gold once the mark has taken (§7.11).
+      _drawSigilGlass(
+        canvas,
+        sig,
+        kBarrowSigilHalf[room.id] ?? 0,
+        warm: !ghost,
+        stamped: _field.sigilStamped,
+      );
     }
 
     // THE DEAD, where they are still dying.

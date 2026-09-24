@@ -372,9 +372,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
             if (gate != null) {
               _stampFamilyGate(gate);
             } else {
-              _setBlockedHint(
-                'Only a Pip is small enough to clear this ring',
-              );
+              _setBlockedHint('Only a Pip is small enough to clear this ring');
             }
             return true;
           case InteractionResult.blockedElement:
@@ -609,10 +607,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         particleCount: 14,
         intensity: 0.7,
       );
-      _setInsightHint(
-        'Three lengths of chain, with a gnomon on the end',
-        4.0,
-      );
+      _setInsightHint('Three lengths of chain, with a gnomon on the end', 4.0);
       return true;
     }
 
@@ -645,9 +640,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
             particleCount: 8,
             intensity: 0.5,
           );
-          _setBlockedHint(
-            'Only a Pip is small enough to clear this ring',
-          );
+          _setBlockedHint('Only a Pip is small enough to clear this ring');
           return true;
       }
     }
@@ -670,9 +663,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         particleCount: 8,
         intensity: 0.5,
       );
-      _setBlockedHint(
-        'No telling how long this chain is',
-      );
+      _setBlockedHint('No telling how long this chain is');
       return true;
     }
     if (!vault.abyssChainFree) {
@@ -682,9 +673,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         particleCount: 8,
         intensity: 0.5,
       );
-      _setBlockedHint(
-        'Rust has the ring locked. The chain won\'t move',
-      );
+      _setBlockedHint('Rust has the ring locked. The chain won\'t move');
       return true;
     }
     if (vault.abyssRaised) return false;
@@ -782,9 +771,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
           : 'The Analemma Court. Four stones need seating on the dial';
     }
     if (room.eclipse?.starIndex == 1) {
-      return hasStar(1)
-          ? null
-          : 'The Ossuary Ring. Three rusted portal rings';
+      return hasStar(1) ? null : 'The Ossuary Ring. Three rusted portal rings';
     }
     if (room.vaultCache != null) {
       return 'A hidden room. Something is stored here';
@@ -836,8 +823,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     if (room.eclipse?.analemma != null) {
       _setInsightHint(switch (tier) {
         0 => 'Each stone belongs to one quarter of the vault',
-        1 =>
-          'A stone only seats while its quarter is in shadow',
+        1 => 'A stone only seats while its quarter is in shadow',
         _ =>
           'You can\'t shadow all four quarters at once. Seat the stones '
               'you can, turn the gnomons, then come back for the rest',
@@ -847,8 +833,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     if (vaultAnchorsIn(room.id).isNotEmpty) {
       _setInsightHint(switch (tier) {
         0 => 'Each ring is a portal, rusted shut',
-        1 =>
-          'A portal only works while both of its ends are in shadow',
+        1 => 'A portal only works while both of its ends are in shadow',
         _ =>
           'A Pip can clear the rust. Then put both ends in shadow and '
               'step through. Each of the three rings needs a different '
@@ -1207,6 +1192,9 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
 
   void _renderVault(Canvas canvas, DungeonRoom room) {
     _renderVaultGround(canvas, room);
+    // The vault's walls, baked (planet_dungeon_game_dark_art.dart).
+    _renderVaultShell(canvas, room);
+    _renderGlassDoorPlugs(canvas, room);
     _renderVaultSpans(canvas, room);
     _renderVaultObjects(canvas, room);
     _renderVaultWipe(canvas, room);
@@ -1246,12 +1234,9 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     // Everything is clipped to the stage the engine already laid down, so the
     // vault's masonry ends where the island ends rather than running out over
     // the sky (the plain floor is `b.deflate(8)` at radius 34).
-    final stage = RRect.fromRectAndRadius(
-      b.deflate(8),
-      const Radius.circular(34),
-    );
+    // Square to the room: the vault's walls are its edge now (§7.11).
     canvas.save();
-    canvas.clipRRect(stage);
+    canvas.clipRect(b);
 
     if (dark) {
       // ── UMBRA · the room as an absence ───────────────────
@@ -1277,7 +1262,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.0
-          ..color = _kVaultViolet.withValues(alpha: 0.22),
+          ..color = _kVaultViolet.withValues(alpha: 0.07),
       );
       canvas.drawPath(
         g.sunken,
@@ -1286,9 +1271,14 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       // The architecture, on nothing. A thin fill first so a silhouette has
       // MASS — an outline alone made the umbral rooms read as wireframe, which
       // is a different failure from graph paper but the same disease.
+      // SOLID SHADOW, NOT WIREFRAME (2026-09-24): the umbra drew every
+      // column, screen and flag as a violet outline, and the room became a
+      // tangle in which the gnomons — also outlines — were lost. The
+      // architecture is mass now, with only a faint rim; the strong violet
+      // line is kept for the things you use.
       canvas.drawPath(
         g.bodies,
-        Paint()..color = _kVaultVoid.withValues(alpha: 0.55),
+        Paint()..color = const Color(0xFF1E1A2A).withValues(alpha: 0.92),
       );
       canvas.drawPath(
         g.mouths,
@@ -1300,22 +1290,22 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         g.bodies,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.8
-          ..color = _kVaultViolet.withValues(alpha: 0.72),
+          ..strokeWidth = 1.2
+          ..color = _kVaultViolet.withValues(alpha: 0.3),
       );
       canvas.drawPath(
         g.mouths,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = _kVaultViolet.withValues(alpha: 0.5),
+          ..strokeWidth = 1.2
+          ..color = _kVaultViolet.withValues(alpha: 0.25),
       );
       canvas.drawPath(
         g.edges,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.3
-          ..color = _kVaultViolet.withValues(alpha: 0.5),
+          ..strokeWidth = 1.0
+          ..color = _kVaultViolet.withValues(alpha: 0.16),
       );
       // The bone in a loculus, a drum's top, the nosing of a stair: the few
       // things down here that still catch light. This is the difference
@@ -1335,13 +1325,6 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
             ..color = _kVaultViolet.withValues(alpha: 0.5),
         );
       }
-      canvas.drawRRect(
-        stage.deflate(5),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = _kVaultViolet.withValues(alpha: 0.4),
-      );
     } else {
       // ── CORONA · the room as stone ───────────────────────
       // Alpha held low on every big fill: the FLOOR TRANSLUCENCY RULE means
@@ -1417,13 +1400,6 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
           Paint()..color = _kVaultEmber.withValues(alpha: 0.9),
         );
       }
-      canvas.drawRRect(
-        stage.deflate(5),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = _kVaultBone.withValues(alpha: 0.16),
-      );
     }
     canvas.restore();
   }
@@ -1507,29 +1483,8 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       ),
       Paint()..color = _kVaultBronze.withValues(alpha: 0.9),
     );
-    final body = Path()
-      ..moveTo(at.dx - w / 2, at.dy + h * 0.3)
-      ..lineTo(at.dx - w * 0.3, at.dy - h * 0.5)
-      ..lineTo(at.dx, at.dy - h * 0.66)
-      ..lineTo(at.dx + w * 0.3, at.dy - h * 0.5)
-      ..lineTo(at.dx + w / 2, at.dy + h * 0.3)
-      ..close();
-    canvas.drawPath(body, Paint()..color = _kVaultVoid);
-    canvas.drawPath(
-      body,
-      Paint()
-        ..color = _kVaultViolet
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-    // Black glass: one cold gleam down the edge.
-    canvas.drawLine(
-      at + Offset(-w * 0.18, -h * 0.4),
-      at + Offset(-w * 0.3, h * 0.2),
-      Paint()
-        ..color = _kVaultBone.withValues(alpha: 0.35)
-        ..strokeWidth = 1.2,
-    );
+    // Black glass, leaded: two facets, the lit one catching violet (§7.11).
+    _drawGlassFinger(canvas, at, h, w, lit: 0);
   }
 
   /// The shadow a finger throws: a hard wedge lying away from its base toward
@@ -1900,7 +1855,9 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
             }
           }
         } else {
-          _drawFinger(canvas, ring + const Offset(-4, -24), h: 64, w: 16);
+          // THE FOURTH FINGER, stood: rising at the rim as the rite binds,
+          // and lit violet for good (planet_dungeon_game_dark_art.dart).
+          _drawFourthFinger(canvas, ring + const Offset(-4, -24));
         }
         _drawIronRing(
           canvas,
