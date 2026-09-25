@@ -125,7 +125,7 @@ void actFacing(
   double aim,
 ) {
   if (dustMoundsIn(room).any((m) => m.streetPos == pos)) {
-    pos += Offset(cos(aim), sin(aim)) * 64;
+    pos += moundChoiceOffset(Offset(cos(aim), sin(aim)));
   }
   game.currentRoomId = room;
   game.setActive(idx);
@@ -545,7 +545,12 @@ void main() {
     test('turning on a tile does not change its destination', () {
       final game = harness(_idealTrio())..entryDoorRevealed = true;
       game.creatures[dust].aimAngle = west;
-      act(game, dust, 'roof_walk', crownOf('m_roof') + const Offset(64, 0));
+      act(
+        game,
+        dust,
+        'roof_walk',
+        crownOf('m_roof') + moundChoiceOffset(const Offset(1, 0)),
+      );
       expect(game.ruins.stateOf('m_bump'), MoundState.drifted);
       expect(game.ruins.stateOf('m_agora'), MoundState.buried);
     });
@@ -555,7 +560,12 @@ void main() {
       act(game, dust, 'roof_walk', crownOf('m_roof'));
       expect(game.ruins.isLevelled, isTrue);
       game.ruins.dig('m_kiln', 'm_bump');
-      act(game, dust, 'roof_walk', crownOf('m_roof') + const Offset(64, 0));
+      act(
+        game,
+        dust,
+        'roof_walk',
+        crownOf('m_roof') + moundChoiceOffset(const Offset(1, 0)),
+      );
       expect(game.ruins.stateOf('m_roof'), MoundState.buried);
       expect(game.ruins.stateOf('m_agora'), MoundState.buried);
       expect(game.ruins.conserved, isTrue);
@@ -679,6 +689,54 @@ void main() {
         expect(earned, contains(1));
       },
     );
+
+    test('once both sights are open, a wing FLYING into the star takes it', () {
+      // 2026-09-25: the star forms over the armillary so the Wing knows to
+      // fly in; arriving is enough, no press.
+      final earned = <int>[];
+      final game = harness(_idealTrio(), onStar: earned.add)
+        ..entryDoorRevealed = true;
+      final rings = game.layout.rooms['observatory']!.ruins!.armillary!;
+      game.currentRoomId = 'observatory';
+      game.setActive(air);
+      game.update(1 / 60); // seen before it is solved: the star eases in
+      game.ruins.mound['m_roof'] = 0;
+      game.ruins.mound['m_kiln'] = 0;
+      for (final c in game.creatures) {
+        c
+          ..position = const Offset(80, 480)
+          ..lastSafe = const Offset(80, 480);
+      }
+      for (var i = 0; i < 150; i++) {
+        game.update(1 / 60);
+      }
+      expect(earned, isEmpty, reason: 'nobody is at the star yet');
+      game.creatures[air]
+        ..position = rings + kArmillaryStarLift
+        ..lastSafe = rings + kArmillaryStarLift;
+      game.update(1 / 60);
+      expect(earned, contains(1));
+    });
+
+    test('a body with no wings standing at the star does not take it', () {
+      final earned = <int>[];
+      final game = harness(_idealTrio(), onStar: earned.add)
+        ..entryDoorRevealed = true;
+      final rings = game.layout.rooms['observatory']!.ruins!.armillary!;
+      game.currentRoomId = 'observatory';
+      game.setActive(dust);
+      game.update(1 / 60);
+      game.ruins.mound['m_roof'] = 0;
+      game.ruins.mound['m_kiln'] = 0;
+      for (var i = 0; i < 150; i++) {
+        game.update(1 / 60);
+      }
+      game.creatures[dust]
+        ..position = rings
+        ..lastSafe = rings;
+      game.update(1 / 60);
+      expect(earned, isEmpty);
+    });
 
     test(
       'exactly ONE city satisfies both sights, and both throws are forced',

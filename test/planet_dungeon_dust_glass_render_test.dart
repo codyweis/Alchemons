@@ -14,6 +14,7 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -77,8 +78,9 @@ void main() {
         String roomId, {
         void Function(PlanetDungeonGame g)? setup,
         double seconds = 0.4,
+        int stars = 0,
       }) async {
-        final g = await _game(roomId);
+        final g = await _game(roomId, stars: stars);
         setup?.call(g);
         for (var i = 0; i < (seconds * 60).round(); i++) {
           g.update(1 / 60);
@@ -163,6 +165,96 @@ void main() {
         setup: (g) => g.discoveredClouds.add(kDustNothingPerishesEggId),
       );
 
+      // THE TRADE, SEEN (2026-09-25): standing on the roof's east stone
+      // previews the pit here and the dune on the bump; pressing plays the
+      // dig, the flight and the heap rising. The agora's stones send sand
+      // next door, through a doorway.
+      final roof = kDustMounds.firstWhere((m) => m.id == 'm_roof').streetPos;
+      final eastStone = roof + moundChoiceOffset(const Offset(1, 0));
+      void stand(PlanetDungeonGame g, Offset at) {
+        final i = g.creatures.indexWhere((c) => c.member.element == 'Dust');
+        g.setActive(i);
+        g.creatures[i]
+          ..position = at
+          ..lastSafe = at;
+      }
+
+      await shoot(
+        'trade_preview',
+        'roof_walk',
+        setup: (g) => stand(g, eastStone),
+      );
+      for (final (name, secs) in const [
+        ('trade_dig', 0.3),
+        ('trade_flight', 0.8),
+        ('trade_landing', 1.5),
+        ('trade_settled', 2.5),
+      ]) {
+        await shoot(
+          name,
+          'roof_walk',
+          setup: (g) {
+            stand(g, eastStone);
+            g.activateAbility();
+          },
+          seconds: secs,
+        );
+      }
+      final agora = kDustMounds.firstWhere((m) => m.id == 'm_agora').streetPos;
+      await shoot(
+        'trade_next_door',
+        'seal_street',
+        setup: (g) => stand(g, agora + moundChoiceOffset(const Offset(-1, 0))),
+      );
+      for (final (name, secs) in const [
+        ('trade_next_door_flight', 0.6),
+        ('trade_next_door_pour', 1.6),
+        ('trade_next_door_heap', 2.3),
+        ('trade_next_door_pan', 2.8),
+        ('trade_next_door_choke', 3.4),
+        ('trade_next_door_blocked', 4.4),
+      ]) {
+        await shoot(
+          name,
+          'seal_street',
+          setup: (g) {
+            stand(g, agora + moundChoiceOffset(const Offset(-1, 0)));
+            g.activateAbility();
+          },
+          seconds: secs,
+        );
+      }
+
+      // THE OBSERVATORY: sealed, the roof dug, both sights open (the star
+      // forming, then formed), and won.
+      await shoot('obs_sealed', 'observatory');
+      await shoot(
+        'obs_roof',
+        'observatory',
+        setup: (g) => g.ruins.mound['m_roof'] = 0,
+      );
+      await shoot(
+        'obs_star_forming',
+        'observatory',
+        setup: (g) {
+          g.update(1 / 60); // seen unsolved first, so the star eases in
+          g.ruins.mound['m_roof'] = 0;
+          g.ruins.mound['m_kiln'] = 0;
+        },
+        seconds: 0.8,
+      );
+      await shoot(
+        'obs_star',
+        'observatory',
+        setup: (g) {
+          g.update(1 / 60);
+          g.ruins.mound['m_roof'] = 0;
+          g.ruins.mound['m_kiln'] = 0;
+        },
+        seconds: 2.4,
+      );
+      await shoot('obs_won', 'observatory', stars: 0x2);
+
       for (final (a, b) in const [
         ('terrace_buried', 'terrace_bared'),
         ('terrace_bared', 'terrace_drifted'),
@@ -170,6 +262,9 @@ void main() {
         ('court', 'court_turned'),
         ('court', 'court_vane_wound'),
         ('granary', 'granary_rite'),
+        ('obs_sealed', 'obs_roof'),
+        ('obs_star_forming', 'obs_star'),
+        ('obs_star', 'obs_won'),
         ('granary_rite', 'granary_kept'),
       ]) {
         expect(

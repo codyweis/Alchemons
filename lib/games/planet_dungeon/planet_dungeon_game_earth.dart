@@ -171,6 +171,15 @@ extension BuriedGiant on PlanetDungeonGame {
 
   void _updateBarrow(DungeonCreature a, DungeonRoom room, double dt) {
     _updateSpineWalk(room, dt);
+    // A tablet read is a tablet remembered: stand by one and the scale's
+    // base keeps it.
+    final clue = _scaleClueStone(room);
+    if (clue != null &&
+        !scaleCluesRead.contains(clue) &&
+        (a.position - _scaleClueAt(room)).distance < 170) {
+      scaleCluesRead.add(clue);
+      _setHint('The tablet shows where this stone sits on the scale', 3.0);
+    }
     _updatePillarLife(room, dt);
     // The core rises and the cluster grows — watched, never popped.
     if (palmStage >= 1 && palmCoreRise < 1) {
@@ -340,8 +349,8 @@ extension BuriedGiant on PlanetDungeonGame {
       earnStar(star);
     } else {
       _setHint(
-        'The socket takes the spark, and begins to give it back '
-        '(${lockedPillars.length} of ${room.fossilPillars.length} holding)',
+        'The socket takes the spark and holds it '
+        '(${lockedPillars.length} of ${room.fossilPillars.length} lit)',
         3.0,
       );
     }
@@ -591,6 +600,9 @@ extension BuriedGiant on PlanetDungeonGame {
   // alive and opposite corners do not, which is a fact about the room the
   // player can see rather than a rule they have to be told.
 
+  /// The old leaking rule, kept switchable for comparison. Off.
+  static const bool _kPillarsLeak = false;
+
   /// How long a sealed socket holds before it is dark again.
   static const double kPillarLifeSeconds = 26.0;
 
@@ -606,6 +618,14 @@ extension BuriedGiant on PlanetDungeonGame {
 
   /// Run the leak. Sockets beside a holding socket bleed at half rate.
   void _updatePillarLife(DungeonRoom room, double dt) {
+    // NO CLOCK (2026-09-25). The leak made the crypt a race — light four,
+    // then seal four before they guttered — which is reflexes, not a plan.
+    // A lit socket holds now; the cost moved to sealing, which DRINKS the
+    // charge of the neighbours it grows between (see `_tryPillar`). Only the
+    // drain animation ticks here.
+    _pillarDrain.updateAll((_, t) => t + dt);
+    _pillarDrain.removeWhere((_, t) => t > 1.0);
+    if (_kPillarsLeak == false) return;
     if (room.fossilPillars.isEmpty || pillarLife.isEmpty) return;
     final star = room.pillarStarIndex;
     if (star != null && hasStar(star)) return;
@@ -935,6 +955,18 @@ extension BuriedGiant on PlanetDungeonGame {
         pillarSealed.add(id);
         _cue(SoundCue.elementCrystal);
         pillarLife.remove(id);
+        // THE SEAL DRINKS ITS NEIGHBOURS. The crystal grows out of the charge
+        // either side of it: every neighbour not already sealed goes dark,
+        // and you watch the charge run along the spine into the new crystal.
+        var drank = 0;
+        for (final n in ring) {
+          if (pillarSealed.contains(n)) continue;
+          lockedPillars.remove(n);
+          pillarLife.remove(n);
+          _crystalGrow.remove(n);
+          _pillarDrain['$n>$id'] = 0;
+          drank++;
+        }
         _crystalGrow[id] = 0.0001;
         _spawnAlchemyBurst(
           pillar.position,
@@ -947,8 +979,11 @@ extension BuriedGiant on PlanetDungeonGame {
           earnStar(star);
         } else {
           _setHint(
-            'Crystal takes the socket and will not give it back '
-            '(${pillarSealed.length} of ${room.fossilPillars.length} sealed)',
+            drank > 0
+                ? 'The crystal drinks the charge beside it and holds for good '
+                      '(${pillarSealed.length} of ${room.fossilPillars.length} sealed)'
+                : 'Crystal takes the socket and will not give it back '
+                      '(${pillarSealed.length} of ${room.fossilPillars.length} sealed)',
             3.2,
           );
         }
@@ -1254,15 +1289,15 @@ extension BuriedGiant on PlanetDungeonGame {
                       'seated',
           1 =>
             cryptOpen
-                ? 'A storm spark turns a socket to crystal, but it fades '
-                      'back'
+                ? 'A storm spark lights a socket. Crystal can seal a lit '
+                      'socket for good'
                 : 'Seat the vertebrae and the spine opens what is buried '
                       'under it',
           _ =>
             cryptOpen
-                ? 'A storm spark turns a socket to crystal, but it fades. A '
-                      'socket only SEALS when both sockets beside it are '
-                      'already crystal'
+                ? 'A socket only seals when both sockets beside it are lit, '
+                      'and sealing drains them dark. A sealed socket never '
+                      'drains, so seal in an order that uses them'
                 : 'Earth seats a vertebra. Seat them all and the spine opens '
                       'what is buried under it',
         }, 4.4);
@@ -1690,62 +1725,106 @@ extension BuriedGiant on PlanetDungeonGame {
   /// is rolled per run but it is NEVER noise — it is written into the
   /// anatomy, and the prism count merely verifies what the body already
   /// told. Faded out once the scale stands true (the memory has served).
-  void _drawScaleClue(Canvas canvas, DungeonRoom room) {
-    if (hasStar(2) || guardianAwake) return;
-    final stoneId = kScaleClueRooms.entries
+  String? _scaleClueStone(DungeonRoom room) {
+    final id = kScaleClueRooms.entries
         .where((e) => e.value == room.id)
         .map((e) => e.key)
         .firstOrNull;
-    if (stoneId == null || !scaleSolution.containsKey(stoneId)) return;
+    return id != null && scaleSolution.containsKey(id) ? id : null;
+  }
+
+  Offset _scaleClueAt(DungeonRoom room) => switch (room.id) {
+    'skull_antechamber' => Offset(
+      room.bounds.left + 110,
+      room.bounds.top + 150,
+    ),
+    'palm_hollow' => kGiantsPalm + const Offset(190, 150),
+    'marrow_vault' => room.bounds.center + const Offset(0, 96),
+    // Beside the spine, never on it: a tablet over a vertebra hid the step.
+    'pillar_crypt' => room.bounds.center + const Offset(-120, 0),
+    'sternum_court' => Offset(
+      room.bounds.center.dx + 150,
+      room.bounds.top + 486,
+    ),
+    _ => room.bounds.center,
+  };
+
+  /// THE GIANT'S MEMORY, AS A TABLET (2026-09-25). A stone in each of five
+  /// rooms remembers where one weight belongs: a carved tablet with a small
+  /// scale on it and that weight's sigil sitting in its true pan, lit. It was
+  /// a faint leaning groove — clever, and easy to walk past without noticing
+  /// the marks were a system at all.
+  void _drawScaleClue(Canvas canvas, DungeonRoom room) {
+    if (hasStar(2) || guardianAwake) return;
+    final stoneId = _scaleClueStone(room);
+    if (stoneId == null) return;
     final right = scaleSolution[stoneId]!;
-    final dir = right ? 1.0 : -1.0;
-    // Anchor the mark to each room's signature feature.
-    final c = switch (room.id) {
-      'skull_antechamber' => Offset(
-        room.bounds.left + 90,
-        room.bounds.top + 120,
-      ),
-      'palm_hollow' => kGiantsPalm + const Offset(0, 64),
-      'marrow_vault' => room.bounds.center + const Offset(0, 70),
-      'pillar_crypt' => room.bounds.center,
-      // On the court's own spine, below the heart of the ribcage vault.
-      'sternum_court' => Offset(room.bounds.center.dx, room.bounds.top + 486),
-      _ => room.bounds.center,
-    };
-    // A carved bone-groove that curves the way the stone leans, with a
-    // crystal glint at its leaning tip — subtle, but unmistakable once seen.
-    final groove = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF8A6E48).withValues(alpha: 0.55);
-    final path = Path()
-      ..moveTo(c.dx - dir * 26, c.dy + 8)
-      ..quadraticBezierTo(c.dx, c.dy - 10, c.dx + dir * 26, c.dy - 4);
-    canvas.drawPath(path, groove);
-    // A short barb at the leaning tip, like an arrowhead etched in bone.
-    final tip = Offset(c.dx + dir * 26, c.dy - 4);
-    canvas.drawLine(tip, tip + Offset(-dir * 9, -7), groove);
-    canvas.drawLine(tip, tip + Offset(-dir * 9, 7), groove);
-    // The stone's sigil, carved above the mark — names WHICH stone leans.
-    _drawStoneSigil(
-      canvas,
-      c + const Offset(0, -26),
-      stoneId,
-      const Color(0xFFD8B878).withValues(alpha: 0.7),
-      9,
-    );
+    final read = scaleCluesRead.contains(stoneId);
+    final c = _scaleClueAt(room);
+    const amber = Color(0xFFE0C68C);
+    final tablet = Rect.fromCenter(center: c, width: 112, height: 72);
     if (_fx.ready) {
       drawGlow(
         canvas,
-        _fx.mote!,
-        tip,
-        5,
-        const Color(
-          0xFFB8E0D8,
-        ).withValues(alpha: 0.28 + 0.16 * sin(_time * 2.4 + c.dx)),
+        _fx.glow!,
+        c,
+        70,
+        amber.withValues(alpha: 0.12 + 0.06 * sin(_time * 1.6 + c.dx)),
       );
     }
+    paintCarvedBlock(
+      canvas,
+      tablet,
+      10,
+      kBarrowGlass,
+      radius: 8,
+      topColor: const Color(0xFF3A2C1C),
+    );
+    // The engraved scale: post, beam, two pans.
+    final groove = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..color = amber.withValues(alpha: 0.75);
+    final pivot = c + const Offset(0, -16);
+    canvas.drawLine(pivot, c + const Offset(0, 22), groove);
+    canvas.drawLine(
+      pivot - const Offset(38, 0),
+      pivot + const Offset(38, 0),
+      groove,
+    );
+    for (final side in const [-1.0, 1.0]) {
+      final pan = pivot + Offset(38 * side, 18);
+      canvas.drawArc(
+        Rect.fromCircle(center: pan, radius: 13),
+        0,
+        pi,
+        false,
+        groove,
+      );
+      canvas.drawLine(
+        pivot + Offset(38 * side, 0),
+        pan + const Offset(-10, 0),
+        groove..strokeWidth = 1.2,
+      );
+      canvas.drawLine(
+        pivot + Offset(38 * side, 0),
+        pan + const Offset(10, 0),
+        groove,
+      );
+      groove.strokeWidth = 2.4;
+    }
+    // The weight, sitting in its true pan: lit.
+    final sits = pivot + Offset(38 * (right ? 1 : -1), 12);
+    paintRondel(
+      canvas,
+      sits,
+      9,
+      kBarrowGlass,
+      fill: read ? const Color(0xFFE8B048) : const Color(0xFF8A6E48),
+      lead: 1.6,
+    );
+    _drawStoneSigil(canvas, sits, stoneId, const Color(0xFF2A1E12), 5.5);
   }
 
   /// One carved dolmen stone, as actual masonry (a beveled, outlined slab)
@@ -2140,20 +2219,56 @@ extension BuriedGiant on PlanetDungeonGame {
         );
       }
     }
-    // Tracks: carved grooves with notch ticks.
+    // Tracks: a carved groove, a shallow notch cut at each stop, and — at
+    // the last stop, in the chasm — the CRADLE the rib must settle in: dark
+    // until it is seated, lit marrow once it is (2026-09-25).
     final groove = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = const Color(0xFF4A3A28).withValues(alpha: 0.55);
+      ..strokeWidth = 6
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF0E0906).withValues(alpha: 0.55);
     for (final rib in room.fossilRibs) {
       canvas.drawLine(rib.notches.first, rib.notches.last, groove);
-      for (final n in rib.notches) {
-        canvas.drawLine(
-          n + const Offset(0, -8),
-          n + const Offset(0, 8),
-          groove,
+      for (var i = 0; i < rib.notches.length - 1; i++) {
+        canvas.drawOval(
+          Rect.fromCenter(center: rib.notches[i], width: 14, height: 18),
+          Paint()..color = const Color(0xFF0E0906).withValues(alpha: 0.7),
         );
       }
+      final seated = _ribBridging(rib);
+      final cradle = RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: rib.notches.last,
+          width: rib.width + 14,
+          height: rib.height + 14,
+        ),
+        const Radius.circular(14),
+      );
+      const marrow = Color(0xFFE4A86A);
+      if (seated && _fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          rib.notches.last,
+          rib.width * 0.6,
+          marrow.withValues(alpha: 0.3),
+        );
+      }
+      canvas.drawRRect(
+        cradle,
+        Paint()..color = const Color(0xFF1A0F07).withValues(alpha: 0.9),
+      );
+      canvas.drawRRect(
+        cradle,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..color = marrow.withValues(
+            alpha: seated
+                ? 0.95
+                : 0.3 + 0.12 * sin(_time * 2 + rib.notches.last.dy),
+          ),
+      );
     }
     // The ribs themselves: solid bone slabs with knobbed vertebra heads,
     // beveled to match the dolmen masonry.
@@ -2287,6 +2402,10 @@ extension BuriedGiant on PlanetDungeonGame {
         }
       }
     }
+    // THE CAGE IS ONE BONE: a lever pinned between each rib and the one
+    // below, so shoving one visibly rocks it and drags the next the other
+    // way. Glows while it is working.
+    _drawRibLevers(canvas, room);
     // The sternum plate: dim until the bridge is whole.
     final plate = room.sternumPlate;
     if (plate != null &&
@@ -2306,6 +2425,67 @@ extension BuriedGiant on PlanetDungeonGame {
           ..color = col.withValues(alpha: ready ? 0.9 : 0.4),
       );
       if (ready) _drawStarGlyph(canvas, plate.center, 11, col);
+    }
+  }
+
+  void _drawRibLevers(Canvas canvas, DungeonRoom room) {
+    final ribs = room.fossilRibs;
+    for (var i = 0; i + 1 < ribs.length; i++) {
+      final a = _ribRect(ribs[i]).center;
+      final b = _ribRect(ribs[i + 1]).center;
+      final pin = Offset.lerp(a, b, 0.5)!;
+      final working =
+          _ribSlides.containsKey(ribs[i].id) &&
+          _ribSlides.containsKey(ribs[i + 1].id);
+      const bone = Color(0xFFBCA478), marrow = Color(0xFFE4A86A);
+      // The lever: a long bone, tapered to each end, with a joint knob at
+      // each rib.
+      final d = b - a;
+      final side = Offset(-d.dy, d.dx) / d.distance;
+      final lever = Path()
+        ..moveTo((a + side * 3).dx, (a + side * 3).dy)
+        ..lineTo((pin + side * 8).dx, (pin + side * 8).dy)
+        ..lineTo((b + side * 3).dx, (b + side * 3).dy)
+        ..lineTo((b - side * 3).dx, (b - side * 3).dy)
+        ..lineTo((pin - side * 8).dx, (pin - side * 8).dy)
+        ..lineTo((a - side * 3).dx, (a - side * 3).dy)
+        ..close();
+      canvas.drawPath(
+        lever.shift(const Offset(2, 4)),
+        Paint()..color = Colors.black.withValues(alpha: 0.4),
+      );
+      if (working && _fx.ready) {
+        drawGlow(canvas, _fx.glow!, pin, 50, marrow.withValues(alpha: 0.4));
+      }
+      canvas.drawPath(
+        lever,
+        Paint()..color = (working ? Color.lerp(bone, marrow, 0.5)! : bone),
+      );
+      canvas.drawPath(
+        lever,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = const Color(0xFF6E5A3A),
+      );
+      for (final end in [a, b]) {
+        canvas.drawCircle(end, 7, Paint()..color = const Color(0xFF8E7A50));
+        canvas.drawCircle(
+          end,
+          7,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..color = const Color(0xFF6E5A3A),
+        );
+      }
+      // The pin it rocks on, set in the floor.
+      canvas.drawCircle(pin, 11, Paint()..color = const Color(0xFF2A1E12));
+      canvas.drawCircle(
+        pin,
+        6,
+        Paint()..color = working ? marrow : const Color(0xFF8A6E48),
+      );
     }
   }
 
@@ -2462,11 +2642,21 @@ extension BuriedGiant on PlanetDungeonGame {
         final path = Path()
           ..moveTo(from.dx, from.dy)
           ..quadraticBezierTo(mid.dx, mid.dy, to.dx, to.dy);
+        // A CARVED CHANNEL, not a hairline: the ring is the rule, so it is
+        // cut into the floor where it can be read before anything is lit.
         canvas.drawPath(
           path,
           Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = live ? 3.2 : 2.2
+            ..strokeWidth = 9
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0xFF0E0906).withValues(alpha: 0.75),
+        );
+        canvas.drawPath(
+          path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = live ? 3.6 : 2.2
             ..strokeCap = StrokeCap.round
             // A DEAD NERVE MUST STILL BE VISIBLE. Drawn at 0xFF4A3A22 it
             // vanished into the strata, and the ring is the one thing that
@@ -2571,27 +2761,16 @@ extension BuriedGiant on PlanetDungeonGame {
           _drawCrystalBlade(canvas, at + Offset(dx, 2), 4, h, heat: 0.3);
         }
       } else if (locked) {
-        // BURNING, AND BLEEDING BACK. The arc is the socket's remaining life,
-        // draining widdershins — the race is the puzzle, so the clock is on
-        // the thing that is racing rather than in a corner of the HUD.
-        final left = ((pillarLife[pillar.id] ?? 0) / kPillarLifeSeconds).clamp(
-          0.0,
-          1.0,
-        );
-        canvas.drawArc(
-          Rect.fromCircle(center: at, radius: 15),
-          -pi / 2,
-          -pi * 2 * left,
-          false,
+        // LIT, AND HOLDING: a steady ring of charge round the mouth.
+        canvas.drawCircle(
+          at,
+          15,
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2.6
-            ..strokeCap = StrokeCap.round
-            ..color = Color.lerp(
-              const Color(0xFFE07A4A),
-              const Color(0xFFB8E0D8),
-              left,
-            )!.withValues(alpha: 0.9),
+            ..color = const Color(
+              0xFFB8E0D8,
+            ).withValues(alpha: 0.75 + 0.2 * sin(_time * 3 + p.dx)),
         );
       }
       _drawGlassMouth(canvas, at, locked: locked, bared: bared);
@@ -2716,25 +2895,63 @@ extension BuriedGiant on PlanetDungeonGame {
         );
       }
     }
+    _drawPillarDrain(canvas, room);
   }
 
-  // ── THE GIANT'S PALM (the lost maxim) ─────────────────────
-  //
-  // WHAT THIS REPLACES. An arc with five spokes in 5px hairlines — it read as
-  // a sunrise, not a hand — and, once found, a twenty-pixel crystal glyph
-  // sitting in it. Compare what the other three planets leave behind: Fire
-  // burns Epicurus into the floor and it stays lit, Air's compass ring knits
-  // shut and the hub turns forever, Water freezes a moon into the pool. Earth
-  // appeared an icon.
-  //
-  // Two separate faults, fixed separately. The hand was a DIAGRAM of a hand,
-  // so it is built out of the barrow's own bone material now with real
-  // fingers, joints, a thumb and a palm you could stand in, half-sunk in the
-  // strata at a scale that says the rest of the body is under your feet. And
-  // "the crystal takes root" was a promise nothing kept, so what grows there
-  // has clearly been growing for an age.
+  /// The charge being drunk: sparks running from each dark neighbour to the
+  /// socket that just sealed, and a flare on the crystal as they arrive.
+  void _drawPillarDrain(Canvas canvas, DungeonRoom room) {
+    if (_pillarDrain.isEmpty) return;
+    Offset? at(String id) {
+      for (final p in room.fossilPillars) {
+        if (p.id == id) return p.position + const Offset(0, 34);
+      }
+      return null;
+    }
 
-  /// One finger of the giant, at [a] radians from the wrist, [len] long.
+    const charge = Color(0xFFB8E0D8);
+    for (final e in _pillarDrain.entries) {
+      final parts = e.key.split('>');
+      final from = at(parts[0]), to = at(parts[1]);
+      if (from == null || to == null) continue;
+      final t = e.value;
+      final d = to - from;
+      final side = Offset(-d.dy, d.dx) / d.distance;
+      for (var i = 0; i < 16; i++) {
+        final u = ((t * 1.6) - i * 0.04).clamp(0.0, 1.0);
+        if (u <= 0 || u >= 1) continue;
+        final p = Offset.lerp(from, to, u)! + side * (sin(u * 12 + i) * 6);
+        canvas.drawCircle(
+          p,
+          2.2,
+          Paint()..color = charge.withValues(alpha: 0.9 * (1 - u * 0.4)),
+        );
+      }
+      // The neighbour's ring collapsing as it empties.
+      final empty = (t / 0.5).clamp(0.0, 1.0);
+      if (empty < 1) {
+        canvas.drawCircle(
+          from,
+          15 * (1 - empty),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.6
+            ..color = charge.withValues(alpha: 0.9 * (1 - empty)),
+        );
+      }
+      final arrive = ((t - 0.55) / 0.45).clamp(0.0, 1.0);
+      if (arrive > 0 && _fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          to,
+          40,
+          charge.withValues(alpha: 0.5 * sin(arrive * pi)),
+        );
+      }
+    }
+  }
+
   void _drawGiantFinger(Canvas canvas, Offset wrist, double a, double len) {
     // Three phalanges, each shorter and thinner than the last, with the joint
     // knuckles between them — a finger is a chain of bones, and drawing it as
@@ -2975,101 +3192,175 @@ extension BuriedGiant on PlanetDungeonGame {
     // (how many stones sit each side) — it never betrays the answer — and it
     // EASES toward its load (driven in _updateBarrow) so the beam swings with
     // weight instead of snapping.
+    _drawStoneScale(canvas, scale, solved);
+  }
+
+  /// THE SCALE, IN STONE (2026-09-25): a carved post, a thick stone beam,
+  /// two stone bowls hung from it with the weights sitting in them, carved
+  /// weights on the floor — and in the base, the giant's memory: one slot
+  /// per weight, lit with its true pan once its tablet has been read.
+  void _drawStoneScale(Canvas canvas, StoneScale scale, bool solved) {
+    final p = kBarrowGlass;
     final pivot = scale.position;
     final tilt = _scaleTiltShown;
-    final beam = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF8A6E48).withValues(alpha: 0.85);
-    final beamHalf = Offset(cos(tilt), sin(tilt)) * 130;
-    canvas.drawLine(pivot - beamHalf, pivot + beamHalf, beam);
-    canvas.drawLine(pivot, pivot + const Offset(0, 42), beam);
-    // The pans, hanging level from the tilted beam.
-    for (final side in const [-1.0, 1.0]) {
-      final panC = pivot + beamHalf * side + const Offset(0, 34);
-      final hang = Paint()
+    const bone = Color(0xFFBCA478), dark = Color(0xFF6E5A3A);
+    // The post, on a carved base.
+    paintCarvedBlock(
+      canvas,
+      Rect.fromCenter(
+        center: pivot + const Offset(0, 112),
+        width: 250,
+        height: 34,
+      ),
+      12,
+      p,
+      radius: 6,
+      topColor: const Color(0xFF3A2C1C),
+    );
+    canvas.drawRect(
+      Rect.fromCenter(
+        center: pivot + const Offset(0, 50),
+        width: 18,
+        height: 108,
+      ),
+      Paint()..color = const Color(0xFF6A5438),
+    );
+    // The beam: a thick stone bar, rotated with the load.
+    canvas.save();
+    canvas.translate(pivot.dx, pivot.dy);
+    canvas.rotate(tilt);
+    final bar = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: Offset.zero, width: 280, height: 16),
+      const Radius.circular(6),
+    );
+    canvas.drawRRect(
+      bar.shift(const Offset(0, 4)),
+      Paint()..color = Colors.black.withValues(alpha: 0.4),
+    );
+    canvas.drawRRect(bar, Paint()..color = bone);
+    canvas.drawRRect(
+      bar,
+      Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = const Color(0xFF8A6E48).withValues(alpha: 0.6);
-      canvas.drawLine(
-        pivot + beamHalf * side,
-        panC + const Offset(-14, -8),
-        hang,
+        ..strokeWidth = 1.6
+        ..color = dark,
+    );
+    canvas.drawLine(
+      const Offset(-132, -5),
+      const Offset(132, -5),
+      Paint()
+        ..strokeWidth = 2
+        ..color = Colors.white.withValues(alpha: 0.35),
+    );
+    canvas.restore();
+    canvas.drawCircle(pivot, 9, Paint()..color = const Color(0xFF3A2C1C));
+    canvas.drawCircle(pivot, 5, Paint()..color = const Color(0xFFE0C68C));
+    // The pans: stone bowls hung level from the beam's ends, the weights
+    // sitting in them.
+    final beamHalf = Offset(cos(tilt), sin(tilt)) * 130;
+    for (final side in const [-1.0, 1.0]) {
+      final end = pivot + beamHalf * side;
+      final panC = end + const Offset(0, 40);
+      final chain = Paint()
+        ..strokeWidth = 1.6
+        ..color = dark;
+      canvas.drawLine(end, panC + const Offset(-22, -6), chain);
+      canvas.drawLine(end, panC + const Offset(22, -6), chain);
+      paintCarvedDisc(
+        canvas,
+        panC,
+        28,
+        10,
+        12,
+        p,
+        topColor: const Color(0xFF4A3A26),
       );
-      canvas.drawLine(
-        pivot + beamHalf * side,
-        panC + const Offset(14, -8),
-        hang,
-      );
-      canvas.drawArc(
-        Rect.fromCircle(center: panC, radius: 20),
-        0,
-        pi,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4
-          ..color = const Color(0xFFB8A070).withValues(alpha: 0.8),
-      );
-      // Stones currently on this pan.
-      var k = 0;
-      for (final w in scale.weights) {
-        final onRight = scalePanRight[w.id] ?? false;
-        if ((side > 0) != onRight) continue;
+      final on = [
+        for (final w in scale.weights)
+          if ((scalePanRight[w.id] ?? false) == (side > 0)) w,
+      ];
+      for (var k = 0; k < on.length; k++) {
+        final at = panC + Offset((k - (on.length - 1) / 2) * 12, -6);
+        canvas.drawCircle(at, 6, Paint()..color = const Color(0xFFC8B488));
         canvas.drawCircle(
-          panC + Offset(-9.0 + k * 9, -6),
-          4,
-          Paint()..color = const Color(0xFFC8B488).withValues(alpha: 0.9),
+          at,
+          6,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1
+            ..color = dark,
         );
-        k++;
       }
     }
-    // The weights on the floor: each carries its SIGIL (so the clue marks
-    // can be matched to it) and a chevron showing which pan it rides;
-    // insight's truth-flash glows the TRUE side.
-    for (final w in scale.weights) {
-      final onRight = scalePanRight[w.id] ?? false;
-      final p = w.position;
-      canvas.drawCircle(
+    // THE MEMORY in the base: a slot per weight, its sigil and an arrow to
+    // its pan once the tablet has been read.
+    final slots = scale.weights;
+    for (var i = 0; i < slots.length; i++) {
+      final w = slots[i];
+      final at = pivot + Offset((i - (slots.length - 1) / 2) * 44, 106);
+      final read = scaleCluesRead.contains(w.id) || solved;
+      final right = scaleSolution[w.id] ?? w.truePanRight;
+      paintRondel(
+        canvas,
+        at,
+        11,
         p,
-        15,
-        Paint()..color = const Color(0xFF2A2014).withValues(alpha: 0.85),
+        fill: read ? const Color(0xFF8A6A34) : const Color(0xFF1E160E),
+        rim: read ? 1 : 0.3,
+        lead: 1.6,
       );
-      canvas.drawCircle(
-        p,
-        15,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = const Color(0xFFB8A070).withValues(alpha: 0.8),
-      );
-      // The stone's identity sigil, engraved on its marker.
       _drawStoneSigil(
         canvas,
-        p,
+        at,
         w.id,
-        const Color(0xFFE0C68C).withValues(alpha: 0.95),
-        8,
+        (read ? const Color(0xFFFFE9A8) : const Color(0xFF6E5A3A)),
+        6,
       );
-      // Pan chevron: a triangle just outside the marker, pointing to the pan
-      // this stone currently rides.
+      if (read) {
+        final dir = right ? 1.0 : -1.0;
+        final tip = at + Offset(dir * 21, 0);
+        canvas.drawPath(
+          Path()
+            ..moveTo(tip.dx, tip.dy)
+            ..lineTo(tip.dx - dir * 7, tip.dy - 5)
+            ..lineTo(tip.dx - dir * 7, tip.dy + 5)
+            ..close(),
+          Paint()..color = const Color(0xFFE8B048),
+        );
+      }
+    }
+    // The weights on the floor: carved stones with their sigil, and a
+    // chevron to the pan each currently rides. Insight's truth-flash glows
+    // the TRUE side.
+    for (final w in scale.weights) {
+      final onRight = scalePanRight[w.id] ?? false;
+      final pos = w.position;
+      paintCarvedDisc(
+        canvas,
+        pos,
+        18,
+        12,
+        8,
+        p,
+        topColor: const Color(0xFF8A7454),
+      );
+      _drawStoneSigil(canvas, pos, w.id, const Color(0xFF2A1E12), 8);
       final dir = onRight ? 1.0 : -1.0;
-      final base = p + Offset(dir * 19, 0);
+      final base = pos + Offset(dir * 24, 0);
       canvas.drawPath(
         Path()
-          ..moveTo(base.dx + dir * 6, base.dy)
-          ..lineTo(base.dx, base.dy - 5)
-          ..lineTo(base.dx, base.dy + 5)
+          ..moveTo(base.dx + dir * 7, base.dy)
+          ..lineTo(base.dx, base.dy - 6)
+          ..lineTo(base.dx, base.dy + 6)
           ..close(),
-        Paint()..color = const Color(0xFFC8B488).withValues(alpha: 0.95),
+        Paint()..color = const Color(0xFFE0C68C),
       );
       if (_scaleTruthFlash > 0 && !solved && _fx.ready) {
         final trueRight = scaleSolution[w.id] ?? w.truePanRight;
         drawGlow(
           canvas,
           _fx.mote!,
-          p + Offset(trueRight ? 19 : -19, 0),
+          pos + Offset(trueRight ? 24 : -24, 0),
           8,
           const Color(
             0xFFB8E0D8,

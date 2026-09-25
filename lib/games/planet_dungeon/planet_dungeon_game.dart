@@ -996,7 +996,19 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Dust's spadeful in the air: where it left, where it lands (null when it
   /// lands in another room), and seconds since the throw.
-  (Offset, Offset?, double)? _sandThrow;
+  _DustThrow? _sandThrow;
+
+  /// Earth's crypt: charge being drawn out of a socket into the neighbour
+  /// that just sealed, keyed 'from>to', seconds since it began.
+  final Map<String, double> _pillarDrain = {};
+
+  /// Earth's scale: the stones whose tablet the party has stood by. The
+  /// scale's base shows each one's true pan once it is read.
+  final Set<String> scaleCluesRead = {};
+
+  /// Dust's observatory star as SHOWN: 0 → 1 as it forms over the armillary
+  /// once both sights are open.
+  double _obsStar = -1;
 
   /// Crystal's Black Cell mirror as SHOWN: 0 → 1 as it silvers.
   double _mirrorShown = -1;
@@ -10513,6 +10525,8 @@ class PlanetDungeonGame extends FlameGame {
     // Mud's heave and settling spill OUT of doorways (the wallows), so their
     // top layer goes over the door frames.
     if (_isBog) _renderBogOverDoors(canvas, room);
+    // Dust: sand heaped into a doorway a dune has choked.
+    if (_isRuins) _renderRuinsOverDoors(canvas, room);
     // Spirit: a crossing the OTHER world holds is shown over its shut glass.
     if (_isWake) _renderGraveOverDoors(canvas, room);
     if (_isSpire) _renderSpireWinds(canvas, room);

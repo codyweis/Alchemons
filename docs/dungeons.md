@@ -5463,6 +5463,18 @@ frame); (4) platforms have a thick dark edge, a dark bed and the zone light;
 arm — as ONE unioned path of dense puffs (a string of separate puffs read as
 beads), shadow + body + clipped crown, baked.
 
+**EARTH, REVIEWED (2026-09-25).** The rules were good and hidden, and one
+star was a race. S1: a bone LEVER is drawn pinned between each rib and the
+one below (`_drawRibLevers`), glowing while it drags, and each rib's CRADLE
+is cut into the chasm, lit when seated. S2: NO CLOCK — lit sockets hold;
+sealing DRINKS the charge of the unsealed neighbours it grows between (you
+watch it run along the ring into the crystal), so the puzzle is the order;
+the ring is a carved channel. S3: the five clue marks are lit TABLETS (a
+small scale with that stone in its true pan); standing by one records it
+(`scaleCluesRead`) and the scale's stone base lights that stone's slot with
+an arrow to its pan. The scale itself is stone — post, thick beam, bowls,
+carved weights. Nothing added that does not carry a rule.
+
 **THE LINE AUDIT (2026-09-24)** — after Dust, the same fault elsewhere:
   · POISON: flags inset 2.6px → 1.0 (the bed showed between every stone as a
     web of joints), splits 16% → 6%, floor alpha 0.72 → 0.84 (the sky's

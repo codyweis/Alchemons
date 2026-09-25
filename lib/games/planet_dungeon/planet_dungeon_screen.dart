@@ -1822,29 +1822,21 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// stay inside a strip.
   static const double _kStickDiameter = 136;
 
-  /// JOYSTICK HAPTICS: a click when the stick is taken, and a light tick
-  /// each time it swings into a new eighth of the compass — felt steering,
-  /// rate-limited so a stirring thumb never becomes a buzz. Nothing on
-  /// release.
-  int _stickSector = -1;
-  DateTime _stickTickAt = DateTime.fromMillisecondsSinceEpoch(0);
+  /// JOYSTICK HAPTICS: one click when the stick is first pressed, and
+  /// nothing while it is held — the steering ticks were constant under a
+  /// moving thumb (the author, 2026-09-24). Letting go re-arms it.
+  bool _stickHeld = false;
 
   void _stickHaptic(Offset? dir) {
-    final audio = context.audio;
-    if (audio != null && !audio.hapticsEnabled) return;
-    if (dir == null || dir.distance < 0.25) {
-      _stickSector = -1;
+    if (dir == null) {
+      _stickHeld = false;
       return;
     }
-    final sector =
-        ((math.atan2(dir.dy, dir.dx) / (math.pi / 4)).round() + 8) % 8;
-    if (sector == _stickSector) return;
-    final now = DateTime.now();
-    final first = _stickSector < 0;
-    _stickSector = sector;
-    if (!first && now.difference(_stickTickAt).inMilliseconds < 90) return;
-    _stickTickAt = now;
-    first ? HapticFeedback.selectionClick() : HapticFeedback.lightImpact();
+    if (_stickHeld) return;
+    _stickHeld = true;
+    final audio = context.audio;
+    if (audio != null && !audio.hapticsEnabled) return;
+    HapticFeedback.selectionClick();
   }
 
   /// The tick under the thumb on every control press (off with the setting).

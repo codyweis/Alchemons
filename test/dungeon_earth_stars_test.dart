@@ -124,66 +124,17 @@ void main() {
     });
   });
 
-  group('Star 2 — the sockets leak', () {
-    test('a sealed socket gutters out on its own', () {
+  group('Star 2 — no clock', () {
+    test('a lit socket holds: nothing gutters with time', () {
+      // 2026-09-25: the leak made the crypt a race. It is a plan now.
       final g = _barrow('pillar_crypt');
       final p = g.currentRoom.fossilPillars.first;
       g.lockedPillars.add(p.id);
       g.pillarLife[p.id] = 1.0;
-      for (var i = 0; i < 120; i++) {
+      for (var i = 0; i < 60 * 60; i++) {
         g.update(1 / 60);
       }
-      expect(g.lockedPillars.contains(p.id), isFalse);
-      expect(g.pillarLife.containsKey(p.id), isFalse);
-    });
-
-    test('a neighbour holding beside it halves the bleed', () {
-      // The fact the route is built on: adjacent pairs keep each other alive
-      // and opposite corners do not.
-      final pillars = _barrow('pillar_crypt').currentRoom.fossilPillars;
-      final a = pillars.first;
-      final near = pillars.firstWhere(
-        (p) => p.id != a.id && (p.position - a.position).distance <= 320,
-      );
-
-      double survive({required bool withNeighbour}) {
-        final g = _barrow('pillar_crypt');
-        g.lockedPillars.add(a.id);
-        g.pillarLife[a.id] = 2.0;
-        if (withNeighbour) {
-          g.lockedPillars.add(near.id);
-          g.pillarLife[near.id] = 999;
-        }
-        var t = 0.0;
-        while (g.pillarLife.containsKey(a.id) && t < 12) {
-          g.update(1 / 60);
-          t += 1 / 60;
-        }
-        return t;
-      }
-
-      final alone = survive(withNeighbour: false);
-      final fed = survive(withNeighbour: true);
-      expect(fed, greaterThan(alone * 1.6), reason: 'fed sockets last longer');
-    });
-
-    test('the star wants all four AT ONCE, not four in total', () {
-      final g = _barrow('pillar_crypt');
-      final room = g.currentRoom;
-      // Seal three, then let the first die before the fourth is sealed.
-      for (final p in room.fossilPillars.take(3)) {
-        g.lockedPillars.add(p.id);
-        g.pillarLife[p.id] = 0.4;
-      }
-      for (var i = 0; i < 240; i++) {
-        g.update(1 / 60);
-      }
-      expect(
-        g.lockedPillars,
-        isEmpty,
-        reason: 'they all gutter — nothing is banked by having once been lit',
-      );
-      expect(g.hasStar(room.pillarStarIndex!), isFalse);
+      expect(g.lockedPillars, contains(p.id));
     });
   });
 
@@ -304,6 +255,49 @@ void main() {
         g.update(1 / 60);
       }
       expect(g.pillarSealed, contains(p.id), reason: 'crystal does not gutter');
+    });
+
+    test('sealing DRINKS the charge of the neighbours it grows between', () {
+      final g = crypt();
+      bareAll(g);
+      final room = g.currentRoom;
+      final p = room.fossilPillars.first;
+      lightIt(g, p);
+      final ring = g.pillarRingOf(room, p.id);
+      for (final id in ring) {
+        lightIt(g, room.fossilPillars.firstWhere((q) => q.id == id));
+      }
+      at(g, 'Crystal', p.position);
+      expect(g.pillarSealed, contains(p.id));
+      for (final id in ring) {
+        expect(
+          g.lockedPillars,
+          isNot(contains(id)),
+          reason: '$id gave its charge to the seal',
+        );
+      }
+    });
+
+    test('a sealed neighbour is not drunk: it stays crystal', () {
+      final g = crypt();
+      bareAll(g);
+      final room = g.currentRoom;
+      final a = room.fossilPillars.first;
+      lightIt(g, a);
+      for (final id in g.pillarRingOf(room, a.id)) {
+        lightIt(g, room.fossilPillars.firstWhere((q) => q.id == id));
+      }
+      at(g, 'Crystal', a.position);
+      final b = room.fossilPillars.firstWhere(
+        (q) => g.pillarRingOf(room, a.id).contains(q.id),
+      );
+      lightIt(g, b);
+      for (final id in g.pillarRingOf(room, b.id)) {
+        if (id == a.id) continue;
+        lightIt(g, room.fossilPillars.firstWhere((q) => q.id == id));
+      }
+      at(g, 'Crystal', b.position);
+      expect(g.pillarSealed, containsAll([a.id, b.id]));
     });
 
     test('and the whole crypt can be sealed from there', () {

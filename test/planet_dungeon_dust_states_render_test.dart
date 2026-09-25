@@ -130,16 +130,16 @@ void main() {
       await shoot(
         'walk_tile_selected',
         'roof_walk',
-        const Offset(314, 280),
+        const Offset(342, 280),
         (g) {},
       );
-      await shoot('walk_tile_full', 'roof_walk', const Offset(314, 280), (g) {
+      await shoot('walk_tile_full', 'roof_walk', const Offset(342, 280), (g) {
         g.ruins.dig('m_kiln', 'm_bump');
       });
       await shoot(
         'agora_three_tiles',
         'seal_street',
-        const Offset(835, 425),
+        const Offset(862, 398),
         (g) {},
       );
       await shoot('walk_roof_bared_bump_heaped', 'roof_walk', walkStand, (g) {

@@ -55,6 +55,22 @@ part of 'planet_dungeon_game.dart';
 /// Dust's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kDustNothingPerishesEggId = 'egg:dust_nothing_perishes';
 
+/// Where the observatory's star hangs, over the armillary.
+const Offset kArmillaryStarLift = Offset(0, -92);
+
+/// A destination stepping-stone's size.
+const double kMoundChoiceTile = 44;
+
+/// Where a mound's destination stone stands, from the mound's centre along
+/// [unit]: just clear of the 132x92 slab, so the stone never sits on the
+/// square it belongs to. Shared by play, drawing and the tests.
+Offset moundChoiceOffset(Offset unit) {
+  const hx = 66 + 4 + kMoundChoiceTile / 2, hy = 46 + 4 + kMoundChoiceTile / 2;
+  final dx = unit.dx.abs() < 1e-6 ? double.infinity : hx / unit.dx.abs();
+  final dy = unit.dy.abs() < 1e-6 ? double.infinity : hy / unit.dy.abs();
+  return unit * min(dx, dy);
+}
+
 // ── Device-tunable knobs ───────────────────────────────────
 // Dust has never been on a device; every number the feel depends on is named
 // here so a tuning pass is edit-one-block.
@@ -265,11 +281,19 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     return true;
   }
 
+  /// The mounds in [room] that exist yet: the gate square lies under the
+  /// silt until the arch is cleared, so nothing about it — its stones, its
+  /// plate, its ambient line, a dig — may happen before then.
+  Iterable<DustMound> _liveMoundsIn(DungeonRoom room) =>
+      room.id == layout.entranceRoomId && !entryDoorRevealed
+      ? const <DustMound>[]
+      : dustMoundsIn(room.id);
+
   /// One spadeful of the buried city — the planet's whole grammar.
   ///
   /// Stand on a destination tile to choose where the spadeful lands.
   bool _tryMoundDig(DungeonCreature a) {
-    for (final m in dustMoundsIn(currentRoomId)) {
+    for (final m in _liveMoundsIn(currentRoom)) {
       if ((a.position - m.streetPos).distance > 120) continue;
       if (!_ruinsCitySpade(a)) {
         _setBlockedHint(
@@ -374,9 +398,9 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
   Rect _moundChoiceTile(DustMound from, DustMound to) {
     final bearing = _moundBearing(from, to);
     return Rect.fromCenter(
-      center: from.streetPos + bearing / bearing.distance * 64,
-      width: 40,
-      height: 40,
+      center: from.streetPos + moundChoiceOffset(bearing / bearing.distance),
+      width: kMoundChoiceTile,
+      height: kMoundChoiceTile,
     );
   }
 
@@ -623,16 +647,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     switch (evaluateInteraction(a.member, req)) {
       case InteractionResult.passed:
       case InteractionResult.passedViaRecipe:
-        _cue(SoundCue.dungeonSwitch);
-        _setHint('The armillary turns to the open sky');
-        _spawnAlchemyBurst(
-          pos,
-          producedElement: 'Air',
-          reagentElements: const ['Dust'],
-          particleCount: 34,
-          intensity: 1.3,
-        );
-        earnStar(idx);
+        _earnArmillaryStar(pos, idx);
       case InteractionResult.blockedFamily:
         // "The seal remembers" (§4): the chip stamps on first refusal.
         final gate = layout.familyGateFor('armillary');
@@ -646,6 +661,46 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         _setBlockedHint('Only a Wing can fly across this gap');
     }
     return true;
+  }
+
+  void _earnArmillaryStar(Offset pos, int idx) {
+    _cue(SoundCue.dungeonSwitch);
+    _setHint('The armillary turns to the open sky');
+    _spawnAlchemyBurst(
+      pos,
+      producedElement: 'Air',
+      reagentElements: const ['Dust'],
+      particleCount: 34,
+      intensity: 1.3,
+    );
+    earnStar(idx);
+  }
+
+  /// THE STAR, TAKEN ON THE WING. Once both sights are open the star forms
+  /// over the armillary, and a Wing that flies into it takes it — no press
+  /// needed (the press still works). The island is across a span nothing
+  /// walks, so a body that reaches it arrived on the wing.
+  void _collectArmillaryStar(DungeonCreature a, DungeonRoom room) {
+    final pos = room.ruins?.armillary;
+    final idx = room.ruins?.starIndex;
+    if (pos == null || idx == null || hasStar(idx) || !armillarySeesSky) {
+      return;
+    }
+    if (_obsStar < 0.8) return;
+    if ((a.position - (pos + kArmillaryStarLift)).distance > 58 &&
+        (a.position - pos).distance > 58) {
+      return;
+    }
+    const req = DungeonInteractionRequirement(
+      element: kAnyElement,
+      requiredFamily: DungeonAbility.aerialTraversal,
+    );
+    final r = evaluateInteraction(a.member, req);
+    if (r != InteractionResult.passed &&
+        r != InteractionResult.passedViaRecipe) {
+      return;
+    }
+    _earnArmillaryStar(pos, idx);
   }
 
   /// Both of the armillary's sights are open.
@@ -891,6 +946,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     }
     if (_hollowSettle > 0) _hollowSettle = max(0.0, _hollowSettle - dt);
     _updateAshdjinn(room, dt);
+    if (room.ruins?.armillary != null) _collectArmillaryStar(a, room);
   }
 
   // ── Readouts, hints, insight (§5.6) ──────────────────────
@@ -966,7 +1022,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
 
   /// AMBIENT is flavour only (§5.6): no mechanics, no elements, no families.
   void _ruinsAmbientHint(DungeonCreature a, DungeonRoom room) {
-    for (final m in dustMoundsIn(room.id)) {
+    for (final m in _liveMoundsIn(room)) {
       if ((a.position - m.streetPos).distance > _kRuinsReach) continue;
       _setAmbientHint(switch (ruins.stateOf(m.id)) {
         MoundState.bared => 'Cold air comes up out of the cut',
@@ -2752,14 +2808,14 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       // light lands on the island. The rim is the broken edge of the roof.
       canvas.drawPath(
         g.roofHole,
-        Paint()..color = const Color(0xFF9FC4E8).withValues(alpha: 0.13),
+        Paint()..color = const Color(0xFF9FC4E8).withValues(alpha: 0.05),
       );
       canvas.drawPath(
         g.roofHole,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 6
-          ..color = _kDustStone.withValues(alpha: 0.45),
+          ..strokeWidth = 4
+          ..color = _kDustStone.withValues(alpha: 0.22),
       );
       for (var i = 3; i >= 1; i--) {
         canvas.drawCircle(
@@ -2770,111 +2826,9 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       }
     }
 
-    // THE MOAT. ONE ring, filled once: drawn as four overlapping gap rects
-    // its corners took the fill twice and read as four darker pits. The cut
-    // face shows on the far (north) wall of each hole — the outer rim's top
-    // and the island's south edge — so the span has depth and a body can see
-    // it is a hole and not a painted stripe.
-    var outer = room.gaps.first.rect;
-    for (final gap in room.gaps) {
-      outer = outer.expandToInclude(gap.rect);
-    }
-    // The island is what the four sides leave: each side's inner edge.
-    double side(bool Function(Rect g) isSide, double Function(Rect g) edge) =>
-        edge(room.gaps.map((g) => g.rect).firstWhere(isSide));
-    final inner = Rect.fromLTRB(
-      side(
-        (g) => g.left == outer.left && g.height == outer.height,
-        (g) => g.right,
-      ),
-      side(
-        (g) => g.top == outer.top && g.width == outer.width,
-        (g) => g.bottom,
-      ),
-      side(
-        (g) => g.right == outer.right && g.height == outer.height,
-        (g) => g.left,
-      ),
-      side(
-        (g) => g.bottom == outer.bottom && g.width == outer.width,
-        (g) => g.top,
-      ),
-    );
-    final ring = Path()
-      ..fillType = PathFillType.evenOdd
-      ..addRect(outer)
-      ..addRect(inner);
-    canvas.drawPath(
-      ring,
-      Paint()..color = const Color(0xFF07060B).withValues(alpha: 0.55),
-    );
-    for (final face in [
-      Rect.fromLTWH(outer.left, outer.top, outer.width, 9),
-      Rect.fromLTWH(inner.left, inner.bottom, inner.width, 9),
-    ]) {
-      canvas.drawRect(
-        face,
-        Paint()..color = const Color(0xFF6A5031).withValues(alpha: 0.5),
-      );
-      canvas.drawRect(
-        Rect.fromLTWH(face.left, face.bottom, face.width, 6),
-        Paint()..color = const Color(0xFF3E2F1E).withValues(alpha: 0.55),
-      );
-    }
-    canvas.drawPath(
-      ring,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = _kDustUmber.withValues(alpha: 0.8),
-    );
-    // THE ISLAND. A stepped plinth, because the instrument on it is the most
-    // important object in the dungeon and it was standing on nothing.
-    for (var i = 0; i < 3; i++) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          isle.deflate(i * 13.0),
-          Radius.circular(24 - i * 5.0),
-        ),
-        Paint()
-          ..color = const Color(0xFF6B5943).withValues(alpha: 0.45 + i * 0.14),
-      );
-    }
-    // A zodiac ring cut into the plinth's top — the instrument's own scale.
-    canvas.drawCircle(
-      isle.center,
-      50,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = _kDustBronze.withValues(alpha: open ? 0.5 : 0.2),
-    );
-    for (var i = 0; i < 12; i++) {
-      final a = i / 12 * pi * 2;
-      canvas.drawLine(
-        isle.center + Offset(cos(a), sin(a)) * 44,
-        isle.center + Offset(cos(a), sin(a)) * 50,
-        Paint()
-          ..strokeWidth = 1.6
-          ..color = _kDustBronze.withValues(alpha: open ? 0.55 : 0.22),
-      );
-    }
-
-    // THE CAUSEWAY THAT IS NOT THERE. Four stubs of the bridge that used to
-    // reach the island, broken off over the span — so a player can see that
-    // there WAS a way across and that the dig took it, which is the §6 line
-    // "Airwing can cross what the dig destroyed", made visible.
-    for (final s in [
-      (const Offset(440, 226), 26.0, 12.0),
-      (const Offset(440, 374), 26.0, 12.0),
-      (const Offset(366, 300), 12.0, 26.0),
-      (const Offset(514, 300), 12.0, 26.0),
-    ]) {
-      canvas.drawRect(
-        Rect.fromCenter(center: s.$1, width: s.$2, height: s.$3),
-        Paint()..color = _kDustStone.withValues(alpha: 0.45),
-      );
-    }
+    // THE SHAFT and THE PLINTH (planet_dungeon_game_dust_art.dart): a deep
+    // excavation round an island of carved stone, strata down every wall.
+    _drawObservatoryShaft(canvas, room, isle, open);
   }
 
   /// THE KILN CELLAR. A domed updraught kiln with its stoke-hole still black,
@@ -3208,16 +3162,9 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       final r = Rect.fromCenter(center: m.streetPos, width: 132, height: 92);
       final geo = g.mounds[m.id]!;
       // THE NIGHT DIG: three silhouettes you can tell apart from across the
-      // room — a pegged square of paving, a lamplit pit, a moonlit dune.
-      switch (ruins.stateOf(m.id)) {
-        case MoundState.buried:
-          _drawBuriedSquare(canvas, r, geo);
-          _drawMoundChoices(canvas, m);
-        case MoundState.bared:
-          _drawBaredPit(canvas, r, geo);
-        case MoundState.drifted:
-          _drawDriftedDune(canvas, r, geo);
-      }
+      // room — a pegged square of paving, a lamplit pit, a moonlit dune —
+      // played out as an animation while a spadeful is in the air.
+      _drawMoundLive(canvas, m, r, geo);
       // THE SURVEY PEG'S TAG. Every measured square carries its mark, in
       // every state — a chalked tag on a stake at the near corner, the same
       // mark that is cut over its pit in the granary. A rule you cannot see
@@ -3229,93 +3176,9 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         state: ruins.stateOf(m.id),
       );
     }
-    // The spadeful, in the air: from the pit to where it lands.
+    // What a press would do, over every mound; then the spadeful in the air.
+    _drawMoundChoiceOverlay(canvas, room);
     _drawSandThrow(canvas, room);
-  }
-
-  void _drawMoundChoices(Canvas canvas, DustMound mound) {
-    final player = active;
-    final selected = player != null && player.alive
-        ? _moundTileTarget(player.position, mound)
-        : null;
-    for (final id in mound.neighbours) {
-      final destination = dustMoundById(id)!;
-      final tile = _moundChoiceTile(mound, destination);
-      final available = ruins.canDig(mound.id, id);
-      final lit = selected?.id == id;
-      final color = available ? _kSandGlass.live : const Color(0xFFA48276);
-      canvas.drawLine(
-        mound.streetPos,
-        tile.center,
-        Paint()
-          ..strokeWidth = lit ? 3 : 1.5
-          ..color = color.withValues(alpha: lit ? 0.85 : 0.3),
-      );
-      final slab = RRect.fromRectAndRadius(tile, const Radius.circular(6));
-      canvas.drawRRect(
-        slab.shift(const Offset(0, 4)),
-        Paint()..color = Colors.black.withValues(alpha: 0.5),
-      );
-      canvas.drawRRect(
-        slab,
-        Paint()..color = lit ? color : const Color(0xFF342B21),
-      );
-      canvas.drawRRect(
-        slab,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = lit ? 3 : 1.5
-          ..color = color.withValues(alpha: available || lit ? 1 : 0.45),
-      );
-      _drawSurveyGlyph(
-        canvas,
-        tile.center,
-        11,
-        destination.glyph,
-        lit ? _kDustDeep : color.withValues(alpha: available ? 1 : 0.45),
-      );
-      if (!available) {
-        canvas.drawLine(
-          tile.bottomLeft + const Offset(7, -6),
-          tile.bottomRight + const Offset(-7, -6),
-          Paint()
-            ..color = lit ? _kDustDeep : color
-            ..strokeWidth = 3,
-        );
-      }
-    }
-    if (player == null || (player.position - mound.streetPos).distance > 145) {
-      return;
-    }
-    final label = selected == null
-        ? 'Choose a tile'
-        : ruins.canDig(mound.id, selected.id)
-        ? 'Send sand to'
-        : 'Full';
-    final text = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: const TextStyle(
-          color: Color(0xFFFFE3A6),
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final width = text.width + (selected == null ? 0 : 28);
-    final at = mound.streetPos + Offset(-width / 2, -100);
-    text.paint(canvas, at);
-    if (selected != null) {
-      _drawSurveyGlyph(
-        canvas,
-        at + Offset(text.width + 17, text.height / 2),
-        8,
-        selected.glyph,
-        _kSandGlass.live,
-      );
-    }
   }
 
   /// A stake with a chalked tag on it, carrying one survey mark.
@@ -3943,58 +3806,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if (tube != null) _drawSightTube(canvas, tube, d.armillary);
     final rings = d.armillary;
     if (rings != null) {
-      // The rings only come alive with BOTH sights open (kArmillarySights).
-      final open = armillarySeesSky;
-      // A won armillary stays SET under a restored roof: bronze, and held on
-      // the sky it was shown — a banked star never draws as a dead
-      // instrument (Mud's lesson: what a won star did stays done).
+      // A won armillary stays SET under a restored roof (Mud's lesson: what a
+      // won star did stays done).
       final won = d.starIndex != null && hasStar(d.starIndex!);
-      final live = open || won;
-      // A STAND, then the rings. An armillary sphere is an instrument on a
-      // pillar, not three ovals in mid-air.
-      canvas.drawRect(
-        Rect.fromCenter(center: rings.translate(0, 40), width: 40, height: 12),
-        Paint()..color = _kDustStone.withValues(alpha: 0.6),
-      );
-      canvas.drawRect(
-        Rect.fromCenter(center: rings.translate(0, 26), width: 16, height: 34),
-        Paint()..color = const Color(0xFF6E5A34).withValues(alpha: 0.9),
-      );
-      final base = live ? _kDustBronze : const Color(0xFF5A4E3C);
-      // The meridian ring stands upright; the others are hung in it and turn
-      // a little once there is a sky for them to read.
-      final turn = open ? sin(_time * 0.35) * 0.22 : 0.0;
-      for (var i = 0; i < 3; i++) {
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: rings,
-            width:
-                (96.0 - i * 22) *
-                (i == 2 ? 1 : cos(turn + i).abs() * 0.5 + 0.6),
-            height: 40.0 + i * 20,
-          ),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = i == 0 ? 3.4 : 2.4
-            ..color = base.withValues(alpha: live ? 0.92 : 0.55),
-        );
-      }
-      // The polar axis through it, and the little gilt sun on the ecliptic.
-      canvas.drawLine(
-        rings + const Offset(-14, -44),
-        rings + const Offset(14, 44),
-        Paint()
-          ..strokeWidth = 2.2
-          ..color = base.withValues(alpha: live ? 0.9 : 0.5),
-      );
-      if (live) {
-        final t = open ? _time * 0.5 : 0.9;
-        canvas.drawCircle(
-          rings + Offset(cos(t) * 40, sin(t) * 15),
-          4.5,
-          Paint()..color = _kDustPale.withValues(alpha: 0.95),
-        );
-      }
+      _drawArmillary(canvas, rings, open: armillarySeesSky, won: won);
+      _drawObservatoryStar(canvas, rings, won: won);
     }
     final glass = d.glassCourt;
     if (glass != null) {

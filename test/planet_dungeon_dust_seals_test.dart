@@ -440,7 +440,7 @@ void main() {
 
       void press(int idx, String room, Offset p, [double aim = 0]) {
         if (dustMoundsIn(room).any((m) => m.streetPos == p)) {
-          p += Offset(cos(aim), sin(aim)) * 64;
+          p += moundChoiceOffset(Offset(cos(aim), sin(aim)));
         }
         game.currentRoomId = room;
         game.setActive(idx);

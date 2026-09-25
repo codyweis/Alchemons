@@ -147,6 +147,13 @@ void main() {
 
       await shoot('mural', 'skull_antechamber');
 
+      // The scale, with two of the giant's tablets read.
+      await shoot(
+        'scale_memory',
+        'eye_chamber',
+        setup: (g) => g.scaleCluesRead.addAll(['w_skull', 'w_spine']),
+      );
+
       for (final (a, b) in const [
         ('crypt_risen', 'crypt_worked'),
         ('eye_blind', 'eye_seeing'),
