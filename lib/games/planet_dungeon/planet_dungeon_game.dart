@@ -14198,6 +14198,19 @@ class PlanetDungeonGame extends FlameGame {
         _drawWallowHatch(canvas, d.rect, open: !isDoorLocked(room, d));
         continue;
       }
+      // Every other door on a glass planet: out in the room, a thin one is
+      // an arch standing on its ledge and a square one is a hatch in the
+      // floor — never the old frame (2026-09-24).
+      if (_isGlassPlanet) {
+        final r = d.rect;
+        final squarish = max(r.width, r.height) / min(r.width, r.height) < 1.6;
+        if (squarish) {
+          _drawGlassFloorHatch(canvas, r, open: !isDoorLocked(room, d));
+        } else {
+          _drawGlassDoor(canvas, room, d);
+        }
+        continue;
+      }
       final r = d.rect;
       // Sealed star-gated door: a dark slab. The FINALE door reads as a
       // barred ritual seal that SHOWS PROGRESS — one star gem per required

@@ -5449,6 +5449,20 @@ press: a pot in the middle of the lazar gate takes ONE gift from every hand,
 any element (pips light in each giver's colour), brews, and the wax runs off
 the door. None of it counts against the brewing gives.
 
+**AIR, THIRD PASS (2026-09-24, the author: "a lot of rooms can be
+optimized, visually").** Every room was one slate value — floor, walls and
+carving — under an identical dotted balustrade. Now: (1) a dark bed under
+the flags so carving reads, carving lips in the zone's light; (2) THREE
+ZONES by wing (`_skyZoneOf`): dawn gold up the spire, clear day among the
+clouds and the loom, violet in the storm, guardian and relic rooms — a wash
+over the stone and the colour of carving and pennants; (3) the balustrade is
+a PARAPET: heavy posts ~150px apart, a rail on most spans and a gap where the
+wind took one, and pennants on the north posts drawn live (a few triangles a
+frame); (4) platforms have a thick dark edge, a dark bed and the zone light;
+(5) the wonder clouds carry a cloud of their own shape — anvil, ring, spiral
+arm — as ONE unioned path of dense puffs (a string of separate puffs read as
+beads), shadow + body + clipped crown, baked.
+
 **THE LINE AUDIT (2026-09-24)** — after Dust, the same fault elsewhere:
   · POISON: flags inset 2.6px → 1.0 (the bed showed between every stone as a
     web of joints), splits 16% → 6%, floor alpha 0.72 → 0.84 (the sky's

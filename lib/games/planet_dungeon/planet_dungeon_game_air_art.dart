@@ -26,6 +26,21 @@ const GlassPalette _kSkyGlass = kZephyrGlass;
 
 final Map<String, ui.Picture> _skyFabricCache = {};
 
+/// Where each room's parapet pennants stand (filled when its stage bakes).
+final Map<String, List<Offset>> _skyPennants = {};
+
+/// A wing's light: the wash over its stone, and the colour its carving and
+/// pennants catch.
+class _SkyZone {
+  const _SkyZone(this.wash, this.light);
+  final Color wash;
+  final Color light;
+}
+
+const _kDawnZone = _SkyZone(Color(0x30E8A050), Color(0xFFF2C878));
+const _kDayZone = _SkyZone(Color(0x14BFE0FF), Color(0xFFE8F4FF));
+const _kStormZone = _SkyZone(Color(0x2A6A4AA8), Color(0xFFB89CF0));
+
 /// Loom glass (gold) and storm glass (lightning), for the compass's rings.
 const Color _kLoomGlass = Color(0xFFE4C16A);
 const Color _kStormGlass = Color(0xFFFFF59A);
@@ -54,7 +69,16 @@ extension WindCrownArt on PlanetDungeonGame {
     canvas.drawPicture(
       _skyFabricCache.putIfAbsent(key, () => _bakeSkyStage(room)),
     );
+    _renderSkyPennants(canvas, room);
   }
+
+  _SkyZone _skyZoneOf(DungeonRoom room) => switch (_themeFor(room)) {
+    _AirRoomTheme.wonderCloud || _AirRoomTheme.loom => _kDayZone,
+    _AirRoomTheme.storm ||
+    _AirRoomTheme.guardian ||
+    _AirRoomTheme.relic => _kStormZone,
+    _ => _kDawnZone,
+  };
 
   ui.Picture _bakeSkyStage(DungeonRoom room) {
     final rec = ui.PictureRecorder();
@@ -106,8 +130,14 @@ extension WindCrownArt on PlanetDungeonGame {
     );
 
     // The top: flags laid in the slab, translucent so the sky shows (§8).
+    // A DARK BED under them first (2026-09-24): floor, walls and carving were
+    // all one slate value, so every room feature was dark-on-dark.
     c.save();
     c.clipRRect(top);
+    c.drawRect(
+      top.outerRect,
+      Paint()..color = const Color(0xFF121A26).withValues(alpha: 0.5),
+    );
     paintFlagFloor(
       c,
       top.outerRect,
@@ -119,6 +149,10 @@ extension WindCrownArt on PlanetDungeonGame {
       course: 84,
       jointOpacity: 0.24,
     );
+    // THE WING'S LIGHT: dawn gold up the spire, clear day among the clouds,
+    // violet in the storm — so the climb is a journey through the sky.
+    final zone = _skyZoneOf(room);
+    c.drawRect(top.outerRect, Paint()..color = zone.wash);
     c.restore();
     c.drawRRect(
       top,
@@ -137,50 +171,179 @@ extension WindCrownArt on PlanetDungeonGame {
     _paintSkyGround(c, room, top.outerRect);
     c.restore();
 
-    // THE BALUSTRADE: posts and a rail round the edge, broken at every door —
-    // the island's walls, low enough that the sky stays the room's mood.
+    // THE PARAPET (2026-09-24). A post every 34px round every room was the
+    // loudest pattern in all of them and made them one room. Now: heavy
+    // wind-worn posts far apart, a rail between most of them and a gap where
+    // the wind has taken it, and a pennant on some of the posts along the
+    // top edge — drawn live, streaming the way the air moves.
     final doors = room.doors.map((d) => d.rect.inflate(18)).toList();
     final inner = top.deflate(10);
     final rail = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..color = _kSkyGlass.stoneTop.withValues(alpha: 0.55);
-    void posts(Offset a, Offset z) {
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..color = _kSkyGlass.stoneTop.withValues(alpha: 0.5);
+    final pennants = <Offset>[];
+    void posts(Offset a, Offset z, {bool flags = false}) {
       final len = (z - a).distance;
-      final steps = (len / 34).floor();
+      final steps = max(1, (len / 150).round());
       Offset? last;
       for (var i = 0; i <= steps; i++) {
-        final p = Offset.lerp(a, z, i / max(1, steps))!;
+        final p = Offset.lerp(a, z, i / steps)!;
         if (doors.any((d) => d.contains(p))) {
           last = null;
           continue;
         }
-        if (last != null) c.drawLine(last, p, rail);
+        // Most spans keep their rail; the wind has had the rest.
+        if (last != null && rng.next() > 0.3) c.drawLine(last, p, rail);
         paintCarvedBlock(
           c,
-          Rect.fromCenter(center: p - const Offset(0, 4), width: 9, height: 6),
-          6,
+          Rect.fromCenter(
+            center: p - const Offset(0, 6),
+            width: 16,
+            height: 11,
+          ),
+          12,
           _kSkyGlass,
-          radius: 1.5,
+          radius: 2.5,
         );
+        if (flags && i.isOdd) pennants.add(p - const Offset(0, 12));
         last = p;
       }
     }
 
     final r = inner.outerRect;
     const k = _kSkyStageR - 6;
-    posts(Offset(r.left + k, r.top), Offset(r.right - k, r.top));
+    posts(Offset(r.left + k, r.top), Offset(r.right - k, r.top), flags: true);
     posts(Offset(r.left, r.top + k), Offset(r.left, r.bottom - k));
     posts(Offset(r.right, r.top + k), Offset(r.right, r.bottom - k));
     posts(Offset(r.left + k, r.bottom), Offset(r.right - k, r.bottom));
+    _skyPennants[room.id] = pennants;
+
+    // The room's own cloud, where it has one, spilling over the parapet.
+    _paintWonderCloud(c, room, top.outerRect);
     return rec.endRecording();
+  }
+
+  /// Pennants on the parapet, streaming: a few triangles a frame.
+  void _renderSkyPennants(Canvas canvas, DungeonRoom room) {
+    final at = _skyPennants[room.id];
+    if (at == null || at.isEmpty) return;
+    final light = _skyZoneOf(room).light;
+    for (var i = 0; i < at.length; i++) {
+      final p = at[i];
+      final sway = sin(_time * 3.1 + i * 1.7) * 4;
+      final lift = cos(_time * 2.3 + i) * 2.5;
+      canvas.drawLine(
+        p,
+        p - const Offset(0, 30),
+        Paint()
+          ..strokeWidth = 2
+          ..color = const Color(0xFF1A222E),
+      );
+      final top = p - const Offset(0, 30);
+      canvas.drawPath(
+        Path()
+          ..moveTo(top.dx, top.dy)
+          ..quadraticBezierTo(
+            top.dx + 20,
+            top.dy + 3 + lift,
+            top.dx + 40 + sway,
+            top.dy + 8 + lift * 1.5,
+          )
+          ..lineTo(top.dx, top.dy + 16)
+          ..close(),
+        Paint()..color = light.withValues(alpha: 0.85),
+      );
+    }
+  }
+
+  /// THE WONDER CLOUDS were only a name and a faint floor carving. Each now
+  /// has a cloud of its own shape in the room — a thunderhead's flat anvil,
+  /// a ring, a spiral arm — built from overlapping puffs (geometry, never
+  /// blur) with a shadowed underside and a lit crown, and baked.
+  void _paintWonderCloud(Canvas c, DungeonRoom room, Rect r) {
+    final puffs = <(Offset, double)>[];
+    Offset at(double fx, double fy) =>
+        Offset(r.left + r.width * fx, r.top + r.height * fy);
+    switch (room.id) {
+      case 'anvil_cloud':
+        // The anvil: a broad flat top along the north, a narrower stem.
+        for (var i = 0; i <= 10; i++) {
+          puffs.add((
+            at(0.12 + i * 0.076, 0.1 + (i % 2) * 0.02),
+            36.0 + (i % 3) * 6,
+          ));
+        }
+        for (var i = 0; i < 3; i++) {
+          puffs.add((at(0.44 + i * 0.06, 0.2), 30.0));
+        }
+      case 'ring_cloud':
+        // Densely overlapped so the outline billows rather than beads.
+        final o = at(0.5, 0.46);
+        final rad = min(r.width, r.height) * 0.47;
+        for (var i = 0; i < 96; i++) {
+          final a = i / 96 * 2 * pi;
+          final wob = sin(i * 0.9) * 7 + sin(i * 2.3) * 4;
+          final size =
+              22.0 + 8 * (sin(i * 0.7) * 0.5 + 0.5) + 6 * sin(i * 1.9).abs();
+          puffs.add((o + Offset(cos(a), sin(a)) * (rad + wob), size));
+        }
+      case 'spiral_cloud':
+        // An arm that thickens as it winds out.
+        final o = at(0.5, 0.46);
+        for (var i = 0; i < 90; i++) {
+          final t = i / 89;
+          final a = -pi / 2 + t * pi * 1.6;
+          final rad = 262.0 + t * 30;
+          final size = 10.0 + t * 20 + 5 * (sin(i * 1.3) * 0.5 + 0.5);
+          puffs.add((o + Offset(cos(a), sin(a) * 0.9) * rad, size));
+        }
+      default:
+        return;
+    }
+    // ONE SHAPE, not a string of beads: the puffs are unioned into a single
+    // outline (at bake time), so the body, its shadow and its lit crown are
+    // each one fill and nothing stacks into a row of bubbles.
+    var body = Path();
+    var crown = Path();
+    for (final (o, rad) in puffs) {
+      body = Path.combine(
+        PathOperation.union,
+        body,
+        Path()..addOval(Rect.fromCircle(center: o, radius: rad)),
+      );
+      crown = Path.combine(
+        PathOperation.union,
+        crown,
+        Path()..addOval(
+          Rect.fromCircle(
+            center: o - Offset(rad * 0.15, rad * 0.35),
+            radius: rad * 0.72,
+          ),
+        ),
+      );
+    }
+    c.drawPath(
+      body.shift(const Offset(0, 14)),
+      Paint()..color = const Color(0xFF3A4A66).withValues(alpha: 0.45),
+    );
+    c.drawPath(
+      body,
+      Paint()..color = const Color(0xFFC8D6E8).withValues(alpha: 0.45),
+    );
+    c.save();
+    c.clipPath(body);
+    c.drawPath(crown, Paint()..color = Colors.white.withValues(alpha: 0.35));
+    c.restore();
   }
 
   /// The carved feature that makes one stage a particular room. Dark, jointed
   /// stone and cut grooves only — decoration is carved, never glazed.
   void _paintSkyGround(Canvas c, DungeonRoom room, Rect r) {
     final p = _kSkyGlass;
-    final daisTop = Color.lerp(p.floor, p.stoneFace, 0.55)!;
+    // Lighter than the (now dark) floor, so a dais reads as raised stone.
+    final daisTop = Color.lerp(p.stoneFace, p.stoneTop, 0.25)!;
     Offset at(double fx, double fy) =>
         Offset(r.left + r.width * fx, r.top + r.height * fy);
 
@@ -191,7 +354,7 @@ extension WindCrownArt on PlanetDungeonGame {
           ..style = PaintingStyle.stroke
           ..strokeWidth = w + 1.5
           ..strokeCap = StrokeCap.round
-          ..color = p.joint.withValues(alpha: 0.6),
+          ..color = p.joint.withValues(alpha: 0.85),
       );
       c.drawPath(
         path.shift(const Offset(0, 1.6)),
@@ -199,7 +362,7 @@ extension WindCrownArt on PlanetDungeonGame {
           ..style = PaintingStyle.stroke
           ..strokeWidth = max(0.8, w * 0.4)
           ..strokeCap = StrokeCap.round
-          ..color = p.stoneTop.withValues(alpha: 0.2),
+          ..color = _skyZoneOf(room).light.withValues(alpha: 0.42),
       );
     }
 
@@ -479,9 +642,11 @@ extension WindCrownArt on PlanetDungeonGame {
     final storm = _isStormRoom(currentRoom);
     final key =
         'isle|${rect.left.round()},${rect.top.round()},'
-        '${rect.width.round()}x${rect.height.round()}|${storm ? 1 : 0}';
+        '${rect.width.round()}x${rect.height.round()}|${storm ? 1 : 0}'
+        '|${currentRoom.id}';
+    final zone = _skyZoneOf(currentRoom);
     canvas.drawPicture(
-      _skyFabricCache.putIfAbsent(key, () => _bakeSkyIsland(rect, storm)),
+      _skyFabricCache.putIfAbsent(key, () => _bakeSkyIsland(rect, storm, zone)),
     );
     // Thin mist clinging to the underside only.
     if (_fx.ready) {
@@ -499,7 +664,7 @@ extension WindCrownArt on PlanetDungeonGame {
     }
   }
 
-  ui.Picture _bakeSkyIsland(Rect rect, bool storm) {
+  ui.Picture _bakeSkyIsland(Rect rect, bool storm, _SkyZone zone) {
     final rec = ui.PictureRecorder();
     final c = Canvas(rec);
     final geom = _cachedIslandGeometry(rect, stormVariant: storm);
@@ -524,9 +689,23 @@ extension WindCrownArt on PlanetDungeonGame {
               ),
             ),
     );
-    c.drawPath(geom.top.shift(const Offset(0, 10)), Paint()..color = stone);
+    // A THICK EDGE and a dark bed (2026-09-24): the ledges were pale see-
+    // through slabs with no weight — a platform in the sky has to look like
+    // something you would trust to stand on.
+    c.drawPath(geom.top.shift(const Offset(0, 18)), Paint()..color = stone);
+    c.drawPath(
+      geom.top.shift(const Offset(0, 18)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = Colors.black.withValues(alpha: 0.4),
+    );
     c.save();
     c.clipPath(geom.top);
+    c.drawRect(
+      rect.inflate(4),
+      Paint()..color = const Color(0xFF141C28).withValues(alpha: 0.72),
+    );
     paintFlagFloor(
       c,
       rect.inflate(4),
@@ -536,13 +715,14 @@ extension WindCrownArt on PlanetDungeonGame {
       course: 56,
       jointOpacity: 0.3,
     );
+    c.drawRect(rect.inflate(4), Paint()..color = zone.wash);
     c.restore();
     c.drawPath(
       geom.top,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.6
-        ..color = _kSkyGlass.stoneTop.withValues(alpha: storm ? 0.45 : 0.7),
+        ..color = zone.light.withValues(alpha: storm ? 0.4 : 0.55),
     );
     return rec.endRecording();
   }

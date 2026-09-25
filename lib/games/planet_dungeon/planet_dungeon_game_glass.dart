@@ -91,7 +91,17 @@ extension DungeonGlassArt on PlanetDungeonGame {
     final b = room.bounds;
     final r = d.rect;
     final AxisDirection out;
-    if (r.top <= b.top + 1) {
+    final onWall = _doorOnWall(room, d);
+    if (!onWall) {
+      // A GATE ON A LEDGE, out in the room (Air's platforms, Steam's
+      // crucible, Lightning's maze): a thin one stands as an upright arch;
+      // a tall one faces away from the room's middle.
+      out = r.width >= r.height
+          ? AxisDirection.up
+          : (r.center.dx < b.center.dx
+                ? AxisDirection.left
+                : AxisDirection.right);
+    } else if (r.top <= b.top + 1) {
       out = AxisDirection.up;
     } else if (r.bottom >= b.bottom - 1) {
       out = AxisDirection.down;
@@ -103,6 +113,12 @@ extension DungeonGlassArt on PlanetDungeonGame {
     final vertical = out == AxisDirection.left || out == AxisDirection.right;
     // The glass fills the doorway and reaches back into the wall's depth.
     final glass = switch (out) {
+      AxisDirection.up when !onWall => Rect.fromLTRB(
+        r.left + 10,
+        r.top - 34,
+        r.right - 10,
+        r.bottom + 2,
+      ),
       AxisDirection.up => Rect.fromLTRB(
         r.left + 10,
         b.top - 2,
@@ -443,5 +459,49 @@ extension DungeonGlassArt on PlanetDungeonGame {
     // The lead stays over the light: lit glass is still leaded glass, and a
     // run of lit panes without it melts into one flat shape.
     paintLead(canvas, pane, _glass, width: lead, opacity: o);
+  }
+
+  /// A DOOR IN THE FLOOR (a trapdown, a hatch): a collar of carved stone and
+  /// a round leaded lid in the planet's glass — smoked while it will not
+  /// take you, live glass turning slowly while it will. Mud's wallows wear
+  /// their own peat version of the same thing.
+  void _drawGlassFloorHatch(Canvas canvas, Rect r, {required bool open}) {
+    final p = _glass;
+    final c = r.center;
+    final rx = max(r.width, r.height) * 0.62, ry = rx * 0.62;
+    paintCarvedDisc(canvas, c, rx, ry, 7, p);
+    final lid = Rect.fromCenter(center: c, width: rx * 1.52, height: ry * 1.52);
+    final spin = open ? _time * 0.25 : 0.0;
+    for (var i = 0; i < 6; i++) {
+      final a0 = spin + i * pi / 3;
+      final pane = ellipseSectorPath(
+        c,
+        lid.width * 0.14,
+        lid.height * 0.14,
+        lid.width / 2,
+        lid.height / 2,
+        a0,
+        a0 + pi / 3,
+      );
+      paintPane(
+        canvas,
+        pane,
+        open
+            ? Color.lerp(p.liveDeep, p.live, 0.3 + 0.2 * sin(_time * 1.1 + i))!
+            : Color.lerp(p.smoke, p.frostAt(i), 0.4)!,
+        p,
+        lead: 1.6,
+      );
+    }
+    paintRondel(
+      canvas,
+      c,
+      lid.height * 0.13,
+      p,
+      fill: open ? p.liveCore : p.smoke,
+      rim: open ? 1 : 0.35,
+      lead: 1.6,
+    );
+    if (open) paintStreak(canvas, lid.deflate(4), opacity: 0.5);
   }
 }
