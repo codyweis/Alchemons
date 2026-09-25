@@ -267,12 +267,10 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
 
   /// One spadeful of the buried city — the planet's whole grammar.
   ///
-  /// You dig the mound you are standing at and throw its load onto the
-  /// neighbour you are FACING, so the decision (which of my neighbours do I
-  /// bury?) is made with the body, exactly where the consequence lands.
+  /// Stand on a destination tile to choose where the spadeful lands.
   bool _tryMoundDig(DungeonCreature a) {
     for (final m in dustMoundsIn(currentRoomId)) {
-      if ((a.position - m.streetPos).distance > _kRuinsReach) continue;
+      if ((a.position - m.streetPos).distance > 120) continue;
       if (!_ruinsCitySpade(a)) {
         _setBlockedHint(
           _dustHandDown
@@ -297,9 +295,9 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         case MoundState.buried:
           break;
       }
-      final target = _facingMound(a, m);
+      final target = _moundTileTarget(a.position, m);
       if (target == null) {
-        _setBlockedHint('No room to throw the sand that way');
+        _setBlockedHint('Stand on a marked tile to choose where the sand goes');
         return true;
       }
       if (!ruins.canDig(m.id, target.id)) {
@@ -371,30 +369,24 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     );
   }
 
-  /// The neighbouring mound the body is pointed at. Aim decides where the
-  /// spoil lands, so the trade is made with the joystick, not a menu.
-  DustMound? _facingMound(DungeonCreature a, DustMound from) {
-    final aim = Offset(cos(a.aimAngle), sin(a.aimAngle));
-    DustMound? best;
-    var bestDot = 0.0;
+  /// Shared by drawing and interaction, so the lit tile is the exact target
+  /// used by the ability. Direction is shown spatially, never read from aim.
+  Rect _moundChoiceTile(DustMound from, DustMound to) {
+    final bearing = _moundBearing(from, to);
+    return Rect.fromCenter(
+      center: from.streetPos + bearing / bearing.distance * 64,
+      width: 40,
+      height: 40,
+    );
+  }
+
+  DustMound? _moundTileTarget(Offset position, DustMound from) {
     for (final id in from.neighbours) {
       final n = dustMoundById(id);
       if (n == null) continue;
-      // A neighbour in another room is aimed at through the wall it lies
-      // behind: use the direction from THIS mound to that room's door-ward
-      // side, approximated by the mound's own crown in city space.
-      final delta = _moundBearing(from, n);
-      if (delta.distance < 1) continue;
-      final dot =
-          (delta / delta.distance).dx * aim.dx +
-          (delta / delta.distance).dy * aim.dy;
-      if (dot > bestDot) {
-        bestDot = dot;
-        best = n;
-      }
+      if (_moundChoiceTile(from, n).contains(position)) return n;
     }
-    // A loose cone: the player must MEAN a direction, not thread a needle.
-    return bestDot >= 0.35 ? best : null;
+    return null;
   }
 
   /// Direction from one mound to another in CITY space. Sablis's five squares
@@ -3220,6 +3212,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       switch (ruins.stateOf(m.id)) {
         case MoundState.buried:
           _drawBuriedSquare(canvas, r, geo);
+          _drawMoundChoices(canvas, m);
         case MoundState.bared:
           _drawBaredPit(canvas, r, geo);
         case MoundState.drifted:
@@ -3238,6 +3231,91 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     }
     // The spadeful, in the air: from the pit to where it lands.
     _drawSandThrow(canvas, room);
+  }
+
+  void _drawMoundChoices(Canvas canvas, DustMound mound) {
+    final player = active;
+    final selected = player != null && player.alive
+        ? _moundTileTarget(player.position, mound)
+        : null;
+    for (final id in mound.neighbours) {
+      final destination = dustMoundById(id)!;
+      final tile = _moundChoiceTile(mound, destination);
+      final available = ruins.canDig(mound.id, id);
+      final lit = selected?.id == id;
+      final color = available ? _kSandGlass.live : const Color(0xFFA48276);
+      canvas.drawLine(
+        mound.streetPos,
+        tile.center,
+        Paint()
+          ..strokeWidth = lit ? 3 : 1.5
+          ..color = color.withValues(alpha: lit ? 0.85 : 0.3),
+      );
+      final slab = RRect.fromRectAndRadius(tile, const Radius.circular(6));
+      canvas.drawRRect(
+        slab.shift(const Offset(0, 4)),
+        Paint()..color = Colors.black.withValues(alpha: 0.5),
+      );
+      canvas.drawRRect(
+        slab,
+        Paint()..color = lit ? color : const Color(0xFF342B21),
+      );
+      canvas.drawRRect(
+        slab,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = lit ? 3 : 1.5
+          ..color = color.withValues(alpha: available || lit ? 1 : 0.45),
+      );
+      _drawSurveyGlyph(
+        canvas,
+        tile.center,
+        11,
+        destination.glyph,
+        lit ? _kDustDeep : color.withValues(alpha: available ? 1 : 0.45),
+      );
+      if (!available) {
+        canvas.drawLine(
+          tile.bottomLeft + const Offset(7, -6),
+          tile.bottomRight + const Offset(-7, -6),
+          Paint()
+            ..color = lit ? _kDustDeep : color
+            ..strokeWidth = 3,
+        );
+      }
+    }
+    if (player == null || (player.position - mound.streetPos).distance > 145) {
+      return;
+    }
+    final label = selected == null
+        ? 'Choose a tile'
+        : ruins.canDig(mound.id, selected.id)
+        ? 'Send sand to'
+        : 'Full';
+    final text = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          color: Color(0xFFFFE3A6),
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final width = text.width + (selected == null ? 0 : 28);
+    final at = mound.streetPos + Offset(-width / 2, -100);
+    text.paint(canvas, at);
+    if (selected != null) {
+      _drawSurveyGlyph(
+        canvas,
+        at + Offset(text.width + 17, text.height / 2),
+        8,
+        selected.glyph,
+        _kSandGlass.live,
+      );
+    }
   }
 
   /// A stake with a chalked tag on it, carrying one survey mark.

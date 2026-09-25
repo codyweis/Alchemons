@@ -22,7 +22,7 @@
 // through the real game — real bodies, real facing, real verb button — and
 // the star has to bank at the end of it.
 
-import 'dart:math' show atan2;
+import 'dart:math' show atan2, cos, sin;
 
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
@@ -439,6 +439,9 @@ void main() {
       const g = kSealYard;
 
       void press(int idx, String room, Offset p, [double aim = 0]) {
+        if (dustMoundsIn(room).any((m) => m.streetPos == p)) {
+          p += Offset(cos(aim), sin(aim)) * 64;
+        }
         game.currentRoomId = room;
         game.setActive(idx);
         for (final c in game.creatures) {

@@ -127,6 +127,21 @@ void main() {
       // THE ROOF WALK: two mounds, in the three heights a mound can have.
       const walkStand = Offset(420, 420);
       await shoot('walk_buried', 'roof_walk', walkStand, (g) {});
+      await shoot(
+        'walk_tile_selected',
+        'roof_walk',
+        const Offset(314, 280),
+        (g) {},
+      );
+      await shoot('walk_tile_full', 'roof_walk', const Offset(314, 280), (g) {
+        g.ruins.dig('m_kiln', 'm_bump');
+      });
+      await shoot(
+        'agora_three_tiles',
+        'seal_street',
+        const Offset(835, 425),
+        (g) {},
+      );
       await shoot('walk_roof_bared_bump_heaped', 'roof_walk', walkStand, (g) {
         g.ruins.dig('m_roof', 'm_bump');
       });

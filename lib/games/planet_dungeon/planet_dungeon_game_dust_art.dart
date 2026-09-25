@@ -68,20 +68,14 @@ extension RuinsOfTimeArt on PlanetDungeonGame {
   /// BURIED: a square of intact paving, pegged out and strung on all four
   /// sides in chalk — measured, solid, walkable.
   void _drawBuriedSquare(Canvas canvas, Rect r, _MoundGeometry geo) {
-    // One laid slab of street, proud of the dig: shadow, stone, a single
-    // cross joint, the lit near edge, and a peg at each corner. Nothing
-    // else — the jittered flags and chalk dashes read as mess.
+    // One laid slab of street. Destination tiles carry the choices around
+    // its edge; internal quartering would look like four more choices.
     final slab = RRect.fromRectAndRadius(r, const Radius.circular(4));
     canvas.drawRRect(
       slab.shift(const Offset(0, 6)),
       Paint()..color = Colors.black.withValues(alpha: 0.5),
     );
     canvas.drawRRect(slab, Paint()..color = const Color(0xFF6A5A42));
-    final joint = Paint()
-      ..strokeWidth = 1.4
-      ..color = const Color(0xFF2A2014).withValues(alpha: 0.7);
-    canvas.drawLine(r.topCenter, r.bottomCenter, joint);
-    canvas.drawLine(r.centerLeft, r.centerRight, joint);
     canvas.drawLine(
       r.bottomLeft + const Offset(4, -1),
       r.bottomRight + const Offset(-4, -1),

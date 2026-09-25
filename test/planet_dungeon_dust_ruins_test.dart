@@ -16,7 +16,7 @@
 // The rest pins the mound trade, the two hard gates, the vault trick and the
 // guardian against the real rules.
 
-import 'dart:math' show atan2;
+import 'dart:math' show atan2, cos, sin;
 
 import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -115,8 +115,8 @@ void act(PlanetDungeonGame game, int idx, String room, Offset pos) {
   game.activateAbility();
 }
 
-/// Point [idx] at [aim] radians as well — the mound verbs decide WHERE the
-/// spoil lands from the body's facing, so a test has to face too.
+/// At a mound, stand on the destination tile in [aim]'s direction.
+/// Elsewhere, preserve the facing-based verbs used by the other puzzles.
 void actFacing(
   PlanetDungeonGame game,
   int idx,
@@ -124,6 +124,9 @@ void actFacing(
   Offset pos,
   double aim,
 ) {
+  if (dustMoundsIn(room).any((m) => m.streetPos == pos)) {
+    pos += Offset(cos(aim), sin(aim)) * 64;
+  }
   game.currentRoomId = room;
   game.setActive(idx);
   for (final c in game.creatures) {
@@ -524,10 +527,10 @@ void main() {
       },
     );
 
-    test('aim decides who gets buried — the trade is made with the body', () {
+    test('the occupied tile decides which neighbour receives the sand', () {
       // The observatory's spoil goes either onto the bump (the vault) or back
       // onto the agora (the terrace ramp). That is the planet's sharpest
-      // decision, and it is one flick of the stick.
+      // decision, selected by standing on its marked tile.
       final vaultWay = harness(_idealTrio())..entryDoorRevealed = true;
       actFacing(vaultWay, dust, 'roof_walk', crownOf('m_roof'), east);
       expect(vaultWay.ruins.stateOf('m_bump'), MoundState.drifted);
@@ -537,6 +540,25 @@ void main() {
       actFacing(rampWay, dust, 'roof_walk', crownOf('m_roof'), west);
       expect(rampWay.ruins.stateOf('m_agora'), MoundState.drifted);
       expect(rampWay.ruins.stateOf('m_bump'), MoundState.buried);
+    });
+
+    test('turning on a tile does not change its destination', () {
+      final game = harness(_idealTrio())..entryDoorRevealed = true;
+      game.creatures[dust].aimAngle = west;
+      act(game, dust, 'roof_walk', crownOf('m_roof') + const Offset(64, 0));
+      expect(game.ruins.stateOf('m_bump'), MoundState.drifted);
+      expect(game.ruins.stateOf('m_agora'), MoundState.buried);
+    });
+
+    test('the mound centre makes no choice and full tiles do not redirect', () {
+      final game = harness(_idealTrio())..entryDoorRevealed = true;
+      act(game, dust, 'roof_walk', crownOf('m_roof'));
+      expect(game.ruins.isLevelled, isTrue);
+      game.ruins.dig('m_kiln', 'm_bump');
+      act(game, dust, 'roof_walk', crownOf('m_roof') + const Offset(64, 0));
+      expect(game.ruins.stateOf('m_roof'), MoundState.buried);
+      expect(game.ruins.stateOf('m_agora'), MoundState.buried);
+      expect(game.ruins.conserved, isTrue);
     });
 
     test('the vault opens by burying it HARDER, and never shuts you in', () {
