@@ -30,6 +30,8 @@ void main() {
       // Mud and Ice, 2026-09-23: the pass done, and played.
       'Mud',
       'Ice',
+      // Dust, 2026-09-25: the whole pass, played.
+      'Dust',
     });
   });
 

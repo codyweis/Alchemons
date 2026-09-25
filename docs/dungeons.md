@@ -2029,10 +2029,11 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
-**TEN of seventeen (2026-09-23): Fire · Air · Water · Earth · Lightning ·
-Steam · Lava · Poison · Mud · Ice.** Poison was promoted 2026-09-14; **MUD
-(pass 2026-09-13) and ICE (pass 2026-09-15) were promoted 2026-09-23** on the
-author's account that both have been played. This list is mirrored in code as `kPolishedDungeons`
+**ELEVEN of seventeen (2026-09-25): Fire · Air · Water · Earth · Lightning ·
+Steam · Lava · Poison · Mud · Ice · Dust.** Poison was promoted 2026-09-14;
+**MUD (pass 2026-09-13) and ICE (pass 2026-09-15) were promoted 2026-09-23**
+on the author's account that both have been played; **DUST was promoted
+2026-09-25** after its night-dig / sand-throw / observatory pass was played. This list is mirrored in code as `kPolishedDungeons`
 (`lib/games/cosmic/cosmic_data.dart`), and it is what decides whether a planet
 offers DESCEND or the coming-soon placard — the other ten keep their gate
 ritual and cannot be descended. Promoting a planet is one line there, pinned
@@ -5316,7 +5317,7 @@ and its own compositions.
     under a silt wash, so the things standing on it stay brightest; the
     sink-pit sits in a stone well-head.
 
-  · ◐ **DUST — built 2026-09-24, not polished, never on device.**
+  · ✅ **DUST — built 2026-09-24; POLISHED 2026-09-25 (played on device).**
     `planet_dungeon_game_dust_art.dart`, `kSandGlass`. The deck and standing
     fabric were redrawn EVERY FRAME; they are now baked with a sandstone shell
     (low face below the streets, where the cut face is the north wall; no

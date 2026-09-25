@@ -2023,6 +2023,10 @@ const Set<String> kPolishedDungeons = <String>{
   // whole pass (Mud 2026-09-13, Ice 2026-09-15) and have been played.
   'Mud',
   'Ice',
+  // Dust — promoted 2026-09-25 on the author's account, after the night-dig
+  // art, the watched sand-throw, tile-walled streets and the observatory
+  // star, all played on device.
+  'Dust',
 };
 
 /// True if [element]'s descent is ready for a player: built AND polished.
