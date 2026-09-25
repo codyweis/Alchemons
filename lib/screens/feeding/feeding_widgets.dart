@@ -1,4 +1,5 @@
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
@@ -263,6 +264,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
   late AnimationController _levelFlashController;
   late Animation<double> _xpAnimation;
   bool _flashFiredThisRun = false;
+  AudioController? _audio;
 
   @override
   void initState() {
@@ -287,6 +289,12 @@ class _XPBarDisplayState extends State<XPBarDisplay>
     );
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _audio = context.audio;
+  }
+
   void _maybeTriggerLevelFlash() {
     if (!widget.isAnimating || _flashFiredThisRun) return;
     final startLevel = widget.preFeedLevel ?? widget.instance.level;
@@ -296,6 +304,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
     if (_animController.value >= 0.5) {
       _flashFiredThisRun = true;
       HapticFeedback.mediumImpact();
+      context.sound(SoundCue.upgradeComplete, owner: this);
       _levelFlashController.forward(from: 0.0);
     }
   }
@@ -308,6 +317,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
       _setupAnimations();
       _flashFiredThisRun = false;
       _levelFlashController.reset();
+      context.sound(SoundCue.rewardCollect, owner: this, speed: 1.08);
       _animController.forward(from: 0.0);
     } else if (!widget.isAnimating && oldWidget.isAnimating) {
       _animController.reset();
@@ -317,6 +327,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
 
   @override
   void dispose() {
+    _audio?.stopSoundOwner(this);
     _animController.removeListener(_maybeTriggerLevelFlash);
     _animController.dispose();
     _levelFlashController.dispose();
@@ -355,7 +366,10 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                   : 1.0 - ((flash - 0.35) / 0.65).clamp(0.0, 1.0));
         final isMaxLevel = currentLevel >= 10;
 
-        if (isMaxLevel) {
+        // Let the final fill and level-up flourish finish before replacing the
+        // bar with its permanent completion state. Otherwise level 10 appears
+        // to make the result vanish at the exact moment it lands.
+        if (isMaxLevel && !widget.isAnimating) {
           return Container(
             height: 20,
             alignment: Alignment.center,
@@ -1024,14 +1038,18 @@ class FeedTargetPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: t.borderDim),
       ),
-      child: isMaxLevel
-          ? Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isMaxLevel) ...[
+            Row(
               children: [
                 Icon(AppIcons.stars, color: fc.amberBright, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Training Complete!\nUse Power Orbs to raise Enhancement ranks.',
+                    'Training Complete! Level 10 reached.',
                     style: TextStyle(
                       color: fc.amberBright,
                       fontSize: 12,
@@ -1040,23 +1058,39 @@ class FeedTargetPanel extends StatelessWidget {
                   ),
                 ),
               ],
-            )
-          : CurrentStatsDisplay(
-              theme: theme,
-              instance: targetInstance!,
-              creature: targetCreature!,
-              showPotential: constellationEffects.hasPotentialAnalyzer(),
-              preview: preview,
-              isAnimating: shouldAnimate,
-              preFeedLevel: preFeedLevel,
-              preFeedXp: preFeedXp,
-              constellationTrailing: hasConstellationBoosts
-                  ? _ConstellationInfoButton(
-                      theme: theme,
-                      effects: constellationEffects,
-                    )
-                  : null,
             ),
+            const SizedBox(height: 10),
+          ],
+          CurrentStatsDisplay(
+            theme: theme,
+            instance: targetInstance!,
+            creature: targetCreature!,
+            showPotential: constellationEffects.hasPotentialAnalyzer(),
+            preview: preview,
+            isAnimating: shouldAnimate,
+            preFeedLevel: preFeedLevel,
+            preFeedXp: preFeedXp,
+            constellationTrailing: hasConstellationBoosts
+                ? _ConstellationInfoButton(
+                    theme: theme,
+                    effects: constellationEffects,
+                  )
+                : null,
+          ),
+          if (isMaxLevel) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Use Power Orbs to raise Enhancement ranks.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: t.textSecondary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
