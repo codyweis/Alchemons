@@ -177,13 +177,14 @@ const Map<String, DungeonSkyConfig> kDungeonSkyConfigs = {
   ),
   // Dark (Eclipse Vault) — totality: black disc, corona, shadow bands.
   'Dark': DungeonSkyConfig(
-    // A LOT DARKER (2026-09-19, from the author): the vault's sky read as a
-    // blue dusk. The horizon is a bruise now, not indigo, and the corona is
-    // a dim violet rather than cream — nothing behind Nythralor is lit.
-    colorA: Color(0xFF020204), // void
-    colorB: Color(0xFF110D22), // the bruise at the horizon
-    colorC: Color(0xFF6A5A96), // a corona seen through cloth
-    intensity: 0.55,
+    // A LOT DARKER (2026-09-19, from the author), and then A BLACK HOLE
+    // (2026-09-25): the sky is the void with an event horizon hung in it,
+    // and the only light is its accretion disc — violet at the rim, gold at
+    // the throat. See dark.src.frag.
+    colorA: Color(0xFF010103), // void
+    colorB: Color(0xFF4A2A86), // the disc's cool outer violet
+    colorC: Color(0xFFF2C98E), // its hot inner gold
+    intensity: 0.85,
     noiseScale: 2.0,
     flowSpeed: 0.4,
     seed: 119.0,

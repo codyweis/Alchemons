@@ -10899,6 +10899,10 @@ class PlanetDungeonGame extends FlameGame {
   @visibleForTesting
   Future<void> debugLoadFx() => _fx.load();
 
+  /// TEST-ONLY seam: load the planet's sky shader, so a render audit shows
+  /// the real background rather than the gradient fallback.
+  Future<void> debugLoadSky() => _sky.load(element);
+
   /// TEST-ONLY seam: paint a room's landmarks straight onto a canvas.
   ///
   /// A headless Flame game never mounts, so `render` is unreachable from a
@@ -13671,7 +13675,13 @@ class PlanetDungeonGame extends FlameGame {
       } else if (_isSpire) {
         _renderSkyStage(canvas, room);
       } else {
-        _renderPlainFloor(canvas, b, room.id == layout.entranceRoomId);
+        _renderPlainFloor(
+          canvas,
+          b,
+          // Nythralor's porch keeps its floor for the gnomon: a sigil ring
+          // round the room's middle read as a dial it was the hand of.
+          room.id == layout.entranceRoomId && !_isVault,
+        );
       }
       return;
     }
@@ -14136,6 +14146,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isShaft) return room.walls.toSet();
     // And Blood: a rib, a keystone, a baffle, a knot — body, not rock.
     if (_isHeart) return room.walls.toSet();
+    // And Dark: its three are slabs of obsidian lying on the void.
+    if (_isVault) return room.walls.toSet();
     return const {};
   }
 

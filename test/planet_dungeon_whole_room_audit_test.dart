@@ -62,6 +62,7 @@ void main() {
             onChanged: () {},
           );
           await g.debugLoadFx();
+          await g.debugLoadSky();
           final b = layout.rooms[id]!.bounds;
           g.onGameResize(Vector2(b.width + 60, b.height + 60));
           g.entryDoorRevealed = true;

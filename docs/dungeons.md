@@ -3613,6 +3613,27 @@ graded "a wait". Rendered room by room first, then:
         target) and the spoked double ring under every gnomon are gone; the
         abyss has a coursed stone kerb, each gnomon a squared plinth, and
         the analemma itself is a groove with a bronze inlay and bronze studs.
+      – *THE BLACK HOLE PASS* (author, same day: *"dark has unused clutter
+        still and doesn't look like the black hole mystical level it
+        should"*). Every prop you could not use is gone — the fallen
+        columns, drums, pierced screens, loculi, lamp brackets, rubble,
+        dropped flags, cracks and bars of fissure light in every room, the
+        porch's piers, the gallery's dry well, the nave's arcades, the
+        arena's ring of piers, the reliquary's racks, and the entrance
+        sigil the porch shared with every planet. What stays is what a room
+        is for: the stair, the abyss kerb, the reliquary plinth, the
+        gnomons' and the vane's plinths. The sky is a BLACK HOLE now
+        (`dark.src.frag`): a lensed starfield, a tilted accretion disc wound
+        with a turning spiral and brighter on its approaching side, the back
+        of the disc lensed into an arch over the hole, a photon ring and
+        nothing inside — hung high to one side of the frame so it is never
+        over the party. The quarters are its two states: a LIT quarter is
+        obsidian flags lit by the disc, with five thin arms of its light
+        turning slowly round the room's focus (one cached path, rotated); a
+        SHADOWED one thins until the hole shows through, with sixteen motes
+        of dust spiralling into the focus. The three obstacles are obsidian
+        slabs. The render audit loads the real sky shader now
+        (`debugLoadSky`), for every planet.
       – *Left as is, knowingly:* the ECLIPSE readout's four unlabelled marks
         (the map now labels the same state), and the rings' spinning arc.
         Worth a look on device.
