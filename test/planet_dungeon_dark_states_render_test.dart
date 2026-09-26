@@ -76,8 +76,10 @@ void main() {
         String name,
         String roomId,
         Offset stand,
-        void Function(PlanetDungeonGame g) setup,
-      ) async {
+        void Function(PlanetDungeonGame g) setup, {
+        void Function(PlanetDungeonGame g)? then,
+        int thenFrames = 0,
+      }) async {
         final g = _game();
         g.currentRoomId = roomId;
         g.entryDoorRevealed = true;
@@ -89,6 +91,12 @@ void main() {
         }
         for (var i = 0; i < 24; i++) {
           g.update(1 / 60);
+        }
+        if (then != null) {
+          then(g);
+          for (var i = 0; i < thenFrames; i++) {
+            g.update(1 / 60);
+          }
         }
         final rec = ui.PictureRecorder();
         g.render(Canvas(rec));
@@ -125,6 +133,39 @@ void main() {
         g.vault.shadow['gn_porch'] = EclipseLeaf.gallery;
       });
 
+      // A TURN, mid-way: the wipe's edge half across the porch, the wedge
+      // swinging, the creep's stone half split. Pressed with the Dark hand
+      // (slot 0) standing at the finger.
+      await shoot(
+        'porch_mid_turn',
+        'pall_porch',
+        porchGnomon.shaft,
+        (g) => g.vault.shadow['gn_porch'] = EclipseLeaf.gallery,
+        then: (g) {
+          g.setActive(0);
+          g.activateAbility();
+        },
+        thenFrames: 22,
+      );
+
+      // A LIGHT-WALK: the colonnade with its floor (gallery lit), and with
+      // its middle flags gone (gallery in shadow).
+      await shoot(
+        'gallery_colonnade_floor',
+        'shade_gallery',
+        const Offset(420, 400),
+        (g) {
+          g.vault.shadow['gn_porch'] = EclipseLeaf.pall;
+          g.vault.shadow['gn_walk'] = EclipseLeaf.ossuary;
+        },
+      );
+      await shoot(
+        'gallery_colonnade_gone',
+        'shade_gallery',
+        const Offset(420, 400),
+        (g) {},
+      );
+
       // THE COURT: nothing seated; two seated, with the available ones ringed.
       final dial = layout.rooms['analemma_court']!.eclipse!.analemma!;
       await shoot(
@@ -140,6 +181,13 @@ void main() {
         (g) {
           g.vault.stonesSeated.addAll(['stone_pall', 'stone_gallery']);
         },
+      );
+      // The Deep's stone with its quarter in shadow: its pool goes umbra.
+      await shoot(
+        'court_deep_in_shadow',
+        'analemma_court',
+        dial + const Offset(0, 90),
+        (g) => g.vault.shadow['gn_stair'] = EclipseLeaf.deep,
       );
 
       // THE RING: rusted; eaten clean; a hole that is actually through.
@@ -221,8 +269,14 @@ void main() {
       );
 
       const groups = [
-        ['porch_pall_hung', 'porch_shadow_on_pall', 'porch_shadow_on_gallery'],
-        ['court_bare', 'court_two_seated'],
+        [
+          'porch_pall_hung',
+          'porch_shadow_on_pall',
+          'porch_shadow_on_gallery',
+          'porch_mid_turn',
+        ],
+        ['gallery_colonnade_floor', 'gallery_colonnade_gone'],
+        ['court_bare', 'court_two_seated', 'court_deep_in_shadow'],
         ['ring_rusted', 'ring_clean', 'ring_through'],
         ['nave_lamps_lit', 'nave_lamps_out'],
         [

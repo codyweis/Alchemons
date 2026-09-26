@@ -70,7 +70,7 @@ const double _kVaultReach = 70.0;
 const double _kVaultBraidReach = 150.0;
 
 /// Seconds an inversion's WIPE takes to cross the room. Purely visual.
-const double _kVaultWipeSeconds = 0.45;
+const double _kVaultWipeSeconds = 0.8;
 
 /// Shades a seated stone wakes (Star 0's one consequence). Reading the vault
 /// is not free — the stones are grave-markers.
@@ -88,6 +88,20 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     // A death re-hangs no pall and turns no finger back by itself — the vault
     // is puzzle state like every other planet's, so it resets with the run.
     vault.reset();
+    // A WON STAR DRAWS WON (the Dust lesson): the dial stays seated and the
+    // rings stay clean and read after a death or on a new descent. Both are
+    // additive — seated stones and open portals only ever add roads — so
+    // the no-strand proof is untouched.
+    if (hasStar(0)) {
+      vault.stonesSeated.addAll(kShadowStones.map((s) => s.id));
+    }
+    if (hasStar(1)) {
+      for (final an in kVaultAnchors) {
+        vault.anchorsOpen.add(an.id);
+        vault.anchorsRead.add(an.id);
+        vault.portalsWalked.add(an.id);
+      }
+    }
   }
 
   // ── The map, in the state the vault is in ────────────────
@@ -240,6 +254,11 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
   /// rather than appearing silently.
   void _throwShadow(Gnomon g, Offset at) {
     final left = vault.shadowOf(g.id);
+    final wasOpen = {
+      for (final d in currentRoom.doors)
+        if (_vaultSpanFor(currentRoom, d) case final sp?)
+          if (vault.spanOpen(sp)) d.targetRoomId,
+    };
     final entered = vault.turn(g.id)!;
     vault.wipe = _kVaultWipeSeconds;
     _cue(SoundCue.dungeonSwitch);
@@ -257,12 +276,13 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       particleCount: 34,
       intensity: 1.3,
     );
-    // Every shadow-way that has just come into being in this room deserves
-    // the reveal flourish; the ones that just stopped existing announce
-    // themselves by not being there.
+    // Every passage that has just come into being in this room deserves the
+    // reveal flourish (and only those — one that was already open does not
+    // open again); the ones that just stopped existing close over on screen.
     for (final d in currentRoom.doors) {
       final span = _vaultSpanFor(currentRoom, d);
       if (span == null || !vault.spanOpen(span)) continue;
+      if (wasOpen.contains(d.targetRoomId)) continue;
       _queueDoorReveal(currentRoom.id, d.targetRoomId);
       _queueDoorReveal(d.targetRoomId, currentRoom.id);
     }
@@ -1191,7 +1211,25 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
   static const Color _kVaultEmber = Color(0xFFE0B15C);
 
   void _renderVault(Canvas canvas, DungeonRoom room) {
-    _renderVaultGround(canvas, room);
+    final leaf = room.eclipse?.leaf;
+    final dark = leaf != null && vault.isDark(leaf);
+    final was = leaf != null && vault.wipeFrom.contains(leaf);
+    if (vault.wipe > 0 && leaf != null && was != dark) {
+      // THE WIPE: behind the edge the room is already turned over, ahead of
+      // it it is still what it was. Two grounds, one clip each.
+      final b = room.bounds;
+      final x = b.left + b.width * _vaultWipeT;
+      canvas.save();
+      canvas.clipRect(Rect.fromLTRB(b.left, b.top, x, b.bottom));
+      _renderVaultGround(canvas, room, dark: dark);
+      canvas.restore();
+      canvas.save();
+      canvas.clipRect(Rect.fromLTRB(x, b.top, b.right, b.bottom));
+      _renderVaultGround(canvas, room, dark: was);
+      canvas.restore();
+    } else {
+      _renderVaultGround(canvas, room);
+    }
     // The vault's walls, baked (planet_dungeon_game_dark_art.dart).
     _renderVaultShell(canvas, room);
     _renderGlassDoorPlugs(canvas, room);
@@ -1224,12 +1262,12 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
   /// and the architecture is edges on emptiness. Same geometry, exchanged
   /// substance, which is the world rule stated as paint rather than as a lamp
   /// going out.
-  void _renderVaultGround(Canvas canvas, DungeonRoom room) {
+  void _renderVaultGround(Canvas canvas, DungeonRoom room, {bool? dark}) {
     final b = room.bounds;
     final leaf = room.eclipse?.leaf;
     if (leaf == null) return;
     final g = _vaultGroundFor(room, layout);
-    final dark = vault.isDark(leaf);
+    dark ??= vault.isDark(leaf);
 
     // Everything is clipped to the stage the engine already laid down, so the
     // vault's masonry ends where the island ends rather than running out over
@@ -1404,67 +1442,113 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     canvas.restore();
   }
 
-  /// A glyph at every passage the room can see, so what the eclipse has done
-  /// is legible before you walk into it: an open shadow-way is a notch of
-  /// nothing, an open light-walk is a pale causeway, and a light-walk whose
-  /// quarter has gone dark is the same causeway drawn in bone with its middle
-  /// missing. Shadow-ways that do not exist are not drawn at all — they are
-  /// not there (see `_vaultDoorHidden`).
+  /// THE LIGHT-WALKS' FLOOR. A light-walk is a doorway whose floor is made of
+  /// light: a short causeway of pale flags runs in from the sill while its
+  /// quarter is lit, and in shadow its middle flags are simply gone, a gap of
+  /// nothing between the first and the last. The glass above stays a doorway
+  /// either way — it is never locked, it has no floor. Shadow-ways need no
+  /// mark: they are glass or they are wall (see `_renderGlassDoorPlugs`).
+  /// The flags fall and come back on the same eased clock as the walls.
   void _renderVaultSpans(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
     for (final d in room.doors) {
-      if (isDoorHidden(room, d)) continue;
       final span = _vaultSpanFor(room, d);
-      if (span == null || span.cut == SpanCut.unmoved) continue;
-      final at = d.rect.center;
-      final live = vault.spanOpen(span);
-      if (span.cut == SpanCut.shadowWay) {
-        final paint = Paint()..color = _kVaultVoid.withValues(alpha: 0.85);
-        final notch = Path()
-          ..moveTo(at.dx - 17, at.dy + 10)
-          ..lineTo(at.dx - 6, at.dy - 11)
-          ..lineTo(at.dx + 5, at.dy + 3)
-          ..lineTo(at.dx + 17, at.dy - 10)
-          ..lineTo(at.dx + 17, at.dy + 10)
-          ..close();
-        canvas.drawPath(notch, paint);
-        canvas.drawPath(
-          notch,
-          Paint()
-            ..color = _kVaultViolet.withValues(alpha: 0.7)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2,
-        );
+      if (span == null || span.cut != SpanCut.lightWalk) continue;
+      final r = d.rect;
+      // Inward from the wall the door is cut through, and across it.
+      final Offset inward;
+      final Offset sill;
+      if (r.left <= b.left + 1) {
+        inward = const Offset(1, 0);
+        sill = Offset(b.left + kGlassWallTop, r.center.dy);
+      } else if (r.right >= b.right - 1) {
+        inward = const Offset(-1, 0);
+        sill = Offset(b.right - kGlassWallTop, r.center.dy);
+      } else if (r.top <= b.top + 1) {
+        inward = const Offset(0, 1);
+        sill = Offset(r.center.dx, b.top + _glassFaceDepth);
       } else {
-        final paint = Paint()
-          ..color = live
-              ? _kVaultBone.withValues(alpha: 0.8)
-              : _kVaultBone.withValues(alpha: 0.3)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = live ? 4 : 2;
-        if (live) {
-          canvas.drawLine(
-            at + const Offset(-18, 6),
-            at + const Offset(18, 6),
-            paint,
-          );
-          canvas.drawLine(
-            at + const Offset(-12, -2),
-            at + const Offset(12, -2),
-            paint,
-          );
-        } else {
-          // The boards, with the middle of them gone.
-          canvas.drawLine(
-            at + const Offset(-18, 6),
-            at + const Offset(-7, 6),
-            paint,
-          );
-          canvas.drawLine(
-            at + const Offset(7, 6),
-            at + const Offset(18, 6),
-            paint,
-          );
+        inward = const Offset(0, -1);
+        sill = Offset(r.center.dx, b.bottom - kGlassWallTop);
+      }
+      final across = Offset(-inward.dy, inward.dx);
+      final half = (inward.dx != 0 ? r.height : r.width) * 0.5 - 12;
+      final open = _vaultDoorOpen(room, d);
+      const flags = 4;
+      const depth = 15.0;
+      if (open < 0.99) {
+        // THE HOLE the middle flags leave: a ragged pit with a pale broken
+        // lip on its near side, so the gap reads as missing floor even on
+        // the umbra's dark ground.
+        final n0 = sill + inward * (1 * (depth + 3));
+        final n1 = sill + inward * (2 * (depth + 3) + depth + 4);
+        final w = half - 4;
+        Offset at(Offset o, double t) => o + across * (w * t);
+        final hole = Path()
+          ..moveTo(at(n0, 1).dx, at(n0, 1).dy);
+        for (final t in const [0.6, 0.25, -0.2, -0.55, -1.0]) {
+          final j = n0 + inward * (t * 7 % 3 - 1.5);
+          hole.lineTo(at(j, t).dx, at(j, t).dy);
         }
+        for (final t in const [-1.0, -0.5, -0.1, 0.35, 0.7, 1.0]) {
+          final j = n1 + inward * (t * 5 % 3 - 1.5);
+          hole.lineTo(at(j, t).dx, at(j, t).dy);
+        }
+        hole.close();
+        final gone = 1 - open;
+        canvas.drawPath(
+          hole.shift(-inward * 2.5),
+          Paint()..color = _kVaultBone.withValues(alpha: 0.22 * gone),
+        );
+        canvas.drawPath(
+          hole,
+          Paint()..color = const Color(0xFF050409).withValues(alpha: 0.95 * gone),
+        );
+      }
+      for (var i = 0; i < flags; i++) {
+        final near = sill + inward * (i * (depth + 3) + 2);
+        final far = near + inward * depth;
+        // Each flag narrows a little and sits a little off true, so the
+        // causeway reads as laid stone and not as a stripe.
+        final w = half - i * 3.0;
+        final skew = across * ((i.isEven ? 1.5 : -1.5));
+        final flag = Path()
+          ..moveTo(near.dx + across.dx * w, near.dy + across.dy * w)
+          ..lineTo(near.dx - across.dx * w, near.dy - across.dy * w)
+          ..lineTo(
+            far.dx - across.dx * w + skew.dx,
+            far.dy - across.dy * w + skew.dy,
+          )
+          ..lineTo(
+            far.dx + across.dx * w + skew.dx,
+            far.dy + across.dy * w + skew.dy,
+          )
+          ..close();
+        // The middle two are the ones that go; the end flags only dim.
+        final middle = i == 1 || i == 2;
+        final there = middle ? open : 0.45 + 0.55 * open;
+        if (there <= 0.01) continue;
+        final mid = (near + far) / 2;
+        canvas.drawPath(
+          flag,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              mid + across * w,
+              mid - across * w,
+              [
+                _kVaultBone.withValues(alpha: 0.40 * there),
+                _kVaultBone.withValues(alpha: 0.22 * there),
+              ],
+            ),
+        );
+        // The flag's shadowed far edge, so it is a slab and not a decal.
+        canvas.drawLine(
+          far + across * w + skew,
+          far - across * w + skew,
+          Paint()
+            ..strokeWidth = 2.4
+            ..color = _kVaultVoid.withValues(alpha: 0.6 * there),
+        );
       }
     }
   }
@@ -1519,28 +1603,39 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
           a != null &&
           (a.position - at).distance <= _kVaultReach &&
           _vaultHasNightHand(a);
-      final wedge = _shadowWedge(at, down, 78);
-      canvas.drawPath(
-        wedge,
-        Paint()..color = _kVaultVoid.withValues(alpha: 0.85),
-      );
+      // The wedge swings over on the turn's own wipe: it shortens into the
+      // collar on the side it leaves and grows out on the side it enters.
+      var grow = 1.0;
+      if (vault.wipe > 0) grow = _vaultWipeT;
+      if (grow < 1) {
+        final leaving = _shadowWedge(at, !down, 78 * (1 - grow));
+        canvas.drawPath(
+          leaving,
+          Paint()..color = _kVaultVoid.withValues(alpha: 0.85 * (1 - grow)),
+        );
+      }
+      final wedge = _shadowWedge(at, down, 78 * grow);
       canvas.drawPath(
         wedge,
         Paint()
-          ..color = _kVaultViolet.withValues(alpha: 0.6)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5,
+          ..shader = ui.Gradient.linear(
+            at,
+            at + Offset(0, down ? 100 : -100),
+            [
+              _kVaultVoid.withValues(alpha: 0.92),
+              const Color(0xFF2A1E44).withValues(alpha: 0.8),
+            ],
+          ),
       );
-      if (inReach) {
+      if (inReach && vault.wipe <= 0) {
+        // Where the shadow would go: a faint violet wedge, breathing.
         final ghost = _shadowWedge(at, !down, 78);
         canvas.drawPath(
           ghost,
           Paint()
             ..color = _kVaultViolet.withValues(
-              alpha: 0.25 + 0.15 * sin(_time * 4),
-            )
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5,
+              alpha: 0.16 + 0.08 * sin(_time * 3),
+            ),
         );
       }
       _drawFinger(canvas, at);
@@ -1548,82 +1643,37 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
 
     // THE ANALEMMA: the figure-of-eight dial cut into the floor with its hour
     // ticks, and four stone plinths standing on it — a top face and a near
-    // face, so a stone is a block and not an index card. A seated stone is
-    // black glass with its quarter's mark cut in; one whose quarter is dark
-    // right now wears a violet ring, so the court says what is available
-    // without saying how.
+    // face, so a stone is a block and not an index card. See
+    // `_drawShadowStone` for how each one says what it needs.
     if (hall.analemma != null) {
       final c = hall.analemma!;
-      final ring = Paint()
-        ..color = _kVaultBone.withValues(alpha: 0.3)
+      // The figure of eight is a GROOVE cut into the pavement with a bronze
+      // inlay laid in it, and its hour marks are bronze studs — a floor
+      // instrument, not two hairline circles.
+      final groove = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
+        ..strokeWidth = 9
+        ..color = _kVaultVoid.withValues(alpha: 0.55);
+      final inlay = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.6
+        ..color = _kVaultBronze.withValues(alpha: 0.75);
+      final stud = Paint()..color = _kVaultBronze.withValues(alpha: 0.9);
       for (final dy in [-34.0, 34.0]) {
         final cc = c + Offset(0, dy);
-        canvas.drawCircle(cc, 46, ring);
+        canvas.drawCircle(cc, 46, groove);
+        canvas.drawCircle(cc, 46, inlay);
         for (var i = 0; i < 12; i++) {
           final t = i * pi / 6;
-          canvas.drawLine(
-            cc + Offset(cos(t), sin(t)) * 46,
-            cc + Offset(cos(t), sin(t)) * (i % 3 == 0 ? 38 : 42),
-            Paint()
-              ..color = _kVaultBone.withValues(alpha: 0.35)
-              ..strokeWidth = 1.2,
+          canvas.drawCircle(
+            cc + Offset(cos(t), sin(t)) * 38,
+            i % 3 == 0 ? 2.6 : 1.6,
+            stud,
           );
         }
       }
       for (final s in kShadowStones) {
-        final seated = vault.stonesSeated.contains(s.id);
-        final top = Rect.fromCenter(
-          center: s.position + const Offset(0, -5),
-          width: 24,
-          height: 16,
-        );
-        final face = Rect.fromLTWH(top.left, top.bottom, top.width, 9);
-        canvas.drawRect(
-          face,
-          Paint()
-            ..color = (seated ? _kVaultVoid : _kVaultPewter).withValues(
-              alpha: seated ? 0.95 : 0.55,
-            ),
-        );
-        canvas.drawRect(
-          top,
-          Paint()
-            ..color = seated
-                ? _kVaultVoid
-                : _kVaultBone.withValues(alpha: 0.28),
-        );
-        canvas.drawRect(
-          top,
-          Paint()
-            ..color = (seated ? _kVaultViolet : _kVaultBone).withValues(
-              alpha: seated ? 0.9 : 0.6,
-            )
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6,
-        );
-        if (seated) {
-          canvas.drawLine(
-            top.center + const Offset(-6, 0),
-            top.center + const Offset(6, 0),
-            Paint()
-              ..color = _kVaultViolet
-              ..strokeWidth = 2,
-          );
-        }
-        if (!seated && vault.isDark(s.leaf)) {
-          canvas.drawCircle(
-            s.position,
-            18,
-            Paint()
-              ..color = _kVaultViolet.withValues(
-                alpha: 0.6 + 0.2 * sin(_time * 3),
-              )
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2,
-          );
-        }
+        _drawShadowStone(canvas, s);
       }
     }
 
@@ -1916,6 +1966,106 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     }
   }
 
+  /// One shadow-stone on the dial. It says three things without a word:
+  ///
+  ///  · WHO seats it — a leaded pane in its element's glass set in its top;
+  ///  · WHETHER it can go now — the court's floor under it is its QUARTER'S
+  ///    light: a pool of umbra while that quarter is in shadow (it will
+  ///    seat), a hard coin-coloured patch while it is lit (it will not). The
+  ///    pool changes over on the wipe of the turn that changed it, so from
+  ///    the court you can watch a turn made anywhere land on its stone;
+  ///  · and that it is DONE — seated, it has sunk to its shoulders in the
+  ///    dial and its pane burns steady.
+  void _drawShadowStone(Canvas canvas, ShadowStone s) {
+    final seated = vault.stonesSeated.contains(s.id) || hasStar(0);
+    final nowDark = vault.isDark(s.leaf);
+    var shade = nowDark ? 1.0 : 0.0;
+    if (vault.wipe > 0 && vault.wipeFrom.contains(s.leaf) != nowDark) {
+      final t = _vaultWipeT;
+      shade = nowDark ? t : 1 - t;
+    }
+    final at = s.position;
+    if (!seated) {
+      // The quarter's light, on the floor round the stone.
+      final pool = Rect.fromCenter(
+        center: at + const Offset(0, 6),
+        width: 64,
+        height: 40,
+      );
+      if (shade > 0.01) {
+        canvas.drawOval(
+          pool,
+          Paint()
+            ..shader = ui.Gradient.radial(pool.center, 32, [
+              const Color(0xFF2A1E44).withValues(alpha: 0.85 * shade),
+              const Color(0xFF2A1E44).withValues(alpha: 0),
+            ]),
+        );
+      }
+      if (shade < 0.99) {
+        canvas.drawOval(
+          pool.deflate(4),
+          Paint()
+            ..shader = ui.Gradient.radial(pool.center, 28, [
+              _kVaultBone.withValues(alpha: 0.30 * (1 - shade)),
+              _kVaultBone.withValues(alpha: 0.10 * (1 - shade)),
+              _kVaultBone.withValues(alpha: 0),
+            ], const [0, 0.7, 1]),
+        );
+      }
+    }
+    // Seated, the stone sits lower in the dial: a shorter near face.
+    final faceH = seated ? 4.0 : 9.0;
+    final top = Rect.fromCenter(
+      center: at + Offset(0, seated ? -1 : -5),
+      width: 26,
+      height: 17,
+    );
+    final face = Rect.fromLTWH(top.left, top.bottom, top.width, faceH);
+    canvas.drawRect(
+      face,
+      Paint()..color = seated ? _kVaultVoid : const Color(0xFF3A3848),
+    );
+    canvas.drawRect(
+      top,
+      Paint()
+        ..color = seated
+            ? const Color(0xFF15121E)
+            : Color.lerp(
+                const Color(0xFF6D6C7C),
+                const Color(0xFF3E3654),
+                shade,
+              )!,
+    );
+    // The pane: the element's own planet glass (venom green, wraith pale,
+    // umbra violet — the element colours proper are three purples), muted
+    // toward the vault's dark, lit by being available and burning once
+    // seated.
+    final el = (_glassPalettes[s.element] ?? _kUmbraGlass).live;
+    final pane = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(top.deflate(4.5), const Radius.circular(2)),
+      );
+    final heat = seated ? 0.95 : 0.35 + 0.35 * shade;
+    paintPane(
+      canvas,
+      pane,
+      Color.lerp(const Color(0xFF15121E), el, heat)!,
+      _kUmbraGlass,
+      lead: 1.6,
+    );
+    if (seated || shade > 0.5) {
+      final breathe = seated ? 0.8 : 0.55 + 0.25 * sin(_time * 2.4);
+      canvas.drawRect(
+        top.deflate(7),
+        Paint()
+          ..color = Color.lerp(el, Colors.white, 0.5)!.withValues(
+            alpha: 0.35 * breathe * (seated ? 1 : shade),
+          ),
+      );
+    }
+  }
+
   /// An iron ring in a socket. Rusted (weeping down the stone), eaten clean
   /// (violet), or [through]: a hole in the dark, with a slow turn in it.
   void _drawIronRing(
@@ -1966,16 +2116,36 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     }
   }
 
-  /// The turn, as a hard edge crossing the room. One rect per frame while it
-  /// runs, and nothing at all when it does not.
+  /// How far the wipe has crossed the room, eased: 0 → 1.
+  double get _vaultWipeT => Curves.easeInOut.transform(
+    (1.0 - vault.wipe / _kVaultWipeSeconds).clamp(0.0, 1.0),
+  );
+
+  /// The turn's edge crossing the room: a band of violet light, brightest at
+  /// the edge and falling off behind it, so the world reads as turning over
+  /// rather than as a bar sliding past. Nothing is drawn when it is still.
   void _renderVaultWipe(Canvas canvas, DungeonRoom room) {
     if (vault.wipe <= 0) return;
-    final t = 1.0 - (vault.wipe / _kVaultWipeSeconds);
+    final t = _vaultWipeT;
     final b = room.bounds;
     final x = b.left + b.width * t;
+    final fade = sin(t * pi).clamp(0.0, 1.0);
+    final band = Rect.fromLTRB(x - 90, b.top, x + 6, b.bottom).intersect(b);
+    if (band.width <= 0) return;
     canvas.drawRect(
-      Rect.fromLTWH(x - 8, b.top, 16, b.height),
-      Paint()..color = _kVaultViolet.withValues(alpha: 0.55),
+      band,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(x - 90, 0),
+          Offset(x + 6, 0),
+          [
+            _kVaultViolet.withValues(alpha: 0),
+            _kVaultViolet.withValues(alpha: 0.18 * fade),
+            _kVaultViolet.withValues(alpha: 0.42 * fade),
+            _kVaultViolet.withValues(alpha: 0),
+          ],
+          const [0, 0.7, 0.94, 1],
+        ),
     );
   }
 }
@@ -2652,45 +2822,43 @@ _VaultGround _buildVaultGround(DungeonRoom room, DungeonLayout layout) {
       }
 
     case 'abyssal_font':
-      // Three steps down to the abyss — a font is a basin, and a basin is
-      // rings. Each step is a PAIR of contours (tread and riser) with a break
-      // in it, which is what makes a ring read as stone rather than as a
-      // target painted on the floor.
-      //
-      // The first version put the lit lip into `caps`, which is a FILL path:
-      // `Path.addArc` on a fill closes the arc into a chord, so every step
-      // came out as a big pale crescent smeared across the room. Anything arc
-      // shaped has to live in a stroked path.
+      // A KERB round the abyss: one course of stone blocks, filled, with the
+      // side toward the light catching it. It used to be three broken
+      // contour rings stepping out from the well, which read as a target
+      // painted on the floor.
       final c = room.eclipse!.abyss!;
-      for (var i = 0; i < 3; i++) {
-        final r = 86.0 + i * 42;
-        final gap = rng.range(0, pi * 2);
-        final sweep = pi * 2 - rng.range(0.35, 0.9);
+      final kerb = Path.combine(
+        PathOperation.difference,
+        Path()..addOval(Rect.fromCircle(center: c, radius: 74)),
+        Path()..addOval(Rect.fromCircle(center: c, radius: 60)),
+      );
+      _castShadow(
+        shadows,
+        _rectCorners(Rect.fromCircle(center: c, radius: 74)),
+        dir,
+        22,
+        taper: 0.7,
+      );
+      bodies.addPath(kerb, Offset.zero);
+      // Joints between the blocks, short and uneven.
+      var ka = rng.range(0, 0.6);
+      while (ka < pi * 2) {
         edges
-          ..addArc(Rect.fromCircle(center: c, radius: r), gap, sweep)
-          ..addArc(Rect.fromCircle(center: c, radius: r - 9), gap, sweep);
-        // Joints in the tread, unevenly spaced round the ring.
-        var a = gap + 0.2;
-        while (a < gap + sweep - 0.2) {
-          edges
-            ..moveTo(c.dx + cos(a) * (r - 9), c.dy + sin(a) * (r - 9))
-            ..lineTo(c.dx + cos(a) * r, c.dy + sin(a) * r);
-          a += rng.range(0.34, 0.78);
-        }
-        // The nosing the light actually reaches, as a short lit bar rather
-        // than a filled arc.
-        for (var k = -2; k <= 2; k++) {
-          final aa = ang + pi + k * 0.22;
-          caps.addPolygon(
-            _tiltedCorners(
-              c + Offset(cos(aa), sin(aa)) * (r - 4.5),
-              5.5,
-              2.0,
-              aa + pi / 2,
-            ),
-            true,
-          );
-        }
+          ..moveTo(c.dx + cos(ka) * 60, c.dy + sin(ka) * 60)
+          ..lineTo(c.dx + cos(ka) * 74, c.dy + sin(ka) * 74);
+        ka += rng.range(0.34, 0.62);
+      }
+      for (var k = -3; k <= 3; k++) {
+        final aa = ang + pi + k * 0.2;
+        caps.addPolygon(
+          _tiltedCorners(
+            c + Offset(cos(aa), sin(aa)) * 70,
+            7.0,
+            2.6,
+            aa + pi / 2,
+          ),
+          true,
+        );
       }
 
     case 'eclipse_nave':
@@ -2898,23 +3066,10 @@ _VaultGround _buildVaultGround(DungeonRoom room, DungeonLayout layout) {
       }
 
     case 'analemma_court':
-      // The dial's own pavement: a wide ring of radial joints under the
-      // analemma, which is the one place in the vault where the FLOOR is the
-      // instrument. It stays a joint pattern, never a fill, so the star's four
-      // stones keep the contrast.
-      final c = room.eclipse!.analemma!;
-      edges.addOval(Rect.fromCircle(center: c, radius: 150));
-      edges.addOval(Rect.fromCircle(center: c, radius: 162));
-      for (var i = 0; i < 24; i++) {
-        // Hour marks, deliberately UNEVEN in length — an analemma is a figure
-        // of eight, not a clock face.
-        final a = i * pi / 12;
-        final inner = 150.0;
-        final outer = 162.0 + (i % 3 == 0 ? 9 : 0);
-        edges
-          ..moveTo(c.dx + cos(a) * inner, c.dy + sin(a) * inner)
-          ..lineTo(c.dx + cos(a) * outer, c.dy + sin(a) * outer);
-      }
+      // Nothing extra: the dial's own figure of eight is the room's one
+      // instrument. A second ring of hour marks round it read as a clock
+      // face laid over the puzzle (removed 2026-09-25).
+      break;
   }
 
   // ── SOCKETS ────────────────────────────────────────────
@@ -2924,16 +3079,17 @@ _VaultGround _buildVaultGround(DungeonRoom room, DungeonLayout layout) {
   // `_renderVaultObjects`, because that bar is the mechanic and not scenery.
   final gn = vaultGnomonIn(room.id);
   if (gn != null) {
-    edges
-      ..addOval(Rect.fromCircle(center: gn.shaft, radius: 34))
-      ..addOval(Rect.fromCircle(center: gn.shaft, radius: 24));
-    var ga = rng.range(0, 1.0);
-    while (ga < pi * 2) {
-      edges
-        ..moveTo(gn.shaft.dx + cos(ga) * 24, gn.shaft.dy + sin(ga) * 24)
-        ..lineTo(gn.shaft.dx + cos(ga) * 34, gn.shaft.dy + sin(ga) * 34);
-      ga += rng.range(0.5, 1.0);
-    }
+    // A squared plinth the collar stands on, lit on its light side. (It was
+    // two rings with spokes between them, which read as a dial the gnomon
+    // was the hand of.)
+    final plinth = Rect.fromCenter(
+      center: gn.shaft + const Offset(0, 20),
+      width: 58,
+      height: 30,
+    );
+    _castShadow(shadows, _rectCorners(plinth), dir, 18, taper: 0.6);
+    bodies.addRect(plinth);
+    caps.addRect(Rect.fromLTWH(plinth.left + 3, plinth.top, plinth.width - 6, 3));
   }
   final vane = room.eclipse?.shadowVane;
   if (vane != null) {

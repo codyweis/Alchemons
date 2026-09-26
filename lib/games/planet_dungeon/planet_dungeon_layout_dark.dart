@@ -710,6 +710,10 @@ class EclipseVault {
   /// render has nowhere else to keep it.
   double wipe = 0;
 
+  /// The quarters that were in shadow before the last turn — what the wipe
+  /// shows ahead of its edge while it crosses the room. Visual only.
+  Set<EclipseLeaf> wipeFrom = {};
+
   /// How many times the vault has been turned inside out — the readout's
   /// second line, and the closest thing this planet has to a price tag.
   int inversions = 0;
@@ -732,6 +736,7 @@ class EclipseVault {
     abyssChainFree = false;
     abyssHauls = 0;
     wipe = 0;
+    wipeFrom = {};
     inversions = 0;
   }
 
@@ -766,6 +771,10 @@ class EclipseVault {
     final g = vaultGnomonById(gnomonId);
     if (g == null) return null;
     final next = shadowOf(gnomonId) == g.upper ? g.lower : g.upper;
+    wipeFrom = {
+      for (final l in EclipseLeaf.values)
+        if (isDark(l)) l,
+    };
     shadow[gnomonId] = next;
     inversions++;
     return next;
@@ -892,12 +901,17 @@ const DungeonLayout darkLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('pall_porch', 'shade_gallery'),
   finaleDoor: DungeonDoorRef('eclipse_nave', 'noctryos_totality'),
   riteAnnouncement:
-      'Analemma and Anchor are won. The lamps in the nave go out',
+      'Analemma and Anchor are won. The lamps in the nave can be put out '
+      'now',
+  riteWakeLine:
+      'The reredos is read and the lamps are out. Noctryos is awake under '
+      'the rood',
   finaleSealedHint:
       'The rood door stays shut until you have the Analemma and Anchor '
       'stars',
   guardianSealedHint:
-      'Noctryos won\'t wake while any lamp in the nave is still lit',
+      'Noctryos won\'t wake until the reredos is read and every lamp in the '
+      'nave is out',
   mercyShrineRoomId: 'shade_gallery',
   // Ideal: Darkmask · Poisonpip · Spiritmane — hinted by VERB, never body
   // part (§4): the sight that pierces the hidden, what my smallest doors

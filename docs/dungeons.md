@@ -3564,6 +3564,58 @@ graded "a wait". Rendered room by room first, then:
     dial bare and half seated, a ring rusted / clean / through, the lamps lit
     and out, the abyss dark / lit / read / half-hauled / standing, the vane
     both ways — seventeen states asserted to be DIFFERENT PICTURES.
+  · ✅ **THE REVIEW (2026-09-25)** — the Plant/Blood pass: every room
+    rendered, every star checked for hidden rules and clocks. No clock was
+    found anywhere: every verb is a turn, a seat or a press with no window,
+    and Noctryos' lull is the fight's own rhythm. What was hidden or wrong:
+      – *A hidden way looked like a way.* A shadow-way in a lit quarter was
+        bricked back with the shared plug, which was 46 px deep against the
+        vault's 36 px wall face and uncoursed — a flat blank patch standing
+        proud of the wall exactly where a door would be. The plug now lays
+        the planet's own face back (depth per planet, the shell's courses
+        and cornice); shared, so Blood, Light, Mud and Spirit get it too.
+      – *Walls swapped in one frame.* A turn now opens and closes passages
+        over ~0.55 s — the stone splits on lit seams, or closes back over
+        the fading glass — and the flourish plays only for the passages that
+        actually just opened (every open door used to "open" again).
+      – *A light-walk in shadow was drawn LOCKED* — smoked glass, iron bars
+        and a gold keyhole, which says "find a key". It has no bars now; the
+        causeway of pale flags at its sill (the old thin board glyphs) is
+        there in light and has a black hole where its middle flags were in
+        shadow. The shadow-way notch glyphs are gone: glass or wall says it.
+      – *The wipe was a bar sliding over a room that had already flipped.*
+        It is a real wipe now (0.8 s, eased): behind the edge the room is
+        turned over, ahead of it it is still what it was, under a violet
+        band of light; the gnomon's wedge shortens out of one side and grows
+        into the other on the same clock, and the ghost is a filled wedge.
+      – *The court's stones did not say who seats them* — Dark, Poison and
+        Spirit are all purples in the element palette, and you learned the
+        element by pressing. Each stone carries a pane of its element's
+        PLANET glass (umbra violet, venom green, wraith pale). Whether it
+        will seat is the floor under it — a pool of umbra while its quarter
+        is in shadow, a coin-light patch while lit — changing on the wipe of
+        the turn that changed it (it was a stroked violet hoop).
+      – *A won star drew un-won after a death or a new run:* the dial came
+        back bare and the rings rusted. Both are seeded from the banked
+        stars on every reset and in onLoad (additive, so the proof holds);
+        pinned in the vault test.
+      – *The map could not see the eclipse.* Each room on the full map wears
+        its quarter's state (an eclipsed disc, or a pale one), and a portal
+        once read or walked stays drawn between its two rooms, bright while
+        it would carry you — the Spirit reading used to be a 4 s line you
+        had to remember across rooms. Legend entries added.
+      – *Noctryos woke silently* (checklist item 11): it has a `riteWakeLine`.
+        The rite's announcement said the lamps "go out" when the stars were
+        won, which was false — it says they can be put out now — and the
+        sealed-guardian line names the reredos as well as the lamps.
+      – *Floor motifs that read as instruments:* the ring of hour marks
+        round the court's dial, the three contour rings round the abyss (a
+        target) and the spoked double ring under every gnomon are gone; the
+        abyss has a coursed stone kerb, each gnomon a squared plinth, and
+        the analemma itself is a groove with a bronze inlay and bronze studs.
+      – *Left as is, knowingly:* the ECLIPSE readout's four unlabelled marks
+        (the map now labels the same state), and the rings' spinning arc.
+        Worth a look on device.
   · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Same
     sentence as Mud's, Ice's and Dust's. `Dark` stays out of
     `kPolishedDungeons` until it has been played.

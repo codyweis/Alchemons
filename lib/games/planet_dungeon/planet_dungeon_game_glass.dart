@@ -54,6 +54,16 @@ extension DungeonGlassArt on PlanetDungeonGame {
   void _renderGlassDoorPlugs(Canvas canvas, DungeonRoom room) {
     for (final d in room.doors) {
       if (!_doorOnWall(room, d)) continue;
+      if (_isVault && _vaultDoorWalls(room, d)) {
+        // Nythralor's walls come and go on every turn: a passage closing is
+        // still glass fading under the stone as it seals over.
+        final open = _vaultDoorOpen(room, d);
+        if (open > 0.01 && isDoorHidden(room, d)) {
+          _drawGlassDoor(canvas, room, d);
+        }
+        if (open < 0.99) _drawSealedWall(canvas, room, d, 1.0 - open);
+        continue;
+      }
       final entry = layout.entranceRevealDoor?.matches(room, d) ?? false;
       if (isDoorHidden(room, d)) {
         _drawSealedWall(canvas, room, d, 1.0);
@@ -73,7 +83,19 @@ extension DungeonGlassArt on PlanetDungeonGame {
     // The entry door comes up out of the splitting stone on the hearth's own
     // clock, rather than appearing whole the frame the fire takes.
     final entry = layout.entranceRevealDoor?.matches(room, d) ?? false;
-    if (entry && _entryReveal < 1.0) {
+    if (_isVault && _vaultDoorWalls(room, d)) {
+      final appear = _vaultDoorOpen(room, d);
+      if (appear <= 0.01) return;
+      if (appear < 0.99) {
+        canvas.saveLayer(
+          d.rect.inflate(40),
+          Paint()..color = Colors.white.withValues(alpha: appear),
+        );
+        _drawGlassDoorBody(canvas, room, d);
+        canvas.restore();
+        return;
+      }
+    } else if (entry && _entryReveal < 1.0) {
       final appear = Curves.easeIn.transform(_entryReveal.clamp(0.0, 1.0));
       if (appear <= 0.01) return;
       canvas.saveLayer(
@@ -269,6 +291,12 @@ extension DungeonGlassArt on PlanetDungeonGame {
       return;
     }
 
+    // A light-walk in a shadowed quarter is not locked: there is no key and
+    // no bar, only no floor. Smoked glass, and the causeway at its foot has
+    // fallen away (`_renderVaultSpans`). Only the rood door keeps its bars.
+    final isFinale = layout.finaleDoor?.matches(room, d) ?? false;
+    if (_isVault && !isFinale) return;
+
     // SEALED: iron bars across, and what opens it shown on the bars.
     final bar = Paint()
       ..strokeWidth = 4
@@ -294,7 +322,6 @@ extension DungeonGlassArt on PlanetDungeonGame {
         barHi,
       );
     }
-    final isFinale = layout.finaleDoor?.matches(room, d) ?? false;
     final lockPulse = 0.55 + 0.25 * sin(_time * 1.8);
     if (isFinale) {
       for (var i = 0; i < 2; i++) {
@@ -368,13 +395,14 @@ extension DungeonGlassArt on PlanetDungeonGame {
     if (solid <= 0.01) return;
     final b = room.bounds;
     final r = d.rect;
+    final faceDepth = _glassFaceDepth;
     final Rect plug;
     if (r.top <= b.top + 1) {
       plug = Rect.fromLTRB(
         r.left - 6,
         b.top,
         r.right + 6,
-        b.top + kGlassWallFace,
+        b.top + faceDepth,
       );
     } else if (r.bottom >= b.bottom - 1) {
       plug = Rect.fromLTRB(
@@ -398,24 +426,23 @@ extension DungeonGlassArt on PlanetDungeonGame {
         r.bottom + 6,
       );
     }
-    final face = plug.height > plug.width && plug.height > kGlassWallFace;
-    canvas.drawRect(
-      plug,
-      Paint()
-        ..color =
-            (plug.height == kGlassWallFace ? _glass.stoneFace : _glass.stoneTop)
-                .withValues(alpha: 0.95 * solid),
-    );
-    if (plug.height == kGlassWallFace) {
+    final north = r.top <= b.top + 1;
+    if (north) {
+      // The north wall's FACE, laid back exactly as the shell lays it: the
+      // same depth, gradient, courses and cornice, so a hidden way is wall
+      // and not a blank patch standing proud of it.
+      _drawNorthFacePlug(canvas, room, plug, solid);
+    } else {
       canvas.drawRect(
-        Rect.fromLTRB(plug.left, plug.top, plug.right, plug.top + 7),
-        Paint()..color = _glass.stoneTop.withValues(alpha: solid),
+        plug,
+        Paint()..color = _glass.stoneTop.withValues(alpha: 0.95 * solid),
       );
     }
+    final face = !north && plug.height > plug.width && plug.height > faceDepth;
     final seam = Paint()
       ..strokeWidth = 1.2
       ..color = _glass.joint.withValues(alpha: 0.6 * solid);
-    if (face || plug.width < plug.height) {
+    if (!north && (face || plug.width < plug.height)) {
       for (var y = plug.top + 14; y < plug.bottom; y += 16) {
         canvas.drawLine(Offset(plug.left, y), Offset(plug.right, y), seam);
       }
@@ -442,6 +469,67 @@ extension DungeonGlassArt on PlanetDungeonGame {
         );
       }
     }
+  }
+
+  /// How deep each planet's baked north face is (its `paintCarvedRoomShell`
+  /// call). A plug that does not match stands proud of the wall.
+  double get _glassFaceDepth => switch (layout.element) {
+    'Dark' || 'Blood' || 'Light' => 36,
+    'Mud' => 30,
+    'Spirit' => 44,
+    _ => kGlassWallFace,
+  };
+
+  /// North-face stone over a doorway, coursed on the shell's own grid.
+  void _drawNorthFacePlug(
+    Canvas canvas,
+    DungeonRoom room,
+    Rect plug,
+    double solid,
+  ) {
+    final b = room.bounds;
+    final p = _glass;
+    canvas.drawRect(
+      plug,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            p.stoneFace.withValues(alpha: solid),
+            Color.lerp(p.stoneFace, p.stoneFoot, 0.6)!.withValues(alpha: solid),
+          ],
+        ).createShader(plug),
+    );
+    final coursing = Paint()
+      ..strokeWidth = 1.2
+      ..color = p.joint.withValues(alpha: 0.45 * solid);
+    canvas.save();
+    canvas.clipRect(plug);
+    for (var y = b.top + 18; y < plug.bottom - 6; y += 18) {
+      canvas.drawLine(Offset(plug.left, y), Offset(plug.right, y), coursing);
+      final stagger = ((y - b.top) / 18).round().isOdd ? 34.0 : 0.0;
+      for (var x = b.left + 20 + stagger; x < plug.right; x += 68) {
+        if (x < plug.left) continue;
+        canvas.drawLine(
+          Offset(x, y),
+          Offset(x, min(y + 18, plug.bottom)),
+          coursing,
+        );
+      }
+    }
+    canvas.restore();
+    canvas.drawRect(
+      Rect.fromLTRB(plug.left, plug.top, plug.right, plug.top + 7),
+      Paint()..color = p.stoneTop.withValues(alpha: solid),
+    );
+    canvas.drawLine(
+      Offset(plug.left, plug.top + 7),
+      Offset(plug.right, plug.top + 7),
+      Paint()
+        ..strokeWidth = 1.2
+        ..color = Colors.black.withValues(alpha: 0.5 * solid),
+    );
   }
 
   /// A live pane over its baked dormant self: the glass warming toward [heat].

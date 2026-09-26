@@ -977,4 +977,54 @@ void main() {
       expect(heard, contains(SoundCue.dungeonBlockMove));
     });
   });
+
+  group('THE REVIEW (2026-09-25)', () {
+    test('a won star draws won after the party falls', () {
+      final party = _idealTrio();
+      final g = PlanetDungeonGame(
+        element: 'Dark',
+        party: party,
+        initialStarMask: 0,
+        onStarEarned: (_) {},
+        onPlayerDown: () {},
+        onChanged: () {},
+      );
+      g.currentRoomId = g.layout.entranceRoomId;
+      for (final m in party) {
+        g.creatures.add(
+          DungeonCreature(member: m)
+            ..position = g.layout.entranceSpawn
+            ..lastSafe = g.layout.entranceSpawn,
+        );
+      }
+      g.vault.stonesSeated.addAll(kShadowStones.map((s) => s.id));
+      g.earnStar(0);
+      g.earnStar(1);
+      for (final c in g.creatures) {
+        c.hp = 0;
+      }
+      g.update(1 / 60);
+      expect(g.vault.stonesSeated.length, kShadowStones.length);
+      expect(g.vault.anchorsOpen.length, kVaultAnchors.length);
+      expect(g.vault.anchorsRead.length, kVaultAnchors.length);
+    });
+
+    test('a turn remembers what it turned over, for the wipe', () {
+      final g = harness(_idealTrio());
+      g.entryDoorRevealed = true;
+      final before = {
+        for (final l in EclipseLeaf.values)
+          if (g.vault.isDark(l)) l,
+      };
+      turnGnomon(g, dark, 'gn_porch');
+      expect(g.vault.wipeFrom, before);
+      expect(g.vault.wipe, greaterThan(0));
+    });
+
+    test('the waking is spoken, and the rite lines say what is left', () {
+      expect(layout.riteWakeLine, contains('Noctryos is awake'));
+      expect(layout.riteAnnouncement, contains('can be put out'));
+      expect(layout.guardianSealedHint, contains('reredos'));
+    });
+  });
 }

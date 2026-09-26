@@ -18,6 +18,9 @@ part of 'planet_dungeon_game.dart';
 
 const GlassPalette _kUmbraGlass = kUmbraGlass;
 
+/// Seconds a passage takes to split open or close back into wall on a turn.
+const double _kVaultDoorSeconds = 0.55;
+
 final Map<String, ui.Picture> _vaultShellCache = {};
 
 extension EclipseVaultArt on PlanetDungeonGame {
@@ -27,6 +30,25 @@ extension EclipseVaultArt on PlanetDungeonGame {
             _ritePendingEgg == kDarkAbyssEggId
         ? 1.0
         : 0.0;
+    // Passages open and close on a turn over half a second: the stone splits
+    // along lit seams, or closes back over the glass.
+    final room = currentRoom;
+    if (_vaultDoorRoom != room.id) {
+      _vaultDoorRoom = room.id;
+      _vaultDoorShown.clear();
+    }
+    for (final d in room.doors) {
+      final want = _vaultDoorShut(room, d) ? 0.0 : 1.0;
+      final now = _vaultDoorShown[d.targetRoomId];
+      if (now == null) {
+        _vaultDoorShown[d.targetRoomId] = want;
+      } else if (now != want) {
+        final step = dt / _kVaultDoorSeconds;
+        _vaultDoorShown[d.targetRoomId] = want > now
+            ? min(want, now + step)
+            : max(want, now - step);
+      }
+    }
     if (_fingerShown < 0) {
       _fingerShown = target;
     } else if (_fingerShown < target) {
@@ -34,6 +56,26 @@ extension EclipseVaultArt on PlanetDungeonGame {
     } else if (_fingerShown > target) {
       _fingerShown = target;
     }
+  }
+
+  /// Shut by the eclipse (or, in the porch, by the pall still hanging).
+  bool _vaultDoorShut(DungeonRoom room, DungeonDoor d) =>
+      isDoorHidden(room, d) || _vaultDoorBlocked(room, d);
+
+  /// A passage that becomes WALL when shut: every shadow-way, and the porch's
+  /// ways out under the pall. A light-walk stays a doorway and loses its
+  /// floor instead; the rood door never moves.
+  bool _vaultDoorWalls(DungeonRoom room, DungeonDoor d) =>
+      room.id == layout.entranceRoomId ||
+      _vaultSpanFor(room, d)?.cut == SpanCut.shadowWay;
+
+  /// How far a passage is open, as drawn (1 when nothing is easing).
+  double _vaultDoorOpen(DungeonRoom room, DungeonDoor d) {
+    final settled = _vaultDoorShut(room, d) ? 0.0 : 1.0;
+    final v = room.id == _vaultDoorRoom
+        ? (_vaultDoorShown[d.targetRoomId] ?? settled)
+        : settled;
+    return Curves.easeInOut.transform(v.clamp(0.0, 1.0));
   }
 
   void _renderVaultShell(Canvas canvas, DungeonRoom room) {

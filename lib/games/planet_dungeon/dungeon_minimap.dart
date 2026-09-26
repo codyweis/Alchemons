@@ -12,6 +12,7 @@ import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_chart_layout.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
@@ -767,7 +768,10 @@ class _DungeonFullMapState extends State<DungeonFullMap> {
               ),
             ),
             const SizedBox(height: 8),
-            _FullMapLegend(fen: widget.game.layout.element == 'Mud'),
+            _FullMapLegend(
+              fen: widget.game.layout.element == 'Mud',
+              vault: widget.game.layout.element == 'Dark',
+            ),
           ],
         ),
       ),
@@ -780,10 +784,13 @@ class _DungeonFullMapState extends State<DungeonFullMap> {
 const double _kReadableScale = 0.62;
 
 class _FullMapLegend extends StatelessWidget {
-  const _FullMapLegend({this.fen = false});
+  const _FullMapLegend({this.fen = false, this.vault = false});
 
   /// Palusia adds the basin mark to the key.
   final bool fen;
+
+  /// Nythralor adds its quarter marks and its portals.
+  final bool vault;
 
   @override
   Widget build(BuildContext context) {
@@ -808,6 +815,11 @@ class _FullMapLegend extends StatelessWidget {
             label: 'WOULD DROWN',
             ring: true,
           ),
+        ],
+        if (vault) ...const [
+          _LegendChip(color: Color(0xFFA884E0), label: 'IN SHADOW', ring: true),
+          _LegendChip(color: Color(0xFFD9D2BC), label: 'IN LIGHT', ring: true),
+          _LegendChip(color: Color(0xFFA884E0), label: 'PORTAL'),
         ],
       ],
     );
@@ -1010,6 +1022,7 @@ class _DungeonFullMapPainter extends CustomPainter {
       final room = game.layout.rooms[e.key];
       if (room != null) _drawRoom(canvas, e.value, room);
     }
+    if (game.layout.element == 'Dark') _drawVaultPortals(canvas, chart, known);
     // Hatches sit INSIDE their rooms, so they go on after the room fills.
     _drawFenMarks(canvas, fenMarks);
     _drawRuinsMarks(canvas, ruinsMarks);
@@ -1486,6 +1499,9 @@ class _DungeonFullMapPainter extends CustomPainter {
       );
     }
 
+    final leaf = room.eclipse?.leaf;
+    if (leaf != null) _drawEclipseBadge(canvas, box, leaf);
+
     final label = kDungeonRoomLabels[room.id] ?? room.id.toUpperCase();
     final tp = TextPainter(
       text: TextSpan(
@@ -1520,6 +1536,76 @@ class _DungeonFullMapPainter extends CustomPainter {
         Offset(box.center.dx, y),
         3.2,
         Paint()..color = _kMapCurrent,
+      );
+    }
+  }
+
+  /// NYTHRALOR: a portal a Spirit hand has read (or the party has walked)
+  /// stays on the chart between its two rooms, so where a ring comes out is
+  /// not something to remember across rooms. Dotted violet; brighter while
+  /// both its ends are in shadow and it would carry you now.
+  void _drawVaultPortals(Canvas canvas, DungeonChart chart, Set<String> known) {
+    final v = game.vault;
+    final leaves = vaultLeafOfRoom(game.layout);
+    for (final an in kVaultAnchors) {
+      if (!v.anchorsRead.contains(an.id) && !v.portalsWalked.contains(an.id)) {
+        continue;
+      }
+      final a = chart.rooms[an.near], b = chart.rooms[an.far];
+      if (a == null || b == null) continue;
+      if (!known.contains(an.near) || !known.contains(an.far)) continue;
+      final live = v.portalOpen(an, leaves);
+      final p0 = a.center, p1 = b.center;
+      final mid = (p0 + p1) / 2;
+      final n = Offset(-(p1 - p0).dy, (p1 - p0).dx) / (p1 - p0).distance;
+      final ctrl = mid + n * 28;
+      _drawDashed(
+        canvas,
+        Path()
+          ..moveTo(p0.dx, p0.dy)
+          ..quadraticBezierTo(ctrl.dx, ctrl.dy, p1.dx, p1.dy),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = live ? 2.4 : 1.6
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFFA884E0).withValues(alpha: live ? 0.9 : 0.4),
+      );
+      for (final e in [p0, p1]) {
+        canvas.drawCircle(
+          e,
+          live ? 5 : 4,
+          Paint()..color = const Color(0xFF2A1E44),
+        );
+        canvas.drawCircle(
+          e,
+          live ? 5 : 4,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.8
+            ..color = const Color(0xFFA884E0).withValues(alpha: live ? 1 : 0.5),
+        );
+      }
+    }
+  }
+
+  /// NYTHRALOR: whether the room's quarter is in shadow NOW — an eclipsed
+  /// disc (dark, with its corona) or a full pale one — so the chart reads as
+  /// the vault in its current shape.
+  void _drawEclipseBadge(Canvas canvas, Rect box, EclipseLeaf leaf) {
+    final dark = game.vault.isDark(leaf);
+    final c = Offset(box.left + 13, box.top + 13);
+    if (dark) {
+      canvas.drawCircle(
+        c,
+        6.5,
+        Paint()..color = const Color(0xFFA884E0).withValues(alpha: 0.55),
+      );
+      canvas.drawCircle(c, 5.2, Paint()..color = const Color(0xFF120E1C));
+    } else {
+      canvas.drawCircle(
+        c,
+        6,
+        Paint()..color = const Color(0xFFD9D2BC).withValues(alpha: 0.9),
       );
     }
   }
