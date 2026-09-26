@@ -1431,7 +1431,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       }
       final across = Offset(-inward.dy, inward.dx);
       final half = (inward.dx != 0 ? r.height : r.width) * 0.5 - 12;
-      final open = _vaultDoorOpen(room, d);
+      final open = _worldDoorOpen(room, d);
       const flags = 4;
       const depth = 15.0;
       if (open < 0.99) {

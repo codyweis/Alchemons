@@ -1034,7 +1034,7 @@ class PlanetDungeonGame extends FlameGame {
   /// Dark's fourth finger as SHOWN: 0 → 1 as it rises at the rim.
   double _fingerShown = -1;
 
-  /// Dark's passages as SHOWN in the room you stand in, keyed by target room:
+  /// Dark's and Light's passages as SHOWN in the room you stand in, keyed by target room:
   /// 1 a way through, 0 stone. A turn eases them rather than swapping the
   /// wall in one frame; entering a room starts them where they are.
   final Map<String, double> _vaultDoorShown = {};
@@ -2767,6 +2767,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetBogState();
     _resetRuinsState(); // the same, for Sablis's seal yard
     _resetVaultState(); // and Nythralor's dial and rings
+    _resetArchiveState(); // and the archive's effigies and slips
     entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
     _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
     _entryRevealPrev = _entryReveal;
@@ -3265,7 +3266,10 @@ class PlanetDungeonGame extends FlameGame {
     _updateVault(a, room, dt);
     if (_isVault) _updateDarkGlass(dt);
     _updateArchive(a, room, dt);
-    if (_isArchive) _updateLightGlass(dt);
+    if (_isArchive) {
+      _updateLightGlass(dt);
+      _easeWorldDoors(dt);
+    }
     _updateHeart(a, room, dt);
     if (_isHeart) _updateBloodGlass(dt);
     _syncCombatFromCreatures();

@@ -3440,6 +3440,44 @@ one real bug in the boss room. Rendered room by room first, then:
     low fan / two read, the catalogue as the hall stands / whole / read, the
     slabs unread / named in the dark, and the glare with its bites — twelve
     states asserted to be DIFFERENT PICTURES.
+  · ✅ **THE REVIEW (2026-09-25)** — the Dark pass, applied: every bay
+    rendered with the real sky, every star checked for hidden rules and
+    clocks. No clock anywhere: every verb is a press at a place, and
+    Solarin's safe ground is the pillars' shadows, which do not move.
+      – *A beacon press was blind.* Each beacon cycles DARK → four settings,
+        and you learned a setting only by committing it. At a beacon with a
+        hand that can throw it the readout is NEXT PRESS: the lumens and the
+        hall's five marks as they would be after one more press (pinned: the
+        preview changes nothing and matches the press).
+      – *The effigies were four identical busts* with no word of who reads
+        them, and a read one drew the same as an unread one. Each is its own
+        carving (moth wings shut, scholar with a key, warden facing the door,
+        sun on a pole) with its element's planet glass in the plinth. Its
+        shadow falls only while the stone is lit, and while the niche is
+        dark too it is the TRUTH, crisp and black — wings open, a knife,
+        facing away, a hole — which is exactly when it can be read. Read, the
+        truth stays and the plinth gets a line of gold.
+      – *A glared mirror sill was drawn LOCKED* (bars, gold keyhole). Its
+        glass is white glare now, no bars; at its foot black mirror flags,
+        and a pool of glare spills in over them while lit. An open glass
+        leaf has a threshold of lit panes. The coloured plates are gone.
+      – *Sills swapped in one frame.* Dark's eased doors are shared now
+        (`_worldDoorWalls` / `_easeWorldDoors` in the glass part): glass
+        leaves split open or seal over, mirror sills flood with glare, over
+        ~0.55 s.
+      – *Clutter.* Every bay was furnished — presses, carts, benches,
+        carrels, card cabinets, desks and stools, arcades, cocoons, piers,
+        a balustrade, worn ways, a brass plan, a ringed stair (a target), a
+        ticked drum wall (a dial), scorch arcs, loose pages over every
+        floor, boarded panes and panes drawn missing (a hole in a floor, on
+        the planet where a hole means you cannot walk). All gone. What stays
+        is what a bay is for: the two great stacks, the shelves each slip is
+        filed behind, the Dark Stacks' own runs, the effigy plinths, the
+        reliquary shrine, the prism oriel and the arena's pillar footings.
+      – *A won star drew un-won after a fall* — seeded on every reset and
+        in onLoad, pinned. *Solarin woke silently* — it has a
+        `riteWakeLine`. The full map shows each bay's light (a gold disc,
+        half for the rim only, or dark), with a legend.
   · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Same
     sentence as Mud's, Ice's, Dust's and Dark's. `Light` stays out of
     `kPolishedDungeons` until it has been played.

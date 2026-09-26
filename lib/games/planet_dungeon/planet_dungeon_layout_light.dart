@@ -1086,6 +1086,9 @@ const DungeonLayout lightLayout = DungeonLayout(
   finaleDoor: DungeonDoorRef('reading_floor', 'solarin_oculus'),
   riteAnnouncement:
       'Shadow and Hush are won. The stair to the Oculus opens',
+  riteWakeLine:
+      'The oriel is split and the ring is round. Solarin is awake under the '
+      'oculus',
   finaleSealedHint:
       'The stair stays shut until you have the Shadow and Hush stars',
   guardianSealedHint:

@@ -14,6 +14,7 @@ import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_light.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:flutter/material.dart';
@@ -771,6 +772,7 @@ class _DungeonFullMapState extends State<DungeonFullMap> {
             _FullMapLegend(
               fen: widget.game.layout.element == 'Mud',
               vault: widget.game.layout.element == 'Dark',
+              archive: widget.game.layout.element == 'Light',
             ),
           ],
         ),
@@ -784,13 +786,20 @@ class _DungeonFullMapState extends State<DungeonFullMap> {
 const double _kReadableScale = 0.62;
 
 class _FullMapLegend extends StatelessWidget {
-  const _FullMapLegend({this.fen = false, this.vault = false});
+  const _FullMapLegend({
+    this.fen = false,
+    this.vault = false,
+    this.archive = false,
+  });
 
   /// Palusia adds the basin mark to the key.
   final bool fen;
 
   /// Nythralor adds its quarter marks and its portals.
   final bool vault;
+
+  /// The archive adds its bay-light marks.
+  final bool archive;
 
   @override
   Widget build(BuildContext context) {
@@ -820,6 +829,14 @@ class _FullMapLegend extends StatelessWidget {
           _LegendChip(color: Color(0xFFA884E0), label: 'IN SHADOW', ring: true),
           _LegendChip(color: Color(0xFFD9D2BC), label: 'IN LIGHT', ring: true),
           _LegendChip(color: Color(0xFFA884E0), label: 'PORTAL'),
+        ],
+        if (archive) ...const [
+          _LegendChip(color: Color(0xFFFFE082), label: 'BAY LIT', ring: true),
+          _LegendChip(
+            color: Color(0xFF5C6270),
+            label: 'BAY DARK',
+            ring: true,
+          ),
         ],
       ],
     );
@@ -1501,6 +1518,8 @@ class _DungeonFullMapPainter extends CustomPainter {
 
     final leaf = room.eclipse?.leaf;
     if (leaf != null) _drawEclipseBadge(canvas, box, leaf);
+    final sector = room.hall?.sector;
+    if (sector != null) _drawArchiveBadge(canvas, box, sector);
 
     final label = kDungeonRoomLabels[room.id] ?? room.id.toUpperCase();
     final tp = TextPainter(
@@ -1608,6 +1627,44 @@ class _DungeonFullMapPainter extends CustomPainter {
         Paint()..color = const Color(0xFFD9D2BC).withValues(alpha: 0.9),
       );
     }
+  }
+
+  /// THE ARCHIVE: how much of this bay's sector the beacons light now — a
+  /// full gold disc (rim and inward), a half one (the rim only, a low beam
+  /// broken on a stack), or a dark one.
+  void _drawArchiveBadge(Canvas canvas, Rect box, HallSector sector) {
+    final a = game.archive;
+    final rim = a.isLit(HallCell(sector, HallBand.rim));
+    final inward = a.isLit(HallCell(sector, HallBand.inward));
+    final c = Offset(box.left + 13, box.top + 13);
+    const gold = Color(0xFFFFE082);
+    canvas.drawCircle(c, 6, Paint()..color = const Color(0xFF1A1D26));
+    if (rim) {
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: 6),
+        math.pi,
+        math.pi,
+        true,
+        Paint()..color = gold,
+      );
+    }
+    if (inward) {
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: 6),
+        0,
+        math.pi,
+        true,
+        Paint()..color = gold,
+      );
+    }
+    canvas.drawCircle(
+      c,
+      6,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = gold.withValues(alpha: 0.6),
+    );
   }
 
   void _drawStar(

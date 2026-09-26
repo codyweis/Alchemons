@@ -106,6 +106,14 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     // archive is puzzle state like every other planet's, so it resets with
     // the run.
     archive.reset();
+    // A WON STAR DRAWS WON: the effigies stay read and the slips drawn after
+    // a fall or on a new descent. Neither edits a sill, so the proof holds.
+    if (hasStar(0)) {
+      archive.effigiesRead.addAll(kCourtEffigies.map((e) => e.id));
+    }
+    if (hasStar(1)) {
+      archive.slipsDrawn.addAll(kArchiveSlips.map((s) => s.id));
+    }
     // THE INDEX names a fresh slab each run, so the secret is read this run
     // and not looked up from the last.
     archive.indexSocket = Random().nextInt(BeaconArchive.indexSocketCount);
@@ -694,6 +702,27 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
   /// because on this planet it is the one number every decision turns on, and
   /// it is drawn against the hush so "too bright" reads at a glance.
   DungeonProgressReadout? _archiveProgressReadout() {
+    // WHERE YOU STAND TELLS YOU WHAT THE PRESS WILL DO (Dark's ghost wedge,
+    // §9.11): at a beacon with a hand that can throw it, the readout is the
+    // hall AFTER one more press — the lumens and the marks — so the cycle's
+    // four hidden settings can be read before they are committed.
+    final a = active;
+    final bc = archiveBeaconIn(currentRoomId);
+    if (a != null &&
+        bc != null &&
+        (a.position - bc.post).distance <= _kArchiveReach &&
+        _archiveHasSunHand(a)) {
+      final cur = archive.lamp[bc.id] ?? 0;
+      archive.lamp[bc.id] = (cur + 1) % bc.stateCount;
+      final nl = archive.lumens;
+      final nm = _archiveMarks();
+      archive.lamp[bc.id] = cur;
+      return DungeonProgressReadout(
+        label: 'NEXT PRESS',
+        value: '$nl/$kArchiveHush  $nm',
+        fraction: (nl / BeaconArchive.allCells.length).clamp(0.0, 1.0),
+      );
+    }
     final hall = layout.rooms[currentRoomId]?.hall;
     if (hall?.balustrade != null && !hasStar(hall!.starIndex!)) {
       final n = archive.effigiesRead.length;
@@ -711,29 +740,30 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         fraction: n / kArchiveSlips.length,
       );
     }
-    // THE HALL, AS FIVE MARKS: one per sector, its top half the rim band and
-    // its bottom the inward band, so what a press did to bays you cannot see
-    // reads at a glance beside the lumen count (Dark's eclipse marks, and
-    // §5.6's state-leaves-the-capsule).
     final l = archive.lumens;
-    final marks = [
-      for (final sec in HallSector.values)
-        switch ((
-          archive.isLit(HallCell(sec, HallBand.rim)),
-          archive.isLit(HallCell(sec, HallBand.inward)),
-        )) {
-          (true, true) => '█',
-          (true, false) => '▀',
-          (false, true) => '▄',
-          _ => '·',
-        },
-    ].join();
     return DungeonProgressReadout(
       label: 'LUMENS',
-      value: '$l/$kArchiveHush  $marks',
+      value: '$l/$kArchiveHush  ${_archiveMarks()}',
       fraction: (l / BeaconArchive.allCells.length).clamp(0.0, 1.0),
     );
   }
+
+  /// THE HALL, AS FIVE MARKS: one per sector, its top half the rim band and
+  /// its bottom the inward band, so what a press did to bays you cannot see
+  /// reads at a glance beside the lumen count (Dark's eclipse marks, and
+  /// §5.6's state-leaves-the-capsule).
+  String _archiveMarks() => [
+    for (final sec in HallSector.values)
+      switch ((
+        archive.isLit(HallCell(sec, HallBand.rim)),
+        archive.isLit(HallCell(sec, HallBand.inward)),
+      )) {
+        (true, true) => '█',
+        (true, false) => '▀',
+        (false, true) => '▄',
+        _ => '·',
+      },
+  ].join();
 
   String _archiveRoomWord(String roomId) => switch (roomId) {
     'lumen_threshold' => 'the Lumen Threshold',
@@ -1345,42 +1375,286 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     }
   }
 
-  /// A glyph at every sill the bay can see, so what the light has done is
-  /// legible before you walk into it: a live glass leaf glows from inside, a
-  /// dead one is an empty outline, a walkable mirror shelf is flat slate and a
-  /// glared one is a solid white sheet. Glass leaves with no light in them are
-  /// not drawn at all — they are a hole (see `_archiveDoorHidden`).
+  /// WHAT EACH SILL IS MADE OF, at its foot (the 2026-09-25 review: these
+  /// were small coloured plates on the doorways). A GLASS LEAF is a threshold
+  /// of glass panes lit gold from below while its cell is lit — shut, it is
+  /// wall (see `_worldDoorWalls`). A MIRROR SILL is a run of black mirror
+  /// flags while its cell is dark, walkable; lit, a pool of white glare
+  /// spills in off it and swallows them. Both change over on the doors' own
+  /// eased clock.
   void _renderArchiveSills(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
     for (final d in room.doors) {
-      if (isDoorHidden(room, d)) continue;
       final sill = _archiveSillFor(room, d);
       if (sill == null || sill.cut == SillCut.stone) continue;
-      final at = d.rect.center;
-      final live = archive.sillOpen(sill);
-      final plate = Rect.fromCenter(center: at, width: 38, height: 15);
-      if (sill.cut == SillCut.glassLeaf) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(plate, const Radius.circular(3)),
-          Paint()..color = _kArchiveGold.withValues(alpha: live ? 0.55 : 0.06),
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(plate, const Radius.circular(3)),
-          Paint()
-            ..color = _kArchiveGold.withValues(alpha: live ? 0.85 : 0.30)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2,
-        );
+      if (isDoorHidden(room, d) && _worldDoorOpen(room, d) <= 0.01) continue;
+      final r = d.rect;
+      final Offset inward;
+      final Offset foot;
+      if (r.left <= b.left + 1) {
+        inward = const Offset(1, 0);
+        foot = Offset(b.left + kGlassWallTop, r.center.dy);
+      } else if (r.right >= b.right - 1) {
+        inward = const Offset(-1, 0);
+        foot = Offset(b.right - kGlassWallTop, r.center.dy);
+      } else if (r.top <= b.top + 1) {
+        inward = const Offset(0, 1);
+        foot = Offset(r.center.dx, b.top + _glassFaceDepth);
       } else {
-        canvas.drawRect(
-          plate,
-          Paint()
-            ..color = live
-                ? _kArchiveSlate.withValues(alpha: 0.70)
-                : _kArchiveGlare.withValues(alpha: 0.92),
+        inward = const Offset(0, -1);
+        foot = Offset(r.center.dx, b.bottom - kGlassWallTop);
+      }
+      final across = Offset(-inward.dy, inward.dx);
+      final half = (inward.dx != 0 ? r.height : r.width) * 0.5 - 12;
+      final open = _worldDoorOpen(room, d);
+      Path slab(int i, double depth) {
+        final near = foot + inward * (i * (depth + 3) + 2);
+        final far = near + inward * depth;
+        final w = half - i * 2.0;
+        return Path()
+          ..moveTo(near.dx + across.dx * w, near.dy + across.dy * w)
+          ..lineTo(near.dx - across.dx * w, near.dy - across.dy * w)
+          ..lineTo(far.dx - across.dx * w, far.dy - across.dy * w)
+          ..lineTo(far.dx + across.dx * w, far.dy + across.dy * w)
+          ..close();
+      }
+
+      if (sill.cut == SillCut.glassLeaf) {
+        for (var i = 0; i < 3; i++) {
+          paintPane(
+            canvas,
+            slab(i, 14),
+            Color.lerp(
+              const Color(0xFF3A3526),
+              _kArchiveGold,
+              0.55 * open,
+            )!.withValues(alpha: 0.35 + 0.45 * open),
+            _kLumenGlass,
+            lead: 1.6,
+            opacity: max(open, 0.3),
+          );
+        }
+        continue;
+      }
+      // Mirror flags, dark and walkable.
+      for (var i = 0; i < 3; i++) {
+        canvas.drawPath(
+          slab(i, 14),
+          Paint()..color = const Color(0xFF1A1D26).withValues(alpha: 0.88),
         );
+        canvas.drawPath(
+          slab(i, 14),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.0
+            ..color = _kArchiveSlate.withValues(alpha: 0.6),
+        );
+      }
+      // Lit: glare spills in off the sill and swallows them.
+      final glare = 1 - open;
+      if (glare > 0.01) {
+        final c = foot + inward * 26;
+        canvas.save();
+        canvas.clipRect(b);
+        canvas.drawCircle(
+          c,
+          half + 30,
+          Paint()
+            ..shader = ui.Gradient.radial(c, half + 30, [
+              Colors.white.withValues(alpha: 0.85 * glare),
+              _kArchiveGlare.withValues(alpha: 0.45 * glare),
+              _kArchiveGlare.withValues(alpha: 0.0),
+            ], const [0.0, 0.45, 1.0]),
+        );
+        canvas.restore();
       }
     }
   }
+
+  /// AN EFFIGY, and the shadow that tells the truth about it (the 2026-09-25
+  /// review: four identical busts, nothing saying which hand reads which,
+  /// and a read one drawn the same as an unread one).
+  ///
+  ///  · THE STONE is its own carving — a moth with its wings shut, a scholar
+  ///    holding out a key, a warden facing the door, a sun on a pole — so
+  ///    the four can be told apart and the stone's lie can be seen.
+  ///  · THE PANE in the front of its plinth is its element's planet glass
+  ///    (lumen gold, prism green, wraith pale): who reads it.
+  ///  · THE SHADOW is cast only while its stone stands in light. While the
+  ///    niche it falls into is in shadow too, it is the TRUTH, crisp and
+  ///    black — the moth's wings open, the key a knife, the warden turned
+  ///    away, the sun a hole — and that is exactly when the effigy can be
+  ///    read. With the niche lit the shadow is washed out to a smear.
+  ///  · READ, the truth stays on the floor for good and a line of gold runs
+  ///    along the plinth.
+  void _drawEffigy(Canvas canvas, Effigy e) {
+    final read = archive.effigiesRead.contains(e.id) || hasStar(0);
+    final at = e.position;
+    final stoneLit = archive.isLit(e.stand);
+    final nicheDark = archive.isDark(e.niche);
+
+    // The shadow first, so the stone stands on it.
+    if (stoneLit || read) {
+      final truth = read || nicheDark;
+      canvas.save();
+      canvas.translate(at.dx + 34, at.dy + 12);
+      // Cast long and low across the floor, away from the rim.
+      canvas.skew(0, 0.19);
+      canvas.scale(2.1, 0.85);
+      canvas.drawPath(
+        truth ? _effigyTruth(e.id) : _effigyStoneShape(e.id),
+        Paint()
+          ..color = _kArchiveNight.withValues(
+            alpha: truth ? (stoneLit ? 0.86 : 0.55) : 0.20,
+          ),
+      );
+      canvas.restore();
+    }
+
+    // The stone.
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    final stone = _effigyStoneShape(e.id);
+    canvas.drawPath(
+      stone,
+      Paint()
+        ..shader =
+            ui.Gradient.linear(const Offset(0, -22), const Offset(0, 8), [
+              Color.lerp(_kArchiveStone, Colors.white, stoneLit ? 0.35 : 0.0)!,
+              _kArchiveStone.withValues(alpha: 0.85),
+            ]),
+    );
+    canvas.drawPath(
+      stone,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = _kArchiveNight.withValues(alpha: 0.45),
+    );
+    canvas.restore();
+
+    // The pane in the plinth's front: who reads it.
+    final paneRect = Rect.fromCenter(
+      center: at + const Offset(0, 17),
+      width: 14,
+      height: 7,
+    );
+    final el = (_glassPalettes[e.element] ?? _kLumenGlass).live;
+    paintPane(
+      canvas,
+      Path()..addRect(paneRect),
+      Color.lerp(_kArchiveNight, el, read ? 1.0 : 0.75)!,
+      _kLumenGlass,
+      lead: 1.4,
+    );
+    if (read) {
+      canvas.drawLine(
+        at + const Offset(-15, 22.5),
+        at + const Offset(15, 22.5),
+        Paint()
+          ..strokeWidth = 1.6
+          ..color = _kArchiveGold.withValues(alpha: 0.85),
+      );
+    }
+  }
+
+  /// What each effigy's stone is carved as, in its own frame (feet at y 8).
+  Path _effigyStoneShape(String id) => _effigyShapeCache.putIfAbsent(
+    'stone:$id',
+    () => switch (id) {
+      // A moth, wings shut along its back.
+      'ef_moth' =>
+        Path()
+          ..addOval(
+            Rect.fromCenter(center: const Offset(0, -7), width: 8, height: 26),
+          )
+          ..addOval(
+            Rect.fromCenter(center: const Offset(-4, -5), width: 7, height: 22),
+          )
+          ..addOval(
+            Rect.fromCenter(center: const Offset(4, -5), width: 7, height: 22),
+          ),
+      // A scholar holding out a key.
+      'ef_key' =>
+        _effigyFigure(facing: -1)
+          ..addOval(Rect.fromCircle(center: const Offset(-13, -9), radius: 2.6))
+          ..addRect(const Rect.fromLTWH(-12, -8, 6, 1.8)),
+      // A warden facing the door.
+      'ef_warden' => _effigyFigure(facing: -1),
+      // A sun on a pole.
+      _ =>
+        Path()
+          ..addRect(const Rect.fromLTWH(-1.5, -12, 3, 20))
+          ..addOval(Rect.fromCircle(center: const Offset(0, -17), radius: 7)),
+    },
+  );
+
+  /// The truth, as the shadow draws it, in the same frame.
+  Path _effigyTruth(String id) => _effigyShapeCache.putIfAbsent(
+    'truth:$id',
+    () => switch (id) {
+      // The wings open, and enormous.
+      'ef_moth' =>
+        Path()
+          ..addOval(
+            Rect.fromCenter(center: const Offset(0, -7), width: 7, height: 24),
+          )
+          ..addOval(
+            Rect.fromCenter(
+              center: const Offset(-11, -14),
+              width: 20,
+              height: 16,
+            ),
+          )
+          ..addOval(
+            Rect.fromCenter(
+              center: const Offset(11, -14),
+              width: 20,
+              height: 16,
+            ),
+          )
+          ..addOval(
+            Rect.fromCenter(center: const Offset(-8, 0), width: 13, height: 11),
+          )
+          ..addOval(
+            Rect.fromCenter(center: const Offset(8, 0), width: 13, height: 11),
+          ),
+      // The key is a knife.
+      'ef_key' =>
+        _effigyFigure(facing: -1)..addPolygon(const [
+          Offset(-7, -9),
+          Offset(-22, -11.5),
+          Offset(-24, -9.5),
+          Offset(-7, -7),
+        ], true),
+      // Facing the other way.
+      'ef_warden' => _effigyFigure(facing: 1),
+      // The sun is a hole.
+      _ =>
+        (Path()
+          ..fillType = PathFillType.evenOdd
+          ..addRect(const Rect.fromLTWH(-1.5, -10, 3, 18))
+          ..addOval(Rect.fromCircle(center: const Offset(0, -17), radius: 8))
+          ..addOval(
+            Rect.fromCircle(center: const Offset(0, -17), radius: 4.5),
+          )),
+    },
+  );
+
+  /// A standing figure, its face turned toward [facing] (-1 left, 1 right).
+  Path _effigyFigure({required int facing}) => Path()
+    ..addRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-7, -12, 14, 20),
+        const Radius.circular(4),
+      ),
+    )
+    ..addOval(Rect.fromCircle(center: const Offset(0, -17), radius: 5.2))
+    ..addPolygon([
+      Offset(facing * 4.0, -19),
+      Offset(facing * 8.5, -17),
+      Offset(facing * 4.0, -15),
+    ], true);
 
   void _renderArchiveObjects(Canvas canvas, DungeonRoom room) {
     final hall = room.hall;
@@ -1464,43 +1738,10 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       }
     }
 
-    // THE EFFIGIES: the stone, and the SHADOW it is throwing drawn as a hard
-    // black wedge on the floor beside it — filled, never outlined, because the
-    // shadow is the true shape and the stone is the lie. (The plinths each one
-    // stands on are part of the court's fabric and are baked with it.)
+    // THE EFFIGIES — see `_drawEffigy`.
     if (hall.balustrade != null) {
       for (final e in kCourtEffigies) {
-        final read = archive.effigiesRead.contains(e.id);
-        // A carved figure, not a token: a shouldered block with a head.
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(
-              center: e.position + const Offset(0, 3),
-              width: 15,
-              height: 20,
-            ),
-            const Radius.circular(4),
-          ),
-          Paint()..color = _kArchiveStone.withValues(alpha: read ? 0.40 : 0.80),
-        );
-        canvas.drawCircle(
-          e.position - const Offset(0, 8),
-          5.5,
-          Paint()..color = _kArchiveStone.withValues(alpha: read ? 0.45 : 0.92),
-        );
-        if (!archive.isLit(e.stand)) continue;
-        final shadow = Path()
-          ..moveTo(e.position.dx + 8, e.position.dy + 8)
-          ..lineTo(e.position.dx + 52, e.position.dy + 24)
-          ..lineTo(e.position.dx + 52, e.position.dy - 8)
-          ..close();
-        canvas.drawPath(
-          shadow,
-          Paint()
-            ..color = _kArchiveNight.withValues(
-              alpha: archive.isDark(e.niche) ? 0.85 : 0.22,
-            ),
-        );
+        _drawEffigy(canvas, e);
       }
     }
 
@@ -1816,6 +2057,9 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
 /// Keyed on room id + bounds. Populated on a bay's first frame and then read.
 final Map<String, _ArchiveGround> _archiveGroundCache = {};
 
+/// Each effigy's stone and its truth, built once.
+final Map<String, Path> _effigyShapeCache = {};
+
 /// The lightwell under the glass floor of the rim: the archive's own basement,
 /// and the reason a dark leaf is a hole rather than a closed door.
 const Color _kArchWell = Color(0xFF04060B);
@@ -1932,24 +2176,6 @@ void _archQuad(Path into, Offset c, double w, double h, double ang) {
     ..close();
 }
 
-/// An irregular closed blob. Used for everything that was never built to a
-/// shape: a lightwell, a patch of spall, a scorch.
-void _archBlob(
-  Path into,
-  _ArchRng rng,
-  Offset c,
-  double rx,
-  double ry, {
-  int sides = 7,
-}) {
-  for (var k = 0; k <= sides; k++) {
-    final a = k * 2 * pi / sides + rng.range(-0.18, 0.18);
-    final w = rng.range(0.66, 1.3);
-    final pt = Offset(c.dx + cos(a) * rx * w, c.dy + sin(a) * ry * w);
-    k == 0 ? into.moveTo(pt.dx, pt.dy) : into.lineTo(pt.dx, pt.dy);
-  }
-  into.close();
-}
 
 /// THE GLASS FLOOR OF THE RIM. Panes of glass set in lead over the archive's
 /// lightwells — the material that makes a lit leaf a floor and a dark one a
@@ -2012,11 +2238,9 @@ void _archGlazing(_ArchDraft d, _ArchRng rng, Rect r) {
         ..lineTo(e.dx, e.dy)
         ..close();
       d.joint.addPath(pane, Offset.zero);
-      final roll = rng.next();
-      if (roll < 0.14) {
-        // The glass has gone: this pane is the lightwell, open.
-        d.wells.addPath(pane, Offset.zero);
-      } else if (roll < 0.40) {
+      // (No pane is drawn gone any more: on a planet where a hole in the
+      // floor means "you cannot walk here", a decorative hole is a lie.)
+      if (rng.next() < 0.26) {
         // One still holding a gleam, inset so it reads as glass in a rebate.
         final g = Path()
           ..moveTo((a.dx + b.dx) / 2, (a.dy + b.dy) / 2)
@@ -2027,17 +2251,6 @@ void _archGlazing(_ArchDraft d, _ArchRng rng, Rect r) {
     }
   }
 
-  // And a pane boarded over by somebody who gave up on finding glass.
-  _archQuad(
-    d.timber,
-    Offset(
-      rng.range(r.left + 60, r.right - 60),
-      rng.range(r.top + 60, r.bottom - 60),
-    ),
-    rng.range(60, 110),
-    rng.range(34, 56),
-    rng.range(-0.4, 0.4),
-  );
 }
 
 /// THE HEART'S FLOOR — black mirror-stone in courses. Real masonry IS laid in
@@ -2084,17 +2297,6 @@ void _archPaving(_ArchDraft d, _ArchRng rng, Rect r) {
         d.gleam
           ..moveTo(x + inset, y + drift + inset)
           ..lineTo(x + w - rng.range(8, 60), y + drift + inset);
-      }
-      if (rng.chance(0.07)) {
-        // A slab that has spalled through to whatever is under the archive.
-        _archBlob(
-          d.wells,
-          rng,
-          Offset(x + w / 2, y + h / 2),
-          w * 0.24,
-          h * 0.26,
-          sides: 6,
-        );
       }
       x += w;
     }
@@ -2205,57 +2407,6 @@ void _archStackRun(
   }
 }
 
-/// A case, a cabinet, a press or a desk: one low box of oak, standing at its
-/// own angle, with its front divided unevenly and a hard shadow under it.
-void _archCase(
-  _ArchDraft d,
-  _ArchRng rng,
-  Offset c,
-  double w,
-  double h,
-  double ang, {
-  int fronts = 3,
-  bool shuttered = false,
-}) {
-  _archQuad(d.cast, c + Offset(3, h * 0.55), w, h, ang);
-  _archQuad(d.timber, c, w, h, ang);
-  final ca = cos(ang), sa = sin(ang);
-  Offset p(double x, double y) =>
-      Offset(c.dx + x * ca - y * sa, c.dy + x * sa + y * ca);
-  if (shuttered) {
-    // A case kept SHUT. The batten across it is the whole reading of this
-    // building: what it owns, it owns in the dark.
-    final a = p(-w / 2 + 3, -h / 2 + 3), b = p(w / 2 - 3, h / 2 - 3);
-    final e = p(w / 2 - 3, -h / 2 + 3), f = p(-w / 2 + 3, h / 2 - 3);
-    d.timberLip
-      ..moveTo(a.dx, a.dy)
-      ..lineTo(b.dx, b.dy)
-      ..moveTo(e.dx, e.dy)
-      ..lineTo(f.dx, f.dy);
-    return;
-  }
-  // Unequal fronts, because nothing in here was made in one shop.
-  var x = -w / 2;
-  for (var i = 0; i < fronts; i++) {
-    x += w / fronts * rng.range(0.7, 1.3);
-    if (x > w / 2 - 4) break;
-    final a = p(x, -h / 2 + 2), b = p(x, h / 2 - 2);
-    d.timberLip
-      ..moveTo(a.dx, a.dy)
-      ..lineTo(b.dx, b.dy);
-  }
-  // One drawer left hanging out, somewhere.
-  if (rng.chance(0.35)) {
-    _archQuad(
-      d.timber,
-      p(rng.range(-w / 3, w / 3), h * rng.range(0.5, 0.8)),
-      w / fronts * 0.9,
-      h * 0.55,
-      ang + rng.range(-0.2, 0.2),
-    );
-  }
-}
-
 /// A pier, a column, a plinth. Base, drum, and the hard little shadow that
 /// says the thing has height.
 void _archPier(_ArchDraft d, _ArchRng rng, Offset c, double r) {
@@ -2269,71 +2420,6 @@ void _archPier(_ArchDraft d, _ArchRng rng, Offset c, double r) {
   _archQuad(d.stoneFill, c, r * 2.1, r * 2.1, rng.range(-0.08, 0.08));
   d.stoneEdge.addOval(Rect.fromCircle(center: c, radius: r));
   d.stoneFill.addOval(Rect.fromCircle(center: c, radius: r * 0.82));
-}
-
-/// A run of arcading along a wall: piers at unequal intervals with an arch
-/// springing between each pair.
-///
-/// The first cut spaced them evenly and drew them all the same size, and the
-/// gallery came back as a ROW OF IDENTICAL GREY SQUARES down each long wall —
-/// the graph-paper failure in its other costume, because a regular row is a
-/// grid one cell deep. Every pier now has its own girth, sits its own distance
-/// off the wall line, and about a fifth of them have gone entirely (with the
-/// arch that sprang from them taken with it).
-void _archArcade(
-  _ArchDraft d,
-  _ArchRng rng,
-  Offset from,
-  Offset to,
-  double bulge,
-) {
-  final v = to - from;
-  final len = v.distance;
-  final dir = v / len;
-  final nrm = Offset(-dir.dy, dir.dx) * bulge.sign;
-  var s = rng.range(10, 46);
-  Offset? prev;
-  while (s < len - 20) {
-    final at = from + dir * s + nrm * rng.range(-9, 9);
-    if (rng.chance(0.80)) {
-      _archPier(d, rng, at, rng.range(8, 23));
-      if (prev != null) {
-        final m = (prev + at) / 2 + nrm * bulge.abs() * rng.range(0.6, 1.4);
-        d.stoneEdge
-          ..moveTo(prev.dx, prev.dy)
-          ..quadraticBezierTo(m.dx, m.dy, at.dx, at.dy);
-      }
-      prev = at;
-    } else {
-      // A bay of the arcade that has come down: its springing stone only.
-      d.litter.addOval(Rect.fromCircle(center: at, radius: rng.range(5, 11)));
-      prev = null;
-    }
-    s += rng.range(58, 148);
-  }
-}
-
-/// Fallen books, spilled cards, moth wings — the floor of a place nobody has
-/// swept. Scattered, never on a grid, and kept out of [keepClear].
-void _archLitter(
-  _ArchDraft d,
-  _ArchRng rng,
-  Rect r,
-  int n, {
-  double size = 8,
-  Rect? keepClear,
-}) {
-  for (var i = 0; i < n; i++) {
-    final c = Offset(rng.range(r.left, r.right), rng.range(r.top, r.bottom));
-    if (keepClear != null && keepClear.contains(c)) continue;
-    _archQuad(
-      d.litter,
-      c,
-      size * rng.range(0.6, 1.6),
-      size * rng.range(0.4, 1.0),
-      rng.range(0, pi),
-    );
-  }
 }
 
 // ── The nine bays ────────────────────────────────────────
@@ -2367,76 +2453,19 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
     _archPaving(d, rng, inner);
   }
 
+  // THE CLEARING (2026-09-25 review, the Dark lesson: "unused clutter").
+  // Every bay used to be furnished — presses, carts, benches, carrels,
+  // cabinets, desks and stools, arcades, cocoons, piers, a balustrade, worn
+  // ways, a brass plan, a ringed stair, a ticked drum wall, scorch arcs and a
+  // drift of loose pages over every floor — and none of it could be used.
+  // What stays is what a bay is FOR: the two great stacks that throw the
+  // planet's only shadows, the shelves each slip is filed behind, the
+  // effigies' plinths, the reliquary's shrine, the prism oriel conduit A is
+  // set in, and the footings of the three pillars the fight is about. The
+  // floor itself (glass on the rim, mirror in the heart) stays, because it is
+  // what every sill is made of.
   switch (roomId) {
-    // ── THE LUMEN THRESHOLD ──────────────────────────────
-    // A porch, not a room: the great door behind you, the fallen lintel on the
-    // floor, and the archive opening out past it. Nothing stands in sector 0,
-    // so there is deliberately NO stack here — the bay that teaches you what a
-    // shadow costs is the one bay that cannot make one.
-    case 'lumen_threshold':
-      // The threshold band, worn hollow by everyone who ever came in.
-      _archQuad(
-        d.stoneFill,
-        Offset(inner.center.dx, inner.top + 34),
-        inner.width * 0.92,
-        58,
-        0,
-      );
-      d.wells.addOval(
-        Rect.fromCenter(
-          center: Offset(inner.center.dx, inner.top + 40),
-          width: inner.width * 0.42,
-          height: 26,
-        ),
-      );
-      // The door jambs, either end of the fallen lintel.
-      _archPier(d, rng, Offset(232, 96), 19);
-      _archPier(d, rng, Offset(470, 96), 19);
-      // Book presses chained along the side walls, well clear of the beacon.
-      _archCase(d, rng, const Offset(70, 120), 46, 104, 0.06, fronts: 4);
-      _archCase(d, rng, const Offset(66, 380), 44, 92, -0.09, fronts: 3);
-      _archCase(d, rng, const Offset(660, 120), 44, 96, -0.05, fronts: 3);
-      _archCase(d, rng, const Offset(668, 392), 48, 84, 0.11, fronts: 4);
-      // The returns cart, abandoned mid-round.
-      _archCase(d, rng, const Offset(190, 400), 74, 38, 0.5, fronts: 3);
-      // THE WORN WAYS. Three centuries of feet have polished the glass pale
-      // between the door and the three ways out of this bay — which is the
-      // one thing in the archive that will tell a first-time player where the
-      // room's exits are before a single beacon has been touched.
-      for (final way in const [
-        [360.0, 470.0, 120.0], // in through the undercroft
-        [660.0, 250.0, 104.0], // east, onto the rim
-        [60.0, 250.0, 104.0], // west, round the lightwell
-      ]) {
-        final from = const Offset(360, 96);
-        final to = Offset(way[0], way[1]);
-        final v = to - from;
-        final n = Offset(-v.dy, v.dx) / v.distance * (way[2] / 2);
-        d.sheen
-          ..moveTo(from.dx + n.dx * 0.55, from.dy + n.dy * 0.55)
-          ..lineTo(to.dx + n.dx, to.dy + n.dy)
-          ..lineTo(to.dx - n.dx, to.dy - n.dy)
-          ..lineTo(from.dx - n.dx * 0.55, from.dy - n.dy * 0.55)
-          ..close();
-      }
-      // Two more presses down the sides, and the benches nobody sits on.
-      _archCase(d, rng, const Offset(72, 250), 40, 88, -0.03, fronts: 3);
-      _archCase(d, rng, const Offset(650, 250), 38, 80, 0.04, fronts: 3);
-      _archCase(d, rng, const Offset(216, 296), 66, 22, 0.07, fronts: 1);
-      _archCase(d, rng, const Offset(512, 304), 72, 22, -0.05, fronts: 1);
-      _archLitter(d, rng, const Rect.fromLTWH(60, 300, 560, 160), 26);
-      _archLitter(d, rng, const Rect.fromLTWH(250, 110, 220, 60), 12, size: 6);
-      break;
-
-    // ── THE SHADOW COURT ─────────────────────────────────
-    // The court under the first great stack: a balustraded reading court with
-    // four effigies standing on its rail, a broken oriel in the east wall with
-    // the beacon set in it, and the court's own shelving collapsed into the
-    // south-west corner where the slip lies.
     case 'shadow_court':
-      // THE GREAT STACK of sector 1. It stands across the bay's inward half,
-      // which is exactly what the arithmetic says it does: light broken on
-      // this is what keeps the heartway open.
       stackLine = 380; // the stack's inward face, where its shadow begins
       _archStackRun(
         d,
@@ -2454,35 +2483,6 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
         depth: 34,
         filled: 0.6,
       );
-      // THE BALUSTRADE — an ellipse of rail round the court, with the four
-      // effigies standing on it. Two stretches of it have gone.
-      final bc = const Offset(330, 228);
-      const brx = 208.0, bry = 118.0;
-      var a = rng.range(0, 1.0);
-      while (a < 2 * pi) {
-        final step = rng.range(0.13, 0.26);
-        // Two stretches of it have gone over the edge, which is why the walk
-        // round the court is a walk and not a lap.
-        if (!rng.chance(0.22)) {
-          Offset on(double t) =>
-              Offset(bc.dx + cos(t) * brx, bc.dy + sin(t) * bry);
-          final at = on(a), nx = on(a + step);
-          d.stoneFill.addOval(
-            Rect.fromCircle(center: at, radius: rng.range(5, 8)),
-          );
-          // The RAIL, as a filled band between the balusters. Stroked, it came
-          // back as a dotted necklace with nothing joining the beads.
-          final v = nx - at;
-          final n = Offset(-v.dy, v.dx) / v.distance * 2.6;
-          d.stoneFill
-            ..moveTo(at.dx + n.dx, at.dy + n.dy)
-            ..lineTo(nx.dx + n.dx, nx.dy + n.dy)
-            ..lineTo(nx.dx - n.dx, nx.dy - n.dy)
-            ..lineTo(at.dx - n.dx, at.dy - n.dy)
-            ..close();
-        }
-        a += step;
-      }
       // The plinths the effigies stand on. They are const positions, so the
       // stone under each one can be part of the court's own fabric.
       for (final e in kCourtEffigies) {
@@ -2490,22 +2490,6 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
         _archQuad(d.stoneFill, e.position + const Offset(0, 12), 32, 20, 0);
         _archQuad(d.stoneEdge, e.position + const Offset(0, 12), 32, 20, 0);
       }
-      // THE ORIEL — the broken window the oriel beacon is set in, splayed into
-      // the east wall beside the beacon's post.
-      _archQuad(d.stoneFill, const Offset(680, 260), 44, 150, 0);
-      d.wells.addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: const Offset(682, 260),
-            width: 26,
-            height: 122,
-          ),
-          const Radius.circular(9),
-        ),
-      );
-      d.gleam
-        ..moveTo(672, 206)
-        ..lineTo(672, 314);
       // The court's own shelving, gone over into the south-west corner, which
       // is where the slip is filed.
       _archStackRun(
@@ -2516,16 +2500,9 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
         depth: 30,
         filled: 0.35,
       );
-      _archLitter(d, rng, Rect.fromLTWH(46, 340, 260, 110), 26);
       break;
 
-    // ── THE MOTH GALLERY ─────────────────────────────────
-    // The arcade under the second great stack, where the wardens roost. Two
-    // runs of arcading along the long walls, the great stack filling the
-    // gallery's inward side, and moth-scale over everything.
     case 'moth_gallery':
-      _archArcade(d, rng, const Offset(40, 60), const Offset(760, 52), 26);
-      _archArcade(d, rng, const Offset(40, 448), const Offset(760, 456), -26);
       stackLine = 390; // as the court: the far side of the books
       _archStackRun(
         d,
@@ -2553,44 +2530,10 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
         depth: 34,
         filled: 0.5,
       );
-      // THE ROOST. Cocoons hung off the arcading, and a floor of wings.
-      for (var i = 0; i < 14; i++) {
-        final c = Offset(
-          rng.range(60, 750),
-          rng.chance(0.5) ? rng.range(66, 92) : rng.range(420, 448),
-        );
-        d.litter.addOval(
-          Rect.fromCenter(
-            center: c,
-            width: rng.range(7, 14),
-            height: rng.range(12, 22),
-          ),
-        );
-      }
-      // Two carrels off the walk, a case gone over, and the gallery's own
-      // lectern — all of it well clear of the line between the two leaves,
-      // because the arcade is a bay you can only be in while a light is
-      // holding it and it must stay quick to cross.
-      _archCase(d, rng, const Offset(150, 140), 96, 40, 0.14, fronts: 2);
-      _archCase(d, rng, const Offset(276, 148), 30, 30, 0.0, fronts: 1);
-      _archCase(d, rng, const Offset(158, 398), 104, 38, -0.11, fronts: 2);
-      _archCase(d, rng, const Offset(392, 414), 58, 44, 0.92, fronts: 3);
-      _archCase(d, rng, const Offset(690, 268), 40, 96, -0.04, fronts: 3);
-      _archLitter(d, rng, const Rect.fromLTWH(50, 100, 700, 300), 34, size: 7);
       break;
 
-    // ── THE DARK STACKS ──────────────────────────────────
-    // Out past both great stacks, where nothing occludes for you any more —
-    // and the densest room in the archive. Runs on both sides of one aisle, at
-    // their own angles, of their own lengths, leaning into each other where
-    // the floor has moved. No stack in here is the same as any other stack,
-    // because a stack that matched its neighbour would put the whole room back
-    // on graph paper.
     case 'dark_stacks':
-      // No stackLine: sector 3 has nothing standing in it, so low and high
-      // are the same beam here and the inward band is never in shadow while
-      // the rim is lit. There is no bite to place, which is the lesson of the
-      // room — out past both great stacks nothing occludes for you any more.
+      // The one bay that IS its shelves, and the slip is filed in them.
       for (final band in const [
         [46.0, 186.0],
         [334.0, 482.0],
@@ -2614,124 +2557,8 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
           x += rng.range(58, 128);
         }
       }
-      // The aisle, worn pale by three centuries of feet.
-      d.sheen.addRRect(
-        RRect.fromRectAndRadius(
-          const Rect.fromLTWH(30, 214, 720, 94),
-          const Radius.circular(30),
-        ),
-      );
-      // Books off the shelves, thickest where the light never comes.
-      _archLitter(d, rng, Rect.fromLTWH(40, 40, 700, 150), 30, size: 9);
-      _archLitter(d, rng, Rect.fromLTWH(40, 330, 700, 150), 34, size: 9);
       break;
 
-    // ── THE CATALOGUE WALK ───────────────────────────────
-    // What the archive knows ABOUT itself: banks of card cabinets along both
-    // walls, a ledger counter down the east end, and a drift of spilled cards
-    // where somebody pulled a drawer in a hurry and never came back for them.
-    case 'catalogue_walk':
-      var x = rng.range(40, 80);
-      while (x < 700) {
-        final w = rng.range(70, 150);
-        _archCase(
-          d,
-          rng,
-          Offset(x + w / 2, rng.range(58, 78)),
-          w,
-          rng.range(40, 56),
-          rng.range(-0.07, 0.07),
-          fronts: 3 + rng.pick(3),
-        );
-        x += w + rng.range(8, 46);
-      }
-      x = rng.range(40, 90);
-      while (x < 690) {
-        final w = rng.range(64, 140);
-        _archCase(
-          d,
-          rng,
-          Offset(x + w / 2, rng.range(424, 446)),
-          w,
-          rng.range(38, 54),
-          rng.range(-0.08, 0.08),
-          fronts: 3 + rng.pick(3),
-        );
-        x += w + rng.range(10, 52);
-      }
-      // One bank toppled right over into the walk.
-      _archCase(d, rng, const Offset(140, 168), 132, 46, 1.24, fronts: 5);
-      // The ledger counter, and the lectern on it.
-      _archCase(d, rng, const Offset(684, 250), 46, 200, 0.03, fronts: 2);
-      _archCase(d, rng, const Offset(612, 168), 64, 44, -0.35, fronts: 1);
-      // The cards, out of the drawers and all over the floor.
-      _archLitter(d, rng, Rect.fromLTWH(70, 110, 560, 90), 46, size: 6);
-      _archLitter(d, rng, Rect.fromLTWH(70, 360, 600, 70), 34, size: 6);
-      break;
-
-    // ── THE OCULUS STAIR ─────────────────────────────────
-    // The middle of the hall, and the one bay light has never been thrown
-    // into. It is the bottom of the archive: a stepped ring of mirror-stone
-    // falling away to a landing, with the oculus itself far overhead and only
-    // the ghost of it reaching the floor.
-    case 'oculus_stair':
-      final c = inner.center;
-      // The flight: three shallow rings of step, spalled and broken, drawn as
-      // step NOSINGS rather than concentric circles — a stair is read off its
-      // edges.
-      // Four flights, and no two of them struck from quite the same centre or
-      // squashed by quite the same amount — four perfect concentric ellipses
-      // is a target, not a stair.
-      for (var ring = 0; ring < 4; ring++) {
-        final rr = 300.0 - ring * 52 + rng.range(-14, 14);
-        final squash = rng.range(0.66, 0.80);
-        final off = Offset(rng.range(-10, 10), rng.range(-8, 8));
-        var ang = rng.range(0, 1.0);
-        while (ang < 2 * pi) {
-          final arc = rng.range(0.5, 1.2);
-          if (!rng.chance(0.16)) {
-            // A stair is read off its NOSINGS, so what is drawn is the edge of
-            // each tread and the shadow the tread below it is in. Both are
-            // STROKES: pushing an open arc into a filled path closes it across
-            // the chord, and the first cut of this room came back as a black
-            // whirlpool because of exactly that.
-            const steps = 10;
-            final p = Path();
-            for (var k = 0; k <= steps; k++) {
-              final t = ang + arc * k / steps;
-              final pt = Offset(
-                c.dx + off.dx + cos(t) * rr,
-                c.dy + off.dy + sin(t) * rr * squash,
-              );
-              k == 0 ? p.moveTo(pt.dx, pt.dy) : p.lineTo(pt.dx, pt.dy);
-            }
-            d.stoneEdge.addPath(p, Offset.zero);
-            d.castLine.addPath(p, const Offset(0, 6));
-          }
-          ang += arc + rng.range(0.04, 0.2);
-        }
-      }
-      // The ghost of the oculus on the landing — the only light in the heart,
-      // and it is not enough to read by.
-      d.sheen.addOval(Rect.fromCenter(center: c, width: 250, height: 170));
-      d.gleam.addOval(Rect.fromCenter(center: c, width: 250, height: 170));
-      // The hall's own plan, inlaid in brass at the foot of the stair: five
-      // sectors and two bands, worn to nothing on the side people walk.
-      for (var i = 0; i < 5; i++) {
-        final t = -pi / 2 + i * 2 * pi / 5;
-        if (rng.chance(0.3)) continue;
-        d.gleam
-          ..moveTo(c.dx + cos(t) * 42, c.dy + sin(t) * 30)
-          ..lineTo(c.dx + cos(t) * 116, c.dy + sin(t) * 82);
-      }
-      d.gleam.addOval(Rect.fromCenter(center: c, width: 90, height: 64));
-      _archLitter(d, rng, inner.deflate(30), 18, size: 8);
-      break;
-
-    // ── THE SUNLESS RELIQUARY ────────────────────────────
-    // A shrine standing in plain sight, and a ring of cases round it with
-    // their shutters shut. The whole room is the archive's own answer to its
-    // own rule: what it values, it keeps where the light cannot get at it.
     case 'sunless_reliquary':
       final shrine = const Offset(260, 170);
       _archQuad(d.cast, shrine + const Offset(5, 12), 152, 116, 0);
@@ -2747,67 +2574,9 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
       ]) {
         _archPier(d, rng, shrine + o, 10);
       }
-      // The cases, shut. Unequal, at their own angles, all round the wall.
-      _archCase(d, rng, const Offset(60, 48), 76, 34, 0.10, shuttered: true);
-      _archCase(d, rng, const Offset(58, 290), 66, 32, -0.13, shuttered: true);
-      _archCase(d, rng, const Offset(196, 36), 84, 30, 0.05, shuttered: true);
-      _archCase(d, rng, const Offset(330, 42), 70, 32, -0.07, shuttered: true);
-      _archCase(d, rng, const Offset(392, 160), 34, 92, 0.04, shuttered: true);
-      _archCase(d, rng, const Offset(222, 306), 92, 30, 0.08, shuttered: true);
-      _archCase(d, rng, const Offset(352, 296), 62, 34, -0.16, shuttered: true);
-      _archLitter(d, rng, Rect.fromLTWH(30, 80, 380, 200), 14, size: 7);
       break;
 
-    // ── THE READING FLOOR ────────────────────────────────
-    // The room the archive was built for: desks round the walls, stools, the
-    // chains the books are still on, the prism oriel in the west wall and the
-    // shutter-ring's own gear housing sunk into the floor by the east.
     case 'reading_floor':
-      for (final desk in const [
-        [120.0, 90.0, 190.0, 44.0, 0.06],
-        [380.0, 74.0, 160.0, 42.0, -0.05],
-        [640.0, 120.0, 46.0, 190.0, 0.03],
-        [660.0, 420.0, 170.0, 44.0, -0.09],
-        [360.0, 470.0, 200.0, 44.0, 0.04],
-        [110.0, 430.0, 150.0, 42.0, 0.12],
-        [96.0, 268.0, 44.0, 150.0, -0.03],
-      ]) {
-        final c = Offset(desk[0], desk[1]);
-        _archCase(d, rng, c, desk[2], desk[3], desk[4], fronts: 2);
-        // The stools, and one of them pushed back.
-        final along = desk[2] > desk[3];
-        for (var k = 0; k < 3; k++) {
-          final off = (k - 1) * (along ? desk[2] : desk[3]) * 0.33;
-          final at = along
-              ? c + Offset(off, desk[3] * rng.range(0.75, 1.15))
-              : c + Offset(desk[2] * rng.range(0.75, 1.15), off);
-          d.timber.addOval(
-            Rect.fromCircle(center: at, radius: rng.range(8, 11)),
-          );
-        }
-        // A chained book, and the chain.
-        if (rng.chance(0.7)) {
-          final at = c + Offset(rng.range(-20, 20), rng.range(-8, 8));
-          _archQuad(
-            d.spines[rng.pick(_kArchSpines.length)],
-            at,
-            20,
-            14,
-            rng.range(-0.4, 0.4),
-          );
-          // The chain, to the ROD ON THIS DESK. Run to the desk's far end it
-          // came out as a diagonal line across the room, which read as a
-          // scratch rather than as the thing holding the book down.
-          d.timberLip
-            ..moveTo(at.dx, at.dy)
-            ..lineTo(at.dx + rng.range(-18, 18), at.dy + rng.range(-14, 14));
-        }
-        // The desk's own slope, which is what makes it a reading desk and not
-        // a table.
-        d.timberLip
-          ..moveTo(c.dx - desk[2] * 0.42, c.dy)
-          ..lineTo(c.dx + desk[2] * 0.42, c.dy);
-      }
       // THE PRISM ORIEL — a splayed window reveal in the west wall, with its
       // mullion still standing. Conduit A is set in it.
       _archQuad(d.stoneFill, const Offset(226, 280), 58, 160, 0);
@@ -2826,72 +2595,9 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
         ..lineTo(214, 346)
         ..moveTo(230, 214)
         ..lineTo(230, 346);
-      // THE RING'S HOUSING: the track it turns in, sunk flush in the floor.
-      d.stoneEdge.addOval(
-        Rect.fromCircle(center: const Offset(560, 280), radius: 44),
-      );
-      d.stoneEdge.addOval(
-        Rect.fromCircle(center: const Offset(560, 280), radius: 30),
-      );
-      d.cast.addOval(
-        Rect.fromCircle(center: const Offset(560, 280), radius: 30),
-      );
-      // The winch post that drives it.
-      _archPier(d, rng, const Offset(628, 316), 13);
-      _archLitter(d, rng, Rect.fromLTWH(160, 150, 560, 260), 20, size: 8);
       break;
 
-    // ── SOLARIN'S OCULUS ─────────────────────────────────
-    // A drum under the hall's one eye. The CENTRE IS EMPTY on purpose — it is
-    // the only arena on this planet and the fight is a fight about where you
-    // stand — so everything drawn is either round the wall or under foot: the
-    // oculus ring inlaid in the floor, the three pillars' own footings, and
-    // the burnt arcs of every sweep the glare has ever made.
     case 'solarin_oculus':
-      final o = Offset(inner.center.dx, inner.center.dy - 10);
-      // THE DRUM WALL. Twenty-six evenly-spaced piers came back as a necklace
-      // of identical grey beads — the same regularity failure the arcade had,
-      // bent into a circle, and if anything worse for being closed. What is
-      // drawn now is the WALL: two rings of masonry with the voussoir joints
-      // ticked across them at unequal intervals, and only seven piers standing
-      // against it, each its own size and none of them opposite another.
-      final drum = Rect.fromCenter(
-        center: o,
-        width: inner.width * 0.96,
-        height: inner.height * 0.96,
-      );
-      d.stoneEdge.addOval(drum);
-      d.stoneEdge.addOval(drum.deflate(28));
-      var vt = rng.range(0, 0.4);
-      while (vt < 2 * pi) {
-        d.stoneEdge
-          ..moveTo(
-            o.dx + cos(vt) * drum.width / 2,
-            o.dy + sin(vt) * drum.height / 2,
-          )
-          ..lineTo(
-            o.dx + cos(vt) * (drum.width / 2 - 28),
-            o.dy + sin(vt) * (drum.height / 2 - 28),
-          );
-        vt += rng.range(0.11, 0.30);
-      }
-      for (var i = 0; i < 7; i++) {
-        final t = rng.range(0, 2 * pi);
-        _archPier(
-          d,
-          rng,
-          Offset(
-            o.dx + cos(t) * drum.width * rng.range(0.40, 0.46),
-            o.dy + sin(t) * drum.height * rng.range(0.40, 0.46),
-          ),
-          rng.range(11, 26),
-        );
-      }
-      // THE OCULUS, inlaid: the eye overhead, as a ring of pale stone in the
-      // floor directly under it.
-      d.sheen.addOval(Rect.fromCenter(center: o, width: 330, height: 250));
-      d.gleam.addOval(Rect.fromCenter(center: o, width: 330, height: 250));
-      d.gleam.addOval(Rect.fromCenter(center: o, width: 274, height: 206));
       // THE PILLARS' FOOTINGS — the three the fight is about, drawn as stone
       // in the floor so they read as part of the building.
       for (final p in const [
@@ -2902,28 +2608,6 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
         _archQuad(d.stoneEdge, p, 62, 62, 0);
         _archQuad(d.stoneEdge, p, 46, 46, 0.78);
       }
-      // THE SCORCH. Every sweep the glare has made, burnt into the mirror-
-      // stone as broken arcs at their own radii — the room's history, and the
-      // only warning it gives.
-      for (var i = 0; i < 26; i++) {
-        final rr = rng.range(90, 400);
-        final from = rng.range(0, 2 * pi);
-        final arc = rng.range(0.3, 1.5);
-        final p = Path();
-        for (var k = 0; k <= 10; k++) {
-          final t = from + arc * k / 10;
-          final pt = Offset(
-            o.dx + cos(t) * rr * rng.range(0.97, 1.03),
-            o.dy + sin(t) * rr * 0.74,
-          );
-          k == 0 ? p.moveTo(pt.dx, pt.dy) : p.lineTo(pt.dx, pt.dy);
-        }
-        // STROKED, and thin. Filled, each of these came out as a black lens
-        // the size of a pillar; heavy, they read as claw marks. A scorch is a
-        // stain a floor has half forgotten.
-        d.scorch.addPath(p, Offset.zero);
-      }
-      _archLitter(d, rng, inner.deflate(40), 16, size: 9);
       break;
   }
 

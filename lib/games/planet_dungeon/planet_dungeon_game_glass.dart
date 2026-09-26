@@ -51,13 +51,70 @@ extension DungeonGlassArt on PlanetDungeonGame {
         r.right >= b.right - 1;
   }
 
+  // ── Passages the world opens and shuts ──────────────────
+  // Dark's turns and Light's beacons rewrite which ways exist without anyone
+  // walking through them. Such a way eases open or closed over about half a
+  // second instead of swapping in one frame.
+
+  /// Seconds a passage takes to split open or close back into wall.
+  static const double _kWorldDoorSeconds = 0.55;
+
+  bool get _hasWorldDoors => _isVault || _isArchive;
+
+  /// Shut by the world (or, at the entrance, by the entry rite not yet done).
+  bool _worldDoorShut(DungeonRoom room, DungeonDoor d) =>
+      isDoorHidden(room, d) ||
+      (_isVault && _vaultDoorBlocked(room, d)) ||
+      (_isArchive && _archiveDoorBlocked(room, d));
+
+  /// A passage that becomes WALL when shut: Dark's shadow-ways and Light's
+  /// glass leaves, and the entrance's ways out before the rite. Dark's
+  /// light-walks and Light's mirror sills stay doorways and change what is
+  /// in them instead.
+  bool _worldDoorWalls(DungeonRoom room, DungeonDoor d) {
+    if (!_hasWorldDoors) return false;
+    if (room.id == layout.entranceRoomId) return true;
+    if (_isVault) return _vaultSpanFor(room, d)?.cut == SpanCut.shadowWay;
+    return _archiveSillFor(room, d)?.cut == SillCut.glassLeaf;
+  }
+
+  void _easeWorldDoors(double dt) {
+    final room = currentRoom;
+    if (_vaultDoorRoom != room.id) {
+      _vaultDoorRoom = room.id;
+      _vaultDoorShown.clear();
+    }
+    for (final d in room.doors) {
+      final want = _worldDoorShut(room, d) ? 0.0 : 1.0;
+      final now = _vaultDoorShown[d.targetRoomId];
+      if (now == null) {
+        _vaultDoorShown[d.targetRoomId] = want;
+      } else if (now != want) {
+        final step = dt / _kWorldDoorSeconds;
+        _vaultDoorShown[d.targetRoomId] = want > now
+            ? min(want, now + step)
+            : max(want, now - step);
+      }
+    }
+  }
+
+  /// How far a passage is open, as drawn (1 when nothing is easing).
+  double _worldDoorOpen(DungeonRoom room, DungeonDoor d) {
+    final settled = _worldDoorShut(room, d) ? 0.0 : 1.0;
+    final v = room.id == _vaultDoorRoom
+        ? (_vaultDoorShown[d.targetRoomId] ?? settled)
+        : settled;
+    return Curves.easeInOut.transform(v.clamp(0.0, 1.0));
+  }
+
   void _renderGlassDoorPlugs(Canvas canvas, DungeonRoom room) {
     for (final d in room.doors) {
       if (!_doorOnWall(room, d)) continue;
-      if (_isVault && _vaultDoorWalls(room, d)) {
-        // Nythralor's walls come and go on every turn: a passage closing is
-        // still glass fading under the stone as it seals over.
-        final open = _vaultDoorOpen(room, d);
+      if (_worldDoorWalls(room, d)) {
+        // Walls that come and go with the world (Nythralor's turns, the
+        // archive's light): a passage closing is still glass fading under the
+        // stone as it seals over.
+        final open = _worldDoorOpen(room, d);
         if (open > 0.01 && isDoorHidden(room, d)) {
           _drawGlassDoor(canvas, room, d);
         }
@@ -83,8 +140,8 @@ extension DungeonGlassArt on PlanetDungeonGame {
     // The entry door comes up out of the splitting stone on the hearth's own
     // clock, rather than appearing whole the frame the fire takes.
     final entry = layout.entranceRevealDoor?.matches(room, d) ?? false;
-    if (_isVault && _vaultDoorWalls(room, d)) {
-      final appear = _vaultDoorOpen(room, d);
+    if (_worldDoorWalls(room, d)) {
+      final appear = _worldDoorOpen(room, d);
       if (appear <= 0.01) return;
       if (appear < 0.99) {
         canvas.saveLayer(
@@ -296,6 +353,29 @@ extension DungeonGlassArt on PlanetDungeonGame {
     // fallen away (`_renderVaultSpans`). Only the rood door keeps its bars.
     final isFinale = layout.finaleDoor?.matches(room, d) ?? false;
     if (_isVault && !isFinale) return;
+    // A MIRROR SILL under light is not locked either: it is blinding. The
+    // glass fills with a white glare that breathes, and there is no bar and
+    // no keyhole on it.
+    if (_isArchive && !isFinale) {
+      final breathe = 0.85 + 0.15 * sin(_time * 1.3 + r.left * 0.02);
+      canvas.save();
+      canvas.clipPath(arch);
+      canvas.drawRect(
+        glass,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            glass.center,
+            glass.longestSide * 0.7,
+            [
+              Colors.white.withValues(alpha: 0.95 * breathe),
+              const Color(0xFFFFF6DC).withValues(alpha: 0.75 * breathe),
+            ],
+          ),
+      );
+      canvas.restore();
+      paintLead(canvas, arch, _glass, width: 3.2);
+      return;
+    }
 
     // SEALED: iron bars across, and what opens it shown on the bars.
     final bar = Paint()

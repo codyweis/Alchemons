@@ -1050,4 +1050,63 @@ void main() {
       expect(heard, contains(SoundCue.dungeonInteract));
     });
   });
+
+  group('THE REVIEW (2026-09-25)', () {
+    test('a won star draws won after the party falls', () {
+      final party = _idealTrio();
+      final g = PlanetDungeonGame(
+        element: 'Light',
+        party: party,
+        initialStarMask: 0,
+        onStarEarned: (_) {},
+        onPlayerDown: () {},
+        onChanged: () {},
+      );
+      g.currentRoomId = g.layout.entranceRoomId;
+      for (final m in party) {
+        g.creatures.add(
+          DungeonCreature(member: m)
+            ..position = g.layout.entranceSpawn
+            ..lastSafe = g.layout.entranceSpawn,
+        );
+      }
+      g.earnStar(0);
+      g.earnStar(1);
+      for (final c in g.creatures) {
+        c.hp = 0;
+      }
+      g.update(1 / 60);
+      expect(g.archive.effigiesRead.length, kCourtEffigies.length);
+      expect(g.archive.slipsDrawn.length, kArchiveSlips.length);
+    });
+
+    test('at a beacon the readout is the hall after the next press', () {
+      final g = harness(_idealTrio());
+      g.entryDoorRevealed = true;
+      final b = archiveBeaconById('bc_narthex')!;
+      g.currentRoomId = b.roomId;
+      g.setActive(light);
+      for (final c in g.creatures) {
+        c
+          ..position = b.post
+          ..lastSafe = b.post;
+      }
+      final before = g.archive.lamp[b.id];
+      final r = g.progressReadout!;
+      expect(r.label, 'NEXT PRESS');
+      // Reading the preview changes nothing.
+      expect(g.archive.lamp[b.id], before);
+      // And it is right: press, and the lumens are what it said.
+      final said = r.value.split('/').first;
+      g.activateAbility();
+      expect('${g.archive.lumens}', said);
+    });
+
+    test('Solarin waking is spoken', () {
+      expect(
+        kPlanetDungeonLayouts['Light']!.riteWakeLine,
+        contains('Solarin is awake'),
+      );
+    });
+  });
 }
