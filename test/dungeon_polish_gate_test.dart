@@ -14,7 +14,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 
 void main() {
-  test('the polished set is the ten that have had the pass', () {
+  test('the polished set is the twelve that have had the pass', () {
     expect(kPolishedDungeons, {
       'Fire',
       'Air',
@@ -32,6 +32,8 @@ void main() {
       'Ice',
       // Dust, 2026-09-25: the whole pass, played.
       'Dust',
+      // Crystal, 2026-09-26, on the author's account.
+      'Crystal',
     });
   });
 

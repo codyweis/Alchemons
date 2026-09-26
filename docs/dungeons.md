@@ -2029,13 +2029,13 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
-**ELEVEN of seventeen (2026-09-25): Fire · Air · Water · Earth · Lightning ·
-Steam · Lava · Poison · Mud · Ice · Dust.** Poison was promoted 2026-09-14;
+**TWELVE of seventeen (2026-09-26): Fire · Air · Water · Earth · Lightning ·
+Steam · Lava · Poison · Mud · Ice · Dust · Crystal.** Poison was promoted 2026-09-14;
 **MUD (pass 2026-09-13) and ICE (pass 2026-09-15) were promoted 2026-09-23**
 on the author's account that both have been played; **DUST was promoted
-2026-09-25** after its night-dig / sand-throw / observatory pass was played. This list is mirrored in code as `kPolishedDungeons`
+2026-09-25** after its night-dig / sand-throw / observatory pass was played. **CRYSTAL was promoted 2026-09-26** on the author's account. This list is mirrored in code as `kPolishedDungeons`
 (`lib/games/cosmic/cosmic_data.dart`), and it is what decides whether a planet
-offers DESCEND or the coming-soon placard — the other ten keep their gate
+offers DESCEND or the coming-soon placard — the other five keep their gate
 ritual and cannot be descended. Promoting a planet is one line there, pinned
 by `test/dungeon_polish_gate_test.dart`.
 

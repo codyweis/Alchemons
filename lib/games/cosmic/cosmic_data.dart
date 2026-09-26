@@ -2044,6 +2044,8 @@ const Set<String> kPolishedDungeons = <String>{
   // art, the watched sand-throw, tile-walled streets and the observatory
   // star, all played on device.
   'Dust',
+  // Crystal — promoted 2026-09-26 on the author's account.
+  'Crystal',
 };
 
 /// True if [element]'s descent is ready for a player: built AND polished.
