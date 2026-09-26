@@ -2489,9 +2489,8 @@ of work below as a finished pass.
 | **Blood** | ✅ | ✅ §9.18 (2026-09-20) | ✅ (2026-09-20) | ⬜ **the gate** — see its entry |
 | **Ice** | ✅ | ✅ §9.12 (2026-09-19) | ✅ | ⬜ **the gate** — see its entry |
 
-Blood additionally still has GENERIC FIXTURES — its ostia, cocks, balance,
-drum and vagal node are circles, rings and bars standing on very good
-tissue. Dust's observatory carries a local patch for a shared bug (below).
+Blood's generic fixtures were rebuilt as objects on 2026-09-20 and its
+obstacles on 2026-09-25 (see its entry). Dust's observatory carries a local patch for a shared bug (below).
 
 **WHAT THE EIGHT PARALLEL PASSES TAUGHT, beyond their own planets.** Every
 one of them failed the same way at least once, and it is always the same
@@ -3115,6 +3114,32 @@ sound. Rendered room by room first, then:
     the build note's tuning target with it: the longest forced wait (~20s in
     the reliquary). `Blood` stays out of `kPolishedDungeons` until it has
     been played.
+  · ✅ **THE REVIEW (2026-09-25)** — every room rendered, every star checked
+    for hidden rules and clocks.
+      – *Two presses still had to land INSIDE a phase:* priming an ostium
+        (one of them in the 4 s backwash) and breaking a clot (the 5 s
+        flatline). The header's rule is WHERE, not WHEN, and the doors
+        already honoured it (stand in the doorway; the beat opens it). Now a
+        right hand pressed off-phase is LAID: a collar of the element's
+        colour breathes round the mouth or the cock, and it takes by itself
+        when its phase comes round, as long as the party is still in that
+        chamber. Leaving lifts the hand. Pinned in the orrery test.
+      – *The heart, felt:* a heavy lub-dub haptic the whole time you are on
+        Hemavorn, silent on the flatline (so the pause the valves and clots
+        wait for is felt in the hand), 60 bpm at rest rising to 140 as the
+        stars, Sanguorath's waking and its falling health bring the end
+        closer; it settles once the Systole Star is won. Its own tempo, laid
+        over the 25 s puzzle clock — the clock stays as slow as planning
+        needs. Respects the haptics setting.
+      – *The obstacles were the shared rounded bar:* a fallen rib, a
+        collapsed span, a keystone, a baffle and a knot of capillary were
+        one crimson pill. Now a curved bone, a buckled tube with its lumen
+        pressed to a slit, a cracked plaque wedge, a veined valve leaf and a
+        ball of fine vessels, each with footing; the tissue ones swell on
+        the beat.
+      – *Left as is, knowingly:* rushing the lung can clear the stair and the
+        weave on one diastole with about a second to spare; dawdling costs
+        one beat's wait and nothing else. Worth watching on device.
 
 ### §9.18 BLOOD'S LOST MAXIM — the thrombus
 
@@ -3209,6 +3234,34 @@ gall that all fired silently. Rendered room by room first, then:
     not halve at tiny, and whether the redrawn ground carries the scale
     without that is exactly what a phone will tell us. `Plant` stays out of
     `kPolishedDungeons` until it has been played.
+  · ✅ **THE REVIEW (2026-09-25)** — the Dust/Earth/Crystal pass: every room
+    rendered, every star checked for hidden rules and clocks.
+      – *A clock:* the mulch pit's second turn had to land within 4 s of the
+        first. It stays armed now until you leave the room, and steams while
+        it is (pinned in the crypt test).
+      – *The hidden rule the planet turns on:* what a bed grows depends on
+        the size of the hand that plants it, and nothing at the bed said so;
+        the road it opens was a door that did not exist until it grew. At a
+        bare bed you now see, ghosted, what a seed set at your size NOW would
+        grow — at full size a creeper running to the door it will open, small
+        a trunk with its bough out to its door and bark over the crack it
+        will fill.
+      – *The beds were invisible:* a dark slit on a dark floor. A bare bed is
+        a kerbed plot of turned soil with the split down it.
+      – *Growth snapped in one frame, as a rectangle and a circle.* A creeper
+        now UNROLLS from the bed to its door (~1.8 s); a trunk rises from a
+        root flare, puts its bough out over the floor to its door, leafs, and
+        bark swells over the crack it filled. The far room shows the road's
+        other end coming in at its door.
+      – *A size change swapped the room in one frame.* The old size's ground
+        dissolves over the new one (0.7 s) and the altar bowl swells/shrinks.
+      – *The sepulchre was a blank tan slab.* A stone chest with a carved lid
+        and clay along its seam; the rite drops the clay and slides the lid.
+      – *Decorative clutter that read as machinery:* the walk's chevron
+        runner (arrows), the court's jointed ring (a dial), the porch's
+        root-boss and the hall's flower are gone; only the niche's effigy and
+        the arena ring stay. Floor roots no longer come in through doorways
+        or cross to the far wall, where they read as boughs and creepers.
 
 ### §9.17 PLANT'S LOST MAXIM — the shade the trap throws
 

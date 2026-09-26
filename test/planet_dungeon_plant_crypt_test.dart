@@ -601,6 +601,25 @@ void main() {
       expect(g.crypt.witherings, 1);
     });
 
+    test('the armed pit has no clock — only leaving the room disarms it', () {
+      // It was a four-second window (2026-09-25 review): a confirmation you
+      // could miss by reading the warning.
+      final g = harness(_idealTrio());
+      act(g, plant, 'fern_gallery', bedOf('b_root'));
+      final pit = layout.rooms['fern_gallery']!.grove!.mulchPit!;
+      act(g, mud, 'fern_gallery', pit);
+      for (var i = 0; i < 60 * 30; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.crypt.armedPitRoom, 'fern_gallery');
+      g.currentRoomId = 'mosswalk';
+      g.update(1 / 60);
+      expect(g.crypt.armedPitRoom, isNull);
+      g.currentRoomId = 'fern_gallery';
+      act(g, mud, 'fern_gallery', pit);
+      expect(g.crypt.stateOf('b_root'), VineState.creeper, reason: 're-armed');
+    });
+
     test('it puts you out at the gate, in your own body', () {
       // The load-bearing half: a small body on the islet has ONE small road
       // out, and it is the very creeper the season takes away.

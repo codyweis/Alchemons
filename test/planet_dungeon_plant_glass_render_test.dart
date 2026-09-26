@@ -14,6 +14,7 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -138,7 +139,70 @@ void main() {
         setup: (g) => g.discoveredClouds.add(kPlantUnseenShadeEggId),
       );
 
+      // THE BEDS (2026-09-25): a creeper unrolled to the islet door, a trunk
+      // with its bough out to the court door and bark over the worm-run, a
+      // trunk caught half-grown, and the ghost a bare bed shows the body
+      // standing at it — a creeper at full size, a trunk when small.
+      void standAt(PlanetDungeonGame g, Offset p) {
+        for (final c in g.creatures) {
+          c.position = p;
+        }
+      }
+
+      final rootBed = cryptBedById('b_root')!.crown;
+      await shoot(
+        'bed_creeper',
+        'fern_gallery',
+        setup: (g) => g.crypt.bed['b_root'] = VineState.creeper,
+      );
+      await shoot(
+        'bed_trunk',
+        'fern_gallery',
+        setup: (g) => g.crypt.bed['b_root'] = VineState.trunk,
+      );
+      await shoot(
+        'bed_growing',
+        'fern_gallery',
+        setup: (g) {
+          g.crypt.scale = PlantScale.tiny;
+          standAt(g, rootBed);
+          g.setActive(0); // the Plant hand
+          g.activateAbility();
+        },
+        seconds: 0.7,
+      );
+      await shoot(
+        'bed_preview_huge',
+        'fern_gallery',
+        setup: (g) => standAt(g, rootBed + const Offset(0, 50)),
+      );
+      await shoot(
+        'bed_preview_tiny',
+        'fern_gallery',
+        setup: (g) {
+          g.crypt.scale = PlantScale.tiny;
+          standAt(g, rootBed + const Offset(0, 50));
+        },
+      );
+      await shoot(
+        'court_far_end',
+        'lantern_court',
+        setup: (g) => g.crypt.bed['b_root'] = VineState.trunk,
+      );
+      await shoot('tomb_sealed', 'bloom_hall');
+      await shoot(
+        'tomb_open',
+        'bloom_hall',
+        setup: (g) => g.conduitEnergy['B'] = double.infinity,
+      );
+
       for (final (a, b) in const [
+        ('gallery', 'bed_creeper'),
+        ('bed_creeper', 'bed_trunk'),
+        ('bed_trunk', 'bed_growing'),
+        ('gallery', 'bed_preview_huge'),
+        ('bed_preview_huge', 'bed_preview_tiny'),
+        ('tomb_sealed', 'tomb_open'),
         ('lamp_dead', 'lamp_lit'),
         ('altar', 'altar_two'),
         ('altar_two', 'altar_woken'),

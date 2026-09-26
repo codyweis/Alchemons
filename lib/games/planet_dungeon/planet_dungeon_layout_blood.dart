@@ -870,6 +870,13 @@ class SanguineHeart {
   /// vessel takes like any other graft.
   final Set<String> clotSeen = {};
 
+  /// HANDS LAID (2026-09-25): ostium ids and clotted passage ids a right hand
+  /// has been pressed to OUTSIDE their phase. Each takes on its own the next
+  /// time its phase comes round, as long as the party is still in that
+  /// chamber — so the ask is WHERE you wait, never WHEN you press. Leaving
+  /// the chamber lifts the hand.
+  final Set<String> laid = {};
+
   /// Seconds left on the pulse ring the render throws at a phase turn.
   double turn = 0;
 
@@ -888,6 +895,7 @@ class SanguineHeart {
     arrest = 0;
     vagalCooldown = 0;
     clotSeen.clear();
+    laid.clear();
     turn = 0;
     // The corruption is NOT cleared here: a death inside the run must not
     // re-roll which vessels are sound, or the Light flagging would be a lie.

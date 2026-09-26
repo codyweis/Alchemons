@@ -449,6 +449,13 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
           HapticFeedback.mediumImpact();
         case DungeonHaptic.big:
           HapticFeedback.heavyImpact();
+        case DungeonHaptic.heartbeat:
+          // Lub-DUB: the heavy knock, then the softer echo close behind it.
+          HapticFeedback.heavyImpact();
+          Future<void>.delayed(
+            const Duration(milliseconds: 150),
+            HapticFeedback.mediumImpact,
+          );
       }
     };
     setState(() {

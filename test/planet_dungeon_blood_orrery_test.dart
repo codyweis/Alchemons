@@ -452,6 +452,75 @@ void main() {
   });
 
   // ─────────────────────────────────────────────────────────
+  group('plan, then commit — no press has to land inside a phase', () {
+    int handFor(String el) => switch (el) {
+      'Blood' => blood,
+      'Dark' => dark,
+      _ => light,
+    };
+
+    test('a hand laid on a mouth off-phase drinks when its phase comes', () {
+      final g = harness(_idealTrio());
+      final o = kHeartOstia.firstWhere((x) => x.phase == PulsePhase.dicrotic);
+      g.entryDoorRevealed = true;
+      travel(g, o.roomId);
+      advanceTo(g, PulsePhase.diastole);
+      act(g, handFor(o.element), o.roomId, o.position);
+      expect(g.heart.ostiaPrimed, isNot(contains(o.id)));
+      expect(g.heart.laid, contains(o.id));
+      advanceTo(g, o.phase);
+      g.update(1 / 60);
+      expect(g.heart.ostiaPrimed, contains(o.id));
+      expect(g.heart.laid, isNot(contains(o.id)));
+    });
+
+    test('leaving the chamber lifts the hand', () {
+      final g = harness(_idealTrio());
+      final o = kHeartOstia.firstWhere((x) => x.phase == PulsePhase.dicrotic);
+      g.entryDoorRevealed = true;
+      travel(g, o.roomId);
+      advanceTo(g, PulsePhase.diastole);
+      act(g, handFor(o.element), o.roomId, o.position);
+      g.currentRoomId = 'arterial_run';
+      g.update(1 / 60);
+      expect(g.heart.laid, isEmpty);
+      g.currentRoomId = o.roomId;
+      advanceTo(g, o.phase);
+      g.update(1 / 60);
+      expect(g.heart.ostiaPrimed, isNot(contains(o.id)));
+    });
+  });
+
+  group('the heart, felt — haptics over the clock', () {
+    test('it beats through the flow and goes silent on the flatline', () {
+      final g = harness(_idealTrio());
+      final beats = <PulsePhase>[];
+      g.onHaptic = (k) {
+        if (k == DungeonHaptic.heartbeat) beats.add(g.heart.phase);
+      };
+      for (var i = 0; i < (kPulseCycleSeconds * 2 * 60).round(); i++) {
+        g.update(1 / 60);
+      }
+      expect(beats, isNotEmpty);
+      expect(beats, isNot(contains(PulsePhase.flatline)));
+      // A real heart's rate, not the puzzle clock's: dozens in two cycles.
+      expect(beats.length, greaterThan(25));
+    });
+
+    test('it quickens toward the end, and settles once it is answered', () {
+      final g = harness(_idealTrio());
+      final rest = g.heartBpm;
+      g.starMask = 0x3;
+      final twoStars = g.heartBpm;
+      g.guardianAwake = true;
+      final awake = g.heartBpm;
+      expect(twoStars, greaterThan(rest));
+      expect(awake, greaterThan(twoStars));
+      g.starMask = 0x7;
+      expect(g.heartBpm, lessThan(twoStars));
+    });
+  });
+
   group('THE NO-STRAND PROOF — over TIME, not just over space', () {
     final r = harness(_idealTrio()).solveSanguineOrrery();
 

@@ -64,10 +64,10 @@ const double _kCryptReach = 70.0;
 /// it substitutes the ELEMENT, never a family).
 const double _kBraidReach = 150.0;
 
-/// Seconds a turned mulch pit stays armed for its second touch. The withering
-/// is the most expensive verb on the planet, so it is never one careless
-/// press: the first touch turns the litter and says what it will cost.
-const double _kMulchArmSeconds = 4.0;
+// A turned mulch pit stays armed for its second touch until the party leaves
+// the room. It was a four-second window (2026-09-25 review): the withering is
+// the most expensive verb on the planet, and a confirmation you can miss by
+// reading the warning is timing pressure, not caution.
 
 /// Grave-moths a relit lamp wakes (Star 0's one consequence). Light in a crypt
 /// is not free — something in the dark has been waiting for it.
@@ -85,6 +85,8 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     // A death regrows nothing and unshrinks nothing by itself — the crypt is
     // puzzle state like every other planet's, so it resets with the run.
     crypt.reset();
+    _bedGrow.clear();
+    _scaleFade = 0;
   }
 
   // ── The map, at the size you are ─────────────────────────
@@ -217,6 +219,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
   void _shiftScale(PlantScale to, Offset at) {
     if (crypt.scale == to) return;
     crypt.scale = to;
+    _scaleFade = 1; // the old size's picture fades out over the new one
     _cue(SoundCue.dungeonSwitch);
     _cue(SoundCue.elementPlant);
     // A CONSEQUENCE (§5.7): every passage in the crypt just changed for you.
@@ -254,18 +257,18 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     }
     if (crypt.armedPitRoom != currentRoomId) {
       crypt.armedPitRoom = currentRoomId;
-      crypt.armedPitTimer = _kMulchArmSeconds;
       // Attempt-edged and explicit: the most expensive verb on the planet
       // never fires on one careless press — and it is SPOKEN, because a
       // warning nobody is shown is not a warning (§5.7).
       _cue(SoundCue.dungeonSwitch);
       speakConsequence(
         'The mulch steams. Turn it again to reset every plant in the crypt',
-        _kMulchArmSeconds,
+        4.0,
       );
       return true;
     }
     crypt.wither();
+    _bedGrow.clear();
     _cue(SoundCue.dungeonWallBreak);
     // The season sloughs the party out with the leaf-fall. Without this the
     // valve could not save a small body on the islet, whose only small road
@@ -505,6 +508,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
         return true;
       }
       final grown = crypt.plant(b.id)!;
+      _bedGrow[b.id] = 0; // it grows in front of you, toward its door
       _cue(
         grown == VineState.trunk
             ? SoundCue.dungeonBlockMove
@@ -579,6 +583,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     if (!guardianVulnerable && _botanicaBitLastFrame) {
       _botanicaBitLastFrame = false;
       crypt.scale = PlantScale.huge;
+      _scaleFade = 1;
       final rotted = _rotOneVine();
       _cue(SoundCue.dungeonHazardTrigger);
       // A closing announces itself (§5.7): from update, where a plain line is
@@ -599,6 +604,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     for (final b in kCryptBeds) {
       if (crypt.stateOf(b.id) == VineState.bare) continue;
       crypt.bed[b.id] = VineState.bare;
+      _bedGrow.remove(b.id);
       return b.id;
     }
     return null;
@@ -726,9 +732,9 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
 
   void _updateCrypt(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isCrypt) return;
-    if (crypt.armedPitTimer > 0) {
-      crypt.armedPitTimer = max(0.0, crypt.armedPitTimer - dt);
-      if (crypt.armedPitTimer == 0) crypt.armedPitRoom = null;
+    // Walking away from a steaming pit is the answer "no".
+    if (crypt.armedPitRoom != null && crypt.armedPitRoom != currentRoomId) {
+      crypt.armedPitRoom = null;
     }
     _updateBotanica(room, dt);
   }
@@ -1141,6 +1147,17 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
 
   void _renderCrypt(Canvas canvas, DungeonRoom room) {
     _renderCryptGround(canvas, room);
+    // A SIZE CHANGE DISSOLVES (2026-09-25): the picture you just left fades
+    // out over the one you are now, so the moss visibly BECOMES a canopy
+    // rather than the room swapping in a frame. Two grounds for 0.7s.
+    if (_scaleFade > 0) {
+      canvas.saveLayer(
+        room.bounds.inflate(40),
+        Paint()..color = Colors.white.withValues(alpha: _scaleFade),
+      );
+      _renderCryptGround(canvas, room, tiny: !crypt.isTiny);
+      canvas.restore();
+    }
     _renderGlassDoorPlugs(canvas, room);
     _renderCryptSpans(canvas, room);
     _renderCryptBeds(canvas, room);
@@ -1174,10 +1191,13 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
   /// Cost: everything irregular is cached (see `_cryptGroundCache`). Per frame
   /// this is fills and strokes over a fixed list, plus three phases — the fern
   /// sway, the sheen on standing water, and a drift of spores.
-  void _renderCryptGround(Canvas canvas, DungeonRoom room) {
+  void _renderCryptGround(Canvas canvas, DungeonRoom room, {bool? tiny}) {
+    return _renderCryptGroundAt(canvas, room, tiny ?? crypt.isTiny);
+  }
+
+  void _renderCryptGroundAt(Canvas canvas, DungeonRoom room, bool tiny) {
     final g = _cryptGround(room);
     final b = room.bounds.deflate(10);
-    final tiny = crypt.isTiny;
     final t = _time;
 
     // The gourd is not a room of the crypt at all — it is the inside of a
@@ -2417,115 +2437,6 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
   /// only a small body takes, a tall arch for one only a big body takes. The
   /// bar is drawn in the party's own colour when it fits and in bone when it
   /// does not, so "wrong size" is legible before you walk into it.
-  void _renderCryptSpans(Canvas canvas, DungeonRoom room) {
-    for (final d in room.doors) {
-      if (isDoorHidden(room, d)) continue;
-      final span = cryptSpanBetween(room.id, d.targetRoomId);
-      if (span == null || span.size == SpanSize.both) continue;
-      final fits = crypt.spanFits(span, crypt.scale);
-      final c = fits ? _kCryptGreen : _kCryptBone.withValues(alpha: 0.5);
-      final at = d.rect.center;
-      final paint = Paint()
-        ..color = c
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = fits ? 3.5 : 2;
-      if (span.size == SpanSize.tinyOnly) {
-        canvas.drawLine(
-          at + const Offset(-16, 8),
-          at + const Offset(16, 8),
-          paint,
-        );
-        canvas.drawLine(
-          at + const Offset(-10, 2),
-          at + const Offset(10, 2),
-          paint,
-        );
-      } else {
-        final r = Rect.fromCenter(center: at, width: 30, height: 40);
-        canvas.drawArc(r, pi, pi, false, paint);
-        canvas.drawLine(
-          Offset(r.left, r.center.dy),
-          Offset(r.left, r.bottom),
-          paint,
-        );
-        canvas.drawLine(
-          Offset(r.right, r.center.dy),
-          Offset(r.right, r.bottom),
-          paint,
-        );
-      }
-    }
-  }
-
-  void _renderCryptBeds(Canvas canvas, DungeonRoom room) {
-    for (final b in cryptBedsIn(room.id)) {
-      final at = b.crown;
-      switch (crypt.stateOf(b.id)) {
-        case VineState.bare:
-          // A dark split with loose soil banked either side.
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromCenter(center: at, width: 96, height: 26),
-              const Radius.circular(10),
-            ),
-            Paint()..color = _kCryptDeep.withValues(alpha: 0.6),
-          );
-          canvas.drawRect(
-            Rect.fromCenter(center: at, width: 12, height: 40),
-            Paint()..color = const Color(0xFF120E09),
-          );
-        case VineState.creeper:
-          // ONE hairline filament with leaf nodes — nothing at your own size.
-          final line = Paint()
-            ..color = _kCryptGreen
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = crypt.isTiny ? 5 : 1.6;
-          final path = Path()..moveTo(at.dx - 60, at.dy + 10);
-          for (var i = 1; i <= 4; i++) {
-            path.quadraticBezierTo(
-              at.dx - 60 + 30 * i - 15,
-              at.dy + (i.isEven ? -14 : 20),
-              at.dx - 60 + 30 * i,
-              at.dy + 10,
-            );
-          }
-          canvas.drawPath(path, line);
-          for (var i = 0; i <= 4; i++) {
-            canvas.drawCircle(
-              Offset(at.dx - 60 + 30 * i, at.dy + 10),
-              crypt.isTiny ? 6 : 2.6,
-              Paint()..color = _kCryptGreen,
-            );
-          }
-        case VineState.trunk:
-          // A broad barked column, with a crown of leaf where it goes up.
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromCenter(center: at, width: 56, height: 120),
-              const Radius.circular(12),
-            ),
-            Paint()..color = _kCryptBark,
-          );
-          final grain = Paint()
-            ..color = const Color(0xFF3F2C1B)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2;
-          for (var i = -1; i <= 1; i++) {
-            canvas.drawLine(
-              Offset(at.dx + i * 16, at.dy - 54),
-              Offset(at.dx + i * 16, at.dy + 54),
-              grain,
-            );
-          }
-          canvas.drawCircle(
-            at - const Offset(0, 74),
-            34,
-            Paint()..color = _kCryptGreen.withValues(alpha: 0.75),
-          );
-      }
-    }
-  }
-
   void _renderCryptObjects(Canvas canvas, DungeonRoom room) {
     final g = room.grove;
     if (g == null) return;
@@ -2595,7 +2506,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     // The mulch pit: a low heap of leaf-litter, warmer when it is armed.
     final pit = g.mulchPit;
     if (pit != null) {
-      final armed = crypt.armedPitRoom == room.id && crypt.armedPitTimer > 0;
+      final armed = crypt.armedPitRoom == room.id;
       canvas.drawOval(
         Rect.fromCenter(center: pit, width: 74, height: 34),
         Paint()
@@ -2611,6 +2522,23 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
           pit + Offset(i * 20.0 + 10, 8),
           leaf,
         );
+      }
+      // Armed, it STEAMS — and keeps steaming until you turn it again or
+      // walk away. There is no clock on it.
+      if (armed) {
+        for (var k = 0; k < 3; k++) {
+          final ph = (_time * 0.55 + k / 3) % 1.0;
+          final p =
+              pit + Offset((k - 1) * 18 + sin(_time + k) * 5, -8 - ph * 46);
+          final r = 6 + ph * 10;
+          canvas.drawOval(
+            Rect.fromCenter(center: p, width: r * 1.4, height: r),
+            Paint()
+              ..color = const Color(
+                0xFFE6DCC4,
+              ).withValues(alpha: 0.28 * (1 - ph)),
+          );
+        }
       }
     }
 
@@ -2699,24 +2627,27 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     // trick: plain to see from up here, and a hand high).
     final altar = g.growthAltar;
     if (altar != null) {
+      // The bowl swells or shrinks with the size change rather than
+      // jumping between its two readings.
+      final k = _tinyMix;
       final bowl = Rect.fromCenter(
         center: altar,
-        width: crypt.isTiny ? 320 : 130,
-        height: crypt.isTiny ? 190 : 78,
+        width: 130 + (320 - 130) * k,
+        height: 78 + (190 - 78) * k,
       );
       canvas.drawOval(
         bowl,
         Paint()..color = _kCryptBone.withValues(alpha: 0.5),
       );
       canvas.drawOval(
-        bowl.deflate(crypt.isTiny ? 26 : 12),
+        bowl.deflate(12 + 14 * k),
         Paint()
           ..color = crypt.bloomStep >= 1
               ? const Color(0xFF4A3A22)
               : _kCryptDeep.withValues(alpha: 0.6),
       );
       // The bowl's three steps as glass: loam, seed, sun (§7.11).
-      _drawAltarGlass(canvas, altar, bowl.deflate(crypt.isTiny ? 26 : 12));
+      _drawAltarGlass(canvas, altar, bowl.deflate(12 + 14 * k));
       // The rim door.
       canvas.drawRect(
         Rect.fromLTWH(bowl.right - 14, bowl.center.dy - 9, 14, 18),
@@ -2724,32 +2655,9 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       );
     }
 
-    // The sepulchre's baked clay.
+    // The sepulchre: a stone chest sealed with clay, whose lid slides aside.
     final tomb = g.sepulchre;
-    if (tomb != null) {
-      final sealed = (conduitEnergy['B'] ?? 0) <= 0;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: tomb, width: 130, height: 62),
-          const Radius.circular(8),
-        ),
-        Paint()
-          ..color = sealed
-              ? const Color(0xFF8C7A5C)
-              : _kCryptDeep.withValues(alpha: 0.85),
-      );
-      if (sealed) {
-        final crack = Paint()
-          ..color = const Color(0xFF5B4A32)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2;
-        canvas.drawLine(
-          tomb + const Offset(-40, -10),
-          tomb + const Offset(10, 14),
-          crack,
-        );
-      }
-    }
+    if (tomb != null) _drawSepulchre(canvas, tomb);
 
     // THE UNSEEN SHADE (the Lost Maxim). While the giant root's trunk stands,
     // its bough throws a shade across the gallery floor from the bed to the
@@ -3222,26 +3130,52 @@ _CryptGround _buildCryptGround(DungeonRoom room) {
   // a brown hoop drawn on the floor. Separate roots that happen to crowd the
   // same wall read as the root-bowl of something enormous; a closed curve
   // never will.
+  //
+  // NEVER THROUGH A DOORWAY (2026-09-25 review). A root coming in under a
+  // door is a brown limb running from a way out into the room — which is
+  // exactly what a bough or a creeper road looks like, and on this planet
+  // those are the puzzle. A root whose foot lands within reach of any door
+  // is re-rolled along the wall.
   final n = arena ? 8 : 2 + (rnd() * 2.4).floor();
-  for (var i = 0; i < n; i++) {
+  final doorAt = [for (final d in room.doors) d.rect.center];
+  Offset wallFoot() {
     final side = (rnd() * 4).floor();
-    final a = arena
+    return switch (side) {
+      0 => Offset(b.left + 40 + rnd() * (b.width - 80), b.top - 14),
+      1 => Offset(b.right + 14, b.top + 40 + rnd() * (b.height - 80)),
+      2 => Offset(b.left + 40 + rnd() * (b.width - 80), b.bottom + 14),
+      _ => Offset(b.left - 14, b.top + 40 + rnd() * (b.height - 80)),
+    };
+  }
+
+  for (var i = 0; i < n; i++) {
+    var a = arena
         ? b.center +
               Offset(
                 cos(i / n * pi * 2 + rnd() * 0.4) * b.width * 0.56,
                 sin(i / n * pi * 2 + rnd() * 0.4) * b.height * 0.56,
               )
-        : switch (side) {
-            0 => Offset(b.left + 40 + rnd() * (b.width - 80), b.top - 14),
-            1 => Offset(b.right + 14, b.top + 40 + rnd() * (b.height - 80)),
-            2 => Offset(b.left + 40 + rnd() * (b.width - 80), b.bottom + 14),
-            _ => Offset(b.left - 14, b.top + 40 + rnd() * (b.height - 80)),
-          };
+        : wallFoot();
+    for (var tries = 0; tries < 12; tries++) {
+      if (!doorAt.any((d) => (d - a).distance < 150)) break;
+      a = arena
+          ? b.center +
+                Offset(
+                  cos(i / n * pi * 2 + 0.35 + tries * 0.2) * b.width * 0.56,
+                  sin(i / n * pi * 2 + 0.35 + tries * 0.2) * b.height * 0.56,
+                )
+          : wallFoot();
+    }
     // A tip in the outer band: past the wall, short of the open centre.
-    final ang = arena
-        ? atan2(a.dy - b.center.dy, a.dx - b.center.dx) + (rnd() - 0.5) * 1.1
-        : rnd() * pi * 2;
-    final reach = arena ? 0.46 + rnd() * 0.18 : 0.52 + rnd() * 0.30;
+    // On the foot's own side of the room: a random angle put the tip by the
+    // OPPOSITE wall, and the root crossed the whole floor to get there.
+    final ang =
+        atan2(a.dy - b.center.dy, a.dx - b.center.dx) +
+        (rnd() - 0.5) * (arena ? 1.1 : 1.4);
+    // Short (2026-09-25): the tip used to stop 0.52–0.82 of the half-width
+    // from the centre, so a root swept whole rooms, under the beds and across
+    // the roads grown from them. It now stays in the band along the wall.
+    final reach = arena ? 0.46 + rnd() * 0.18 : 0.70 + rnd() * 0.16;
     final z =
         b.center +
         Offset(

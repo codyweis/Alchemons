@@ -575,9 +575,9 @@ class VerdantCrypt {
   /// readout.
   int witherings = 0;
 
-  /// Mulch pit armed for its second touch, and the seconds left on it.
+  /// The room whose mulch pit is armed for its second touch. It stays armed
+  /// until the party leaves that room — a confirmation, never a clock.
   String? armedPitRoom;
-  double armedPitTimer = 0;
 
   /// The crypt as its dead left it: nothing grown, and your own size.
   void reset() {
@@ -592,7 +592,6 @@ class VerdantCrypt {
     shadeRisen = false;
     witherings = 0;
     armedPitRoom = null;
-    armedPitTimer = 0;
   }
 
   // ── Beds ──────────────────────────────────────────────
@@ -681,7 +680,6 @@ class VerdantCrypt {
     }
     scale = PlantScale.huge;
     armedPitRoom = null;
-    armedPitTimer = 0;
     witherings++;
   }
 }

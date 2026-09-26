@@ -255,41 +255,59 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         return true;
       }
       if (heart.phase != o.phase) {
-        _setBlockedHint(
-          'Wrong moment. This mouth only drinks on ${phaseWord(o.phase)}',
+        // PLAN, THEN COMMIT: the hand stays on it, and the mouth drinks by
+        // itself when its phase comes. Nothing to press at the right instant.
+        if (heart.laid.add(o.id)) {
+          _cue(SoundCue.dungeonInteract);
+          _spawnAlchemyBurst(
+            o.position,
+            producedElement: o.element,
+            particleCount: 8,
+            intensity: 0.5,
+          );
+        }
+        _setHint(
+          'Your hand is on it. It drinks on ${phaseWord(o.phase)}. '
+          'Stay in this room',
         );
         return true;
       }
-      heart.ostiaPrimed.add(o.id);
-      _cue(SoundCue.elementBlood);
-      _spawnAlchemyBurst(
-        o.position,
-        producedElement: 'Blood',
-        reagentElements: [o.element],
-        particleCount: 26,
-        intensity: 1.15,
-      );
-      // THE CONSEQUENCE (§7, one per star): waking a dead organ wakes what has
-      // been living in it.
-      spawnWispWave(
-        element: 'Blood',
-        center: o.position,
-        count: _kOstiumClots,
-        unstable: true,
-        announce: false,
-      );
-      if (!heart.everyOstiumPrimed) {
-        _setHint('The mouth takes it, and something in the wall lets go');
-        return true;
-      }
-      final idx = _primingStarRoom?.sanguine?.starIndex;
-      if (idx != null && !hasStar(idx)) {
-        _setHint('Four mouths drinking, and never two of them on one beat');
-        earnStar(idx);
-      }
+      _primeOstium(o);
       return true;
     }
     return false;
+  }
+
+  /// A mouth drinks: the star's one step, whoever triggered it.
+  void _primeOstium(Ostium o) {
+    heart.laid.remove(o.id);
+    heart.ostiaPrimed.add(o.id);
+    _cue(SoundCue.elementBlood);
+    _spawnAlchemyBurst(
+      o.position,
+      producedElement: 'Blood',
+      reagentElements: [o.element],
+      particleCount: 26,
+      intensity: 1.15,
+    );
+    // THE CONSEQUENCE (§7, one per star): waking a dead organ wakes what has
+    // been living in it.
+    spawnWispWave(
+      element: 'Blood',
+      center: o.position,
+      count: _kOstiumClots,
+      unstable: true,
+      announce: false,
+    );
+    if (!heart.everyOstiumPrimed) {
+      speakConsequence('The mouth drinks, and something in the wall lets go');
+      return;
+    }
+    final idx = _primingStarRoom?.sanguine?.starIndex;
+    if (idx != null && !hasStar(idx)) {
+      _setHint('Four mouths drinking, and never two of them on one beat');
+      earnStar(idx);
+    }
   }
 
   // ── Star 1 · THE GRAFTS ──────────────────────────────────
@@ -641,17 +659,29 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     }
     // ── 3 · broken, on the pause ──
     if (heart.phase != PulsePhase.flatline) {
-      _spawnAlchemyBurst(
-        c.position,
-        producedElement: 'Blood',
-        particleCount: 8,
-        intensity: 0.5,
-      );
-      _setBlockedHint(
-        'The pressure holds the clot in place. It needs the flatline',
+      // The hand stays on the clot; it gives by itself on the next pause.
+      if (heart.laid.add(p.id)) {
+        _cue(SoundCue.dungeonInteract);
+        _spawnAlchemyBurst(
+          c.position,
+          producedElement: 'Blood',
+          particleCount: 8,
+          intensity: 0.5,
+        );
+      }
+      _setHint(
+        'Your hand is on the clot. The pressure holds it until the flatline. '
+        'Stay in this room',
       );
       return true;
     }
+    _breakClot(c, p);
+    return true;
+  }
+
+  /// A clot gives on the pause, and the vessel takes like any graft.
+  void _breakClot(CollateralCock c, HeartPassage p) {
+    heart.laid.remove(p.id);
     heart.grafted.add(p.id);
     _cue(SoundCue.dungeonWallBreak);
     _spawnAlchemyBurst(
@@ -663,7 +693,10 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     );
     _queueDoorReveal(p.from, p.to);
     _queueDoorReveal(p.to, p.from);
-    if (!everyVesselCarries) return true;
+    if (!everyVesselCarries) {
+      speakConsequence('The clot gives, and the vessel carries');
+      return;
+    }
     // ── 4 · every vessel carrying: the blood is the life ──
     _cue(SoundCue.dungeonGateOpen);
     // THE RITE OF THREE pays this out (see `beginMaximRite`).
@@ -675,13 +708,14 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       particleCount: 44,
       intensity: 1.5,
     );
-    return true;
   }
 
   // ── Per-frame ────────────────────────────────────────────
 
   void _updateHeart(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isHeart) return;
+    _tickHeartHaptic(dt);
+    _settleLaidHands();
     // THE BEAT. The world's move, and the only mover on the planet the player
     // has no verb for. It runs whether or not anybody acts, which is exactly
     // what makes the reachability question a question about TIME.
@@ -703,6 +737,78 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       }
     }
     _updateSanguorath(room, dt);
+  }
+
+  /// A hand laid on a mouth or a clot outside its phase takes by itself
+  /// when the phase comes round, while the party stays in that chamber.
+  void _settleLaidHands() {
+    if (heart.laid.isEmpty) return;
+    for (final id in heart.laid.toList()) {
+      Ostium? o;
+      for (final x in kHeartOstia) {
+        if (x.id == id) o = x;
+      }
+      if (o != null) {
+        if (o.roomId != currentRoomId) {
+          heart.laid.remove(id);
+        } else if (heart.phase == o.phase) {
+          _primeOstium(o);
+        }
+        continue;
+      }
+      CollateralCock? c;
+      for (final x in kHeartCocks) {
+        if (x.passageId == id && x.roomId == currentRoomId) c = x;
+      }
+      if (c == null) {
+        heart.laid.remove(id);
+      } else if (heart.phase == PulsePhase.flatline) {
+        _breakClot(c, heartPassageById(id)!);
+      }
+    }
+  }
+
+  // ── THE HEART, FELT (2026-09-25) ──────────────────────────
+  //
+  // The orrery's beat is the PUZZLE's clock — 25 s a cycle, because every
+  // window is a whole phase you can plan for — and far too slow to feel like
+  // a heart. So the hand gets its own pulse, laid over the clock and never
+  // against it: a heavy lub-dub the whole time you are on Hemavorn, SILENT on
+  // the flatline (the pause every valve and every clot waits for, so the
+  // silence in your hand is information), and quicker the nearer the end is.
+
+  /// Resting and racing rates for the felt heartbeat.
+  static const double _kHeartBpmRest = 60, _kHeartBpmRace = 140;
+
+  /// 0 at the gate on a fresh run → 1 with Sanguorath nearly down.
+  double get _heartUrgency {
+    if (hasStar(2)) return 0.05; // it has been answered; it settles
+    var u = 0.0;
+    if (hasStar(0)) u += 0.12;
+    if (hasStar(1)) u += 0.12;
+    if (guardianAwake) {
+      u += 0.16;
+      if (layout.rooms[currentRoomId]?.guardian != null) {
+        u += 0.6 * (1 - _guardianHpFraction);
+      }
+    }
+    return u.clamp(0.0, 1.0);
+  }
+
+  double get heartBpm =>
+      _kHeartBpmRest + (_kHeartBpmRace - _kHeartBpmRest) * _heartUrgency;
+
+  void _tickHeartHaptic(double dt) {
+    if (heart.phase == PulsePhase.flatline) {
+      // Nothing is pushing. The first beat after the pause lands promptly.
+      _heartHapticT = min(_heartHapticT, 0.25);
+      return;
+    }
+    _heartHapticT -= dt;
+    if (_heartHapticT > 0) return;
+    _haptic(DungeonHaptic.heartbeat);
+    _heartHapticT += 60 / heartBpm;
+    if (_heartHapticT < 0) _heartHapticT = 60 / heartBpm;
   }
 
   // ── Readouts, hints, insight (§5.6) ──────────────────────
@@ -927,6 +1033,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     _renderHeartShell(canvas, room);
     _renderGlassDoorPlugs(canvas, room);
     _renderHeartLumens(canvas, room);
+    _renderHeartObstacles(canvas, room);
     _renderHeartObjects(canvas, room);
     _renderHeartTurn(canvas, room);
   }
@@ -1205,6 +1312,22 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
           ..style = PaintingStyle.stroke
           ..strokeWidth = ready ? 2.5 : 1.2,
       );
+      // A HAND LAID ON IT, waiting for its phase: the element's colour closes
+      // round the mouth as a filled collar that breathes — so a player who
+      // has committed can see it is holding, and leave it be.
+      if (heart.laid.contains(o.id) && !primed) {
+        final r0 = outer + 5, r1 = outer + 11 + 2 * pulse;
+        canvas.drawPath(
+          Path()
+            ..fillType = PathFillType.evenOdd
+            ..addOval(Rect.fromCircle(center: o.position, radius: r1))
+            ..addOval(Rect.fromCircle(center: o.position, radius: r0)),
+          Paint()
+            ..color = elementColor(
+              o.element,
+            ).withValues(alpha: 0.35 + 0.2 * pulse),
+        );
+      }
       if (!primed) {
         canvas.drawArc(
           Rect.fromCircle(center: o.position, radius: outer + 10),
@@ -1229,6 +1352,17 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       final dead = turned && !grafted;
       final seen = heart.clotSeen.contains(c.passageId);
       final at = c.position;
+      // A Blood hand laid on the clot, waiting for the pause.
+      if (heart.laid.contains(c.passageId)) {
+        final b = 0.5 + 0.5 * sin(_time * 2.4);
+        canvas.drawPath(
+          Path()
+            ..fillType = PathFillType.evenOdd
+            ..addOval(Rect.fromCircle(center: at, radius: 30 + 2 * b))
+            ..addOval(Rect.fromCircle(center: at, radius: 23)),
+          Paint()..color = _kHeartCrimson.withValues(alpha: 0.35 + 0.2 * b),
+        );
+      }
       // The stub of vessel, running down into the floor.
       final stub = Rect.fromCenter(
         center: at + const Offset(0, 22),

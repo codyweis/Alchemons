@@ -1016,6 +1016,18 @@ class PlanetDungeonGame extends FlameGame {
   /// Plant's shade tree as SHOWN: 0 → 1 as it grows.
   double _shadeGrown = -1;
 
+  /// Plant's seed beds as SHOWN: 0 → 1 as a creeper unrolls toward its door
+  /// or a trunk rises and puts out its bough. A bed with no entry is drawn
+  /// whole (a restored run, a test that set the state directly).
+  final Map<String, double> _bedGrow = {};
+
+  /// Plant's sepulchre lid as SHOWN: 0 sealed → 1 slid aside.
+  double _sepulchreSlide = -1;
+
+  /// Plant's ground crossfade after a size change: 1 → 0, the old size's
+  /// picture fading out over the new one.
+  double _scaleFade = 0;
+
   /// Spirit's dream window as SHOWN: 0 → 1 as its panes light.
   double _dreamShown = -1;
 
@@ -2643,6 +2655,9 @@ class PlanetDungeonGame extends FlameGame {
   double _hapticHp = -1;
   double _hapticHitCd = 0;
   bool _hapticDoorSeen = false;
+
+  /// Seconds to the next felt heartbeat on Blood (see `_tickHeartHaptic`).
+  double _heartHapticT = 0.4;
 
   void _haptic(DungeonHaptic kind) => onHaptic?.call(kind);
 
@@ -10517,6 +10532,8 @@ class PlanetDungeonGame extends FlameGame {
     _renderHazards(canvas, room);
     _renderWalls(canvas, room);
     _renderDoors(canvas, room);
+    // Plant: bark over a crack a trunk has filled, and a bed's preview.
+    if (_isCrypt) _renderCryptOverDoors(canvas, room);
     // Zero-sum darkness: dead trunk wings dim under a cheap eased tint —
     // drawn over the room fabric but UNDER every living thing, so the party,
     // the wisps and the glows stay readable in the dark.
@@ -14110,6 +14127,8 @@ class PlanetDungeonGame extends FlameGame {
     // the module. Made solid 2026-09-15 (a cast-iron column you can stand
     // inside is a decal), and the generic rock promptly drew over them.
     if (_isShaft) return room.walls.toSet();
+    // And Blood: a rib, a keystone, a baffle, a knot — body, not rock.
+    if (_isHeart) return room.walls.toSet();
     return const {};
   }
 
@@ -15541,4 +15560,7 @@ enum DungeonHaptic {
 
   /// A star, a door opening, a rite: the big moments.
   big,
+
+  /// Blood's heart, felt: a heavy LUB and a lighter DUB, beat after beat.
+  heartbeat,
 }
