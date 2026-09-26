@@ -223,11 +223,13 @@ class GustShrine {
 // ── Air Star 3: STORM-ROD STEERING (§6.11 REWORK) ──────────
 // The twin conduits no longer race a decay timer. Conduit A keeps its hard
 // Lightning+Horn gate and LATCHES. Conduit B is struck by the storm itself: a
-// live cell circles the altar, and when it discharges its leader climbs from
-// conductor to conductor — always to the TALLEST one within reach that stands
-// STRICTLY TALLER than the one it is on. Rank the rod field into a staircase
-// that ends at conduit B and the storm lights it for you; rank it wrong and the
-// bolt dies on a rod (wild strike + storm wisps).
+// live cell circles the altar, and when it discharges its leader lands on the
+// nearest LOWEST conductor in reach and climbs ONE RANK at a time — to the
+// nearest conductor exactly one notch taller than the one it is on (see
+// `stormLeaderFrom`; the hint said "tallest" until 2026-09-25, which was
+// wrong). Rank the rod field into a staircase that ends at conduit B and the
+// storm lights it for you; rank it wrong and the bolt dies on a rod (wild
+// strike + storm wisps).
 
 /// A storm-rod: raised and lowered by any Air creature (ELEMENT-ONLY — §4).
 /// Height cycles 0 → [kStormRodMaxHeight] → 0.

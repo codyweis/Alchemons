@@ -37,8 +37,9 @@
 //    Lightning+Horn gate and now LATCHES (the decay timers are gone, and with
 //    them the Wing-only stabilize that existed only to beat them). Conduit B is
 //    struck by the storm itself: a live cell circles the altar, and when it
-//    discharges its leader climbs the rod field — leaping to the tallest iron
-//    in reach that stands exactly ONE RANK above the iron it is on (see
+//    discharges its leader climbs the rod field — landing on the nearest
+//    LOWEST iron, then leaping to the nearest iron in reach that stands
+//    exactly ONE RANK above the iron it is on (see
 //    `stormLeaderFrom` for why that clause is what makes it a puzzle). Rank the
 //    field into a staircase that ends at B and the storm lights it for you.
 //    Rank it wrong and the bolt dies on a rod: wild strike, storm wisps. Gusts
@@ -1354,12 +1355,13 @@ extension WindCrownSpire on PlanetDungeonGame {
   }
 
   String _spireStormInsight(DungeonRoom room, int tier) => tier >= 2
-      ? 'The bolt jumps to the tallest rod in reach, then to a taller one, '
-            'and stops where nothing is taller'
+      ? 'The bolt hits the nearest rod at the lowest height first, then '
+            'steps to the nearest rod exactly one notch taller, and stops when '
+            'there isn\'t one'
       : tier >= 1
       ? 'The storm won\'t come to the conduit. Build a ladder of rising '
             'rods and push the storm cell to its foot'
-      : 'Lightning jumps between the rods by height';
+      : 'Lightning climbs the rods from lowest to highest';
 
   DungeonProgressReadout? _spireProgressReadout() {
     final room = currentRoom;
