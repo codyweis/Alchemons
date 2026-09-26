@@ -307,7 +307,7 @@ void main() {
       expect(game.hintChannel, DungeonHintChannel.insight);
       // Tier 1 narrows the method without spelling out the leader's rule…
       expect(game.hintText, contains('ladder'));
-      expect(game.hintText, isNot(contains('tallest')));
+      expect(game.hintText, isNot(contains('lowest height')));
 
       // …tier 2 (a sharper mask) names element and order.
       final sharp = _member(slot: 1, element: 'Crystal', family: 'mask');
@@ -336,7 +336,10 @@ void main() {
       game2.activateAbility();
       game2.askForRoomHint();
       expect(game2.hintChannel, DungeonHintChannel.insight);
-      expect(game2.hintText, contains('tallest'));
+      // The rule the leader really follows (`stormLeaderFrom`): lowest rod
+      // first, then one notch at a time. It said "tallest" until 2026-09-25.
+      expect(game2.hintText, contains('lowest height first'));
+      expect(game2.hintText, contains('one notch taller'));
     });
   });
 
