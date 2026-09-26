@@ -2668,6 +2668,9 @@ class PlanetDungeonGame extends FlameGame {
   /// switches them off). The game only says WHAT happened.
   void Function(DungeonHaptic kind)? onHaptic;
   double _hapticHp = -1;
+
+  /// The creature [_hapticHp] was read from, so a swap is not felt as a hit.
+  Object? _hapticFor;
   double _hapticHitCd = 0;
   bool _hapticDoorSeen = false;
 
@@ -2679,18 +2682,27 @@ class PlanetDungeonGame extends FlameGame {
   /// Edges the game cannot hand over as events: a hit landing on the active
   /// creature (rate-limited, so a swarm does not buzz the phone
   /// continuously), and the entry door coming open.
+  ///
+  /// THE BUZZ THAT NEVER STOPPED (2026-09-26). The felt level was only
+  /// refreshed while the cooldown was clear, and the cooldown was re-armed by
+  /// the very hit it was measuring — so after one hit the stale level stayed
+  /// above the creature's health forever, and the phone buzzed every 0.45s
+  /// until it healed. Swapping to a hurt creature started the same loop. The
+  /// level now follows health every frame (a hit inside the cooldown is
+  /// simply not felt), and a swap resets it rather than reading as a hit.
   void _tickHaptics(double dt) {
     if (_hapticHitCd > 0) _hapticHitCd -= dt;
     final a = active;
-    final hp = a?.hp ?? -1;
-    if (a != null &&
-        _hapticHp >= 0 &&
-        hp < _hapticHp - 2 &&
-        _hapticHitCd <= 0) {
-      _haptic(DungeonHaptic.hit);
-      _hapticHitCd = 0.45;
+    if (a != null) {
+      final hp = a.hp;
+      if (!identical(a, _hapticFor)) {
+        _hapticFor = a;
+      } else if (_hapticHp >= 0 && hp < _hapticHp - 2 && _hapticHitCd <= 0) {
+        _haptic(DungeonHaptic.hit);
+        _hapticHitCd = 0.45;
+      }
+      _hapticHp = hp;
     }
-    if (a != null && (_hapticHitCd <= 0 || hp > _hapticHp)) _hapticHp = hp;
     if (entryDoorRevealed && !_hapticDoorSeen) {
       if (_hapticHp >= 0) _haptic(DungeonHaptic.big);
       _hapticDoorSeen = true;
