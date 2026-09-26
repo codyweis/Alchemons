@@ -174,4 +174,22 @@ void main() {
       expect(total, closeTo(100.0, 0.001));
     });
   });
+
+  group('PlanetRecipe.pure', () {
+    test('the four classical planets ask for 100% of their own element', () {
+      expect(kPureRecipePlanets, {'Earth', 'Water', 'Fire', 'Air'});
+      for (final element in kPureRecipePlanets) {
+        final recipe = PlanetRecipe.pure(element: element);
+        expect(recipe.planetElement, element);
+        expect(recipe.components, {element: 100.0});
+        expect(recipe.randomPct, 0.0);
+        expect(recipe.matchScore({element: 40.0}, 40.0), 1.0);
+        // Any other element costs, since there is no tolerance band.
+        expect(
+          recipe.matchScore({element: 30.0, 'Plant': 10.0}, 40.0),
+          lessThan(1.0),
+        );
+      }
+    });
+  });
 }

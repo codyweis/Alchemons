@@ -1812,6 +1812,17 @@ class PlanetRecipe {
     );
   }
 
+  /// A single-element recipe: 100% [element], no tolerance band. Used for the
+  /// four classical planets ([kPureRecipePlanets]), whose offering is simply
+  /// their own element.
+  factory PlanetRecipe.pure({required String element, int level = 1}) =>
+      PlanetRecipe(
+        planetElement: element,
+        level: level.clamp(1, 3),
+        components: {element: 100.0},
+        randomPct: 0.0,
+      );
+
   /// Match score 0.0 – 1.0. 1.0 = perfect match.
   double matchScore(Map<String, double> meterBreakdown, double meterTotal) {
     if (meterTotal <= 0) return 0;
@@ -1839,6 +1850,12 @@ class PlanetRecipe {
   bool matches(Map<String, double> meterBreakdown, double meterTotal) =>
       matchScore(meterBreakdown, meterTotal) >= 0.70;
 }
+
+/// Planets whose unseal offering is 100% their own element, instead of the
+/// mix derived from their entry trio. The four classical elements are the
+/// first planets a player meets, so their recipe asks for nothing but
+/// themselves. The entry trio still gates the dungeon itself.
+const Set<String> kPureRecipePlanets = {'Earth', 'Water', 'Fire', 'Air'};
 
 // ─────────────────────────────────────────────────────────
 // PLANET DUNGEON ENTRY GATING

@@ -6102,8 +6102,12 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// The gate OFFERING pattern for a planet. Every planet is a dungeon gate
   /// now, so this is purely the one-time unseal recipe. Built dungeons derive
   /// it from their authored entry trio; coming-soon planets generate one.
+  /// Earth, Water, Fire and Air ask for 100% of their own element.
   PlanetRecipe _getRecipeForPlanet(CosmicPlanet planet) {
     const level = 1;
+    if (kPureRecipePlanets.contains(planet.element)) {
+      return PlanetRecipe.pure(element: planet.element, level: level);
+    }
     final entry = kCosmicPlanetEntry[planet.element];
     if (entry != null) {
       return PlanetRecipe.fromEntryRequirement(
