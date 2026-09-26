@@ -2427,9 +2427,10 @@ extension FrozenObservatory on PlanetDungeonGame {
         1 =>
           'The pool shows the part of the chart across from where you stand. '
               'Walk the rim to see it all',
-        _ =>
-          'Every figure on the chart appears twice except one. Find the odd '
-              'one out and have Ice silver its frame',
+        // The author's line (2026-09-25). The one it replaced described a
+        // retired version of this room ("every figure appears twice except
+        // one"), and pointed the player at the wrong puzzle entirely.
+        _ => 'A continuous constellation is beautiful',
       });
       return;
     }
