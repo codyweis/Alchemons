@@ -165,11 +165,13 @@ const Map<String, DungeonSkyConfig> kDungeonSkyConfigs = {
     flowSpeed: 0.5,
     seed: 97.0,
   ),
-  // Spirit (Echo Grave) — one field doubled, ghost fringe, drifting wisps.
+  // Spirit (Echo Grave) — midnight, veils of spectral light, rising wisps.
+  // MORE MYSTICAL (2026-09-25, from the author): the greyed teal read as an
+  // overcast afternoon; the aqua is luminous now and the void is midnight.
   'Spirit': DungeonSkyConfig(
-    colorA: Color(0xFF080A10), // grave dark
-    colorB: Color(0xFF4E7C86), // spectral cyan
-    colorC: Color(0xFFD6EEF2), // wisp white
+    colorA: Color(0xFF04050C), // the void
+    colorB: Color(0xFF3CC4C0), // spectral aqua
+    colorC: Color(0xFFDDFFF8), // the pale of a wisp
     intensity: 0.95,
     noiseScale: 2.1,
     flowSpeed: 0.45,

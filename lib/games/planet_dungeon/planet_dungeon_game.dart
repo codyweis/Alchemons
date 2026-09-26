@@ -13746,6 +13746,12 @@ class PlanetDungeonGame extends FlameGame {
         ? Color.lerp(base, const Color(0xFFFFFFFF), (_skyMood - 0.5) * 0.5)!
         : Color.lerp(base, const Color(0xFF000000), (0.5 - _skyMood) * 0.75)!;
     final rect = Offset.zero & vp;
+    // Dark's and Spirit's colorB is the light IN their sky (a disc, a veil),
+    // not a horizon: as a flat fallback it would flood the frame with it.
+    final glowSky = const {'Dark', 'Spirit'}.contains(layout.element);
+    final horizon = glowSky
+        ? Color.lerp(cfg.colorA, cfg.colorB, 0.22)!
+        : cfg.colorB;
     canvas.drawRect(
       rect,
       Paint()
@@ -13754,8 +13760,8 @@ class PlanetDungeonGame extends FlameGame {
           rect.bottomCenter,
           [
             shade(cfg.colorA),
-            shade(Color.lerp(cfg.colorA, cfg.colorB, 0.6)!),
-            shade(cfg.colorB),
+            shade(Color.lerp(cfg.colorA, horizon, 0.6)!),
+            shade(horizon),
           ],
           const [0.0, 0.55, 1.0],
         ),

@@ -925,11 +925,17 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   // in this file may read like Dust's mound heights, Water's tide line or
   // Plant's re-scaled furniture.
 
-  static const Color _graveSod = Color(0xFF2A2A24);
-  static const Color _graveStone = Color(0xFF6B6455);
-  static const Color _graveMoss = Color(0xFF3E4A33);
-  static const Color _graveCold = Color(0xFF8FB6C4);
-  static const Color _graveVoid = Color(0xFF090C10);
+  // MOONLIT, NOT MUDDY (2026-09-25, from the author: "spirit's colors don't
+  // look mystical"). The living field was khaki stone and olive moss on
+  // brown sod — an overcast afternoon. It is a field under the moon now:
+  // blue-slate ground, silver stone, blue-green moss; and the cold is a
+  // luminous aqua rather than a greyed cyan. Warm accents (the sigil's
+  // ember, the lamp) stay gold, and are the only warm things here.
+  static const Color _graveSod = Color(0xFF131926);
+  static const Color _graveStone = Color(0xFF7A8294);
+  static const Color _graveMoss = Color(0xFF1E383C);
+  static const Color _graveCold = Color(0xFF7FE0DA);
+  static const Color _graveVoid = Color(0xFF04050C);
   static const Color _graveEmber = Color(0xFFD9A24C);
 
   void _renderGrave(Canvas canvas, DungeonRoom room) {
@@ -978,8 +984,8 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   // room. Crossing over is therefore not a palette swap: it is walking into
   // the same field before it was ruined.
 
-  static const Color _graveTurf = Color(0xFF3A4033);
-  static const Color _graveCut = Color(0xFF14140F);
+  static const Color _graveTurf = Color(0xFF1D2A34);
+  static const Color _graveCut = Color(0xFF070910);
 
   GraveGround _graveGround(DungeonRoom room) =>
       wake.ground.putIfAbsent(room.id, () => _buildGraveGround(room));
@@ -1203,7 +1209,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       );
       // A HILL, lit from above: dark at its foot, turf, a lit crown — and
       // ribs of turf running down its flanks so it has a shape, not a fill.
-      canvas.drawOval(mound, Paint()..color = const Color(0xFF232A1E));
+      canvas.drawOval(mound, Paint()..color = const Color(0xFF111B22));
       canvas.drawOval(
         mound
             .deflate(mound.height * 0.08)
@@ -1214,7 +1220,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         mound
             .deflate(mound.height * 0.24)
             .shift(Offset(0, -mound.height * .16)),
-        Paint()..color = Color.lerp(_graveMoss, const Color(0xFF7A8A5E), 0.45)!,
+        Paint()..color = Color.lerp(_graveMoss, const Color(0xFF4F8284), 0.45)!,
       );
       for (var i = 0; i < 9; i++) {
         final a = pi + (i + 0.5) / 9 * pi;
@@ -1227,7 +1233,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
           c + Offset(cos(a) * mound.width * 0.47, sin(a) * mound.height * 0.44),
           Paint()
             ..strokeWidth = 1.4
-            ..color = const Color(0xFF1A2016).withValues(alpha: 0.5),
+            ..color = const Color(0xFF0A1218).withValues(alpha: 0.5),
         );
       }
       // The kerb: stones set on end round the foot, thinning at the sides.
@@ -1324,7 +1330,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       final sheen = sin(wake.clock * 0.6) * 3;
       canvas.drawRect(
         cut.deflate(4),
-        Paint()..color = const Color(0xFF0A1418).withValues(alpha: 0.92),
+        Paint()..color = const Color(0xFF050A12).withValues(alpha: 0.92),
       );
       canvas.drawLine(
         Offset(cut.left + 12, at.dy + sheen),
@@ -1500,7 +1506,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   void _drawBier(Canvas canvas, Rect w, bool ghost, {required bool carried}) {
     final wood = ghost
         ? _graveCold.withValues(alpha: 0.5)
-        : const Color(0xFF3A2E22);
+        : const Color(0xFF26222E);
     // Two trestles and the board across them.
     for (final x in [w.left + 18, w.right - 18]) {
       canvas.drawRect(
@@ -1517,31 +1523,35 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       Paint()..color = wood,
     );
     if (carried) return;
-    // The shroud, and the shape under it.
+    // The shroud, and the shape under it: a body with its head toward the
+    // gate, the cloth falling in two folds, lit by the moon on its top.
+    final shroud = ghost ? _graveCold : const Color(0xFFA8B2C2);
+    final a = ghost ? 0.5 : 0.92;
     final body = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: w.center.translate(0, -4),
-        width: w.width - 26,
-        height: w.height + 2,
-      ),
+      Rect.fromLTRB(w.left + 26, w.top - 3, w.right - 14, w.bottom - 1),
       Radius.circular(w.height / 2),
     );
-    canvas.drawRRect(
-      body,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          body.outerRect.topCenter,
-          body.outerRect.bottomCenter,
-          [
-            (ghost ? _graveCold : const Color(0xFFD8D2C2)).withValues(
-              alpha: ghost ? 0.55 : 0.9,
-            ),
-            (ghost ? _graveCold : const Color(0xFF8E887A)).withValues(
-              alpha: ghost ? 0.25 : 0.9,
-            ),
-          ],
-        ),
+    final head = Rect.fromCircle(
+      center: Offset(w.left + 22, w.center.dy - 2),
+      radius: w.height * 0.42,
     );
+    final paint = Paint()
+      ..shader = ui.Gradient.linear(w.topCenter, w.bottomCenter, [
+        shroud.withValues(alpha: a),
+        Color.lerp(shroud, Colors.black, 0.45)!.withValues(alpha: a),
+      ]);
+    canvas.drawRRect(body, paint);
+    canvas.drawOval(head, paint);
+    for (final t in const [0.38, 0.68]) {
+      final x = body.left + body.width * t;
+      canvas.drawLine(
+        Offset(x, body.top + 4),
+        Offset(x + 6, body.bottom - 3),
+        Paint()
+          ..strokeWidth = 1.4
+          ..color = Colors.black.withValues(alpha: 0.18),
+      );
+    }
   }
 
   void _drawLychStone(Canvas canvas, Offset at, bool ghost) {
@@ -1762,7 +1772,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     }
     canvas.drawRRect(
       r,
-      Paint()..color = const Color(0xFF071015).withValues(alpha: 0.9),
+      Paint()..color = const Color(0xFF040810).withValues(alpha: 0.9),
     );
     for (var k = 0; k < 3; k++) {
       final ph = (wake.clock * 0.25 + k / 3) % 1.0;
@@ -1782,7 +1792,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     // A post, a lantern on it, and a flame that moves when it is lit.
     canvas.drawRect(
       Rect.fromCenter(center: at.translate(0, 16), width: 4, height: 28),
-      Paint()..color = const Color(0xFF2A241C),
+      Paint()..color = const Color(0xFF1E1C26),
     );
     final body = RRect.fromRectAndRadius(
       Rect.fromCenter(center: at, width: 18, height: 22),

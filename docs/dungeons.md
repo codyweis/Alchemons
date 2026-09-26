@@ -4098,6 +4098,19 @@ rhythm, answered at the arena's stone.
   – *A won sigil drew unset after a fall* — seeded on reset and in onLoad,
     pinned. *Wraithord woke silently* — it has a `riteWakeLine`, and the
     sealed line names the name stone as well as the lamp.
+  – *MORE MYSTICAL* (author, same day: *"spirit's colors don't look
+    mystical"*). Everything was desaturated khaki and olive — brown sod,
+    khaki stone and wall, olive moss, a greyed cyan for the cold, under an
+    fbm sky of grey-teal fog: an overcast afternoon over a muddy field. The
+    living field is MOONLIT now (blue-slate ground, silver stone, blue-green
+    moss, cool churchyard wall), the cold is a luminous aqua, and the sky is
+    a midnight void, indigo overhead, hung with slow VEILS of spectral light
+    — aqua at their waving hems, fading up into violet, combed with fine
+    rays, the lagging afterimage kept as a pale rim — plus the rising wisps
+    and a few stars. Gold stays for the sigil's ember and the lamp, the only
+    warm things. The bier is a shrouded body with a head, not a pill. The
+    low-perf fallback sky damps Dark's and Spirit's colorB (a glow, not a
+    horizon). Sky alone: `planet_dungeon_spirit_sky_preview_test`.
   – ⬜ Device playtest owed. `Spirit` stays out of `kPolishedDungeons`.
 
 ### §9.9 SPIRIT'S LOST MAXIM — the seventh funeral is yours
