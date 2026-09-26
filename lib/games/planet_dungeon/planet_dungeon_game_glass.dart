@@ -353,6 +353,9 @@ extension DungeonGlassArt on PlanetDungeonGame {
     // fallen away (`_renderVaultSpans`). Only the rood door keeps its bars.
     final isFinale = layout.finaleDoor?.matches(room, d) ?? false;
     if (_isVault && !isFinale) return;
+    // Requia says WHY in the doorway itself — a fallen stone, a lintel, a
+    // line of salt (`_renderGraveOverDoors`) — so its glass is only smoked.
+    if (_isWake && !isFinale) return;
     // A MIRROR SILL under light is not locked either: it is blinding. The
     // glass fills with a white glare that breathes, and there is no bar and
     // no keyhole on it.

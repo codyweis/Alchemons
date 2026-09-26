@@ -2768,6 +2768,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetRuinsState(); // the same, for Sablis's seal yard
     _resetVaultState(); // and Nythralor's dial and rings
     _resetArchiveState(); // and the archive's effigies and slips
+    _resetGraveState(); // and Requia's sigil
     entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
     _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
     _entryRevealPrev = _entryReveal;
@@ -13682,9 +13683,13 @@ class PlanetDungeonGame extends FlameGame {
         _renderPlainFloor(
           canvas,
           b,
-          // Nythralor's porch keeps its floor for the gnomon: a sigil ring
-          // round the room's middle read as a dial it was the hand of.
-          room.id == layout.entranceRoomId && !_isVault,
+          // The reviewed planets keep their entrance floors for their own
+          // things: a sigil ring round the room's middle read as a dial
+          // (Dark's gnomon, Light's beacon, Spirit's bier stood inside it).
+          room.id == layout.entranceRoomId &&
+              !_isVault &&
+              !_isArchive &&
+              !_isWake,
         );
       }
       return;
@@ -14152,6 +14157,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isHeart) return room.walls.toSet();
     // And Dark: its three are slabs of obsidian lying on the void.
     if (_isVault) return room.walls.toSet();
+    // And Spirit's one wall is the lych gate's bier.
+    if (_isWake && room.grave?.vigil != null) return room.walls.toSet();
     return const {};
   }
 

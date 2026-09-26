@@ -68,20 +68,96 @@ extension EchoGraveArt on PlanetDungeonGame {
     );
   }
 
-  /// A crossing the other world holds, drawn over its shut glass door.
+  /// WHY A WAY IS SHUT, drawn in its doorway over the glass (the 2026-09-25
+  /// review: every shut way wore the shared bars and keyhole, and a road the
+  /// other world holds was a doubled hairline box).
+  ///
+  ///  · a crossing a restless dead one blocks, for the living: the stone
+  ///    that killed them, lying across it;
+  ///  · one a finished dead one has let fall, for the dead: its lintel;
+  ///  · salted ground, for the dead: a line of salt across the sill;
+  ///  · and if the OTHER body could take it, the doorway carries a faint
+  ///    pane of that world's light (cold for the dead, warm for the living).
+  ///
+  /// And at an open crossing whose dead one you are standing at, ready to
+  /// hear out, the lintel that will fall is ghosted in, breathing.
   void _renderGraveOverDoors(Canvas canvas, DungeonRoom room) {
-    final pulse = 0.45 + 0.15 * sin(_time * 1.4);
+    final a = active;
     for (final door in room.doors) {
       final x = _graveCrossingFor(room, door);
-      if (x == null || _field.crossingOpen(x)) continue;
-      if (!_field.openTo(x, otherWorld(_field.world))) continue;
-      final r = door.rect.inflate(4);
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = _kWraithGlass.live.withValues(alpha: pulse);
-      canvas.drawRect(r.shift(const Offset(2, -2)), p);
-      canvas.drawRect(r.shift(const Offset(-2, 2)), p);
+      if (x == null || isDoorHidden(room, door)) continue;
+      final r = door.rect;
+      if (_field.crossingOpen(x)) {
+        if (x.cut != GraveCut.revenant || !_field.isGhost || a == null) {
+          continue;
+        }
+        final dead = graveRevenantById(x.revenantId!);
+        if (dead == null || dead.toldAt != room.id) continue;
+        if (a.member.element != 'Spirit') continue;
+        if ((a.position - dead.seat).distance > _kGraveReach) continue;
+        _drawFallenLintel(canvas, r, cold: true, ghosted: true);
+        continue;
+      }
+      final other = _field.openTo(x, otherWorld(_field.world));
+      if (other) {
+        final pulse = 0.5 + 0.2 * sin(_time * 1.4);
+        final tint = _field.isGhost
+            ? const Color(0xFFD9A24C)
+            : _kWraithGlass.live;
+        canvas.drawRect(
+          r.deflate(4),
+          Paint()
+            ..shader = ui.Gradient.radial(r.center, r.longestSide * 0.6, [
+              tint.withValues(alpha: 0.30 * pulse),
+              tint.withValues(alpha: 0.0),
+            ]),
+        );
+      }
+      switch (x.cut) {
+        case GraveCut.revenant:
+          _drawFallenLintel(canvas, r, cold: _field.isGhost);
+        case GraveCut.livingOnly:
+          _drawSaltLine(canvas, room, r);
+        default:
+          break;
+      }
+    }
+  }
+
+  /// Salt across a sill: a band of white grains on the threshold.
+  void _drawSaltLine(Canvas canvas, DungeonRoom room, Rect door) {
+    final vertical = door.height > door.width;
+    final band = vertical
+        ? Rect.fromCenter(
+            center: door.center,
+            width: 10,
+            height: door.height * 0.8,
+          )
+        : Rect.fromCenter(
+            center: door.center,
+            width: door.width * 0.8,
+            height: 10,
+          );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(band, const Radius.circular(5)),
+      Paint()..color = const Color(0xFFE8ECEE).withValues(alpha: 0.75),
+    );
+    for (var k = 0; k < 9; k++) {
+      final t = (k + 0.5) / 9;
+      final p = vertical
+          ? Offset(
+              band.center.dx + (k.isEven ? 4 : -4),
+              band.top + band.height * t,
+            )
+          : Offset(
+              band.left + band.width * t,
+              band.center.dy + (k.isEven ? 4 : -4),
+            );
+      canvas.drawCircle(
+        p,
+        1.6,
+        Paint()..color = Colors.white.withValues(alpha: 0.9),
+      );
     }
   }
 

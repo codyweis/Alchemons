@@ -1042,4 +1042,52 @@ void main() {
       expect(layout.rooms['wraithord_grave']!.guardian!.starIndex, 2);
     });
   });
+
+  group('THE REVIEW (2026-09-25)', () {
+    test('a won sigil draws won after the party falls', () {
+      final party = idealTrio();
+      final g = PlanetDungeonGame(
+        element: 'Spirit',
+        party: party,
+        initialStarMask: 0,
+        onStarEarned: (_) {},
+        onPlayerDown: () {},
+        onChanged: () {},
+      );
+      g.currentRoomId = g.layout.entranceRoomId;
+      for (final m in party) {
+        g.creatures.add(
+          DungeonCreature(member: m)
+            ..position = g.layout.entranceSpawn
+            ..lastSafe = g.layout.entranceSpawn,
+        );
+      }
+      g.earnStar(1);
+      for (final c in g.creatures) {
+        c.hp = 0;
+      }
+      g.update(1 / 60);
+      expect(g.wake.field.sigilStamped, isTrue);
+    });
+
+    test('Wraithord crossing worlds is SPOKEN, not dropped', () {
+      final g = harness(idealTrio());
+      g.entryDoorRevealed = true;
+      g.currentRoomId = 'wraithord_grave';
+      g.guardianAwake = true;
+      g.hintText = null;
+      for (var i = 0; i < 60 * 5; i++) {
+        g.update(1 / 60);
+        if (g.hintText?.contains('Wraithord steps') ?? false) break;
+      }
+      expect(g.hintText, contains('Wraithord steps'));
+    });
+
+    test('the waking is spoken', () {
+      expect(
+        kPlanetDungeonLayouts['Spirit']!.riteWakeLine,
+        contains('Wraithord is awake'),
+      );
+    });
+  });
 }

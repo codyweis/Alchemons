@@ -4055,6 +4055,51 @@ exactly that, which is why it now also asserts the states look different.
     its first finding) and done; promoted to `kPolishedDungeons` 2026-09-23**
     on the author's account.
 
+### ◐ SPIRIT — THE REVIEW (2026-09-25), minus the device session
+
+The Dark/Light pass, applied to Requia: every room rendered in BOTH worlds
+(`planet_dungeon_spirit_states_render_test`, new — the audit only ever drew
+the living one), every star checked for hidden rules and clocks. No clock on
+a star: the passing is free and unlimited, the telling has no window, the
+sigil is a deduction. Wraithord's crossing every 4.5 s is the fight's own
+rhythm, answered at the arena's stone.
+
+  – *The one irreversible act had no preview.* A telling finishes a death
+    for good and decides one crossing forever, and nothing said WHICH. In
+    the cold each restless dead one now has a ribbon of cold light running
+    to the doorway it holds up; standing at it with a Spirit hand, the
+    ribbon brightens and the lintel that will fall there for the dead is
+    ghosted into that doorway, breathing.
+  – *Every shut way wore the shared bars and keyhole,* and a road the other
+    world holds was a doubled hairline box. The doorway now says why: the
+    stone lying across it for the living (a restless dead one's crossing),
+    its fallen lintel for the dead (a finished one's), a line of salt for
+    the dead (consecrated ground) — and a faint pane of the other world's
+    light where the other body could pass.
+  – *Wraithord's crossing was silent* — its line ran from update through
+    `_setHint`, which drops unasked lines, on the one fact the fight turns
+    on. It is a consequence now, and says to follow it at the stone.
+  – *The fixtures were primitives:* the lych-stone an outlined box (a stone
+    bier now, with a wraith-glass figure laid in its top), the dead two
+    stroked hoops (hooded figures, filled, thinning to a wisp; a warm eye
+    gets a cold patch), the undug grave four corner brackets (a cut of
+    lifted turf), the lamp a disc (a lantern on a post), the drowned cut a
+    rectangle (black water with the cold moving on it, or plates of ice).
+    The cold barrow was a doubled hairline oval and the dead's half of the
+    sigil a hairline arc with ticks: both are filled light now.
+  – *Clutter:* a field of graves over every floor, grass tufts, a row of
+    kerb stones and the undug grave's spur lines. At most four graves stay
+    per room, against the walls, so the two worlds still show one place
+    before and after and the undug grave's blank stone still has named ones
+    round it. The entrance sigil ring is gone from Spirit, Light and Dark.
+  – *The bier was the shared grey bar,* and stayed after the Cold Road said
+    it had gone. It is a shrouded body on trestles, and the trestles stand
+    empty once the road is won (objective: "the bier stands empty").
+  – *A won sigil drew unset after a fall* — seeded on reset and in onLoad,
+    pinned. *Wraithord woke silently* — it has a `riteWakeLine`, and the
+    sealed line names the name stone as well as the lamp.
+  – ⬜ Device playtest owed. `Spirit` stays out of `kPolishedDungeons`.
+
 ### §9.9 SPIRIT'S LOST MAXIM — the seventh funeral is yours
 
 *Stuff of Dreams* was one press: stand three bodies anywhere inside the vault

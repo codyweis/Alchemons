@@ -165,6 +165,12 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     // grave is puzzle state like every other planet's, so it resets with the
     // run.
     wake.reset();
+    // A WON STAR DRAWS WON: the sigil stays set after a fall or on a new
+    // descent. (The Cold Road is a fact about the field and banks once.)
+    final spec = _graveVigil;
+    if (spec != null && hasStar(spec.sigilStarIndex)) {
+      _field.sigilStamped = true;
+    }
   }
 
   // ── Per-frame update ─────────────────────────────────────
@@ -199,11 +205,15 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if (wake.wraithCross >= _kWraithCrossSeconds) {
       wake.wraithCross = 0;
       wake.wraithWorld = otherWorld(wake.wraithWorld);
-      _setHint(
+      // A CONSEQUENCE (§5.7): this runs from update, where a plain line is
+      // dropped unasked — and whether it can be hit is the whole fight.
+      speakConsequence(
         wake.wraithWorld == _field.world
-            ? 'Wraithord steps into your world, it is solid, and so are you'
-            : 'Wraithord steps out of your world, nothing you do reaches it',
-        2.2,
+            ? 'Wraithord steps into your world. You can hit it, and it can '
+                  'hit you'
+            : 'Wraithord steps out of your world. Pass over at the stone to '
+                  'follow it',
+        2.4,
       );
     }
     // Out of phase: no lull. The two one-line hooks in planet_dungeon_game.dart
@@ -757,7 +767,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if (room.id == layout.entranceRoomId) {
       if (!entryDoorRevealed) return 'The gate arch is full of black water';
       return hasStar(_graveVigil?.roadStarIndex ?? 0)
-          ? 'The Lych Gate. The bier has gone'
+          ? 'The Lych Gate. The bier stands empty'
           : 'The Lych Gate. The bier needs a living road to the cairn';
     }
     if (room.grave?.graveLamp != null) {
@@ -1003,6 +1013,13 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         // Nearer the middle, likelier to be bare ground.
         final open = 1 - ((at - centre).distance / reach).clamp(0.0, 1.0);
         if (rnd() < 0.20 + open * 0.72) continue;
+        // THE CLEARING (2026-09-25 review): a field of sixty graves nobody
+        // could use was clutter. A few stay, against the walls, so the two
+        // worlds still show one place before and after (fallen here,
+        // standing there) — and so the undug grave's blank stone still has
+        // named ones to be blank among.
+        if (at.dy > b.top + 70 && at.dy < b.bottom - 70) continue;
+        if (g.cuts.length >= 4) continue;
         g.cuts.add(
           Rect.fromLTWH(x, y + (rnd() - 0.5) * 16, cw, ch * (0.8 + rnd() * .4)),
         );
@@ -1010,19 +1027,8 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         g.fallen.add(rnd() < 0.62);
       }
     }
-    // The kerb: a low wall of set stones round the round's edge.
-    final kerbs = (b.width / 90).clamp(4, 14).toInt();
-    for (var i = 0; i < kerbs; i++) {
-      g.kerb.add(
-        Offset(b.left + 20 + (b.width - 40) * i / (kerbs - 1), b.bottom),
-      );
-    }
-    final tufts = (b.width * b.height / 24000).clamp(6, 28).toInt();
-    for (var i = 0; i < tufts; i++) {
-      g.tussocks.add(
-        Offset(b.left + rnd() * b.width, b.top + rnd() * b.height),
-      );
-    }
+    // (The kerb stones along the edge and the grass tufts are gone: the
+    // churchyard wall is the edge, and nothing else on the ground is used.)
     return g;
   }
 
@@ -1133,71 +1139,6 @@ extension EchoGraveDungeon on PlanetDungeonGame {
           Paint()..color = _graveStone.withValues(alpha: 0.42),
         );
         canvas.restore();
-      }
-    }
-
-    // THE SPUR. Where a room carries the undug grave, its last stretch is a
-    // dead cut nobody finished: the field's verge closes in past the last
-    // fixture and simply stops, so the walk reads as somewhere that goes
-    // nowhere rather than as more room (§9.6 — a maxim has to be a PLACE,
-    // and a place has edges).
-    final undug = room.grave?.undugGrave;
-    if (undug != null) {
-      final b = room.bounds;
-      final mouth = undug.dx - 150;
-      for (final side in [-1.0, 1.0]) {
-        final y0 = b.center.dy + side * b.height * 0.42;
-        final y1 = b.center.dy + side * b.height * 0.20;
-        canvas.drawPath(
-          Path()
-            ..moveTo(mouth, y0)
-            ..quadraticBezierTo(mouth + 90, y0, undug.dx + 60, y1)
-            ..lineTo(b.right - 14, y1),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3
-            ..color = (ghost ? _graveCold : _graveStone).withValues(
-              alpha: ghost ? 0.28 : 0.34,
-            ),
-        );
-      }
-    }
-
-    // The kerb round the field's edge.
-    for (final k in g.kerb) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: k, width: 46, height: 13),
-          const Radius.circular(3),
-        ),
-        Paint()
-          ..color = (ghost ? _graveCold : _graveStone).withValues(
-            alpha: ghost ? 0.22 : 0.3,
-          ),
-      );
-    }
-
-    // Living grass, or the cold drifting through where it used to be.
-    for (var i = 0; i < g.tussocks.length; i++) {
-      final o = g.tussocks[i];
-      if (ghost) {
-        final ph = ((t * 0.12 + i * 0.09) % 1.0);
-        canvas.drawCircle(
-          o.translate(0, -ph * 26),
-          1.5,
-          Paint()..color = _graveCold.withValues(alpha: 0.18 * (1 - ph)),
-        );
-        continue;
-      }
-      final sway = sin(t * 0.8 + i * 1.9) * 2;
-      for (var k = -1; k <= 1; k++) {
-        canvas.drawLine(
-          o,
-          o + Offset(sway + k * 3.5, -8 - (k == 0 ? 3 : 0)),
-          Paint()
-            ..strokeWidth = 1.2
-            ..color = _graveTurf.withValues(alpha: 0.75),
-        );
       }
     }
   }
@@ -1319,12 +1260,23 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       );
       return;
     }
-    final p = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..color = _graveCold.withValues(alpha: 0.5);
-    canvas.drawOval(mound, p);
-    canvas.drawOval(mound.shift(const Offset(2, -2)), p);
+    // THE COLD BARROW: the same hill as a held breath of light — filled,
+    // brightest at its crown, gone at its foot. (It was a doubled hairline
+    // oval, which read as a selection ring.)
+    canvas.drawOval(
+      mound,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          mound.center.translate(0, -mound.height * 0.12),
+          mound.width * 0.5,
+          [
+            _graveCold.withValues(alpha: 0.20),
+            _graveCold.withValues(alpha: 0.08),
+            _graveCold.withValues(alpha: 0.0),
+          ],
+          const [0.0, 0.6, 1.0],
+        ),
+    );
     // The great arc the dead see over the whole round (Star 1's other half).
     if (!_field.sigilStamped) _renderFieldArc(canvas, room);
   }
@@ -1348,31 +1300,14 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   void _renderUndugGraveBody(Canvas canvas, Offset at, bool ghost) {
     final cut = Rect.fromCenter(center: at, width: 86, height: 40);
     if (!ghost) {
-      // Scored out and abandoned: four corner marks, no grave.
-      for (var i = 0; i < 4; i++) {
-        final c = [
-          cut.topLeft,
-          cut.topRight,
-          cut.bottomRight,
-          cut.bottomLeft,
-        ][i];
-        final dx = i == 0 || i == 3 ? 13.0 : -13.0;
-        final dy = i < 2 ? 13.0 : -13.0;
-        canvas.drawLine(
-          c,
-          c.translate(dx, 0),
-          Paint()
-            ..strokeWidth = 1.6
-            ..color = _graveStone.withValues(alpha: 0.35),
-        );
-        canvas.drawLine(
-          c,
-          c.translate(0, dy),
-          Paint()
-            ..strokeWidth = 1.6
-            ..color = _graveStone.withValues(alpha: 0.35),
-        );
-      }
+      // Set out and abandoned: a rectangle of turf cut and lifted, lying a
+      // shade darker than the field, with its lip catching the light.
+      final rr = RRect.fromRectAndRadius(cut, const Radius.circular(4));
+      canvas.drawRRect(
+        rr.shift(const Offset(0, -2)),
+        Paint()..color = _graveTurf.withValues(alpha: 0.45),
+      );
+      canvas.drawRRect(rr, Paint()..color = _graveCut.withValues(alpha: 0.42));
       return;
     }
     // Open, and deeper than the others.
@@ -1455,28 +1390,41 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     final c = room.bounds.center;
     final radius = room.bounds.shortestSide * 0.40;
     final start = (kGraveFieldBearing / 12.0) * pi * 2;
-    final p = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..color = _graveCold.withValues(alpha: 0.75);
+    // A BAND of cold light, not a hairline: wide and faint, fading off both
+    // of its ends, with the twelve points of the ring as studs and the
+    // bearing it is struck from as the one bright one.
+    final rect = Rect.fromCircle(center: c, radius: radius);
     canvas.drawArc(
-      Rect.fromCircle(center: c, radius: radius),
+      rect,
       start,
       pi,
       false,
-      p,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 14
+        ..strokeCap = StrokeCap.round
+        ..shader = ui.Gradient.sweep(
+          c,
+          [
+            _graveCold.withValues(alpha: 0.0),
+            _graveCold.withValues(alpha: 0.34),
+            _graveCold.withValues(alpha: 0.34),
+            _graveCold.withValues(alpha: 0.0),
+          ],
+          const [0.0, 0.12, 0.88, 1.0],
+          TileMode.clamp,
+          start,
+          start + pi,
+        ),
     );
     for (var i = 0; i < 12; i++) {
       final a = (i / 12.0) * pi * 2;
-      final tick = Offset(cos(a), sin(a));
-      canvas.drawLine(
-        c + tick * (radius - 6),
-        c + tick * radius,
-        Paint()
-          ..strokeWidth = 1
-          ..color = _graveCold.withValues(
-            alpha: i == kGraveFieldBearing ? 0.9 : 0.28,
-          ),
+      final at = c + Offset(cos(a), sin(a)) * radius;
+      final mark = i == kGraveFieldBearing;
+      canvas.drawCircle(
+        at,
+        mark ? 5.5 : 2.2,
+        Paint()..color = _graveCold.withValues(alpha: mark ? 0.95 : 0.35),
       );
     }
   }
@@ -1487,17 +1435,19 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     final ink = ghost ? _graveCold : _graveStone;
     if (g.undugGrave != null) _renderUndugGrave(canvas, g.undugGrave!, ghost);
 
-    // THE LYCH-STONE: a low kerbed slab, long enough to lie on.
-    final stone = g.lychStone ?? g.wraithStone;
-    if (stone != null) {
-      final r = Rect.fromCenter(center: stone, width: 96, height: 34);
-      canvas.drawRect(r, Paint()..color = ink.withValues(alpha: 0.8));
-      canvas.drawRect(
-        r.deflate(5),
-        Paint()
-          ..color = (ghost ? _graveVoid : _graveSod).withValues(alpha: 0.6),
-      );
+    // THE LYCH-STONE: a stone bier long enough to lie on, with a figure of
+    // wraith glass laid in its top — frosted to a warm eye, lit in the cold.
+    // THE BIER, on the lych gate's trestles (the room's one wall): a
+    // shrouded body until the Cold Road opens and the procession takes it,
+    // then the trestles, empty.
+    if (g.vigil != null) {
+      final road = hasStar(g.vigil!.roadStarIndex);
+      for (final w in room.walls) {
+        _drawBier(canvas, w, ghost, carried: road);
+      }
     }
+    final stone = g.lychStone ?? g.wraithStone;
+    if (stone != null) _drawLychStone(canvas, stone, ghost);
 
     // THE SIGIL STONE: the living half only, and only to a warm eye.
     final sig = g.sigilStone;
@@ -1509,63 +1459,365 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         sig,
         kBarrowSigilHalf[room.id] ?? 0,
         warm: !ghost,
-        stamped: _field.sigilStamped,
+        stamped: _field.sigilStamped || _sigilWon,
       );
     }
 
     // THE DEAD, where they are still dying.
     for (final r in graveRevenantsIn(room.id)) {
-      final rested = _field.isRested(r.id);
-      if (rested) {
-        canvas.drawCircle(
-          r.seat,
-          10,
-          Paint()..color = ink.withValues(alpha: 0.35),
-        );
-        continue;
-      }
-      // Only the dead SEE the dead. Warm eyes get a cold spot and no more.
-      final alpha = ghost ? 0.85 : 0.22;
-      final bob = sin(wake.clock * 1.6 + r.seat.dx) * 3.0;
-      final at = r.seat + Offset(0, bob);
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = _graveCold.withValues(alpha: alpha);
-      canvas.drawCircle(at, 16, p);
-      canvas.drawCircle(
-        at,
-        22,
-        p..color = _graveCold.withValues(alpha: alpha * 0.45),
-      );
+      _drawRevenant(canvas, room, r, ghost);
     }
 
-    // THE DROWNED BRINK, and the grave mouth, and the lamp.
+    // THE DROWNED BRINK: black water with the cold moving on it, or ice.
     final brink = g.drownedBrink;
-    if (brink != null) {
-      final r = Rect.fromCenter(center: brink, width: 130, height: 26);
-      canvas.drawRect(
-        r,
-        Paint()
-          ..color = _field.cutFrozen
-              ? _graveCold.withValues(alpha: 0.55)
-              : _graveVoid.withValues(alpha: 0.85),
-      );
-    }
+    if (brink != null) _drawDrownedBrink(canvas, brink);
     final mouth = g.graveMouth;
     if (mouth != null && !entryDoorRevealed) {
-      canvas.drawRect(
+      final r = RRect.fromRectAndRadius(
         Rect.fromCenter(center: mouth, width: 150, height: 40),
-        Paint()..color = _graveVoid.withValues(alpha: 0.9),
+        const Radius.circular(10),
+      );
+      canvas.drawRRect(r, Paint()..color = _graveVoid.withValues(alpha: 0.92));
+      final sheen = sin(wake.clock * 0.7) * 4;
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: mouth.translate(sheen, -4),
+          width: 90,
+          height: 5,
+        ),
+        Paint()..color = _graveCold.withValues(alpha: 0.18),
       );
     }
     final lamp = g.graveLamp;
-    if (lamp != null) {
-      final lit = (conduitEnergy['B'] ?? 0) > 0;
+    if (lamp != null) _drawGraveLamp(canvas, lamp, ink);
+  }
+
+  bool get _sigilWon {
+    final spec = _graveVigil;
+    return spec != null && hasStar(spec.sigilStarIndex);
+  }
+
+  void _drawBier(Canvas canvas, Rect w, bool ghost, {required bool carried}) {
+    final wood = ghost
+        ? _graveCold.withValues(alpha: 0.5)
+        : const Color(0xFF3A2E22);
+    // Two trestles and the board across them.
+    for (final x in [w.left + 18, w.right - 18]) {
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: Offset(x, w.center.dy + 6),
+          width: 8,
+          height: w.height + 8,
+        ),
+        Paint()..color = wood,
+      );
+    }
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(w.deflate(4), const Radius.circular(3)),
+      Paint()..color = wood,
+    );
+    if (carried) return;
+    // The shroud, and the shape under it.
+    final body = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: w.center.translate(0, -4),
+        width: w.width - 26,
+        height: w.height + 2,
+      ),
+      Radius.circular(w.height / 2),
+    );
+    canvas.drawRRect(
+      body,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          body.outerRect.topCenter,
+          body.outerRect.bottomCenter,
+          [
+            (ghost ? _graveCold : const Color(0xFFD8D2C2)).withValues(
+              alpha: ghost ? 0.55 : 0.9,
+            ),
+            (ghost ? _graveCold : const Color(0xFF8E887A)).withValues(
+              alpha: ghost ? 0.25 : 0.9,
+            ),
+          ],
+        ),
+    );
+  }
+
+  void _drawLychStone(Canvas canvas, Offset at, bool ghost) {
+    final top = Rect.fromCenter(center: at, width: 96, height: 30);
+    paintCarvedBlock(canvas, top, 8, _kWraithGlass, radius: 4);
+    // The figure lying in it: a body and a head, leaded.
+    final figure = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: at.translate(6, 0), width: 56, height: 14),
+          const Radius.circular(7),
+        ),
+      )
+      ..addOval(Rect.fromCircle(center: at.translate(-30, 0), radius: 7));
+    paintPane(
+      canvas,
+      figure,
+      ghost
+          ? _kWraithGlass.live.withValues(
+              alpha: 0.75 + 0.15 * sin(wake.clock * 1.1),
+            )
+          : _kWraithGlass.frostAt(1).withValues(alpha: 0.55),
+      _kWraithGlass,
+      lead: 1.6,
+    );
+  }
+
+  /// ONE OF THE DEAD, and the crossing it is holding.
+  ///
+  /// The 2026-09-25 review: telling is the planet's one IRREVERSIBLE act,
+  /// and nothing said which crossing a revenant decides — you found out by
+  /// committing it. Now, in the cold, a ribbon of cold light runs from each
+  /// restless dead one to the doorway it is holding up; standing at it with
+  /// a Spirit hand, the ribbon brightens and the doorway shows, ghosted, the
+  /// lintel that will fall across it for the dead when the telling is done.
+  /// (Its living half — the stone that comes off — is the fallen slab the
+  /// living already see across that doorway.)
+  void _drawRevenant(Canvas canvas, DungeonRoom room, Revenant r, bool ghost) {
+    final ink = ghost ? _graveCold : _graveStone;
+    if (_field.isRested(r.id)) {
+      // At rest: a small stone laid flat where they were.
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: r.seat.translate(0, 10),
+            width: 26,
+            height: 12,
+          ),
+          const Radius.circular(3),
+        ),
+        Paint()..color = ink.withValues(alpha: 0.45),
+      );
+      return;
+    }
+    if (!ghost) {
+      // Only the dead SEE the dead. A warm eye gets a cold patch and no more.
       canvas.drawCircle(
-        lamp,
-        13,
-        Paint()..color = lit ? _graveEmber : ink.withValues(alpha: 0.55),
+        r.seat,
+        26,
+        Paint()
+          ..shader = ui.Gradient.radial(r.seat, 26, [
+            _graveCold.withValues(alpha: 0.16),
+            _graveCold.withValues(alpha: 0.0),
+          ]),
+      );
+      return;
+    }
+    final a = active;
+    final hearing =
+        a != null &&
+        a.member.element == 'Spirit' &&
+        (a.position - r.seat).distance <= _kGraveReach;
+    DungeonDoor? held;
+    for (final d in room.doors) {
+      if (_graveCrossingFor(room, d)?.id == r.crossingId) held = d;
+    }
+    if (held != null) _drawTether(canvas, r.seat, held.rect.center, hearing);
+    final bob = sin(wake.clock * 1.6 + r.seat.dx) * 3.0;
+    final at = r.seat + Offset(0, bob - 6);
+    final sway = sin(wake.clock * 1.1 + r.seat.dy) * 4;
+    // A hooded shape, drawn as MATERIAL: filled, brightest at the hood,
+    // thinning to a wisp where its feet would be.
+    final body = Path()
+      ..moveTo(at.dx, at.dy - 26)
+      ..quadraticBezierTo(at.dx + 11, at.dy - 25, at.dx + 12, at.dy - 8)
+      ..quadraticBezierTo(at.dx + 13, at.dy + 8, at.dx + 5 + sway, at.dy + 24)
+      ..quadraticBezierTo(
+        at.dx + sway * 0.5,
+        at.dy + 18,
+        at.dx - 5 + sway,
+        at.dy + 24,
+      )
+      ..quadraticBezierTo(at.dx - 13, at.dy + 8, at.dx - 12, at.dy - 8)
+      ..quadraticBezierTo(at.dx - 11, at.dy - 25, at.dx, at.dy - 26)
+      ..close();
+    canvas.drawPath(
+      body,
+      Paint()
+        ..shader =
+            ui.Gradient.linear(at.translate(0, -26), at.translate(0, 24), [
+              _graveCold.withValues(alpha: hearing ? 0.9 : 0.7),
+              _graveCold.withValues(alpha: 0.0),
+            ]),
+    );
+    // The face in the hood: nothing.
+    canvas.drawOval(
+      Rect.fromCenter(center: at.translate(0, -15), width: 10, height: 12),
+      Paint()..color = _graveVoid.withValues(alpha: 0.85),
+    );
+  }
+
+  /// A ribbon of cold light, filled and tapered, from [from] to [to], with a
+  /// slow brighter swell running along it toward the doorway.
+  void _drawTether(Canvas canvas, Offset from, Offset to, bool bright) {
+    final v = to - from;
+    final n = Offset(-v.dy, v.dx) / max(1.0, v.distance);
+    final ctrl = (from + to) / 2 + n * v.distance * 0.18;
+    Offset at(double t) =>
+        from * ((1 - t) * (1 - t)) + ctrl * (2 * t * (1 - t)) + to * (t * t);
+    const steps = 18;
+    final left = <Offset>[], right = <Offset>[];
+    for (var i = 0; i <= steps; i++) {
+      final t = i / steps;
+      final w = 4.5 * (1 - t) + 1.2;
+      final p = at(t);
+      final q = at(min(1.0, t + 0.02));
+      final dir = q - p;
+      final nn = Offset(-dir.dy, dir.dx) / max(0.001, dir.distance);
+      left.add(p + nn * w);
+      right.add(p - nn * w);
+    }
+    canvas.drawPath(
+      Path()..addPolygon([...left, ...right.reversed], true),
+      Paint()..color = _graveCold.withValues(alpha: bright ? 0.40 : 0.16),
+    );
+    final swell = (wake.clock * 0.35) % 1.0;
+    canvas.drawCircle(
+      at(swell),
+      bright ? 6 : 4,
+      Paint()
+        ..shader = ui.Gradient.radial(at(swell), bright ? 6 : 4, [
+          _graveCold.withValues(alpha: bright ? 0.8 : 0.45),
+          _graveCold.withValues(alpha: 0.0),
+        ]),
+    );
+  }
+
+  /// A slab of stone lying across a doorway — a road the world has shut
+  /// for this body (the fallen stone the living see, the lintel that falls
+  /// for the dead). [ghosted] draws it as the preview of one still to fall.
+  void _drawFallenLintel(
+    Canvas canvas,
+    Rect door, {
+    required bool cold,
+    bool ghosted = false,
+  }) {
+    final c = door.center;
+    final along = door.width > door.height;
+    final len = (along ? door.width : door.height) * 0.9;
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate((along ? 0.0 : pi / 2) + 0.28);
+    final slab = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: Offset.zero, width: len, height: 16),
+      const Radius.circular(3),
+    );
+    final breathe = ghosted ? 0.35 + 0.15 * sin(wake.clock * 3) : 1.0;
+    final base = cold ? _graveCold : _graveStone;
+    canvas.drawRRect(
+      slab.shift(const Offset(0, 5)),
+      Paint()..color = Colors.black.withValues(alpha: 0.4 * breathe),
+    );
+    canvas.drawRRect(
+      slab,
+      Paint()
+        ..shader = ui.Gradient.linear(const Offset(0, -8), const Offset(0, 8), [
+          Color.lerp(
+            base,
+            Colors.white,
+            0.25,
+          )!.withValues(alpha: 0.95 * breathe),
+          Color.lerp(
+            base,
+            Colors.black,
+            0.35,
+          )!.withValues(alpha: 0.95 * breathe),
+        ]),
+    );
+    canvas.restore();
+  }
+
+  void _drawDrownedBrink(Canvas canvas, Offset at) {
+    final r = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: at, width: 130, height: 26),
+      const Radius.circular(12),
+    );
+    if (_field.cutFrozen) {
+      // Ice: pale plates with dark seams between them and one glint.
+      canvas.drawRRect(
+        r,
+        Paint()..color = const Color(0xFF9EC6D4).withValues(alpha: 0.6),
+      );
+      for (var k = 0; k < 3; k++) {
+        final x = at.dx - 36 + k * 36.0;
+        canvas.drawLine(
+          Offset(x + 6, at.dy - 12),
+          Offset(x - 4, at.dy + 12),
+          Paint()
+            ..strokeWidth = 1.4
+            ..color = const Color(0xFF2E4A55).withValues(alpha: 0.6),
+        );
+      }
+      canvas.drawOval(
+        Rect.fromCenter(center: at.translate(-28, -5), width: 22, height: 4),
+        Paint()..color = Colors.white.withValues(alpha: 0.55),
+      );
+      return;
+    }
+    canvas.drawRRect(
+      r,
+      Paint()..color = const Color(0xFF071015).withValues(alpha: 0.9),
+    );
+    for (var k = 0; k < 3; k++) {
+      final ph = (wake.clock * 0.25 + k / 3) % 1.0;
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: at.translate(-40 + 80 * ph, (k - 1) * 5.0),
+          width: 28,
+          height: 3,
+        ),
+        Paint()..color = _graveCold.withValues(alpha: 0.22 * sin(ph * pi)),
+      );
+    }
+  }
+
+  void _drawGraveLamp(Canvas canvas, Offset at, Color ink) {
+    final lit = (conduitEnergy['B'] ?? 0) > 0;
+    // A post, a lantern on it, and a flame that moves when it is lit.
+    canvas.drawRect(
+      Rect.fromCenter(center: at.translate(0, 16), width: 4, height: 28),
+      Paint()..color = const Color(0xFF2A241C),
+    );
+    final body = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: at, width: 18, height: 22),
+      const Radius.circular(4),
+    );
+    canvas.drawRRect(
+      body,
+      Paint()
+        ..color = lit ? const Color(0xFF5A4424) : ink.withValues(alpha: 0.45),
+    );
+    paintPane(
+      canvas,
+      Path()..addRRect(body.deflate(3)),
+      lit ? _graveEmber : _kWraithGlass.smoke,
+      _kWraithGlass,
+      lead: 1.4,
+    );
+    if (lit) {
+      final f = 0.85 + 0.15 * sin(wake.clock * 9);
+      canvas.drawPath(
+        Path()
+          ..moveTo(at.dx, at.dy - 8 * f)
+          ..quadraticBezierTo(at.dx + 4, at.dy - 1, at.dx, at.dy + 5)
+          ..quadraticBezierTo(at.dx - 4, at.dy - 1, at.dx, at.dy - 8 * f)
+          ..close(),
+        Paint()..color = const Color(0xFFFFF0C8),
+      );
+      canvas.drawCircle(
+        at,
+        40,
+        Paint()
+          ..shader = ui.Gradient.radial(at, 40, [
+            _graveEmber.withValues(alpha: 0.22),
+            _graveEmber.withValues(alpha: 0.0),
+          ]),
       );
     }
   }

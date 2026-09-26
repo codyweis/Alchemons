@@ -801,11 +801,15 @@ const DungeonLayout spiritLayout = DungeonLayout(
   finaleDoor: DungeonDoorRef('barrow_cairn', 'mourners_walk'),
   riteAnnouncement:
       'Road and Hourglass are won. The door to the Mourners\' Walk opens',
+  riteWakeLine:
+      'The name stone answers and the lamp is lit. Wraithord is awake in its '
+      'grave',
   finaleSealedHint:
       'The rood door stays shut until you have the Cold Road and Hourglass '
       'stars',
   guardianSealedHint:
-      'Wraithord won\'t wake until the lamp is lit',
+      'Wraithord won\'t wake until the name stone answers and the lamp is '
+      'lit',
   mercyShrineRoomId: 'lych_gate',
   // Ideal: Spiritmask · Waterpip · Crystalwing — hinted by VERB, never by body
   // part (§4): the sight that pierces the hidden, what the smallest doors
