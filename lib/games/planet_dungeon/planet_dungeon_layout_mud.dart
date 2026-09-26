@@ -657,7 +657,8 @@ const DungeonLayout mudLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('mire_gate', 'hag_knoll'),
   finaleDoor: DungeonDoorRef('drowned_fane', 'bogdrya_hollow'),
   riteAnnouncement:
-      'Both stars are won. The way down to Bogdrya opens under the fane',
+      'Both stars are won. The way down to Bogdrya opens under the fane, and '
+      'Bogdrya wakes',
   finaleSealedHint: 'This stays shut until you have the Sarsen and Moor stars',
   guardianSealedHint:
       'Bogdrya won\'t wake until the Sarsen and Moor stars are won',
@@ -666,7 +667,7 @@ const DungeonLayout mudLayout = DungeonLayout(
   // part (§4 THE DESCENT RIDDLE): the hard trail left behind, the small door,
   // the sight that reads black water.
   riddle: [
-    'Send me a Mud Mane: my rot will bear nothing that leaves no road;',
+    'Send me Mud to harden my crossings, and a Mane to walk the rotten planks;',
     'Plant, to quicken whatever the peat has kept;',
     'and a Water Mask, for I keep my best beneath black water.',
   ],

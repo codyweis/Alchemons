@@ -197,6 +197,31 @@ void main() {
       }
     });
 
+    test('taking it before the vault does not lock the vault for good', () {
+      // Every wing reads lit after the maxim, and the vault bolt used to read
+      // that same flag — so a party that took the maxim before looting the
+      // vault found its bolt shut forever, while the vault's own reading
+      // still said to cut the power. The bolt keys off the real routing now:
+      // the breakers still throw, and a vault trunk with no current drops it.
+      final g = _dynamo();
+      _fuseAll(g);
+      _at(g, 'Lightning', g.currentRoom.bounds.center);
+      for (var i = 0; i < 300; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.thunderboltWon, isTrue);
+      g.activeTrunk = 'trunk_core';
+      for (var i = 0; i < 300; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.circuitRoomLit('capacitor_vault'), isTrue);
+      expect(
+        g.vaultBoltOpenness,
+        greaterThan(0.55),
+        reason: 'the vault trunk carries no current, so its bolt is down',
+      );
+    });
+
     test('and crowning the tower does NOT hand that out', () {
       // A leftover line was setting the maxim's flag whenever a Lightning
       // Horn crowned the Storm Tower, so anyone who simply finished Star 3

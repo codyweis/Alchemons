@@ -280,12 +280,14 @@ extension FrozenObservatory on PlanetDungeonGame {
   String _iceDoorHint(DungeonRoom room, DungeonDoor door) {
     final (flue, _) = _flueLeg(room, door)!;
     if (flue.isThroat) {
-      return 'Running water. You can\'t climb it';
+      return 'Running water. Ice can freeze the rimefall to climb it';
     }
     return switch (_flue(flue.id)) {
       RimeFlueState.scoured =>
-        'Bare ice. This shaft can\'t be frozen into steps now',
-      _ => 'Loose snow. Freeze it into steps to climb',
+        'Bare ice. It can\'t be frozen until the rimefall resets the shaft',
+      _ =>
+        'Loose snow. Steps can only be frozen from the top. The rimefall '
+            'resets the shaft',
     };
   }
 
@@ -306,7 +308,8 @@ extension FrozenObservatory on PlanetDungeonGame {
         // been silent since it was built.
         _announceTransit(
           'The rimefall carries you out. The whole shaft resets: every '
-          'stair is gone and the orrery is back as it started',
+          'stair is gone, and an unfinished orrery goes back to how it '
+          'started',
           7.0,
         );
       }
@@ -438,7 +441,7 @@ extension FrozenObservatory on PlanetDungeonGame {
         case RimeFlueState.drift:
           flueState[f.id] = RimeFlueState.stair;
           _cue(SoundCue.elementIce);
-          _setHint('The fall sets, a stair, and the shelf under it is shut');
+          _setHint('The snow sets into steps you can climb');
           _spawnAlchemyBurst(
             f.headPos,
             producedElement: 'Ice',
@@ -801,8 +804,8 @@ extension FrozenObservatory on PlanetDungeonGame {
         _inHintChannel(
           DungeonHintChannel.insight,
           () => _forceHint(
-            'The pool wakes. It shows the part of the chart across from '
-            'where you stand.',
+            'The pool wakes. It shows the part of the chart across the ring '
+            'from your Light creature.',
             5.0,
           ),
         );
@@ -822,7 +825,7 @@ extension FrozenObservatory on PlanetDungeonGame {
         }
       case InteractionResult.blockedElement:
       case InteractionResult.blockedStat:
-        _setBlockedHint('Frost does nothing here. It needs Light');
+        _setBlockedHint('Only Light can strike this glass');
     }
     return true;
   }
@@ -1219,7 +1222,23 @@ extension FrozenObservatory on PlanetDungeonGame {
     final c = run.cell % g.cols;
     final r = run.cell ~/ g.cols;
     if (!moved) {
-      _setBlockedHint('Too heavy to push on stone. It needs ice under it');
+      // Say what actually stopped it: the first cell it would move into.
+      final nc = c + dir.$1;
+      final nr = r + dir.$2;
+      final String why;
+      if (nc < 0 ||
+          nr < 0 ||
+          nc >= g.cols ||
+          nr >= g.rows ||
+          _orreryPillar(g, nc, nr) ||
+          _orreryBlockAt(g, nc, nr) != null) {
+        why = 'Something solid is in the way';
+      } else if (_orrerySocket(g, nc, nr)) {
+        why = 'This kerb takes only its own block, from the arrow\'s side';
+      } else {
+        why = 'Too heavy to push on stone. It needs ice under it';
+      }
+      _setBlockedHint(why);
       return true;
     }
     orreryBlocks[id] = r * g.cols + c;
@@ -1546,7 +1565,11 @@ extension FrozenObservatory on PlanetDungeonGame {
       case 'Air':
         if (atThroat) return _tryRoofBreath(a, roof, t);
         if (nearFont) return false;
-        _setBlockedHint('Open the ice over the wyrm\'s head first');
+        _setBlockedHint(
+          t != null
+              ? 'Stand at the edge of the open throat'
+              : 'Open the ice over the wyrm\'s head first',
+        );
         return true;
       case 'Light':
         return _tryRoofLight(a, roof, roofTargetCell(a), nearFont: nearFont);
@@ -2170,8 +2193,8 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (!standing && orreryGlass.isEmpty && orrerySeated.isEmpty) return;
     _discoverCloud(kIceRimefallPriceId);
     _forceHint(
-      'Climbing out here resets the whole shaft: every stair, and the '
-      'orrery too.',
+      'Climbing out here resets the whole shaft: every stair, and an '
+      'unfinished orrery too.',
       6.0,
     );
   }
@@ -2413,20 +2436,24 @@ extension FrozenObservatory on PlanetDungeonGame {
         0 =>
           'The blocks only slide on ice. Ice glazes the floor, Light melts it',
         1 =>
-          'A shoved block slides until the ice ends. Each kerb only opens '
-              'one way, shown by its arrow',
+          'A shoved block slides until the ice ends. A kerb takes only the '
+              'block with its figure, arriving the way its arrow points',
         _ =>
-          'Stand behind a block to see where it would slide. The crank on '
-              'the east wall resets every block',
+          'Stand behind a block to see where it would slide. Light at the '
+              'crank by the east wall puts every loose block back',
       });
       return;
     }
     if (room.rime?.mirrors != null) {
       _setInsightHint(switch (tier) {
-        0 => 'The pool is dark until the black glass is struck with Light',
+        0 =>
+          lodestoneLit
+              ? 'Put the whole chart in the pool with nothing forking'
+              : 'The pool is dark until the black glass is struck with Light',
         1 =>
-          'The pool shows the part of the chart across from where you stand. '
-              'Walk the rim to see it all',
+          'Ice puts a frame\'s part of the chart in the pool. Your Light '
+              'creature shows the part across the ring from it. A fork means '
+              'one of the frames there is hung false',
         // The author's line (2026-09-25). The one it replaced described a
         // retired version of this room ("every figure appears twice except
         // one"), and pointed the player at the wrong puzzle entirely.
@@ -2479,8 +2506,9 @@ extension FrozenObservatory on PlanetDungeonGame {
         0 => 'The hoarfrost pillar is the key to this fight',
         1 => 'Frowyrm can only be hit while the hoarfrost pillar stands',
         _ =>
-          'Ice raises the pillar. Each hit Frowyrm lands shatters it and '
-              'destroys one of your stairs in the shaft above',
+          'Ice raises the pillar. Each time Frowyrm\'s opening closes, it '
+              'breaks the pillar and one of your stairs above. With no stairs, '
+              'it breaks the rimefall',
       });
       return;
     }

@@ -1277,4 +1277,30 @@ void main() {
       expect(game.bog.poured, hasLength(3));
     });
   });
+
+  group('the fen says what a drag did, where it did it', () {
+    test('a drag names the crossing it flooded, by its knolls', () {
+      // The drag's line was a plain hint, dropped unasked — and the crossing
+      // it floods is usually rooms away. It also said "for good", which the
+      // plug and Bogdrya both make untrue.
+      final game = _harness(_idealTrio());
+      game.entryDoorRevealed = true;
+      _drag(game, 'cor_neck', 'reed_knoll');
+      expect(game.hintText, isNotNull, reason: 'spoken without a HINT press');
+      expect(game.hintText, contains('Sedge Knoll'));
+      expect(game.hintText, contains('Lotus Knoll'));
+      expect(game.hintText!.toLowerCase(), isNot(contains('for good')));
+    });
+
+    test('in the hollow the reading is the anchor, not the fen rule', () {
+      final game = _harness(_idealTrio());
+      game.entryDoorRevealed = true;
+      game.guardianAwake = true;
+      game.currentRoomId = 'bogdrya_hollow';
+      game.setActive(mud);
+      game.askForRoomHint();
+      expect(game.hintText?.toLowerCase(), contains('hard'));
+      expect(game.hintText?.toLowerCase(), isNot(contains('neighbour')));
+    });
+  });
 }

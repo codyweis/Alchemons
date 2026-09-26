@@ -639,20 +639,20 @@ const DungeonLayout poisonLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Physician\'s Star',
       earnAnnouncement:
-          'The Physician\'s Star is yours. All three plagues are woken',
+          'The Physician\'s Star is yours. All three plagues are down',
     ),
     DungeonStarSpec(
       name: 'Triage Star',
-      earnAnnouncement:
-          'The Triage Star is yours. Every ward is quiet',
+      earnAnnouncement: 'The Triage Star is yours. The cross is lit',
     ),
     DungeonStarSpec(name: 'Blightfang\'s Star'),
   ],
   entranceRevealDoor: DungeonDoorRef('lazar_gate', 'ambulatory'),
   riteAnnouncement:
-      'The cross rots off the barred ward. The ward you gave up is open',
+      'The cross is lit. The Charnel Ward at the east end of the cloister '
+      'is open',
   guardianSealedHint:
-      'Blightfang won\'t wake until all three plagues are down',
+      'Blightfang won\'t wake until all three reliquaries are on the cross',
   mercyShrineRoomId: 'apothecary',
   // Ideal: Poisonmask · Planthorn · Mudmane — hinted by VERB, never body part
   // (§4 THE DESCENT RIDDLE). These three are also THE POT'S WHOLE LARDER, so
@@ -660,19 +660,22 @@ const DungeonLayout poisonLayout = DungeonLayout(
   // has nothing to mix.
   riddle: [
     'Send me Poison, to turn a thing against its own body;',
-    'Plant, to close a sound and to take root in what is left;',
-    'and a Mud Mane, to leave a clean road, and to slow what runs on it.',
+    'Plant, to take root in what the plague has left;',
+    'and a Mud Mane, to slow what runs, and to walk between the wards.',
   ],
   primer: [
     'The pot takes two and makes one. It drinks Poison, Plant and Mud.',
-    'Any alchemon has two brews in it. Three of them, three brews, no spare.',
+    'Poison can give four times, the others twice. That\'s exactly enough '
+        'for four brews.',
   ],
   familyGates: [
     DungeonFamilyGate(
       objectId: 'ward_squint',
       element: 'Mud',
       family: 'Mane',
-      hintLine: 'Only a Mud Mane can cross a live ward safely',
+      hintLine:
+          'Only a Mud Mane can go through this squint. The cloister reaches '
+          'every ward',
     ),
   ],
   rooms: {

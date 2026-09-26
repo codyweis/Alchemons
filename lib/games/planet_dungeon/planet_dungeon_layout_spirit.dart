@@ -820,7 +820,7 @@ const DungeonLayout spiritLayout = DungeonLayout(
     'and Crystal, for half of my roads are only remembered.',
   ],
   primer: [
-    'This field exists in two worlds, and each road belongs to only one.',
+    'This field exists in two worlds. Most roads belong to only one.',
     'Laying a ghost to rest in the world of the dead opens its road to the '
         'living.',
   ],

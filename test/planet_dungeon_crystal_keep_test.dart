@@ -1205,6 +1205,16 @@ void main() {
       );
     });
 
+    test('a plate refuses anything but Crystal, in words', () {
+      final game = harness(idealTrio());
+      final floor = layout.rooms['prismalith_choir']!.prism!.choir!;
+      game.prism.choirHollow = kKeepHeartCell;
+      act(game, lightning, 'prismalith_choir', floor.plateCentre(1));
+      expect(game.prism.choirHollow, kKeepHeartCell);
+      game.askForRoomHint();
+      expect(game.hintText, contains('Only Crystal can slide the floor'));
+    });
+
     test('the guardian shunt is deterministic and never moves a full keep', () {
       final f = PrismKeepField();
       expect(f.guardianShunt(), 5, reason: 'the lowest neighbour of cell 8');
@@ -1302,7 +1312,7 @@ void main() {
       expect(g.prism.knowCrack, isFalse);
       expect(g.hintHasAnswer, isTrue);
       g.askForRoomHint();
-      expect(g.hintText, contains('still meets another'));
+      expect(g.hintText, contains('still opens onto another room'));
     });
 
     test('THE CHAIN: the flaw, three strikes, the reading — and the rite', () {
@@ -1377,6 +1387,62 @@ void main() {
       expect(kPrismChambers[onyx].throne, isFalse);
       expect(kPrismChambers[onyx].clear, isFalse);
       expect(f.cellOf(onyx), 0, reason: 'the keep OPENS with it in the corner');
+    });
+  });
+
+  group('the hint copy tells the truth about the keep', () {
+    test('HINT in the hearth reads the thrones, even in the beam row', () {
+      // The opening already stands the hearth in the middle slot, which is
+      // in the beam row — the rose reading used to win here.
+      final game = harness(idealTrio())..entryDoorRevealed = true;
+      game.currentRoomId = kKeepCellRooms[kKeepHeartCell];
+      game.setActive(crystal);
+      game.askForRoomHint();
+      expect(game.hintText!.toLowerCase(), contains('throne'));
+      expect(game.hintText!.toLowerCase(), isNot(contains('rose')));
+    });
+
+    test('a throne\'s room line says whether it faces the hearth', () {
+      final game = harness(idealTrio())..entryDoorRevealed = true;
+      // The lamp lit, so the west slot's lamp line does not speak first.
+      final f = game.prism.field..lampLit = true;
+      // Opening: the Crimson Throne stands west of the hearth, uncut east.
+      expect(
+        game.debugObjectiveHint(kKeepCellRooms[3]),
+        'The Crimson Throne. It doesn\'t face the hearth yet',
+      );
+      // Stand it north of the hearth, cut south: it faces.
+      final crimson = f.cells[3];
+      f.cells[3] = f.cells[1];
+      f.cells[1] = crimson;
+      expect(
+        game.debugObjectiveHint(kKeepCellRooms[1]),
+        'The Crimson Throne. It faces the hearth',
+      );
+    });
+
+    test('the hue readout reads the dial, never "11 of 10"', () {
+      final game = harness(idealTrio())..entryDoorRevealed = true;
+      final f = game.prism.field..lampLit = true;
+      // Amber, Hearth, Violet across the middle row: all clear, bends 1+0+7.
+      final crimson = f.cells[3];
+      f.cells[3] = f.cells[1];
+      f.cells[1] = crimson;
+      game.currentRoomId = kKeepCellRooms[4];
+      expect(f.beamLive, isTrue);
+      expect(f.beamHue, 8);
+      final r = game.progressReadout!;
+      expect(r.label, 'HUE');
+      expect(r.value, 'at 8, needs $kRoseHue');
+      expect(r.fraction, lessThan(1.0));
+    });
+
+    test('the rite lines name both the crack and the font', () {
+      expect(layout.riteWakeLine, contains('Prismalith'));
+      expect(layout.guardianSealedHint, contains('crack'));
+      expect(layout.guardianSealedHint, contains('font'));
+      expect(layout.riteAnnouncement, contains('crack'));
+      expect(layout.riteAnnouncement, contains('font'));
     });
   });
 

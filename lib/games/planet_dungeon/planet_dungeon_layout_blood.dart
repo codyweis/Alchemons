@@ -1080,13 +1080,22 @@ const DungeonLayout bloodLayout = DungeonLayout(
   // The pericardium is stitched over the gate until a Blood hand opens it.
   entranceRevealDoor: DungeonDoorRef('pericard_gate', 'arterial_run'),
   finaleDoor: DungeonDoorRef('myocardium', 'sanguorath_systole'),
+  // TRUE lines only (the hint audit, 2026-09-25): the engine speaks this when
+  // the second star lands, and the chordae gate does NOT open then — it is
+  // guardian-sealed until the cannula (conduit A) and the sconces (B, latched
+  // by `_tryHeartBalance`) are both woken in the Myocardium.
   riteAnnouncement:
-      'Priming and Graft are won. The chordae gate to Sanguorath opens',
+      'Priming and Graft are won. The cannula and the sconces in the '
+      'Myocardium can be woken now',
+  riteWakeLine:
+      'The cannula is held and the sconces are level. Sanguorath is awake '
+      'past the chordae gate',
   finaleSealedHint:
       'The chordae gate stays shut until you have the Priming and Graft '
       'stars',
   guardianSealedHint:
-      'Sanguorath won\'t wake until the Priming and Graft stars are won',
+      'Sanguorath won\'t wake until the cannula is held and the sconces are '
+      'level',
   mercyShrineRoomId: 'arterial_run',
   // Ideal: Bloodkin · Darkmask · Lightmask — hinted by VERB, never body part
   // (§4): the hand that steadies old engines, the sight that pierces the

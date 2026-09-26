@@ -1084,8 +1084,11 @@ const DungeonLayout lightLayout = DungeonLayout(
   // draws it back.
   entranceRevealDoor: DungeonDoorRef('lumen_threshold', 'shadow_court'),
   finaleDoor: DungeonDoorRef('reading_floor', 'solarin_oculus'),
+  // The stair itself stays shut on Solarin until the rite wakes it, so the
+  // line names the rite, not the stair (the hint audit, 2026-09-25).
   riteAnnouncement:
-      'Shadow and Hush are won. The stair to the Oculus opens',
+      'Shadow and Hush are won. Split the oriel and turn the ring on the '
+      'Reading Floor to wake Solarin',
   riteWakeLine:
       'The oriel is split and the ring is round. Solarin is awake under the '
       'oculus',

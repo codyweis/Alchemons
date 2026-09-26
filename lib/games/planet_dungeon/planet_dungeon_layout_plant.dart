@@ -769,12 +769,21 @@ const DungeonLayout plantLayout = DungeonLayout(
   // The lich-gate is knotted shut until a Plant hand parts the briar.
   entranceRevealDoor: DungeonDoorRef('root_porch', 'mosswalk'),
   finaleDoor: DungeonDoorRef('bloom_hall', 'botanica_heart'),
+  // TRUE lines only (the hint audit, 2026-09-25): the engine speaks this when
+  // the second star lands. Nothing opens then — Botanica wakes when the rood
+  // screen (conduit A, a Plant Mane) and the sepulchre (B, a Mud press in
+  // `_trySepulchre`) are both woken in the Bloom Hall.
   riteAnnouncement:
-      'Lamp and Bloom are won. The clay on the sepulchre cracks open',
+      'Lamp and Bloom are won. In the Bloom Hall, a Plant Mane can wake the '
+      'rood screen and Mud can soften the sepulchre\'s clay',
+  riteWakeLine:
+      'The rood screen is green and the sepulchre is open. Botanica is awake '
+      'past the rood door',
   finaleSealedHint:
       'The rood door stays shut until you have the Lamp and Bloom stars',
   guardianSealedHint:
-      'Botanica won\'t wake until the sepulchre is opened',
+      'Botanica won\'t wake until the rood screen and the sepulchre are both '
+      'woken',
   mercyShrineRoomId: 'mosswalk',
   // Ideal: Plantmane · Lightmask · Mudpip — hinted by VERB, never body part
   // (§4): the green that follows a wild thing's passing, the sight that
@@ -785,7 +794,7 @@ const DungeonLayout plantLayout = DungeonLayout(
     'and Mud, because half of me was never built for you.',
   ],
   primer: [
-    'Every passage here is cut for either small or full size. Seed-galls '
+    'Some passages fit only a small body, some only full size. Seed-galls '
         'switch your size.',
     'What you plant becomes a path for the other size.',
   ],

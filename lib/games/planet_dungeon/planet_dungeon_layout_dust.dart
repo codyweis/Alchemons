@@ -731,10 +731,10 @@ const DungeonLayout dustLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('ashen_gate', 'seal_street'),
   finaleDoor: DungeonDoorRef('sand_court', 'ashdjinn_hollow'),
   riteAnnouncement:
-      'Seal and Armillary are won. The great glass in the Hourglass Court '
-      'can be turned now',
+      'Seal and Armillary are won. In the Hourglass Court, break the false '
+      'wall with a Horn and turn the great glass with Dust',
   finaleSealedHint:
-      'The court stays shut until you have the Seal and Armillary stars',
+      'The hollow stays shut until you have the Seal and Armillary stars',
   guardianSealedHint:
       'Ashdjinn won\'t wake until the false wall is broken and the great '
       'glass is turned',
@@ -752,7 +752,7 @@ const DungeonLayout dustLayout = DungeonLayout(
   ],
   primer: [
     'Sand you dig has to go somewhere. Dig one mound and a neighbour rises.',
-    'A dug-out street opens a way down. A heaped one opens a way up.',
+    'A dug-out street can open a way down. A heaped one can open a way up.',
   ],
   // §4 budget: TWO hard gates, one per star that has one, each on a different
   // entry slot. Star 0 (the three seals) is deliberately UNGATED and uses all

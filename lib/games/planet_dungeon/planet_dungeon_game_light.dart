@@ -156,7 +156,12 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
   /// method. How to re-shape the light is Mask's earned reading.
   String _archiveDoorHint(DungeonRoom room, DungeonDoor door) {
     final sill = _archiveSillFor(room, door)!;
-    final where = sectorWord(sill.cell!.sector);
+    final cell = sill.cell!;
+    // An inward cell is the bay's INNER half — the half a low beam leaves in
+    // a stack's shadow — so the refusal names that half, not the whole bay.
+    final where = cell.band == HallBand.inward
+        ? 'the inner half of ${sectorWord(cell.sector)}'
+        : sectorWord(cell.sector);
     return sill.cut == SillCut.glassLeaf
         ? 'Glass floor only holds while lit, and $where is dark'
         : 'Mirror floor is blinding while lit, and $where is lit';
@@ -310,7 +315,8 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       }
       if (archive.isLit(e.niche)) {
         _setBlockedHint(
-          'Its shadow needs darkness, and ${sectorWord(e.niche.sector)} is lit',
+          'Its shadow needs darkness, and the inner half of '
+          '${sectorWord(e.niche.sector)} is lit',
         );
         return true;
       }
@@ -375,7 +381,9 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         _setBlockedHint(gate.hintLine);
         return true;
       }
-      _stampFamilyGate(gate);
+      // A PASS only discovers the gate — `_stampFamilyGate` also speaks the
+      // refusal, which flashed on every press of the right hand.
+      _discoverCloud(gate.discoveryId);
       if (!archive.underHush) {
         _setBlockedHint(
           'Too bright: ${archive.lumens} lumens lit. It needs 2 or fewer',
@@ -671,7 +679,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         particleCount: 8,
         intensity: 0.5,
       );
-      _setHint('Nothing filed under this one');
+      _setBlockedHint('Not this slab. The index names another');
       return true;
     }
     // THE RITE OF THREE pays this out (see `beginMaximRite`).
@@ -807,13 +815,13 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     if (room.hall?.indexSockets.isNotEmpty ?? false) {
       return 'The Oculus Stair. Five slabs';
     }
+    // The threshold holds the narthex beacon, so the shutter line has to come
+    // before the beacon line or it can never be shown.
+    if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
+      return 'The Lumen Threshold. A shutter covers the doorway';
+    }
     if (archiveBeaconIn(room.id) != null) {
       return 'A beacon. It lights part of the hall';
-    }
-    if (room.id == layout.entranceRoomId) {
-      return entryDoorRevealed
-          ? 'The Lumen Threshold'
-          : 'The Lumen Threshold. A shutter covers the doorway';
     }
     return null;
   }
@@ -842,7 +850,27 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
   /// tiered by Intelligence.
   void _archiveReveal(DungeonCreature a, DungeonRoom room) {
     final tier = revealHintTier(a.member.statIntelligence);
-    if (room.hall?.balustrade != null) {
+    if (room.guardian != null) {
+      _setInsightHint(switch (tier) {
+        0 => 'Solarin\'s glare burns whatever it looks at',
+        1 => 'The pillars throw the only shadows. Stand in one',
+        _ =>
+          'You can only strike Solarin from a pillar\'s shadow, during its '
+              'lull',
+      });
+      return;
+    }
+    if (room.hall?.shutterRing != null) {
+      _setInsightHint(switch (tier) {
+        0 => 'The rite needs the oriel and the ring',
+        1 => 'A Crystal Mask splits the oriel. Light turns the ring',
+        _ =>
+          'Crystal and Spirit together can turn the ring too. Both need the '
+              '${layout.starName(0)} and ${layout.starName(1)}',
+      });
+      return;
+    }
+    if (room.hall?.balustrade != null && !hasStar(0)) {
       _setInsightHint(switch (tier) {
         0 => 'Each effigy is read by its shadow, not its stone',
         1 =>
@@ -854,16 +882,26 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       });
       return;
     }
-    if (archiveSlipsIn(room.id).isNotEmpty) {
+    final slipsLeft = [
+      for (final s in archiveSlipsIn(room.id))
+        if (!archive.slipsDrawn.contains(s.id)) s,
+    ];
+    if (slipsLeft.isNotEmpty && !hasStar(1)) {
+      // The road under the hush is not the same for every slip: the court
+      // and the gallery fall to the narthex's low fan (court rim + arcade rim,
+      // two lumens); the stacks only from behind, off the ledger blade.
+      final road = room.id == 'dark_stacks'
+          ? 'Set the ledger beacon to one blade on the Catalogue Walk, put '
+                'the others out, then come back up through the dark heart'
+          : 'The narthex beacon\'s low fan reaches this bay for two lumens';
       _setInsightHint(switch (tier) {
         0 => 'Something is filed behind these shelves',
         1 =>
           'A slip can only be drawn with two lumens or fewer lit across the '
               'whole hall',
         _ =>
-          'A beam blocked by a stack costs one lumen, an open bay costs two. '
-              'Set the far beacon first and approach these shelves from '
-              'behind, through the dark',
+          'A beam blocked by a stack costs one lumen. An open bay costs two. '
+              '$road',
       });
       return;
     }
@@ -881,12 +919,13 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'Each press changes how far this beacon reaches',
         1 =>
-          'A low beam stops at the stacks and leaves the inner shelves dark. '
-              'A high beam lights them too',
+          'Only the court and the arcade have stacks. There a low beam lights '
+              'just the outer half of the bay. In the other bays low and high '
+              'are the same',
         _ =>
-          'Lighting makes glass floor walkable but blinds you on mirror '
-              'floor. A low beam gives you a path and a shadow at once, for '
-              'half the lumens',
+          'Glass floor holds while lit and mirror floor while dark. Over a '
+              'stack a low beam lights the outer glass and leaves the inner '
+              'mirror dark, for one lumen instead of two',
       });
       return;
     }
@@ -905,8 +944,8 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         'Glass floor holds only while lit. Mirror floor is only walkable '
             'while dark',
       _ =>
-        'A low beam lights the outer part of a bay. A high one lights all '
-            'of it. Use the least light that still makes a path',
+        'In the court and the arcade a low beam lights only the outer half '
+            'of the bay. Everywhere else low and high light the same floor',
     });
   }
 

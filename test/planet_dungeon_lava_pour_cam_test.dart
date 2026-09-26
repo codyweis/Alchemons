@@ -140,6 +140,31 @@ void main() {
     });
   });
 
+  testWidgets('a driven die is not blamed for a charge that took the CHILL arm', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      // The spoil line used to say the die was dead iron whenever plain metal
+      // reached a warded form — including when the die WAS driven and the
+      // charge had simply gone the other way, round the chill arm.
+      final g = _game();
+      g.works.line.tapWoken = true;
+      g.works.line.dieWoken = true;
+      g.works.line.switches['y_yard'] = 0; // CHILL
+      g.works.line.switches['y_sluice'] = 1; // KEY
+      expect(g.works.line.tap(), isTrue);
+
+      var frames = 0;
+      while (g.works.line.pour != null && frames++ < 60 * 40) {
+        g.update(1 / 60);
+      }
+      expect(g.works.line.molds['mold_key'], isNotNull);
+      expect(g.hintText, isNotNull);
+      expect(g.hintText, contains('MILL arm'));
+      expect(g.hintText, isNot(contains('STEAM')));
+    });
+  });
+
   testWidgets('STOP gives the view back and KEEPS it back', (tester) async {
     await tester.runAsync(() async {
       final g = _game();

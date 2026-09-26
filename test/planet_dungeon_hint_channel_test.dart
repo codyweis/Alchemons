@@ -14,6 +14,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -401,6 +402,123 @@ void main() {
       }
       game.askForRoomHint();
       expect(game.hintText, isNot(contains('Speed')));
+    });
+  });
+
+  // The hint audit, 2026-09-25: lines that were dropped or false.
+  group('the hint audit: Air and the shared engine say what is true', () {
+    test('the entry reading names the hidden way on, not "nothing"', () {
+      final game = _buildGame();
+      game.setActive(1); // the Crystal mask
+      game.creatures[1].position = const Offset(80, 80); // out of the wind
+      game.askForRoomHint();
+      expect(game.hintChannel, DungeonHintChannel.insight);
+      expect(game.hintText, contains('Fire or Lightning'));
+      expect(game.hintText, isNot(contains('Nothing hidden')));
+      expect(
+        game.debugObjectiveHint(game.layout.entranceRoomId),
+        'The way on is hidden',
+      );
+    });
+
+    test('a wrong hand on conduit A is refused in the gate\'s words', () {
+      final game = _buildGame();
+      game.currentRoomId = 'twin_conduit';
+      game.setActive(0); // the Air wing
+      final a = game.currentRoom.conduits.firstWhere((c) => c.id == 'A');
+      game.creatures[0].position = a.position;
+      game.activateAbility();
+      game.askForRoomHint();
+      expect(game.hintChannel, DungeonHintChannel.blocked);
+      expect(game.hintText, 'Only a Lightning Horn can hold this current');
+    });
+
+    test('the loom objective counts its empty sockets', () {
+      final game = _buildGame();
+      expect(
+        game.debugObjectiveHint('sky_loom'),
+        'Sky Loom. Five sockets, and every one of them empty',
+      );
+      game.filledAnchors['a_spiral'] = 'Spiral';
+      expect(
+        game.debugObjectiveHint('sky_loom'),
+        'Sky Loom. Five sockets, and four still empty',
+      );
+    });
+
+    test('the Roc summit reading is about the Roc, not a conduit', () {
+      final member = _member(slot: 1, element: 'Crystal', family: 'mask');
+      final sharp = CosmicPartyMember(
+        instanceId: member.instanceId,
+        baseId: member.baseId,
+        displayName: member.displayName,
+        element: member.element,
+        family: member.family,
+        level: member.level,
+        statSpeed: member.statSpeed,
+        statIntelligence: 5,
+        statStrength: member.statStrength,
+        statBeauty: member.statBeauty,
+        slotIndex: member.slotIndex,
+        staminaBars: member.staminaBars,
+        staminaMax: member.staminaMax,
+      );
+      final game = _buildGame();
+      game.creatures[1] = DungeonCreature(member: sharp)
+        ..position = const Offset(80, 80)
+        ..lastSafe = const Offset(80, 80);
+      game.currentRoomId = 'guardian_summit';
+      game.setActive(1);
+      game.askForRoomHint();
+      expect(game.hintChannel, DungeonHintChannel.insight);
+      expect(game.hintText, contains('The Roc counts as one notch taller'));
+      expect(game.hintText, isNot(contains('conduit')));
+    });
+
+    test('a star-locked door into a guardian room names the stars first', () {
+      var checked = 0;
+      for (final element in kPlanetDungeonLayouts.keys) {
+        final probe = kPlanetDungeonLayouts[element]!;
+        final finale = probe.finaleDoor;
+        if (finale == null) continue;
+        if (probe.rooms[finale.targetRoomId]?.guardian == null) continue;
+        final party = [_member(slot: 0), _member(slot: 1)];
+        final game = PlanetDungeonGame(
+          element: element,
+          party: party,
+          initialStarMask: 0,
+          onStarEarned: (_) {},
+          onPlayerDown: () {},
+          onChanged: () {},
+        );
+        for (var i = 0; i < party.length; i++) {
+          final c = DungeonCreature(member: party[i])
+            ..position = game.layout.entranceSpawn
+            ..lastSafe = game.layout.entranceSpawn;
+          game.creatures.add(c);
+          game.combatCompanions.add(_companion(party[i], c.position));
+        }
+        game.currentRoomId = finale.roomId;
+        final door = game.currentRoom.doors.firstWhere(
+          (d) => d.targetRoomId == finale.targetRoomId,
+        );
+        if (game.isDoorHidden(game.currentRoom, door)) continue;
+        expect(game.isDoorLocked(game.currentRoom, door), isTrue);
+        game.creatures[game.activeIndex].position = door.rect.center;
+        _step(game, 0.2);
+        game.askForRoomHint();
+        final line = game.hintText ?? '';
+        final rite = game.layout.guardianSealedHint;
+        if (rite != null) {
+          expect(
+            line,
+            isNot(rite),
+            reason: '$element: at 0 stars the door must name the stars',
+          );
+        }
+        checked++;
+      }
+      expect(checked, greaterThan(0));
     });
   });
 }

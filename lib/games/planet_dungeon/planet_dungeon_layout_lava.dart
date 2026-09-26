@@ -1207,19 +1207,20 @@ const DungeonLayout kLavaLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('tap_head', 'switch_yard'),
   finaleDoor: DungeonDoorRef('mold_floor', 'pour_heart'),
   riteAnnouncement:
-      'Ember and Reliquary are won. The heart gate opens',
+      'Ember and Reliquary are won. The heart gate opens, and Magmara '
+      'wakes on the ring',
   finaleSealedHint:
       'The heart gate stays shut until you have the Ember and Reliquary '
       'stars',
   guardianSealedHint:
-      'Nothing down there wakes until the works are finished',
+      'Magmara won\'t wake until the Ember and Reliquary stars are won',
   mercyShrineRoomId: 'pour_heart',
   // Ideal: Lavahorn · Earthmask · Icemane — named by VERB, never by body part
   // (§4). Only the last of the three is a hard gate; the other two are the
   // hands the works were built for.
   riddle: [
     'Send me Lava: my crucible\'s seal breaks for nothing lighter;',
-    'Earth, to read the works\' own manifest off the rock;',
+    'Earth, for my points are seized with slag and only earthen strength will throw them;',
     'and Ice, for only a cold that paves a road behind it will harden my running metal.',
   ],
   // THE PRIMER IS SHOWN ONCE, EVER, on the first descent — so it has to be
@@ -1237,7 +1238,8 @@ const DungeonLayout kLavaLayout = DungeonLayout(
   // that survives a player who was looking at the room instead of the text.
   primer: [
     'Nothing here runs until a Lava heart opens the crucible.',
-    'Then five charges, and every road out is something you cast with them.',
+    'Then every road out is one you cast. After the first two, every charge '
+        'you draw brings more enemies out.',
   ],
   // ONE hard gate (§4 budget: Air 1 · Earth 1 · Water 1 · Lava 1). Star 1 and
   // the guardian stay earnable by ANY correct-element trio; only the hidden

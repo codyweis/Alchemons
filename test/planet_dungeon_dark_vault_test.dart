@@ -875,6 +875,37 @@ void main() {
       expect(noPip.vault.abyssChainFree, isFalse);
     });
 
+    test('ANY Pip clears the abyss ring, as at every anchor ring', () {
+      // The riddle says "Poison, and any Pip", and §9.14 says the abyss ring
+      // is the anchors' own gate. It used to open only to a Poison hand, so
+      // a Dark or Spirit Pip was turned away with "Rust has the ring locked".
+      final darkPip = harness([
+        _member(0, 'Dark', 'pip'),
+        _member(1, 'Poison', 'horn'),
+        _member(2, 'Spirit', 'mane'),
+      ])..entryDoorRevealed = true;
+      darkPip.vault.shadow['gn_stair'] = EclipseLeaf.ossuary;
+      act(darkPip, dark, 'abyssal_font', well);
+      expect(darkPip.vault.abyssChainFree, isTrue);
+      expect(
+        darkPip.vault.abyssHauls,
+        0,
+        reason: 'the clearing is its own press',
+      );
+
+      final spiritPip = harness([
+        _member(0, 'Dark', 'mask'),
+        _member(1, 'Poison', 'horn'),
+        _member(2, 'Spirit', 'pip'),
+      ])..entryDoorRevealed = true;
+      spiritPip.vault.shadow['gn_stair'] = EclipseLeaf.ossuary;
+      act(spiritPip, spirit, 'abyssal_font', well); // reads the chain first
+      expect(spiritPip.vault.abyssRead, isTrue);
+      expect(spiritPip.vault.abyssChainFree, isFalse);
+      act(spiritPip, spirit, 'abyssal_font', well); // then clears the rust
+      expect(spiritPip.vault.abyssChainFree, isTrue);
+    });
+
     test('rust holds the chain even after the read', () {
       final g = litFont();
       act(g, spirit, 'abyssal_font', well);

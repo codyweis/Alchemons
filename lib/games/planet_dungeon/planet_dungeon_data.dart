@@ -1890,7 +1890,7 @@ const DungeonLayout _airLayout = DungeonLayout(
     'and Fire, for my thunder must have somewhere to stay.',
   ],
   primer: [
-    'A wind you wake keeps blowing for good.',
+    'A wind you wake keeps blowing until the party falls.',
     'Each wind opens a path somewhere and blocks one somewhere else, so the '
         'order you wake them in matters.',
   ],
@@ -2722,14 +2722,15 @@ const DungeonLayout _fireLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Ash Star',
       earnAnnouncement:
-          'The Ash Star is yours. Every groove is filled',
+          'The Ash Star is yours. The whole garden burned from one fire',
     ),
     DungeonStarSpec(name: 'Pyre Star'),
   ],
   entranceRevealDoor: DungeonDoorRef('narthex', 'nave'),
   finaleDoor: DungeonDoorRef('nave', 'vestry'),
   riteAnnouncement:
-      'Ember and Ash are won. The chancel gate opens',
+      'The Ember and Ash stars open the chancel gate. Ring the three bells '
+      'beyond it to wake the Simurgh',
   finaleSealedHint:
       'The chancel gate stays shut until you have the Ember and Ash stars',
   guardianSealedHint:
@@ -3125,7 +3126,9 @@ const DungeonLayout _waterLayout = DungeonLayout(
   ],
   entranceRevealDoor: DungeonDoorRef('tide_gate', 'drowned_court'),
   finaleDoor: DungeonDoorRef('drowned_court', 'moon_hall'),
-  riteAnnouncement: 'Tide and Current are won. The mirror gate opens',
+  riteAnnouncement:
+      'The Tide and Current stars open the mirror gate. Freeze all four '
+      'basins in the Moon Well to wake Leviathan',
   finaleSealedHint:
       'The mirror gate stays shut until you have the Tide and Current stars',
   guardianSealedHint:
@@ -3528,14 +3531,17 @@ const DungeonLayout _earthLayout = DungeonLayout(
       'The skull\'s jaw stays shut until you have the Marrow and Crystal '
       'stars',
   guardianSealedHint:
-      'The way to the heart stays shut until the great scale balances',
+      'The way to the heart stays shut until every stone on the great scale '
+      'sits on its true pan',
+  riteWakeLine:
+      'Every stone sits on its true pan. Terradon is awake in the heart below',
   mercyShrineRoomId: 'eye_chamber',
   // Ideal: Earthhorn · Lightningpip · Crystalmask — hinted by VERB, never by
   // body part: the mighty shove, small access, insight.
   riddle: [
     'Send me a Earth Horn: my bones grind aside for nothing less;',
     'Lightning, to wake the sockets buried in my veins;',
-    'and Crystal, for my eye confides in nothing duller.',
+    'and Crystal, for my sockets hold no charge for long without it.',
   ],
   primer: [
     'The barrow is a giant\'s body, and its bones are the machinery.',
@@ -3861,7 +3867,7 @@ const DungeonLayout _lightningLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Circuit Star',
       earnAnnouncement:
-          'The Circuit Star is yours. Power runs true through every conductor',
+          'The Circuit Star is yours. The braided bolt woke the mast',
     ),
     DungeonStarSpec(
       name: 'Storm Star',
@@ -3878,13 +3884,16 @@ const DungeonLayout _lightningLayout = DungeonLayout(
       'The breaker gate stays shut until you have the Circuit and Storm '
       'stars',
   guardianSealedHint:
-      'The core hatch stays shut until the beam is latched',
+      'The core hatch stays shut until one bolt lights all three masts in the '
+      'Storm Spire',
+  riteWakeLine:
+      'One bolt lit all three masts. Raikuma is awake behind the core hatch',
   mercyShrineRoomId: 'storm_core',
   // Ideal: Lightninghorn · Airwing · Firepip — hinted by VERB, never body part:
   // the mighty charge/hold, flight, small access + heat.
   riddle: [
     'Send me Lightning: my dead iron wakes to nothing weaker;',
-    'Air, to herd my high storm-cells down to the iron;',
+    'Air, to blow my vents awake and send the wind to iron;',
     'and Fire, to weld wind to flame where my iron runs thin.',
   ],
   primer: [
@@ -4419,7 +4428,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Cinder Star',
       earnAnnouncement:
-          'The Cinder Star is yours. You crossed the chasm',
+          'The Cinder Star is yours. The melt reached the foot of the moat',
     ),
     DungeonStarSpec(name: 'Crucible Star'),
   ],
@@ -4431,19 +4440,22 @@ const DungeonLayout _steamLayout = DungeonLayout(
       'The crucible gate stays shut until you have the Causeway and Cinder '
       'stars',
   guardianSealedHint:
-      'The heart valve stays clamped until the crucible is finished',
+      'The Furnace Heart stays shut until all four crucible corners are shut '
+      'and someone stands on the centre plinth',
+  riteWakeLine:
+      'All four corners are shut. Boilrog is awake in the Furnace Heart',
   mercyShrineRoomId: 'boiler_heart',
   // Ideal: Steampip · Firemask · Earthhorn — hinted by VERB, never body part:
   // a cooling breath, a kindling/melting heart, the wall-raising strength.
   riddle: [
-    'Send me Steam: my cold breath sets the molten back to stone;',
-    'Earth, to raise the walls that dam my flood;',
-    'and Fire, to open the rock and let the fire-blood run.',
+    'Send me Steam: my clamped vent opens to your breath alone;',
+    'Earth, to raise the stone that stops my roaring mouths;',
+    'and Fire, to melt the rock that fills my moat.',
   ],
   primer: [
-    'The main holds forty pressure, and each junction you open costs '
+    'The main starts at forty pressure, and each junction you open costs '
         'fifteen.',
-    'Cooling molten adds pressure back, so a flood is also fuel.',
+    'Stoking a firebox adds pressure back, but the roar draws wisps.',
   ],
   rooms: {
     // Boiler Gate — the way in. A Steam creature cracks the relief vent and

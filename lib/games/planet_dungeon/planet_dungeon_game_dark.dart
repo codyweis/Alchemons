@@ -18,8 +18,9 @@
 //    finished in one shape of the vault. ELEMENT-ONLY, all three elements
 //    used: this is the star §4 guarantees to any trio of the right elements
 //    on a first descent.
-//  • Star 1 (Anchor) — THE SHADOW-PORTALS (§6's S2). A Poison PIP eats the
-//    rust out of a ring (the planet's one star-level family gate); a Spirit
+//  • Star 1 (Anchor) — THE SHADOW-PORTALS (§6's S2). Any PIP clears the
+//    rust out of a ring (the planet's one star-level family gate, verb-only:
+//    any element, the Pip family); a Spirit
 //    hand reads where the far end comes out; and a portal only carries you
 //    while BOTH its ends lie in shadow. The star is the three TRANSITS, not
 //    the three unlocks — which makes it a planning problem over the eclipse.
@@ -37,8 +38,8 @@
 //    and it shows only while the DEEP stands in LIGHT — the one arrangement
 //    the whole lower vault punishes, and one you can only make from the
 //    arena's vane. On it lies a gnomon that fell an age ago, chained to a
-//    rusted ring at the rim: Spirit reads the chain, a Poison pip eats the
-//    rust, and Dark hauls it up a length a press.
+//    rusted ring at the rim: Spirit reads the chain, any Pip clears the
+//    rust (the anchors' own gate), and Dark hauls it up a length a press.
 //
 // NON-STRANDABILITY (see `solveEclipseVault`): a global flip that swaps walls
 // and doors is the purest stranding machine in the set — a flip can close the
@@ -365,8 +366,9 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     return null;
   }
 
-  /// A shadow-anchor. Three things happen at a ring, in this order: a Poison
-  /// PIP eats the rust (the star's ONE hard family gate, §4); a Spirit hand
+  /// A shadow-anchor. Three things happen at a ring, in this order: any PIP
+  /// clears the rust (the star's ONE hard family gate, §4 — verb-only, any
+  /// element); a Spirit hand
   /// reads where the far end comes out (element-only, and purely
   /// informational — an unread portal still carries you); and anyone at all
   /// walks it, but only while BOTH its ends lie in shadow.
@@ -402,7 +404,8 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         }
         vault.anchorsOpen.add(an.id);
         _cue(SoundCue.elementPoison);
-        _setHint('The rust goes off the ring, and the ring goes through');
+        // SPOKEN: a plain hint from a press is dropped unasked.
+        speakConsequence('The rust comes off the ring. The portal is clear');
         _spawnAlchemyBurst(
           ring,
           producedElement: 'Poison',
@@ -425,18 +428,18 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         final far = an.other(currentRoomId)!;
         final farLeaf = _leafOf(far)!;
         final mine = _leafOf(currentRoomId)!;
+        // ONE refusal (the hint audit, 2026-09-25): the read line used to be
+        // set second and overwrite the first even when it was YOUR end that
+        // stood in light. Your own end first; the far quarter is named only
+        // once the scout has read it — an unread ring is supposed to be a
+        // hole into somewhere.
         _setBlockedHint(
           vault.isLit(mine)
               ? 'The portal is closed while ${leafWord(mine)} is in light'
+              : vault.anchorsRead.contains(an.id)
+              ? 'The ring is clear, but ${leafWord(farLeaf)} is in light'
               : 'The far end of this portal is in light',
         );
-        // Name the far quarter only once the scout has read it: an unread
-        // ring is supposed to be a hole into somewhere.
-        if (vault.anchorsRead.contains(an.id)) {
-          _setBlockedHint(
-            'The ring is clear, but ${leafWord(farLeaf)} is in light',
-          );
-        }
         return true;
       }
 
@@ -632,15 +635,23 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     }
 
     // ── 4 · the rust, eaten ──
-    // (A Poison hand once the ring is clean falls through to the haul, as
-    // the other half of the braid.)
-    if (el == 'Poison' && !vault.abyssChainFree) {
-      // The anchors' own gate, declared on the layout: a ring is a ring.
-      const req = DungeonInteractionRequirement(
-        element: kAnyElement,
-        requiredFamily: DungeonAbility.smallAccess,
-      );
-      switch (evaluateInteraction(a.member, req)) {
+    // The anchors' own gate, declared on the layout: a ring is a ring, so
+    // ANY Pip clears it (§9.14 — "the same verb, and the same gate ... as
+    // every anchor ring"). It used to enter here only for a Poison hand, so a
+    // Dark or Spirit Pip the riddle had promised ("Poison, and any Pip") was
+    // turned away at the haul with "Rust has the ring locked". A non-Pip
+    // Poison hand still comes in to hear the refusal; once the ring is clean
+    // a Poison hand falls through to the haul, as half of the braid.
+    const ringReq = DungeonInteractionRequirement(
+      element: kAnyElement,
+      requiredFamily: DungeonAbility.smallAccess,
+    );
+    final ringResult = evaluateInteraction(a.member, ringReq);
+    final isPip =
+        ringResult == InteractionResult.passed ||
+        ringResult == InteractionResult.passedViaRecipe;
+    if (!vault.abyssChainFree && (isPip || el == 'Poison')) {
+      switch (ringResult) {
         case InteractionResult.passed:
         case InteractionResult.passedViaRecipe:
           vault.abyssChainFree = true;
@@ -652,6 +663,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
             particleCount: 22,
             intensity: 1.0,
           );
+          speakConsequence('The rust comes off the ring. The chain is free');
           return true;
         default:
           _spawnAlchemyBurst(
@@ -791,7 +803,9 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
           : 'The Analemma Court. Four stones need seating on the dial';
     }
     if (room.eclipse?.starIndex == 1) {
-      return hasStar(1) ? null : 'The Ossuary Ring. Three rusted portal rings';
+      return hasStar(1)
+          ? null
+          : 'The Ossuary Ring. Three portals across the vault need walking';
     }
     if (room.vaultCache != null) {
       return 'A hidden room. Something is stored here';
@@ -840,6 +854,36 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
   /// tiered by Intelligence.
   void _vaultReveal(DungeonCreature a, DungeonRoom room) {
     final tier = revealHintTier(a.member.statIntelligence);
+    final cacheTaken = discoveredClouds.contains(_vaultCacheId);
+    // NOCTRYOS' ARENA used to fall through to the vault's generic eclipse
+    // reading, which says nothing about the fight or the vane.
+    if (room.eclipse?.shadowVane != null) {
+      _setInsightHint(switch (tier) {
+        0 => 'Noctryos can only be hurt while the Deep is in shadow',
+        1 =>
+          'The floor-vane turns the stair gnomon from here. It moves the '
+              'shadow between the Ossuary and the Deep',
+        _ =>
+          'Turn the vane to put the shadow back on the Deep each time '
+              'Noctryos pulls it off',
+      });
+      return;
+    }
+    // THE RELIQUARY holds a portal ring too, and the anchor reading used to
+    // win here, so the vault's own reading never showed in the vault. Until
+    // the essence is taken, the room reads as what it is.
+    if (room.vaultCache != null && !cacheTaken) {
+      _setInsightHint(switch (tier) {
+        0 => 'This room is only here while the Deep is in shadow',
+        1 =>
+          'Nothing in here can put the Deep in light, so the slot back to '
+              'the font stays open',
+        _ =>
+          'Walk to the essence to take it. Nothing in here can put the Deep '
+              'in light, so the slot back to the font stays open',
+      });
+      return;
+    }
     if (room.eclipse?.analemma != null) {
       _setInsightHint(switch (tier) {
         0 => 'Each stone belongs to one quarter of the vault',
@@ -874,8 +918,14 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       });
       return;
     }
+    // THE FONT. The maxim's oblique line used to win here until the egg was
+    // found, so the vault's reading (the slot in this wall) never showed in
+    // the one room it is about. The vault reading comes first now; the
+    // oblique line takes over once the Deep is lit (the bottom is showing)
+    // or the essence is already taken.
     if (room.eclipse?.abyss != null &&
-        !discoveredClouds.contains(kDarkAbyssEggId)) {
+        !discoveredClouds.contains(kDarkAbyssEggId) &&
+        (abyssLit || cacheTaken)) {
       // ONE OBLIQUE LINE and nothing after it (the §7 maxim standard). It
       // does not tier and it does not track progress.
       _setInsightHint(
@@ -884,7 +934,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       );
       return;
     }
-    if (room.vaultCache != null || room.eclipse?.abyss != null) {
+    if (room.eclipse?.abyss != null) {
       _setInsightHint(switch (tier) {
         0 => 'That wall changes with the shadows',
         1 =>
@@ -901,8 +951,8 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     _setInsightHint(switch (tier) {
       0 => 'Turning a gnomon flips which paths are open',
       1 =>
-        'Paths between quarters only open in shadow. Paths inside a quarter '
-            'only open in light',
+        'A path with a floor opens while its quarter is in light. A dark '
+            'gap opens while its quarter is in shadow',
       _ =>
         'Three gnomons, four quarters, one shadow each. Plan which quarters '
             'you need in shadow before you walk',

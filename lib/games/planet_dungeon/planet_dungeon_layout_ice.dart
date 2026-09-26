@@ -462,7 +462,8 @@ const DungeonLayout iceLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Mirror Star',
       earnAnnouncement:
-          'The Mirror Star is yours. You found the odd star out',
+          'The Mirror Star is yours. The chart runs all the way round with '
+          'nothing forking',
     ),
     DungeonStarSpec(
       name: 'Orrery Star',
@@ -501,7 +502,8 @@ const DungeonLayout iceLayout = DungeonLayout(
   primer: [
     'Shafts only go down, unless Ice freezes their snow into steps.',
     'Ride a shaft down and it\'s bare ice for good. It can\'t be frozen after.',
-    'A ledge has its own chute, and its snow comes down with you.',
+    'A ledge has its own chute. Its snow holds, so you can ride it as often '
+        'as you like.',
   ],
   // §4 budget: TWO hard gates, one per star that has one, each on a different
   // entry slot. The ORRERY (Star 1, index 1) is deliberately UNGATED so any
@@ -772,8 +774,8 @@ const DungeonLayout iceLayout = DungeonLayout(
       // and it is DOWN when you walk in — so the room taught itself nothing
       // and drew almost nothing. One line, once, on the insight channel.
       teach:
-          'Frowyrm can only be hit while the hoarfrost pillar stands, and '
-          'every hit it lands knocks the pillar down.',
+          'Frowyrm can only be hit while the hoarfrost pillar stands, and it '
+          'breaks the pillar each time its opening closes.',
       bounds: Rect.fromLTWH(0, 0, 900, 640),
       doors: [
         // Back up through the broken roof, onto its far shore.

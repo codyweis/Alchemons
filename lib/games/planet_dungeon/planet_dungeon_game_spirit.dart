@@ -408,9 +408,13 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       f.tell(r.id);
       _cue(SoundCue.dungeonCheckpoint);
       _clearHints();
-      _setHint(
-        '${r.name} finishes dying, and lets go of the arch it was holding',
-        4.0,
+      // A CONSEQUENCE (§5.7): a telling is irreversible and can close a road
+      // the party is using, so it is spoken — a plain `_setHint` was dropped.
+      final look = graveCrossingById(r.crossingId)!.look;
+      speakConsequence(
+        '${r.name} is at rest. ${look[0].toUpperCase()}${look.substring(1)} '
+        'is open to the living now, and closed to the dead',
+        4.6,
       );
       _spawnAlchemyBurst(
         r.seat,
@@ -741,10 +745,12 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     final spec = _graveVigil;
     final f = _field;
     if (spec != null && !hasStar(spec.roadStarIndex)) {
+      // No denominator: the Cold Road needs a living road to the cairn, not
+      // all six told — and telling both of the mere's dead shuts the hollow
+      // grave — so "/6" read as the wrong goal.
       return DungeonProgressReadout(
-        label: 'FINISHED',
-        value: '${f.told}/${kGraveRevenants.length}',
-        fraction: f.told / kGraveRevenants.length,
+        label: 'LAID TO REST',
+        value: '${f.told}',
       );
     }
     if (spec != null && !hasStar(spec.sigilStarIndex) && f.stampsTried > 0) {
@@ -853,10 +859,11 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if (room.grave?.graveLamp != null) {
       _setInsightHint(switch (tier) {
         0 => 'The rite needs the name stone and the lamp',
-        1 => 'A Spirit Mask reads the stone. Crystal lights the lamp',
+        1 => 'Any Spirit reads the name stone. Any Crystal lights the lamp',
         _ =>
-          'A Spirit Mask reads the nameless stone. Any Crystal lights the '
-              'lamp once you have both stars',
+          'Have your Spirit touch the name stone and your Crystal light the '
+              'lamp. Both need the ${layout.starName(0)} and '
+              '${layout.starName(1)}, and Wraithord wakes when both are done',
       });
       return;
     }
@@ -864,7 +871,9 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'Nobody was ever buried here',
         1 => 'Every other grave has a name-slot. This one doesn\'t',
-        _ => 'An empty slot takes any mark set in it',
+        _ =>
+          'Only the dead can reach this grave. Its door is a ghost road off '
+              'the mere',
       });
       return;
     }
@@ -902,7 +911,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     _setInsightHint(switch (tier) {
       0 => 'This field exists in two worlds, living and dead',
       1 =>
-        'Each road belongs to the living or the dead, never both. Lych-stones '
+        'Most roads belong to the living or the dead, not both. Lych-stones '
             'move you between worlds',
       _ =>
         'Six roads are blocked by ghosts. Laying one to rest gives its road '

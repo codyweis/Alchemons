@@ -653,4 +653,42 @@ void main() {
       );
     });
   });
+
+  test('the sharpest reading names the two basins the rise will drown', () {
+    // After two basins freeze the water rides a level higher, and the basins
+    // wanting notch 1 (thin crescent) and notch 4 (swelling moon) change
+    // stand and drown. The tier-2 reading has to say so plainly, before the
+    // player freezes the wrong pair.
+    final g = _well();
+    final pip = g.creatures.first;
+    g.creatures[0] =
+        DungeonCreature(
+            member: CosmicPartyMember(
+              instanceId: 'bright',
+              baseId: 'b',
+              displayName: 'Bright Pip',
+              imagePath: null,
+              element: 'Water',
+              family: 'pip',
+              level: 10,
+              statSpeed: 4,
+              statIntelligence: 5,
+              statStrength: 4,
+              statBeauty: 4,
+              slotIndex: -1,
+              staminaBars: 9,
+              staminaMax: 9,
+            ),
+          )
+          ..position = pip.position
+          ..lastSafe = pip.position;
+    g.activeIndex = 0;
+    g.update(1 / 60);
+    g.askForRoomHint();
+    expect(g.revealTier, 2);
+    final line = g.hintText ?? '';
+    expect(line, contains('a thin crescent'));
+    expect(line, contains('a swelling moon'));
+    expect(line, contains('drowns them'));
+  });
 }

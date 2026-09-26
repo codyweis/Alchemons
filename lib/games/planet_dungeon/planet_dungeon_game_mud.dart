@@ -262,8 +262,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
       return;
     }
     if (f.founder == 0) {
-      _setHint(
-        'The knoll gives under you, nothing is holding it up any more',
+      speakConsequence(
+        'Lotus Knoll is sinking. None of its crossings hold it up any more',
         3.0,
       );
     }
@@ -282,8 +282,11 @@ extension SinkingAltarFen on PlanetDungeonGame {
     currentRoomId = door.targetRoomId;
     _spreadCreaturesAround(door.targetSpawn);
     _clearHints();
-    _setHint(
-      'The lotus goes under and takes you with it, and the fen closes over',
+    // SPOKEN: from update, where a plain line is dropped, and the party has
+    // just been moved to a room it did not walk into.
+    speakConsequence(
+      'Lotus Knoll sinks and takes the party down with it. There is no way '
+      'back up from here.',
       4.4,
     );
   }
@@ -325,7 +328,12 @@ extension SinkingAltarFen on PlanetDungeonGame {
       // The moor-altars answer to dryness, so a swallowed road can un-wake a
       // basin — but only BEFORE the Moor Star is banked.
       if (!_moorStarBanked) f.moorsWoken.removeWhere((k) => !f.isDry(k));
-      _setHint('Bogdrya drinks, a causeway goes out from under the bog');
+      // SPOKEN: from update, and the crossing is rooms away. Taking it out
+      // of `hardened` returns it to MIRE, not water — never say drowned.
+      speakConsequence(
+        'Bogdrya takes back ${_bogFordName(ford)}. It is mire again.',
+        4.2,
+      );
       return;
     }
   }
@@ -521,7 +529,9 @@ extension SinkingAltarFen on PlanetDungeonGame {
       }
       final braid = a.member.element != 'Mud';
       if (braid && !_bogBraidReady(a)) {
-        _setBlockedHint('Only Mud can harden this crossing');
+        _setBlockedHint(
+          'Only Mud can harden this crossing, or Plant and Water together',
+        );
         return true;
       }
       final lost = f.harden(ford.id) ?? const <BogFord>[];
@@ -532,12 +542,15 @@ extension SinkingAltarFen on PlanetDungeonGame {
         ..smear = _kSmearSeconds
         ..smearAt = head
         ..smearLost = [for (final l in lost) l.id];
-      _setHint(
+      // SPOKEN: the planet's main consequence, and the crossings it floods
+      // are usually in rooms the player cannot see. Not "for good" — the
+      // plug, and Bogdrya, both undo a hardened crossing.
+      speakConsequence(
         lost.isEmpty
-            ? 'The mire knits and stands, a road, for good'
-            : 'The road stands, and the water it held backs up into '
-                  '${kSloughNames[ford.slough] ?? 'the slough'}',
-        3.6,
+            ? 'The crossing hardens. Nothing else flooded.'
+            : 'The crossing hardens. It flooded '
+                  '${lost.map(_bogFordName).join(' and ')}.',
+        lost.isEmpty ? 3.6 : 4.6,
       );
       _spawnAlchemyBurst(
         head,
@@ -670,6 +683,24 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (guardianAwake || hasStar(2) || !guardianRiteUnlocked || isRaid) return;
     guardianAwake = true;
     guardianHp = PlanetDungeonGame.maxGuardianHp;
+    // The wake never passes `_updateAltar`, so `riteWakeLine` is not read.
+    // The second star spoke `riteAnnouncement` the frame before, and it
+    // already names the wake — only speak when that line is not up (a
+    // restored run, whose stars were banked before this session).
+    if (hintText != layout.riteAnnouncement) {
+      speakConsequence('Bogdrya is awake in the hollow under the fane.');
+    }
+  }
+
+  /// "the crossing between Hag Knoll and Reed Knoll", from the knolls' own
+  /// names, so a consequence line names a place the player has walked.
+  String _bogFordName(BogFord ford) {
+    String name(String roomId) {
+      final n = layout.rooms[roomId]?.fen?.knoll?.name ?? roomId;
+      return n.startsWith('The ') ? n.substring(4) : n;
+    }
+
+    return 'the crossing between ${name(ford.knollA)} and ${name(ford.knollB)}';
   }
 
   /// Pressing the empty socket has to say where the stone is.
@@ -1178,6 +1209,33 @@ extension SinkingAltarFen on PlanetDungeonGame {
     }
     if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
       _setInsightHint('Weed hides the crossings. Water can wash it off');
+      return;
+    }
+    // BOGDRYA'S HOLLOW. The fen rule is no use down here: the fight is the
+    // mire anchor (`_tryMireAnchor`, `_updateBogdrya`, `_swallowOneRoad`).
+    if (room.guardian != null) {
+      if (hasStar(room.guardian!.starIndex)) {
+        _setInsightHint('Bogdrya is down. Nothing here needs doing');
+        return;
+      }
+      _setInsightHint(switch (tier) {
+        0 => 'Bogdrya can only be hurt while the floor is hard',
+        1 =>
+          'Mud can harden the floor at the anchor. It goes soft each time '
+              'the opening closes',
+        _ =>
+          'Harden the anchor with Mud, hit Bogdrya while it\'s open, then '
+              'harden it again. Each time, Bogdrya takes back one crossing '
+              'you hardened above',
+      }, 4.2);
+      return;
+    }
+    // THE SUNKEN LOTUS. A bowl with the essence in it and one way on.
+    if (room.id == 'sunken_lotus') {
+      _setInsightHint(
+        'The cache in the middle holds what the fen kept. The south door '
+        'goes on down to the Drowned Fane',
+      );
       return;
     }
     final moor = room.fen?.moor;

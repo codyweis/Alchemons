@@ -347,10 +347,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         sealedCorners.length >= room.crucibleSeals.length &&
         creatures.any((c) => c.alive && plinth.contains(c.position))) {
       moltenRiteDone = true;
-      _setHint(
-        'You stand in the crucible\'s heart, Boilrog heaves up beyond it',
-        4.0,
-      );
+      // The wake itself is SPOKEN by `_maybeWakeBoilrog` on the next tick
+      // (layout.riteWakeLine) — a plain line from update is dropped unasked.
       onChanged();
     }
     if (geyserFlightActive) return; // let the arc finish before anything reads
@@ -397,9 +395,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         room.castingMoat != null &&
         creatures.any((c) => c.alive && far.inflate(2).contains(c.position))) {
       castingGreeted = true;
-      _setObjectiveHint(
-        'A dry casting moat, a boulder on the lip, a flame under it, and '
-        'keep the melt running down',
+      // Arriving on the far shore is an arrival, so it names itself through
+      // the room-entry path (a plain objective line from update is dropped).
+      _announceRoomEntry(
+        'The casting moat. Earth raises rock onto the lip and Fire melts it '
+        'down the channel. The melt cools back if nobody feeds it',
       );
     }
   }
@@ -1130,9 +1130,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (!moltenRiteDone) return;
     guardianAwake = true;
     guardianHp = PlanetDungeonGame.maxGuardianHp;
-    _setHint(
-      'Boilrog heaves up from the furnace-heart, wreathed in steam',
-      4.2,
+    // SPOKEN: this runs from update, where a plain line is dropped unasked,
+    // and a guardian waking is a consequence the player must hear (§5.7).
+    speakConsequence(
+      layout.riteWakeLine ??
+          'All four corners are shut. Boilrog is awake in the Furnace Heart',
     );
     spawnWispWave(
       element: 'Steam',
@@ -1485,7 +1487,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         !entryDoorRevealed) {
       if ((a.position - vent).distance <= 64) {
         if (a.member.element != 'Steam') {
-          _setHint('The clamped seal answers only to Steam');
+          _setBlockedHint('Only Steam can open this vent');
           return true;
         }
         entryDoorRevealed = true;
@@ -1509,9 +1511,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       if (seal == null || !_sealBlocked(room, door)) continue;
       if ((a.position - door.rect.center).distance > _kPressureReach) continue;
       if (boilerPressure < seal.cost) {
-        _setHint(
-          'The clamp wants ${seal.cost} pressure, the main holds '
-          'only $boilerPressure',
+        _setBlockedHint(
+          'This junction costs ${seal.cost} pressure. The main has only '
+          '$boilerPressure',
         );
         return true;
       }
@@ -1532,11 +1534,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final port = room.stokePort;
     if (port != null && (a.position - port).distance <= _kPressureReach) {
       if (a.member.element != 'Fire') {
-        _setHint('Only Fire can stoke the firebox');
+        _setBlockedHint('Only Fire can stoke the firebox');
         return true;
       }
       if (boilerPressure >= kSteamPressureMax) {
-        _setHint('The main already strains at its rivets');
+        _setBlockedHint('The main is full ($kSteamPressureMax)');
         return true;
       }
       boilerPressure = min(kSteamPressureMax, boilerPressure + kSteamStokeGain);
@@ -1568,9 +1570,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         !burstDiscBlown &&
         (a.position - disc.position).distance <= _kPressureReach) {
       if (boilerPressure < disc.threshold) {
-        _setHint(
-          'The burst-disc wants a surge of ${disc.threshold} at once'
-          'the main holds only $boilerPressure. The valve refuses',
+        _setBlockedHint(
+          'The burst-disc needs ${disc.threshold} pressure at once. The main '
+          'has only $boilerPressure',
         );
         return true;
       }
@@ -1764,19 +1766,47 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         .where((s) => !sealedCorners.contains(s.id))
         .map((s) => s.second == null ? s.element : '${s.element}+${s.second}')
         .join(', ');
+    // The throw is the main plus 40 per vent held (a shut corner holds both
+    // of its own), and it has to pass the gauge's 99. Say how far off it is.
+    final head = launchHead;
+    final more = head > kSteamPressureMax
+        ? 0
+        : (kSteamPressureMax - head) ~/ kSteamCapHead + 1;
+    final need = more == 0
+        ? 'That is enough to throw'
+        : 'Hold $more more vent${more == 1 ? '' : 's'} to throw';
     _setHint(
       tier >= 2
           ? 'A shut corner stays shut, so each one makes the next throw '
                 'stronger. Nothing reaches the far side until two are shut. '
                 'Leave the corner that needs two elements until last'
           : tier >= 1
-          ? 'A throw needs the main above $kSteamPressureMax, which means TWO '
-                'vents held: one of you moves while two stand. Whoever lands '
+          ? 'Each vent held adds $kSteamCapHead to the main, and a shut corner '
+                'holds both its vents. A throw needs more than '
+                '$kSteamPressureMax. It reads $head now. $need. Whoever lands '
                 'must hold a vent so the others can follow '
                 '($left corner${left == 1 ? '' : 's'} still open: $want)'
-          : 'Four open corners drain the main, and the centre plinth isn\'t '
-                'there yet',
+          : 'Four open corners. The centre plinth appears once all four are '
+                'shut',
       5.5,
+    );
+  }
+
+  /// The far shore of the Cinder Forge: the casting moat's own reading.
+  void _castingReveal(DungeonCreature a, DungeonRoom room) {
+    final tier = revealHintTier(a.member.statIntelligence);
+    final pct = (moatFill * 100).round();
+    _setHint(
+      tier >= 2
+          ? 'One rock is worth three melts, and the moat needs four. Keep '
+                'Fire melting and have Earth raise fresh rock the moment the '
+                'lip is bare'
+          : tier >= 1
+          ? 'Earth raises rock onto the lip. Fire melts it and the melt runs '
+                'down the channel. Left alone, it cools back up the channel '
+                '($pct% full)'
+          : 'Fill the moat with melt down to the pedestal at its foot',
+      5.0,
     );
   }
 
@@ -1790,11 +1820,15 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
     if (riser == 0) {
       // The Causeway: shut everything, and the field fights you for it.
+      // Blasts shove harder per cap, a body ON a mouth is never thrown (it
+      // caps it), and from three caps (the rubble counts) a roaring mouth
+      // walks the stone 40px away — see `_eruptGeysers`.
       _setHint(
         tier >= 2
-            ? 'Each mouth you cover pushes more pressure into the rest, so the '
-                  'last ones are fiercest. Only the stone can hold a mouth at '
-                  'full pressure. Raise it and push it into place EARLY'
+            ? 'Each mouth you cover makes the open ones blow harder. Once '
+                  'three are covered, counting the rubble, a blast knocks the '
+                  'stone away from any open mouth it\'s near. Push the stone '
+                  'onto its mouth before you cover the others'
             : tier >= 1
             ? 'Standing on a mouth covers it, and so does a stone. Cover them '
                   'all to send the pressure to the heart ($shut of $total '
@@ -1806,85 +1840,73 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       return;
     }
 
+    // The far shore has its own puzzle, and it is not the field.
+    final moat = room.castingMoat;
+    final far = room.platforms.isEmpty ? null : room.platforms.last;
+    final cap = room.capstone;
+    if (moat != null &&
+        far != null &&
+        !(cap != null && hasStar(cap.starIndex)) &&
+        far.inflate(2).contains(a.position)) {
+      _castingReveal(a, room);
+      return;
+    }
+
     // The Forge: one mouth cannot be covered, and that is the way across.
     final head = launchHead;
     _setHint(
       tier >= 2
-          ? 'Every mouth covered AND the boiler over $kSteamPressureMax. The '
+          ? 'Every mouth covered AND the head over $kSteamPressureMax. The '
                 'stone holds one mouth and a creature the other, so two ride '
                 'across. The far moat needs Earth and Fire, so Steam is the '
                 'one to leave behind'
           : tier >= 1
           ? 'A covered mouth feeds pressure into the main. An open one drains '
                 'it faster than a plug feeds. Cover every mouth AND get the '
-                'boiler above $kSteamPressureMax (it reads $head)'
+                'head above $kSteamPressureMax (it reads $head)'
           : 'Two mouths can be covered and one can\'t. The far shore is past '
                 'the one that can\'t',
       5.0,
     );
   }
 
+  // Every Vaporis room is grid-less now (the molten tile grids retired with
+  // the geyser rework), so the readings key off each room's furniture. The
+  // old molten-grid branches — dam walls, cisterns, condensate — described
+  // rooms that no longer exist and were removed with this rewrite.
   void _steamReveal(DungeonCreature a, DungeonRoom room) {
-    final g = room.molten;
-    if (g == null) {
-      // THE GEYSER ROOMS FIRST. Both of them carry pressure seals on their
-      // doors, so they used to fall straight through to the ring-economy
-      // reading below — a paragraph about junction costs and burst discs,
-      // asked for while standing in front of a field of geysers. The hint
-      // never once spoke about the puzzle the player was looking at.
-      if (room.crucibleSeals.isNotEmpty) {
-        _crucibleReveal(a, room);
-        return;
-      }
-      if (room.geysers.isNotEmpty) {
-        _steamGeyserReveal(a, room);
-        return;
-      }
-      // The manifolds: insight reads the ring's ECONOMY, not a grid.
-      if (room.pressureSeals.isNotEmpty || room.burstDisc != null) {
-        _setHint(
-          'The main starts at $kSteamStartPressure and each junction costs '
-          '15, so you can\'t open them all. Cooling molten adds '
-          '$kSteamCondensateGain per cell, and a stoked firebox adds more. '
-          'The burst-disc needs a surge of 60',
-          5.5,
-        );
-        return;
-      }
-      _setHint(_nothingHiddenLine());
+    // THE GEYSER ROOMS FIRST. Both of them carry pressure seals on their
+    // doors, so they used to fall straight through to the ring-economy
+    // reading below — a paragraph about junction costs and burst discs,
+    // asked for while standing in front of a field of geysers. The hint
+    // never once spoke about the puzzle the player was looking at.
+    if (room.crucibleSeals.isNotEmpty) {
+      _crucibleReveal(a, room);
       return;
     }
-    if (g.starIndex == null) {
-      // (retired with the pour chamber) Never a hurry: everything here can be worked
-      // out standing still, which is the whole point of the room.
-      final tier = revealHintTier(a.member.statIntelligence);
+    if (room.geysers.isNotEmpty) {
+      _steamGeyserReveal(a, room);
+      return;
+    }
+    // The Boiler Gate: the entry rite's vent.
+    if (room.steamVent != null &&
+        room.id == layout.entranceRoomId &&
+        !entryDoorRevealed) {
+      _setHint('The relief vent is clamped shut. Only Steam can open it');
+      return;
+    }
+    // The manifolds: insight reads the ring's ECONOMY.
+    if (room.pressureSeals.isNotEmpty || room.burstDisc != null) {
       _setHint(
-        tier >= 2
-            ? 'Melt falls SOUTH while it can and sideways only when it '
-                  'cannot, and both ways at once if both are open, which is '
-                  'why walling the branch you do not want is worth as much as '
-                  'opening the one you do. Count the cells of your channel '
-                  'before you light it'
-            : tier >= 1
-            ? 'Earth\'s walls are the channel, and nothing moves until Fire '
-                  'breaks a gate with molten behind it. A run is worth so '
-                  'many cells and no more, the MAIN buys the length of it'
-            : 'A cold chamber, two cisterns above the band, and a mould at '
-                  'the bottom that wants filling',
+        'The main starts at $kSteamStartPressure and each junction costs '
+        '15. Fire stoking a firebox adds $kSteamStokeGain, up to '
+        '$kSteamPressureMax, and the noise draws wisps. The burst-disc takes '
+        'the whole main and needs at least 60 in it',
         5.5,
       );
       return;
     }
-    _setHint(switch (g.starIndex) {
-      0 =>
-        'The wall holds back molten wherever the rock glows. Break through '
-            'dark, cool stone instead. Or tap a glowing face on purpose and '
-            'cool the flood cell by cell for extra pressure',
-      1 =>
-        'Every cistern floods the moment you melt the gate. Build walls '
-            'around the gate mouth FIRST, then break through',
-      _ => _nothingHiddenLine(),
-    });
+    _setHint(_nothingHiddenLine());
   }
 
   // ── Collision ────────────────────────────────────────────
@@ -1997,31 +2019,26 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   }
 
   String? _steamObjectiveHint(DungeonRoom room) {
-    final g = room.molten;
-    if (g == null) {
-      if (room.guardian != null) {
-        return 'Furnace Heart. Face Boilrog: calm it, or strike in its lulls';
-      }
-      if (room.id == 'manifold_south') {
-        return 'South Manifold. The ring main runs through clamped junctions';
-      }
-      if (room.id == 'manifold_north') {
-        return 'North Manifold. The way to the crucible is here';
-      }
-      if (room.id == 'burst_vault') {
-        return 'The Burst Vault. Something is stored below';
-      }
-      return null;
+    // WHAT, never HOW (§5.6). Every Vaporis room is grid-less (the molten
+    // tile grids retired with the geyser rework), so the star rooms' lines
+    // key off the room id — they sat behind `room.molten != null` and had
+    // not been said once since the rework.
+    if (room.guardian != null) {
+      return 'Furnace Heart. Face Boilrog: calm it, or strike in its lulls';
     }
-    // WHAT, never HOW (§5.6): where to breach, when to dam, and how to
-    // thread the flood are the foundry's earned readings (_steamReveal).
-    // These three lines described the TILE-LAVA CAUSEWAY, which was retired
-    // on 2026-08-14 and replaced by the geyser field. The first promised the
-    // player 'a dam of old stone' in a room that has not had one for weeks.
-    return switch (g.starIndex) {
-      0 => 'Ember Causeway. Five mouths vent the field, and one is choked',
-      1 => 'Cinder Forge. The far shore is across a chasm too wide to jump',
-      _ => 'The Crucible. Four open corners, and no centre yet',
+    return switch (room.id) {
+      'boiler_gate' when !entryDoorRevealed =>
+        'Boiler Gate. The pressure door is clamped shut',
+      'manifold_south' =>
+        'South Manifold. The ring main runs through clamped junctions',
+      'manifold_north' => 'North Manifold. The way to the crucible is here',
+      'burst_vault' => 'The Burst Vault. Something is stored below',
+      'ember_causeway' =>
+        'Ember Causeway. Five mouths vent the field, and one is choked',
+      'cinder_forge' =>
+        'Cinder Forge. The far shore is across a chasm too wide to jump',
+      'crucible' => 'The Crucible. Four open corners, and no centre yet',
+      _ => null,
     };
   }
 

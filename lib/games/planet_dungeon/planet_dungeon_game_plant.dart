@@ -471,10 +471,8 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     }
     conduitEnergy['B'] = double.infinity;
     _cue(SoundCue.dungeonSwitch);
-    _setHint(
-      'The clay slumps off the sepulchre, and the hall lets out a '
-      'breath',
-    );
+    // SPOKEN: a plain hint from a press is dropped unasked.
+    speakConsequence('The clay slumps off the sepulchre. It stays open');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Mud',
@@ -834,6 +832,35 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
   /// tiered by Intelligence.
   void _cryptReveal(DungeonCreature a, DungeonRoom room) {
     final tier = revealHintTier(a.member.statIntelligence);
+    // BOTANICA'S ARENA has a fourth gall of its own and a rule of its own —
+    // the flower is only hurtable while you are small — and the crypt's size
+    // reading ("only three seed-galls") was all a HINT here used to say.
+    if (room.grove?.rootBole != null) {
+      _setInsightHint(switch (tier) {
+        0 => 'Botanica can only be hurt while you\'re small',
+        1 =>
+          'The root-gall here shrinks you. Its spores put you back to full '
+              'size',
+        _ =>
+          'Shrink at the root-gall, strike, and shrink again after each '
+              'burst. Each burst rots one of your vines',
+      });
+      return;
+    }
+    // THE VAULT'S DOOR is in this altar's rim. Once the Bloom Star is banked
+    // the altar has nothing left to teach, so its reading points at the
+    // pocket instead (this used to sit behind the altar branch and so only
+    // ever showed inside the hollow, where it was no use).
+    if (room.grove?.growthAltar != null &&
+        room.grove?.starIndex != null &&
+        hasStar(room.grove!.starIndex!) &&
+        !discoveredClouds.contains(_vaultCacheId)) {
+      _setInsightHint(
+        'There\'s a little door in the altar\'s rim. Only a small body fits '
+        'through it',
+      );
+      return;
+    }
     if (room.grove?.growthAltar != null) {
       _setInsightHint(switch (tier) {
         0 => 'The altar needs three things, in order',
@@ -853,12 +880,6 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
           'Light the two big ones at full size, then shrink at a seed-gall '
               'to light the tiny one',
       });
-      return;
-    }
-    if (room.vaultCache != null || room.grove?.growthAltar != null) {
-      _setInsightHint(
-        'There\'s a tiny door in the rim, only big enough when small',
-      );
       return;
     }
     if (room.grove?.shadeSeed != null &&

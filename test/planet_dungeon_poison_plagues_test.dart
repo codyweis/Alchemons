@@ -1600,4 +1600,32 @@ void main() {
       reason: 'no boil-over when it all fits',
     );
   });
+
+  group('the crypt reads the fight it actually has', () {
+    test('Blightfang\'s reading is about brews and shells, not a colour', () {
+      // `monastery.wearing` is never set: ANY brew opens the shell (never
+      // the same one twice running). The old reading promised a one-brew
+      // lock the fight does not have.
+      final g = _game(stars: const [0, 1]);
+      g.guardianAwake = true;
+      g.currentRoomId = 'lazar_crypt';
+      g.activeIndex = 0;
+      g.askForRoomHint();
+      expect(g.hintText, isNotNull);
+      expect(g.hintText!.toLowerCase(), contains('brew'));
+      expect(g.hintText!.toLowerCase(), contains('shell'));
+      expect(g.hintText!.toLowerCase(), isNot(contains('wearing')));
+    });
+
+    test('the dead-house reads the maw, not a retired strain', () {
+      final g = _game();
+      g.monastery.triage.open(kCryptWard);
+      g.currentRoomId = kCryptWard;
+      g.activeIndex = 0;
+      g.askForRoomHint();
+      expect(g.hintText, isNotNull);
+      expect(g.hintText!.toLowerCase(), contains('floor'));
+      expect(g.hintText!.toLowerCase(), isNot(contains('draught')));
+    });
+  });
 }

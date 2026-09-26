@@ -383,9 +383,9 @@ extension BuriedGiant on PlanetDungeonGame {
     if (scale == null || hasStar(2)) return false;
     if ((a.position - scale.plinth).distance > 46) return false;
     if (!guardianRiteUnlocked) {
-      _setHint(
-        'The plinth sleeps, it answers only a bearer of both the '
-        '${layout.starName(0)} and ${layout.starName(1)}',
+      _setBlockedHint(
+        'The plinth needs the ${layout.starName(0)} and '
+        '${layout.starName(1)} first',
       );
       return true;
     }
@@ -406,8 +406,8 @@ extension BuriedGiant on PlanetDungeonGame {
             3.2,
           );
         } else {
-          _setHint(
-            'A bare plinth in the eye\'s sightline. Stone must rise first',
+          _setBlockedHint(
+            'The plinth is bare. Earth has to raise stone on it first',
           );
         }
         return true;
@@ -432,7 +432,7 @@ extension BuriedGiant on PlanetDungeonGame {
             4.2,
           );
         } else {
-          _setHint('The stone core waits, for the storm, or for crystal');
+          _setBlockedHint('The stone core needs Lightning or Crystal');
         }
         return true;
       default:
@@ -536,7 +536,7 @@ extension BuriedGiant on PlanetDungeonGame {
         return true;
       }
       if (!interactionSucceeded(r)) {
-        _setHint('The giant\'s bones move only for earthen strength');
+        _setBlockedHint('Only an Earth Horn can shift this bone');
         return true;
       }
       // Which way? The shover stands on one side of the track axis.
@@ -554,7 +554,10 @@ extension BuriedGiant on PlanetDungeonGame {
       // either side of it the other way. The mechanism is the puzzle.
       final next = _ribCageAfter(room, rib.id, step);
       if (next == null) {
-        _setHint('The cage will not give that way, something would tear out');
+        _setBlockedHint(
+          'A rib below would come off its track. Shove the other way or '
+          'move another rib first',
+        );
         return true;
       }
       var moved = 0;
@@ -579,7 +582,7 @@ extension BuriedGiant on PlanetDungeonGame {
       );
       _setHint(
         moved > 1
-            ? 'The cage gives, and the ribs beside it lever the other way'
+            ? 'The cage gives, and the rib below it levers the other way'
             : 'One clean shove, the rib grinds along its track',
       );
       return true;
@@ -935,7 +938,9 @@ extension BuriedGiant on PlanetDungeonGame {
       // ── CRYSTAL: seal it, if it has somewhere to grow from ──
       if (element == 'Crystal') {
         if (!lockedPillars.contains(id)) {
-          _setBlockedHint('Nothing to seal. This socket isn\'t crystal');
+          _setBlockedHint(
+            'Nothing to seal yet. Lightning has to light this socket first',
+          );
           return true;
         }
         final ring = _pillarRing(room, id);
@@ -1001,7 +1006,7 @@ extension BuriedGiant on PlanetDungeonGame {
         return true;
       }
       if (element != 'Lightning') {
-        _setBlockedHint('An empty socket');
+        _setBlockedHint('Only Lightning can light this socket');
         return true;
       }
       _pillarCharge[id] = 0.0;
@@ -1033,9 +1038,9 @@ extension BuriedGiant on PlanetDungeonGame {
     for (final w in scale.weights) {
       if ((a.position - w.position).distance > 46) continue;
       if (!guardianRiteUnlocked) {
-        _setHint(
-          'The scale sleeps, it answers only a bearer of both the '
-          '${layout.starName(0)} and ${layout.starName(1)}',
+        _setBlockedHint(
+          'The scale needs the ${layout.starName(0)} and '
+          '${layout.starName(1)} first',
         );
         return true;
       }
@@ -1071,9 +1076,11 @@ extension BuriedGiant on PlanetDungeonGame {
       if (correct >= scale.weights.length) {
         guardianAwake = true;
         guardianHp = PlanetDungeonGame.maxGuardianHp;
-        _setHint(
-          'The scale stands true. Beneath you, the heart begins to BEAT',
-          4.2,
+        // SPOKEN: a plain line from a press is dropped unasked, and the
+        // guardian waking is a consequence the player must hear (§5.7).
+        speakConsequence(
+          layout.riteWakeLine ??
+              'Every stone sits on its true pan. The heart below is awake',
         );
         spawnWispWave(
           element: 'Earth',
@@ -1263,16 +1270,19 @@ extension BuriedGiant on PlanetDungeonGame {
         _setHint(
           hasStar(2)
               ? 'The giant lies quiet, the scale is settled'
-              : 'Marks are carved into bones all over the barrow. They tell '
-                    'you how to set the scale',
+              : 'Carved tablets in five rooms, this one included, show where '
+                    'each scale-stone belongs',
           4.2,
         );
         return;
       case 'rib_hall':
+        // The rule: `_ribNeighbours` levers only the rib BELOW the one
+        // shoved, one notch the other way, and only a Horn can shove.
         _setHint(
-          'Three grooves run east. Push the rib bones along them to bridge '
-          'the marrow',
-          3.8,
+          'Only an Earth Horn can shove a rib. Each shove also pushes the rib '
+          'below it one notch the other way. Get all three into the chasm '
+          'groove',
+          4.4,
         );
         return;
       case 'pillar_crypt':
@@ -1304,8 +1314,8 @@ extension BuriedGiant on PlanetDungeonGame {
         return;
       case 'skull_antechamber':
         _setHint(
-          'The bone-mural shows the eye weighing four stones. The leaning '
-          'marks on the giant\'s bones say which pan each stone belongs in',
+          'The bone-mural shows the eye weighing five stones. A carved tablet '
+          'in five rooms shows which pan each stone belongs in',
           5.0,
         );
         return;
@@ -1328,7 +1338,8 @@ extension BuriedGiant on PlanetDungeonGame {
           // reading did. Gone; the line describes the evidence instead, which
           // is what the rest of the tiers already do.
           _setHint(
-            'Through the prism, each stone shows which pan it belongs in',
+            'The scale\'s base marks the pan for every stone whose tablet '
+            'you\'ve read. Set each stone on its marked pan',
             4.2,
           );
         } else {
@@ -1416,7 +1427,8 @@ extension BuriedGiant on PlanetDungeonGame {
           // The authored clue layer: the mark itself is the world's reading
           // — state the observation, let the player draw the conclusion.
           _setAmbientHint(
-            'The $stoneName-mark leans ${right ? 'right' : 'left'} here',
+            'The tablet sets the $stoneName stone on the '
+            '${right ? 'right' : 'left'} pan',
           );
           return;
         }

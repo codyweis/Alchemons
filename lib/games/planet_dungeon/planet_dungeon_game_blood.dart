@@ -18,13 +18,15 @@
 //    entry elements used: this is the star §4 guarantees to any trio of the
 //    right elements on a first descent.
 //  • Star 1 (Graft) — THE COLLATERALS (§6's S2, "route life-flow through
-//    correct veins"). A Dark MASK grafts a dead vessel (the planet's one
-//    star-level family gate); a LIGHT hand flags which vessels are
+//    correct veins"). A DARK hand grafts a dead vessel (element-only — it was
+//    a Dark Mask gate until the family was judged a second lock on a planet
+//    that already asks for a Mane); a LIGHT hand flags which vessels are
 //    thrombosed, element-only and purely informational; and a graft is the
 //    only world-edit on the planet — always additive, never a subtraction.
 //    Three of the five collaterals are sound, rolled per descent.
-//  • Rite (the Myocardium) — conduit A is the Blood+KIN cannula (§6 put this
-//    gate on Star 1; §4's first-descent guarantee wins, so it moved here);
+//  • Rite (the Myocardium) — conduit A is the Blood MANE cannula (§6 put a
+//    Kin gate on Star 1; §4's first-descent guarantee wins, so it moved here,
+//    and a Kin was later judged too rare, so it answers a Mane);
 //    the BALANCE is §6's "balance dark/light beams around the heart",
 //    element-only Blood with **Dark+Light→Blood** as the braid.
 //  • Star 2 (Systole) — MYS17 SANGUORATH. §7: the guardian fights WITH the
@@ -266,9 +268,11 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
             intensity: 0.5,
           );
         }
-        _setHint(
-          'Your hand is on it. It drinks on ${phaseWord(o.phase)}. '
-          'Stay in this room',
+        // SPOKEN: a plain hint from a press is dropped unless HINT is
+        // being pressed, and this is the one line that says the press took.
+        speakConsequence(
+          'Your hand is on it. It drinks on ${phaseWord(o.phase)} if you '
+          'stay in this room',
         );
         return true;
       }
@@ -452,7 +456,10 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       heart.steadied[p.id] = _kSteadySeconds;
       heart.steadyDir[p.id] = currentRoom.id == p.from ? 1 : -1;
       _cue(SoundCue.elementBlood);
-      _setHint('${p.look} is held open, it will not close on the turn');
+      speakConsequence(
+        'You\'re holding ${p.look} open for a few seconds, even if the beat '
+        'turns',
+      );
       _spawnAlchemyBurst(
         d.rect.center,
         producedElement: 'Blood',
@@ -487,7 +494,8 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     }
     conduitEnergy['B'] = double.infinity;
     _cue(SoundCue.dungeonSwitch);
-    _setHint('The dark sconce and the light one come level, and stay level');
+    // SPOKEN: a plain hint from a press is dropped unasked.
+    speakConsequence('The dark and light sconces are level. They stay level');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Blood',
@@ -669,9 +677,9 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
           intensity: 0.5,
         );
       }
-      _setHint(
-        'Your hand is on the clot. The pressure holds it until the flatline. '
-        'Stay in this room',
+      speakConsequence(
+        'Your hand is on the clot. It gives on the flatline if you stay in '
+        'this room',
       );
       return true;
     }
@@ -877,12 +885,15 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     if (room.sanguine?.starIndex == 0) {
       return hasStar(0)
           ? null
-          : 'The Vena Crossing. Four mouths around the heart need priming';
+          : 'The Vena Crossing. Four mouths in four chambers need priming. '
+                'One is here';
     }
     if (room.sanguine?.starIndex == 1) {
       return hasStar(1)
           ? null
-          : 'The Capillary Weave. These walls hold vessels nobody is using';
+          : 'The Capillary Weave. The brass cocks in the Aortic Arch, the '
+                'Arterial Run, the Pulmonic Stair and the Atrial Gallery graft '
+                'unused vessels open';
     }
     if (room.vaultCache != null) {
       return 'A sealed pocket. Something is stored here';
@@ -931,10 +942,13 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       final o = ostiaIn(room.id).first;
       _setInsightHint(switch (tier) {
         0 => 'This mouth only drinks at one point in the beat',
-        1 => 'It drinks on ${phaseWord(o.phase)}. Stand here and wait for it',
+        1 =>
+          'Press it once with ${o.element}. It drinks on '
+              '${phaseWord(o.phase)} if you stay in this room',
         _ =>
-          'Bring ${o.element} and press on ${phaseWord(o.phase)}. The four '
-              'mouths drink on different phases, so prime them one at a time',
+          'Press it with ${o.element} at any time, then stay in this room. '
+              'It drinks when ${phaseWord(o.phase)} comes. The four mouths '
+              'drink on different phases, so prime them one at a time',
       });
       return;
     }

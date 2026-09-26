@@ -421,9 +421,17 @@ extension MoltenReliquary on PlanetDungeonGame {
                 'Lava heart before you pour again',
           _
               when dest.wants == PourForm.stamped &&
-                  arrivedAs == PourForm.plain =>
+                  arrivedAs == PourForm.plain &&
+                  !works.line.dieWoken =>
             'This form only takes WARDED metal. The mill\'s die is dead '
                 'iron until STEAM drives it.',
+          // The die IS driven, so this charge took the CHILL arm: blaming
+          // the dead die here would send the player to fix a thing that works.
+          _
+              when dest.wants == PourForm.stamped &&
+                  arrivedAs == PourForm.plain =>
+            'This form only takes WARDED metal. Only a charge that goes down '
+                'the MILL arm is warded.',
           _
               when dest.wants == PourForm.plain &&
                   arrivedAs == PourForm.stamped =>
@@ -450,8 +458,8 @@ extension MoltenReliquary on PlanetDungeonGame {
           dest.kind == FoundryNodeKind.sink
               ? 'The charge goes into the slag, and something in there '
                     'takes the heat and turns.'
-              : 'The charge congeals against cold metal. Nothing runs up a '
-                    'plugged arm again.',
+              : 'The charge congeals against cold metal. Nothing runs up '
+                    'this arm until a Lava heart melts the plug out.',
         );
         if (via.segments.isNotEmpty) {
           _spawnAlchemyBurst(
@@ -472,7 +480,14 @@ extension MoltenReliquary on PlanetDungeonGame {
     if (guardianAwake || hasStar(2) || !guardianRiteUnlocked) return;
     guardianAwake = true;
     guardianHp = PlanetDungeonGame.maxGuardianHp;
-    _setHint('Something enormous turns over in the heart of the line', 4.2);
+    // SPOKEN: this runs from update, where a plain line is dropped, and it
+    // never passes `_updateAltar`, so `riteWakeLine` is not read. The frame
+    // before, the second star spoke `riteAnnouncement`, which already names
+    // the wake — do not stomp it; say it only when that line is not up
+    // (a restored run, where the stars were banked before this session).
+    if (hintText != layout.riteAnnouncement) {
+      speakConsequence('Magmara is awake on the ring in the pour heart.');
+    }
   }
 
   /// §7 GUARDIAN PRINCIPLE — Magmara fights WITH the planet's rule.
@@ -750,7 +765,10 @@ extension MoltenReliquary on PlanetDungeonGame {
         );
         return true;
       }
-      _setHint('The die is falling. Only a Lava heart lets it back down');
+      _setBlockedHint(
+        'The die is already driven. Only a Lava alchemon can vent it back to '
+        'dead iron',
+      );
       return true;
     }
     // Ice+Lava→Steam: the braid is TWO bodies at the accumulator, which is
@@ -879,14 +897,16 @@ extension MoltenReliquary on PlanetDungeonGame {
       if ((a.position - head).distance > _kHeadReach) continue;
       final w = works;
       if (w.headCool > 0) {
-        _setHint('The head is still coming back up');
+        _setBlockedHint('The head is still coming back up');
         return true;
       }
       w.headCool = _kHeadCooldown;
       final e = _guardianEnemy;
       final beast = e != null && !e.isDead ? e.position : g.position;
       if ((beast - head).distance > _kHeadCatch) {
-        _setHint('The head falls on empty channel');
+        _setBlockedHint(
+          'The head falls on empty channel. Press as Magmara comes past',
+        );
         return true;
       }
       w
@@ -1014,23 +1034,37 @@ extension MoltenReliquary on PlanetDungeonGame {
         });
       case 'tap_head':
         _setInsightHint(switch (t) {
-          0 => 'Anything the floor rejects ends up in the sump',
-          1 => 'There\'s a key mould at the end of it',
+          0 => 'The mould floor\'s tail runs back here into the sump',
+          1 =>
+            'There\'s a key mould at the end of it. The SLAG/SUMP lever in '
+                'the chill house decides whether the tail reaches it',
           _ =>
             'Fill it before you lay any road across the sump. Cold metal '
                 'stops everything behind it',
         });
       case 'chill_house':
-        _setInsightHint(
-          t < 1
-              ? 'Cold metal is a road'
-              : 'A road, and a plug: nothing follows it up this arm',
-        );
+        _setInsightHint(switch (t) {
+          0 => 'Cold metal is a road',
+          1 =>
+            'A frozen charge is a road, and a plug behind it until a Lava '
+                'heart melts it',
+          _ =>
+            'The SLAG/SUMP lever on the catwalk sends the tail to the slag '
+                'pit or the sump. Reach it over a frozen channel or through '
+                'the gantry',
+        });
       case 'stamp_mill':
+        final line = works.line;
+        final die = line.dieWoken
+            ? 'The die is driven'
+            : 'The die is dead iron';
+        final purge = line.settingOf('damper') == 1
+            ? 'the purge is standing open'
+            : 'the purge is shut';
         _setInsightHint(
           t < 1
-              ? 'The die is dead iron, and the purge is standing open'
-              : 'Steam drives the die; a Lava heart vents it back to sleep',
+              ? '$die, and $purge'
+              : 'Steam drives the die. A Lava heart vents it back to dead iron',
         );
       case 'mold_floor':
         _setInsightHint(
@@ -1039,10 +1073,15 @@ extension MoltenReliquary on PlanetDungeonGame {
               : 'Plain metal fills the span; only warded metal makes a key',
         );
       case 'pour_heart':
-        _setInsightHint(
-          'It can\'t leave the ring, and the heads on the ring are the '
-          'works\' own machines',
-        );
+        // The method is `_tryHeartHead`: press at a head while Magmara is
+        // within `_kHeadCatch`; it beaches for `_kBeachSeconds`.
+        _setInsightHint(switch (t) {
+          0 => 'It rides the ring, and nothing hurts it while it moves',
+          1 => 'The two heads on the ring can stop it',
+          _ =>
+            'Stand at a head and press as Magmara comes past. It beaches, '
+                'and that\'s when you can hit it',
+        });
       default:
         _setInsightHint('Nothing here reads back');
     }

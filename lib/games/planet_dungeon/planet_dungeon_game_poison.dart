@@ -1822,8 +1822,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
 
     // 3) The censer: administer what is in hand.
+    // Not in the dead-house: its censer only ran the retired triage's dose,
+    // which answered every press there with "Nothing in hand to give".
     final ward = room.ward;
     if (ward != null &&
+        ward.id != kCryptWard &&
         (a.position - ward.censer).distance <= _kMonasteryReach) {
       return _tryAdminister(a, ward);
     }
@@ -2159,6 +2162,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         m.oublietteOpen = true;
         guardianAwake = true;
         guardianHp = PlanetDungeonGame.maxGuardianHp;
+        // The wake runs from update and never passes `_updateAltar`, so the
+        // layout's `riteWakeLine` is never read here: say it directly.
+        speakConsequence(
+          'Blightfang is awake. It has three shells, and a brew opens one.',
+        );
         // TAKE THE HATCH ITSELF. `passThroughDoorless` only repositions
         // inside the room you are already in — it never changes rooms, so
         // the grab played out in full and left the party standing in the
@@ -3531,11 +3539,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         return '$down of ${kPlaguePotions.length} plagues down. '
             'The cross wants a reliquary for each.';
       case 'lazar_crypt':
-        final worn = brewById(m.wearing);
-        return worn == null
-            ? 'Patient zero wears the plagues it made.'
-            : 'It is wearing ${worn.plague}. Nothing touches it until it is '
-                  'given that.';
+        // `wearing` is never set any more: any brew opens the shell. The old
+        // line promised a one-brew lock that the fight does not have.
+        return 'Blightfang has three shells. A brew opens one.';
     }
     final ward = room.ward;
     if (ward == null) return null;
@@ -3596,7 +3602,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           1 =>
             '${potion.clue} The pot knows three verbs: '
                 '${kPotionIngredientEffect.entries.map((e) => '${e.key} '
-                    '${e.value.split(' ').first}').join(', ')}.',
+                    '${e.value.split(' ').first.replaceAll('.', '')}').join(', ')}.',
           _ => _whoIsLeftFor(potion),
         });
         return;
@@ -3605,32 +3611,39 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         _setInsightHint('This ward is still sealed. You can\'t see inside yet');
         return;
       }
-      final s = t.strainOf(ward.id);
-      if (s == null) {
-        _setInsightHint('Nothing left in here to read');
+      // The only other ward is the dead-house, and what is in it is the maw
+      // (`_tickCryptMaw`), not the retired triage's strain.
+      if (ward.id == kCryptWard) {
+        if (monastery.oublietteOpen) {
+          _setInsightHint('The hole in the floor goes down to Blightfang');
+          return;
+        }
+        _setInsightHint(
+          revealTier < 1
+              ? 'Blightfang\'s reach has come up through the floor here'
+              : 'Step onto the hole in the middle of the floor. It takes the '
+                    'party down to Blightfang',
+        );
         return;
       }
-      _setInsightHint(switch (revealTier) {
-        0 => 'The sickness has a habit. Watch it before you pour.',
-        1 => 'Read it: ${strainHabit(s)}',
-        _ =>
-          'Read it: ${strainHabit(s)}, ${draughtFixtureName(antidoteFor(s))} answers it',
-      });
+      _setInsightHint('Nothing left in here to read');
       return;
     }
 
     if (room.guardian != null) {
-      final worn = brewById(monastery.wearing);
+      // The rule is `_tryDoseBlightfang` + `_applyBlightfangStrain`: any
+      // brew opens the shell for `_kBlightLull`, never the same one twice
+      // running, and emptying the bar while it is open takes a shell off.
       _setInsightHint(switch (revealTier) {
-        0 =>
-          'It wears one of the three at a time. Nothing touches it until '
-              'it is given that one.',
-        1 when worn != null =>
-          'It is wearing ${worn.plague}. Give it ${worn.name}.',
-        _ when worn != null =>
-          '${worn.plague}, which wants ${worn.first} and ${worn.second}. '
-              'The pot down here never runs dry.',
-        _ => 'It wears one of the three at a time.',
+        0 => 'Nothing hurts it through its shell. Give it a brew to open it',
+        1 =>
+          'Any of the three brews opens the shell for a few seconds, but '
+              'not the same one twice in a row. Break the bar while it\'s '
+              'open to take a shell off',
+        _ =>
+          'Brew at the pot down here, it never runs dry. Give it a '
+              'different brew from last time, then hit it before the shell '
+              'closes',
       });
       return;
     }
@@ -3640,14 +3653,17 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         final spent = <String>[
           for (final c in creatures)
             if ((monastery.given[c.member.instanceId] ?? 0) >=
-                kPotionContributionsEach)
+                contributionsAllowedFor(c.member.element))
               c.member.displayName,
         ];
         _setInsightHint(switch (revealTier) {
           0 => 'The pot takes two and makes one',
           1 =>
-            'Three jars, three plagues, and two brews in every alchemon. '
-                'There\'s no spare, so the order you brew in matters',
+            'Four brews: the Pure Vial and one for each plague. Poison gives '
+                'four times, Plant and Mud twice each. There\'s no spare',
+          _ when !monastery.cloisterOpen =>
+            'Brew Poison with Poison first. The Pure Vial goes in the font '
+                'in the cloister',
           _ when spent.isEmpty =>
             'Nothing is spent yet. Wake one plague at a time. Whoever mixes '
                 'a brew is weaker in the fight that follows.',
@@ -3669,17 +3685,29 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           .toList();
       if (awake.isNotEmpty) {
         _setInsightHint(
-          '${_capitalisePoison(awake.first.name)} woke something and it came '
-          'out here. Nothing else in the house moves until it is down.',
+          '${_capitalisePoison(awake.first.plague)} is loose in the cloister. '
+          'Put it down before you wake another',
         );
         return;
       }
-      final loose = t.loose;
-      _setInsightHint(
-        loose.isEmpty
-            ? 'The corridor is clean, for now'
-            : 'Loose in the walk: ${loose.map(strainHabit).join('; ')}',
-      );
+      final m = monastery;
+      if (!m.cloisterOpen) {
+        _setInsightHint(
+          'The font in the middle wants the Pure Vial: Poison and Poison at '
+          'the pot',
+        );
+      } else if (m.relicsPlaced.length >= kPlaguePotions.length) {
+        _setInsightHint(
+          'The cross is lit. The Charnel Ward at the east end is open',
+        );
+      } else if (m.relicAt.isNotEmpty || m.carriedRelic != null) {
+        _setInsightHint('Carry the reliquary to the cross at the east end');
+      } else {
+        _setInsightHint(
+          '${m.slain.length} of ${kPlaguePotions.length} plagues down. Each '
+          'ward\'s board says which brew wakes its plague',
+        );
+      }
       return;
     }
     _setInsightHint('Nothing here reads back');
@@ -3693,7 +3721,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     for (final c in creatures) {
       if (!potion.takes(c.member.element)) continue;
       if ((monastery.given[c.member.instanceId] ?? 0) >=
-          kPotionContributionsEach) {
+          contributionsAllowedFor(c.member.element)) {
         continue;
       }
       fit.add(c.member.displayName);

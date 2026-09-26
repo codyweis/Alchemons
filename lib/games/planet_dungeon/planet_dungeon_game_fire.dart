@@ -1316,7 +1316,6 @@ extension CinderCathedral on PlanetDungeonGame {
         garthWipeIn = 0;
         burnFields.remove(room.id);
         burnBeat = 0;
-        _setHint('Bare soil again. Plant your run, then strike once', 3.0);
         onChanged();
       }
       return;
@@ -1348,7 +1347,12 @@ extension CinderCathedral on PlanetDungeonGame {
         // failed — there is nothing to salvage from the ash it left, and
         // leaving the player to notice that themselves and press the re-lay
         // button is a chore, not a decision. The garth turns itself over.
-        _setHint('The fire is out, the garth turns itself over', 3.4);
+        // Spoken: this runs per frame, where a plain line is dropped, and a
+        // wiped garden is something the player's strike just cost them.
+        speakConsequence(
+          'The fire went out short. The garden goes back to bare soil',
+          3.4,
+        );
         garthWipeIn = _kGarthWipeDelay;
       case BurnStep.idle:
         break;
@@ -1536,8 +1540,10 @@ extension CinderCathedral on PlanetDungeonGame {
     if (bellsRung.length >= room.incenseChains.length) {
       guardianAwake = true;
       guardianHp = PlanetDungeonGame.maxGuardianHp;
-      _setHint(
-        'The third bell tolls. Black flame pours toward the sanctum',
+      // Spoken: the bell rings from the flame's per-frame walk, where a plain
+      // line is dropped, and the guardian waking is news the player needs.
+      speakConsequence(
+        'The third bell rings. The Simurgh wakes in the sanctum',
         4.2,
       );
       spawnWispWave(
@@ -1731,7 +1737,7 @@ extension CinderCathedral on PlanetDungeonGame {
         return true;
       }
       if (a.member.element != 'Fire') {
-        _setHint('The hearth is stone-cold, only flame wakes it');
+        _setBlockedHint('Only Fire can light the great hearth');
         return true;
       }
       entryDoorRevealed = true;
@@ -1805,8 +1811,8 @@ extension CinderCathedral on PlanetDungeonGame {
         count: 2,
         announce: false,
       );
-      _setHint(
-        'The fire remembers another order, every brazier snuffs out',
+      speakConsequence(
+        'Wrong brazier. The rite starts over from the first one',
         3.2,
       );
     }
@@ -2117,9 +2123,11 @@ extension CinderCathedral on PlanetDungeonGame {
   bool _tryNaveCommune(DungeonCreature a, DungeonRoom room) {
     if (room.id != 'nave' || starsEarnedCount < 3) return false;
     if ((a.position - room.bounds.center).distance >= 34) return false;
-    _setHint(
+    // Spoken: the line IS the reward, and a plain hint from a press that is
+    // not HINT is dropped.
+    speakConsequence(
       'The rose window stills. Before the ash, the Simurgh sang the first '
-      'dawn into these vaults, the cathedral remembers, and now it rests.',
+      'dawn into these vaults. The cathedral remembers, and now it rests',
       7.5,
     );
     _spawnAlchemyBurst(
@@ -2248,31 +2256,33 @@ extension CinderCathedral on PlanetDungeonGame {
 
         _setHint(
           revealTier >= 1
-              ? 'Clues: the lowest wax burned longest, soot leans away from '
-                    'what was already lit, and ash piles downwind'
+              ? 'The wax comes in three heights, two braziers each. The lowest '
+                    'pair was lit first and the tallest pair last. An even '
+                    'ring of soot marks the very first brazier. Every other '
+                    'brazier\'s soot leans away from the nearest one already '
+                    'lit. The ash streaks run from the first brazier toward '
+                    'the last'
               : 'The braziers still show the last rite\'s wax, soot and ash',
           4.4,
         );
         return;
       case 'cloister':
         if (hasStar(room.vineStarIndex ?? 1)) {
-          _setHint('Every groove sits true, the garth is at peace', 3.4);
+          _setHint('The garden has burned. Nothing more to do here', 3.4);
           return;
         }
-        // THE GARTH (§6.1 rework): insight ASSISTS, it never plans. t0 names
-        // the shape; t1 teaches the METHOD (what the three cuts want, and
-        // that a burn's ash rides the wind onto the beds behind); t2 draws ONE
-        // source→groove link out of the shortest plan — a check on a plan in
-        // progress, never the plan.
-        if (revealTier >= 2) _gardenLink ??= _pickGardenLink();
+        // THE BURN: the reading names the goal (t0), the rule (t1) and the
+        // next concrete step (t2). It never lays a route.
         _setHint(
           revealTier >= 2
-              ? 'One groove now shows which bed\'s burning must feed it'
+              ? 'Plan one path through every square before you strike. Air '
+                    'turns the wind a quarter clockwise from anywhere in the '
+                    'cloister, which is how the fire turns a corner'
               : revealTier >= 1
-              ? 'Shallow bowls want drifting ash, deep brands want their own '
-                    'fire, and swept rings want nothing. Every burn blows ash '
-                    'downwind'
-              : 'Each groove is a different shape, and the wind carries ash',
+              ? 'Fire moves one square at a time the way the wind blows, and '
+                    'only into vine. Burnt ground can\'t take vine again'
+              : 'Burn all ${room.garth?.coverageGoal ?? 26} squares of the '
+                    'garden from one fire',
           4.4,
         );
         return;
@@ -2308,13 +2318,16 @@ extension CinderCathedral on PlanetDungeonGame {
       case 'narthex':
         _setHint(
           entryDoorRevealed
-              ? 'The hearth-soot has burned clean'
-              : 'The hearth\'s soot spells a single word: burn',
+              ? 'The great hearth is lit. The door to the nave is open'
+              : 'Light the great hearth with a Fire creature to open the door '
+                    'to the nave',
         );
         return;
       case 'nave':
         _setHint(
-          'Three lights watch over the chancel gate. Ember, ash, and pyre',
+          guardianRiteUnlocked
+              ? 'The chancel gate is open. The bells are beyond it'
+              : 'The chancel gate opens once you have the Ember and Ash stars',
           3.6,
         );
         return;
@@ -2331,35 +2344,6 @@ extension CinderCathedral on PlanetDungeonGame {
         return;
     }
     _setHint(_nothingHiddenLine());
-  }
-
-  /// The ONE source→groove link a tier-2 reading draws out of the garth: the
-  /// first burn in the shortest plan that actually feeds a drift-groove. STICKY
-  /// (see [_gardenLink]) — re-reading must never walk the player through the
-  /// whole plan one burn at a time.
-  ({int source, int groove})? _pickGardenLink() {
-    final rules = ashGardenRules;
-    if (rules == null) return null;
-    final plan = solveAshGarden().plan;
-    if (plan == null) return null;
-    var board = gardenBoard;
-    var wind = gardenWind;
-    for (final move in plan) {
-      switch (move.verb) {
-        case AshGardenVerb.turnWind:
-          wind = (wind + 1) & 3;
-        case AshGardenVerb.grow:
-          board = rules.grow(board, move.bed) ?? board;
-        case AshGardenVerb.burn:
-          for (final t in rules.plume(move.bed, wind)) {
-            if (grooveDemandAt(t) == GrooveDemand.ash && !grooveSitsTrue(t)) {
-              return (source: move.bed, groove: t);
-            }
-          }
-          board = rules.burn(board, move.bed, wind) ?? board;
-      }
-    }
-    return null;
   }
 
   // ── Ambient hints / objectives / mood ───────────────────
@@ -2491,7 +2475,7 @@ extension CinderCathedral on PlanetDungeonGame {
         // the stone for anyone patient — never room-entry copy.
         return hasStar(room.vineStarIndex ?? 1)
             ? null
-            : 'Cloister. Six grooves in the garden, and a shifting wind';
+            : 'Cloister. The whole garden has to burn from one fire';
       case 'vestry':
         return hasStar(2)
             ? null

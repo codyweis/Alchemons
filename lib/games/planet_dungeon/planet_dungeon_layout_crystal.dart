@@ -878,17 +878,22 @@ const DungeonLayout crystalLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('facet_gate', 'keep_s'),
   finaleDoor: DungeonDoorRef('keep_n', 'tuning_hall'),
   riteAnnouncement:
-      'Prism and Throne are won. The north arch opens to the tuning hall',
+      'Prism and Throne are won. The north arch opens to the tuning hall. '
+      'There, a Pip works the crack and Crystal uses the font',
   finaleSealedHint:
       'The north arch stays shut until you have the Prism and Throne stars',
   guardianSealedHint:
-      'Prismalith won\'t wake until the font in the tuning hall is used',
+      'Prismalith won\'t wake until the crack and the font in the tuning hall '
+      'are both used',
+  riteWakeLine:
+      'The crack and the font ring together. Prismalith wakes in the choir to '
+      'the north',
   mercyShrineRoomId: 'facet_gate',
   // Ideal: Crystalmask · Lightninghorn · Spiritpip — hinted by VERB, never by
-  // body part (§4): the second sight that reads which glass will pass a light,
-  // the strongest grip, and what the smallest doors admit.
+  // body part (§4): the one hand that slides the keep's rooms, the strongest
+  // grip, and what the smallest doors admit.
   riddle: [
-    'Send me Crystal: my glasses must be told apart before one will pass a light;',
+    'Send me Crystal, the only hand that slides my rooms of glass;',
     'a Lightning Horn, to strike a cold shard warm;',
     'and Spirit, with any Pip, to slip the crack behind the keep.',
   ],

@@ -827,7 +827,9 @@ extension WindCrownSpire on PlanetDungeonGame {
     );
     if (wokenGales.length >= totalGales && !summitOpen) {
       summitOpen = true;
-      _setObjectiveHint('Every wind blows, the crown stands open', 3.4);
+      // SPOKEN (the hint audit, 2026-09-25): an objective line from a press
+      // is dropped unasked, and this is the moment the crown opens.
+      speakConsequence('Every wind blows. The crown stands open', 3.4);
     }
     onChanged();
   }
@@ -1292,6 +1294,10 @@ extension WindCrownSpire on PlanetDungeonGame {
 
   /// Goal only — never method. The method lives behind Mask insight.
   String? _spireObjectiveHint(DungeonRoom room) {
+    // The entry island's way on is hidden until the wind here is set off.
+    if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
+      return 'The way on is hidden';
+    }
     if (room.gustShrines.isNotEmpty && !hasStar(0)) {
       return 'A sleeping gust shrine';
     }
@@ -1331,37 +1337,73 @@ extension WindCrownSpire on PlanetDungeonGame {
       return 'Each shrine wakes a wind, and the order matters';
     }
     if (tier >= 2) {
-      // Tier 2 marks the answer: which walk each sleeping wind will scour.
-      final threats = <String>[];
-      for (final r in _allWindRoutes) {
+      // Tier 2 marks the answer: which walkway in THIS room a wind will
+      // scour, and which shrine that walkway leads to. It used to loop every
+      // route on the spire and never check "still need" (the hint audit,
+      // 2026-09-25), so it could name a wind from another room, or warn about
+      // a walkway whose shrine was already woken.
+      String? closed;
+      for (final r in room.windRoutes) {
         for (final g in r.sweptBy) {
-          if (wokenGales.contains(g)) continue;
-          final shrine = allGustShrines
+          final sweeper = allGustShrines
               .where((s) => s.wakesGale == g)
               .firstOrNull;
-          if (shrine == null) continue;
-          threats.add(
-            '${_capitalise(shrine.name)} will blow across a walkway you '
-            'still need',
-          );
+          if (sweeper == null) continue;
+          final ends = {r.to, if (r.twoWay) r.from};
+          final target = room.gustShrines
+              .where(
+                (s) =>
+                    ends.contains(s.ledgeId) &&
+                    s.wakesGale != g &&
+                    !wokenGales.contains(s.wakesGale),
+              )
+              .firstOrNull;
+          if (target == null) continue;
+          final walk = r.id.replaceFirst('r_', '').replaceAll('_', ' ');
+          if (wokenGales.contains(g)) {
+            closed ??=
+                '${_capitalise(sweeper.name)} blows across the $walk now. '
+                'Find another way to ${target.name}';
+            continue;
+          }
+          return 'Wake ${target.name} before ${sweeper.name}. '
+              '${_capitalise(sweeper.name)} blows across the $walk that '
+              'leads to it';
         }
       }
-      return threats.isEmpty
-          ? 'No wind left to wake will block your path'
-          : threats.first;
+      return closed ?? 'No wind left to wake here blocks a walkway you need';
     }
     return 'Every wind you wake keeps blowing, and it blows across the '
         'walkways too';
   }
 
-  String _spireStormInsight(DungeonRoom room, int tier) => tier >= 2
-      ? 'The bolt hits the nearest rod at the lowest height first, then '
-            'steps to the nearest rod exactly one notch taller, and stops when '
-            'there isn\'t one'
-      : tier >= 1
-      ? 'The storm won\'t come to the conduit. Build a ladder of rising '
-            'rods and push the storm cell to its foot'
-      : 'Lightning climbs the rods from lowest to highest';
+  /// The leader rule, read where it applies. The same words served the
+  /// Roc's summit too (the hint audit, 2026-09-25), where there is no conduit
+  /// at all: there the cell trails the bird, and `stormLeaderFrom` ranks the
+  /// Roc itself one notch above a full-height rod (with a longer last leap).
+  String _spireStormInsight(DungeonRoom room, int tier) {
+    const rule =
+        'The bolt hits the nearest rod at the lowest height first, then '
+        'steps to the nearest rod exactly one notch taller, and stops when '
+        'there isn\'t one';
+    if (room.guardian != null && room.conduits.isEmpty) {
+      return tier >= 2
+          ? '$rule. The Roc counts as one notch taller than a full-height '
+                'rod. Rank the perches into a rising ring and the storm '
+                'strikes the bird, and it can be hit'
+          : tier >= 1
+          ? 'The storm cell trails the Roc. Build a ladder of rising rods '
+                'and the bolt climbs into the bird'
+          : 'Lightning climbs the rods from lowest to highest';
+    }
+    return tier >= 2
+        ? '$rule. The far conduit counts as one notch taller than a '
+              'full-height rod'
+        : tier >= 1
+        ? 'The storm won\'t come to the conduit. Build a ladder of rising '
+              'rods and push the storm cell to its foot'
+        : 'Lightning climbs the rods from lowest to highest';
+  }
 
   DungeonProgressReadout? _spireProgressReadout() {
     final room = currentRoom;
@@ -2382,8 +2424,8 @@ extension PlanetDungeonFourWindsInsight on PlanetDungeonGame {
           <= 0 => 'The compass is a machine, not a decoration',
           1 => 'The machine has no power. Its centre needs CURRENT',
           _ =>
-            'The machine has no power and the stones are frosted over. Run '
-                'current through the centre to start it',
+            'The machine has no power and the stones are frosted over. A '
+                'Lightning creature at the centre starts it',
         };
       case 1:
         return switch (tier) {
@@ -2396,8 +2438,8 @@ extension PlanetDungeonFourWindsInsight on PlanetDungeonGame {
           <= 0 => 'The faces are clear, and each is worn differently',
           1 => 'The wind wore the four faces unequally. $left still to wake',
           _ =>
-            'The wind wore the faces unequally. The most worn has been '
-                'blowing the longest',
+            'The wind wore the faces unequally. Touch the pillars with an '
+                'Air creature, most worn first. A wrong one starts it over',
         };
       default:
         return 'The winds gather';

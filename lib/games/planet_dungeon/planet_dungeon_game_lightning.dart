@@ -113,7 +113,7 @@ extension StormCircuit on PlanetDungeonGame {
     }
     for (final r in layout.rooms.values) {
       if (r.vaultBolt != null) {
-        _vaultBoltOpen = circuitRoomLit(r.id) ? 0.0 : 1.0;
+        _vaultBoltOpen = _trunkFedByDynamo(r.id) ? 0.0 : 1.0;
       }
     }
     // The Thunderbolt's permanent glow survives death (it's a found secret).
@@ -146,6 +146,19 @@ extension StormCircuit on PlanetDungeonGame {
     // and this one did not — Fire's burning epitaph, Air's turning compass,
     // Water's frozen moon, Earth's rooted crystal. Lightning left a boolean.
     if (thunderboltWon) return true;
+    return _trunkFedByDynamo(roomId);
+  }
+
+  /// Is [roomId]'s trunk actually carrying the dynamo's current — ignoring
+  /// the Thunderbolt's permanent glow?
+  ///
+  /// THE VAULT BOLT READS THIS, NOT [circuitRoomLit]. The bolt only drops in
+  /// an unpowered trunk, and once the Thunderbolt made every wing read lit
+  /// for good, a party that took the maxim before looting the vault found
+  /// its bolt shut forever while the reading still told them to cut the
+  /// power. The breakers still throw after the maxim, so the vault keys off
+  /// the real routing and stays reachable.
+  bool _trunkFedByDynamo(String roomId) {
     final t = _trunkForRoom(roomId);
     if (t == null) return true;
     final freeze = t.freezeLitStarIndex;
@@ -247,7 +260,13 @@ extension StormCircuit on PlanetDungeonGame {
           activeTrunk = null;
           _cue(SoundCue.dungeonSwitch);
           _dynamoSwing = 0;
-          _setHint('The fulminate flashes, the dynamo trips dark', 3.4);
+          // SPOKEN: this runs from update, where a plain line is dropped
+          // unasked — and the whole dynamo going dark is a consequence the
+          // player has to hear, or the dark wing reads as a bug.
+          speakConsequence(
+            'A bolt crossed a fulminate vat. It blew and tripped the dynamo '
+            'dark',
+          );
           return true;
         }
       } else {
@@ -888,7 +907,7 @@ extension StormCircuit on PlanetDungeonGame {
     _dynamoSwing = min(1.0, _dynamoSwing + dt / 0.9);
     for (final r in layout.rooms.values) {
       if (r.vaultBolt == null) continue;
-      final target = circuitRoomLit(r.id) ? 0.0 : 1.0;
+      final target = _trunkFedByDynamo(r.id) ? 0.0 : 1.0;
       _vaultBoltOpen = _stepToward(
         _vaultBoltOpen,
         target,
@@ -925,7 +944,7 @@ extension StormCircuit on PlanetDungeonGame {
   /// Is the vault bolt solid at this instant? Shut while the trunk burns, and
   /// still shut while the eased slide has not yet cleared the doorway.
   bool _vaultBoltBlocked(DungeonRoom room) =>
-      circuitRoomLit(room.id) || _vaultBoltOpen < 0.55;
+      _trunkFedByDynamo(room.id) || _vaultBoltOpen < 0.55;
 
   void _updateVaultBolt(DungeonCreature a, DungeonRoom room) {
     final bolt = room.vaultBolt!;
@@ -982,7 +1001,13 @@ extension StormCircuit on PlanetDungeonGame {
       // Already standing in the core when it woke: it seizes at once.
       _seizeCoreTrunk(core!);
     } else {
-      _setHint('Behind the hatch, Raikuma uncoils from the grid', 4.2);
+      // SPOKEN: woken from the Spire's update, where a plain line is
+      // dropped unasked, and a guardian waking must be heard (§5.7).
+      speakConsequence(
+        layout.riteWakeLine ??
+            'One bolt lit all three masts. Raikuma is awake behind the core '
+                'hatch',
+      );
     }
     // The escort only gathers where the party can see it; woken from the maze
     // the core keeps its spawn for the arrival.
@@ -1109,7 +1134,19 @@ extension StormCircuit on PlanetDungeonGame {
 
   bool _tryBareStormCells(DungeonCreature a, DungeonRoom room) {
     if (room.stormCells.isEmpty) return false;
-    if (a.member.element != 'Lightning') return false;
+    if (a.member.element != 'Lightning') {
+      // It used to fall through in silence, so a non-Lightning hand at an
+      // echo could not tell "wrong element" from "wrong place".
+      for (final cell in room.stormCells) {
+        if (discoveredClouds.contains(cell.id)) continue;
+        if ((a.position - cell.position).distance <= _kEchoReach ||
+            (a.position - cell.reflection).distance <= _kEchoReach) {
+          _setBlockedHint('Only Lightning can bare an echo');
+          return true;
+        }
+      }
+      return false;
+    }
     // Standing at a REFLECTION and pressing is the mistake the room is built
     // to make you make once — so it answers, rather than doing nothing.
     for (final cell in room.stormCells) {
@@ -1333,7 +1370,7 @@ extension StormCircuit on PlanetDungeonGame {
           return true;
         }
         if (rotorOverspeed <= 0) {
-          _setBlockedHint('Not enough charge here to fuse');
+          _setBlockedHint('The rotor isn\'t turning fast enough to fuse this');
           return true;
         }
         weldedBreakers.add(t.id);
@@ -1492,7 +1529,8 @@ extension StormCircuit on PlanetDungeonGame {
             : tier >= 1
             ? 'The glass shows light from whichever wing the dynamo powers. '
                   'Each echo shows for one wing only, and powering THIS room '
-                  'hides all three'
+                  'hides all three. Lightning bares an echo where it really '
+                  'stands'
             : '$hidden echo${hidden == 1 ? '' : 'es'} hide here, and they '
                   'aren\'t where they seem',
       );
@@ -1511,7 +1549,9 @@ extension StormCircuit on PlanetDungeonGame {
                   'Only the high vent reaches the iron'
             : tier >= 1
             ? 'Air opens a vent. Fire standing in that wind turns it into '
-                  'lightning, and only lightning wakes the mast'
+                  'lightning, and only lightning wakes the mast. Lightning '
+                  'over a vat blows it and trips the dynamo. Wind over one is '
+                  'safe'
             : 'Only lightning wakes the mast. Wind and flame together make '
                   'it, and iron carries it',
       );
@@ -1521,14 +1561,15 @@ extension StormCircuit on PlanetDungeonGame {
     // early the flame stands), t2 the free-planning trick and the decoy.
     if (room.beamEmitters.isNotEmpty) {
       if (!circuitRoomLit(room.id)) {
-        _setHint('The spire has no power. Send the dynamo to the core wing');
+        _setHint('The spire has no power. Send the dynamo to the core trunk');
         return;
       }
       _setHint(
         tier >= 2
-            ? 'Plan with wind only: without flame nothing lights, so you can '
-                  'lay out the whole route for free. The column with no '
-                  'conductor is a trap'
+            ? 'Plan with wind only. Without a flame nothing lights, so you '
+                  'can lay out the whole route for free. The vent below the '
+                  'middle mast is a trap. Its flame sits above that mast, so '
+                  'the mast only gets wind'
             : tier >= 1
             ? 'Three converters sit along the route, and each makes a real '
                   'bolt. Everything before the flame is just wind, so place '
@@ -1542,9 +1583,11 @@ extension StormCircuit on PlanetDungeonGame {
     if (room.cellSockets.isNotEmpty) {
       _setHint(
         tier >= 1
-            ? 'Herd each echo into a socket. Only Fire works the anvil-cell, '
-                  'and the works only run while their trunk has power'
-            : 'The sockets need storm-cells, and the works need the dynamo',
+            ? 'Pick up each echo you\'ve found and set it in a socket. The '
+                  'anvil socket then needs Fire. The works only run while '
+                  'their trunk has power'
+            : 'The sockets need the three storm-cell echoes from the Mirror '
+                  'Gallery, and the works need power',
       );
       return;
     }
@@ -1561,9 +1604,17 @@ extension StormCircuit on PlanetDungeonGame {
     // The vault — the re-hide, named.
     if (room.vaultBolt != null) {
       _setHint(
-        'The bolt stays locked while this trunk has power. Cut the power '
-        'to this room',
+        _vaultBoltBlocked(room)
+            ? 'The bolt stays locked while this trunk has power. Cut the '
+                  'power to this room'
+            : 'This trunk has no power, so the bolt is down',
       );
+      return;
+    }
+    // The Arc Gate — the entry rite's dead bus, before it is charged.
+    if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
+      _setHint('The gate\'s iron is dead. A Lightning creature can charge '
+          'the pylon');
       return;
     }
     // The storm core — the feed, named.
@@ -1633,7 +1684,7 @@ extension StormCircuit on PlanetDungeonGame {
   String? _circuitObjectiveHint(DungeonRoom room) {
     // Room-entry goal lines — WHAT, never HOW (the method lives with Mask).
     if (room.id == layout.dynamoRoomId) {
-      return 'Dynamo Court. One dynamo, four dark trunks';
+      return 'Dynamo Court. One dynamo feeds one of four trunks';
     }
     if (room.cellSockets.isNotEmpty) {
       return 'Cloud Works. Three empty sockets';
@@ -1652,6 +1703,9 @@ extension StormCircuit on PlanetDungeonGame {
     }
     if (room.vaultBolt != null && !discoveredClouds.contains(_vaultCacheId)) {
       return 'Capacitor Vault. Something is stored here';
+    }
+    if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
+      return 'Arc Gate. The iron to the passage is dead';
     }
     return null;
   }

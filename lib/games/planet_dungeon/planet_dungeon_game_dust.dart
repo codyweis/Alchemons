@@ -328,13 +328,16 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         _setBlockedHint('That heap is full');
         return true;
       }
+      // A spadeful onto a trench FILLS it back in (0 → 1 load), which reopens
+      // its street — the opposite of a heap. The line has to know which.
+      final refilled = ruins.loadsOn(target.id) == 0;
       ruins.dig(m.id, target.id);
       _startSandThrow(m, target);
       _cue(SoundCue.elementDust);
       // A CONSEQUENCE, not narration: one spadeful has just shut two street
       // crossings and opened a cellar, and the player may never find that
       // out by walking into it (§5.7).
-      speakConsequence(_moundDigLine(m, target), 6.0);
+      speakConsequence(_moundDigLine(m, target, refilled: refilled), 6.0);
       _spawnAlchemyBurst(
         m.streetPos,
         producedElement: 'Dust',
@@ -431,7 +434,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
   /// What one spadeful did, said in full (§5.7). The hole is on screen; the
   /// street it cut and the heap it raised often are NOT — the heap is usually
   /// in the next room — so the line names both, by the mound's own name.
-  String _moundDigLine(DustMound from, DustMound to) {
+  String _moundDigLine(DustMound from, DustMound to, {bool refilled = false}) {
     final dug = switch (from.id) {
       'm_gate' => 'The gate square is dug out. The street east is cut.',
       'm_agora' => 'The agora is dug out. The street to the roof walk is cut.',
@@ -440,6 +443,24 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       'm_kiln' => 'The kiln square is dug out. The street to the court is cut.',
       _ => 'The bump is dug out. There is only roof tile under it.',
     };
+    if (refilled) {
+      final back = switch (to.id) {
+        'm_gate' =>
+          'Sand fills the trench on the gate square. The street '
+              'east is open again',
+        'm_agora' =>
+          'Sand fills the trench on the agora. Its street is open '
+              'again',
+        'm_roof' =>
+          'Sand fills the trench on the observatory roof. The '
+              'street to the court is open again',
+        'm_kiln' =>
+          'Sand fills the trench on the kiln square. The street to '
+              'the court is open again',
+        _ => 'Sand fills the hole on the bump',
+      };
+      return '$dug $back';
+    }
     final heaped = switch (to.id) {
       'm_gate' => 'Sand heaps on the gate square and blocks the street east',
       'm_agora' =>
@@ -908,7 +929,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       );
       return true;
     }
-    if (!ruins.tallyLit.add(m.id)) {
+    final fresh = ruins.tallyLit.add(m.id);
+    // A pit already lit can still be the breath that COMPLETES the count —
+    // the streets can come to match after the last new pit was lit (the
+    // audit, 2026-09-25: a lit set that matched never opened the cist).
+    if (!fresh && !tallyComplete) {
       _setBlockedHint('This pit is already lit');
       return true;
     }
@@ -993,6 +1018,8 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if (room.ruins?.armillary != null) {
       return hasStar(room.ruins!.starIndex!)
           ? null
+          : armillarySeesSky
+          ? 'The Observatory. The armillary can see the sky. Fly a Wing to it'
           : 'The Observatory. The great armillary can\'t see the sky';
     }
     if (room.ruins?.field != null) {
@@ -1091,7 +1118,36 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       );
       return;
     }
-    if (room.vaultCache != null || room.id == 'undercity') {
+    if (room.ruins?.hollowCut != null) {
+      _setInsightHint(switch (tier) {
+        0 => 'Ashdjinn can only be hurt while the cut is clear',
+        1 =>
+          'Each storm fills the cut back in. Dust or Earth at the cut digs '
+              'it out',
+        _ =>
+          'Dig the cut out after every storm. Each storm also refills one of '
+              'your digs in the city',
+      });
+      return;
+    }
+    if (room.ruins?.glassCourt != null) {
+      _setInsightHint(switch (tier) {
+        0 => 'The rite here has two halves',
+        1 => 'A Horn breaks the false wall. Dust turns the great glass',
+        _ =>
+          'Break the false wall with a Horn and turn the great glass with '
+              'Dust. Ashdjinn wakes when both are done',
+      });
+      return;
+    }
+    if (room.vaultCache != null) {
+      _setInsightHint(
+        'You\'re inside the buried house. The way back to the undercity '
+        'always stays open',
+      );
+      return;
+    }
+    if (room.id == 'undercity') {
       _setInsightHint(switch (tier) {
         0 => 'Part of this wall is newer than the rest',
         1 => 'There\'s a buried house on the other side',
@@ -1105,10 +1161,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     _setInsightHint(switch (tier) {
       0 => 'Only Dust digs the city. The sand it digs has to land somewhere',
       1 =>
-        'Trenches and dunes both block streets. A trench opens a way down, '
-            'a dune a way up. Each dig makes one of each',
+        'Every dig makes a trench, and its sand lands on a neighbour. '
+            'Trenches and dunes both block streets. Some trenches open a way '
+            'down, and the agora\'s dune is a way up',
       _ =>
-        'Digs can\'t be undone by hand. Air at the tower vanes resets the '
+        'Digs can\'t be undone by hand. Air at any iron vane resets the '
             'whole city if you get stuck',
     });
   }

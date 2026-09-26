@@ -1695,10 +1695,12 @@ void main() {
       game.seedRoofForTest(wyrm);
       game.roofBare.add(30);
       game.roofThroat = 30;
-      // No throat open elsewhere: Air is told what is missing.
+      // The throat IS open, at 30, and Air is far from it: it is told to go
+      // to the edge, not to open what is already open (the line used to say
+      // "open the ice first" here, which was a lie).
       press(game, air, roof.centerAt(1), down);
       game.askForRoomHint();
-      expect(game.hintText, contains('over the wyrm\'s head first'));
+      expect(game.hintText, contains('edge of the open throat'));
       // At the throat, the wrong family is refused and the seal remembers.
       press(game, air, roof.centerAt(31), left);
       expect(game.conduitEnergy['A'] ?? 0, 0);

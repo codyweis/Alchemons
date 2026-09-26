@@ -230,7 +230,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if ((a.position - kChamberHeart).distance > _kKeepReach + 30) return false;
     if (!_chamberSealed(cell, ch)) {
       // WHAT is missing (§5.6): a doorway is still in this glass somewhere.
-      _setBlockedHint('One of this room\'s doorways still meets another');
+      _setBlockedHint(
+        'One of this room\'s doorways still opens onto another room, not the '
+        'outer wall',
+      );
       return true;
     }
     final el = a.member.element;
@@ -243,7 +246,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
           particleCount: 8,
           intensity: 0.5,
         );
-        _setBlockedHint('Only a small creature can find the flaw');
+        _setBlockedHint('Only a Pip can find the flaw');
         return true;
       }
       prism.knowCrack = true;
@@ -382,9 +385,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final from = _cellOf(room);
     final to = layout.rooms[door.targetRoomId]?.prism?.cell?.index;
     if (from != null && to != null) {
-      if (f.chamberAt(from) == null || f.chamberAt(to) == null) {
-        return 'No doorway on this wall';
+      // Standing in the empty slot, your own side is always open: the
+      // missing doorway is on the room next door.
+      if (f.chamberAt(from) == null) {
+        return 'The room on the other side has no doorway here';
       }
+      if (f.chamberAt(to) == null) return 'No doorway on this wall';
       return 'The doorways on the two sides don\'t line up';
     }
     return 'This arch is shut';
@@ -577,7 +583,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       return true;
     }
     if (!f.canCallFacet(cell)) {
-      _setBlockedHint('The chain is slack. The empty slot has to be here');
+      _setBlockedHint(
+        'The chain only pulls when the empty slot is the east middle one and '
+        'you\'re in a room next to it',
+      );
       return true;
     }
     f.callFacet(cell);
@@ -659,13 +668,25 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (floor == null) return false;
     final standing = floor.cellAt(a.position);
     if (standing < 0) return false;
-    if (a.member.element != 'Crystal') return false;
     // The lull outranks the shove. Once the gap is under the mystic and its
     // root is showing, a Crystal hand's press is a STRIKE — otherwise the one
     // party member who can open the window is the one member who can never
     // use it, and the fight is unwinnable with the §6.10 ideal trio.
     if (guardianAwake && guardianVulnerable) return false;
     if (!keepNeighbours(prism.choirHollow).contains(standing)) return false;
+    if (a.member.element != 'Crystal') {
+      // WHAT is missing (§5.6) — but never at the cost of the guardian's own
+      // catch (its "wait for the lull" line) or a Wing's glide.
+      if (a.ability == DungeonAbility.aerialTraversal) return false;
+      final g = currentRoom.guardian;
+      if (g != null &&
+          guardianAwake &&
+          (a.position - _guardianPosition(g)).distance <= 90) {
+        return false;
+      }
+      _setBlockedHint('Only Crystal can slide the floor');
+      return true;
+    }
     _slideChoirPlate(standing);
     _cue(SoundCue.dungeonBlockMove);
     _spawnAlchemyBurst(
@@ -797,14 +818,22 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (spec != null && !hasStar(spec.spectrumStarIndex) && f.lampLit) {
       return DungeonProgressReadout(
         label: 'HUE',
-        value: f.beamLive ? '${f.beamHue} of $kRoseHue' : 'stopped',
-        fraction: f.beamLive ? f.beamHue / 12 : 0,
+        // A twelve-step DIAL, not a count: the bar fills with closeness to
+        // the rose's mark round the wheel, so "more" never reads as "better".
+        value: f.beamLive ? 'at ${f.beamHue}, needs $kRoseHue' : 'stopped',
+        fraction: f.beamLive ? _hueCloseness(f.beamHue) : 0,
       );
     }
     if (f.shunts > 0) {
       return DungeonProgressReadout(label: 'SHUNTS', value: '${f.shunts}');
     }
     return null;
+  }
+
+  /// 1.0 on the rose's mark, 0.0 half the wheel away.
+  double _hueCloseness(int hue) {
+    final d = (hue - kRoseHue).abs() % 12;
+    return 1 - min(d, 12 - d) / 6;
   }
 
   /// GOAL only, never method (§5.6's solution-leak rule). How the keep is
@@ -836,7 +865,17 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (cell == kKeepBeamRow.first && !f.lampLit) {
       return 'The west lamp is out, so no light reaches the rose';
     }
-    if (chamber.throne) return '${chamber.name}, not yet facing the hearth';
+    if (chamber.throne) {
+      final name = chamber.name.replaceFirst('the ', 'The ');
+      final spec = _keepStars;
+      final won = spec != null && hasStar(spec.throneStarIndex);
+      final faces =
+          f.chamberAt(kKeepHeartCell)?.id == 'hearth' &&
+          f.passable(kKeepHeartCell, cell);
+      return won || faces
+          ? '$name. It faces the hearth'
+          : '$name. It doesn\'t face the hearth yet';
+    }
     return null;
   }
 
@@ -875,17 +914,19 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (room.guardian != null) {
       _setInsightHint(switch (tier) {
         0 => 'Prismalith can only be hit over the gap in the floor',
-        1 => 'Slide the gap under Prismalith, then strike',
+        1 => 'Only Crystal can slide the floor. Slide the gap under Prismalith, '
+            'then strike',
         _ =>
-          'Slide the gap under it and strike. Each hit shifts the floor, so '
-              'move the gap back under it after every one',
+          'Stand a Crystal on a plate next to the gap and press to slide it. '
+              'When the opening closes, the floor shifts, so slide the gap '
+              'back under it',
       });
       return;
     }
     if (room.prism?.facetFont != null) {
       _setInsightHint(switch (tier) {
         0 => 'The rite needs the crack and the font',
-        1 => 'The crack needs a small creature. The font needs Crystal',
+        1 => 'The crack needs a Pip. The font needs Crystal',
         _ =>
           'A Pip can work the crack. Any Crystal can use the font once you '
               'have both stars',
@@ -904,6 +945,21 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       );
       return;
     }
+    // The hearth is asked BEFORE the beam row: the middle slot is in that
+    // row, and the hearth standing there is the throne puzzle, not the rose.
+    if (cell != null && f.chamberAt(cell)?.id == 'hearth') {
+      _setInsightHint(switch (tier) {
+        0 => 'The three thrones need to face a warm hearth in the middle slot',
+        1 =>
+          'A Lightning Horn warms the shard. Each throne needs its own doorway '
+              'facing the hearth',
+        _ =>
+          'Warm the shard, put the hearth in the middle slot, then slide the '
+              'Crimson, Verdant and Azure thrones beside it, each with a '
+              'doorway toward it',
+      });
+      return;
+    }
     if (cell != null && kKeepBeamRow.contains(cell)) {
       _setInsightHint(switch (tier) {
         0 => 'The rose is a dial. The gold mark is where the light has to land',
@@ -917,24 +973,13 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       });
       return;
     }
-    if (cell != null && f.chamberAt(cell)?.id == 'hearth') {
-      _setInsightHint(switch (tier) {
-        0 => 'The three thrones need to face the hearth',
-        1 =>
-          'All three at once, and only the middle slot has enough sides for '
-              'that',
-        _ =>
-          'Put the hearth in the middle slot, then slide the crimson, verdant '
-              'and azure thrones against three of its open doorways',
-      });
-      return;
-    }
     // Anywhere in the keep, insight reads the RULE — which is the planet.
     _setInsightHint(switch (tier) {
       0 => 'Nine slots, eight rooms, one empty slot',
       1 =>
-        'A room can only slide into the empty slot, and you ride with it. '
-            'You can only walk through where both rooms have a doorway',
+        'Crystal presses the plate on the wall facing the empty slot, and the '
+            'room slides into it with you. Two rooms only connect where both '
+            'have a doorway',
       _ =>
         'Any slide can be undone by sliding back. If you get stuck, Crystal '
             'can ring any tuning boss to reset the keep',

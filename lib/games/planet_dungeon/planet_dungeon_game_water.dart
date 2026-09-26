@@ -825,9 +825,7 @@ extension MirrorTide on PlanetDungeonGame {
         _loseLantern(
           _lanternPrevNodeId ?? atId,
           sumped: false,
-          message:
-              'The sump has no throat, the backwash gives the lantern '
-              'up again, dark',
+          message: 'The sump has no way out. The lantern washed back',
         );
         return;
       }
@@ -850,7 +848,9 @@ extension MirrorTide on PlanetDungeonGame {
       _loseLantern(
         atId,
         sumped: true,
-        message: 'The high water takes the deep cut, the lantern goes under',
+        message:
+            'High tide turns a deep cut into a torrent. The lantern went '
+            'under',
       );
       return;
     }
@@ -858,7 +858,7 @@ extension MirrorTide on PlanetDungeonGame {
       _loseLantern(
         atId,
         sumped: false,
-        message: 'The groove runs dry, the lantern grounds on the sill',
+        message: 'The groove ran dry and the lantern grounded',
       );
       return;
     }
@@ -930,7 +930,9 @@ extension MirrorTide on PlanetDungeonGame {
         announce: false,
       );
     }
-    _setHint(message, 3.2);
+    // Spoken: this runs from the per-frame float, where a plain line is
+    // dropped, and a lost lantern is what the player's tide just cost them.
+    speakConsequence(message, 3.2);
     onChanged();
   }
 
@@ -987,7 +989,7 @@ extension MirrorTide on PlanetDungeonGame {
       return true;
     }
     if (a.member.element != 'Water') {
-      _setHint('A dry stone bowl, it thirsts for Water');
+      _setBlockedHint('Only Water can fill the offering-bowl');
       return true;
     }
     entryDoorRevealed = true;
@@ -1036,7 +1038,7 @@ extension MirrorTide on PlanetDungeonGame {
         return true;
       }
       if (!interactionSucceeded(r)) {
-        _setHint('The valve answers Water alone');
+        _setBlockedHint('Only Water can turn this valve');
         return true;
       }
       // THE STILL. In the well the pipe-mouth does not cycle the tide — the
@@ -1076,19 +1078,19 @@ extension MirrorTide on PlanetDungeonGame {
     for (final seal in room.tideSeals) {
       if ((a.position - seal.position).distance > 46) continue;
       if (openedSeals.contains(seal.id)) {
-        _setHint('This sluice already runs free');
+        _setBlockedHint('This sluice already runs free');
         return true;
       }
       if (!tideSettled) {
-        _setHint('The brine still moves. Let the tide settle');
+        _setBlockedHint('Let the tide settle first');
         return true;
       }
       if (!seal.tides.contains(tideLevel)) {
         final wantsLower = seal.tides.every((t) => t < tideLevel);
-        _setHint(
+        _setBlockedHint(
           wantsLower
-              ? 'The seal lies drowned, it yields only to a lower tide'
-              : 'The seal sits beyond this water, it wants a higher tide',
+              ? 'This seal is underwater. It opens at a lower tide'
+              : 'This seal is above the water. It opens at a higher tide',
         );
         return true;
       }
@@ -1319,10 +1321,12 @@ extension MirrorTide on PlanetDungeonGame {
   bool _tryCourtCommune(DungeonCreature a, DungeonRoom room) {
     if (room.id != 'drowned_court' || starsEarnedCount < 3) return false;
     if ((a.position - room.bounds.center).distance >= 34) return false;
-    _setHint(
+    // Spoken: the line IS the reward, and a plain hint from a press that is
+    // not HINT is dropped.
+    speakConsequence(
       'The water stills to a perfect mirror. Before the flood, the '
-      'Leviathan sang the first tide through these halls, the temple '
-      'remembers, and now it rests.',
+      'Leviathan sang the first tide through these halls. The temple '
+      'remembers, and now it rests',
       7.5,
     );
     _spawnAlchemyBurst(
@@ -1460,32 +1464,15 @@ extension MirrorTide on PlanetDungeonGame {
         return;
       case 'moon_hall':
         _setHint(
-          'The tide-mural completes, at the settled MIDDLE water, the '
-          'true pools take the ice and bridge the well',
-          4.2,
+          'The mural shows the Moon Well. Each basin wants its own phase of '
+          'the moon. Spirit at the dial wanes the moon. A Water Pip standing '
+          'in the broken main makes the water match the moon. Ice freezes a '
+          'basin when its phase comes up',
+          5.0,
         );
         return;
-      case 'moon_well':
-        // Tiered (§5.6): tier 1 narrows the method, tier 2 marks the answer.
-        if (revealTier >= 2) {
-          // (The moon-well reading is the moon-well's; it no longer bleeds
-          // into the gallery's eddy tier — that would hand a room away from
-          // three chambers off.)
-          _poolFx['truth'] = 3.0 + revealTier * 1.5; // true pools glow
-          _setHint(
-            'The moon rides the northwest and southeast pools, the '
-            'others lie',
-            4.2,
-          );
-        } else if (revealTier >= 1) {
-          _setHint(
-            'At the settled middle water, only the true pools take the ice',
-            3.8,
-          );
-        } else {
-          _setHint('Two of the four pools hold the true moon', 3.8);
-        }
-        return;
+      // (The Moon Well itself is read by _moonWellInsight, above: the room
+      // carries the dial, so it never reaches this switch.)
       case 'reflection_court':
         // The egg's single oblique hint.
         _setHint(
@@ -1503,7 +1490,7 @@ extension MirrorTide on PlanetDungeonGame {
       case 'leviathan_depths':
         _setHint(
           guardianAwake
-              ? 'The Leviathan\'s rage ebbs in waves. Strike in the lull'
+              ? 'Strike in the lull. It only opens once the water has settled'
               : 'An empty deep. Finishing the ice bridge calls its guardian',
           3.6,
         );
@@ -3579,12 +3566,15 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
         ((spoutPlugged ? 1.0 : 0.0) - _spoutChoke) * min(1.0, dt * 4.2);
     if (spoutPlugged != wasPlugged) {
       _syncTideToMoon();
-      _setHint(
-        spoutPlugged
-            ? 'The main chokes, the well answers the moon again'
-            : 'The main runs, and the well rises past the moon',
-        2.6,
-      );
+      // Only the UNPLUG speaks: it runs per frame, where a plain line is
+      // dropped, and water climbing a level over the moon is a cost the
+      // player needs to hear. The plug going in is legible in the water.
+      if (!spoutPlugged) {
+        speakConsequence(
+          'The broken main runs again. The water rises a level above the moon',
+          3.0,
+        );
+      }
     }
 
     // THE WELL ASSERTS ITS OWN WATER, every frame rather than only when
@@ -3679,11 +3669,12 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
   bool _tryMoonStill(DungeonCreature a, TideValve valve) {
     if (!_atWell || hasStar(2) || moonBridgeWhole) return false;
     if (a.member.element != 'Water') return false;
-    _setHint(
+    _setInsightHint(
       spoutPlugged
-          ? 'You are already in the mouth of it. Stay there'
-          : 'Nothing to turn: the main is plugged by standing in it',
-      2.6,
+          ? 'You\'re plugging the main by standing in it. Stay here and '
+                'switch creatures'
+          : 'There\'s nothing to turn. Stand right in the mouth of the main '
+                'to plug it',
     );
     return true;
   }
@@ -3754,11 +3745,10 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
       }
       if (moonNotch != want) {
         _poolFx[pool.id] = 0.6;
-        _setHint(
+        _setBlockedHint(
           moonNotch < want
               ? 'The moon is too thin for this basin'
               : 'The moon is too full for this basin',
-          2.4,
         );
         return true;
       }
@@ -3804,9 +3794,11 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
         wardensSent = true;
         guardianAwake = true;
         guardianHp = PlanetDungeonGame.maxGuardianHp;
-        _setHint(
-          'Four moons stand frozen in the well, and the deep sends up what '
-          'it keeps',
+        // Spoken: this is what the fourth freeze just DID, and a plain line
+        // from a press that is not HINT is dropped.
+        speakConsequence(
+          'All four basins are frozen. The deep sends up its wardens, and '
+          'Leviathan wakes',
           4.6,
         );
         // THE WELL ANSWERS. Four locked basins is the loudest thing anyone
@@ -3872,7 +3864,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
     String phase(int n) => switch (n) {
       0 => 'a dark moon',
       1 => 'a thin crescent',
-      2 => 'a half moon',
+      2 => 'a thick crescent',
       3 => 'a half moon',
       4 => 'a swelling moon',
       5 => 'a near-full moon',
@@ -3882,7 +3874,8 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
       // The reading answers the thing standing in the way first. A player
       // told which moon a basin wants, while the well cannot hold any moon
       // at all, has been given the wrong half of the problem.
-      return 'Plug the running main first. Only a Water Pip fits into it';
+      return 'The broken main keeps the water a level too high. Leave a '
+          'Water Pip standing in its mouth, then switch creatures';
     }
     final open = poolWants.entries
         .where((e) => (poolStates[e.key] ?? 0) != 1)
@@ -3894,14 +3887,38 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
       return 'The ice raised the water over $drowned of these basins. Break '
           'one open to lower it';
     }
-    return switch (tier) {
-      <= 0 => 'Each of the four basins wants a different moon phase',
-      1 =>
-        '${open.length} basins are still empty, and the nearest of them wants '
-            '${phase(open.map((e) => e.value).reduce((x, y) => (x - moonNotch).abs() <= (y - moonNotch).abs() ? x : y))}',
-      _ =>
-        'Still wanting: ${(open.map((e) => phase(e.value)).toList()..sort()).join(", ")}'
-            '${wellHasRisen ? "" : ", and ice takes up room in a closed well"}',
-    };
+    if (tier <= 0) {
+      return 'Each of the four basins wants a different moon phase';
+    }
+    if (tier == 1) {
+      return 'Spirit at the dial wanes the moon one step, and it waxes back on '
+          'its own. Ice freezes a basin once the moon has held the phase it '
+          'wants';
+    }
+    // THE ORDER. Once [kMoonRiseAfterLocks] basins stand frozen the water
+    // rides a level higher, and every open basin whose stand that rise moves
+    // drowns. Derived from the same rule the well plays by, never hard-coded.
+    if (!wellHasRisen) {
+      final urgent = [
+        for (final e in open)
+          if (moonStandForLocks(e.value, kMoonRiseAfterLocks) !=
+              moonStandFor(e.value))
+            e.value,
+      ]..sort();
+      final names = urgent.map(phase).join(' and ');
+      final which = urgent.length == 1
+          ? 'the basin that wants $names'
+          : 'the basins that want $names';
+      final slots = kMoonRiseAfterLocks - lockedBasinCount;
+      if (urgent.isNotEmpty && urgent.length > slots) {
+        return 'Freezing one more basin raises the water and drowns $which. '
+            'Break the ice on the frozen basin and freeze those first';
+      }
+      if (urgent.isNotEmpty) {
+        return 'Freeze $which first. After two basins freeze, the water rises '
+            'a level and drowns ${urgent.length == 1 ? "it" : "them"}';
+      }
+    }
+    return 'Still wanting: ${(open.map((e) => e.value).toList()..sort()).map(phase).join(", ")}';
   }
 }
