@@ -3622,17 +3622,20 @@ graded "a wait". Rendered room by room first, then:
         arena's ring of piers, the reliquary's racks, and the entrance
         sigil the porch shared with every planet. What stays is what a room
         is for: the stair, the abyss kerb, the reliquary plinth, the
-        gnomons' and the vane's plinths. The sky is a BLACK HOLE now
-        (`dark.src.frag`): a lensed starfield, a tilted accretion disc wound
-        with a turning spiral and brighter on its approaching side, the back
-        of the disc lensed into an arch over the hole, a photon ring and
-        nothing inside — hung high to one side of the frame so it is never
-        over the party. The quarters are its two states: a LIT quarter is
-        obsidian flags lit by the disc, with five thin arms of its light
-        turning slowly round the room's focus (one cached path, rotated); a
-        SHADOWED one thins until the hole shows through, with sixteen motes
-        of dust spiralling into the focus. The three obstacles are obsidian
-        slabs. The render audit loads the real sky shader now
+        gnomons' and the vane's plinths. The sky holds a BLACK HOLE
+        (`dark.src.frag`), IMPLIED rather than shown: the first version was
+        the stock picture (even disc, clean lensed arch, a white hairline
+        photon ring) and the author called it cheesy — a hairline hoop is a
+        UI circle, and a centrepiece is the brightest thing on the darkest
+        planet. Now it is a patch of sky with nothing in it, stars pushed
+        out of it and smeared along its edge, and on ONE side a dim, broken
+        streak of disc that fades before it can close a ring; hung high to
+        one side so it is never over the party. A LIT quarter is obsidian
+        lit from the hole's side, dying across the floor (a turning swirl of
+        light arms was tried and read as a screensaver); a SHADOWED one
+        thins until the void shows through, with sixteen motes of dust
+        spiralling into the room's focus. The three obstacles are obsidian
+        slabs. Sky alone: `planet_dungeon_dark_sky_preview_test`. The render audit loads the real sky shader now
         (`debugLoadSky`), for every planet.
       – *Left as is, knowingly:* the ECLIPSE readout's four unlabelled marks
         (the map now labels the same state), and the rings' spinning arc.

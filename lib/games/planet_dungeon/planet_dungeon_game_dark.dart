@@ -1238,9 +1238,8 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     _renderVaultWipe(canvas, room);
   }
 
-  /// Where a room's light turns about: the thing the room is for, or its
-  /// middle. The disc's light swirls round it in a lit quarter, and in a
-  /// shadowed one the dust falls into it.
+  /// What a shadowed room's dust falls into: the thing the room is for, or
+  /// its middle.
   Offset _vaultFocus(DungeonRoom room) {
     final h = room.eclipse;
     return vaultGnomonIn(room.id)?.shaft ??
@@ -1257,10 +1256,9 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
   /// dark.src.frag) and its floor is a floor of black glass flags laid over
   /// that. The two states of a quarter are the two things a black hole has:
   ///
-  ///  · CORONA — the quarter stands in the disc's LIGHT. The flags are lit
-  ///    obsidian, and the light itself lies on them as the arms of an
-  ///    accretion swirl (five thin arms), gold at the room's focus and violet at its rim,
-  ///    turning slowly. One cached path, one rotate, one draw.
+  ///  · CORONA — the quarter stands in the disc's LIGHT: lit obsidian,
+  ///    warmest on the side the hole hangs on and dying across the room.
+  ///    (A turning swirl of light arms was tried and read as a screensaver.)
   ///  · UMBRA — the quarter is inside the SHADOW. The floor thins until the
   ///    hole behind the vault shows through it, the flags are violet
   ///    hairlines, and a little dust falls in slow spirals toward the focus
@@ -1351,34 +1349,22 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         b,
         Paint()..color = const Color(0xFF2B2440).withValues(alpha: 0.34),
       );
-      // The swirl: three arms of the disc's light lying on the floor.
-      canvas.save();
-      canvas.translate(focus.dx, focus.dy);
-      canvas.rotate(_time * 0.035);
-      canvas.drawPath(
-        _vaultSwirlFor(reach),
+      // The disc's light, falling in from the side the hole hangs on (high
+      // and to the right in every room, as in the sky) and dying across the
+      // floor. Nothing is drawn on the floor; the floor is only lit.
+      canvas.drawRect(
+        b,
         Paint()
-          ..shader = ui.Gradient.radial(
-            Offset.zero,
-            reach,
+          ..shader = ui.Gradient.linear(
+            b.topRight,
+            b.bottomLeft,
             [
-              const Color(0xFFF2C98E).withValues(alpha: 0.11),
-              const Color(0xFF9A74D8).withValues(alpha: 0.07),
-              const Color(0xFF4A2A86).withValues(alpha: 0.0),
+              const Color(0xFFE8C9A0).withValues(alpha: 0.10),
+              const Color(0xFF7A5CB0).withValues(alpha: 0.05),
+              const Color(0xFF7A5CB0).withValues(alpha: 0.0),
             ],
-            const [0.0, 0.45, 1.0],
+            const [0.0, 0.45, 0.9],
           ),
-      );
-      canvas.restore();
-      // A pool of the same light at the focus.
-      canvas.drawCircle(
-        focus,
-        reach * 0.5,
-        Paint()
-          ..shader = ui.Gradient.radial(focus, reach * 0.5, [
-            const Color(0xFFF2C98E).withValues(alpha: 0.08),
-            const Color(0xFFF2C98E).withValues(alpha: 0.0),
-          ]),
       );
       canvas.drawPath(
         g.flags,
@@ -2172,31 +2158,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
 /// than a field because the extension that renders it cannot carry state.
 final Map<String, _VaultGround> _vaultGroundCache = {};
 
-/// The accretion swirl, by reach: five filled arms that taper as they wind
-/// out from the focus. Built once per size, drawn rotated about the focus.
-final Map<int, Path> _vaultSwirlCache = {};
 
-Path _vaultSwirlFor(double reach) =>
-    _vaultSwirlCache.putIfAbsent(reach.round(), () {
-      final path = Path();
-      for (var arm = 0; arm < 5; arm++) {
-        final a0 = arm * 2 * pi / 5;
-        final outer = <Offset>[];
-        final inner = <Offset>[];
-        const n = 40;
-        for (var i = 0; i <= n; i++) {
-          final t = i / n;
-          final r = 26 + (reach - 26) * t;
-          final a = a0 + 2.2 * log(r / 26);
-          final w = (1 - t) * 20 + 2;
-          Offset at(double rr) => Offset(cos(a), sin(a) * 0.72) * rr;
-          outer.add(at(r + w * 0.5));
-          inner.add(at(max(4.0, r - w * 0.5)));
-        }
-        path.addPolygon([...outer, ...inner.reversed], true);
-      }
-      return path;
-    });
 
 /// One room's static architecture, pre-flattened into as few paths as the
 /// drawing needs. Merging each class of shape into ONE path is not only
