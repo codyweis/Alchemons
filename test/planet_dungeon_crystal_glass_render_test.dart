@@ -126,6 +126,13 @@ void main() {
       await shoot('hearth', 'keep_core');
       await shoot('selenite', 'keep_ne');
 
+      // The east rose as a dial, with the lamp lit and the beam landing.
+      await shoot(
+        'rose_lit',
+        'keep_e',
+        setup: (g) => g.prism.field.lampLit = true,
+      );
+
       for (final (a, b) in const [
         ('onyx', 'onyx_rite'),
         ('onyx_rite', 'onyx_kept'),

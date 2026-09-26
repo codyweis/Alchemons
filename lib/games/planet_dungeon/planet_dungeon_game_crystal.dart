@@ -906,14 +906,14 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     }
     if (cell != null && kKeepBeamRow.contains(cell)) {
       _setInsightHint(switch (tier) {
-        0 => 'The rose needs the light to arrive as one exact colour',
+        0 => 'The rose is a dial. The gold mark is where the light has to land',
         1 =>
-          'Light only passes rooms with doorways on both the west and east, '
-              'and each room it passes shifts its colour',
+          'Each room turns the light by its lit notches. Light only passes '
+              'rooms with doorways on both the west and east',
         _ =>
-          'Five rooms let light through and their shifts add up. The rose '
-              'wants $kRoseHue, and only one set of three makes it. The hearth '
-              'is not in that set',
+          'The three rooms in this row add their notches. The rose wants '
+              '$kRoseHue, and only one set of three makes it. The hearth is '
+              'not in that set',
       });
       return;
     }
@@ -1464,6 +1464,28 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
 
     for (final facet in const [kFacetN, kFacetE, kFacetS, kFacetW]) {
       if (chamber.cut(facet)) _renderFacetDoorway(c, r, facet, gl.jamb);
+      // HOW FAR THIS GLASS BENDS THE LIGHT (2026-09-25): a ring of twelve
+      // notches round the medallion, as many lit as the chamber bends a beam
+      // round the keep's twelve-step wheel — the same wheel the east rose is a
+      // dial of. Bends add, so three chambers in the beam row send the light
+      // round by the sum of their notches. It was nowhere on screen.
+      if (chamber.id != 'waiting') {
+        final mc = r.deflate(22).center;
+        for (var k = 0; k < 12; k++) {
+          final a = -pi / 2 + k * 2 * pi / 12;
+          final lit = k < chamber.bend;
+          c.drawLine(
+            mc + Offset(cos(a), sin(a)) * 56,
+            mc + Offset(cos(a), sin(a)) * (lit ? 68 : 62),
+            Paint()
+              ..strokeWidth = lit ? 4 : 2
+              ..strokeCap = StrokeCap.round
+              ..color = lit
+                  ? _wheelColour(k + 1).withValues(alpha: 0.95)
+                  : _keepVoid.withValues(alpha: 0.55),
+          );
+        }
+      }
     }
   }
 
@@ -2032,39 +2054,76 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
 
   /// THE EAST ROSE — a rose window, which is radial and therefore the one
   /// piece of regular geometry on this planet that is allowed to be regular.
+  /// THE EAST ROSE, AS A DIAL (2026-09-25): the keep's twelve-step wheel in
+  /// glass, the step it was cut to read marked in gold, and — while the lamp
+  /// burns — a pointer on the step the beam actually reaches. When they
+  /// meet, the whole rose lights. It was a small tinted disc that named the
+  /// target colour and nothing else.
   void _renderEastRose(Canvas canvas) {
-    final want = _wheelColour(kRoseHue);
-    canvas.drawCircle(
-      kEastRose,
-      23,
-      Paint()..color = _keepStoneDim.withValues(alpha: 0.9),
-    );
-    canvas.drawCircle(
-      kEastRose,
-      19,
-      Paint()..color = want.withValues(alpha: 0.35),
-    );
-    final tracery = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..color = want.withValues(alpha: 0.75);
-    for (var i = 0; i < 8; i++) {
-      final a = i * pi / 4;
-      canvas.drawLine(
-        kEastRose + Offset(cos(a), sin(a)) * 6,
-        kEastRose + Offset(cos(a), sin(a)) * 19,
-        tracery,
+    final f = _keep;
+    final c = kEastRose - const Offset(28, 0);
+    const outer = 34.0, inner = 14.0;
+    final solved = f.spectrumSolved;
+    canvas.drawCircle(c, outer + 6, Paint()..color = _keepStoneDim);
+    if (solved && _fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        70,
+        _wheelColour(kRoseHue).withValues(alpha: 0.5),
       );
     }
-    canvas.drawCircle(kEastRose, 6, tracery);
+    for (var k = 0; k < 12; k++) {
+      final a0 = -pi / 2 + k * 2 * pi / 12;
+      final pane = Path()
+        ..moveTo(c.dx + cos(a0) * inner, c.dy + sin(a0) * inner)
+        ..arcTo(
+          Rect.fromCircle(center: c, radius: outer),
+          a0,
+          2 * pi / 12,
+          false,
+        )
+        ..lineTo(
+          c.dx + cos(a0 + 2 * pi / 12) * inner,
+          c.dy + sin(a0 + 2 * pi / 12) * inner,
+        )
+        ..close();
+      canvas.drawPath(
+        pane,
+        Paint()
+          ..color = _wheelColour(
+            k,
+          ).withValues(alpha: solved || k == kRoseHue ? 0.9 : 0.35),
+      );
+      canvas.drawPath(
+        pane,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = _keepVoid,
+      );
+    }
+    // The step it was cut to read, ringed in gold.
+    final ta = -pi / 2 + (kRoseHue + 0.5) * 2 * pi / 12;
     canvas.drawCircle(
-      kEastRose,
-      19,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
-        ..color = want.withValues(alpha: 0.9),
+      c + Offset(cos(ta), sin(ta)) * (outer + 6),
+      4.5,
+      Paint()..color = const Color(0xFFE4C16A),
     );
+    // Where the light lands now.
+    if (f.beamLive) {
+      final ba = -pi / 2 + (f.beamHue + 0.5) * 2 * pi / 12;
+      canvas.drawLine(
+        c,
+        c + Offset(cos(ba), sin(ba)) * (outer - 2),
+        Paint()
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round
+          ..color = Colors.white.withValues(alpha: 0.95),
+      );
+    }
+    canvas.drawCircle(c, inner - 3, Paint()..color = _keepStoneDim);
   }
 
   /// THE INDEX PLATE — a 3×3 diagram cut into every socket's frame. A sliding
