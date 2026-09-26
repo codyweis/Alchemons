@@ -34,7 +34,7 @@ void main() {
       expect(
         icons,
         greaterThanOrEqualTo(5),
-        reason: 'regroup, survey, hint, re-lay and the debug reset',
+        reason: 'regroup, survey, re-lay and the two debug tools',
       );
     });
 
@@ -88,25 +88,32 @@ void main() {
   });
 
   group('the action pad', () {
-    test('is round, the verb is the big seat, and it never swaps', () {
-      // 2026-09-24: the planet's verb is the big disc (icon only), and the
-      // pad never rearranges when enemies arrive; ATTACK is big only in a
-      // room with no verb at all. The old layout (74px weapons, a 54px verb
-      // above) put the thing you press most in the smallest spot.
-      expect(source, contains('Widget _roundAction('));
-      expect(source, contains('const big = 84.0, small = 44.0;'));
-      expect(source, contains('primary = utility(big);'));
-      expect(source, contains('primary = attack(big);'));
+    String cluster() => source.substring(
+      source.indexOf('Widget _actionCluster('),
+      source.indexOf('Color _padInk('),
+    );
+
+    test('is a square grid: the verb across the top, weapons below', () {
+      // 2026-09-26: three glowing round domes became a 2x2 grid of squares
+      // in the same bracketed chrome as the top-right controls. The verb
+      // spans the top row; ATTACK and SPECIAL share the bottom.
+      expect(source, contains('Widget _padTile('));
+      expect(source, contains('wide = cell * 2 + gap'));
       expect(
-        source,
-        contains('final fighting = !hasUtility;'),
-        reason: 'enemies arriving must not swap the buttons under the thumb',
+        cluster(),
+        contains('top = KeyedSubtree(key: _tutUtilityKey, child: utility());'),
       );
-      expect(
-        source.contains('BoxShape.circle'),
-        isTrue,
-        reason: 'the chassis is a circle, not a rounded box',
-      );
+      // A room with no verb at all (a guardian's arena): ATTACK takes the
+      // top row, and that never changes mid-fight.
+      expect(cluster(), contains('top = attack(wide);'));
+    });
+
+    test('it never swaps when enemies arrive', () {
+      // Buttons that move under the thumb mid-fight (the author,
+      // 2026-09-24). The layout may only depend on whether the room has a
+      // verb, never on whether anything is shooting.
+      expect(cluster(), contains('final hasUtility = game.utilityAvailable;'));
+      expect(cluster().contains('hasCombatTargets'), isFalse);
     });
 
     test('the controls live in a tray the room never runs under', () {
@@ -121,16 +128,23 @@ void main() {
     });
 
     test('the countdown reuses the label slot', () {
-      // A badge pinned to a corner would sit on top of the rim now.
+      // A badge pinned to a corner would sit on top of the tile's brackets.
       expect(
-        source,
-        contains('caption: cooldownText ?? (small ? null : label)'),
+        cluster(),
+        contains("cooling ? game.autoCooldownLabel : 'ATTACK'"),
+      );
+      expect(
+        cluster(),
+        matches(RegExp(r'cooling\s*\?\s*game\.abilityCooldownLabel')),
       );
     });
 
-    test('the glide meter moved onto the utility rim', () {
+    test('the glide meter lives on the utility tile', () {
       // One control showing flight, not a control plus a floating 90x6 bar.
-      expect(source, contains('charge: glide ? game.flightFraction : 1.0'));
+      expect(
+        cluster(),
+        contains('charge: enabled && glide ? game.flightFraction : null'),
+      );
       expect(
         RegExp(r'width: 90,\s*\n\s*height: 6').hasMatch(source),
         isFalse,
@@ -139,46 +153,37 @@ void main() {
     });
 
     test('the utility button wears the active creature\'s element', () {
-      // The old label was the literal word UTILITY on all seventeen planets.
-      expect(source, contains('icon: elementIconFor(element)'));
+      expect(cluster(), contains('Icon(elementIconFor(element)'));
       expect(
-        source,
-        contains("element: game.active?.member.element ?? widget.element"),
+        cluster(),
+        contains(
+          "final element = game.active?.member.element ?? widget.element",
+        ),
         reason: 'it must follow the ACTIVE creature, not the planet',
       );
     });
-  });
 
-  group('the ring painter', () {
-    test('draws with strokes only', () {
-      // The HUD repaints on the game tick; a blurred rim would be a filter
-      // pass per button per frame, which is the jank this codebase fights.
-      final painter = source.substring(
-        source.indexOf('class _ActionRingPainter'),
-        source.indexOf('const _starPrefsKey'),
+    test('the tiles carry no glow and no blur', () {
+      // The HUD repaints on the game tick; a blurred edge is a filter pass
+      // per tile per frame, and the glow read as cheap (the author,
+      // 2026-09-26).
+      final tile = source.substring(
+        source.indexOf('Widget _padTile('),
+        source.indexOf('Widget _swapRail('),
       );
-      expect(painter.contains('MaskFilter'), isFalse);
+      expect(tile.contains('MaskFilter'), isFalse);
+      expect(tile.contains('boxShadow'), isFalse);
+      expect(tile.contains('blurRadius'), isFalse);
     });
 
-    test('repaints when any of its state changes', () {
-      final painter = source.substring(
-        source.indexOf('class _ActionRingPainter'),
-        source.indexOf('const _starPrefsKey'),
+    test('the party is a list at full size, never scaled to fit', () {
+      // It was a row of portraits the tray shrank to under half size to fit
+      // between the stick and the pad.
+      expect(source.contains('child: _swapRail(game),\n'), isTrue);
+      expect(
+        RegExp(r'FittedBox\([^)]*\n[^)]*_swapRail').hasMatch(source),
+        isFalse,
       );
-      for (final field in [
-        'charge',
-        'spent',
-        'denied',
-        'teeth',
-        'color',
-        'thickness',
-      ]) {
-        expect(
-          painter.contains('old.$field != $field'),
-          isTrue,
-          reason: 'shouldRepaint ignores $field',
-        );
-      }
     });
   });
 
@@ -186,6 +191,24 @@ void main() {
     test('is a circled question mark, filled when it has an answer', () {
       expect(source, contains('Icons.help_rounded'));
       expect(source, contains('Icons.help_outline_rounded'));
+    });
+
+    test('is its own round button at the top of the rail, with no glow', () {
+      // 36px in a column of look-alike squares was easy to miss; now it is
+      // a flat 50px circle, first under END RUN.
+      final button = source.substring(
+        source.indexOf('Widget _hintButton('),
+        source.indexOf('Widget _buildControlsTutorial('),
+      );
+      expect(button, contains('BoxShape.circle'));
+      expect(button.contains('boxShadow'), isFalse);
+      expect(button.contains('blurRadius'), isFalse);
+      final rail = source.substring(source.indexOf("'END RUN'"));
+      expect(
+        rail.indexOf('_hintButton('),
+        lessThan(rail.indexOf('Icons.restore_rounded')),
+        reason: 'the hint is the first tool under END RUN',
+      );
     });
 
     test('the capsule wears the house chrome, not a soft pill', () {

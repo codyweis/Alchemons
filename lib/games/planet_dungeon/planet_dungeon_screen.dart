@@ -8,7 +8,6 @@ import 'package:alchemons/audio/audio.dart';
 // death overlay and an instant star-banked toast. Dark / alchemical chrome.
 
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -35,7 +34,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _C {
   static const bg = Color(0xFF080808);
-  static const bg2 = Color(0xFF111722);
   static const panel = Color(0xFF14120E);
   static const amber = Color(0xFFC4A35A);
   static const amberBright = Color(0xFFE4C16A);
@@ -91,103 +89,11 @@ class _HudBracketPainter extends CustomPainter {
       oldDelegate.strokeWidth != strokeWidth;
 }
 
-/// The rim of a round action button: a charge arc, teeth, and a refusal flare.
-///
-/// The combat pad used to be two soft-cornered boxes whose only state was a
-/// black shade creeping up from the bottom — readable, but it read as a
-/// progress bar wearing a button, which is the opposite of what a weapon
-/// should look like. The rim carries all of it now: the arc unwinds as the
-/// cooldown runs, the teeth make it look like something with an edge, and a
-/// refused press throws a shockwave off the outside.
-///
-/// Strokes only — no MaskFilter anywhere in here. The HUD repaints on the
-/// game's tick, and a blurred rim would be a filter pass per button per frame.
-class _ActionRingPainter extends CustomPainter {
-  const _ActionRingPainter({
-    required this.color,
-    required this.charge,
-    required this.spent,
-    this.denied = 0,
-    this.teeth = 0,
-    this.thickness = 3,
-  });
-
-  /// 0..1 — how much of the rim is lit. 1 is ready to press.
-  final double charge;
-  final Color color;
-  final bool spent;
-  final double denied;
-  final int teeth;
-  final double thickness;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    // The flare needs somewhere to go, so the rim sits in from the edge.
-    final r = math.min(size.width, size.height) / 2 - thickness - 5;
-    if (r <= 0) return;
-
-    final live = color.withValues(alpha: spent ? 0.34 : 0.92);
-    final lit = denied > 0 ? Color.lerp(live, _C.ember, denied)! : live;
-
-    final stroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = thickness;
-
-    // The unlit track, so a half-charged rim reads as half rather than short.
-    canvas.drawCircle(c, r, stroke..color = color.withValues(alpha: 0.14));
-
-    if (charge > 0.004) {
-      canvas.drawArc(
-        Rect.fromCircle(center: c, radius: r),
-        -math.pi / 2,
-        2 * math.pi * charge.clamp(0.0, 1.0),
-        false,
-        stroke
-          ..color = lit
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-
-    if (teeth > 0) {
-      final tick = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..strokeCap = StrokeCap.round
-        ..color = lit.withValues(alpha: spent ? 0.2 : 0.5);
-      for (var i = 0; i < teeth; i++) {
-        final a = -math.pi / 2 + i * 2 * math.pi / teeth;
-        final r0 = r + thickness * 0.9;
-        // Every third tooth runs long — an even fringe reads as a dial.
-        final r1 = r0 + (i % 3 == 0 ? 5.0 : 2.4);
-        final d = Offset(math.cos(a), math.sin(a));
-        canvas.drawLine(c + d * r0, c + d * r1, tick);
-      }
-    }
-
-    if (denied > 0) {
-      canvas.drawCircle(
-        c,
-        r + 3 + 7 * denied,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.4 + 1.8 * (1 - denied)
-          ..color = _C.ember.withValues(alpha: 0.55 * (1 - denied)),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ActionRingPainter old) =>
-      old.color != color ||
-      old.charge != charge ||
-      old.spent != spent ||
-      old.denied != denied ||
-      old.teeth != teeth ||
-      old.thickness != thickness;
-}
-
 const _starPrefsKey = 'cosmic_planet_stars';
+
+/// Set once the first-descent controls walkthrough has been dismissed. Global,
+/// not per planet: the buttons mean the same thing on every world.
+const _controlsTutorialSeenKey = 'dungeon_controls_tutorial_seen_v1';
 
 /// How long a newly earned star takes to reach its tracker slot.
 ///
@@ -317,6 +223,17 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// costs (notably the sky shader's runtime compile) while it is still hidden.
   bool _dungeonWarmed = false;
 
+  /// FIRST DESCENT ONLY: a two-beat walkthrough of the action pad — UTILITY
+  /// works the dungeon, ATTACK and SPECIAL are for fights. Assumed seen until
+  /// prefs say otherwise, so a slow prefs read never flashes it at a veteran.
+  bool _controlsTutorialSeen = true;
+
+  /// Which beat of the walkthrough is showing, or null when it is not. While
+  /// it is non-null the engine stays paused and the run has not begun.
+  int? _tutorialStep;
+  final GlobalKey _tutUtilityKey = GlobalKey(debugLabel: 'tutUtility');
+  final GlobalKey _tutCombatKey = GlobalKey(debugLabel: 'tutCombat');
+
   AudioController? _soundController;
 
   @override
@@ -378,6 +295,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     final stars = PlanetStarState.deserialise(
       prefs.getString(_starPrefsKey) ?? '',
     );
+    _controlsTutorialSeen =
+        _isRaid || (prefs.getBool(_controlsTutorialSeenKey) ?? false);
 
     // The campaign difficulty clock: every OTHER planet's fallen guardian
     // hardens this run's enemies (and especially its guardian).
@@ -503,10 +422,63 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // reward no longer pauses at all, so it must not be listed here: doing so
     // would skip `beginRun()` and leave the whole dungeon frozen.
     if (_showRaidReward) return;
+    // The very first descent stops here for the controls walkthrough. The
+    // engine stays paused and the run has not begun, so nothing moves and the
+    // planet's primer is not spent behind it; [_finishTutorial] starts both.
+    if (!_controlsTutorialSeen) {
+      setState(() => _tutorialStep = 0);
+      return;
+    }
+    _startRun();
+  }
+
+  void _startRun() {
     _game?.resumeEngine();
     // First frame the player can actually act on: the planet states its rule
     // now, once ever, rather than while the descent still covers the screen.
     _game?.beginRun();
+  }
+
+  /// The walkthrough's beats, in order, for whatever the pad is showing. The
+  /// UTILITY beat is skipped where the pad has no verb (a guardian's arena).
+  List<_TutorialBeat> get _tutorialBeats => [
+    if (_game?.utilityAvailable ?? false)
+      const _TutorialBeat(
+        target: _TutorialTarget.utility,
+        title: 'UTILITY',
+        body:
+            'Use this to work the dungeon: push, light, freeze and open '
+            'things. What it does depends on the element of the creature '
+            'leading, so swap creatures to change it.',
+      ),
+    const _TutorialBeat(
+      target: _TutorialTarget.combat,
+      title: 'ATTACK · SPECIAL',
+      body:
+          'These are for fighting only. They never solve a puzzle, so save '
+          'them for enemies.',
+    ),
+  ];
+
+  void _advanceTutorial() {
+    final step = _tutorialStep;
+    if (step == null) return;
+    HapticFeedback.selectionClick();
+    if (step + 1 < _tutorialBeats.length) {
+      setState(() => _tutorialStep = step + 1);
+    } else {
+      unawaited(_finishTutorial());
+    }
+  }
+
+  Future<void> _finishTutorial() async {
+    setState(() {
+      _tutorialStep = null;
+      _controlsTutorialSeen = true;
+    });
+    _startRun();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_controlsTutorialSeenKey, true);
   }
 
   /// Offers any unclaimed reward as soon as the room is safe. Called on star
@@ -1081,6 +1053,26 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                         icon: Icons.logout_rounded,
                       ),
                       const SizedBox(height: 8),
+                      // The only thing in the dungeon that speaks. It reads
+                      // the room — and, when the world has just turned the
+                      // player away, it says WHY, which is the question they
+                      // actually pressed it to ask.
+                      //
+                      // It brightens while it has a refusal waiting, so the
+                      // affordance advertises itself exactly when it has
+                      // something worth saying. That pulse is also how a
+                      // player discovers the button exists at all, now that
+                      // nothing else talks.
+                      ValueListenableBuilder<int>(
+                        valueListenable: _tick,
+                        builder: (_, __, ___) => _hintButton(
+                          lit: game.hintHasAnswer,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            game.askForRoomHint();
+                          },
+                        ),
+                      ),
                       _iconButton(
                         // It recalls the party to the door they came in by
                         // rather than snapping them to whoever is active, so
@@ -1107,30 +1099,6 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                           semantics: game.surveying
                               ? 'Close in'
                               : 'Survey the room',
-                        ),
-                      ),
-                      // The only thing in the dungeon that speaks. It reads
-                      // the room — and, when the world has just turned the
-                      // player away, it says WHY, which is the question they
-                      // actually pressed it to ask.
-                      //
-                      // It brightens while it has a refusal waiting, so the
-                      // affordance advertises itself exactly when it has
-                      // something worth saying. That pulse is also how a
-                      // player discovers the button exists at all, now that
-                      // nothing else talks.
-                      ValueListenableBuilder<int>(
-                        valueListenable: _tick,
-                        builder: (_, __, ___) => _iconButton(
-                          game.hintHasAnswer
-                              ? Icons.help_rounded
-                              : Icons.help_outline_rounded,
-                          game.hintHasAnswer ? _C.amber : _C.cyan,
-                          () {
-                            HapticFeedback.selectionClick();
-                            game.askForRoomHint();
-                          },
-                          semantics: 'Hint',
                         ),
                       ),
                       // Re-lay this room's puzzle from scratch. Shows in
@@ -1404,6 +1372,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                   },
                 ),
               ),
+            // First-descent controls walkthrough, once the descent is gone.
+            if (_tutorialStep != null && !_showIntro && !_showBeautyMask)
+              _buildControlsTutorial(),
+
             // End-run reward popup.
             if (_rewardStars != null)
               DungeonRewardPopup(
@@ -1827,7 +1799,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// The joystick's full width. Taller than the tray on purpose (the
   /// author, 2026-09-24): a thumb control wants size more than it wants to
   /// stay inside a strip.
-  static const double _kStickDiameter = 136;
+  static const double _kStickDiameter = 112;
+
+  /// Action-pad square, the gap between squares, and a party row's height.
+  /// Three party rows and two pad rows both come to the same 110, so the
+  /// list and the pad line up top and bottom.
+  static const double _kPadCell = 52;
+  static const double _kPadGap = 6;
+  static const double _kPartyRow = 32.7;
 
   /// JOYSTICK HAPTICS: one click when the stick is first pressed, and
   /// nothing while it is held — the steering ticks were constant under a
@@ -1887,16 +1866,13 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               // scales down rather than ever overflowing a narrow screen.
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: _swapRail(game),
-                    ),
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: _swapRail(game),
                 ),
               ),
-              if (game.roomOffersAction) _actionCluster(game),
+              // Always laid out, so the party list never changes width;
+              // where the room offers nothing to do the pad is simply dim.
+              _actionCluster(game),
             ],
           ),
         ),
@@ -1944,273 +1920,244 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     );
   }
 
-  /// THE ACTION PAD. One big button and two small ones: the planet's own
-  /// verb is the big one (icon only — the glyph is the verb), ATTACK and
-  /// SPECIAL the small pair. Fixed — it does not rearrange for a fight.
+  /// THE ACTION PAD (2026-09-26): a 2×2 grid of squares in the HUD's own
+  /// bracketed chrome. UTILITY spans the top row, ATTACK and SPECIAL share
+  /// the bottom. It replaced three glowing round domes that read as a
+  /// different game from the square controls beside them.
+  ///
+  /// Fixed: it never rearranges for a fight. Where the room has no verb at
+  /// all (a guardian's arena) ATTACK takes the top row and SPECIAL the
+  /// bottom, and that never changes mid-fight either.
   Widget _actionCluster(PlanetDungeonGame game) {
     final ability = game.activeAbility;
-    final enabled = game.canAct;
+    final offers = game.roomOffersAction || _tutorialStep != null;
+    final enabled = game.canAct && offers;
     final glide = ability == DungeonAbility.aerialTraversal;
     final flying = glide && game.flightActive;
     final hasUtility = game.utilityAvailable;
-    // NO SWAPPING (the author, 2026-09-24): buttons that change size when
-    // enemies arrive move under the thumb mid-fight. The verb is always the
-    // big one; ATTACK takes that seat only in a room with no verb at all
-    // (a guardian's arena), where it never changes.
-    final fighting = !hasUtility;
+    final element = game.active?.member.element ?? widget.element;
 
-    Widget utility(double d) => _utilityButton(
-      element: game.active?.member.element ?? widget.element,
-      enabled: enabled,
-      active: flying,
-      charge: glide ? game.flightFraction : 1.0,
-      diameter: d,
-      onTap: context.soundTap(() {
-        _tapHaptic();
-        game.activateAbility();
-      }),
-    );
-    Widget attack(double d) => _combatButton(
-      label: 'ATTACK',
-      icon: Icons.gps_fixed_rounded,
-      diameter: d,
-      cooldownText: game.autoCooldownFraction > 0.02
-          ? game.autoCooldownLabel
+    const cell = _kPadCell, gap = _kPadGap, wide = cell * 2 + gap;
+
+    Widget utility() => _padTile(
+      width: wide,
+      height: cell,
+      color: flying ? _C.cyan : _C.amberBright,
+      spent: !enabled,
+      // Glide drains and refills; every other verb is always full.
+      charge: enabled && glide ? game.flightFraction : null,
+      semantics: 'Use $element ability',
+      onTap: enabled
+          ? context.soundTap(() {
+              _tapHaptic();
+              game.activateAbility();
+            })
           : null,
-      cooldownFraction: game.autoCooldownFraction,
-      deniedPulse: game.autoDeniedPulse,
-      color: _C.cyan,
-      onTap: () {
-        _tapHaptic();
-        game.activateAutoAttack();
-      },
-    );
-    Widget special(double d) => _combatButton(
-      label: game.abilityIsPassive ? 'PASSIVE' : 'SPECIAL',
-      icon: game.abilityIsPassive
-          ? Icons.all_inclusive_rounded
-          : Icons.auto_awesome_rounded,
-      diameter: d,
-      cooldownText: game.abilityCooldownFraction > 0.02
-          ? game.abilityCooldownLabel
-          : null,
-      cooldownFraction: game.abilityIsPassive
-          ? 0
-          : game.abilityCooldownFraction,
-      dimmed: game.abilityIsPassive,
-      deniedPulse: game.abilityDeniedPulse,
-      color: _C.amberBright,
-      onTap: () {
-        _tapHaptic();
-        game.activateCombatAbility();
-      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(elementIconFor(element), size: 24, color: _padInk(!enabled)),
+          const SizedBox(width: 8),
+          _padLabel('UTILITY', !enabled),
+        ],
+      ),
     );
 
-    const big = 84.0, small = 44.0;
-    final Widget primary;
-    final List<Widget> side;
-    if (!fighting) {
-      primary = utility(big);
-      side = [attack(small), special(small)];
-    } else {
-      primary = attack(big);
-      side = [special(small), if (hasUtility) utility(small)];
+    Widget attack(double w) {
+      final cd = game.autoCooldownFraction;
+      final cooling = cd > 0.02;
+      return _padTile(
+        width: w,
+        height: cell,
+        color: _C.cyan,
+        spent: !offers || cooling,
+        charge: cooling ? 1 - cd : null,
+        denied: game.autoDeniedPulse,
+        semantics: 'Attack',
+        onTap: offers
+            ? context.soundAction(() {
+                _tapHaptic();
+                game.activateAutoAttack();
+              })
+            : null,
+        child: _padGlyph(
+          Icons.gps_fixed_rounded,
+          cooling ? game.autoCooldownLabel : 'ATTACK',
+          !offers || cooling,
+        ),
+      );
     }
-    return Row(
+
+    Widget special(double w) {
+      final passive = game.abilityIsPassive;
+      final cd = passive ? 0.0 : game.abilityCooldownFraction;
+      final cooling = cd > 0.02;
+      return _padTile(
+        width: w,
+        height: cell,
+        color: _C.amberBright,
+        spent: !offers || cooling || passive,
+        charge: cooling ? 1 - cd : null,
+        denied: game.abilityDeniedPulse,
+        semantics: passive ? 'Passive' : 'Special',
+        onTap: offers
+            ? context.soundAction(() {
+                _tapHaptic();
+                game.activateCombatAbility();
+              })
+            : null,
+        child: _padGlyph(
+          passive ? Icons.all_inclusive_rounded : Icons.auto_awesome_rounded,
+          cooling
+              ? game.abilityCooldownLabel
+              : (passive ? 'PASSIVE' : 'SPECIAL'),
+          !offers || cooling || passive,
+        ),
+      );
+    }
+
+    // The walkthrough spotlights the top row and the bottom row; the keys
+    // are how it finds them on screen.
+    final Widget top;
+    final Widget bottom;
+    if (hasUtility) {
+      top = KeyedSubtree(key: _tutUtilityKey, child: utility());
+      bottom = KeyedSubtree(
+        key: _tutCombatKey,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            attack(cell),
+            const SizedBox(width: gap),
+            special(cell),
+          ],
+        ),
+      );
+    } else {
+      top = attack(wide);
+      bottom = special(wide);
+    }
+    final grid = Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Column(mainAxisSize: MainAxisSize.min, children: side),
-        const SizedBox(width: 2),
-        primary,
+        top,
+        const SizedBox(height: gap),
+        bottom,
       ],
     );
+    return hasUtility ? grid : KeyedSubtree(key: _tutCombatKey, child: grid);
   }
 
-  /// The round chassis every action button is built on: rim, dark dome, glyph.
-  Widget _roundAction({
-    required double diameter,
-    required IconData icon,
+  Color _padInk(bool spent) =>
+      spent ? _C.text.withValues(alpha: 0.38) : _C.text.withValues(alpha: 0.95);
+
+  Widget _padLabel(String text, bool spent) => Text(
+    text,
+    maxLines: 1,
+    style: TextStyle(
+      color: _padInk(spent),
+      fontFamily: 'monospace',
+      fontSize: 10,
+      fontWeight: FontWeight.w900,
+      letterSpacing: 1.0,
+      height: 1,
+    ),
+  );
+
+  Widget _padGlyph(IconData icon, String label, bool spent) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 20, color: _padInk(spent)),
+      const SizedBox(height: 5),
+      // A square is narrow; long words shrink to fit rather than clip.
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: FittedBox(fit: BoxFit.scaleDown, child: _padLabel(label, spent)),
+      ),
+    ],
+  );
+
+  /// One square of the action pad: a dark tile, bracketed corners in the
+  /// button's colour, and a solid band along the foot that fills as a
+  /// cooldown (or a glide's charge) comes back. No glow, no blur.
+  Widget _padTile({
+    required double width,
+    required double height,
     required Color color,
-    required double charge,
     required bool spent,
     required String semantics,
     required VoidCallback? onTap,
+    required Widget child,
+    double? charge,
     double denied = 0,
-    String? caption,
-    int teeth = 0,
-    double iconSize = 22,
   }) {
-    // The rim's flare needs room outside the dome, and the extra ring doubles
-    // as slop on the tap target.
-    final box = diameter + 14;
-    final ink = spent ? _C.text.withValues(alpha: 0.42) : color;
+    final refuse = denied.clamp(0.0, 1.0);
+    final edge = Color.lerp(
+      color.withValues(alpha: spent ? 0.35 : 0.85),
+      _C.ember,
+      refuse,
+    )!;
     return Semantics(
       button: true,
       label: semantics,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: context.soundAction(onTap),
-        child: SizedBox(
-          width: box,
-          height: box,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              CustomPaint(
-                size: Size.square(box),
-                painter: _ActionRingPainter(
-                  color: color,
-                  charge: charge,
-                  spent: spent,
-                  denied: denied,
-                  teeth: teeth,
-                  thickness: diameter >= 70 ? 3.2 : 2.6,
-                ),
+        onTap: onTap,
+        child: CustomPaint(
+          foregroundPainter: _HudBracketPainter(
+            color: edge,
+            bracketSize: 8,
+            strokeWidth: 1.6,
+          ),
+          child: Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              color: Color.lerp(
+                spent ? const Color(0xFF0C0B09) : const Color(0xFF15130F),
+                _C.ember.withValues(alpha: 0.25),
+                refuse,
               ),
-              Container(
-                width: diameter,
-                height: diameter,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  // A lit dome rather than a flat panel: the light sits up and
-                  // left, so the button reads as a physical thing to hit.
-                  gradient: RadialGradient(
-                    center: const Alignment(-0.3, -0.4),
-                    radius: 1.05,
-                    colors: [
-                      color.withValues(alpha: spent ? 0.05 : 0.20),
-                      _C.bg2.withValues(alpha: 0.94),
-                      const Color(0xFF04060A),
-                    ],
-                    stops: const [0.0, 0.55, 1.0],
-                  ),
-                  border: Border.all(
-                    color: color.withValues(alpha: spent ? 0.22 : 0.5),
-                    width: 1,
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icon,
-                      color: ink,
-                      size: iconSize,
-                      shadows: spent
-                          ? null
-                          : [
-                              Shadow(
-                                color: color.withValues(alpha: 0.6),
-                                blurRadius: 12,
-                              ),
-                            ],
+              border: Border.all(
+                color: _C.border.withValues(alpha: spent ? 0.3 : 0.55),
+              ),
+            ),
+            child: Stack(
+              children: [
+                Center(child: child),
+                if (charge != null)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: 3,
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: charge.clamp(0.0, 1.0),
+                      child: ColoredBox(color: color.withValues(alpha: 0.8)),
                     ),
-                    if (caption != null) ...[
-                      const SizedBox(height: 5),
-                      Text(
-                        caption,
-                        style: TextStyle(
-                          color: spent
-                              ? _C.text.withValues(alpha: 0.58)
-                              : Colors.white.withValues(alpha: 0.92),
-                          fontFamily: 'monospace',
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.05,
-                          height: 1,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
+                  ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _utilityButton({
-    required String element,
-    required bool enabled,
-    required bool active,
-    required double charge,
-    required VoidCallback onTap,
-    double diameter = 54,
-  }) {
-    final color = active ? _C.cyan : _C.amberBright;
-    return _roundAction(
-      diameter: diameter,
-      // The ACTIVE creature's element, so a swap visibly changes the button.
-      // The glyph stays in the HUD's own amber rather than the element
-      // colour: Dark, Mud and Earth are near-black, and this dome is too.
-      icon: elementIconFor(element),
-      color: enabled ? color : _C.border,
-      charge: enabled ? charge : 0,
-      spent: !enabled,
-      teeth: 0, // the verb is not a weapon; it stays smooth
-      // Icon only, at any size: the glyph IS the verb.
-      iconSize: diameter * 0.38,
-      semantics: 'Use $element ability',
-      onTap: enabled ? onTap : null,
-    );
-  }
-
-  Widget _combatButton({
-    required String label,
-    required IconData icon,
-    required double cooldownFraction,
-    required Color color,
-    required VoidCallback onTap,
-    String? cooldownText,
-    double deniedPulse = 0,
-    bool dimmed = false,
-    double diameter = 74,
-  }) {
-    final cooling = cooldownFraction > 0.02;
-    final spent = cooling || dimmed;
-    final small = diameter < 60;
-    return _roundAction(
-      diameter: diameter,
-      icon: icon,
-      color: color,
-      // The rim fills as the wait runs out, so "ready" is a whole circle.
-      charge: dimmed ? 0 : 1 - cooldownFraction.clamp(0.0, 1.0),
-      spent: spent,
-      denied: deniedPulse.clamp(0.0, 1.0),
-      teeth: small ? 0 : 12,
-      iconSize: small ? 18 : 26,
-      // While cooling the caption IS the countdown — same slot, so the button
-      // never grows a badge that overlaps its own rim. A small button carries
-      // only the countdown; its glyph names it.
-      caption: cooldownText ?? (small ? null : label),
-      semantics: label,
-      onTap: context.soundAction(onTap),
-    );
-  }
-
+  /// The party, as a short list: portrait, name and health, one row each.
+  /// It used to be a row of portrait cards that the tray had to shrink to
+  /// under half size to fit between the stick and the pad.
   Widget _swapRail(PlanetDungeonGame game) {
-    // A subtle backing strip groups the chips into one control.
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: _C.bg.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: _C.border.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < game.creatures.length; i++)
-            Padding(
-              padding: EdgeInsets.only(left: i == 0 ? 0 : 6),
-              child: _creatureChip(game, i),
-            ),
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < game.creatures.length; i++)
+          Padding(
+            padding: EdgeInsets.only(top: i == 0 ? 0 : _kPadGap),
+            child: _creatureChip(game, i),
+          ),
+      ],
     );
   }
 
@@ -2219,72 +2166,70 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     final isActive = i == game.activeIndex;
     final down = !c.alive;
     final ec = elementColor(c.member.element);
+    const h = _kPartyRow;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(() => game.setActive(i)),
       child: Container(
-        width: 52,
-        height: 60,
+        height: h,
         decoration: BoxDecoration(
-          color: _C.panel.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(8),
+          color: isActive ? const Color(0xFF1B1812) : const Color(0xFF100E0B),
           border: Border.all(
             color: down
                 ? _C.danger.withValues(alpha: 0.55)
                 : isActive
                 ? _C.amberBright
-                : _C.border.withValues(alpha: 0.6),
-            width: isActive ? 2 : 1,
+                : _C.border.withValues(alpha: 0.45),
+            width: isActive ? 1.6 : 1,
           ),
         ),
-        child: Column(
+        child: Row(
           children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(7),
-                ),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Opacity(
-                      opacity: down ? 0.32 : 1.0,
-                      child: c.member.imagePath != null
-                          ? Image.asset(c.member.imagePath!, fit: BoxFit.cover)
-                          : ColoredBox(color: ec.withValues(alpha: 0.4)),
-                    ),
-                    if (down)
-                      const Center(
-                        child: Text(
-                          'DOWN',
-                          style: TextStyle(
-                            color: _C.danger,
-                            fontSize: 8,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+            SizedBox(
+              width: h - 2,
+              height: h - 2,
+              child: Opacity(
+                opacity: down ? 0.32 : 1.0,
+                child: c.member.imagePath != null
+                    ? Image.asset(c.member.imagePath!, fit: BoxFit.cover)
+                    : ColoredBox(color: ec.withValues(alpha: 0.4)),
               ),
             ),
-            // HP bar.
-            Container(
-              height: 5,
-              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: c.hpFraction,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: c.hpFraction > 0.3 ? _C.amber : _C.danger,
-                    borderRadius: BorderRadius.circular(3),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    down ? 'DOWN' : c.member.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: down
+                          ? _C.danger
+                          : isActive
+                          ? _C.text
+                          : _C.text.withValues(alpha: 0.62),
+                      fontSize: 11,
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                      height: 1,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 5),
+                  Container(
+                    height: 4,
+                    margin: const EdgeInsets.only(right: 7),
+                    color: Colors.black54,
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: c.hpFraction.clamp(0.0, 1.0),
+                      child: ColoredBox(
+                        color: c.hpFraction > 0.3 ? _C.amber : _C.danger,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -2358,6 +2303,162 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     );
   }
 
+  /// The hint, as a round lit dome rather than one more square in the rail.
+  ///
+  /// It is the only control a stuck player needs, and at 36px in a column of
+  /// look-alike squares it was easy to miss. Bigger and round, so it stands
+  /// apart from the rail; flat, with no glow.
+  Widget _hintButton({required bool lit, required VoidCallback onTap}) {
+    final color = lit ? _C.amberBright : _C.cyan;
+    const d = 50.0;
+    return Semantics(
+      button: true,
+      label: 'Hint',
+      child: GestureDetector(
+        onTap: context.soundAction(onTap),
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Container(
+            width: d,
+            height: d,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: lit
+                  ? const Color(0xFF1B1812)
+                  : _C.bg.withValues(alpha: 0.88),
+              border: Border.all(
+                color: color.withValues(alpha: lit ? 0.8 : 0.5),
+                width: 1.4,
+              ),
+            ),
+            child: Icon(
+              lit ? Icons.help_rounded : Icons.help_outline_rounded,
+              color: color,
+              size: 28,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The first-descent walkthrough: the screen dimmed, one part of the action
+  /// pad left lit, and a card above the tray saying what it is for. Any tap
+  /// moves it on; nothing underneath can be pressed while it is up.
+  Widget _buildControlsTutorial() {
+    final beats = _tutorialBeats;
+    final step = (_tutorialStep ?? 0).clamp(0, beats.length - 1);
+    final beat = beats[step];
+    final key = beat.target == _TutorialTarget.utility
+        ? _tutUtilityKey
+        : _tutCombatKey;
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    Rect? hole;
+    if (box != null && box.hasSize && box.attached) {
+      hole = (box.localToGlobal(Offset.zero) & box.size).inflate(5);
+    } else {
+      // The pad lays out on this frame; look again on the next.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _tutorialStep != null) setState(() {});
+      });
+    }
+    final last = step == beats.length - 1;
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _advanceTutorial,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _SpotlightPainter(hole: hole, color: _C.amberBright),
+              ),
+            ),
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: _trayHeight(context) + 18,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  child: CustomPaint(
+                    painter: _HudBracketPainter(
+                      color: _C.amber.withValues(alpha: 0.85),
+                      bracketSize: 10,
+                      strokeWidth: 1.4,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+                      decoration: BoxDecoration(
+                        color: _C.panel.withValues(alpha: 0.96),
+                        border: Border.all(
+                          color: _C.border.withValues(alpha: 0.6),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            beat.title,
+                            style: const TextStyle(
+                              color: _C.amberBright,
+                              fontFamily: 'monospace',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 2.4,
+                              height: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            beat.body,
+                            style: TextStyle(
+                              color: _C.text.withValues(alpha: 0.92),
+                              fontSize: 14,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              for (var i = 0; i < beats.length; i++)
+                                Container(
+                                  width: 18,
+                                  height: 3,
+                                  margin: const EdgeInsets.only(right: 5),
+                                  color: i == step
+                                      ? _C.amberBright
+                                      : _C.border.withValues(alpha: 0.6),
+                                ),
+                              const Spacer(),
+                              Text(
+                                last ? 'TAP TO BEGIN' : 'TAP TO CONTINUE',
+                                style: TextStyle(
+                                  color: _C.amber.withValues(alpha: 0.85),
+                                  fontFamily: 'monospace',
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.6,
+                                  height: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _pillButton(
     String label,
     Color color,
@@ -2424,3 +2525,72 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 /// Cloud-dive painter: rings of element-tinted puffs scale outward past the
 /// camera while wind lines converge — the feel of falling through a cloud
 /// deck toward the spire.
+
+enum _TutorialTarget { utility, combat }
+
+class _TutorialBeat {
+  const _TutorialBeat({
+    required this.target,
+    required this.title,
+    required this.body,
+  });
+
+  final _TutorialTarget target;
+  final String title;
+  final String body;
+}
+
+/// Dims everything but [hole], and lights the hole's edge with a soft filled
+/// halo rather than a hairline ring. Static: it only repaints when the hole
+/// moves to the next beat.
+class _SpotlightPainter extends CustomPainter {
+  _SpotlightPainter({required this.hole, required this.color});
+
+  final Rect? hole;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scrim = Paint()..color = const Color(0xD0050403);
+    final h = hole;
+    if (h == null) {
+      canvas.drawRect(Offset.zero & size, scrim);
+      return;
+    }
+    // Square, like the pad tiles it frames.
+    final r = RRect.fromRectAndRadius(h, const Radius.circular(2));
+    canvas.drawPath(
+      Path.combine(
+        PathOperation.difference,
+        Path()..addRect(Offset.zero & size),
+        Path()..addRRect(r),
+      ),
+      scrim,
+    );
+    // A halo that fades outward from the hole's edge.
+    final halo = h.inflate(22);
+    canvas.drawPath(
+      Path.combine(
+        PathOperation.difference,
+        Path()
+          ..addRRect(RRect.fromRectAndRadius(halo, const Radius.circular(14))),
+        Path()..addRRect(r),
+      ),
+      Paint()
+        ..shader =
+            RadialGradient(
+              colors: [
+                color.withValues(alpha: 0.34),
+                color.withValues(alpha: 0.0),
+              ],
+              stops: [(h.longestSide / 2) / (halo.longestSide / 2), 1.0],
+            ).createShader(
+              Rect.fromCircle(center: h.center, radius: halo.longestSide / 2),
+            ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpotlightPainter old) =>
+      old.hole != hole || old.color != color;
+}
