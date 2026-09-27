@@ -179,7 +179,8 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if (!_isWake) return;
     wake.clock += dt;
     if (wake.reink > 0) wake.reink = max(0.0, wake.reink - dt);
-    _checkColdRoad();
+    // Tellings and the frozen cut check the route when they change it.
+    // Running the same graph search every animation frame adds no information.
     _updateWraithord(room, dt);
   }
 
@@ -189,7 +190,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   void _checkColdRoad() {
     final spec = _graveVigil;
     if (spec == null) return;
-    if (_field.coldRoadOpen && !hasStar(spec.roadStarIndex)) {
+    if (!hasStar(spec.roadStarIndex) && _field.coldRoadOpen) {
       earnStar(spec.roadStarIndex);
     }
   }

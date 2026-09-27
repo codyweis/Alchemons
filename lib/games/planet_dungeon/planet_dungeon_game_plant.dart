@@ -1317,12 +1317,12 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     for (var i = 0; i < g.moss.length; i++) {
       canvas.drawPath(
         g.moss[i],
-        Paint()..color = _kCryptMoss.withValues(alpha: tiny ? 0.30 : 0.14),
+        Paint()..color = _kCryptMoss.withValues(alpha: tiny ? 0.18 : 0.10),
       );
       if (tiny) {
         final c = g.mossCentre[i];
         final r = g.mossR[i];
-        for (var k = 0; k < 5; k++) {
+        for (var k = 0; k < 3; k++) {
           final a = -pi / 2 + (k - 2) * 0.42;
           final h = r * (1.5 + 0.35 * ((i + k) % 3));
           final sway = sin(t * 0.8 + i + k * 0.6) * 3;
@@ -1338,7 +1338,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
             Paint()
               ..style = PaintingStyle.stroke
               ..strokeWidth = 2.4
-              ..color = _kCryptGreen.withValues(alpha: 0.44),
+              ..color = _kCryptGreen.withValues(alpha: 0.25),
           );
         }
       }
@@ -1357,7 +1357,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     // The pollen stair is named for its air, so it gets three times as much
     // of it and nothing else changes. A dozen circles at worst — the only
     // thing in here that is genuinely per-frame.
-    final motes = _cryptHas(room.id, 'stair') ? 18 : 6;
+    final motes = _cryptHas(room.id, 'stair') ? 6 : 2;
     for (var i = 0; i < motes; i++) {
       final ph = (t * 0.05 + i * 0.17) % 1.0;
       final x = b.left + 30 + ((i * 197) % (b.width.toInt() - 60));
@@ -1435,10 +1435,9 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       canvas.restore();
     }
 
-    // ── the joints, which are the crypt's small graph ──────
-    // This is the load-bearing drawing on the planet. The cracks a small body
-    // walks are the SAME lines a large one steps over without noticing, so
-    // they are one cached set of polylines rendered at two depths.
+    // Decorative joints stay subordinate to actual routes. They do not
+    // participate in the passage graph; thick black channels misleadingly
+    // made them look like dozens of additional paths to solve.
     for (var i = 0; i < g.seams.length; i++) {
       final w = g.seamWidth[i];
       if (tiny) {
@@ -1450,8 +1449,8 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeCap = StrokeCap.round
-            ..strokeWidth = w + 5
-            ..color = _kCryptSoil.withValues(alpha: 0.85),
+            ..strokeWidth = w + 2
+            ..color = _kCryptSoil.withValues(alpha: 0.32),
         );
         canvas.drawPath(
           g.seams[i],
@@ -1459,7 +1458,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
             ..style = PaintingStyle.stroke
             ..strokeCap = StrokeCap.round
             ..strokeWidth = w
-            ..color = _kCryptSeam.withValues(alpha: 0.88),
+            ..color = _kCryptSeam.withValues(alpha: 0.38),
         );
         if (w > 12) {
           // Only the big ones get a lit wall — otherwise every hairline in
@@ -1501,8 +1500,8 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       final p = Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
-        ..strokeWidth = tiny ? 5 : 1.4
-        ..color = _kCryptSeam.withValues(alpha: tiny ? 0.55 : 0.26);
+        ..strokeWidth = tiny ? 2 : 1
+        ..color = _kCryptSeam.withValues(alpha: tiny ? 0.24 : 0.14);
       for (var k = -1; k <= 1; k++) {
         final o = Offset(
           -dy / len * k * (tiny ? 13 : 7),
@@ -2994,7 +2993,7 @@ _CryptGround _buildCryptGround(DungeonRoom room) {
   // room has no edge at all: paving and masonry fuse into one quilt of stone
   // and the picture reads as a WALL seen face-on rather than a floor.
   final pave = water ? b.deflate(90) : b.deflate(46);
-  final minArea = (pave.width * pave.height / 52).clamp(3400.0, 9000.0);
+  final minArea = (pave.width * pave.height / 18).clamp(9000.0, 28000.0);
 
   // ROT PATCHES. A crypt eaten by a garden does not lose its paving evenly —
   // it loses it where the water sits and the roots came through. Slabs whose
@@ -3016,7 +3015,7 @@ _CryptGround _buildCryptGround(DungeonRoom room) {
 
   late void Function(Rect, int) split;
   split = (r, depth) {
-    if (depth >= 6 || r.width * r.height < minArea * (0.55 + rnd())) {
+    if (depth >= 5 || r.width * r.height < minArea * (0.55 + rnd())) {
       // A missing stone now and then: bare grave soil, and the reason the
       // floor never reads as a continuous surface.
       if (rnd() < 0.10 || rotten(r.center)) return;
@@ -3068,11 +3067,11 @@ _CryptGround _buildCryptGround(DungeonRoom room) {
     // its depth in the tree, so a room gets a few major fissures and many
     // hairlines rather than one size of crack everywhere.
     final w = switch (depth) {
-      0 => 28.0,
-      1 => 21.0,
-      2 => 14.0,
-      3 => 10.0,
-      _ => 7.0,
+      0 => 10.0,
+      1 => 8.0,
+      2 => 6.0,
+      3 => 4.0,
+      _ => 3.0,
     };
     Offset a, z;
     if (vertical) {
@@ -3120,13 +3119,14 @@ _CryptGround _buildCryptGround(DungeonRoom room) {
   // ── moss and seeps ───────────────────────────────────────
   // Clustered, not sprinkled: moss grows where the water runs, so the
   // blotches come in runs of two or three off one damp spot.
-  final clumps = (pave.width * pave.height / 52000).clamp(3, 8).toInt();
+  final clumps = (pave.width * pave.height / 100000).clamp(2, 4).toInt();
   for (var i = 0; i < clumps; i++) {
+    final angle = i / clumps * pi * 2 + 0.4;
     final at = Offset(
-      pave.left + rnd() * pave.width,
-      pave.top + rnd() * pave.height,
+      pave.center.dx + cos(angle) * pave.width * 0.43,
+      pave.center.dy + sin(angle) * pave.height * 0.43,
     );
-    final n = 2 + (rnd() * 3).floor();
+    const n = 2;
     for (var k = 0; k < n; k++) {
       final c = at + Offset((rnd() - 0.5) * 90, (rnd() - 0.5) * 70);
       final r = 15.0 + rnd() * 26;
@@ -3362,24 +3362,17 @@ _CryptGround _buildCryptGround(DungeonRoom room) {
   // rot patches. Scattered over the open floor (the first attempt) they read
   // as weeds someone planted in rows of one.
   {
-    final count = _cryptHas(room.id, 'ferny') ? 18 : 11;
+    final count = _cryptHas(room.id, 'ferny') ? 6 : 4;
     for (var i = 0; i < count; i++) {
-      final onVerge = rnd() < 0.66 || rot.isEmpty;
-      Offset c;
-      if (onVerge) {
-        final a = rnd() * pi * 2;
-        c =
-            b.center +
-            Offset(
-              cos(a) * (b.width / 2 - 22 - rnd() * 26),
-              sin(a) * (b.height / 2 - 22 - rnd() * 26),
-            );
-      } else {
-        final r = rot[(rnd() * rot.length).floor().clamp(0, rot.length - 1)];
-        final a = rnd() * pi * 2;
-        c = r.$1 + Offset(cos(a), sin(a)) * (r.$2 * (0.3 + rnd() * 0.7));
-      }
+      final a = i / count * pi * 2 + rnd() * 0.25;
+      final c =
+          b.center +
+          Offset(
+            cos(a) * (b.width / 2 - 22 - rnd() * 26),
+            sin(a) * (b.height / 2 - 22 - rnd() * 26),
+          );
       if (!b.contains(c) || open.contains(c)) continue;
+      if (room.doors.any((d) => (d.rect.center - c).distance < 100)) continue;
       g.ferns.add(c);
       g.fernH.add(15.0 + rnd() * 18);
     }

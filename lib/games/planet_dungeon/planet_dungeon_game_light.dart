@@ -720,11 +720,9 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         bc != null &&
         (a.position - bc.post).distance <= _kArchiveReach &&
         _archiveHasSunHand(a)) {
-      final cur = archive.lamp[bc.id] ?? 0;
-      archive.lamp[bc.id] = (cur + 1) % bc.stateCount;
-      final nl = archive.lumens;
-      final nm = _archiveMarks();
-      archive.lamp[bc.id] = cur;
+      final preview = archive.previewPress(bc.id);
+      final nl = preview.lumens;
+      final nm = _archiveMarks(preview);
       return DungeonProgressReadout(
         label: 'NEXT PRESS',
         value: '$nl/$kArchiveHush  $nm',
@@ -760,11 +758,11 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
   /// its bottom the inward band, so what a press did to bays you cannot see
   /// reads at a glance beside the lumen count (Dark's eclipse marks, and
   /// §5.6's state-leaves-the-capsule).
-  String _archiveMarks() => [
+  String _archiveMarks([BeaconArchive? state]) => [
     for (final sec in HallSector.values)
       switch ((
-        archive.isLit(HallCell(sec, HallBand.rim)),
-        archive.isLit(HallCell(sec, HallBand.inward)),
+        (state ?? archive).isLit(HallCell(sec, HallBand.rim)),
+        (state ?? archive).isLit(HallCell(sec, HallBand.inward)),
       )) {
         (true, true) => '█',
         (true, false) => '▀',
@@ -1499,11 +1497,16 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
           c,
           half + 30,
           Paint()
-            ..shader = ui.Gradient.radial(c, half + 30, [
-              Colors.white.withValues(alpha: 0.85 * glare),
-              _kArchiveGlare.withValues(alpha: 0.45 * glare),
-              _kArchiveGlare.withValues(alpha: 0.0),
-            ], const [0.0, 0.45, 1.0]),
+            ..shader = ui.Gradient.radial(
+              c,
+              half + 30,
+              [
+                Colors.white.withValues(alpha: 0.85 * glare),
+                _kArchiveGlare.withValues(alpha: 0.45 * glare),
+                _kArchiveGlare.withValues(alpha: 0.0),
+              ],
+              const [0.0, 0.45, 1.0],
+            ),
         );
         canvas.restore();
       }
@@ -2215,7 +2218,6 @@ void _archQuad(Path into, Offset c, double w, double h, double ang) {
     ..close();
 }
 
-
 /// THE GLASS FLOOR OF THE RIM. Panes of glass set in lead over the archive's
 /// lightwells — the material that makes a lit leaf a floor and a dark one a
 /// hole, and the reason this planet can say "glass is nothing until there is
@@ -2289,7 +2291,6 @@ void _archGlazing(_ArchDraft d, _ArchRng rng, Rect r) {
       }
     }
   }
-
 }
 
 /// THE HEART'S FLOOR — black mirror-stone in courses. Real masonry IS laid in

@@ -5,6 +5,38 @@ matrix + build roadmap.** Keep this in sync as we build.
 
 ---
 
+## Strategy and pacing review — 2026-09-27
+
+Plant, Spirit, Dark, Light and Blood retain their authored route puzzles,
+family gates and three-star paths. The problem addressed here is making
+decisions legible before a press, and removing idle waiting in Blood.
+
+- **Blood:** `NEXT PULSE` advances exactly one phase during peaceful
+  exploration. It resolves an already prepared mouth or clot immediately
+  when its phase arrives, only while the party remains in that room. Combat,
+  raids, guardian arrivals and held flatlines disable skipping. The next
+  phase's flowing exits are previewed; natural pulse timing still works.
+  This supersedes the older requirement that the player cannot advance the
+  world clock. The phase graph and its escape proof are unchanged.
+- **Plant:** nearby beds name their future destination, the size that can
+  walk the new road, and the crack a trunk closes. Size controls, lamps,
+  the growth altar and reset pits explain their requirements before use.
+  Decorative floor seams are fewer and lighter, foliage stays near the
+  perimeter, and ambient motes are reduced. Decorative cracks are not routes.
+- **Spirit:** a nearby revenant names the crossing that moves from the ghost
+  world to the living world. Route completion is checked on tellings and
+  freezing the cut, rather than searching the unchanged graph every frame.
+- **Dark:** nearby gnomons forecast the quarters that actually change light,
+  accounting for overlapping shadows. A second shadow can keep a quarter
+  dark even after one gnomon moves.
+- **Light:** nearby beacons forecast their next beam, total exposure, the
+  hush threshold and how many unread effigies become readable. HUD previews
+  evaluate a separate lighting state instead of temporarily mutating the run.
+
+Previews use the existing hint space, yield to spoken feedback, and disappear
+during combat. They do not add another panel over the room or require extra
+confirmation taps. Hidden maxim solutions still belong to their discoveries.
+
 ## 1. Vision
 
 Each element has a planet; each planet is a 3-star dungeon (Mario-64 style: enter

@@ -952,6 +952,16 @@ class BeaconArchive {
 
   bool get underHush => lumens <= kArchiveHush;
 
+  /// Evaluate a control on an isolated lighting state. HUD reads must never
+  /// temporarily write into the live hall, even when they restore it afterward.
+  BeaconArchive previewPress(String beaconId) {
+    final preview = BeaconArchive()
+      ..lamp.clear()
+      ..lamp.addAll(lamp);
+    preview.press(beaconId);
+    return preview;
+  }
+
   /// Press a beacon: it walks DARK → 1 → 2 → 3 → 4 → DARK. A five-cycle, and
   /// the party is standing at it the whole time — reason 2 of the no-strand
   /// proof, and the reason this planet needs no valve.
@@ -1070,13 +1080,11 @@ const DungeonLayout lightLayout = DungeonLayout(
   stars: [
     DungeonStarSpec(
       name: 'Shadow Star',
-      earnAnnouncement:
-          'The Shadow Star is yours. All four effigies are read',
+      earnAnnouncement: 'The Shadow Star is yours. All four effigies are read',
     ),
     DungeonStarSpec(
       name: 'Hush Star',
-      earnAnnouncement:
-          'The Hush Star is yours. All three slips are drawn',
+      earnAnnouncement: 'The Hush Star is yours. All three slips are drawn',
     ),
     DungeonStarSpec(name: 'Corona Star'),
   ],

@@ -1194,17 +1194,23 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               child: SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 124, left: 24, right: 64),
-                  child: ExcludeSemantics(
+                  child: IgnorePointer(
                     child: Center(
                       child: ValueListenableBuilder<int>(
                         valueListenable: _tick,
                         builder: (_, __, ___) {
-                          final hint = game.hintText;
+                          final spoken = game.hintText;
+                          final hint = spoken ?? game.puzzlePreview;
                           return AnimatedSwitcher(
                             duration: const Duration(milliseconds: 220),
                             child: hint == null
                                 ? const SizedBox.shrink()
-                                : _hintCapsule(hint, game.hintChannel),
+                                : _hintCapsule(
+                                    hint,
+                                    spoken == null
+                                        ? DungeonHintChannel.objective
+                                        : game.hintChannel,
+                                  ),
                           );
                         },
                       ),
@@ -1331,11 +1337,36 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                         // glanceable row (§5.6: counters are state, not
                         // speech, so they never touch the capsule).
                         final readout = game.progressReadout;
-                        return Row(
+                        return Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _starTracker(game),
-                            if (readout != null) _progressReadout(readout),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _starTracker(game),
+                                if (readout != null) _progressReadout(readout),
+                              ],
+                            ),
+                            if (game.element == 'Blood' &&
+                                game.entryDoorRevealed)
+                              TextButton.icon(
+                                onPressed: game.canAdvanceHeartPulse
+                                    ? () {
+                                        _tapHaptic();
+                                        game.advanceHeartPulse();
+                                      }
+                                    : null,
+                                style: TextButton.styleFrom(
+                                  foregroundColor: _C.amberBright,
+                                  backgroundColor: _C.panel,
+                                  minimumSize: const Size(120, 44),
+                                ),
+                                icon: const Icon(
+                                  Icons.skip_next_rounded,
+                                  size: 18,
+                                ),
+                                label: const Text('NEXT PULSE'),
+                              ),
                           ],
                         );
                       },

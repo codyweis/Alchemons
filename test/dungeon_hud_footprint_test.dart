@@ -17,7 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final source = File(
     'lib/games/planet_dungeon/planet_dungeon_screen.dart',
-  ).readAsStringSync();
+  ).readAsStringSync().replaceAll('\r\n', '\n');
 
   group('the top-right controls', () {
     test('only the destructive one spends a label', () {
