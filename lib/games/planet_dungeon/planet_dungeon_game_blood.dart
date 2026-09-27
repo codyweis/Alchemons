@@ -9,6 +9,8 @@
 // World rule: *the dungeon is alive, and it beats on a rhythm.* See the layout
 // header for the full statement of the pulse, the figure-eight, the vault
 // trick, and why this planet needs no reset valve.
+// Peaceful exploration can now advance a phase with NEXT PULSE. Waiting is
+// optional; the guardian and clot fights retain their real-time rhythm.
 //
 //  • Entry — the pericardium is stitched over the gate. BLOOD unpicks its own
 //    sac and the orrery opens (§5.5, the eased entry reveal).
@@ -720,30 +722,48 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
 
   // ── Per-frame ────────────────────────────────────────────
 
+  /// Exploration can advance the puzzle clock without waiting. Combat keeps
+  /// real time: skipping must never manufacture a guardian's vulnerability
+  /// or bypass a clot fight. This adds no edges to the phase graph.
+  bool get canAdvanceHeartPulse =>
+      _isHeart &&
+      !isRaid &&
+      canAct &&
+      entryDoorRevealed &&
+      !hasCombatTargets &&
+      !inGuardianFight &&
+      heart.arrest <= 0;
+
+  void advanceHeartPulse() {
+    if (!canAdvanceHeartPulse) return;
+    heart.advance(heart.secondsUntil(nextPulsePhase(heart.phase)));
+    _heartPhaseTurn(currentRoom);
+    _settleLaidHands();
+    onChanged();
+  }
+
+  void _heartPhaseTurn(DungeonRoom room) {
+    heart.turn = _kPulseTurnSeconds;
+    if (heart.phase == PulsePhase.systole) _cue(SoundCue.dungeonBlockMove);
+    for (final d in room.doors) {
+      final p = _heartPassageFor(room, d);
+      if (p == null || !heart.carriesFrom(p, room.id)) continue;
+      if (p.kind == PassageKind.collateral && !heart.grafted.contains(p.id)) {
+        continue;
+      }
+      _queueDoorReveal(room.id, d.targetRoomId);
+    }
+  }
+
   void _updateHeart(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isHeart) return;
     _tickHeartHaptic(dt);
-    _settleLaidHands();
-    // THE BEAT. The world's move, and the only mover on the planet the player
-    // has no verb for. It runs whether or not anybody acts, which is exactly
-    // what makes the reachability question a question about TIME.
+    // The pulse runs naturally; NEXT PULSE also reaches the same phase edge
+    // immediately outside combat. Settle on that edge, not one frame later.
     if (heart.advance(dt)) {
-      heart.turn = _kPulseTurnSeconds;
-      // THE BEAT IS AUDIBLE: a thud at the top of every systole. Once a
-      // cycle, so it is a heartbeat and not a metronome.
-      if (heart.phase == PulsePhase.systole) _cue(SoundCue.dungeonBlockMove);
-      // A vein that has just come into being deserves the engine's flourish;
-      // the ones that have just collapsed announce themselves by the lumen
-      // closing in the render.
-      for (final d in room.doors) {
-        final p = _heartPassageFor(room, d);
-        if (p == null || !heart.carriesFrom(p, room.id)) continue;
-        if (p.kind == PassageKind.collateral && !heart.grafted.contains(p.id)) {
-          continue;
-        }
-        _queueDoorReveal(room.id, d.targetRoomId);
-      }
+      _heartPhaseTurn(room);
     }
+    _settleLaidHands();
     _updateSanguorath(room, dt);
   }
 
@@ -829,19 +849,22 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
   /// glance. That readability is what makes the windows plannable.
   DungeonProgressReadout? _heartProgressReadout() {
     final ch = layout.rooms[currentRoomId]?.sanguine;
+    final left = heart.arrest > 0
+        ? heart.arrest
+        : heart.secondsUntil(nextPulsePhase(heart.phase));
     if (ch?.starIndex == 0 && !hasStar(0)) {
       final n = heart.ostiaPrimed.length;
       return DungeonProgressReadout(
-        label: 'MOUTHS',
-        value: '$n/${kHeartOstia.length}',
+        label: phaseTag(heart.phase),
+        value: '${left.ceil()}s · $n/${kHeartOstia.length}',
         fraction: n / kHeartOstia.length,
       );
     }
     if (ch?.starIndex == 1 && !hasStar(1)) {
       final n = heart.grafted.length;
       return DungeonProgressReadout(
-        label: 'GRAFTS',
-        value: '$n/$kSoundCollateralCount',
+        label: phaseTag(heart.phase),
+        value: '${left.ceil()}s · $n/$kSoundCollateralCount',
         fraction: n / kSoundCollateralCount,
       );
     }
@@ -851,9 +874,6 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     final marks = [
       for (final p in PulsePhase.values) p == heart.phase ? '■' : '□',
     ].join();
-    final left = heart.arrest > 0
-        ? heart.arrest
-        : heart.secondsUntil(nextPulsePhase(heart.phase));
     return DungeonProgressReadout(
       label: phaseTag(heart.phase),
       value: '$marks ${left.ceil()}s',

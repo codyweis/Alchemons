@@ -3,6 +3,11 @@
 // HEMAVORN — the Sanguine Orrery. Blood's authored layout, its pure rules, and
 // the puzzle DATA its `part of planet_dungeon_game.dart` module reasons about.
 //
+// 2026-09-27 pacing update: NEXT PULSE advances one phase immediately during
+// peaceful exploration. The historical clock-only design below is superseded
+// on that point. Natural time and combat still use the same phase cycle;
+// skipping follows the existing wait edge, so the reachability proof holds.
+//
 // TOPOLOGY (docs/dungeons.md §5.5, structural assignment table): **A SYSTOLE
 // LOOP — a figure-eight of veins around the heart; surges circle it on the
 // beat.** There is no hub and no wings. Seven chambers stand on one figure of

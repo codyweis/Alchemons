@@ -85,6 +85,7 @@ part 'planet_dungeon_game_spirit.dart';
 part 'planet_dungeon_game_dark.dart';
 part 'planet_dungeon_game_light.dart';
 part 'planet_dungeon_game_blood.dart';
+part 'planet_dungeon_game_planning.dart';
 
 /// The hint capsule's narrative channels (§5.6 "Hint & popup standard").
 ///
