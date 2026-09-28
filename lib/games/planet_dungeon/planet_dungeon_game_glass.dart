@@ -353,9 +353,13 @@ extension DungeonGlassArt on PlanetDungeonGame {
     // fallen away (`_renderVaultSpans`). Only the rood door keeps its bars.
     final isFinale = layout.finaleDoor?.matches(room, d) ?? false;
     if (_isVault && !isFinale) return;
-    // Requia says WHY in the doorway itself — a fallen stone, a lintel, a
-    // line of salt (`_renderGraveOverDoors`) — so its glass is only smoked.
-    if (_isWake && !isFinale) return;
+    // Requia draws its own portcullis over the funeral gate and the chapel
+    // door (`_renderFuneralOverDoors`), so its glass is only smoked.
+    if (_isFuneral && !isFinale) return;
+    // Verdanthos's roots hold its heart door, and they are drawn over the
+    // doorway itself (`_renderConservatoryOverDoors`): bars and a keyhole on
+    // a door with no key sent players hunting for one.
+    if (_isConservatory && isFinale) return;
     // A MIRROR SILL under light is not locked either: it is blinding. The
     // glass fills with a white glare that breathes, and there is no bar and
     // no keyhole on it.
@@ -366,14 +370,10 @@ extension DungeonGlassArt on PlanetDungeonGame {
       canvas.drawRect(
         glass,
         Paint()
-          ..shader = ui.Gradient.radial(
-            glass.center,
-            glass.longestSide * 0.7,
-            [
-              Colors.white.withValues(alpha: 0.95 * breathe),
-              const Color(0xFFFFF6DC).withValues(alpha: 0.75 * breathe),
-            ],
-          ),
+          ..shader = ui.Gradient.radial(glass.center, glass.longestSide * 0.7, [
+            Colors.white.withValues(alpha: 0.95 * breathe),
+            const Color(0xFFFFF6DC).withValues(alpha: 0.75 * breathe),
+          ]),
       );
       canvas.restore();
       paintLead(canvas, arch, _glass, width: 3.2);
@@ -481,12 +481,7 @@ extension DungeonGlassArt on PlanetDungeonGame {
     final faceDepth = _glassFaceDepth;
     final Rect plug;
     if (r.top <= b.top + 1) {
-      plug = Rect.fromLTRB(
-        r.left - 6,
-        b.top,
-        r.right + 6,
-        b.top + faceDepth,
-      );
+      plug = Rect.fromLTRB(r.left - 6, b.top, r.right + 6, b.top + faceDepth);
     } else if (r.bottom >= b.bottom - 1) {
       plug = Rect.fromLTRB(
         r.left - 6,

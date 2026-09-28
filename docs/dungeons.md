@@ -18,14 +18,19 @@ decisions legible before a press, and removing idle waiting in Blood.
   phase's flowing exits are previewed; natural pulse timing still works.
   This supersedes the older requirement that the player cannot advance the
   world clock. The phase graph and its escape proof are unchanged.
-- **Plant:** nearby beds name their future destination, the size that can
+- **Plant:** (⛔ superseded by the §9.20 redesign) nearby beds name their future destination, the size that can
   walk the new road, and the crack a trunk closes. Size controls, lamps,
   the growth altar and reset pits explain their requirements before use.
   Decorative floor seams are fewer and lighter, foliage stays near the
   perimeter, and ambient motes are reduced. Decorative cracks are not routes.
-- **Spirit:** a nearby revenant names the crossing that moves from the ghost
-  world to the living world. Route completion is checked on tellings and
+- **Spirit:** ⛔ superseded by THE UNFINISHED FUNERAL (2026-09-28). A nearby
+  revenant named the crossing that moves from the ghost world to the living
+  world. Route completion is checked on tellings and
   freezing the cut, rather than searching the unchanged graph every frame.
+  The 2026-09-28 focused revision below adds last-route consequences,
+  recorded sigil clues, unpunished exploration switches and a guardian
+  pursuit reward — built and unit-tested 2026-09-28, device playtest owed.
+  The party is Spirit · Blood · Dust from the same date.
 - **Dark:** nearby gnomons forecast the quarters that actually change light,
   accounting for overlapping shadows. A second shadow can keep a quarter
   dark even after one gnomon moves.
@@ -324,7 +329,7 @@ keep what shipped; **Steam is flagged for a structural pass.**
 | **Ice** (built) | Vertical shaft: descending is one-way slides; ascending must be engineered | plan the descent so you can climb back — refrozen slides are your only ladder | enterable only by falling onto its ledge off the head (the old "visible only in a mirror" glow was cut 2026-09-20) |
 | **Dust** (built) | Buried city, two Z-layers: streets above, excavation below; digging swaps layers | conservation of dust — uncovering one thing buries another | a fully buried building visible only as a roof bump on the streets |
 | **Crystal** (built) | Rearranging 3×3 sliding grid — sliding moves rooms AND you | every slide solves one adjacency and breaks another | a room that only ENTERS the grid in one configuration |
-| **Plant** (built) | Nested scales: the same map at tiny and huge, overlaid | which scale to be, where — passages exist at one scale only | visible at huge scale, enterable only at tiny |
+| **Plant** (BUILT 2026-09-27 as the Conservatory, §9.20: hub, three climate wings; the row's old topology is the retired crypt) | Nested scales: the same map at tiny and huge, overlaid | which scale to be, where — passages exist at one scale only | visible at huge scale, enterable only at tiny |
 | **Poison** (built) | Quarantine wards: sealed wards; opening one lets the contagion in | you cannot cure every ward — choose what to sacrifice | inside the ward you chose NOT to save |
 | **Spirit** (built) | Two overlaid worlds: living/ghost layers, same geometry, different doors | which layer to cross each junction in — deaths in one open doors in the other | exists only in the ghost layer, marked only in the living one |
 | **Dark** (built) | Inverting maze: light/dark flips swap walls and doors | every flip you make for a door closes one elsewhere | the vault room only EXISTS in the dark state |
@@ -352,7 +357,7 @@ new. The ledger grows with every build:
 | **Mud** (BUILT 2026-08-24) | **terraforming-as-map-authoring** (the player authors the EDGES, not the rooms; the question is the SHAPE left behind — CLAIMED, and deliberately ORDER-INDEPENDENT: A-then-B lands on the same fen as B-then-A, pinned by a test, which is what keeps it out of Air's ordering seat) · **drainage as the cost function** (hardening a crossing drowns its neighbours up- and downstream, so you choose what to KEEP and the physics decides what dies — distinct from Poison's triage, where you choose what to abandon) |
 | **Dust** (BUILT 2026-08-24) | **conservation as the cost function** (one object owns every write, and every mutator is a PAIRED TRANSFER — dig here, heap there, atomically, so the total cannot leak; CLAIMED: no other planet may make a conserved quantity the puzzle) · **Z-layer swap driven by load count** (0 bared = the street is a pit and the cellar opens · 1 = plain street · 2 drifted = a dune-wall, and a ramp opens instead — the layer you are on is a CONSEQUENCE of the ledger, not a toggle; Spirit's living/ghost layer swap is a different reading and stays free) · **the inverted vault verb** (the buried house is the one thing digging cannot reach — you bury it HARDER until the weight cracks the wall) |
 | **Crystal** (BUILT 2026-08-25) | **the self-rearranging map as a permutation group** (the 8-puzzle as architecture: nine fixed lattice cells, eight glass chambers and one hollow permuting through them, and the player rides or hauls — CLAIMED) · **REVERSIBLE world-edits** (the only built planet whose mechanic cannot strand, so it carries no reset valve; its risk is authoring an UNREACHABLE target, not a dead end) · **mutually exclusive stars** (Stars 0 and 1 are provably never holdable at once — 0 states — which is the strategic question expressed as a number) |
-| **Plant** (BUILT 2026-08-25) | **scale as a property of the OBSERVER** (one geometry, seventeen passages, each cut for exactly one size of body; the ground never changes, you do — CLAIMED, and deliberately distinct from Dust's Z-layer, where the deck you are on is a consequence of a load ledger) · **scale-determined authorship** (a seed set by a huge hand comes up a creeper only a small body walks; set by a tiny hand it comes up a trunk only a giant walks — each product is a road for the size you were NOT, so the route dictates the product; distinct from Ice's treasure-or-ladder, where you choose between two uses of one edit) |
+| **Plant** (BUILT 2026-08-25; ⛔ RELEASED by the §9.20 redesign, which claims climate correction by recipe pairing at a fixed ring + steering a grower by shaping its environment) | **scale as a property of the OBSERVER** (one geometry, seventeen passages, each cut for exactly one size of body; the ground never changes, you do — CLAIMED, and deliberately distinct from Dust's Z-layer, where the deck you are on is a consequence of a load ledger) · **scale-determined authorship** (a seed set by a huge hand comes up a creeper only a small body walks; set by a tiny hand it comes up a trunk only a giant walks — each product is a road for the size you were NOT, so the route dictates the product; distinct from Ice's treasure-or-ladder, where you choose between two uses of one edit) |
 | **Spirit** (BUILT 2026-08-25) | **the living/ghost reading of two overlaid worlds** (one deck of rooms, two worlds over it; every crossing walkable in exactly one world — CLAIMED; Dust holds the Z-layer reading, Plant the observer-scale reading) · **death as an irreversible world-edit** (a revenant holds the ghost lintel up while the stone that killed them blocks the living way; hearing them out finishes the death, clears the living way and drops the ghost way — the doc's "deaths in one open doors in the other", verbatim) |
 | **Dark** (BUILT 2026-08-25) | **state-flip maze inversion** (a GLOBAL flip rewrites the whole maze at once and every flip made for one door closes another — CLAIMED; distinct from Spirit, whose layers coexist and are chosen at a junction, and from Lightning's electrical zero-sum: this one is spatial) · **safety by additivity** (the only irreversible edits are portals that open and never close; an additive edit cannot shrink reachability, so it cannot strand — a reusable argument, not a claim) |
 | **Light** (BUILT 2026-08-25) | **light-cone occlusion — the player places the SHADOW, not the beam** (nothing is aimed at anything; low pitch breaks on the great stacks and lights the rim only, and that shadow is the move — CLAIMED, and this is the line against Lightning's mirror-routing seat: the question is never "where does the beam go") · **exposure as an instantaneous, free-moving quantity** (lumens count lit cells and go up and down at will — NOT Steam's spend-budget — and the light is simultaneously the floor you walk on and the thing that reveals you) |
@@ -1353,7 +1358,7 @@ or it drifts into Water's seat.
     `_kRocLeashSpeed` · `_kRocStrikeReach` · `_kRocStun` / `_kRocStunEnraged`;
     plus `kStormRodMaxHeight` · `kStormHopReach` in `planet_dungeon_data.dart`,
     and each gale's `strength` in the layout.
-12. **Plant — Verdant Crypt** · Plant+Light+Mud · Plantmane/Lightmask/Mudpip ·
+12. **Plant — ⛔ REDESIGN 2026-09-27: the Conservatory, Crystal+Spirit+Water — see §9.20; the entry below is the retired crypt.** Verdant Crypt · Plant+Light+Mud · Plantmane/Lightmask/Mudpip ·
     *tiny and huge scale states.*
     S1 Plantmane grows vine bridges toward redirected Light. S2 *Tiny-Huge Island*
     growth altar; relic needs both scales (**Mud+Light→Plant**). S3 **Plant+Mud→Poison**
@@ -1376,7 +1381,7 @@ or it drifts into Water's seat.
     what you sacrificed. Candidate family gates: Mudmane carries live
     venom uninfected (S2) · Lavahorn burns a breach into a sealed ward
     (S1). Recipe **Lava+Mud→Poison** brews the counter-strains.
-14. **Spirit — Echo Grave** · Spirit+Water+Crystal · Spiritmask/Waterpip/Crystalwing ·
+14. **Spirit — Echo Grave** · Spirit+Blood+Dust (was Spirit+Water+Crystal until 2026-09-28) · Spiritmask/Bloodpip/Dustwing ·
     *the past replays but can't be changed directly.*
     S1 Spiritmask reveals a ghost route to memorize/follow. S2 *Phantom-Hourglass
     minimap stamp*: a room shows half a sigil, the minimap the other half — stamp at
@@ -1649,8 +1654,8 @@ queue:
 | **Mud** — No Mud No Lotus | 5 | the fen at full drown · Water · Plant · Mud×3 | ✅ rebuilt 2026-09-13 (§9.8) |
 | **Dust** — Nothing Perishes | 5 | Dust/Earth lay the count · Air lights the pits | ✅ rebuilt 2026-09-19, §9.13 |
 | **Crystal** — Know Thyself | 5 | Crystal wedges the cell · Pip finds the flaw · Lightning strikes ×3 · Crystal reads | ✅ rebuilt 2026-09-19, §9.16 |
-| **Plant** — The Unseen Shade | 5 | Plant grows the trunk · Mud, Plant, Light tend in the shade · Plant looks from huge | ✅ rebuilt 2026-09-19, §9.17 |
-| **Spirit** — Stuff of Dreams | 5 | the cold world · Water · Crystal · Spirit×3 | ✅ rebuilt 2026-09-13 (§9.9) |
+| **Plant** — The Seed That Wanted the Opposite | 3 | Water, Crystal and Spirit each draw one channel back from the grey seed | ✅ rebuilt 2026-09-27, §9.20 (the Unseen Shade retired with the crypt) |
+| **Spirit** — Stuff of Dreams | 5 | the cold world · Dust · Blood · Spirit×3 | ✅ rebuilt 2026-09-13 (§9.9); re-elemented 2026-09-28 |
 | **Dark** — The Abyss | 5 | Dark lights the Deep (vane) · Spirit reads · Poison frees · Dark hauls ×3 | ✅ rebuilt 2026-09-19, §9.14 |
 | **Light** — Afraid of the Light | 4 | Light blazes ×3 · Crystal reads · Light douses in order · Spirit draws | ✅ rebuilt 2026-09-19, §9.15 |
 | **Blood** — The Blood Is the Life | 4 | Dark turns a dead cock · Light shows the clot · Blood breaks it on the pause · both | ✅ rebuilt 2026-09-20, §9.18 |
@@ -2061,13 +2066,16 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
-**TWELVE of seventeen (2026-09-26): Fire · Air · Water · Earth · Lightning ·
-Steam · Lava · Poison · Mud · Ice · Dust · Crystal.** Poison was promoted 2026-09-14;
+**FOURTEEN of seventeen (2026-09-28): Fire · Air · Water · Earth · Lightning ·
+Steam · Lava · Poison · Mud · Ice · Dust · Crystal · Plant · Spirit.**
+**PLANT and SPIRIT were promoted 2026-09-28** on the author's account —
+Plant after the Conservatory redesign (§9.20), Spirit after THE UNFINISHED
+FUNERAL redesign — both played on device. Poison was promoted 2026-09-14;
 **MUD (pass 2026-09-13) and ICE (pass 2026-09-15) were promoted 2026-09-23**
 on the author's account that both have been played; **DUST was promoted
 2026-09-25** after its night-dig / sand-throw / observatory pass was played. **CRYSTAL was promoted 2026-09-26** on the author's account. This list is mirrored in code as `kPolishedDungeons`
 (`lib/games/cosmic/cosmic_data.dart`), and it is what decides whether a planet
-offers DESCEND or the coming-soon placard — the other five keep their gate
+offers DESCEND or the coming-soon placard — the other three keep their gate
 ritual and cannot be descended. Promoting a planet is one line there, pinned
 by `test/dungeon_polish_gate_test.dart`.
 
@@ -3230,7 +3238,289 @@ argument is exactly as it was, and the descent test re-runs the search with
 all five vessels carrying and still reads zero. The drum's egg id is kept
 under the new name so a save that ever found it stays found.
 
-### ◐ PLANT — the pass, minus the device session (2026-09-19)
+### §9.20 PLANT, REDESIGNED — THE CONSERVATORY (design 2026-09-27; ✅ PROMOTED 2026-09-28; supersedes the Verdant Crypt)
+
+**Why.** The Verdant Crypt was too chaotic to enjoy. It had eleven rooms,
+seventeen passages, three beds with three products each, and two body sizes,
+which added up to 400+ states that needed a no-strand proof. On top of that it
+stacked six systems: galls, size-dependent beds, crack-filling trunks, a
+two-press withering valve, lamps and a three-step altar. Every answer was a
+long walk, and on a phone the party never visibly changed size. The redesign
+goes the other way: **simple puzzles that are fun and satisfying to look at.**
+Each room holds one idea, each fix plays one beautiful animation, and nothing
+can strand you.
+
+Everything below the "was" line in the ◐ PLANT pass and in §9.17 describes
+the retired crypt. It is kept as history and is no longer the target.
+
+**THE PARTY — Crystal · Spirit · Water.** The planet is built around two
+recipes the game already has: **Spirit + Crystal → Light** and **Water + Spirit
+→ Ice**. Water is carried as itself. Spirit sits in both recipes, and the rite
+is built on that.
+  · ~~**Spirit keeps its trio.**~~ ⛔ Superseded 2026-09-28: Spirit's party is
+    now Spirit · Blood · Dust (see the Spirit focused revision), so Plant owns
+    Crystal · Spirit · Water and its two recipes alone.
+  · ⬜ **The unseal offering.** `PlanetRecipe.fromEntryRequirement` keeps the
+    trio's two heaviest elements, so Plant's offering will hold no Plant.
+    Decide whether that is acceptable or needs an override.
+  · ⬜ **Ideal families** (`kDungeonIdealFamilies['Plant']`) are still open.
+    The rite gate below assumes a Crystal Mask.
+
+**THE WORLD RULE — *every plant here thrives in a different climate, and yours
+is the hand that makes it.*** One verb runs the whole planet, the TENDING
+CIRCLE. It is a leaded-glass ring on the floor (§7.11: glass only on puzzle
+things), and each creature standing in it lights its element's pane. When the
+right creatures are standing in it, a press of utility applies the climate
+they make. This is Steam's crucible anchor (both bodies at one fixed spot),
+not a loose braid near the presser. Idle creatures already hold position, so
+parking one in the ring and walking the second in is the whole footwork.
+Watered soil and frozen crossings stay fixed for the run. In the Trellis
+Garden, lighting a lamp transfers the light from the other lamp. The rite's
+opening sun-burst can thaw its frost bud, which costs one press to restore.
+Botanica changes its own arena climate between attack cycles. None of these
+changes undo a healed wing or close a traversal route.
+
+**THE MAP.**
+
+    ── the Conservatory ─────────────────────────────
+                    [ the Trellis Garden · Star 2 ]
+                              ╵ (sealed; the great plant opens it)
+        Hothouse ── CONSERVATORY ── Shadehouse
+                          ╵
+                      Dry Bed
+    and on from the Trellis Garden: the Rootbound Door (the rite) → Botanica's heart
+
+The Conservatory is the entrance, the mercy shrine and the cutscene's stage.
+It has a great empty central planter and one empty fourth planter (the
+maxim's). Star 1's three wings open off it and can be done in any order. The
+vault is ⬜ to place.
+
+**STAR 1 — THE THREE CLIMATES.** Each wing holds one wilted plant and one
+tending circle. On entering, the room says what is wrong, in plain words.
+  · **The Dry Bed** — *"This room is too dry."* **Water**, one body. It is the
+    gentle wing that teaches the circle. The cracked earth darkens with water
+    spreading out from the ring, and a moss-bloom unfurls.
+  · **The Hothouse** — *"This room is too warm."* **Ice = Water + Spirit.**
+    Frost crawls across the floor, the heat vents rime over, and a frost lily
+    opens.
+  · **The Shadehouse** — *"This room is too dark."* **Light = Spirit +
+    Crystal.** A shaft comes down through the glass roof, and a sunflower lifts
+    and turns into it.
+
+  Hints (§5.6: plain words). **BARE** (the user, 2026-09-27, twice): a
+  hint says what is WRONG and nothing about the fix — no recipe, no "stand
+  in the ring", no steps, and no Intelligence tiers. A wing's HINT is its
+  complaint (*"This room is too dry."*) and nothing more; the trellis says
+  its bud is sealed, the rite that three buds hold the roots, the arena
+  which climate it is. The primer is one line (*"Every plant here wants a
+  different climate."*), the Dry Bed has no teach, and a refused press says
+  only *"Not yet"*. Every ring's glass has the same three panes (Water,
+  Spirit, Crystal) lighting for whoever stands in it; only its heart is
+  tinted with what it wants.
+  Extra bodies never invalidate the required set. An incomplete press
+  spends nothing and names only the climate.
+  Nothing is spent on a wrong try. The Dry Bed is the simplest introduction,
+  but every wing teaches parking and switching if entered first.
+
+**THE CUTSCENE — THE THREE BECOME ONE.** When the third plant blooms, the
+camera cuts to the Conservatory (`cutTo`). A mote of each bloom's colour flies
+in through its wing's door and settles into the central planter, bound by the
+Rite-of-Three thread-and-bind visuals re-aimed at the planter. A single great
+plant rises from it. Its roots run to the north wall and pry the sealed door
+open, and the camera follows them into the Trellis Garden before it gives
+control back. Star 1 banks on the bind. On a later descent the great plant
+already stands and the door is already open (§5.7).
+
+**STAR 2 — THE TRELLIS GARDEN.** The great plant sends a tendril into the
+room. Its target is a sealed bud on an island across a pond.
+  · **The tendril's rule** (shown on the room's entry plaque and in the ghost):
+    it follows the planted beds through WATERED soil, chooses the branch
+    toward the LIT lamp at a fork, and never crosses open water, though it
+    crosses ICE. It never backtracks or jumps between beds. With no lamp lit
+    it stops at the fork; once a branch is chosen, its bed guides the rest.
+  · **Your moves are Star 1's three fixes, now as tools.** Water wets a path of
+    soil. Ice (Water + Spirit) freezes a stretch of pond. Light (Spirit +
+    Crystal) lights one of TWO lamps to steer it. Only one lamp can be lit:
+    lighting the other visibly draws the glow out of the first. Each tool
+    has its own ring by the thing it affects.
+  · **Plan, then commit** (strategy, never execution). Set up the room in any
+    order, then press GROW at the root. Before you press, a faint ghost shows
+    exactly where the tendril will go. It unrolls tile by tile across the soil
+    and the ice, and the bud bursts open. PULL (a press at the root) takes it
+    back for free, keeping the water, ice and selected lamp. A stopped tip
+    visibly meets dry earth, open water or the end of a bed. To change a
+    committed route, PULL first; lamp changes never move a grown tendril.
+  · **The room to build: one fork on a 7×5 board.** Coordinates below are
+    zero-based, columns west to east and rows north to south. The root is
+    (3,4), entering a fork at (3,3). The west bed runs through (2,3) to a
+    stone-ended bed at (1,3). The east bed runs through (4,3) to (5,3), then
+    north across one pond tile at (5,2) to the bud's island at (5,1). Lamps
+    stand off the beds at (0,3) and (6,3). All other board cells are
+    non-growing ground. The fork's two exits point directly toward their
+    respective lamps, so no distance tie-break or hidden pathfinding is
+    needed. The island's final soil tile is already moist.
+  · **One insight: choose the light that leads across the pond.** One Water
+    ring irrigates BOTH soil branches and the root approach; one Ice ring
+    freezes the crossing. Two Light rings select the west or east lamp.
+    The EAST lamp starts lit (the user, 2026-09-27; it was the west, to force
+    a steering choice). Success requires water and ice; the west lamp is
+    chosen only to find the west bed's dead end — and the vault under it. Watering everything is allowed; it cannot solve the steering
+    decision. Soil never needs to dry again. All four rings and GROW/PULL
+    are reached by a permanent perimeter walkway; the party never depends
+    on the tendril or ice to reach a control. The whole fork, pond and bud
+    must be legible together on a phone. Tune spacing in playtest, not the
+    number of branches.
+
+**THE RITE — THE ROOTBOUND DOOR** (rebuilt 2026-09-27 at the user's ask for
+"way better, complex and thought provoking" — the three-bud rite was too
+thin). *The tree is the clue.*
+  · **The lattice.** Botanica's roots hang over the door from a knot: two
+    roots, four tips, a bud at every joint (K; A, B; C, D under A; E, F under
+    B). A tending ring under each tip feeds in whatever its bodies make.
+  · **The key is the great plant.** Its crown has twigs in this same shape
+    from the moment it rises, set with seven shut buds. When the Bud Star
+    bursts the camera cuts to the hub and they FLOWER, knot first, into the
+    states the door wants — drawn with the door's own bud art, so the key and
+    the lock are one picture. The door never shows the target.
+  · **Three rules, shown by animation and never stated:** WATER rises up its
+    own root to the knot, douses lit buds, stops at frozen ones (ice is a
+    dam). FROST crawls through wet buds in every direction, across roots; on
+    a dry bud it freezes that bud alone; it cannot take on a lit one. LIGHT
+    climbs dry bark, lighting it, stops at wet, and thaws the FIRST frozen bud
+    it meets — only that one. (The old "sun burst thaws frost" is now the
+    general rule.)
+  · **The target:** knot frozen, A wet, the east root all lit, the west tips
+    wet. Seven presses at best (proved by BFS in the conservatory test). Its
+    three ideas each fight an instinct: the knot can only be frozen by wetting
+    a path to it and freezing from below; that freezes the whole way up, so
+    you thaw back down one bud per climb (the tip, then A by lighting the
+    sibling tip D); and the frozen knot then dams the water that re-wets A.
+    The east root must be lit while the knot is still wet, or frost takes it.
+  · **Fair.** A GHOST: stand a pair in a ring and the buds that press would
+    change glow in their new colour — never the target. PRUNE at the stump
+    sheds every climate, free and unlimited (most states can no longer reach
+    the crown). All three bodies in one ring: *"Not like this"*. Hints bare:
+    *"The roots are knotted."* No progress readout — a match count would turn
+    it into hill-climbing.
+  · **Gate:** Light fed to the door is the Crystal MASK gate (`root_light`).
+  · **Engine:** the match latches conduits A and B from the module.
+
+**THE GUARDIAN — BOTANICA FIGHTS WITH THE CLIMATE.** On each strike beat
+Botanica turns the arena too warm, too dark or too dry, and the floor visibly
+scorches, darkens or cracks. Its lull opens only once the arena's climate is
+fixed: Water alone for dry, Water + Spirit for warm, Spirit + Crystal for
+dark. It is Star 1 under pressure: read the room, bring the familiar fix.
+  · **Time to tend.** Each strike resolves before the tending phase begins.
+    Botanica holds that climate until corrected; no new strike or climate
+    reroll interrupts party placement. The arena's threatening appearance
+    supplies pressure without a countdown on switching creatures.
+  · **Short footwork.** Two equivalent, generously sized circles flank the
+    central combat space. Either accepts every climate recipe; neither is a
+    distant station for one element. The current climate and required panes
+    remain visible while switching. A third, unneeded creature does not
+    invalidate a correct pair. Wrong presses spend nothing.
+  · **A full reward window.** Successful tending visibly restores the arena
+    and starts the full attack lull at that moment, after the correction
+    animation. The player never spends the damage window assembling a pair.
+    Phone playtesting must confirm all three fixes are comfortable before
+    adding any timing pressure.
+
+**THE LOST MAXIM — THE SEED THAT WANTED THE OPPOSITE** (unlocks after Star 2).
+When the bud across the pond opens, the great plant drops one grey seed into
+the Conservatory's empty fourth planter. It wants the opposite of every wing:
+warmth, shade and thirst. The single nudge, given once and then silence:
+*"It hated the rooms you healed."*
+  · **The planter makes taking back visible.** Three small channels carry
+    moisture, light and frost from the great plant to the seed. It recoils
+    from each. Their returns bear the Water, Crystal and Spirit panes;
+    selecting the matching creature previews that channel flowing away
+    from the seed. The local action reads DRAW BACK, rather than the normal
+    tending action. This planter supplies the reversal; creatures have not
+    silently gained a universal opposite-element power.
+  · Water draws moisture into the planter's reservoir, leaving dry soil;
+    Crystal draws light into a facet, leaving shade; Spirit draws the frost
+    into its channel, leaving warmth. Each press relaxes another curled
+    leaf. Any order works, wrong presses consume nothing, and completed
+    channels stay withdrawn. The healed wings remain healed.
+  · Three presses by three creatures are still the rite's repeated beat,
+    but each now has a visible cause and response. When the third channel
+    empties, the grey seed blooms and begins the Rite of Three
+    (`beginMaximRite`).
+
+**THE ARC.** Star 1 teaches each fix on its own. Star 2 combines them to steer.
+The door makes them interact. Botanica throws them back at you. The maxim runs
+them in reverse.
+
+**WHAT GOES.** Tiny/huge and every scale span, the seed-galls, the beds, the
+fissures and trunks, the withering and the mulch pits, the grave-lamps, the
+three-step growth altar, the gourd-hollow vault trick, the shade seed and the
+no-strand proof (nothing here can strand). Botanica stays as the guardian.
+
+**LEDGER (§5.5).** Plant releases **scale as a property of the observer** and
+**scale-determined authorship** back to the pool. It claims **climate
+correction by recipe pairing at a fixed ring** (the room tells you what is
+wrong, and the fix is two named bodies at one spot) and **steering a grower by
+shaping its environment** (you never draw the tendril; you wet, freeze and
+light, and it grows itself). Its nearest neighbour is Air's storm-steering by
+height-ranking. That bolt is a strike through the world; the tendril is a
+permanent, free-to-pull body you walk beside. Visual grammar: soft climate
+washes (frost crawl, light shaft, water darkening soil) and a living tendril.
+No beams, cones or mound heights.
+
+**BUILT (2026-09-27).** `planet_dungeon_layout_plant.dart` (rooms, recipes,
+the tendril's rule as a pure `growTendril`, the rite's `RootboundBuds`),
+`planet_dungeon_game_plant.dart` (verbs, cutscene, Botanica, maxim, hints,
+previews) and `planet_dungeon_game_plant_art.dart` (every wash, plant, bud and
+the cutscene). Tests: `planet_dungeon_plant_conservatory_test.dart` (the rules,
+and the whole planet played through the engine) and
+`planet_dungeon_plant_glass_render_test.dart` (26 states, all distinct
+pictures). Render-only: NOT device-played, and not in `kPolishedDungeons`.
+Decisions taken while building, each open to overrule:
+  · **Rooms.** `conservatory` (hub, mercy shrine, Star 1 banks here) ·
+    `dry_bed` S · `hothouse` W · `shadehouse` E · `trellis_garden` N (Star 2)
+    · `root_cellar` (vault, a hatch under the trellis) · `rootbound_door` N of
+    the trellis (the rite; revealed by the Bud Star) · `botanica_heart` N of
+    that. No entry rite: the Conservatory's doors stand open, and the engine
+    treats Plant as revealed from the start.
+  · **The rite** was rebuilt as the root lattice — see THE RITE above.
+  · **The rite latches A and B from the module** (no Conduit objects, so no
+    storm pylons are drawn); `_updateAltar` now also runs in a Plant rite room
+    so the wake happens before the sealed heart door.
+  · **The vault's trick: the dead end is a door.** The west bed's stone end is
+    a lid. A tendril grown all the way west prises it up and there are steps
+    under it. The preview honestly shows the west branch as a dead end — for
+    the plant, not for you. It rewards trying the "wrong" lamp rather than
+    punishing it.
+  · **Ideal families:** Crystal Mask · Spirit Kin · Water Mane. Only the Mask
+    is a gate. **Riddle:** one line per slot, the Mask named once.
+  · **Botanica.** Strike (1.3 s, the wash rolls out from the flower) → holds
+    until fixed → restoration (1.0 s) → a full 6 s lull. Never the same
+    climate twice running. Each ring's heart (and a bead over it) takes the
+    colour of the climate's fix while one is held — never the recipe.
+  · **The three specimens are alchemical, not garden plants** (the user,
+    2026-09-27): the Dry Bed's QUICKSILVER ROSE (a rosette of water-glass
+    cradling a floating bead of living water, under ▽), the Hothouse's RIME
+    LILY (faceted ice-glass petals round a hexagonal crystal heart, a
+    six-armed frost sigil turning behind it) and the Shadehouse's SOL BLOOM
+    (the ☉ disc, two counter-rotating rings of flame-glass petals). Each
+    stands in a gold filigree nimbus that is dark gilt while its room is
+    wrong and lights and turns once healed.
+  · **The Bud Star is a watched moment** (4.4 s, the shot held on the
+    island): the tendril's tip coils round the bud; the bud swells with
+    light breaking through its seams; it BURSTS (the star banks here) with a
+    shockwave across the pond, a spiral of pollen and a star rising from its
+    heart; then the pollen streams north and the way to the Rootbound Door
+    appears where it lands. PULL is ignored while it plays.
+  · **The grey seed's nudge** plays once per save, the first time the party
+    comes near it after the Bud Star.
+
+**STILL OPEN (⬜).** The unseal offering (`PlanetRecipe.fromEntryRequirement`
+now yields no Plant) · phone playtesting of the trellis spacing, the cutscene
+length (7.2 s) and Botanica's tending phase · promotion to
+`kPolishedDungeons` after a device run.
+
+
+### ◐ PLANT — the pass, minus the device session (2026-09-19) — ⛔ SUPERSEDED by §9.20
 
 Plant arrived closest to done of the unpassed six: two good stars that are
 genuinely about size, the best safety result in the set (size-lock 0 without
@@ -3294,6 +3584,86 @@ gall that all fired silently. Rendered room by room first, then:
         root-boss and the hall's flower are gone; only the niche's effigy and
         the arena ring stay. Floor roots no longer come in through doorways
         or cross to the far wall, where they read as boughs and creepers.
+  · ✅ **THE SECOND REVIEW (2026-09-27)** — rendered every room again, at both
+    sizes, and read each star against the Mud checklist.
+      – *A won star drew un-won.* `_resetCryptState` cleared the lamps and the
+        bloom and nothing put them back, so on a later descent (or after a
+        wipe) a banked Lamp Star showed three dead wicks, and lighting one
+        again shook moths off the ceiling for a star that could not pay. The
+        reset now re-seeds both from the banked stars, and `onLoad` runs it
+        once the mask is known (pinned in the crypt test).
+      – *Every way the wrong size for you wore bars and a keyhole* — the
+        worm-run, the grate, the rim door, the rill, the tread — which sent a
+        player looking for a key the planet does not have. (The Dark rule: a
+        way shut by world state is not locked.) Now the doorway says why:
+        too BIG for it, the arch is stone with a little lit arch at its foot;
+        too SMALL, the glass is smoked and the floor in front of it drops
+        away. Both ease in on the size dissolve. A trunk-filled crack keeps
+        its bark. Only the rood door keeps bars.
+      – *Hidden ways on the side and south walls were flat pale strips* (the
+        shared plug is the shell's 10px wall top; the crypt's course is 18 to
+        32px of loose dark ashlar). They are built from the course's blocks.
+      – *The seed-gall still read as an eye:* a green ring round a dark
+        centre. It is a lumpy barked knot on a root stub now, split down its
+        crown with the green breathing out of the split.
+      – *The mulch pit read as a loaf* (an oval with three strokes). A heap
+        of fallen leaves on dark soil; armed, the leaves warm and it steams.
+      – *A size change is a camera beat.* The creatures are never resized;
+        the room layer zooms about the gall (to ~1.3× shrinking, ~0.8×
+        growing) and settles back under the ground's dissolve, ~1 s.
+  · ✅ **THE ISLET NEEDS A ROAD AT EACH SIZE (2026-09-27, a redesign).** The
+    review's design read: the planet's claimed mechanic — *the size you
+    plant at decides what grows* — met the star path at exactly one bed.
+    b_urn and b_tread were repair roads nobody had to use, and once the
+    giant root's trap was known the Bloom Star was a route, not a problem.
+      – **The rill is gone.** Nothing permanent reaches the islet. Its SMALL
+        road is b_root's creeper (planted at full size, in the gallery), as
+        before. Its FULL-SIZE road is now the chancel step up from the bloom
+        hall — and the hall's only way in is b_urn's TRUNK, a bough over the
+        chancel wall, planted SMALL in the lantern court.
+      – So the Bloom Star (loam and sun at full size, seed small) needs both
+        beds, each grown at the size its road is NOT for — the planet's own
+        sentence, said twice. The court is where you light a lamp at full
+        size, which is exactly the size that wastes the urn on a thread to
+        the moss walk; the bed's ghost shows that thread before you press.
+      – Nothing added: no new object, verb or rule. The Lamp Star (the
+        first-descent star) still needs no bed at all.
+      – **The spores rot the way home last.** Botanica's burst rots the first
+        bed holding anything; the bed list is reordered (root, tread, urn) so
+        the urn's bough — the party's only full-size way out of the hall —
+        goes last.
+      – Proof after the change: 403 states over 27 arrangements, strandable
+        0, size-locked 0, 229 strandable without the withering, vault
+        losable 157. Pinned: the islet is reachable small iff b_root is a
+        creeper and at full size iff b_urn is a trunk, for all 27.
+      – **THE DOORS POINT WHERE THEIR ROOMS ARE.** Three grown roads were cut
+        in walls facing AWAY from the rooms they reach, so the map could not
+        be drawn: the moss walk's two roads left NORTH to the stair and the
+        court, which lie below it (north, north, west came back to the
+        start), and the court's bough and thread left SOUTH to the gallery
+        and the moss walk, which lie above it. Every way up out of the stair
+        and the court is now on its north wall, in the order those rooms
+        stand; the moss walk's are on its south wall (free since the rill);
+        the niche's grate moved to its south wall with the other two, and
+        the niche is 620px wide to hold three doors 90px apart. Every arrival
+        lands under the door that takes you back (gallery → stair landed on
+        the far side of the room). The stair's gall moved off the porch's
+        arrival and the niche's pit off the gallery's. The hand chart is
+        redrawn to the same grid: niche; porch · moss walk · gallery · islet
+        · vault; stair · court · hall; heart.
+      – **A NEW TEST, `dungeon_door_chart_consistency_test`:** every wall
+        door must lead toward its room ON THE MAP, for every planet — which
+        catches a loop made of mixed directions, the one kind the compass
+        test cannot see. Rings (Spirit, Light, Blood) are exempt as they are
+        there. It found one elsewhere, flagged and not fixed: Mud's sunken
+        lotus climbs to the drowned fane through its SOUTH wall. Plant is
+        also held to a tighter cone (a room within ~63° of its wall's
+        facing); Air, Fire, Dust and Dark each draw one or two rooms mostly
+        diagonal and would need their charts straightened to join it.
+      – ⬜ **For the playtest:** the sun step's walk back is longer now
+        (islet small → gallery → moss walk → porch gall → stair → court →
+        bough → hall → chancel). Watch whether it reads as a journey or a
+        chore.
 
 ### §9.17 PLANT'S LOST MAXIM — the shade the trap throws
 
@@ -4087,7 +4457,554 @@ exactly that, which is why it now also asserts the states look different.
     its first finding) and done; promoted to `kPolishedDungeons` 2026-09-23**
     on the author's account.
 
+### SPIRIT — THE UNFINISHED FUNERAL: BUILD SPEC (2026-09-28, reworked from the draft below)
+
+**THIS IS THE BUILD TARGET.** It keeps the draft's world rule, party, bell
+court, vault and persistence, and reworks what the review found (author,
+2026-09-28: *"no percentages, it should work every time"*, *"keep bare"*,
+*"rework and redesign then build everything"*):
+  · **No chance.** Dust + Spirit → Crystal always works (the 40% is gone
+    from `planet_dungeon_verbs.dart`). A wrong pair gets one short refusal.
+  · **No steering.** Star 2 and the rite asked the player to walk a copied
+    route by touch — execution, not thought. Both are now two-world
+    deductions: *the past is the answer key, the present is broken.* Nothing
+    on the planet is timed and nothing is walked for accuracy.
+  · **The two worlds matter again.** The ghost world shows how the funeral
+    went; the living world is where you rebuild it. Every star needs a look
+    at the past AND a change to the present.
+  · **Bare hints.** Tiers say what is wrong, shorter at each tier, never a
+    recipe or a method (§5.6 + the bare-hints rule).
+
+**THE PARTY — Spirit · Blood · Dust.** Spirit switches worlds at a memorial
+stone (free, both ways, no wisps). **Dust + Spirit** crystallize ashes (both
+bodies near the urn; a third body does not matter). **Blood** pulses a fitted
+crystal. Ideal families Spiritmask · Bloodpip · Dustwing; one hard gate, the
+vigil chime's Blood Pip (below).
+
+**THE LOOP.** Watch the past (automatic, in the ghost world) → crystallize
+the ashes (living) → pick up and fit the crystal → pulse it with Blood. One
+crystal is carried at a time, by the party — switching creatures never drops
+it. Leaving the room returns an unfitted crystal to its urn, still made.
+Physical work is refused in the ghost world: *"Nothing moves in the past."*
+
+**THE SHAPE — six rooms, one line.**
+`memorial` (entrance, mercy shrine) → `bell_court` (Star 1, vault niche) →
+`bearers_court` (Star 2; the `quiet_alcove` maxim spur off its west wall) →
+`vigil_chapel` (the rite) → `wraithord_vigil` (Star 3). The memorial's arch
+is drifted shut with grave-dust; Dust shifts it (the entry rite). Every
+puzzle room has a memorial stone beside its work.
+
+**STAR 1 — THE BELL KEEPER** (as the draft). The gate north is shut under
+a silent bell. In the past the keeper steps on the treadle; the lever swings
+the bell and the gate lifts. In the present the treadle's socket is empty.
+Crystallize the keeper's urn, fit the crystal in the treadle socket, Blood
+pulses it: treadle, lever, bell, gate — the keeper rests, Star 1 banks, the
+gate latches open. No family gate.
+
+**STAR 2 — THE BEARERS' WALK** (reworked). Two bearers wheel the bier from
+the west doorstep to the chapel door east, across a court of nine flags.
+  · *The past:* every flag lies level and the bearers walk one route — four
+    flags, two turns — leaving footprints that glow behind them.
+  · *The present* (deepened 2026-09-28 — the see-saw version was a copy
+    task): carved beams join flags, and pressing a flag — any body, living
+    world — flips it AND every flag its beams run to. Both pairs of the
+    route are tied by a beam (3–4 and 1–2), so pressing route flags alone
+    can never lay it; an off-route flag whose beam reaches into a pair is
+    the only way to break a tie (0 reaches both, 5 reaches one, 6–7 goes
+    nowhere). From the start the fewest is three presses (two such sets,
+    both off the route); copying the route fails. Standing on a flag lights
+    it and every flag it would flip, and the preview says how many.
+  · Crystallize the bearers' urn, fit it at the doorstep, set the flags,
+    Blood pulses: the bearers' echo wheels the bier along the remembered
+    route. If the route is not laid they take one step off the doorstep,
+    wait and fade — the same for every miss, so the court cannot be solved
+    by pulsing instead of watching the past. Pulses are free; flags stay.
+  · The route reaches the chapel door: Star 2 banks, the door opens.
+  · Hint tiers: *"The bearers never finished their walk"* ·
+    *"Their path is tipped"* · *"N flags on their path are tipped."*
+
+**THE RITE — THE THREE MOURNERS** (reworked; deepened 2026-09-28 — "which
+3 of 5" was a copy task, and a miss showed ghosts beside the right stones).
+Around the bier in the vigil chapel are five kneelers. In the past three
+mourners kneel at three of them, and EACH GLOWS ITS ELEMENT'S COLOUR —
+sand for Dust, red for Blood, Spirit's own. In the present only that element
+may take its mourner's place: crystallize the mourners' urn and fit it at
+the bier's head; kneel each creature where its own mourner knelt (idle
+bodies hold where they are left); Blood, kneeling at the red mourner's
+stone, pulses. Sixty ways to place three; one is the funeral. A miss lifts
+nothing and says nothing about which place was right. The rite is access,
+not a star; it is redone each descent. It also teaches the maxim's
+language: a coloured kneeling figure stands for one of your creatures.
+  · Hint tiers: *"The mourners never took their places"* · *"Three places
+    at the bier are empty"* · *"N of yours are not where a mourner knelt."*
+
+**STAR 3 — WRAITHORD AT THE VIGIL CHIME.** Entering, the last keeper's echo
+strikes the chime and Wraithord's shadow parts from it — the fight's lesson,
+shown once. Wraithord keeps its shadow round it and takes a third of any
+blow. Each attack it finishes, the chime warms and stays warm until used —
+no deadline. A Blood pulse at a warm chime rings the note: the shadow
+scatters and the full lull opens (the shared lull length); its attacks and
+its clock hold through the window, then the fight resumes and the chime
+cools until the next finished attack. One pulse, one window, never a refresh.
+  · **The hard gate:** the chime's channel is hair-fine (drawn visibly
+    finer than every groove before it), and only a **Blood Pip** rings it.
+    The riddle declares it. Raids keep the shared cycle (no chime).
+
+**VAULT — THE KEEPER'S NICHE.** In the bell court's past, the keeper sets a
+keepsake in a wall niche. In the present that niche is drifted with dust;
+Dust clears it and the cache is there. Before or after the bell.
+
+**LOST MAXIM — THE EMPTY URN: YOU ARE YOUR OWN MOURNERS** (reworked
+2026-09-28; the three-gift version was a checklist). The quiet alcove is the
+only room whose past is empty — so it keeps yours.
+  · **The rule, found by doing it:** each time Spirit passes INTO the past at
+    the alcove's memorial stone, the party leaves kneeling echoes where it
+    stands, each in its creature's colour. They stay for the run — bright in
+    the past, faint in the present, the one room where your own past shows
+    through — until the next passing replaces them.
+  · **The urn:** six kneelers ring it and it fills only when all six are
+    held at once, by a body or by an echo. The party is three. The memorial
+    stone stands right behind the west kneeler, so Spirit is always kneeling
+    there when its echo is kept.
+  · **The plan:** kneel two creatures, pass into the past (three echoes),
+    come back, take the other three, and Blood — kneeling — wakes the stones.
+    The urn fills with your ashes; Dust + Spirit crystallize a crystal with
+    your three inside; fit it in the uncut name stone; Blood pulses; your
+    names cut themselves into it. Nothing is timed and nothing is spent.
+  HINT line: *"Nobody mourned here. Nobody but you."*
+
+**RIDDLE.** *Send me Spirit, to call back what the ashes remember;* /
+*a Blood Pip, for the last chime's channel is finer than a vein;* /
+*and Dust, for every one of them has gone to dust.*
+
+**PERSISTENCE.** Star 1 banked: keeper rested, crystal in the treadle, gate
+open. Star 2 banked: flags on the route, bier at the chapel door, door open.
+Crystals and flag settings otherwise reset with the run; room visits never
+undo a made crystal. The maxim stone stands cut on later descents.
+
+**BUILD STATUS — BUILT and ✅ PROMOTED 2026-09-28** (in `kPolishedDungeons`
+on the author's account after device play). The Echo Grave's code is replaced whole:
+`planet_dungeon_layout_spirit.dart` (rooms, `FuneralRun`, `BearerFlags`,
+`kMournerStones`), `planet_dungeon_game_spirit.dart` (the loop, doors,
+bare hint tiers, the chime), `planet_dungeon_game_spirit_art.dart`
+(both worlds, portcullises, the carried crystal). The shared room field is
+`DungeonRoom.funeral`. Tests: `planet_dungeon_spirit_funeral_test.dart`
+(every craft works; carry, return and no duplication; each star; the
+exhaustive proof that the court can never be levelled whole; the rite; the
+chime's one-window rule and its Blood Pip gate; vault; maxim; persistence;
+the whole descent) and `planet_dungeon_spirit_states_render_test.dart`
+(every room in both worlds and the loop's states). The maxim id is new
+(`egg:spirit_empty_urn`). Spirit stays out of `kPolishedDungeons`.
+  · *On device, check:* can a new player read the bell court's purpose from
+    the keeper's replay alone; does the see-saw beam read before a press;
+    do three stones of five read as "where they knelt"; is the chime's warm
+    state visible mid-fight; and the ghost figures' size at phone scale.
+
+### SPIRIT — REDESIGN: THE UNFINISHED FUNERAL (2026-09-28; the author's draft — where it differs, the BUILD SPEC above wins)
+
+**AGENT HANDOFF — START WITH THE BELL ROOM.** This section is the current
+Spirit design authority. Older Spirit matrix entries, focused revisions,
+reviews, maxim instructions and shipped-code comments describe the retired
+Echo Grave wherever they conflict with this section. They are reference
+material, not additional requirements. The recipe source is the dungeon
+recipe table in `planet_dungeon_verbs.dart`; preserve Dust + Spirit → Crystal.
+It works every time (2026-09-28, from the author: *"no percentages, it should
+work every time"* — the 40% chance is removed from the table). Keep the
+Spirit · Blood · Dust entry party.
+
+The first implementation milestone is a playable bell-court prototype:
+automatic ghost replay, free world switching, the cremation urn reaction,
+carrying/fitting its memory crystal, Blood's activating pulse, and the bell
+opening the gate. Provide a direct debug entry for review. Implement the
+first star without a family gate. Keep the later rooms, final rite and boss
+as the next milestones; do not fill unresolved decisions with retired rules.
+
+Acceptance for this milestone:
+  · The urn, treadle socket, connecting lever, bell and gate read together
+    at phone size. The ghost demonstrates their relationship without a click.
+  · Recipe readiness and hints are read-only. One deliberate craft press
+    with the right pair always makes the crystal. Crystals survive ordinary
+    revisits and cannot be duplicated.
+  · Fitting and pulsing are deterministic. Finishing the bell grants its
+    star and opens the gate. A banked star restores that completed scene;
+    an unbanked run reset clears its local preparation.
+  · No unsolicited tutorial sequence, repeated ghost-loop text or switching
+    wisps. Wrong presses respond briefly; requested hints identify the next
+    useful action.
+  · Render both worlds and relevant reaction/completion states, run focused
+    interaction checks, and report remaining device validation honestly.
+    The user playtest must establish whether the purpose is intuitive before
+    the agent expands the same interaction into the rest of the dungeon.
+
+**OPEN FOR LATER MILESTONES.** Exact Lost Maxim ritual · final family-gate
+decision and entry riddle · boss attack/lull timings · boss reset and
+post-wipe restoration of rite state. These do not block the bell prototype.
+Do not describe the entire dungeon specification as finalized yet.
+
+**WHY.** Wandering between barrows and clicking ghosts did not give the
+player an intuitive purpose. More explanatory hints did not fix it. Replace
+that loop with a visible unfinished action, its ashes, and a way to bring the
+memory back. This supersedes the focused revision below and the earlier
+Water/Ice/causeway draft. Keep Spirit · Blood · Dust and the existing dungeon
+recipe. The older sections are implementation history, not the build target.
+
+**WORLD RULE — ASHES KEEP A MEMORY. CRYSTAL GIVES IT FORM. BLOOD GIVES IT A
+PULSE.** In the ghost world, a person automatically replays an unfinished
+act. In the living world, Dust and Spirit gather their cremation remains
+into a crystal holding that motion. Fit it into the nearby funeral mechanism;
+Blood sends a pulse through it, and the mechanism performs the remembered
+act. The ghost finally finishes and rests. Ordinary creatures are not
+resurrected; an echo of an action is made physical.
+
+**THE PARTY AND RECIPE.** Spirit · Blood · Dust stays the entry trio.
+**Dust + Spirit → Crystal** is ALREADY defined in
+`planet_dungeon_verbs.dart`, and it **always succeeds** — no dungeon recipe
+is left to chance. That dungeon table, not the breeding recipe asset,
+governs this interaction.
+Blood activating a fitted memory crystal is an authored object interaction,
+not a newly invented global Blood recipe. Spirit also switches worlds at a
+memorial stone, freely, without spawning wisps.
+  · **The reaction must read.** Both recipe bodies stand near the urn; a
+    third body does not invalidate them. Before pressing, the ashes rise
+    toward a faint crystal outline to show the pair is ready. Readiness and
+    hints never change anything. One deliberate crystallization press with
+    the right pair draws the ashes into a solid faceted crystal, with the
+    ghost's small moving silhouette inside it. A wrong pair gets one short
+    refusal and nothing forms.
+  · Once made, the crystal stays made for the run. Insertion, activation and
+    replay are deterministic. No crafting under guardian attack.
+
+**THE SHAPE.** Entrance memorial → bell court (Star 1) → bearers' chapel
+(Star 2) → final vigil and Wraithord (Star 3). Each room's obstruction,
+mechanism and ashes are visible together. The ghost and living versions have
+the same geometry and object positions. The memorial stone is beside the
+work area, reachable in either world. Permanent party walkways stay open;
+no repair closes a route and no optional reward can be lost permanently.
+
+**THE INTERACTION LOOP.** Watch without pressing → crystallize at the urn →
+carry and fit the memory → pulse it with Blood. Replays run automatically in
+the ghost world, with a short pause between loops. No ghost has a utility
+button. Repairs and placements happen in the living world. A local socket
+preview shows the crystal's remembered motion before insertion. One crystal
+can be carried by the active creature; switching creatures transfers it
+without dropping it. Leaving the room returns an unfitted crystal to its urn
+as a completed crystal, never loose ashes. No inventory search or lost item.
+Ghost loops are clues, not mandatory cutscenes or timing windows.
+
+**STAR 1 — THE BELL KEEPER.** The funeral gate is shut, and the bell above
+it hangs silent. Beside its treadle sits the keeper's urn. In the past the
+keeper steps on the treadle; a visibly connected lever swings the bell and
+lifts the gate, then the memory fades and repeats. In the present the lever
+is intact but still, with one empty crystal socket at the treadle.
+  · Dust + Spirit crystallize the ashes. A tiny stepping figure plays inside
+    the resulting crystal. Carry it the few steps to the matching socket;
+    fitting it makes the remembered treadle stroke visible as an outline.
+  · Blood touches the fitted crystal's shallow pulse groove. One pulse
+    drives the remembered step: lever, bell, gate, in one readable chain.
+    The keeper rings the completed note and rests. Star 1 banks, and the gate
+    latches open. No family gate, replay timing or further ghost press.
+  · The urn, socket, connecting lever and bell must fit in one phone view.
+    The step is transmitted by the mechanism; a phantom does not suddenly
+    acquire unexplained strength elsewhere in the room.
+
+**STAR 2 — WALK THE MEMORY.** The Alchemon must follow the same footsteps
+as the ghost. A funeral bearer walks a short, distinctive path through the
+courtyard in the past, carrying its offering to the bier. In the present,
+that walk is unfinished. This is spatial memory expressed through movement,
+not another ghost to click or a mechanism to label.
+  · **Watch.** The bearer automatically demonstrates one fixed route, then
+    pauses and repeats. Its feet leave a luminous trail that fades behind
+    it. Four broad floor medallions and an asymmetric landmark (a broken
+    fountain) occupy identical positions in both worlds. The demonstration
+    starts from a clearly marked doorstep and ends at the visible bier.
+    One route, four checkpoints, at most two turns; no maze or crossing lines.
+  · **Give the memory form.** Dust + Spirit crystallize the bearer's nearby
+    cremation ashes with the same recipe. Fit the crystal into the
+    starting doorstep. Blood pulses its groove once, waking the remembered
+    footsteps. The demonstration now also replays in the present whenever
+    the player stands on a separate viewing pad; watching never starts or
+    resets an attempt. The ghost is a free reference, not a hint popup.
+  · **Walk it yourself.** Any active Alchemon enters the start medallion to
+    begin and walks the demonstrated route to the bier. Only that creature
+    is evaluated; companions neither solve nor spoil the attempt. Switching
+    the active creature cancels the attempt for free rather than handing
+    progress to a body already standing ahead. The route does not require
+    a family, movement speed or simultaneous party choreography.
+  · **Exact route, forgiving feet.** Success means visiting the medallions in
+    order AND staying within the broad corridor joining them. Do not reduce
+    it to touching the endpoint or skipping diagonally between checkpoints.
+    Match the path and turns, not pixel coordinates, facing angle, walking
+    speed or the ghost's timing. Stop and think anywhere on the route.
+    Medallions light beneath correct footsteps; completed segments glow
+    behind the creature without revealing the unwalked remainder.
+  · **An understandable miss.** Stepping outside the route's generous
+    corridor or onto the wrong medallion makes the footsteps dissolve with
+    a soft sound. The start glows again. Reset only this walk; keep the
+    crystal fitted, its pulse active, and every earlier room complete.
+    No health cost, enemies, timer, teleport or re-crafting. Returning
+    to the viewing pad shows the same demonstration again. No repeated
+    textual “wrong way” messages.
+  · **Finish.** Reaching the bier by the remembered path completes the
+    bearer's last walk. Its echo walks beside the Alchemon for the final
+    steps and sets down its offering. The funeral advances into the final
+    chapel; Star 2 banks and its door stays open. On later visits the path
+    remains visibly completed and never needs to be repeated.
+  · **Phone first.** Keep the whole route in one view. Movement tolerance
+    must accommodate the largest party sprite and ordinary touch steering;
+    measure the active creature's ground position, not its animation pose.
+    Pause route evaluation during menus and world-transition animations.
+    Leaving the room or changing worlds cancels only the attempt. If the
+    challenge feels like steering precision, widen the corridor before
+    shortening the demonstration or adding hints.
+
+**THE FINAL RITE — THE THREE MOURNERS.** Both puzzle stars lead to a sealed
+chapel door. In the past, three mourners leave separate urns, follow distinct
+paths and stop at three resting places around a spectral bier before the
+door. Their whole procession replays automatically, with each trail and its
+destination visible in one phone view. This combines the taught crystal
+reaction and remembered walk with the whole party.
+  · In the present, Dust + Spirit crystallize each urn's remains. Each
+    crystal stays made. Each fits the starting stone beside its urn; no distant inventory
+    hunt or additional crystal-matching puzzle. Blood pulses the connected
+    groove once all three are fitted, awakening all three routes.
+  · Walk one Alchemon from a starting stone along its remembered route to
+    the corresponding resting place. Repeat with the other two Alchemons.
+    Any element can take any route. The assignment is spatial, not a hidden
+    element order. Give each start, trail and destination a distinct motif
+    as well as color. Keep routes short and separate, with no ambiguous
+    intersections or obstruction by a parked companion.
+  · Completed routes glow and their Alchemons wait at the ends while the
+    player guides the others. These are sequential walks, never simultaneous
+    timing. Inactive companions do not follow the active creature in this
+    rite. A wrong turn resets only the active walk. Changing creatures
+    mid-walk cancels only that unfinished walk; moving a completed creature
+    off its resting place clears only its own completed route.
+  · Use Star 2's generous movement tolerance, free replay and absence of
+    timers. Rewatching from the viewing pad does not clear completed walks.
+    Switching worlds preserves completed positions in the same safe floor
+    geometry; leaving the room clears the positional attempts but preserves
+    fitted crystals and the awakened groove. Nothing needs to be crafted
+    again merely because a walk went wrong.
+  · When all three occupy their resting places after valid walks, their
+    ghost counterparts appear beside them. Together the ghosts lift the
+    spectral bier and carry it through the sealed door. The stone opens
+    behind them, revealing Wraithord. The door latches permanently for the
+    run; later visits never require repeating the procession. The rite
+    grants boss access, not an extra star. Wraithord remains Star 3.
+
+**THE FINAL VIGIL — WRAITHORD.** Reuse the bell's language. As the funeral
+enters, the last keeper's echo strikes an already fitted vigil chime:
+Wraithord's shadow briefly separates from its body at the note. This is the
+visual teaching beat before combat, not another urn or entry puzzle. The
+procession is the final access requirement; no random crafting under attack.
+  · Wraithord's attack ends with its shadow visibly gathering around it.
+    During the recovery phase, a Blood pulse at the prepared chime rings the
+    remembered note, disperses the shadow and opens a full damage window.
+    Show the same split-body pose seen in the replay. The chime stays ready
+    until used; preparing the counter has no short hidden deadline.
+  · One pulse opens one window, never refreshes an active window, and the
+    socket visibly cools until the next completed guardian attack. After the
+    window, the usual attack cycle resumes. Keep movement and attack tuning
+    for device playtest; the new fight is not a 4.5-second world-toggle chase.
+  · Proposed single family gate: the chime has a fine blood channel requiring
+    a Blood Pip during peaceful setup. It must visibly differ from the broad
+    grooves taught earlier and declare its requirement before entry. Review
+    this gate for meaningful visual justification before implementing it;
+    do not let a cosmetic slot become another unexplained lock.
+
+**HINTS — HELP ONLY WHEN ASKED.** The room supplies the problem and ghosts
+show the action. Use the existing §5.6 hint tiers, not another tutorial layer.
+For the bell court, requested readings progress in specificity:
+  · Goal/obstacle: “The bell must ring to open the funeral gate.”
+  · Rule: “The keeper's ashes can become a crystal of its remembered step.”
+  · Concrete step: “Bring Dust and Spirit together at the urn to make Crystal.”
+After crystallization, the requested next step becomes fitting the crystal;
+after fitting, it becomes Blood pulsing the groove. No unsolicited method
+messages on approach, world change or every ghost loop. Incorrect presses
+get one short refusal. Necessary consequences and earned rewards may speak;
+normal progress is shown by motion, sound and permanent changes to the room.
+
+**VAULT — THE KEEPER'S NICHE.** In the bell court's ghost replay, the keeper
+sets a small keepsake into a wall niche before taking the treadle. In the
+present, dust covers that same recess. An observant player can use Dust there
+to uncover the cache. It remains obtainable before or after finishing the
+bell; the replay stays available as a faint memory after the keeper rests.
+No special recipe, extra crystal or irreversible access condition.
+
+**LOST MAXIM — THE EMPTY URN.** Preserve the idea that the last funeral is
+yours. A quiet alcove contains an empty urn and an uncut name stone. Its exact
+ritual remains OPEN: it must use this party, the taught ash/crystal language
+and the maxim's repeated beat, without pretending an empty urn contains
+someone else's cremation remains. Do not inherit three arbitrary ghost
+clicks just to satisfy the beat count. Author after the main loop is tested.
+
+**PERSISTENCE AND BUILD GATE (⬜).** Banked stars restore completed scenes and
+open gates on later descents. Unfinished local crystals and placements reset
+with the run; ordinary room visits do not undo completed crystallization.
+Prototype the bell court first. Can a player infer the task from the replay,
+make the crystal, fit it and deliberately pulse
+it without unsolicited instructions? Then test the remembered walk,
+including a correct route, shortcut, wrong turn, idle pause, creature switch
+and repeat viewing. The player must recognize the path without a text hint. Verify crystals form only on
+craft presses, clues are read-only, crystals cannot be lost or duplicated,
+and guardian pulses cannot extend an active opening. Finalize the maxim,
+family gate and entry riddle before calling the full design build-ready.
+This entry changes the design only; the built Echo Grave remains in code.
+
+### SPIRIT — FOCUSED DESIGN REVISION (2026-09-28; BUILT same day; SUPERSEDED by The Unfinished Funeral above)
+
+**HISTORICAL ONLY.** The rules below describe the previous implementation.
+For new work, follow THE UNFINISHED FUNERAL and its agent handoff above.
+
+**KEEP THE ECHO GRAVE.** The same field exists in living and ghost worlds.
+Hearing out a revenant finishes its death: its road opens to the living and
+closes to ghosts for the rest of the run. The Cold Road still asks you to
+make a living route for the funeral; the sigil still asks you to compare
+both worlds. Keep the seven barrows, permanent ghost spine, rite and Undug
+Grave maxim. ~~Keep the existing party (Spirit · Water · Crystal) and Water
+Pip gate~~ — superseded the same day by THE PARTY below.
+
+**THE PARTY — Spirit · Blood · Dust (2026-09-28).** Spirit · Water · Crystal
+was exactly Plant's trio with exactly Plant's two recipes (Spirit+Water→Ice,
+Crystal+Spirit→Light), and Spirit already sat on six of seventeen parties
+while Blood, Dust, Steam and Lava sat only on their own. The new party is
+the living and the dead: **Blood** for a pulse, **Dust** for what the ground
+took back. Every puzzle keeps its shape; only who presses changes.
+  · **Gate arch** — drifted shut with grave-dust; element-only **Dust**
+    shifts it (was Water draining black water).
+  · **Sunken cut** (`x_sunken`, was the drowned cut) — the ground fell into
+    the old graves; the dead walk its old level. Element-only **Dust** fills
+    it for both worlds (was Ice, or the Spirit+Water braid). Still additive,
+    still off the no-strand proof's critical path. No braid remains: no
+    recipe joins Spirit, Blood and Dust, and none is wanted.
+  · **Sigil** — the §4 hard gate is a **Blood Pip**: the mark is set in
+    blood, and the dead have none (was Water Pip).
+  · **Offering bowl** (was the grave-lamp, conduit B) — element-only
+    **Blood** fills it after both stars; the dead come to blood, and
+    Wraithord wakes. Draws the same two wisps the lamp did.
+  · **Undug Grave** — Dust clears the drift, Blood runs down the blank stone
+    and finds no letter, Spirit tells the three names (was Water drains,
+    Crystal lights).
+  · **Ideal families** — Spiritmask · Bloodpip · Dustwing (Mask/Pip/Wing
+    unchanged). **Unseal offering** — `fromEntryRequirement` keeps
+    Spirit + Blood (Blood wins the Blood/Dust tie by name).
+  · Art: dust is one low pale heap on its own shadow (never a terrain — the
+    Dust planet's mounds stay Dust's); blood is the second warm accent beside
+    the sigil's gold.
+This revision changes how players read consequences and revisit clues, not
+the crossing graph. It supersedes older guidance on passing wisps and the
+guardian's pursuit incentive; the earlier review remains implementation
+history.
+
+**THE MERE — SEE THE COST BEFORE THE TELLING.** Resting both the Keener and
+the Sexton still closes ghost access to the Mere, and therefore its hollow
+grave, for that run. Preserve the irreversible choice, but expose its full
+consequence at the remaining revenant before utility is pressed.
+  · Preview the proposed state without changing the live field. Alongside
+    the named crossing's living/ghost change, check whether the Mere loses
+    its last ghost route from the permanent spine. If so, say: *"This is the
+    last ghost road to the Mere. Resting this ghost closes it for this run."*
+    This information is available to every permitted party, not gated by a
+    Mask or an intelligence tier.
+  · If the hollow grave or its living-world marker has been discovered,
+    add: *"The hollow grave will be unreachable as a ghost."* Before that
+    discovery, name only the Mere's lost route; do not reveal the treasure.
+    Show the affected route fading on the discovered chart as part of the
+    preview. An undiscovered route is not silently added to the chart.
+  · No confirmation dialog or extra press. The consequence occupies the
+    existing nearby-object preview, before the irreversible action. The
+    post-action line confirms what changed. Test both possible orders of
+    the two tellings; the warning belongs to whichever one is last.
+  · Replace the exploration progress emphasis on LAID TO REST with the
+    funeral's objective and living-route status. Six rested ghosts is not
+    the goal. Keep the bier visibly waiting until the route is complete,
+    then show its departure/empty trestles. Do not frame helping all six as
+    greed: the tradeoff is access between worlds.
+
+**THE SIGIL — DISCOVER, RECORD, COMPARE.** The answer still comes from a
+living floor mark and the ghost field's arc, and still requires a living
+Water Pip to stamp it. Preserve exploration while removing repeat trips
+whose only purpose is remembering a clue.
+  · Seeing a living sigil within normal interaction reach records its
+    twelve-point mark beside that barrow on the chart, without an extra
+    utility press. Seeing the ghost arc in a barrow records it once as the
+    common comparison clue. Records remain readable in either world.
+  · Use the same orientation and twelve-point scale for both recorded
+    clues, with a clear visual reference for a complete ring. The existing
+    rule (the two values add to twelve) must be inferable from the drawing;
+    the chart must not identify the winning barrow automatically.
+  · Undiscovered floor marks stay unknown. Nothing is remotely stamped,
+    and wrong stamps remain free. The journey back with the right body is
+    still part of the puzzle; rechecking a remembered number is not.
+  · Keep records for the current descent, including ordinary room and
+    world changes. Clear them when the run resets; banked-star behavior
+    stays as specified. Keep the compact navigation map uncluttered by
+    putting comparison details in the full chart.
+
+**PASSING — EXPLORATION IS FREE.** Remove the every-fourth-passing wisp
+spawn. Switching remains a Spirit action at the existing lych-stones,
+unlimited and without a resource cost. Keep its sound and the two-world
+visual change. Other authored encounters retain their own triggers;
+exploring the planet's central rule does not accumulate a combat penalty.
+
+**WRAITHORD — FOLLOWING EARNS AN OPENING.** Keep the 4.5-second world beat
+and the rule that attacks cannot land between different worlds. Waiting
+for Wraithord to return remains possible, but following it should create a
+clear advantage.
+  · When Wraithord leaves the party's world, it visibly trails toward the
+    arena stone. During that absence, using Spirit at the stone to cross
+    into Wraithord's world earns one full vulnerability window. Announce:
+    *"You followed its echo. Wraithord is exposed."*
+  · Start the full window after the passing animation. Use the guardian's
+    normal configured lull duration, suspend its strike and crossing clocks
+    through the opening, then resume with a fresh world interval. Arriving
+    near the end of its old interval cannot erase the earned opening.
+  · Only a departure initiated by Wraithord arms this reward, once per
+    departure. The player leaving and returning to the same boss phase
+    never arms or refreshes it. Returning on its own clears an unused
+    opportunity; it grants no pursuit bonus and follows normal combat.
+  · Keep the stone close enough to use comfortably on a phone. Telegraph
+    the departure through the boss, stone and a brief consequence line.
+    Test ordinary waiting, a successful follow, a late follow, and repeated
+    player toggles. No reward depends on an unexplained timing threshold.
+
+**BUILT (2026-09-28) — what shipped, and where.**
+  · *Mere preview* — `EchoGraveField.tellingClosesMere` asks a `copy()`, so
+    the preview never touches the live field. The nearby-revenant preview
+    adds the Mere line, and the hollow-grave line only once `hollow_grave`
+    is visited or its cache found. `graveDoomedByHand` rings and fades that
+    crossing (and `x_hollow`, once found) on the full chart, only where the
+    chart already draws it. The telling's own consequence line appends
+    *"The dead can no longer reach the Mere"*. Tested in both orders.
+  · *Funeral readout* — THE BIER · NO LIVING ROAD TO THE CAIRN replaces LAID
+    TO REST.
+  · *Sigil records* — `sigilsRead` (standing within `_kGraveReach` of a
+    living half) and `arcRead` (any barrow, as the dead), cleared by
+    `field.reset()`. The full chart draws each read half on a twelve-point
+    ring in its barrow's corner; the key carries the dead's arc on the same
+    ring. Never on the compact map, never a verdict.
+  · *Passing is free* — `_kPassingsPerWisp` is gone.
+  · *Pursuit* — Wraithord's own departure sets `pursuitArmed`; its return
+    clears it. Following at the arena stone spends it: `pursuitDelay` (the
+    0.30 s re-ink) then `pursuitWindow` = the shared lull
+    (`_guardianLullSeconds`, 3.0 / 2.2 enraged). Strikes, aura and crossing
+    clock all hold; the crossing restarts at 0. Its echo trails toward the
+    stone while out of phase, and the stone glows while armed.
+
+**PLAYTEST (⬜).** Last-route preview and discovered-chart overlay ·
+funeral objective readout · sigil recording/comparison · remove passing
+wisps · Wraithord pursuit opening. Re-run the existing reachability and
+full-run checks because the permanent-spine guarantee must remain intact.
+Verify previews do not mutate state, unknown clues stay hidden, recorded
+clues survive room/world changes, and pursuit cannot be farmed by toggling.
+On device, check that a new player can explain the Mere tradeoff before
+committing and solve the sigil without revisiting rooms merely to reread
+marks. Spirit remains outside `kPolishedDungeons` pending that playtest.
+
 ### ◐ SPIRIT — THE REVIEW (2026-09-25), minus the device session
+
+**HISTORICAL ONLY.** This reviews the retired Echo Grave. Its route, sigil
+and guardian rules are not requirements for The Unfinished Funeral.
 
 The Dark/Light pass, applied to Requia: every room rendered in BOTH worlds
 (`planet_dungeon_spirit_states_render_test`, new — the audit only ever drew
@@ -4147,6 +5064,9 @@ rhythm, answered at the arena's stone.
 
 ### §9.9 SPIRIT'S LOST MAXIM — the seventh funeral is yours
 
+**HISTORICAL ONLY.** Preserve the emotional premise as described in The
+Unfinished Funeral; this old ritual is not the new maxim specification.
+
 *Stuff of Dreams* was one press: stand three bodies anywhere inside the vault
 room in the cold world. No chain, no braid, no repeated beat — and its
 "place" was the vault's own room, so the secret and the treasure diluted each
@@ -4155,16 +5075,18 @@ other. §7's table graded it ⬜ *"one press"*, which was right.
 **THE UNDUG GRAVE.** The mourners' walk runs 260px further west than the rite
 needs, into a dead spur no door uses (§9.6, and Steam's precedent). At the end
 of it is a grave somebody scored out and never dug. Warm, it is four scoring
-marks in the turf. Cold, it is open, standing full of black water, with an
+marks in the turf. Cold, it is open and drifted with grave-dust, with an
 **uncut headstone** — blank, where every other marker in the field carries a
 name. That blank IS the secret, stated in one object: the telling that
 finishes all six of Requia's dead has nothing here to work on.
 
   1. **BE DEAD.** Warm there is nothing to work. Nothing is pressed for this.
-  2. **WATER** draws the black water off — the job it already does at the gate
-     arch to open the planet.
-  3. **CRYSTAL** sets a grave-lamp at its head, exactly as the rite's own lamp
-     is set, and the light shows the slot is uncut.
+  2. **DUST** shifts the grave-dust out — the job it already does at the gate
+     arch to open the planet. *(Was Water draining black water, until the
+     2026-09-28 party change.)*
+  3. **BLOOD** is poured at its head, exactly as the rite's offering bowl is
+     filled, and it runs down the face without finding a letter: the slot is
+     uncut. *(Was Crystal setting a grave-lamp.)*
   4. **SPIRIT, THREE TIMES** — the repeated beat, and the same telling verb
      that finishes the six. You cannot tell a name that was never cut, so the
      Spirit hand gives the three names it DOES have: yours. One apiece, with
@@ -4176,8 +5098,8 @@ was never cut a name, so nobody can tell it but the one it was dug for.*
 
 **AND THE FIRST CUT OF IT WAS WRONG IN A WAY WORTH RECORDING.** The repeated
 beat was originally three tellings by three different SPIRIT bodies — which
-is a better sentence and a worse design, because the ideal trio is Spirit ·
-Water · Crystal and carries exactly one Spirit. §4 guarantees that trio the
+is a better sentence and a worse design, because the ideal trio (Spirit ·
+Blood · Dust since 2026-09-28) carries exactly one Spirit. §4 guarantees that trio the
 planet. A maxim may ask for more thought than a star does; it may never ask
 for a party the dungeon told you not to bring. The full-run test caught it,
 which is the one place a demand like that shows up as an error rather than as
@@ -5800,7 +6722,7 @@ Where the seventeen stand (audited 2026-09-23 from what each renderer reads):
 | Light | the afraid volume, a book of night glass lying open in its slab | ✅ built 2026-09-24 |
 | Ice | the stranger caught in the telescope's lens as a leaded star (it used to REMOVE the telescope) | ✅ built 2026-09-23 |
 | Lightning | fulgurite branching from the dynamo's rotor, the rose lit, the breakers welded | ✅ built 2026-09-23 |
-| Plant | a tree of leaded glass where the shade lay, grown as the rite binds (it used to read run state) | ✅ built 2026-09-24 |
+| Plant | the opposite flower — dark petals, amber heart — in the hub's fourth planter, keyed on the egg id (the crypt's shade tree retired 2026-09-27) | ✅ built 2026-09-27 |
 | Spirit | the undug grave's headstone as a lit lancet window, in both worlds (it used to read run state) | ✅ built 2026-09-24 |
 | Blood | a leaded garnet heart on every cock in the eight, lit in turn as the rite binds | ✅ built 2026-09-24 |
 | Poison | the Dose scored in a glass rondel at the prior's cross, heart lit | ✅ built 2026-09-23 |

@@ -1924,20 +1924,18 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // west lamp; **Lightning+Crystal→Spirit** stands in for a Spirit hand that
   // is down.
   'Crystal': ['Crystal', 'Lightning', 'Spirit'],
-  // Verdant Crypt (Verdanthos): Plant (unknots the lich-gate briar, quickens
-  // the boles that change your size, and sets every seed) + Light (relights
-  // the grave-lamps, and its Mask shows the heart-seed a sun the crypt has
-  // not had in an age) + Mud (loams the growth altar, cracks the sepulchre's
-  // clay, and turns the mulch pits that call the withering). Mud+Light→Plant
-  // is the braid that plants when no Plant hand is free.
-  'Plant': ['Plant', 'Light', 'Mud'],
+  // The Conservatory (Verdanthos, §9.20): Water (waters the dry bed, the
+  // trellis soil and the rain bud, alone) + Spirit (in both recipes — with
+  // Water it makes Ice for the hothouse, the pond crossing and the frost bud;
+  // with Crystal it makes Light for the shadehouse, the lamps and the sun bud)
+  // + Crystal (Light's other half, and its Mask focuses the sun bud).
+  'Plant': ['Crystal', 'Spirit', 'Water'],
   // Echo Grave (Requia): Spirit (the lych-stones that pass the party over, and
-  // the telling that finishes a death) + Water (draws the black water off the
-  // gate arch, and its Pip sets the sigil's mark) + Crystal (the grave-lamp,
-  // element-only). **Spirit+Water→Ice** settles the drowned cut into a road
-  // the living can take; **Crystal+Spirit→Light** is what makes a light in a
-  // place that has never had one.
-  'Spirit': ['Spirit', 'Water', 'Crystal'],
+  // the telling that finishes a death) + Blood (the living: its Pip sets the
+  // sigil's mark, and it fills the rite's offering bowl) + Dust (what the
+  // ground took back: the gate drift, the sunken cut, the undug grave). No
+  // recipe joins the three. Until 2026-09-28 this was Plant's exact trio.
+  'Spirit': ['Spirit', 'Blood', 'Dust'],
   // Eclipse Vault (Nythralor): Dark (draws the pall, turns every gnomon —
   // the planet's whole verb — seats two of the analemma's stones, and its
   // Mask reads the nave's black reredos) + Poison (seats the ossuary stone,
@@ -1985,8 +1983,8 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Mud': ['Mane', 'Pip', 'Mask'], // Mudmane · Plantpip · Watermask
   'Dust': ['Mask', 'Wing', 'Horn'], // Dustmask · Airwing · Earthhorn
   'Crystal': ['Mask', 'Horn', 'Pip'], // Crystalmask · Lightninghorn · Spiritpip
-  'Plant': ['Mane', 'Mask', 'Pip'], // Plantmane · Lightmask · Mudpip
-  'Spirit': ['Mask', 'Pip', 'Wing'], // Spiritmask · Waterpip · Crystalwing
+  'Plant': ['Mask', 'Kin', 'Mane'], // Crystalmask · Spiritkin · Watermane
+  'Spirit': ['Mask', 'Pip', 'Wing'], // Spiritmask · Bloodpip · Dustwing
   'Dark': ['Mask', 'Pip', 'Mane'], // Darkmask · Poisonpip · Spiritmane
   'Light': ['Mask', 'Mask', 'Pip'], // Lightmask · Crystalmask · Spiritpip
   'Blood': ['Mane', 'Mask', 'Mask'], // Bloodmane · Darkmask · Lightmask
@@ -2046,6 +2044,14 @@ const Set<String> kPolishedDungeons = <String>{
   'Dust',
   // Crystal — promoted 2026-09-26 on the author's account.
   'Crystal',
+  // Plant — promoted 2026-09-28 on the author's account, after the
+  // Conservatory redesign (§9.20) was played on device.
+  'Plant',
+  // Spirit — promoted 2026-09-28 on the author's account, after the
+  // Unfinished Funeral redesign (party Spirit·Blood·Dust), its art pass, the
+  // linked-beam bearers' court, the coloured mourners and the Empty Urn
+  // maxim, played on device.
+  'Spirit',
 };
 
 /// True if [element]'s descent is ready for a player: built AND polished.

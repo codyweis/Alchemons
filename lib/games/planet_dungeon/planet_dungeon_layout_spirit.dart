@@ -1,159 +1,26 @@
 // lib/games/planet_dungeon/planet_dungeon_layout_spirit.dart
 //
-// REQUIA — the Echo Grave. Spirit's authored layout, its pure rules, and the
-// puzzle DATA its `part of planet_dungeon_game.dart` module reasons about.
+// REQUIA — THE UNFINISHED FUNERAL. Spirit's authored layout, its pure rules,
+// and the puzzle DATA its `part of planet_dungeon_game.dart` module reasons
+// about. Design: docs/dungeons.md, "SPIRIT — THE UNFINISHED FUNERAL: BUILD
+// SPEC" (2026-09-28). It replaces the Echo Grave (the barrow round, its
+// revenants and its sigil), which is kept in the doc as history.
 //
-// TOPOLOGY (docs/dungeons.md §5.5, structural assignment table, Spirit row):
-// **TWO OVERLAID WORLDS — living/ghost layers, same geometry, different
-// doors.** There is no hub and there are no wings. There is ONE grave-field —
-// seven barrows on a corpse round with two cuts across it — and there are two
-// ways of being in it. Every crossing of that field is cut for exactly one
-// kind of body, and which kind you are is something you choose at a
-// lych-stone.
+// WORLD RULE — *ashes keep a memory. Crystal gives it form. Blood gives it a
+// pulse.* A funeral here never finished. In the GHOST world its people replay
+// what they were doing when it stopped; in the LIVING world their ashes wait
+// in urns beside the things they were working. Dust + Spirit crystallize the
+// ashes into the motion they remember, the crystal fits the mechanism, and
+// Blood sends a pulse through it: the mechanism does the remembered act, and
+// the ghost rests.
 //
-//     ── the grave-field, ONE geometry ─────────────────────
-//                        mourners_walk ── wraithord_grave
-//                              ╵ rood
-//        bell ──── veil ─────── mere ─────── cairn ──── ash
-//         ╵         ╵ ╲drowned cut╵ hollow      ╵         ╵
-//         ╵         ╵  ╲          ╵ grave       ╵         ╵ salt
-//         └── urn ──┘   ╲─────────────────────┘        watch
-//              ╵ lych road (urn–veil)                     ╵
-//           lych_gate ─────────────────────────────────────┘
+// THE TWO WORLDS: the past is the answer key, the present is broken. Every
+// star needs a look at one and a change to the other. Nothing is timed and
+// nothing is walked for accuracy; no reaction is left to chance.
 //
-//   (the ring, in order: urn · bell · veil · mere · cairn · ash · watch · urn.
-//    The two chords are the LYCH ROAD urn–veil and the DROWNED CUT veil–cairn;
-//    the hollow grave hangs off the mere and the rood off the cairn.)
-//
-// WORLD RULE — *the past replays here, and it cannot be changed. It can only
-// be finished.*
-//
-// ─────────────────────────────────────────────────────────
-// THE INVARIANT — ONE CROSSING, ONE WORLD, FOREVER
-// ─────────────────────────────────────────────────────────
-// Requia's claimed mechanic (§5.5 open pool: "two-overlaid-worlds layer swap —
-// Spirit, the LIVING/GHOST reading only") is stated in a single rule:
-//
-//   **EVERY CROSSING OF THE FIELD IS WALKABLE IN EXACTLY ONE WORLD, AND SIX OF
-//   THEM HAVE NOT YET DECIDED WHICH.**
-//
-// A crossing is one of four things:
-//   • BOTH        — the gate arch, the rood, the guardian's door. Frame stone.
-//   • LIVING-ONLY — salted, consecrated ground. The dead may not walk it.
-//   • GHOST-ONLY  — a road that fell, or drowned, long ago. Only a memory of
-//     it still stands, and only the dead can stand on a memory.
-//   • A REVENANT  — an undecided crossing, and the whole planet.
-//
-// A REVENANT is somebody who died at that crossing and is still dying there.
-//   • RESTLESS (how every one of them starts) — the dead one is still holding
-//     up the lintel it fell under, so the GHOST crossing is open; and the
-//     stone that killed it still lies across the LIVING one, so that is shut.
-//   • AT REST — a Spirit hand in the ghost world hears out how it died, and
-//     the death FINISHES. The dead one lies down: the living crossing is
-//     clear at last, and the ghost crossing has nothing holding it up any
-//     more and falls in.
-//
-// So THE TELLING is the planet's one world-edit, and it is exactly the doc's
-// sentence: *deaths in one open doors in the other.* It is IRREVERSIBLE — a
-// death that has been finished does not resume — and it is ORDER-FREE: telling
-// A then B leaves the identical grave-field as telling B then A, which is what
-// keeps this out of Air's ordering seat (pinned in the test).
-//
-// THE STRATEGIC QUESTION (§5.5): *which layer to cross each junction in.* Each
-// of the six revenants is a permanent commitment of one crossing to one world,
-// and the field's demands pull in both directions at once. The sharpest
-// instance is authored on purpose at THE MERE: to stand there ALIVE (Star 1's
-// sigil will not take a dead hand's mark) you must tell one of its two dead;
-// to stand there DEAD (the hollow grave beyond it opens on no living wall) you
-// must leave one of them restless. Tell both and you have the mere forever and
-// the grave behind it never. Tell neither and you have it only as a ghost.
-//
-// LEDGER (§5.5). Requia takes the living/ghost reading of layer-swap and
-// nothing else. It is deliberately NOT:
-//   · Dust's Z-layer/excavation reading — the doc splits this seat by name.
-//     Dust has two DECKS of rooms and which deck you stand on is a CONSEQUENCE
-//     of a load ledger. Requia has one deck, no ledger and no quantity: both
-//     worlds are the same seven rooms at all times, and the variable is which
-//     of the two bodies you are wearing.
-//   · Plant's observer-scale — Plant's world is constant and the OBSERVER
-//     changes size. Here the observer is constant (three creatures, one grave)
-//     and it is the WORLD that is doubled. Plant's beds author a road for the
-//     size you were not; Requia's tellings never author anything — every
-//     crossing already exists in both worlds and a telling only decides which
-//     copy of it survives.
-//   · Dark's inverting maze — Dark flips ONE GLOBAL state and the whole map
-//     inverts, so every flip made for a door closes another somewhere else.
-//     Requia never flips anything globally: both worlds stand at once, all the
-//     time, and each junction is committed once, by itself, forever. Nothing a
-//     telling does is felt anywhere but at that crossing.
-//   · Mud's terraforming-as-map-authoring — Mud DESTROYS edges and asks what
-//     shape you are left in. Requia destroys nothing: after every telling the
-//     field still has exactly the same crossings it started with, and every
-//     one of them is still crossable. The question is never "is there a way"
-//     but "which of me can take it".
-//   · Air's irreversible wind-authoring (whose question is ORDER — here order
-//     is unobservable), Fire's handed-down sequence, Ice's one-way descent
-//     (nothing here consumes the route behind you), Steam's global budget
-//     (nothing is spent; you may tell all six), Poison's forced sacrifice
-//     (nothing is abandoned — every crossing stays open in one world),
-//     Crystal's permuting map (no room ever moves).
-//
-// ─────────────────────────────────────────────────────────
-// THE VAULT TRICK (§5.5: "exists only in the ghost layer, marked only in the
-// living one")
-// ─────────────────────────────────────────────────────────
-// THE HOLLOW GRAVE hangs off the mere behind a GHOST-ONLY crossing: in the
-// living world its wall is unbroken and the door is not merely shut, it is not
-// there. The only sign of it anywhere is cut into the MERE'S LIVING FLOOR — an
-// unmarked grave's mark, a name-slot with no name in it, which a dead hand
-// cannot read because the dead read no stones. So the cache demands the one
-// thing the mere makes expensive: you must stand there in BOTH worlds, which
-// means committing exactly one of its two dead and no more. Nothing about it
-// is a side room behind a signature-gated door — it is a room that only one of
-// the two worlds contains, marked only in the one that does not.
-//
-// ─────────────────────────────────────────────────────────
-// THE HAZARD, AND WHY THIS PLANET NEEDS NO VALVE
-// ─────────────────────────────────────────────────────────
-// Death as a puzzle verb is a stranding machine: shut the last ghost crossing
-// out of a barrow while a body is standing in it and the run is over. Ice
-// (120/122), Mud (1200/1284), Dust (319/396) and Plant (142/448) all measured
-// as stranding machines and all bought their way out with a costly full reset.
-// Requia measures **0 strandable of 2,276** — and it is designed out rather
-// than paid for, by two geometric rules that this file's data satisfies by
-// construction and test/planet_dungeon_spirit_grave_test.dart proves
-// exhaustively:
-//
-//   RULE 1 — THE GHOST SPINE. The crossings gate→urn (both), urn→veil (the
-//     lych road) and veil→cairn (the drowned cut) can never be told, so the
-//     set {lych_gate, urn, veil, cairn, mourners_walk, wraithord_grave} is
-//     connected in the ghost world in EVERY world state, and it carries a
-//     lych-stone (three of them).
-//   RULE 2 — EVERY REVENANT IS TOLD FROM THE SPINE. All six of them are heard
-//     out from the urn, the veil or the cairn. A body therefore CANNOT be
-//     standing in the pendant barrow whose last ghost crossing it is closing —
-//     it had to walk out of that barrow to do the telling. So the ghost world
-//     can only ever shrink away from where you are not.
-//
-// The living world needs no rule at all: telling and freezing only ever ADD
-// living crossings, so a living body can always retrace the crossing it
-// arrived by. And a lych-stone is a one-way door DOWN from anywhere (dying is
-// easy; it is the only easy thing here), so from any living position the ghost
-// spine — and with it a wake — is one press away.
-//
-// Break either rule and the planet becomes what its neighbours were: moving
-// every telling to the pendant side of its own crossing measures **54 of the
-// 369** states such a run can still reach — the counterfactual the test pins,
-// so the two rules cannot be quietly edited out later.
-//
-// VISUAL GRAMMAR (§5.5): nothing here reads like Dust's mound heights, Water's
-// tide line or Plant's re-scaled furniture. The two worlds are one drawing in
-// two INKS — the living grave is warm stone, moss and lamp-black on solid
-// fills; the ghost grave is the same geometry re-struck in cold outline, every
-// surface hollow, every edge doubled a half-pixel out of true, and the party's
-// own bodies drawn as their own outlines. Passing over is a single hard
-// cross-fade between the two inks with no dissolve, no wipe and no blur — the
-// grave does not transform, it is simply re-inked.
+//     memorial ── bell_court ── bearers_court ── vigil_chapel ── wraithord_vigil
+//     (entrance)   (Star 1,       (Star 2)    ╲     (the rite)       (Star 3)
+//                   the niche)                 quiet_alcove (the maxim)
 
 import 'dart:ui';
 
@@ -164,1002 +31,613 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 // THE TWO WORLDS
 // ─────────────────────────────────────────────────────────
 
-/// The two bodies the grave-field can be walked in. There is no third state
-/// and no in-between: a crossing either takes you or it does not, so the
-/// player reads the map without arithmetic.
-enum GraveWorld {
-  /// Warm. Salt and consecrated ground carry you; fallen arches do not.
-  living,
+/// Which world the party is standing in. The same rooms, the same things in
+/// the same places — the past, with its people at work, or the present.
+enum FuneralWorld { living, ghost }
 
-  /// Cold. You are walking as your own echo. Every road that ever stood here
-  /// still does — and every road the living keep is shut against you.
-  ghost,
-}
-
-GraveWorld otherWorld(GraveWorld w) =>
-    w == GraveWorld.living ? GraveWorld.ghost : GraveWorld.living;
-
-String worldWord(GraveWorld w) => w == GraveWorld.living ? 'living' : 'ghost';
+FuneralWorld otherFuneralWorld(FuneralWorld w) =>
+    w == FuneralWorld.living ? FuneralWorld.ghost : FuneralWorld.living;
 
 // ─────────────────────────────────────────────────────────
-// CROSSINGS — the map, in both worlds at once
+// THE LOOP — urns, crystals, sockets
 // ─────────────────────────────────────────────────────────
 
-/// Which world a crossing is cut for.
-enum GraveCut {
-  /// Frame stone — the gate arch, the rood, the guardian's door. Either body.
-  both,
+/// The two elements that crystallize ashes. Dungeon recipe table:
+/// **Dust + Spirit → Crystal**, and it works every time.
+const List<String> kFuneralCrystalPair = ['Dust', 'Spirit'];
 
-  /// Salted, consecrated, or simply too much in the world. The dead may not
-  /// walk it.
-  livingOnly,
-
-  /// A road that fell or drowned. Only its memory stands, and only the dead
-  /// can stand on a memory.
-  ghostOnly,
-
-  /// Undecided. A revenant is still dying at it: ghost-open while restless,
-  /// living-open once its death is finished. See [kGraveRevenants].
-  revenant,
+/// True when [elements] (the bodies standing at an urn) hold the pair. A
+/// third body never spoils it.
+bool funeralPairReady(Iterable<String> elements) {
+  final have = elements.toSet();
+  return have.contains('Dust') &&
+      have.contains('Spirit') &&
+      dungeonRecipeResult('Dust', 'Spirit') == 'Crystal';
 }
 
-/// One passage of the grave-field, authored once and read from both ends.
-///
-/// The layout test enforces that EVERY door has a reciprocal door, statically
-/// (docs §5.5 keeps that invariant for the whole game, and Crystal's keep and
-/// Plant's crypt both live inside it). A map whose connectivity changes at
-/// runtime lives inside that rule the only honest way: **the doors are
-/// constant and reciprocal, and what varies is whether the body standing at
-/// one can use it.** No door on this planet is ever created or destroyed.
-class GraveCrossing {
+/// An urn of somebody's ashes and the socket its crystal belongs in.
+class FuneralUrn {
   final String id;
-  final String from;
-  final String to;
-  final GraveCut cut;
 
-  /// The revenant that has not decided this crossing yet, or null for a
-  /// permanent one. Non-null exactly when [cut] is [GraveCut.revenant].
-  final String? revenantId;
+  /// Whose ashes: shown in the crystal and on the chart.
+  final String whose;
 
-  /// True for the drowned cut — the one crossing the cold can settle. Freezing
-  /// it makes it [GraveCut.both] for the rest of the run (§6.14's
-  /// **Spirit+Water→Ice**, "freeze ghost bridges"). Additive and therefore
-  /// harmless to the no-strand proof: it only ever GIVES the living a road.
-  final bool freezable;
+  /// The socket this memory fits, and only this one.
+  final String socketId;
 
-  /// One clause naming the passage, for the blocked line and the render.
-  final String look;
-
-  const GraveCrossing({
+  const FuneralUrn({
     required this.id,
-    required this.from,
-    required this.to,
-    required this.cut,
-    required this.look,
-    this.revenantId,
-    this.freezable = false,
-  });
-
-  bool joins(String a, String b) =>
-      (from == a && to == b) || (from == b && to == a);
-}
-
-/// The whole grave-field as passages. Thirteen, and every room pair appears
-/// exactly once — so a door and a crossing are one-to-one and the proof can
-/// never drift from the doors the player actually meets (Plant's precedent,
-/// pinned in the test).
-const List<GraveCrossing> kGraveCrossings = [
-  // ── frame stone: cut in both worlds, never decided ────
-  GraveCrossing(
-    id: 'x_gate',
-    from: 'lych_gate',
-    to: 'barrow_urn',
-    cut: GraveCut.both,
-    look: 'the lych gate\'s arch',
-  ),
-  GraveCrossing(
-    id: 'x_rood',
-    from: 'barrow_cairn',
-    to: 'mourners_walk',
-    cut: GraveCut.both,
-    look: 'the rood door',
-  ),
-  GraveCrossing(
-    id: 'x_choir',
-    from: 'mourners_walk',
-    to: 'wraithord_grave',
-    cut: GraveCut.both,
-    look: 'the last door',
-  ),
-
-  // ── THE GHOST SPINE (no-strand RULE 1) ────────────────
-  // Two cuts across the round that the living have never been able to take.
-  // They can never be told, so the ghost world is connected across the whole
-  // spine in every state the run can reach.
-  GraveCrossing(
-    id: 'x_lychroad',
-    from: 'barrow_urn',
-    to: 'barrow_veil',
-    cut: GraveCut.ghostOnly,
-    look: 'the lych road. Worn to nothing, and still walked',
-  ),
-  GraveCrossing(
-    id: 'x_drowned',
-    from: 'barrow_veil',
-    to: 'barrow_cairn',
-    cut: GraveCut.ghostOnly,
-    freezable: true,
-    look: 'the drowned cut. Black water, and a road under it',
-  ),
-
-  // ── the salted step: the living keep it, the dead cannot
-  GraveCrossing(
-    id: 'x_salt',
-    from: 'barrow_ash',
-    to: 'barrow_watch',
-    cut: GraveCut.livingOnly,
-    look: 'the salted step',
-  ),
-
-  // ── THE VAULT (§5.5) ──────────────────────────────────
-  // In the living world the mere's north wall is unbroken. There is no door
-  // there to be shut — there is no door there.
-  GraveCrossing(
-    id: 'x_hollow',
-    from: 'barrow_mere',
-    to: 'hollow_grave',
-    cut: GraveCut.ghostOnly,
-    look: 'a grave-mouth that the living wall does not have',
-  ),
-
-  // ── the six undecided crossings ───────────────────────
-  GraveCrossing(
-    id: 'x_bell',
-    from: 'barrow_urn',
-    to: 'barrow_bell',
-    cut: GraveCut.revenant,
-    revenantId: 'r_bellman',
-    look: 'the bell walk',
-  ),
-  GraveCrossing(
-    id: 'x_veil',
-    from: 'barrow_bell',
-    to: 'barrow_veil',
-    cut: GraveCut.revenant,
-    revenantId: 'r_chandler',
-    look: 'the veil steps',
-  ),
-  GraveCrossing(
-    id: 'x_mere',
-    from: 'barrow_veil',
-    to: 'barrow_mere',
-    cut: GraveCut.revenant,
-    revenantId: 'r_keener',
-    look: 'the mere path',
-  ),
-  GraveCrossing(
-    id: 'x_sill',
-    from: 'barrow_mere',
-    to: 'barrow_cairn',
-    cut: GraveCut.revenant,
-    revenantId: 'r_sexton',
-    look: 'the sill between mere and cairn',
-  ),
-  GraveCrossing(
-    id: 'x_ash',
-    from: 'barrow_cairn',
-    to: 'barrow_ash',
-    cut: GraveCut.revenant,
-    revenantId: 'r_wright',
-    look: 'the ash gate',
-  ),
-  GraveCrossing(
-    id: 'x_watch',
-    from: 'barrow_watch',
-    to: 'barrow_urn',
-    cut: GraveCut.revenant,
-    revenantId: 'r_watcher',
-    look: 'the watch stair',
-  ),
-];
-
-GraveCrossing? graveCrossingBetween(String a, String b) {
-  for (final x in kGraveCrossings) {
-    if (x.joins(a, b)) return x;
-  }
-  return null;
-}
-
-GraveCrossing? graveCrossingById(String id) {
-  for (final x in kGraveCrossings) {
-    if (x.id == id) return x;
-  }
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────
-// THE DEAD
-// ─────────────────────────────────────────────────────────
-
-/// One of the grave's own, still dying at the crossing that killed them.
-///
-/// [toldAt] is load-bearing, not flavour: it is no-strand RULE 2. Every
-/// revenant is heard out from a barrow on the permanent ghost spine, which is
-/// why a body can never be standing in the pendant barrow whose last ghost
-/// crossing it is closing. See the file header, and the counterfactual the
-/// test measures against it.
-class Revenant {
-  final String id;
-  final String name;
-
-  /// The crossing this death has not decided yet.
-  final String crossingId;
-
-  /// The barrow you must be standing in — DEAD — to hear it out. Always on
-  /// the ghost spine.
-  final String toldAt;
-
-  /// Where in [toldAt] the dead one is, for the verb's reach and the render.
-  final Offset seat;
-
-  /// How it reads when you find it, and how it reads once it is finished.
-  final String restlessLook;
-  final String restedLook;
-
-  const Revenant({
-    required this.id,
-    required this.name,
-    required this.crossingId,
-    required this.toldAt,
-    required this.seat,
-    required this.restlessLook,
-    required this.restedLook,
+    required this.whose,
+    required this.socketId,
   });
 }
 
-/// Requia's six. Told from the urn (2), the veil (2) and the cairn (2) — the
-/// three spine barrows of the field — which is the whole no-strand argument.
-const List<Revenant> kGraveRevenants = [
-  Revenant(
-    id: 'r_bellman',
-    name: 'the Bellman',
-    crossingId: 'x_bell',
-    toldAt: 'barrow_urn',
-    seat: Offset(400, 120),
-    restlessLook: 'a shape by the urn, ringing a bell that makes no sound',
-    restedLook: 'a bell laid down on its side, and quiet',
-  ),
-  Revenant(
-    id: 'r_watcher',
-    name: 'the Watcher',
-    crossingId: 'x_watch',
-    toldAt: 'barrow_urn',
-    seat: Offset(120, 280),
-    restlessLook: 'somebody at the stair-head, still looking the wrong way',
-    restedLook: 'a hollow in the step where somebody sat a long time',
-  ),
-  Revenant(
-    id: 'r_chandler',
-    name: 'the Chandler',
-    crossingId: 'x_veil',
-    toldAt: 'barrow_veil',
-    seat: Offset(110, 130),
-    restlessLook: 'a candle-maker guarding a light that went out first',
-    restedLook: 'a stub of tallow, cold and finished',
-  ),
-  Revenant(
-    id: 'r_keener',
-    name: 'the Keener',
-    crossingId: 'x_mere',
-    toldAt: 'barrow_veil',
-    seat: Offset(410, 290),
-    restlessLook:
-        'a mourner keening for a funeral that never reached the '
-        'water',
-    restedLook: 'a wet mark on the flags, drying',
-  ),
-  Revenant(
-    id: 'r_sexton',
-    name: 'the Sexton',
-    crossingId: 'x_sill',
-    toldAt: 'barrow_cairn',
-    seat: Offset(130, 320),
-    restlessLook:
-        'a grave-digger leaning on a spade in a hole he never '
-        'finished',
-    restedLook: 'a spade stood upright in filled ground',
-  ),
-  Revenant(
-    id: 'r_wright',
-    name: 'the Cairnwright',
-    crossingId: 'x_ash',
-    toldAt: 'barrow_cairn',
-    seat: Offset(440, 140),
-    restlessLook: 'a stone-setter holding up a lintel that fell on him',
-    restedLook: 'a lintel set square at last, and nobody under it',
-  ),
+const List<FuneralUrn> kFuneralUrns = [
+  FuneralUrn(id: 'urn_keeper', whose: 'the keeper', socketId: 'sk_treadle'),
+  FuneralUrn(id: 'urn_bearers', whose: 'the bearers', socketId: 'sk_doorstep'),
+  FuneralUrn(id: 'urn_mourners', whose: 'the mourners', socketId: 'sk_bier'),
+  // THE EMPTY URN — the maxim. Nobody's ashes are in it until yours are.
+  FuneralUrn(id: 'urn_empty', whose: 'yours', socketId: 'sk_name'),
 ];
 
-Revenant? graveRevenantById(String id) {
-  for (final r in kGraveRevenants) {
-    if (r.id == id) return r;
+FuneralUrn? funeralUrnById(String id) {
+  for (final u in kFuneralUrns) {
+    if (u.id == id) return u;
   }
   return null;
 }
 
-List<Revenant> graveRevenantsIn(String roomId) => [
-  for (final r in kGraveRevenants)
-    if (r.toldAt == roomId) r,
+// ─────────────────────────────────────────────────────────
+// STAR 2 — THE BEARERS' FLAGS
+// ─────────────────────────────────────────────────────────
+
+/// The court is three flags by three: column 0..2 west→east, row 0..2
+/// north→south, index = row * 3 + column.
+const int kBearerCols = 3;
+
+/// The bearers' route in the past: four flags, two turns. They come in off
+/// the west doorstep onto (0,1), go east to (1,1), north to (1,0), east to
+/// (2,0), and out of the court's east door to the chapel.
+const List<int> kBearerRoute = [3, 4, 1, 2];
+
+/// THE BEAMS in the present (2026-09-28, deepened): a carved beam under the
+/// floor joins two flags, and pressing a flag flips it AND every flag its
+/// beams run to. Both pairs of the route are tied — (3,4) and (1,2) — so the
+/// route can never be laid by pressing route flags alone: an off-route flag
+/// whose beam reaches into one of them is the only way to break a tie. Flag 0
+/// reaches both; flag 5 reaches (1,2) alone; (6,7) is a beam that goes
+/// nowhere useful. Two shortest solutions from the start, three presses
+/// each, and copying the route (pressing its tipped flags) always fails.
+/// Proved exhaustively in planet_dungeon_spirit_funeral_test.dart.
+const List<(int, int)> kBearerBeams = [
+  (0, 1),
+  (0, 3),
+  (1, 2),
+  (2, 5),
+  (3, 4),
+  (6, 7),
 ];
 
-// ─────────────────────────────────────────────────────────
-// THE PHANTOM HOURGLASS (Star 1)
-// ─────────────────────────────────────────────────────────
-// §6.14: *a room shows half a sigil, the minimap the other half — stamp at the
-// right spot.* Requia's two worlds ARE the two halves, which is the only way
-// this star belongs to this planet rather than to any planet with a map:
-//
-//   · the LIVING half is cut in each barrow's own floor — a bearing on the
-//     grave-field's twelve-point ring, readable only by a hand warm enough to
-//     touch a stone.
-//   · the GHOST half is the field seen from above, the way the dead carry it:
-//     one great arc struck across the whole round on a bearing of its own.
-//     It is legible from any barrow, in the ghost world, and from nowhere
-//     else — the dead do not need to be near a thing to see it.
-//
-// The sigil CLOSES where the two bearings make the ring whole, and the mark
-// only takes from a living hand (the dead leave no marks). So the star's answer
-// exists in neither world by itself — it is a fact about the pair — and its
-// cost is the planet's own trade: to stamp the mere you must have told one of
-// its dead.
-//
-// Exactly one barrow closes the ring. Proved by exhaustion in the test rather
-// than asserted here (Crystal's kRoseHue precedent).
+/// How the court lies when the run begins: one route flag level, three
+/// tipped; the off-route flags as time left them.
+const Set<int> kBearerStartLevel = {3, 6, 8};
 
-/// The bearing of the great arc the dead see over the whole field.
-const int kGraveFieldBearing = 7;
+/// Every flag a press on [flag] flips besides itself.
+List<int> bearerLinked(int flag) => [
+  for (final (a, b) in kBearerBeams)
+    if (a == flag) b else if (b == flag) a,
+];
 
-/// The bearing cut in each barrow's living floor. Twelve-point ring.
-const Map<String, int> kBarrowSigilHalf = {
-  'barrow_urn': 1,
-  'barrow_bell': 3,
-  'barrow_veil': 9,
-  'barrow_mere': 5,
-  'barrow_cairn': 2,
-  'barrow_ash': 8,
-  'barrow_watch': 11,
+/// The fewest presses that lay the route from [level], or null if none do.
+/// Pure and small (512 press-sets): the tests and nothing else use it.
+List<int>? bearerSolveFrom(Set<int> level) {
+  const n = kBearerCols * kBearerCols;
+  List<int>? best;
+  for (var x = 0; x < 1 << n; x++) {
+    final presses = [
+      for (var f = 0; f < n; f++)
+        if (x >> f & 1 == 1) f,
+    ];
+    if (best != null && presses.length >= best.length) continue;
+    final flags = BearerFlags()
+      ..level.clear()
+      ..level.addAll(level);
+    for (final f in presses) {
+      flags.press(f);
+    }
+    if (flags.routeClear) best = presses;
+  }
+  return best;
+}
+
+/// The present's flags. Pure: the engine, the renderer and the tests all ask
+/// this one object.
+class BearerFlags {
+  final Set<int> level = {...kBearerStartLevel};
+
+  void reset() {
+    level
+      ..clear()
+      ..addAll(kBearerStartLevel);
+  }
+
+  bool isLevel(int f) => level.contains(f);
+
+  /// Press a flag: it flips, and so does every flag its beams run to.
+  void press(int f) {
+    for (final g in [f, ...bearerLinked(f)]) {
+      if (!level.remove(g)) level.add(g);
+    }
+  }
+
+  /// The first flag on the route that is tipped, or null when the whole
+  /// remembered route lies level.
+  int? get firstTipped {
+    for (final f in kBearerRoute) {
+      if (!level.contains(f)) return f;
+    }
+    return null;
+  }
+
+  bool get routeClear => firstTipped == null;
+
+  /// How many of the route's flags are tipped (the third hint tier).
+  int get tippedOnRoute => kBearerRoute.where((f) => !level.contains(f)).length;
+
+  /// Lay the route level (a banked star restores the finished court).
+  void settle() => level.addAll(kBearerRoute);
+}
+
+// ─────────────────────────────────────────────────────────
+// THE RITE — THE MOURNERS' STONES
+// ─────────────────────────────────────────────────────────
+
+/// The five kneeling stones round the bier, and which mourner knelt at which
+/// in the past. Each mourner glows its element's colour, and only that
+/// element may take its place: the rite reads WHO knelt where, not just
+/// where — sixty ways to place three, and one of them is the funeral.
+const Map<int, String> kMournerAt = {0: 'Dust', 2: 'Blood', 3: 'Spirit'};
+
+/// The stones the mourners used.
+Set<int> get kMournerStones => kMournerAt.keys.toSet();
+
+/// THE MAXIM'S SIX KNEELERS, round the empty urn. The west one (index 3)
+/// is the one in front of the alcove's memorial stone.
+const List<Offset> kAlcoveKneelers = [
+  Offset(490, 320),
+  Offset(425, 408),
+  Offset(295, 408),
+  Offset(228, 320),
+  Offset(295, 232),
+  Offset(425, 232),
+];
+
+/// Which of [kneelers] are held, by living bodies at [living] or by echoes
+/// at [echoes], within [reach]. A kneeler held twice counts once.
+Set<int> kneelersHeld(
+  List<Offset> kneelers,
+  Iterable<Offset> living,
+  Iterable<Offset> echoes, {
+  double reach = 44,
+}) => {
+  for (var i = 0; i < kneelers.length; i++)
+    if ([...living, ...echoes].any((p) => (p - kneelers[i]).distance <= reach))
+      i,
 };
 
-/// Does [roomId]'s floor half close the ring with the field's arc?
-bool graveSigilCloses(String roomId) {
-  final half = kBarrowSigilHalf[roomId];
-  if (half == null) return false;
-  return (half + kGraveFieldBearing) % 12 == 0;
-}
-
-/// The one barrow the mark takes in, computed rather than typed so the data
-/// and the answer can never disagree.
-String get kGraveSigilBarrow {
-  for (final id in kBarrowSigilHalf.keys) {
-    if (graveSigilCloses(id)) return id;
+/// Given the stone each of the party kneels at (null = none) and its
+/// element, how many are not where THEIR mourner knelt? Zero, with all three
+/// placed, is the rite.
+int mournersMisplaced(List<(int?, String)> kneeling) {
+  var wrong = 0;
+  for (final (s, element) in kneeling) {
+    if (s == null || kMournerAt[s] != element) wrong++;
   }
-  return '';
+  return wrong;
 }
 
 // ─────────────────────────────────────────────────────────
-// THE LIVE STATE — pure rules, no Flutter, no engine
+// THE RUN
 // ─────────────────────────────────────────────────────────
 
-/// Everything Requia tracks for one run.
-///
-/// Deliberately tiny: this planet's whole difficulty is a REACHABILITY
-/// question over (room × world × commitments), so the state is exactly the
-/// three things reachability depends on — which world you are in, which deaths
-/// are finished, and whether the cut is frozen — plus the per-star tallies.
-class EchoGraveField {
-  EchoGraveField() {
-    reset();
-  }
+/// Everything one Requia run decides. Pure; the engine owns the clocks.
+class FuneralRun {
+  FuneralWorld world = FuneralWorld.living;
 
-  /// The body the party is walking in. Party-wide: three creatures share one
-  /// grave and one world.
-  GraveWorld world = GraveWorld.living;
+  /// Urns whose crystal has been made (it stays made for the run).
+  final Set<String> crystals = {};
 
-  /// Deaths that have been finished. Irreversible for the run — a death that
-  /// has been heard out does not resume.
-  final Set<String> rested = {};
+  /// The crystal the party is carrying, or null. One at a time; switching
+  /// creatures never drops it.
+  String? held;
 
-  /// The drowned cut, settled to ice (**Spirit+Water→Ice**, §6.14). Permanent,
-  /// and purely additive: it gives the living a road and takes nothing.
-  bool cutFrozen = false;
+  /// Sockets with their crystal in.
+  final Set<String> fitted = {};
 
-  /// Star 1: the mark, and how many places it has been tried. A refused stamp
-  /// costs nothing but the walk — this is a deduction, not a trap.
-  bool sigilStamped = false;
-  int stampsTried = 0;
+  /// Star 1: the bell has rung and the keeper rests.
+  bool bellRung = false;
 
-  /// How many times the party has passed over. Not a budget (nothing runs out
-  /// — that seat is Steam's); a readout, and the count the grave's company is
-  /// drawn off.
+  /// Star 2's court, and whether the bier has reached the chapel.
+  final BearerFlags flags = BearerFlags();
+  bool bierArrived = false;
+
+  /// The rite: the mourners have carried the bier through.
+  bool riteDone = false;
+
+  /// The vault: the keeper's niche has been cleared of dust.
+  bool nicheCleared = false;
+
+  /// THE MAXIM — the alcove's recorded past. Every other room's past is
+  /// somebody else's; the quiet alcove's is empty, so it keeps YOURS: each
+  /// time Spirit passes into the past there, where the party stands is kept
+  /// as kneeling echoes (position and element), replacing the last record.
+  final List<(Offset, String)> echoes = [];
+
+  /// The empty urn has filled — with your ashes — once all six of its
+  /// kneelers were held at once.
+  bool urnFilled = false;
+
   int passings = 0;
 
-  /// The grave-field as its dead left it: nobody finished, nothing frozen, and
-  /// the party still warm.
+  bool get isGhost => world == FuneralWorld.ghost;
+
   void reset() {
-    world = GraveWorld.living;
-    rested.clear();
-    cutFrozen = false;
-    sigilStamped = false;
-    stampsTried = 0;
+    world = FuneralWorld.living;
+    crystals.clear();
+    held = null;
+    fitted.clear();
+    bellRung = false;
+    flags.reset();
+    bierArrived = false;
+    riteDone = false;
+    nicheCleared = false;
+    echoes.clear();
+    urnFilled = false;
     passings = 0;
   }
 
-  // ── The two worlds ────────────────────────────────────
-
-  bool get isGhost => world == GraveWorld.ghost;
-
-  /// THE PASSING. Free, both ways, unlimited — at a lych-stone only. Dying is
-  /// easy here; it is deliberately the only easy thing, because the planet's
-  /// difficulty must live in the COMMITMENTS and never in the toggle.
   void passOver() {
-    world = otherWorld(world);
+    world = otherFuneralWorld(world);
     passings++;
   }
 
-  // ── The dead ──────────────────────────────────────────
+  /// Can this urn be crystallized now? Made crystals never are again; the
+  /// empty urn has nothing in it until the six-fold vigil fills it.
+  bool canCrystallize(String urnId) {
+    if (crystals.contains(urnId)) return false;
+    if (urnId == 'urn_empty') return urnFilled;
+    return true;
+  }
 
-  bool isRested(String revenantId) => rested.contains(revenantId);
-
-  bool canTell(String revenantId) => !rested.contains(revenantId);
-
-  /// Finish a death. Returns false when it was already finished.
-  bool tell(String revenantId) => rested.add(revenantId);
-
-  int get told => rested.length;
-
-  // ── The map, in the world you are in ──────────────────
-
-  /// Is [x] walkable by a LIVING body right now?
-  ///
-  /// Note what this never does: close. Telling and freezing only ever ADD to
-  /// this set, which is half of why the living world can never strand you.
-  bool openToLiving(GraveCrossing x) => switch (x.cut) {
-    GraveCut.both => true,
-    GraveCut.livingOnly => true,
-    GraveCut.ghostOnly => x.freezable && cutFrozen,
-    GraveCut.revenant => isRested(x.revenantId!),
-  };
-
-  /// Is [x] walkable by a DEAD body right now?
-  ///
-  /// A restless dead is holding its lintel up; a finished one has let go.
-  bool openToGhost(GraveCrossing x) => switch (x.cut) {
-    GraveCut.both => true,
-    GraveCut.livingOnly => false,
-    GraveCut.ghostOnly => true,
-    GraveCut.revenant => !isRested(x.revenantId!),
-  };
-
-  bool openTo(GraveCrossing x, GraveWorld w) =>
-      w == GraveWorld.living ? openToLiving(x) : openToGhost(x);
-
-  /// Walkable by the body you are in right now.
-  bool crossingOpen(GraveCrossing x) => openTo(x, world);
-
-  /// Every crossing is walkable in exactly one world at any moment — except
-  /// the frame stone (both) and a frozen cut (both). THE POINT: nothing is
-  /// ever LOST from this map. A telling moves a crossing from one world to the
-  /// other; it never deletes it. Asserted in the test.
-  bool crossableSomewhere(GraveCrossing x) => openToLiving(x) || openToGhost(x);
-
-  // ── Star 0 · THE COLD ROAD ────────────────────────────
-
-  /// Requia's first star is a fact about the WORLD STATE, not about a room:
-  /// *can the grave's own funeral leave?* The bier at the lych gate has stood
-  /// unlifted since the cut drowned, because no LIVING road has run from the
-  /// gate to the cairn at the head of the field. The moment one does, the
-  /// procession walks it.
-  ///
-  /// Declared on the gate (Crystal's oriel precedent) because it belongs to no
-  /// room, computed here so the engine, the renderer and the proof all ask the
-  /// same question of the same code.
-  bool get coldRoadOpen => livingReach().contains('barrow_cairn');
-
-  /// Every room a living body can reach from the lych gate in this state.
-  Set<String> livingReach() => _reach('lych_gate', GraveWorld.living);
-
-  /// Every room a dead body can reach from [start].
-  Set<String> ghostReach(String start) => _reach(start, GraveWorld.ghost);
-
-  Set<String> _reach(String start, GraveWorld w) {
-    final seen = <String>{start};
-    final stack = <String>[start];
-    while (stack.isNotEmpty) {
-      final at = stack.removeLast();
-      for (final x in kGraveCrossings) {
-        if (x.from != at && x.to != at) continue;
-        if (!openTo(x, w)) continue;
-        final next = x.from == at ? x.to : x.from;
-        if (seen.add(next)) stack.add(next);
-      }
-    }
-    return seen;
+  /// A crystal sits at its urn when it is made, not carried and not fitted.
+  bool crystalAtUrn(String urnId) {
+    final u = funeralUrnById(urnId);
+    if (u == null || !crystals.contains(urnId)) return false;
+    return held != urnId && !fitted.contains(u.socketId);
   }
 }
 
 // ─────────────────────────────────────────────────────────
-// PER-ROOM GRAVE CONTENT
+// PER-ROOM CONTENT
 // ─────────────────────────────────────────────────────────
 
-/// The lych gate's declaration of the two non-guardian stars.
-///
-/// Neither belongs to a room: the Cold Road is a fact about the living
-/// crossings of the whole field, and the Hourglass is a fact about two halves
-/// of a sigil that are in different worlds. Declared once, on the gate — as
-/// Crystal declares both of its on the oriel and Mud both of its on the
-/// altar's socket.
-class GraveVigil {
-  final int roadStarIndex;
-  final int sigilStarIndex;
-
-  const GraveVigil({required this.roadStarIndex, required this.sigilStarIndex});
+/// A socket in a room: where a crystal fits and where Blood pulses it.
+class FuneralSocket {
+  final String id;
+  final Offset at;
+  const FuneralSocket(this.id, this.at);
 }
 
-/// Everything the Echo Grave puts in one room. ONE field on the shared room
-/// model (the Ice/Mud/Dust/Crystal/Plant precedent), because the field's own
-/// crossing graph is authored whole above rather than per room.
-class EchoGrave {
-  /// This room is one of the seven barrows of the round.
-  final bool barrow;
+/// Everything the Unfinished Funeral puts in one room. ONE field on the
+/// shared room model, as every planet since Ice has done.
+class FuneralRoom {
+  /// The star this room banks (null = none).
+  final int? starIndex;
 
-  /// The gate's declaration of the two non-guardian stars.
-  final GraveVigil? vigil;
+  /// Where Spirit passes the party between the two worlds.
+  final Offset? memorialStone;
 
-  /// A LYCH-STONE: the only place the party passes over. Element-only Spirit,
-  /// both directions, unlimited. Five in the dungeon, three of them in the
-  /// field — and their placement is half the no-strand proof, so they are not
-  /// scenery and must not be moved without re-running it.
-  final Offset? lychStone;
+  /// The entry rite: grave-dust drifted up the arch.
+  final Offset? drift;
 
-  /// The entry rite: the gate arch is choked with black water. Element-only
-  /// Water draws it off and the field shows.
-  final Offset? graveMouth;
+  /// This room's urn (id and place).
+  final String? urnId;
+  final Offset? urn;
 
-  /// The drowned cut's brink, where the cold can settle it. Authored in the
-  /// two rooms the cut joins.
-  final Offset? drownedBrink;
+  final FuneralSocket? socket;
 
-  /// Star 1: the sigil half cut in this barrow's living floor.
-  final Offset? sigilStone;
+  /// STAR 1 — the bell court: the bell over the gate and the lever to it.
+  final Offset? bell;
 
-  /// The rite's first half is the name stone (conduit 'A', the Spirit+MASK
-  /// gate); this is its second — the grave-lamp, element-only Crystal.
-  final Offset? graveLamp;
+  /// The vault: the keeper's niche in the west wall.
+  final Offset? niche;
 
-  /// Wraithord's own lych-stone: the fight's whole verb (§7).
-  final Offset? wraithStone;
+  /// STAR 2 — the court of nine flags: its north-west corner and one flag's
+  /// size, and the west doorstep the bier starts from.
+  final Offset? flagOrigin;
+  final double flagSize;
+  final Offset? doorstep;
 
-  /// THE UNDUG GRAVE — the Lost Maxim's PLACE (§9.6: a maxim has to be
-  /// somewhere, not a condition you satisfy). A patch of the mourners' walk
-  /// that somebody marked out and never dug: bare scored ground in the
-  /// living world, and in the cold one an open grave standing full of black
-  /// water, with the field's seventh mourner beside it and no name anywhere
-  /// on it to be told.
-  ///
-  /// Authored as its own point in its own dead corner rather than hung on
-  /// the vault or the rite, because the maxim used to share the hollow
-  /// grave with the vault cache and diluted both.
-  final Offset? undugGrave;
+  /// The court's way out to the chapel, where the bier ends.
+  final Offset? chapelDoor;
 
-  const EchoGrave({
-    this.barrow = false,
-    this.vigil,
-    this.lychStone,
-    this.graveMouth,
-    this.drownedBrink,
-    this.sigilStone,
-    this.graveLamp,
-    this.wraithStone,
-    this.undugGrave,
+  /// THE RITE — the bier and its five kneeling stones.
+  final Offset? bier;
+  final List<Offset> stones;
+
+  /// STAR 3 — the vigil chime.
+  final Offset? chime;
+
+  /// THE MAXIM — the uncut name stone.
+  final Offset? nameStone;
+
+  const FuneralRoom({
+    this.starIndex,
+    this.memorialStone,
+    this.drift,
+    this.urnId,
+    this.urn,
+    this.socket,
+    this.bell,
+    this.niche,
+    this.flagOrigin,
+    this.flagSize = 130,
+    this.doorstep,
+    this.chapelDoor,
+    this.bier,
+    this.stones = const [],
+    this.chime,
+    this.nameStone,
   });
+
+  bool get rite => bier != null;
+
+  /// The centre of flag [f] in the bearers' court.
+  Offset flagCentre(int f) {
+    final o = flagOrigin!;
+    return o +
+        Offset(
+          (f % kBearerCols + 0.5) * flagSize,
+          (f ~/ kBearerCols + 0.5) * flagSize,
+        );
+  }
+
+  Rect flagRect(int f) =>
+      Rect.fromCenter(center: flagCentre(f), width: flagSize, height: flagSize);
+
+  /// The bearers' remembered route as points: the doorstep, the four flags,
+  /// and the chapel door.
+  List<Offset> get bearerPath => [
+    doorstep!,
+    for (final f in kBearerRoute) flagCentre(f),
+    chapelDoor!,
+  ];
 }
 
 // ─────────────────────────────────────────────────────────
 // COPY
 // ─────────────────────────────────────────────────────────
 
-/// Requia's lost maxim discovery id and its verse (§6 easter eggs #14 — *stamp
-/// the minimap on your OWN position: the grave that replays is yours*).
-const String kSpiritStuffOfDreamsEggId = 'egg:spirit_stuff_of_dreams';
+/// Requia's lost maxim — THE EMPTY URN. A new id: the Undug Grave was a
+/// different secret, and a player who found it has not found this.
+const String kSpiritEmptyUrnEggId = 'egg:spirit_empty_urn';
 
 // ─────────────────────────────────────────────────────────
 // THE LAYOUT
 // ─────────────────────────────────────────────────────────
 
-/// Requia — the Echo Grave.
+const Offset _kBellGateSpawn = Offset(500, 620);
+
+/// Requia — the Unfinished Funeral.
 const DungeonLayout spiritLayout = DungeonLayout(
   element: 'Spirit',
-  entranceRoomId: 'lych_gate',
-  entranceSpawn: Offset(380, 380),
-  title: 'THE ECHO GRAVE',
-  descentTitle: 'Requia Grave',
+  entranceRoomId: 'memorial',
+  entranceSpawn: Offset(380, 420),
+  title: 'THE UNFINISHED FUNERAL',
+  descentTitle: 'Requia Unfinished Funeral',
   stars: [
     DungeonStarSpec(
-      name: 'Cold Road Star',
-      earnAnnouncement:
-          'The Cold Road Star is yours. The bier reaches the cairn',
+      name: 'Bell Star',
+      earnAnnouncement: 'The Bell Star is yours. The keeper rests',
     ),
     DungeonStarSpec(
-      name: 'Hourglass Star',
+      name: 'Bearers Star',
       earnAnnouncement:
-          'The Hourglass Star is yours. The sigil is complete',
+          'The Bearers Star is yours. The bier reaches the chapel',
     ),
-    DungeonStarSpec(name: 'Wraith Star'),
+    DungeonStarSpec(name: 'Vigil Star'),
   ],
-  // The gate arch stands full of black water until a Water hand draws it off.
-  entranceRevealDoor: DungeonDoorRef('lych_gate', 'barrow_urn'),
-  finaleDoor: DungeonDoorRef('barrow_cairn', 'mourners_walk'),
+  // The memorial's arch is drifted shut with grave-dust until Dust shifts it.
+  entranceRevealDoor: DungeonDoorRef('memorial', 'bell_court'),
+  finaleDoor: DungeonDoorRef('vigil_chapel', 'wraithord_vigil'),
   riteAnnouncement:
-      'Road and Hourglass are won. The door to the Mourners\' Walk opens',
+      'Bell and Bearers are won. The mourners are waiting in the chapel',
   riteWakeLine:
-      'The name stone answers and the lamp is lit. Wraithord is awake in its '
-      'grave',
+      'The mourners carry the bier through. Wraithord is waiting at the vigil',
   finaleSealedHint:
-      'The rood door stays shut until you have the Cold Road and Hourglass '
-      'stars',
-  guardianSealedHint:
-      'Wraithord won\'t wake until the name stone answers and the lamp is '
-      'lit',
-  mercyShrineRoomId: 'lych_gate',
-  // Ideal: Spiritmask · Waterpip · Crystalwing — hinted by VERB, never by body
-  // part (§4): the sight that pierces the hidden, what the smallest doors
-  // admit, and one the ground cannot keep.
+      'The vigil door stays shut until you have the Bell and Bearers stars',
+  guardianSealedHint: 'The bier has not been carried through',
+  mercyShrineRoomId: 'memorial',
+  // Ideal: Spiritmask · Bloodpip · Dustwing. The riddle names a family only
+  // where a gate asks for one (dungeon_riddle_naming_test).
   riddle: [
-    'Send me Spirit: nothing in me was given a name you could read;',
-    'a Water Pip, to set a mark finer than a grave-cutter\'s hand;',
-    'and Crystal, for half of my roads are only remembered.',
+    'Send me Spirit, to call back what the ashes remember;',
+    'a Blood Pip, for the last chime\'s channel is finer than a vein;',
+    'and Dust, for every one of them has gone to dust.',
   ],
+  // No recipes here, nor in any hint: which bodies make a crystal is the
+  // planet's discovery.
   primer: [
-    'This field exists in two worlds. Most roads belong to only one.',
-    'Laying a ghost to rest in the world of the dead opens its road to the '
-        'living.',
+    'A funeral here never finished.',
+    'Its people still replay it in the world of the dead.',
   ],
-  // §4 budget: ONE hard gate (the grave sigil's Water Pip). The rite's name
-  // stone was a Spirit MASK and is element-only now — the cold world is
-  // what answers there, and any Spirit hand stands in it.
-  // Superseded lines below describe the old pair:
-  // §4 budget: TWO hard gates, on two different stars and two different entry
-  // slots.
-  //
-  // §6.14 nominally hangs a SPIRITMASK gate on this planet's FIRST star (the
-  // ghost route). §4's first-descent guarantee wins and that gate is MOVED
-  // onto the rite's name stone: Star 0 — the Cold Road — is earnable by ANY
-  // trio of Spirit/Water/Crystal, because the telling and the passing are both
-  // element-only Spirit and the freeze is the planet's own braid
-  // **Spirit+Water→Ice**. Spirit's Mask keeps its §6.14 job of reading the
-  // hidden, but as tiered INSIGHT (§5.6), which is never a gate.
-  //
-  // The Crystal slot carries no hard gate — three gates would put two on one
-  // star, which §4 forbids — but it is not decoration: the grave-lamp is
-  // element-only Crystal and the braid **Crystal+Spirit→Light** is what makes
-  // a light in a place that has none.
+  // §4 budget: ONE hard gate, on Star 3. Stars 1 and 2 are element-only, so
+  // any Spirit/Blood/Dust trio can take them on a first descent.
   familyGates: [
     DungeonFamilyGate(
-      objectId: 'grave_sigil',
-      element: 'Water',
+      objectId: 'vigil_chime',
+      element: 'Blood',
       family: 'Pip',
-      hintLine: 'Only a Water Pip can set a mark this fine',
+      hintLine: 'Only a Blood Pip can ring a channel this fine',
     ),
   ],
   rooms: {
-    // ── THE LYCH GATE (entrance · mercy · the vigil) ──────
-    // The field's threshold, and the only room in Requia that is neither a
-    // barrow nor behind the rood. The grave's own bier stands here, unlifted
-    // since the cut drowned. Both non-guardian stars are declared from it.
-    'lych_gate': DungeonRoom(
-      id: 'lych_gate',
+    // ── THE MEMORIAL (entrance · mercy shrine) ────────────
+    'memorial': DungeonRoom(
+      id: 'memorial',
       bounds: Rect.fromLTWH(0, 0, 760, 520),
-      walls: [
-        Rect.fromLTWH(300, 250, 160, 30), // the bier's trestles
-      ],
       doors: [
         DungeonDoor(
           rect: Rect.fromLTWH(325, 0, 110, 24),
-          targetRoomId: 'barrow_urn',
-          targetSpawn: Offset(260, 300),
+          targetRoomId: 'bell_court',
+          targetSpawn: _kBellGateSpawn,
         ),
       ],
-      grave: EchoGrave(
-        vigil: GraveVigil(roadStarIndex: 0, sigilStarIndex: 1),
-        graveMouth: Offset(380, 90),
-        lychStone: Offset(150, 400),
+      funeral: FuneralRoom(
+        memorialStone: Offset(200, 330),
+        drift: Offset(380, 70),
       ),
     ),
 
-    // ── THE URN BARROW (spine · lych-stone · two dead) ────
-    // Where the field starts and where two of its six deaths are heard out.
-    // Permanently ghost-joined to the veil by the lych road, which is
-    // no-strand RULE 1 (see the header).
-    'barrow_urn': DungeonRoom(
-      id: 'barrow_urn',
-      bounds: Rect.fromLTWH(0, 0, 520, 400),
+    // ── THE BELL COURT (Star 1 · the keeper's niche) ──────
+    'bell_court': DungeonRoom(
+      id: 'bell_court',
+      bounds: Rect.fromLTWH(0, 0, 900, 680),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(205, 376, 110, 24),
-          targetRoomId: 'lych_gate',
-          targetSpawn: Offset(380, 130),
+          rect: Rect.fromLTWH(395, 656, 110, 24),
+          targetRoomId: 'memorial',
+          targetSpawn: Offset(380, 80),
         ),
+        // THE FUNERAL GATE, under the bell. Shut until the bell rings.
         DungeonDoor(
-          rect: Rect.fromLTWH(496, 145, 24, 110),
-          targetRoomId: 'barrow_bell',
-          targetSpawn: Offset(70, 180),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 145, 24, 110),
-          targetRoomId: 'barrow_watch',
-          targetSpawn: Offset(400, 180),
-        ),
-        // THE LYCH ROAD — ghost-only, and never decided.
-        DungeonDoor(
-          rect: Rect.fromLTWH(205, 0, 110, 24),
-          targetRoomId: 'barrow_veil',
-          targetSpawn: Offset(260, 300),
+          rect: Rect.fromLTWH(395, 0, 110, 24),
+          targetRoomId: 'bearers_court',
+          targetSpawn: Offset(500, 620),
         ),
       ],
-      grave: EchoGrave(
-        barrow: true,
-        lychStone: Offset(260, 210),
-        sigilStone: Offset(260, 320),
+      vaultCache: Offset(70, 300),
+      funeral: FuneralRoom(
+        starIndex: 0,
+        memorialStone: Offset(200, 520),
+        urnId: 'urn_keeper',
+        urn: Offset(720, 360),
+        socket: FuneralSocket('sk_treadle', Offset(610, 250)),
+        bell: Offset(450, 96),
+        niche: Offset(40, 300),
       ),
     ),
 
-    // ── THE BELL BARROW (pendant) ─────────────────────────
-    // Off the spine on both sides: the bell walk and the veil steps are both
-    // undecided. You can only ever be here as the dead while at least one of
-    // them is restless, and neither is heard out from this room — RULE 2.
-    'barrow_bell': DungeonRoom(
-      id: 'barrow_bell',
-      bounds: Rect.fromLTWH(0, 0, 460, 360),
+    // ── THE BEARERS' COURT (Star 2) ───────────────────────
+    'bearers_court': DungeonRoom(
+      id: 'bearers_court',
+      bounds: Rect.fromLTWH(0, 0, 1000, 700),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 125, 24, 110),
-          targetRoomId: 'barrow_urn',
-          targetSpawn: Offset(450, 200),
+          rect: Rect.fromLTWH(445, 676, 110, 24),
+          targetRoomId: 'bell_court',
+          targetSpawn: Offset(450, 80),
         ),
+        // The chapel door, where the bearers' walk ends. Shut until then.
         DungeonDoor(
-          rect: Rect.fromLTWH(436, 125, 24, 110),
-          targetRoomId: 'barrow_veil',
-          targetSpawn: Offset(70, 200),
+          rect: Rect.fromLTWH(976, 160, 24, 110),
+          targetRoomId: 'vigil_chapel',
+          targetSpawn: Offset(80, 320),
+        ),
+        // The quiet alcove: a dead end nobody's funeral uses.
+        DungeonDoor(
+          rect: Rect.fromLTWH(0, 560, 24, 110),
+          targetRoomId: 'quiet_alcove',
+          targetSpawn: Offset(680, 280),
         ),
       ],
-      grave: EchoGrave(barrow: true, sigilStone: Offset(230, 250)),
-    ),
-
-    // ── THE VEIL BARROW (spine · two dead · the cut's brink)
-    'barrow_veil': DungeonRoom(
-      id: 'barrow_veil',
-      bounds: Rect.fromLTWH(0, 0, 520, 400),
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 145, 24, 110),
-          targetRoomId: 'barrow_bell',
-          targetSpawn: Offset(400, 200),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(496, 145, 24, 110),
-          targetRoomId: 'barrow_mere',
-          targetSpawn: Offset(70, 210),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(205, 376, 110, 24),
-          targetRoomId: 'barrow_urn',
-          targetSpawn: Offset(260, 100),
-        ),
-        // THE DROWNED CUT — ghost-only until the cold settles it.
-        DungeonDoor(
-          rect: Rect.fromLTWH(205, 0, 110, 24),
-          targetRoomId: 'barrow_cairn',
-          targetSpawn: Offset(280, 330),
-        ),
-      ],
-      grave: EchoGrave(
-        barrow: true,
-        drownedBrink: Offset(260, 70),
-        sigilStone: Offset(260, 300),
+      funeral: FuneralRoom(
+        starIndex: 1,
+        memorialStone: Offset(780, 600),
+        urnId: 'urn_bearers',
+        urn: Offset(150, 470),
+        socket: FuneralSocket('sk_doorstep', Offset(230, 345)),
+        flagOrigin: Offset(320, 150),
+        doorstep: Offset(230, 345),
+        chapelDoor: Offset(940, 215),
       ),
     ),
 
-    // ── THE MERE BARROW (the planet's sharpest trade) ─────
-    // Pendant on both sides — the mere path and the sill are both undecided —
-    // and the only door onto the hollow grave is cut in the ghost world alone.
-    // The unmarked grave's MARK is the sigil stone's neighbour here, and only
-    // a living hand reads a stone (§5.5 vault trick).
-    'barrow_mere': DungeonRoom(
-      id: 'barrow_mere',
-      bounds: Rect.fromLTWH(0, 0, 560, 420),
+    // ── THE QUIET ALCOVE (the Lost Maxim) ─────────────────
+    // The only past on the planet with nobody in it — so it keeps yours.
+    // Six kneelers ring the empty urn; the party is three. The memorial
+    // stone stands right behind the west kneeler, so Spirit passing over is
+    // always kneeling there when its echo is kept.
+    'quiet_alcove': DungeonRoom(
+      id: 'quiet_alcove',
+      bounds: Rect.fromLTWH(0, 0, 760, 560),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 155, 24, 110),
-          targetRoomId: 'barrow_veil',
-          targetSpawn: Offset(450, 200),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(536, 155, 24, 110),
-          targetRoomId: 'barrow_cairn',
-          targetSpawn: Offset(70, 210),
-        ),
-        // THE HOLLOW GRAVE — there is no such door in the living wall.
-        DungeonDoor(
-          rect: Rect.fromLTWH(225, 0, 110, 24),
-          targetRoomId: 'hollow_grave',
-          targetSpawn: Offset(210, 225),
+          rect: Rect.fromLTWH(736, 225, 24, 110),
+          targetRoomId: 'bearers_court',
+          targetSpawn: Offset(80, 615),
         ),
       ],
-      grave: EchoGrave(barrow: true, sigilStone: Offset(280, 240)),
-    ),
-
-    // ── THE CAIRN BARROW (spine · lych-stone · the rood) ──
-    // The head of the field, and the Cold Road's destination. Two dead are
-    // heard out here, and the rood door onto the mourners' walk is frame
-    // stone, so the rite is never behind a world.
-    'barrow_cairn': DungeonRoom(
-      id: 'barrow_cairn',
-      bounds: Rect.fromLTWH(0, 0, 560, 440),
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 165, 24, 110),
-          targetRoomId: 'barrow_mere',
-          targetSpawn: Offset(490, 210),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(536, 165, 24, 110),
-          targetRoomId: 'barrow_ash',
-          targetSpawn: Offset(70, 180),
-        ),
-        // THE DROWNED CUT, from the north bank.
-        DungeonDoor(
-          rect: Rect.fromLTWH(225, 416, 110, 24),
-          targetRoomId: 'barrow_veil',
-          targetSpawn: Offset(260, 100),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(225, 0, 110, 24),
-          targetRoomId: 'mourners_walk',
-          targetSpawn: Offset(320, 345),
-        ),
-      ],
-      grave: EchoGrave(
-        barrow: true,
-        lychStone: Offset(280, 220),
-        drownedBrink: Offset(280, 386),
-        sigilStone: Offset(280, 90),
+      funeral: FuneralRoom(
+        memorialStone: Offset(146, 320),
+        urnId: 'urn_empty',
+        urn: Offset(360, 320),
+        socket: FuneralSocket('sk_name', Offset(360, 186)),
+        nameStone: Offset(360, 100),
+        stones: kAlcoveKneelers,
       ),
     ),
 
-    // ── THE ASH BARROW (pendant) ──────────────────────────
-    // One undecided crossing (the ash gate, heard out at the cairn) and one
-    // salted step the dead may not take.
-    'barrow_ash': DungeonRoom(
-      id: 'barrow_ash',
-      bounds: Rect.fromLTWH(0, 0, 460, 360),
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 125, 24, 110),
-          targetRoomId: 'barrow_cairn',
-          targetSpawn: Offset(490, 220),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(436, 125, 24, 110),
-          targetRoomId: 'barrow_watch',
-          targetSpawn: Offset(60, 180),
-        ),
-      ],
-      grave: EchoGrave(barrow: true, sigilStone: Offset(230, 250)),
-    ),
-
-    // ── THE WATCH BARROW (pendant) ────────────────────────
-    'barrow_watch': DungeonRoom(
-      id: 'barrow_watch',
-      bounds: Rect.fromLTWH(0, 0, 460, 360),
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 125, 24, 110),
-          targetRoomId: 'barrow_ash',
-          targetSpawn: Offset(400, 180),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(436, 125, 24, 110),
-          targetRoomId: 'barrow_urn',
-          targetSpawn: Offset(70, 200),
-        ),
-      ],
-      grave: EchoGrave(barrow: true, sigilStone: Offset(230, 250)),
-    ),
-
-    // ── THE HOLLOW GRAVE (the vault) ──────────────────────
-    // A grave that was cut and never used, and that the living world does not
-    // contain. Its one door is never blocked by anything: a pocket you walked
-    // into dead you can always walk out of dead (Plant's rim-door rule), which
-    // is what keeps the vault trick from being a trap.
-    'hollow_grave': DungeonRoom(
-      id: 'hollow_grave',
-      bounds: Rect.fromLTWH(0, 0, 420, 300),
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(155, 276, 110, 24),
-          targetRoomId: 'barrow_mere',
-          targetSpawn: Offset(280, 105),
-        ),
-      ],
-      vaultCache: Offset(210, 150),
-      grave: EchoGrave(),
-    ),
-
-    // ── THE MOURNERS' WALK (the rite) ─────────────────────
-    // Conduit A is the planet's Spirit+MASK gate — the name stone, which has
-    // never had a name on it. The grave-lamp is the rite's other half:
-    // element-only Crystal, so a party that brought no Mask meets exactly ONE
-    // refusal here rather than two (the Ice/Crystal precedent).
-    'mourners_walk': DungeonRoom(
-      id: 'mourners_walk',
-      // WIDER THAN THE RITE NEEDS (was 640). The last 260px are a dead spur
-      // that no door uses and no star wants: THE UNDUG GRAVE, and the Lost
-      // Maxim's own place (§9.6, the Steam precedent — a maxim has to be
-      // somewhere). The rite's own furniture is untouched at its old
-      // coordinates.
-      bounds: Rect.fromLTWH(0, 0, 900, 460),
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(265, 436, 110, 24),
-          targetRoomId: 'barrow_cairn',
-          targetSpawn: Offset(280, 110),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(265, 0, 110, 24),
-          targetRoomId: 'wraithord_grave',
-          targetSpawn: Offset(450, 480),
-        ),
-      ],
-      conduits: [
-        Conduit(
-          id: 'A',
-          position: Offset(190, 250),
-          // ELEMENT-ONLY. This was a Spirit MASK gate; the name stone answers
-          // the cold world itself, and any Spirit hand stands in it.
-          requireElement: 'Spirit',
-        ),
-        // Conduit 'B' is NOT authored as a Conduit: it is the grave-lamp
-        // below, an element-only Crystal object this planet's module owns and
-        // which latches `conduitEnergy['B']` itself (the Ice/Crystal
-        // precedent — authoring it family-less would make the shared channel
-        // verb step over it and the layout invariants read it as a
-        // storm-struck pylon with no storm).
-      ],
-      grave: EchoGrave(
-        graveLamp: Offset(450, 250),
-        lychStone: Offset(320, 380),
-        undugGrave: Offset(790, 240),
-      ),
-    ),
-
-    // ── WRAITHORD'S GRAVE (Star 2) ────────────────────────
-    // §7 — the guardian fights WITH the planet's rule. MYS14 walks both worlds
-    // and is only ever solid in one of them; it crosses over on its own beat.
-    // While it is in the world you are in, it can be struck and it strikes;
-    // while it is in the other, nothing you do reaches it and nothing it does
-    // reaches you. The arena's lych-stone is the only weapon in the room.
-    'wraithord_grave': DungeonRoom(
-      id: 'wraithord_grave',
+    // ── THE VIGIL CHAPEL (the rite) ───────────────────────
+    'vigil_chapel': DungeonRoom(
+      id: 'vigil_chapel',
       bounds: Rect.fromLTWH(0, 0, 900, 640),
+      walls: [
+        Rect.fromLTWH(380, 290, 140, 40), // the bier on its trestles
+      ],
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(395, 616, 110, 24),
-          targetRoomId: 'mourners_walk',
-          targetSpawn: Offset(320, 115),
+          rect: Rect.fromLTWH(0, 265, 24, 110),
+          targetRoomId: 'bearers_court',
+          targetSpawn: Offset(900, 215),
+        ),
+        DungeonDoor(
+          rect: Rect.fromLTWH(395, 0, 110, 24),
+          targetRoomId: 'wraithord_vigil',
+          targetSpawn: Offset(480, 620),
+        ),
+      ],
+      funeral: FuneralRoom(
+        memorialStone: Offset(760, 540),
+        urnId: 'urn_mourners',
+        urn: Offset(150, 520),
+        socket: FuneralSocket('sk_bier', Offset(450, 262)),
+        bier: Offset(450, 310),
+        stones: [
+          Offset(260, 220),
+          Offset(270, 420),
+          Offset(450, 470),
+          Offset(630, 420),
+          Offset(640, 220),
+        ],
+      ),
+    ),
+
+    // ── WRAITHORD'S VIGIL (Star 3) ────────────────────────
+    // §7: the guardian fights WITH the planet's rule. Its shadow shields it;
+    // a Blood pulse at the warm chime rings the remembered note and parts it.
+    'wraithord_vigil': DungeonRoom(
+      id: 'wraithord_vigil',
+      bounds: Rect.fromLTWH(0, 0, 960, 700),
+      doors: [
+        DungeonDoor(
+          rect: Rect.fromLTWH(425, 676, 110, 24),
+          targetRoomId: 'vigil_chapel',
+          targetSpawn: Offset(450, 80),
         ),
       ],
       guardian: GuardianNode(
-        position: Offset(450, 300),
+        position: Offset(480, 290),
         starIndex: 2,
         encounter: GuardianEncounterRequirement(
           element: 'Spirit',
@@ -1168,10 +646,7 @@ const DungeonLayout spiritLayout = DungeonLayout(
           canDefeat: true,
         ),
       ),
-      grave: EchoGrave(
-        wraithStone: Offset(450, 540),
-        lychStone: Offset(450, 540),
-      ),
+      funeral: FuneralRoom(chime: Offset(190, 520)),
     ),
   },
 );

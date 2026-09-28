@@ -155,7 +155,7 @@ const Map<String, DungeonSkyConfig> kDungeonSkyConfigs = {
     flowSpeed: 0.5,
     seed: 86.0,
   ),
-  // Plant (Verdant Crypt) — canopy dapple, green-gold shafts, pollen.
+  // Plant (the Conservatory) — glasshouse dapple, green-gold shafts, pollen.
   'Plant': DungeonSkyConfig(
     colorA: Color(0xFF08120A), // loam dark
     colorB: Color(0xFF2F6B34), // leaf green

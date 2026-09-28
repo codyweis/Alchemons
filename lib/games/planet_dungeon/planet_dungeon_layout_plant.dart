@@ -1,1180 +1,881 @@
 // lib/games/planet_dungeon/planet_dungeon_layout_plant.dart
 //
-// VERDANTHOS — the Verdant Crypt. Plant's authored layout, its pure rules, and
+// VERDANTHOS — THE CONSERVATORY. Plant's authored layout, its pure rules, and
 // the puzzle DATA its `part of planet_dungeon_game.dart` module reasons about.
+// Design: docs/dungeons.md §9.20 (2026-09-27; supersedes the Verdant Crypt).
 //
-// TOPOLOGY (docs/dungeons.md §5.5, structural assignment table): **NESTED
-// SCALES — the same map at tiny and huge, overlaid.** There is no hub, there
-// are no wings, and — this is the point — there is only ONE set of rooms. The
-// crypt is a single funerary garden grown so old that its plants are its
-// architecture. What changes is not the world but the BODY looking at it:
+//     ── the Conservatory ─────────────────────────────
+//                    botanica_heart          (Star 3)
+//                          ╵ (sealed until the rite)
+//                    rootbound_door          (the rite)
+//                          ╵ (opens with the Bud Star)
+//                    trellis_garden ··hatch·· root_cellar (vault)
+//                          ╵ (the great plant opens it)
+//        hothouse ── CONSERVATORY ── shadehouse
+//                          ╵
+//                       dry_bed
 //
-//     ── the crypt, ONE geometry ───────────────────────────
-//               crypt_niche ·N·
-//        (b1 worm-run)╵    ╵(b2 grate)    ╵(b3 thread)
-//     fern_gallery ── mosswalk ── root_porch
-//         ╵tread        ╵rill        ╵(b3 flag-gap)
-//     pollen_stair ── lantern_court        islet ── gourd_hollow
-//                          ╵                 ╵chancel
-//                          └──── bloom_hall ──── botanica_heart
+// WORLD RULE — *every plant here thrives in a different climate, and yours is
+// the hand that makes it.* One verb runs the planet: the TENDING CIRCLE, a
+// leaded-glass ring on the floor. Each creature standing in it lights its
+// element's pane; with the right bodies inside, a press applies the climate
+// they make. Water alone waters; Water + Spirit make Ice; Spirit + Crystal make
+// Light. That is the whole vocabulary, and every room is one idea spoken in it.
 //
-// WORLD RULE — *the crypt never changes size; you do.*
+// NOTHING HERE CAN STRAND. There are no one-way passages, no spent resources
+// and no timers: watered soil and frozen crossings stay for the run, a healed
+// wing stays healed, and every ring is reached by plain walking. The rite's
+// sun-burst can thaw its frost bud, which costs one press to put back.
 //
-// THE INVARIANT (§5.5, Plant's claimed mechanic): **SCALE-DETERMINED
-// AUTHORSHIP.** Every passage in the crypt exists at exactly one size, or at
-// both. At HUGE a rill is a step and a fallen tread is a stair, but a crack is
-// a hairline. At TINY every crack is a corridor and every rill is a river. You
-// change size ONLY at a BOLE — a hollow seed-gall that three rooms in ten
-// carry — so the run is a route-planning problem over (room × scale), and
-// "which scale to be, where" is a DECISION, not an execution.
-//
-// This is deliberately NOT Dust's seat. Dust owns the Z-LAYER reading of
-// layer-swap: two decks of rooms, and which deck you are on is a CONSEQUENCE
-// of a load ledger. Here there is one deck and the ledger does not exist — the
-// world is constant and the OBSERVER is the variable. Nor is it Crystal's
-// permuting map (nothing here rearranges), Air's ordering (order barely
-// matters; the SIZE of arrival is everything), Fire's handed-down sequence,
-// Poison's triage, Ice's one-way descent, Steam's budget, or Mud's
-// shape-authoring.
-//
-// ── HOW A SEED BED WORKS ──────────────────────────────────
-// A BED is a place in the crypt where something can still be made to grow. It
-// takes exactly one seed, ever, and WHAT it becomes is dictated by the size of
-// the hand that plants it — which is to say, by the road that got you there:
-//
-//   • planted while HUGE — a giant's hand can only press a seed into the
-//     surface. A shallow seed comes up a CREEPER: a green thread. To you it is
-//     litter underfoot; to a small body it is a rope bridge, and it opens a
-//     TINY-only span.
-//   • planted while TINY — a small body climbs down inside the fissure and
-//     sets the seed at the root. A deep seed comes up a TRUNK: to you it is a
-//     bough you can walk, and it opens a HUGE-only span — and it **fills the
-//     fissure it grew in**, so the very crack that let you plant it is gone.
-//
-// So each product is a road for the size you were NOT, and every trunk is an
-// irreversible closure. Both edits are permanent for the run, exactly as Ice's
-// flues and Mud's hardening are.
-//
-// THE STRATEGIC QUESTION (§5.5): *which scale to be, where — and each bed's
-// product is decided by the size that could reach it, so committing a bed
-// spends the very approach that reached it.* The sharpest instance is authored
-// on purpose at the giant root (b1): its creeper is the ONLY small road to the
-// islet — which Star 1's seeding and the vault both need — and its trunk is a
-// bough into the lantern court that costs you the worm-run into the niche. One
-// seed, and you commit standing at the size that brought you.
-//
-// THE VAULT TRICK (§5.5): *visible at huge scale, enterable only at tiny.* The
-// growth altar on the islet is a stone bowl. Standing over it at huge you can
-// SEE a little door cut in its rim, with the crypt's essence bottled behind
-// it — and no hand of that size will ever open it. At tiny the same bowl is a
-// walled court and the rim door is an arch you walk through. No prior planet's
-// trick is this: Ice's is a mirror plus an unrepeatable slide, Dust's is a
-// house you bury HARDER, Poison's is the ward you abandoned, Steam's is
-// spending the whole budget, Lightning's is a dead trunk walked in the dark.
-//
-// THE ANTI-STRAND VALVE — THE WITHERING. A trunk deletes a crack, and the
-// crypt's small graph is made of cracks: this is a stranding machine of the
-// same family as Ice's flues (120/122), Mud's fen (1200/1284) and Dust's
-// mounds (319/396). Verdanthos's answer is its leaf-litter: a MUD creature at
-// any mulch pit turns it once to arm it and once more to call THE WITHERING —
-// the crypt's season turns, every vine in it sloughs to mould, every bed is
-// bare again, and the garden puts you out at its own gate at your own size. It
-// costs every road you grew. A do-over, not a shortcut. Element-only Mud and
-// authored in every room the party can stand in bar the guardian's, because a
-// valve you cannot reach is not a valve.
-//
-// Mechanic-ledger note (§5.5): Plant claims **scale shift tiny/huge** and,
-// under it, **scale-determined authorship** — the world-edit an object accepts
-// is fixed by the size you arrived at, and each product serves the other size.
-// That is what keeps it clear of Ice's treasure-or-ladder exclusivity: nothing
-// here is committed blind. You always know which product you want; the puzzle
-// is whether the crypt will let you arrive at the size that makes it.
-//
-// VISUAL GRAMMAR (§5.5): nothing here is drawn like Dust's mound heights or
-// Water's tide line. Scale is rendered as a change of REFERENCE — at tiny the
-// room's own furniture is redrawn as terrain (moss as a canopy, a flagstone
-// joint as a ravine, dew as standing water) and the party's rendered radius
-// halves; at huge the same furniture is trim. A creeper is a single hairline
-// filament with leaf nodes; a trunk is a broad barked column with a crown.
+// This file is pure: the trellis's tendril rule, the rite's root lattice and the
+// recipe table are plain functions over plain state, tested without the
+// engine (test/planet_dungeon_plant_conservatory_test.dart).
 
 import 'dart:ui';
 
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
-// ─────────────────────────────────────────────────────────
-// SCALE
-// ─────────────────────────────────────────────────────────
-
-/// The two bodies the crypt can be walked in. There is no third state and no
-/// in-between: a span either takes you or it does not, so the player can read
-/// the map without arithmetic.
-enum PlantScale {
-  /// A small body. Cracks, worm-runs and grates are corridors; rills are
-  /// rivers, treads are cliffs, and a creeper is a rope bridge.
-  tiny,
-
-  /// A body of ordinary size — the size the crypt's mourners were. Rills are
-  /// a step and treads are a stair; every small way is shut.
-  huge,
-}
-
-PlantScale otherScale(PlantScale s) =>
-    s == PlantScale.tiny ? PlantScale.huge : PlantScale.tiny;
-
-String scaleWord(PlantScale s) => s == PlantScale.tiny ? 'tiny' : 'huge';
+/// Plant's lost maxim discovery id (the screen pays 20 gold on first find).
+const String kPlantOppositeSeedEggId = 'egg:plant_opposite_seed';
 
 // ─────────────────────────────────────────────────────────
-// SEED BEDS
+// CLIMATES AND THEIR RECIPES
 // ─────────────────────────────────────────────────────────
 
-/// What a bed is holding. A bed takes ONE seed for the whole run; only the
-/// withering empties it.
-enum VineState {
-  /// Nothing planted. The bed's fissure (if it has one) is open to a small
-  /// body, and the bed will still take either seed.
-  bare,
+/// What is wrong with a room. Each has exactly one fix, and the fix is always
+/// the same pair of hands wherever it is asked for.
+enum Climate { dry, warm, dark }
 
-  /// A shallow seed, set by a huge hand. A green thread: a TINY-only road.
-  creeper,
-
-  /// A deep seed, set by a tiny hand. A bough: a HUGE-only road — and the
-  /// fissure it grew in is filled.
-  trunk,
-}
-
-/// One place in the crypt where something can still be made to grow.
-///
-/// Authored as ONE list rather than per-room so the module's reachability
-/// proof walks exactly the graph the doors are built from — the two can never
-/// disagree. (Ice's flue list and Dust's mound list are the same idea for the
-/// same reason.)
-class SeedBed {
-  final String id;
-
-  /// The room you stand in to plant it.
-  final String roomId;
-
-  /// Where the bed sits inside [roomId] (the plant verb's reach).
-  final Offset crown;
-
-  /// One clause of scenery, for the reading and the render.
-  final String look;
-
-  const SeedBed({
-    required this.id,
-    required this.roomId,
-    required this.crown,
-    required this.look,
-  });
-}
-
-/// Verdanthos's three beds. Every one starts [VineState.bare].
-const List<SeedBed> kCryptBeds = [
-  // THE GIANT ROOT. The planet's sharpest trade lives on this one bed: its
-  // creeper is the only small road to the islet (Star 1's seeding AND the
-  // vault), and its trunk is a bough into the court that fills the worm-run.
-  SeedBed(
-    id: 'b_root',
-    roomId: 'fern_gallery',
-    crown: Offset(400, 300),
-    look: 'the split under the giant root',
-  ),
-  // THE CRACKED URN, in the lantern court. No fissure of its own — it costs
-  // nothing but the other product, which is how the crypt teaches the choice
-  // before it charges for it.
-  SeedBed(
-    id: 'b_urn',
-    roomId: 'lantern_court',
-    crown: Offset(620, 380),
-    look: 'the cracked urn behind the sconce',
-  ),
-  // UNDER THE BROKEN TREAD. The repair bed: its creeper is a thread up the
-  // stair wall into the niche — the way back to the third lamp when both of
-  // the niche's cracks have been grown shut.
-  SeedBed(
-    id: 'b_tread',
-    roomId: 'pollen_stair',
-    crown: Offset(380, 280),
-    look: 'the sifted soil under the broken tread',
-  ),
-];
-
-SeedBed? cryptBedById(String id) {
-  for (final b in kCryptBeds) {
-    if (b.id == id) return b;
-  }
-  return null;
-}
-
-List<SeedBed> cryptBedsIn(String roomId) => [
-  for (final b in kCryptBeds)
-    if (b.roomId == roomId) b,
-];
-
-// ─────────────────────────────────────────────────────────
-// SPANS — the map, at both sizes at once
-// ─────────────────────────────────────────────────────────
-
-/// Which body a span takes.
-enum SpanSize {
-  /// An ordinary arch or walk. Either body passes.
-  both,
-
-  /// A crack, a worm-run, a grate, a thread. Only a small body fits.
-  tinyOnly,
-
-  /// A stride over a rill, a giant's step onto a broken tread, a bough. Only
-  /// a long leg and a heavy hand.
-  hugeOnly,
-}
-
-/// What a span needs from its bed to exist at all.
-enum SpanNeed {
-  /// The bed's own FISSURE. Open while the bed is bare or holds a creeper;
-  /// a trunk fills it, permanently.
-  fissure,
-
-  /// Exists only while the bed holds a creeper.
-  creeper,
-
-  /// Exists only while the bed holds a trunk.
-  trunk,
-}
-
-/// One passage of the crypt, authored once and read from both ends.
-///
-/// The layout test enforces that EVERY door has a reciprocal door, statically
-/// (docs §5.5 keeps that invariant for the whole game). A map whose
-/// connectivity changes at runtime lives inside that rule the only honest
-/// way: the doors are constant, and what varies is whether the body standing
-/// at one is the size the passage was cut for.
-class CryptSpan {
-  final String id;
-  final String from;
-  final String to;
-  final SpanSize size;
-
-  /// The bed this span is a product of, or null for a permanent passage.
-  final String? bedId;
-
-  /// What [bedId] must hold. Null exactly when [bedId] is null.
-  final SpanNeed? need;
-
-  /// One clause naming the passage, used by the blocked line and the render.
-  final String look;
-
-  const CryptSpan({
-    required this.id,
-    required this.from,
-    required this.to,
-    required this.size,
-    required this.look,
-    this.bedId,
-    this.need,
-  });
-
-  bool joins(String a, String b) =>
-      (from == a && to == b) || (from == b && to == a);
-}
-
-/// The whole crypt as passages. Seventeen, and every room pair appears once —
-/// so a door and a span are one-to-one and the proof cannot drift from the
-/// doors the player actually meets.
-const List<CryptSpan> kCryptSpans = [
-  // ── permanent ────────────────────────────────────────
-  CryptSpan(
-    id: 'sp_lichgate',
-    from: 'root_porch',
-    to: 'mosswalk',
-    size: SpanSize.both,
-    look: 'the lich-gate arch',
-  ),
-  CryptSpan(
-    id: 'sp_mosswalk',
-    from: 'mosswalk',
-    to: 'fern_gallery',
-    size: SpanSize.both,
-    look: 'the moss walk',
-  ),
-  CryptSpan(
-    id: 'sp_rill',
-    from: 'mosswalk',
-    to: 'islet',
-    size: SpanSize.hugeOnly,
-    look: 'the sunken rill, one stride, or a river',
-  ),
-  CryptSpan(
-    id: 'sp_tread',
-    from: 'fern_gallery',
-    to: 'pollen_stair',
-    size: SpanSize.hugeOnly,
-    look: 'the broken tread, one step down, or a cliff',
-  ),
-  CryptSpan(
-    id: 'sp_landing',
-    from: 'pollen_stair',
-    to: 'lantern_court',
-    size: SpanSize.both,
-    look: 'the stair landing',
-  ),
-  // THE VAULT (§5.5): the little door cut in the growth altar's rim. Visible
-  // from above at huge and impossible at that size; an arch at tiny. Its one
-  // door is never blocked by anything — a pocket you walked into small, you
-  // can always walk out of small (Ice's shelf rule), which is what keeps the
-  // vault trick from being a trap.
-  CryptSpan(
-    id: 'sp_rim',
-    from: 'islet',
-    to: 'gourd_hollow',
-    size: SpanSize.tinyOnly,
-    look: 'the little door in the altar\'s rim',
-  ),
-  CryptSpan(
-    id: 'sp_chancel',
-    from: 'islet',
-    to: 'bloom_hall',
-    size: SpanSize.hugeOnly,
-    look: 'the flooded chancel step',
-  ),
-  CryptSpan(
-    id: 'sp_rood',
-    from: 'bloom_hall',
-    to: 'botanica_heart',
-    size: SpanSize.both,
-    look: 'the rood door',
-  ),
-
-  // ── b_root · the giant root ──────────────────────────
-  CryptSpan(
-    id: 'sp_wormrun',
-    from: 'fern_gallery',
-    to: 'crypt_niche',
-    size: SpanSize.tinyOnly,
-    bedId: 'b_root',
-    need: SpanNeed.fissure,
-    look: 'the worm-run under the giant root',
-  ),
-  CryptSpan(
-    id: 'sp_ropebridge',
-    from: 'fern_gallery',
-    to: 'islet',
-    size: SpanSize.tinyOnly,
-    bedId: 'b_root',
-    need: SpanNeed.creeper,
-    look: 'a green thread over the rill',
-  ),
-  CryptSpan(
-    id: 'sp_rootbough',
-    from: 'fern_gallery',
-    to: 'lantern_court',
-    size: SpanSize.hugeOnly,
-    bedId: 'b_root',
-    need: SpanNeed.trunk,
-    look: 'a bough over the gallery wall',
-  ),
-
-  // ── b_urn · the cracked urn ──────────────────────────
-  CryptSpan(
-    id: 'sp_grate',
-    from: 'lantern_court',
-    to: 'crypt_niche',
-    size: SpanSize.tinyOnly,
-    bedId: 'b_urn',
-    need: SpanNeed.fissure,
-    look: 'the grate\'s mesh',
-  ),
-  CryptSpan(
-    id: 'sp_wallthread',
-    from: 'lantern_court',
-    to: 'mosswalk',
-    size: SpanSize.tinyOnly,
-    bedId: 'b_urn',
-    need: SpanNeed.creeper,
-    look: 'a thread along the crypt wall',
-  ),
-  CryptSpan(
-    id: 'sp_urnbough',
-    from: 'lantern_court',
-    to: 'bloom_hall',
-    size: SpanSize.hugeOnly,
-    bedId: 'b_urn',
-    need: SpanNeed.trunk,
-    look: 'a bough over the chancel wall',
-  ),
-
-  // ── b_tread · under the broken tread ─────────────────
-  CryptSpan(
-    id: 'sp_flaggap',
-    from: 'pollen_stair',
-    to: 'root_porch',
-    size: SpanSize.tinyOnly,
-    bedId: 'b_tread',
-    need: SpanNeed.fissure,
-    look: 'the gap between two heaved flagstones',
-  ),
-  CryptSpan(
-    id: 'sp_stairthread',
-    from: 'pollen_stair',
-    to: 'crypt_niche',
-    size: SpanSize.tinyOnly,
-    bedId: 'b_tread',
-    need: SpanNeed.creeper,
-    look: 'a thread up the stair wall',
-  ),
-  CryptSpan(
-    id: 'sp_treadbough',
-    from: 'pollen_stair',
-    to: 'mosswalk',
-    size: SpanSize.hugeOnly,
-    bedId: 'b_tread',
-    need: SpanNeed.trunk,
-    look: 'a bough across to the moss walk',
-  ),
-];
-
-/// The span joining these two rooms, or null. One pair, one span — pinned by
-/// the tests.
-CryptSpan? cryptSpanBetween(String a, String b) {
-  for (final s in kCryptSpans) {
-    if (s.joins(a, b)) return s;
-  }
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────
-// STAR 0 — THE GRAVE-LAMPS
-// ─────────────────────────────────────────────────────────
-
-/// One of the crypt's dead grave-lamps.
-///
-/// Star 0 is the planet's FIRST-DESCENT star (§4): it is earnable by ANY trio
-/// of Plant/Light/Mud, uses all three elements at full power, and needs no bed
-/// committed and no vine grown. It teaches the whole planet in one errand —
-/// two of the lamps are giant wall sconces a small body cannot reach, and one
-/// is a thumb-sized wick in a niche no large hand fits, so the only way to
-/// light all three is to change size on the way.
-class GraveLamp {
-  final String id;
-
-  /// The body that can reach it. The lamp is why the size matters.
-  final PlantScale reach;
-
-  final Offset position;
-
-  const GraveLamp({
-    required this.id,
-    required this.reach,
-    required this.position,
-  });
-}
-
-/// Every lamp in the crypt. Two huge, one tiny — and the tiny one stands in
-/// the niche, which no huge span ever reaches.
-const List<GraveLamp> kGraveLamps = [
-  GraveLamp(
-    id: 'lamp_walk',
-    reach: PlantScale.huge,
-    position: Offset(450, 150),
-  ),
-  GraveLamp(
-    id: 'lamp_court',
-    reach: PlantScale.huge,
-    position: Offset(440, 190),
-  ),
-  GraveLamp(
-    id: 'lamp_niche',
-    reach: PlantScale.tiny,
-    position: Offset(260, 180),
-  ),
-];
-
-// ─────────────────────────────────────────────────────────
-// STAR 1 — THE GROWTH ALTAR
-// ─────────────────────────────────────────────────────────
-
-/// The three things the crypt's heart-seed wants, in the order physics puts
-/// them in — and the sizes those three things can only be done at (§6: "relic
-/// needs both scales").
-///
-/// The islet carries NO bole. Each step is therefore a separate journey at a
-/// separate size, and the tiny one has no road at all until a creeper is grown
-/// for it. That is the star: not three verbs, but three arrivals.
-enum BloomStep {
-  /// The bowl is dry. A MUD hand fills it with loam — and only a large one
-  /// can carry loam enough to fill what is, to a small body, a lake bed.
-  loam,
-
-  /// A PLANT hand walks down into the bowl and sets the seed in the loam.
-  /// Only a small body gets down there at all.
-  seed,
-
-  /// The crypt has no sky. A LIGHT MASK shows the seed a sun that is not
-  /// there — the planet's marquee family gate (§4).
-  sun,
-}
-
-/// Which body each step of the waking needs.
-PlantScale bloomStepScale(BloomStep s) => switch (s) {
-  BloomStep.loam => PlantScale.huge,
-  BloomStep.seed => PlantScale.tiny,
-  BloomStep.sun => PlantScale.huge,
+/// The element that corrects [c].
+String climateFix(Climate c) => switch (c) {
+  Climate.dry => 'Water',
+  Climate.warm => 'Ice',
+  Climate.dark => 'Light',
 };
 
-/// The element each step answers. All element-only bar the sun, which is the
-/// star's ONE hard family gate (§4: max one per star).
-String bloomStepElement(BloomStep s) => switch (s) {
-  BloomStep.loam => 'Mud',
-  BloomStep.seed => 'Plant',
-  BloomStep.sun => 'Light',
+/// The room's complaint, in plain words (§5.6).
+String climateComplaint(Climate c) => switch (c) {
+  Climate.dry => 'This room is too dry',
+  Climate.warm => 'This room is too warm',
+  Climate.dark => 'This room is too dark',
 };
 
+/// The adjective, for the arena's readout.
+String climateWord(Climate c) => switch (c) {
+  Climate.dry => 'DRY',
+  Climate.warm => 'WARM',
+  Climate.dark => 'DARK',
+};
+
+/// The bodies a tending circle needs for each product. Water is carried as
+/// itself; Ice and Light are the game's own recipes (Spirit+Water → Ice,
+/// Crystal+Spirit → Light — `planet_dungeon_verbs.dart`). Spirit sits in both,
+/// and the rite is built on that.
+const Map<String, List<String>> kTendRecipes = {
+  'Water': ['Water'],
+  'Ice': ['Water', 'Spirit'],
+  'Light': ['Spirit', 'Crystal'],
+};
+
+/// Which of [product]'s bodies are missing from [present] (the elements of
+/// every creature standing in the ring). Extra bodies never invalidate the
+/// set, and a creature that IS the product counts on its own.
+List<String> tendMissing(String product, Iterable<String> present) {
+  final have = present.toSet();
+  if (have.contains(product)) return const [];
+  return [
+    for (final e in kTendRecipes[product] ?? const <String>[])
+      if (!have.contains(e)) e,
+  ];
+}
+
+/// The element [a] and [b] make together, if the game has a recipe for it.
+String? tendBraid(String a, String b) => dungeonRecipeResult(a, b);
+
+/// A refused press says only that it did not take — never who is missing,
+/// nor what the ring wants (the user, 2026-09-27: hints stay bare).
+String tendMissingLine(String product, List<String> missing) =>
+    missing.isEmpty ? '' : 'Not yet';
+
 // ─────────────────────────────────────────────────────────
-// THE LIVE STATE — pure rules, no Flutter, no engine
+// THE TENDING CIRCLE
 // ─────────────────────────────────────────────────────────
 
-/// Everything Verdanthos tracks for one run.
-///
-/// Kept deliberately small: this planet's whole difficulty is a REACHABILITY
-/// question, so the state is the two things reachability depends on — what
-/// size you are, and what every bed is holding — plus the per-star tallies.
-class VerdantCrypt {
-  VerdantCrypt() {
-    reset();
-  }
+/// How far from its centre a body counts as standing IN a ring. Drawn at
+/// [kTendRingDrawn]; the hit is a little wider, so standing on the lead reads
+/// as in.
+const double kTendRingReach = 66.0;
+const double kTendRingDrawn = 58.0;
 
-  /// The body the party is walking in. Party-wide: three creatures share one
-  /// crypt and one size.
-  PlantScale scale = PlantScale.huge;
+/// One tending circle: where it lies and the product it is set to make. A
+/// ring with a null [product] (the arena's and the rite's twin ring) takes
+/// whatever the bodies in it make.
+class TendRing {
+  final String id;
+  final Offset at;
+  final String? product;
+  const TendRing({required this.id, required this.at, this.product});
+}
 
-  /// What each bed holds, keyed by [SeedBed.id].
-  final Map<String, VineState> bed = {};
+/// A Star 1 wing: its complaint, its ring, and its wilted plant.
+class ClimateWing {
+  final Climate climate;
+  final Offset ring;
 
-  /// Grave-lamps already burning (Star 0).
-  final Set<String> lampsLit = {};
+  /// Where the plant stands, in its raised glass-rimmed planter.
+  final Offset plant;
 
-  /// How far the heart-seed's waking has got (Star 1). Steps are consumed in
-  /// order — loam before seed before sun — because that is the order the
-  /// physics puts them in, never because a plaque said so.
-  int bloomStep = 0;
+  /// Where this wing's door into the Conservatory is, in the HUB's space —
+  /// the cutscene's mote flies in through it.
+  final Offset hubDoor;
+  const ClimateWing({
+    required this.climate,
+    required this.ring,
+    required this.plant,
+    required this.hubDoor,
+  });
+}
 
-  /// How far the seed nobody planted has been tended (the Lost Maxim): the
-  /// altar's own three steps — loam, seed, sun — done small, in the SHADE the
-  /// giant root's trunk throws, and then looked at from your own size.
-  int shadeStep = 0;
+// ─────────────────────────────────────────────────────────
+// STAR 2 — THE TRELLIS GARDEN
+// ─────────────────────────────────────────────────────────
+//
+// One fork on a 7×5 board. Columns run west to east, rows north to south,
+// zero-based. The root is (3,4) and enters the fork at (3,3). The west bed
+// runs (2,3) to a stone-ended (1,3); the east bed runs (4,3), (5,3), north
+// across the pond tile (5,2) to the bud's island (5,1). Lamps stand off the
+// beds at (0,3) and (6,3), and each fork exit points straight at its lamp —
+// there is no tie-break and no hidden pathfinding.
 
-  /// The three tendings, in the order the ground puts them in (the altar's).
-  static const List<String> shadeWants = ['Mud', 'Plant', 'Light'];
+/// A board cell.
+typedef TrellisCell = (int col, int row);
 
-  bool get shadeTended => shadeStep >= shadeWants.length;
+const int kTrellisCols = 7;
+const int kTrellisRows = 5;
+const double kTrellisTile = 92.0;
+const Offset kTrellisOrigin = Offset(150, 120);
 
-  /// The unseen shade, once it has towered.
-  bool shadeRisen = false;
+Offset trellisCellCentre(TrellisCell c) => Offset(
+  kTrellisOrigin.dx + kTrellisTile * (c.$1 + 0.5),
+  kTrellisOrigin.dy + kTrellisTile * (c.$2 + 0.5),
+);
 
-  /// How many times THE WITHERING has run — the valve's price tag, and a
-  /// readout.
-  int witherings = 0;
+Rect trellisCellRect(TrellisCell c) => Rect.fromLTWH(
+  kTrellisOrigin.dx + kTrellisTile * c.$1,
+  kTrellisOrigin.dy + kTrellisTile * c.$2,
+  kTrellisTile,
+  kTrellisTile,
+);
 
-  /// The room whose mulch pit is armed for its second touch. It stays armed
-  /// until the party leaves that room — a confirmation, never a clock.
-  String? armedPitRoom;
+Rect get kTrellisBoard => Rect.fromLTWH(
+  kTrellisOrigin.dx,
+  kTrellisOrigin.dy,
+  kTrellisTile * kTrellisCols,
+  kTrellisTile * kTrellisRows,
+);
 
-  /// The crypt as its dead left it: nothing grown, and your own size.
+const TrellisCell kTrellisRoot = (3, 4);
+const TrellisCell kTrellisFork = (3, 3);
+const List<TrellisCell> kTrellisWestBed = [(2, 3), (1, 3)];
+const List<TrellisCell> kTrellisEastBed = [(4, 3), (5, 3), (5, 2), (5, 1)];
+const TrellisCell kTrellisPondCrossing = (5, 2);
+const TrellisCell kTrellisIsland = (5, 1);
+const TrellisCell kTrellisWestLamp = (0, 3);
+const TrellisCell kTrellisEastLamp = (6, 3);
+
+/// The pond: the 3×3 block around the island. Only [kTrellisPondCrossing] is
+/// on a bed; the rest is the water the island stands in.
+bool trellisIsPond(TrellisCell c) =>
+    c.$1 >= 4 && c.$1 <= 6 && c.$2 >= 0 && c.$2 <= 2 && c != kTrellisIsland;
+
+/// The soil the one Water ring irrigates: the root approach and BOTH branches.
+/// The island's own last tile is already moist.
+const List<TrellisCell> kTrellisIrrigated = [
+  (3, 4),
+  (3, 3),
+  (2, 3),
+  (1, 3),
+  (4, 3),
+  (5, 3),
+];
+
+enum TrellisLamp { west, east }
+
+/// Why a tendril stopped where it did. Every one is visible on the board.
+enum TendrilStop {
+  /// It reached the bud. The star.
+  bud,
+
+  /// The next tile is dry earth.
+  dry,
+
+  /// The next tile is open water.
+  water,
+
+  /// The bed ended in stone (the west branch).
+  bedEnd,
+
+  /// No lamp is lit, so it waits at the fork.
+  noLight,
+}
+
+/// The garden as the player has set it up. Nothing here ever un-sets: soil
+/// stays wet and the crossing stays frozen for the run. Only the lamp moves,
+/// because lighting one draws the glow out of the other.
+class TrellisState {
+  bool watered = false;
+  bool frozen = false;
+
+  /// The east lamp starts lit (the user, 2026-09-27) — the light already
+  /// points at the bud, and the west branch's dead end (and the vault under
+  /// it) is found by choosing to light the other lamp.
+  TrellisLamp? lit = TrellisLamp.east;
+
   void reset() {
-    scale = PlantScale.huge;
-    bed.clear();
-    for (final b in kCryptBeds) {
-      bed[b.id] = VineState.bare;
+    watered = false;
+    frozen = false;
+    lit = TrellisLamp.east;
+  }
+}
+
+/// THE TENDRIL'S RULE, as a pure function: the tiles it will occupy, in
+/// growth order starting at the root, and why it stops.
+///
+/// It follows the planted beds through WATERED soil; at the fork it takes the
+/// branch toward the LIT lamp; it never crosses open water, though it crosses
+/// ICE; it never backtracks or jumps between beds. The same function draws the
+/// ghost and grows the real thing, so the preview cannot lie.
+({List<TrellisCell> path, TendrilStop stop}) growTendril(TrellisState s) {
+  bool moist(TrellisCell c) =>
+      c == kTrellisIsland || (s.watered && kTrellisIrrigated.contains(c));
+  final path = <TrellisCell>[];
+  if (!moist(kTrellisRoot)) return (path: path, stop: TendrilStop.dry);
+  path.add(kTrellisRoot);
+  if (!moist(kTrellisFork)) return (path: path, stop: TendrilStop.dry);
+  path.add(kTrellisFork);
+  final branch = switch (s.lit) {
+    TrellisLamp.west => kTrellisWestBed,
+    TrellisLamp.east => kTrellisEastBed,
+    null => null,
+  };
+  if (branch == null) return (path: path, stop: TendrilStop.noLight);
+  for (final c in branch) {
+    if (c == kTrellisPondCrossing) {
+      if (!s.frozen) return (path: path, stop: TendrilStop.water);
+    } else if (!moist(c)) {
+      return (path: path, stop: TendrilStop.dry);
     }
-    lampsLit.clear();
-    bloomStep = 0;
-    shadeStep = 0;
-    shadeRisen = false;
-    witherings = 0;
-    armedPitRoom = null;
+    path.add(c);
   }
+  return (
+    path: path,
+    stop: path.last == kTrellisIsland ? TendrilStop.bud : TendrilStop.bedEnd,
+  );
+}
 
-  // ── Beds ──────────────────────────────────────────────
+/// The trellis garden's controls, all on its perimeter walkway.
+const TendRing kTrellisWaterRing = TendRing(
+  id: 'trellis_water',
+  at: Offset(300, 668),
+  product: 'Water',
+);
+const TendRing kTrellisIceRing = TendRing(
+  id: 'trellis_ice',
+  at: Offset(872, 258),
+  product: 'Ice',
+);
+const TendRing kTrellisWestLightRing = TendRing(
+  id: 'trellis_light_w',
+  at: Offset(74, 442),
+  product: 'Light',
+);
+const TendRing kTrellisEastLightRing = TendRing(
+  id: 'trellis_light_e',
+  at: Offset(872, 442),
+  product: 'Light',
+);
+const List<TendRing> kTrellisRings = [
+  kTrellisWaterRing,
+  kTrellisIceRing,
+  kTrellisWestLightRing,
+  kTrellisEastLightRing,
+];
 
-  VineState stateOf(String bedId) => bed[bedId] ?? VineState.bare;
+/// Where the great plant's root comes in under the south wall: GROW and PULL
+/// are pressed here.
+const Offset kTrellisRootKnuckle = Offset(472, 628);
 
-  bool get isTiny => scale == PlantScale.tiny;
+/// THE VAULT'S DOOR (the trick): the west bed's stone end is a lid. The
+/// preview shows the west branch as a dead end — and for the TENDRIL it is.
+/// Grow it all the way there and its tip prises the stone up, and under it are
+/// steps down into the root cellar. The dead end is a dead end for the plant,
+/// not for you.
+Rect get kTrellisHatch => Rect.fromCenter(
+  center: trellisCellCentre(kTrellisWestBed.last),
+  width: 56,
+  height: 56,
+);
 
-  /// A bed takes one seed and only one. Both products are permanent for the
-  /// run; only the withering empties a bed.
-  bool canPlant(String bedId) => stateOf(bedId) == VineState.bare;
+// ─────────────────────────────────────────────────────────
+// THE RITE — THE ROOTBOUND DOOR
+// ─────────────────────────────────────────────────────────
+//
+// Botanica's roots hang over the door from a knot: two roots, four tips, a
+// bud at every joint. A tending ring under each tip feeds a climate in at it.
+// The door opens when every bud matches the great plant's crown — which
+// flowers, in this same shape, the moment the Bud Star bursts. The door
+// itself never shows the target: the tree is the clue.
+//
+//                ( K )             the knot
+//               /     \
+//           ( A )     ( B )
+//           /   \     /   \
+//        (C)   (D)  (E)   (F)      tips — a ring under each
+//
+// THE THREE RULES, shown by animation and never stated:
+//  · WATER poured at a tip RISES up that root toward the knot. It douses a
+//    lit bud and stops at a frozen one — ice is a dam.
+//  · FROST crawls through WET buds in every direction, across into the other
+//    root too. On a dry bud it freezes that bud alone; it cannot take on a
+//    lit one.
+//  · LIGHT climbs DRY bark from its tip upward, lighting it, and stops at
+//    wet. It thaws the first frozen bud it meets, and only that one.
+//
+// The target (7 moves at best — test/planet_dungeon_plant_conservatory_test)
+// asks for three ideas that each contradict an instinct: the knot can only be
+// frozen by wetting a path to it and freezing from below; that freezes the
+// whole way up, so you thaw your way back down one bud per climb; and the
+// frozen knot then dams the water that re-wets A. Most states cannot reach
+// the target any more, so the stump PRUNES the roots bare, free, forever.
 
-  /// What a seed set by a body of [size] becomes. A giant can only press a
-  /// seed into the surface; a small body climbs down and sets it at the root.
-  VineState productFor(PlantScale size) =>
-      size == PlantScale.huge ? VineState.creeper : VineState.trunk;
+enum RootState { dry, wet, frozen, lit }
 
-  /// Plant the one seed this bed will ever take. Returns what grew, or null
-  /// when the bed is already spent.
-  VineState? plant(String bedId) {
-    if (!canPlant(bedId)) return null;
-    final grown = productFor(scale);
-    bed[bedId] = grown;
-    return grown;
+/// The lattice's buds, knot first.
+const List<String> kRootNodes = ['K', 'A', 'B', 'C', 'D', 'E', 'F'];
+
+/// Each bud's parent (toward the knot).
+const Map<String, String> kRootParent = {
+  'A': 'K',
+  'B': 'K',
+  'C': 'A',
+  'D': 'A',
+  'E': 'B',
+  'F': 'B',
+};
+
+const List<String> kRootTips = ['C', 'D', 'E', 'F'];
+
+/// What the great plant's crown shows, and so what the door wants.
+const Map<String, RootState> kRootTarget = {
+  'K': RootState.frozen,
+  'A': RootState.wet,
+  'B': RootState.lit,
+  'C': RootState.wet,
+  'D': RootState.wet,
+  'E': RootState.lit,
+  'F': RootState.lit,
+};
+
+/// Where each bud hangs in the rite room.
+const Map<String, Offset> kRootAt = {
+  'K': Offset(450, 118),
+  'A': Offset(290, 205),
+  'B': Offset(610, 205),
+  'C': Offset(210, 320),
+  'D': Offset(370, 320),
+  'E': Offset(530, 320),
+  'F': Offset(690, 320),
+};
+
+/// The ring under each tip, in a row under the door.
+const Map<String, TendRing> kRootRings = {
+  'C': TendRing(id: 'root_C', at: Offset(210, 462)),
+  'D': TendRing(id: 'root_D', at: Offset(370, 462)),
+  'E': TendRing(id: 'root_E', at: Offset(530, 462)),
+  'F': TendRing(id: 'root_F', at: Offset(690, 462)),
+};
+
+/// The stump: PRUNE sheds every climate off the roots, free, as often as you
+/// like.
+const Offset kRootStump = Offset(90, 560);
+
+/// A tip up to the knot, inclusive.
+List<String> rootPath(String tip) {
+  final out = [tip];
+  while (kRootParent[out.last] != null) {
+    out.add(kRootParent[out.last]!);
   }
+  return out;
+}
 
-  // ── The map, at the size you are ──────────────────────
-
-  /// Whether [span] EXISTS at all in the current world — i.e. whether the bed
-  /// behind it has grown the thing the span is made of. Size is not consulted
-  /// here: a passage the wrong size for you is still a passage, and the
-  /// player must be able to see it and be told so (§5.6 BLOCKED).
-  bool spanExists(CryptSpan span) {
-    final id = span.bedId;
-    if (id == null) return true;
-    return switch (span.need!) {
-      // A trunk fills the crack it grew in. That is the irreversible closure
-      // the whole no-strand proof is about.
-      SpanNeed.fissure => stateOf(id) != VineState.trunk,
-      SpanNeed.creeper => stateOf(id) == VineState.creeper,
-      SpanNeed.trunk => stateOf(id) == VineState.trunk,
-    };
+Iterable<String> rootNeighbours(String n) sync* {
+  final p = kRootParent[n];
+  if (p != null) yield p;
+  for (final e in kRootParent.entries) {
+    if (e.value == n) yield e.key;
   }
+}
 
-  /// Whether the body you are in fits [span].
-  bool spanFits(CryptSpan span, PlantScale size) => switch (span.size) {
-    SpanSize.both => true,
-    SpanSize.tinyOnly => size == PlantScale.tiny,
-    SpanSize.hugeOnly => size == PlantScale.huge,
+/// What a ring's bodies make, or null when they make nothing; [both] when
+/// they make Light and Ice at once, which the ring refuses.
+({String? product, bool both}) ringProduct(Iterable<String> present) {
+  final light = tendMissing('Light', present).isEmpty;
+  final ice = tendMissing('Ice', present).isEmpty;
+  if (light && ice) return (product: null, both: true);
+  if (light) return (product: 'Light', both: false);
+  if (ice) return (product: 'Ice', both: false);
+  if (tendMissing('Water', present).isEmpty) {
+    return (product: 'Water', both: false);
+  }
+  return (product: null, both: false);
+}
+
+/// The door's roots.
+class RootLattice {
+  final Map<String, RootState> state = {
+    for (final n in kRootNodes) n: RootState.dry,
   };
 
-  /// Walkable right now.
-  bool spanOpen(CryptSpan span) => spanExists(span) && spanFits(span, scale);
-
-  // ── Star 0 ────────────────────────────────────────────
-
-  bool get allLampsLit => lampsLit.length >= kGraveLamps.length;
-
-  // ── Star 1 ────────────────────────────────────────────
-
-  BloomStep? get nextBloomStep =>
-      bloomStep >= BloomStep.values.length ? null : BloomStep.values[bloomStep];
-
-  bool get bloomWoken => bloomStep >= BloomStep.values.length;
-
-  // ── THE WITHERING (the anti-strand valve) ─────────────
-
-  /// True when nothing has been grown and the party already stands at its own
-  /// size — the season has nothing to turn, so the verb declines rather than
-  /// burning a pit.
-  bool get isFallow {
-    if (scale != PlantScale.huge) return false;
-    for (final b in kCryptBeds) {
-      if (stateOf(b.id) != VineState.bare) return false;
+  void reset() {
+    for (final n in kRootNodes) {
+      state[n] = RootState.dry;
     }
-    return true;
   }
 
-  /// THE WITHERING. Every vine sloughs to mould, every bed is bare, and the
-  /// crypt puts you back in your own body. It costs every road you grew — see
-  /// the header. Banked stars, the lamps and the bloom's progress all survive:
-  /// the season takes the garden, never the work.
-  void wither() {
-    for (final b in kCryptBeds) {
-      bed[b.id] = VineState.bare;
+  bool get bare => state.values.every((s) => s == RootState.dry);
+
+  bool get matches => kRootNodes.every((n) => state[n] == kRootTarget[n]);
+
+  void setAll(Map<String, RootState> to) => state.addAll(to);
+
+  /// What feeding [product] in at [tip] WOULD do: the buds it changes, in
+  /// the order it reaches them, each with its new state. Empty = nothing
+  /// takes. Never mutates — the ghost and the press share it.
+  List<(String, RootState)> preview(String tip, String product) {
+    final s = Map.of(state);
+    final out = <(String, RootState)>[];
+    void set(String n, RootState to) {
+      if (s[n] == to) return;
+      s[n] = to;
+      out.add((n, to));
     }
-    scale = PlantScale.huge;
-    armedPitRoom = null;
-    witherings++;
+
+    switch (product) {
+      case 'Water':
+        for (final n in rootPath(tip)) {
+          if (s[n] == RootState.frozen) break;
+          set(n, RootState.wet);
+        }
+      case 'Light':
+        for (final n in rootPath(tip)) {
+          final at = s[n]!;
+          if (at == RootState.wet) break;
+          if (at == RootState.frozen) {
+            set(n, RootState.wet);
+            break;
+          }
+          set(n, RootState.lit);
+        }
+      case 'Ice':
+        final at = s[tip]!;
+        if (at == RootState.dry) {
+          set(tip, RootState.frozen);
+        } else if (at == RootState.wet) {
+          final seen = {tip};
+          final q = [tip];
+          while (q.isNotEmpty) {
+            final n = q.removeAt(0);
+            set(n, RootState.frozen);
+            for (final m in rootNeighbours(n)) {
+              if (!seen.contains(m) && s[m] == RootState.wet) {
+                seen.add(m);
+                q.add(m);
+              }
+            }
+          }
+        }
+    }
+    return out;
+  }
+
+  /// Feed [product] in at [tip]. Returns what changed (empty = nothing took).
+  List<(String, RootState)> apply(String tip, String product) {
+    final out = preview(tip, product);
+    for (final (n, to) in out) {
+      state[n] = to;
+    }
+    return out;
   }
 }
 
 // ─────────────────────────────────────────────────────────
-// PER-ROOM CRYPT CONTENT
+// THE LOST MAXIM — THE SEED THAT WANTED THE OPPOSITE
 // ─────────────────────────────────────────────────────────
 
-/// Everything the Verdant Crypt put in one room. Carried on
-/// `DungeonRoom.grove` so exactly one field had to be added to the shared room
-/// model, and so a room's star index is visible to the layout invariants.
-class CryptGrove {
-  /// The star this room banks (null = a connective walk).
+/// One channel from the great plant to the grey seed: what it carries, and
+/// the creature whose element draws it back.
+enum SeedChannel { moisture, light, frost }
+
+String seedChannelElement(SeedChannel c) => switch (c) {
+  SeedChannel.moisture => 'Water',
+  SeedChannel.light => 'Crystal',
+  SeedChannel.frost => 'Spirit',
+};
+
+SeedChannel? seedChannelFor(String element) {
+  for (final c in SeedChannel.values) {
+    if (seedChannelElement(c) == element) return c;
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────
+// THE RUN STATE
+// ─────────────────────────────────────────────────────────
+
+/// Everything the Conservatory remembers during a run. Plain state: every
+/// change is made by the module (planet_dungeon_game_plant.dart), and every
+/// picture eases toward it (planet_dungeon_game_plant_art.dart).
+class Conservatory {
+  /// Star 1: the wings whose plant has bloomed.
+  final Set<Climate> healed = {};
+
+  /// Star 2: the garden as set up, and whether the tendril is grown.
+  final TrellisState trellis = TrellisState();
+  bool grown = false;
+
+  /// The west bed's stone, prised up by a tendril that went all the way
+  /// there. Stays up for the run once it is up.
+  bool hatchOpen = false;
+
+  /// The rite: the door's roots, and whether they have let go.
+  final RootLattice roots = RootLattice();
+  bool rootsOpen = false;
+
+  /// Botanica's arena: the climate it has made (null = none held).
+  Climate? arena;
+
+  /// The last climate it made, so the next strike makes a different one.
+  Climate? lastArena;
+
+  /// The maxim: the channels drawn back from the grey seed.
+  final Set<SeedChannel> drawn = {};
+
+  bool get wingsHealed => healed.length == Climate.values.length;
+
+  void reset() {
+    healed.clear();
+    trellis.reset();
+    grown = false;
+    hatchOpen = false;
+    roots.reset();
+    rootsOpen = false;
+    arena = null;
+    lastArena = null;
+    drawn.clear();
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// THE PER-ROOM PAYLOAD
+// ─────────────────────────────────────────────────────────
+
+/// Everything the Conservatory puts in one room. Carried on `DungeonRoom.grove`
+/// so exactly one field serves the shared room model, and so a room's star
+/// index is visible to the layout invariants.
+class ConservatoryPlot {
+  /// The star this room banks (null = none).
   final int? starIndex;
 
-  /// A hollow seed-gall: the ONLY place the party changes size. Element-only
-  /// Plant (Mud+Light→Plant braids for a party whose Plant hand is down), and
-  /// deliberately rare — three in ten rooms is what makes "which scale to be,
-  /// where" a route-planning DECISION rather than a button.
-  final Offset? bole;
+  /// A Star 1 wing.
+  final ClimateWing? wing;
 
-  /// Leaf-litter. A MUD hand turns it twice and calls THE WITHERING — the
-  /// anti-strand valve. Authored in every room the party can stand in bar the
-  /// guardian's arena, because a valve you cannot reach is not a valve.
-  final Offset? mulchPit;
+  /// The hub: the great central planter, and the fourth, empty one the grey
+  /// seed falls into.
+  final Offset? greatPlanter;
+  final Offset? seedPlanter;
 
-  /// The entry rite: the lich-gate is knotted shut with dead briar. A PLANT
-  /// hand unknots its own element and the crypt opens.
-  final Offset? briarGate;
+  /// True in the Trellis Garden (the board itself is authored above).
+  final bool trellis;
 
-  /// Star 0: this room's grave-lamp.
-  final String? lampId;
+  /// True at the Rootbound Door.
+  final bool rite;
 
-  /// Star 1: the growth altar on the islet — the bowl, the rim door, and the
-  /// crypt's heart-seed.
-  final Offset? growthAltar;
+  /// Botanica's arena: its two equivalent tending circles.
+  final List<Offset> arenaRings;
 
-  /// The rite's second half: the hall's clay-sealed sepulchre (element-only
-  /// Mud; latches conduit 'B').
-  final Offset? sepulchre;
-
-  /// The Lost Maxim: the seed nobody planted, hidden under the giant root and
-  /// visible only to a body small enough to be under there.
-  final Offset? shadeSeed;
-
-  /// Botanica's own root-gall — the arena's shrink point, and the fight's
-  /// whole verb (§7).
-  final Offset? rootBole;
-
-  const CryptGrove({
+  const ConservatoryPlot({
     this.starIndex,
-    this.bole,
-    this.mulchPit,
-    this.briarGate,
-    this.lampId,
-    this.growthAltar,
-    this.sepulchre,
-    this.shadeSeed,
-    this.rootBole,
+    this.wing,
+    this.greatPlanter,
+    this.seedPlanter,
+    this.trellis = false,
+    this.rite = false,
+    this.arenaRings = const [],
   });
 }
+
+/// The wings, by room id.
+const Map<String, String> kConservatoryWingRooms = {
+  'dry_bed': 'dry',
+  'hothouse': 'warm',
+  'shadehouse': 'dark',
+};
 
 // ─────────────────────────────────────────────────────────
 // THE LAYOUT
 // ─────────────────────────────────────────────────────────
 
-/// Verdanthos — the Verdant Crypt.
+const Offset _kHubPlanter = Offset(520, 360);
+
+/// Verdanthos — the Conservatory.
 const DungeonLayout plantLayout = DungeonLayout(
   element: 'Plant',
-  entranceRoomId: 'root_porch',
-  entranceSpawn: Offset(120, 240),
-  title: 'THE VERDANT CRYPT',
-  descentTitle: 'Verdanthos Crypt',
+  entranceRoomId: 'conservatory',
+  entranceSpawn: Offset(330, 610),
+  title: 'THE CONSERVATORY',
+  descentTitle: 'Verdanthos Conservatory',
   stars: [
     DungeonStarSpec(
-      name: 'Lamp Star',
-      earnAnnouncement:
-          'The Lamp Star is yours. All three grave-lamps are lit',
+      name: 'Bloom Star',
+      // The cutscene says it: three motes, one great plant, and its roots
+      // prising the north door. No line would add anything.
+      revealDoors: [
+        DungeonDoorRef('conservatory', 'trellis_garden'),
+        DungeonDoorRef('trellis_garden', 'conservatory'),
+      ],
     ),
     DungeonStarSpec(
-      name: 'Bloom Star',
-      earnAnnouncement:
-          'The Bloom Star is yours. The heart-seed is growing',
+      name: 'Bud Star',
+      // No line: the bud's opening and the crown's flowering say it.
+      revealDoors: [
+        DungeonDoorRef('trellis_garden', 'rootbound_door'),
+        DungeonDoorRef('rootbound_door', 'trellis_garden'),
+      ],
     ),
-    DungeonStarSpec(name: 'Shade Star'),
+    DungeonStarSpec(name: 'Heart Star'),
   ],
-  // The lich-gate is knotted shut until a Plant hand parts the briar.
-  entranceRevealDoor: DungeonDoorRef('root_porch', 'mosswalk'),
-  finaleDoor: DungeonDoorRef('bloom_hall', 'botanica_heart'),
-  // TRUE lines only (the hint audit, 2026-09-25): the engine speaks this when
-  // the second star lands. Nothing opens then — Botanica wakes when the rood
-  // screen (conduit A, a Plant Mane) and the sepulchre (B, a Mud press in
-  // `_trySepulchre`) are both woken in the Bloom Hall.
+  finaleDoor: DungeonDoorRef('rootbound_door', 'botanica_heart'),
+  // TRUE lines only (the hint audit): the engine speaks this when the second
+  // star lands, and the rite room is exactly one door on from there.
   riteAnnouncement:
-      'Lamp and Bloom are won. In the Bloom Hall, a Plant Mane can wake the '
-      'rood screen and Mud can soften the sepulchre\'s clay',
-  riteWakeLine:
-      'The rood screen is green and the sepulchre is open. Botanica is awake '
-      'past the rood door',
+      'Bloom and Bud are won. North of the trellis, roots hold the door to '
+      'Botanica shut',
+  riteWakeLine: 'The roots match the crown. They let go, and Botanica is awake',
   finaleSealedHint:
-      'The rood door stays shut until you have the Lamp and Bloom stars',
-  guardianSealedHint:
-      'Botanica won\'t wake until the rood screen and the sepulchre are both '
-      'woken',
-  mercyShrineRoomId: 'mosswalk',
-  // Ideal: Plantmane · Lightmask · Mudpip — hinted by VERB, never body part
-  // (§4): the green that follows a wild thing's passing, the sight that
-  // pierces the hidden, and what my smallest doors admit.
+      'The roots hold this door until you have the Bloom and Bud stars',
+  guardianSealedHint: 'The roots are knotted over the door',
+  mercyShrineRoomId: 'conservatory',
+  // Ideal: Crystal Mask · Spirit Kin · Water Mane — hinted by VERB (§4): the
+  // sight that focuses light, the hand that tends, and the water that runs
+  // where its bearer has gone.
   riddle: [
-    'Send me a Plant Mane: my rood screen has been dead a long age;',
-    'a Light Mask, for I keep no sun and my seed still wants one;',
-    'and Mud, because half of me was never built for you.',
+    'Send me a Crystal Mask: my roots take no light that is not focused;',
+    'Spirit that tends, for my rooms have gone too long untended;',
+    'and Water that runs where it goes, for everything here is thirsty.',
   ],
-  primer: [
-    'Some passages fit only a small body, some only full size. Seed-galls '
-        'switch your size.',
-    'What you plant becomes a path for the other size.',
-  ],
-  // §4 budget: TWO hard gates, on two different stars/objects and two
-  // different entry slots. Star 0 (the grave-lamps) is deliberately UNGATED
-  // and uses all three elements at full power, so any trio of Plant/Light/Mud
-  // progresses on a first descent — §6 put a Plantmane gate on this planet's
-  // FIRST star, and §4's first-descent guarantee wins, so that gate has been
-  // moved onto the rite's rood screen. The scale verb itself (the boles) and
-  // the valve (the mulch pits) are element-only and always available.
+  // No recipes here, nor in any hint (the user, 2026-09-27): which bodies
+  // make Ice or Light is the planet's discovery.
+  primer: ['Every plant here wants a different climate.'],
+  // §4 budget: ONE hard gate, on the rite (light fed to the door's roots). Stars 1 and 2 are
+  // element-only, so any Crystal/Spirit/Water trio can progress on a first
+  // descent.
   familyGates: [
     DungeonFamilyGate(
-      objectId: 'altar_sun',
-      element: 'Light',
+      objectId: 'root_light',
+      element: 'Crystal',
       family: 'Mask',
-      hintLine: 'Only a Light Mask can stand in for the sun',
-    ),
-    DungeonFamilyGate(
-      objectId: 'A',
-      element: 'Plant',
-      family: 'Mane',
-      hintLine: 'Only a Plant Mane can wake this screen',
+      hintLine: 'Only a Crystal Mask can focus the light',
     ),
   ],
   rooms: {
-    // ── THE ROOT PORCH (entrance) ─────────────────────────
-    // The crypt's threshold under an arch of root. Two ways on: the lich-gate
-    // west into the moss walk, and — for a small body only — the gap between
-    // two heaved flagstones down to the pollen stair. Both are knotted shut
-    // until a Plant hand parts the briar.
-    'root_porch': DungeonRoom(
-      id: 'root_porch',
-      bounds: Rect.fromLTWH(0, 0, 700, 460),
-      walls: [
-        Rect.fromLTWH(240, 70, 170, 28), // a toppled lintel
-      ],
+    // ── THE CONSERVATORY (entrance, hub, mercy shrine) ────
+    // A domed glasshouse gone grey. A great empty planter in the middle, a
+    // fourth small planter by the east wall, and three wings off it.
+    'conservatory': DungeonRoom(
+      id: 'conservatory',
+      bounds: Rect.fromLTWH(0, 0, 1040, 760),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(676, 175, 24, 110),
-          targetRoomId: 'mosswalk',
-          targetSpawn: Offset(60, 280),
+          rect: Rect.fromLTWH(465, 0, 110, 24),
+          targetRoomId: 'trellis_garden',
+          targetSpawn: Offset(472, 720),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(140, 436, 110, 24),
-          targetRoomId: 'pollen_stair',
-          targetSpawn: Offset(315, 120),
-        ),
-      ],
-      grove: CryptGrove(
-        briarGate: Offset(600, 215),
-        bole: Offset(200, 240),
-        mulchPit: Offset(110, 380),
-      ),
-    ),
-
-    // ── THE MOSS WALK (the mercy shrine) ──────────────────
-    // The crypt's long walk, and its first grave-lamp: a sconce set at the
-    // height of a mourner, which is to say far out of a small body's world.
-    'mosswalk': DungeonRoom(
-      id: 'mosswalk',
-      bounds: Rect.fromLTWH(0, 0, 900, 560),
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 225, 24, 110),
-          targetRoomId: 'root_porch',
-          targetSpawn: Offset(640, 230),
+          rect: Rect.fromLTWH(0, 325, 24, 110),
+          targetRoomId: 'hothouse',
+          targetSpawn: Offset(760, 270),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(876, 225, 24, 110),
-          targetRoomId: 'fern_gallery',
-          targetSpawn: Offset(60, 260),
-        ),
-        // The sunken rill: one stride at your own size, a river at the other.
-        DungeonDoor(
-          rect: Rect.fromLTWH(390, 536, 110, 24),
-          targetRoomId: 'islet',
-          targetSpawn: Offset(375, 90),
-        ),
-        // The urn's thread along the crypt wall (tiny; b_urn creeper).
-        DungeonDoor(
-          rect: Rect.fromLTWH(300, 0, 110, 24),
-          targetRoomId: 'lantern_court',
-          targetSpawn: Offset(355, 500),
-        ),
-        // The tread's bough across (huge; b_tread trunk).
-        DungeonDoor(
-          rect: Rect.fromLTWH(620, 0, 110, 24),
-          targetRoomId: 'pollen_stair',
-          targetSpawn: Offset(375, 420),
-        ),
-      ],
-      grove: CryptGrove(lampId: 'lamp_walk', mulchPit: Offset(120, 470)),
-    ),
-
-    // ── THE FERN GALLERY (the giant root) ─────────────────
-    // The planet's sharpest bed stands here, and so does the Lost Maxim's
-    // hidden seed — which only exists for a body small enough to be under the
-    // root at all.
-    'fern_gallery': DungeonRoom(
-      id: 'fern_gallery',
-      bounds: Rect.fromLTWH(0, 0, 820, 520),
-      walls: [
-        Rect.fromLTWH(180, 180, 40, 200), // a buttress of root
-      ],
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 205, 24, 110),
-          targetRoomId: 'mosswalk',
-          targetSpawn: Offset(840, 280),
-        ),
-        // Down the broken tread (huge).
-        DungeonDoor(
-          rect: Rect.fromLTWH(120, 496, 110, 24),
-          targetRoomId: 'pollen_stair',
-          targetSpawn: Offset(175, 130),
-        ),
-        // The worm-run up into the niche (tiny; b_root fissure).
-        DungeonDoor(
-          rect: Rect.fromLTWH(330, 0, 110, 24),
-          targetRoomId: 'crypt_niche',
-          targetSpawn: Offset(305, 300),
-        ),
-        // The root's own bough over the gallery wall (huge; b_root trunk).
-        DungeonDoor(
-          rect: Rect.fromLTWH(620, 0, 110, 24),
-          targetRoomId: 'lantern_court',
-          targetSpawn: Offset(675, 490),
-        ),
-        // The green thread over the rill (tiny; b_root creeper).
-        DungeonDoor(
-          rect: Rect.fromLTWH(796, 205, 24, 110),
-          targetRoomId: 'islet',
+          rect: Rect.fromLTWH(1016, 325, 24, 110),
+          targetRoomId: 'shadehouse',
           targetSpawn: Offset(60, 270),
         ),
-      ],
-      grove: CryptGrove(
-        shadeSeed: Offset(620, 400),
-        mulchPit: Offset(120, 440),
-      ),
-    ),
-
-    // ── THE POLLEN STAIR ──────────────────────────────────
-    // The crypt's middle transfer station: a bole, and the repair bed whose
-    // creeper is the way back into the niche when both its cracks are gone.
-    'pollen_stair': DungeonRoom(
-      id: 'pollen_stair',
-      bounds: Rect.fromLTWH(0, 0, 760, 500),
-      doors: [
-        // The flagstone gap up to the porch (tiny; b_tread fissure).
         DungeonDoor(
-          rect: Rect.fromLTWH(260, 0, 110, 24),
-          targetRoomId: 'root_porch',
-          targetSpawn: Offset(195, 400),
-        ),
-        // Back up the broken tread (huge).
-        DungeonDoor(
-          rect: Rect.fromLTWH(480, 0, 110, 24),
-          targetRoomId: 'fern_gallery',
-          targetSpawn: Offset(175, 440),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(736, 195, 24, 110),
-          targetRoomId: 'lantern_court',
-          targetSpawn: Offset(60, 290),
-        ),
-        // The thread UP the stair wall into the niche (tiny; b_tread
-        // creeper). North, because the niche is above: it sat on this room's
-        // WEST wall and arrived on the niche's west side, while the niche's
-        // way back ALSO left west and arrived on this room's west side — so
-        // walking one way through it twice put you back where you started.
-        DungeonDoor(
-          rect: Rect.fromLTWH(40, 0, 110, 24),
-          targetRoomId: 'crypt_niche',
-          targetSpawn: Offset(85, 300),
-        ),
-        // The tread's bough across to the moss walk (huge; b_tread trunk).
-        DungeonDoor(
-          rect: Rect.fromLTWH(320, 476, 110, 24),
-          targetRoomId: 'mosswalk',
-          targetSpawn: Offset(675, 120),
+          rect: Rect.fromLTWH(465, 736, 110, 24),
+          targetRoomId: 'dry_bed',
+          targetSpawn: Offset(410, 72),
         ),
       ],
-      grove: CryptGrove(bole: Offset(140, 120), mulchPit: Offset(640, 420)),
-    ),
-
-    // ── THE CRYPT NICHE (the third lamp) ──────────────────
-    // Every way in is a crack, so this room only exists for a small body — and
-    // two of the three cracks are bed fissures a trunk can fill for good. It
-    // is the planet's stranding hazard, drawn in one room.
-    'crypt_niche': DungeonRoom(
-      id: 'crypt_niche',
-      bounds: Rect.fromLTWH(0, 0, 520, 380),
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(250, 356, 110, 24),
-          targetRoomId: 'fern_gallery',
-          targetSpawn: Offset(385, 90),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(496, 135, 24, 110),
-          targetRoomId: 'lantern_court',
-          targetSpawn: Offset(195, 70),
-        ),
-        // Down the stair-wall thread to the pollen stair, below.
-        DungeonDoor(
-          rect: Rect.fromLTWH(30, 356, 110, 24),
-          targetRoomId: 'pollen_stair',
-          targetSpawn: Offset(95, 90),
-        ),
-      ],
-      grove: CryptGrove(lampId: 'lamp_niche', mulchPit: Offset(260, 310)),
-    ),
-
-    // ── THE LANTERN COURT (Star 0) ────────────────────────
-    // The second sconce, the cracked urn, and the room the Lamp Star banks in.
-    'lantern_court': DungeonRoom(
-      id: 'lantern_court',
-      bounds: Rect.fromLTWH(0, 0, 880, 580),
-      walls: [
-        Rect.fromLTWH(330, 250, 220, 34), // the fallen catafalque
-      ],
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 235, 24, 110),
-          targetRoomId: 'pollen_stair',
-          targetSpawn: Offset(700, 250),
-        ),
-        // The grate's mesh into the niche (tiny; b_urn fissure).
-        DungeonDoor(
-          rect: Rect.fromLTWH(140, 0, 110, 24),
-          targetRoomId: 'crypt_niche',
-          targetSpawn: Offset(455, 190),
-        ),
-        // The root's bough down into the gallery (huge; b_root trunk).
-        DungeonDoor(
-          rect: Rect.fromLTWH(250, 556, 110, 24),
-          targetRoomId: 'fern_gallery',
-          targetSpawn: Offset(675, 100),
-        ),
-        // The urn's thread back along the wall (tiny; b_urn creeper).
-        DungeonDoor(
-          rect: Rect.fromLTWH(560, 556, 110, 24),
-          targetRoomId: 'mosswalk',
-          targetSpawn: Offset(355, 110),
-        ),
-        // The urn's bough over the chancel wall (huge; b_urn trunk).
-        DungeonDoor(
-          rect: Rect.fromLTWH(856, 235, 24, 110),
-          targetRoomId: 'bloom_hall',
-          targetSpawn: Offset(60, 270),
-        ),
-      ],
-      grove: CryptGrove(
+      // Star 1 banks here, on the bind, whichever wing was healed last.
+      grove: ConservatoryPlot(
         starIndex: 0,
-        lampId: 'lamp_court',
-        mulchPit: Offset(140, 480),
+        greatPlanter: _kHubPlanter,
+        seedPlanter: Offset(840, 600),
       ),
     ),
 
-    // ── THE ISLET (Star 1) ────────────────────────────────
-    // The Tiny-Huge Island (§6). It carries NO bole on purpose: every step of
-    // the heart-seed's waking is a separate arrival at a separate size, and
-    // the small one has no road at all until a creeper is grown for it.
-    'islet': DungeonRoom(
-      id: 'islet',
-      bounds: Rect.fromLTWH(0, 0, 760, 540),
+    // ── THE DRY BED (Water) ───────────────────────────────
+    // The gentle wing that teaches the circle: one body, one press.
+    'dry_bed': DungeonRoom(
+      id: 'dry_bed',
+      bounds: Rect.fromLTWH(0, 0, 820, 540),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(320, 0, 110, 24),
-          targetRoomId: 'mosswalk',
-          targetSpawn: Offset(445, 470),
+          rect: Rect.fromLTWH(355, 0, 110, 24),
+          targetRoomId: 'conservatory',
+          targetSpawn: Offset(520, 690),
         ),
-        // The little door in the altar's rim — the vault (tiny).
+      ],
+      grove: ConservatoryPlot(
+        wing: ClimateWing(
+          climate: Climate.dry,
+          ring: Offset(410, 350),
+          plant: Offset(410, 190),
+          hubDoor: Offset(520, 748),
+        ),
+      ),
+    ),
+
+    // ── THE HOTHOUSE (Ice) ────────────────────────────────
+    'hothouse': DungeonRoom(
+      id: 'hothouse',
+      bounds: Rect.fromLTWH(0, 0, 820, 540),
+      doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(736, 215, 24, 110),
-          targetRoomId: 'gourd_hollow',
-          targetSpawn: Offset(60, 160),
+          rect: Rect.fromLTWH(796, 215, 24, 110),
+          targetRoomId: 'conservatory',
+          targetSpawn: Offset(70, 380),
         ),
-        // The flooded chancel step (huge).
-        DungeonDoor(
-          rect: Rect.fromLTWH(325, 516, 110, 24),
-          targetRoomId: 'bloom_hall',
-          targetSpawn: Offset(385, 110),
+      ],
+      grove: ConservatoryPlot(
+        wing: ClimateWing(
+          climate: Climate.warm,
+          ring: Offset(370, 350),
+          plant: Offset(370, 190),
+          hubDoor: Offset(12, 380),
         ),
-        // The green thread back over the rill (tiny; b_root creeper).
+      ),
+    ),
+
+    // ── THE SHADEHOUSE (Light) ────────────────────────────
+    'shadehouse': DungeonRoom(
+      id: 'shadehouse',
+      bounds: Rect.fromLTWH(0, 0, 820, 540),
+      doors: [
         DungeonDoor(
           rect: Rect.fromLTWH(0, 215, 24, 110),
-          targetRoomId: 'fern_gallery',
-          targetSpawn: Offset(760, 260),
+          targetRoomId: 'conservatory',
+          targetSpawn: Offset(970, 380),
         ),
       ],
-      grove: CryptGrove(
-        starIndex: 1,
-        growthAltar: Offset(380, 270),
-        mulchPit: Offset(120, 450),
+      grove: ConservatoryPlot(
+        wing: ClimateWing(
+          climate: Climate.dark,
+          ring: Offset(450, 350),
+          plant: Offset(450, 190),
+          hubDoor: Offset(1028, 380),
+        ),
       ),
     ),
 
-    // ── THE GOURD HOLLOW (the vault) ──────────────────────
-    // Inside the growth altar's own rim. A pocket, and the planet's cache: you
-    // came in small and the arch you came through is never blocked by
-    // anything, whatever happens outside (Ice's shelf rule) — which is what
-    // keeps the vault trick from being a trap (see the no-strand proof).
-    'gourd_hollow': DungeonRoom(
-      id: 'gourd_hollow',
-      bounds: Rect.fromLTWH(0, 0, 420, 320),
+    // ── THE TRELLIS GARDEN (Star 2) ───────────────────────
+    // The fork, the pond and the bud, all on one screen's worth of board, and
+    // a walkway round it that reaches every ring without the tendril.
+    'trellis_garden': DungeonRoom(
+      id: 'trellis_garden',
+      bounds: Rect.fromLTWH(0, 0, 944, 780),
+      walls: [
+        // The pond, with the island standing in it (the tendril is the only
+        // thing that ever crosses).
+        Rect.fromLTWH(518, 120, 276, 276),
+        // The two lamp standards.
+        Rect.fromLTWH(182, 428, 28, 28),
+        Rect.fromLTWH(734, 428, 28, 28),
+      ],
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 105, 24, 110),
-          targetRoomId: 'islet',
-          targetSpawn: Offset(700, 270),
+          rect: Rect.fromLTWH(417, 756, 110, 24),
+          targetRoomId: 'conservatory',
+          targetSpawn: Offset(520, 70),
+        ),
+        DungeonDoor(
+          rect: Rect.fromLTWH(380, 0, 110, 24),
+          targetRoomId: 'rootbound_door',
+          targetSpawn: Offset(450, 570),
+        ),
+        // The stair under the west bed's stone (hidden until prised).
+        DungeonDoor(
+          rect: Rect.fromLTWH(260, 414, 56, 56),
+          targetRoomId: 'root_cellar',
+          targetSpawn: Offset(210, 190),
+          chromeless: true,
         ),
       ],
-      vaultCache: Offset(210, 160),
-      grove: CryptGrove(mulchPit: Offset(330, 250)),
+      grove: ConservatoryPlot(starIndex: 1, trellis: true),
     ),
 
-    // ── THE BLOOM HALL (the rite) ─────────────────────────
-    // Conduit A is the planet's Plant+MANE gate — the dead rood screen of
-    // briar, which only greens along a wild thing's passing. The hall's own
-    // half is the clay-sealed sepulchre, an element-only Mud object the module
-    // owns and which latches `conduitEnergy['B']` itself (authoring it as a
-    // family-less Conduit would make the engine's channel verb step over it —
-    // the same reason Ice left its cold font out and Dust its great glass).
-    'bloom_hall': DungeonRoom(
-      id: 'bloom_hall',
-      bounds: Rect.fromLTWH(0, 0, 780, 540),
+    // ── THE ROOT CELLAR (the vault) ───────────────────────
+    'root_cellar': DungeonRoom(
+      id: 'root_cellar',
+      bounds: Rect.fromLTWH(0, 0, 560, 380),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(330, 0, 110, 24),
-          targetRoomId: 'islet',
-          targetSpawn: Offset(380, 450),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 215, 24, 110),
-          targetRoomId: 'lantern_court',
-          targetSpawn: Offset(820, 290),
-        ),
-        DungeonDoor(
-          rect: Rect.fromLTWH(335, 516, 110, 24),
-          targetRoomId: 'botanica_heart',
-          targetSpawn: Offset(450, 150),
+          rect: Rect.fromLTWH(62, 162, 56, 56),
+          targetRoomId: 'trellis_garden',
+          targetSpawn: Offset(288, 540),
+          chromeless: true,
         ),
       ],
-      conduits: [
-        Conduit(
-          id: 'A',
-          position: Offset(250, 270),
-          requireElement: 'Plant',
-          requiredFamily: DungeonAbility.terrainTrail,
-        ),
-      ],
-      grove: CryptGrove(
-        sepulchre: Offset(540, 270),
-        bole: Offset(140, 420),
-        mulchPit: Offset(660, 110),
-      ),
+      vaultCache: Offset(420, 190),
+      grove: ConservatoryPlot(),
     ),
 
-    // ── BOTANICA'S HEART (Star 2) ─────────────────────────
-    // §7 guardian principle — the mystic fights WITH the planet's rule.
-    // Botanica does not shrink the crypt; it SWELLS YOU. Every strike beat
-    // bursts spores that put the party back in its own body, and the lull
-    // exists only while you are small enough to be in among the roots at the
-    // flower's stem. The same beat reaches out into the crypt and rots one
-    // vine you grew, so it un-makes your roads while you fight it. The arena's
-    // own root-gall is the shrink point, and the rood door is scale-free, so
-    // nothing here can ever shut you in.
-    'botanica_heart': DungeonRoom(
-      id: 'botanica_heart',
+    // ── THE ROOTBOUND DOOR (the rite) ─────────────────────
+    'rootbound_door': DungeonRoom(
+      id: 'rootbound_door',
       bounds: Rect.fromLTWH(0, 0, 900, 640),
       doors: [
         DungeonDoor(
+          rect: Rect.fromLTWH(395, 616, 110, 24),
+          targetRoomId: 'trellis_garden',
+          targetSpawn: Offset(435, 72),
+        ),
+        DungeonDoor(
           rect: Rect.fromLTWH(395, 0, 110, 24),
-          targetRoomId: 'bloom_hall',
-          targetSpawn: Offset(390, 450),
+          targetRoomId: 'botanica_heart',
+          targetSpawn: Offset(480, 620),
+        ),
+      ],
+      grove: ConservatoryPlot(rite: true),
+    ),
+
+    // ── BOTANICA'S HEART (Star 3) ─────────────────────────
+    // §7: the guardian fights WITH the planet's rule. Each strike wrecks the
+    // arena's climate, and its lull opens only once the climate is fixed.
+    'botanica_heart': DungeonRoom(
+      id: 'botanica_heart',
+      bounds: Rect.fromLTWH(0, 0, 960, 700),
+      doors: [
+        DungeonDoor(
+          rect: Rect.fromLTWH(425, 676, 110, 24),
+          targetRoomId: 'rootbound_door',
+          targetSpawn: Offset(450, 80),
         ),
       ],
       guardian: GuardianNode(
-        position: Offset(450, 300),
+        position: Offset(480, 290),
         starIndex: 2,
         encounter: GuardianEncounterRequirement(
           element: 'Plant',
@@ -1183,7 +884,7 @@ const DungeonLayout plantLayout = DungeonLayout(
           canDefeat: true,
         ),
       ),
-      grove: CryptGrove(rootBole: Offset(450, 490)),
+      grove: ConservatoryPlot(arenaRings: [Offset(200, 470), Offset(760, 470)]),
     ),
   },
 );

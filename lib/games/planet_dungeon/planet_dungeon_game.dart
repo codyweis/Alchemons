@@ -16,6 +16,7 @@ import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
+import 'package:alchemons/games/cosmic/vfx_shapes.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
@@ -382,8 +383,8 @@ class PlanetDungeonGame extends FlameGame {
     _resetBogState();
     _resetRuinsState(initialStarMask);
     _resetKeepState();
-    _resetGraveState();
-    _resetCryptState();
+    _resetFuneralState();
+    _resetConservatoryState();
     _resetVaultState();
     _resetArchiveState();
     _resetHeartState();
@@ -1018,21 +1019,6 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Crystal's Black Cell mirror as SHOWN: 0 → 1 as it silvers.
   double _mirrorShown = -1;
-
-  /// Plant's shade tree as SHOWN: 0 → 1 as it grows.
-  double _shadeGrown = -1;
-
-  /// Plant's seed beds as SHOWN: 0 → 1 as a creeper unrolls toward its door
-  /// or a trunk rises and puts out its bough. A bed with no entry is drawn
-  /// whole (a restored run, a test that set the state directly).
-  final Map<String, double> _bedGrow = {};
-
-  /// Plant's sepulchre lid as SHOWN: 0 sealed → 1 slid aside.
-  double _sepulchreSlide = -1;
-
-  /// Plant's ground crossfade after a size change: 1 → 0, the old size's
-  /// picture fading out over the new one.
-  double _scaleFade = 0;
 
   /// Spirit's dream window as SHOWN: 0 → 1 as its panes light.
   double _dreamShown = -1;
@@ -1926,23 +1912,24 @@ class PlanetDungeonGame extends FlameGame {
 
   bool get _isKeep => layout.element == 'Crystal';
 
-  // ── Spirit · the Echo Grave (planet_dungeon_game_spirit.dart) ──
-  /// The whole grave-field — the pure two-world rules plus the live re-ink and
-  /// Wraithord's phase. ONE field, because everything this planet tracks lives
-  /// inside it (see planet_dungeon_layout_spirit.dart).
-  final EchoGrave3D wake = EchoGrave3D();
+  // ── Spirit · the Unfinished Funeral (planet_dungeon_game_spirit.dart) ──
+  /// The whole funeral — the pure rules (planet_dungeon_layout_spirit.dart)
+  /// plus the engine's clocks for the bell, the bearers, the rite and the
+  /// vigil chime. ONE field, as every planet since Ice.
+  final Funeral3D funeral = Funeral3D();
 
-  bool get _isWake => layout.element == 'Spirit';
-  // ── Plant · the Verdant Crypt (planet_dungeon_game_plant.dart) ──
-  /// The whole crypt: what size the party is walking in, and what every seed
-  /// bed holds. ONE field, because on this planet those two things are the
-  /// entire reachability question (see planet_dungeon_layout_plant.dart).
-  final VerdantCrypt crypt = VerdantCrypt();
+  bool get _isFuneral => layout.element == 'Spirit';
+  // ── Plant · the Conservatory (planet_dungeon_game_plant.dart) ──
+  /// The whole Conservatory: which wings are healed, how the trellis garden
+  /// is set up, the rite's buds, Botanica's climate and the grey seed. ONE
+  /// field (see planet_dungeon_layout_plant.dart).
+  final Conservatory greenhouse = Conservatory();
 
-  /// The beat-edge Botanica's spore burst is detected on.
-  bool _botanicaBitLastFrame = false;
+  /// The Conservatory's animation state — every picture that eases toward
+  /// the rules above lives here (planet_dungeon_game_plant_art.dart).
+  final ConservatoryShown _green = ConservatoryShown();
 
-  bool get _isCrypt => layout.element == 'Plant';
+  bool get _isConservatory => layout.element == 'Plant';
 
   // ── Dark · the Eclipse Vault (planet_dungeon_game_dark.dart) ──
   /// The whole vault: where each gnomon's shadow lies, and what that has
@@ -1982,6 +1969,9 @@ class PlanetDungeonGame extends FlameGame {
   bool guardianAwake = false;
   bool guardianVulnerable = false;
   double _guardianCycle = 0;
+
+  /// How long the shared cycle's lull stays open, of every six seconds.
+  double get _guardianLullSeconds => _rocEnraged ? 2.2 : 3.0;
   static const double maxGuardianHp = 4;
   double guardianHp = maxGuardianHp;
   double guardianHitFlash = 0;
@@ -2124,6 +2114,30 @@ class PlanetDungeonGame extends FlameGame {
       frameSize: Vector2(512, 512),
       stepTime: 0.12,
     ),
+    // MYS12 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    'Botanica': SpriteSheetDef(
+      path: 'creatures/mystic/MYS12_plantmystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
+    // MYS10 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    'Ashdjinn': SpriteSheetDef(
+      path: 'creatures/mystic/MYS10_dustmystic_spritesheet.png',
+      totalFrames: 4,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
+    // MYS15 sheet verified 2560×512 — 5 frames of 512×512, one row.
+    'Noctryos': SpriteSheetDef(
+      path: 'creatures/mystic/MYS15_darkmystic_spritesheet.png',
+      totalFrames: 5,
+      rows: 1,
+      frameSize: Vector2(512, 512),
+      stepTime: 0.12,
+    ),
   };
 
   /// Half-HP escalation copy, per mystic.
@@ -2139,6 +2153,7 @@ class PlanetDungeonGame extends FlameGame {
     'Wraithord': 'Wraithord thins. Its openings come shorter now!',
     'Solarin': 'Solarin blazes. Its openings come shorter now!',
     'Sanguorath': 'Sanguorath races, the whole orrery beats double!',
+    'Botanica': 'Botanica tears open, and its roots thrash the floor!',
   };
   SpriteAnimationTicker? _guardianTicker;
   double _guardianSpriteScale = 1.0;
@@ -2388,8 +2403,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog) return _bogProgressReadout();
     if (_isRuins) return _ruinsProgressReadout();
     if (_isKeep) return _keepProgressReadout();
-    if (_isWake) return _graveProgressReadout();
-    if (_isCrypt) return _cryptProgressReadout();
+    if (_isFuneral) return _funeralProgressReadout();
+    if (_isConservatory) return _conservatoryProgressReadout();
     if (_isVault) return _vaultProgressReadout();
     if (_isArchive) return _archiveProgressReadout();
     if (_isHeart) return _heartProgressReadout();
@@ -2790,8 +2805,12 @@ class PlanetDungeonGame extends FlameGame {
     _resetRuinsState(); // the same, for Sablis's seal yard
     _resetVaultState(); // and Nythralor's dial and rings
     _resetArchiveState(); // and the archive's effigies and slips
-    _resetGraveState(); // and Requia's sigil
-    entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
+    _resetFuneralState(); // and Requia's funeral
+    _resetConservatoryState(); // and Verdanthos's wings, trellis and buds
+    // The Conservatory has no entry rite: its doors stand open.
+    entryDoorRevealed =
+        (_isConservatory && !isRaid) ||
+        discoveredClouds.contains(entryDoorDiscoveryId);
     _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
     _entryRevealPrev = _entryReveal;
     currentRoomId = layout.entranceRoomId;
@@ -2933,6 +2952,11 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Reset puzzle progress (death or re-enter), but keep earned stars and
   /// discovered clouds (knowledge persists; per the design death only restarts).
+  /// Test seam: reset every puzzle as a run start does (a headless game
+  /// never runs onLoad).
+  @visibleForTesting
+  void debugResetPuzzleState() => _resetPuzzleState();
+
   void _resetPuzzleState() {
     // A reset invalidates every attempt-edge (§5.6): the world the refusals
     // referred to no longer exists.
@@ -2942,7 +2966,10 @@ class PlanetDungeonGame extends FlameGame {
     _fallRecovering = false;
     _fallTimer = 0;
     // Knowledge persists across death: the entry passage stays revealed.
-    entryDoorRevealed = discoveredClouds.contains(entryDoorDiscoveryId);
+    // The Conservatory has no entry rite: its doors stand open.
+    entryDoorRevealed =
+        (_isConservatory && !isRaid) ||
+        discoveredClouds.contains(entryDoorDiscoveryId);
     _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
     _entryRevealPrev = _entryReveal;
     carriedCloudId = null;
@@ -2989,8 +3016,8 @@ class PlanetDungeonGame extends FlameGame {
     _resetBogState();
     _resetRuinsState();
     _resetKeepState();
-    _resetGraveState();
-    _resetCryptState();
+    _resetFuneralState();
+    _resetConservatoryState();
     _resetVaultState();
     _resetArchiveState();
     _resetHeartState();
@@ -3278,10 +3305,10 @@ class PlanetDungeonGame extends FlameGame {
     if (_isRuins) _updateDustGlass(dt);
     _updateKeep(a, room, dt);
     if (_isKeep) _updateCrystalGlass(dt);
-    _updateGrave(a, room, dt);
-    if (_isWake) _updateSpiritGlass(dt);
-    _updateCrypt(a, room, dt);
-    if (_isCrypt) _updatePlantGlass(dt);
+    _updateFuneral(a, room, dt);
+    if (_isFuneral) _updateSpiritGlass(dt);
+    _updateConservatory(a, room, dt);
+    if (_isConservatory) _updatePlantGlass(dt);
     _updateVault(a, room, dt);
     if (_isVault) _updateDarkGlass(dt);
     _updateArchive(a, room, dt);
@@ -3483,8 +3510,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog) _bogAmbientHint(a, room);
     if (_isRuins) _ruinsAmbientHint(a, room);
     if (_isKeep) _keepAmbientHint(a, room);
-    if (_isWake) _graveAmbientHint(a, room);
-    if (_isCrypt) _cryptAmbientHint(a, room);
+    if (_isFuneral) _funeralAmbientHint(a, room);
+    if (_isConservatory) _conservatoryAmbientHint(a, room);
     if (_isVault) _vaultAmbientHint(a, room);
     if (_isArchive) _archiveAmbientHint(a, room);
     if (_isHeart) _heartAmbientHint(a, room);
@@ -4115,7 +4142,14 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _updateAltar(DungeonCreature a, DungeonRoom room, double dt) {
-    if (room.conduits.isEmpty && room.guardian == null) return;
+    // Plant's rite has no Conduit objects: its three buds latch A and B from
+    // the module, and the door into the heart only opens once this wakes.
+    if (room.conduits.isEmpty &&
+        room.guardian == null &&
+        !(_isConservatory && room.grove?.rite == true) &&
+        !(_isFuneral && room.funeral?.rite == true)) {
+      return;
+    }
     if (_roomCleared(room)) return;
     // §9.1 REWORK: conduits LATCH. Nothing decays here any more — the altar is
     // a question about the storm's route, not about how fast you can run.
@@ -4171,7 +4205,7 @@ class PlanetDungeonGame extends FlameGame {
       // hazard ring, no enrage. The fight starts when it lands.
       if (guardianArriving) return;
       _guardianCycle += dt;
-      guardianVulnerable = (_guardianCycle % 6.0) < (_rocEnraged ? 2.2 : 3.0);
+      guardianVulnerable = (_guardianCycle % 6.0) < _guardianLullSeconds;
       // Raikuma feeds on the powered core trunk (§7): while it drinks there
       // is NO lull; grounding the trunk forces the window. Lightning-only
       // hook — every other guardian keeps the shared cycle untouched.
@@ -4227,7 +4261,7 @@ class PlanetDungeonGame extends FlameGame {
       // GAMEPLAY (the hint audit, 2026-09-25): an out-of-phase Wraithord is
       // "harmless in BOTH directions" — its aura burned across the worlds.
       if (!guardianVulnerable &&
-          !(_isWake && !_wraithInPhase) &&
+          !_funeralHoldsGuardian &&
           (a.position - stormCenter).distance < 90) {
         a.hp = max(0, a.hp - _guardianHazardDps * progressDmgMul * dt);
       }
@@ -4651,9 +4685,9 @@ class PlanetDungeonGame extends FlameGame {
       final isGuardian = identical(enemy, _guardianEnemy);
       // The guardian holds its arena: freeze it while the party is elsewhere.
       if (isGuardian && currentRoom.guardian == null) continue;
-      // Spirit (§7): Wraithord is solid in one world at a time. Out of phase
-      // it does not act at all — its blows pass through you.
-      if (isGuardian && _isWake && !_wraithInPhase) continue;
+      // Spirit (§7): while the chime's note has Wraithord's shadow parted,
+      // it holds still to be struck.
+      if (isGuardian && _funeralHoldsGuardian) continue;
 
       // Lull: the Roc LANDS. Steering pauses and it perches — touchdown is
       // the readable strike window, body language instead of color-reading.
@@ -5437,12 +5471,6 @@ class PlanetDungeonGame extends FlameGame {
   /// The Roc shrugs off most ranged damage while raging; the lull (the same
   /// window that allows utility strikes) is the burst window.
   double _enemyDamageTakenScale(CosmicSurvivalEnemy enemy) {
-    // Spirit (§7): nothing reaches Wraithord while it is standing in the
-    // other world — the fight is harmless in BOTH directions until you match
-    // the body it is wearing.
-    if (_isWake && identical(enemy, _guardianEnemy) && !_wraithInPhase) {
-      return 0;
-    }
     final base = identical(enemy, _guardianEnemy) && !guardianVulnerable
         ? 0.35
         : 1.0;
@@ -6526,6 +6554,15 @@ class PlanetDungeonGame extends FlameGame {
       // A body sitting on a geyser mouth is load-bearing even during a fight:
       // it may be the cap holding the room's pressure up. Leave it planted.
       if (_isBodyPossiblyCapping(c.position, room)) continue;
+      // Likewise a body parked in one of Botanica's tending circles: it is
+      // half of the pair that fixes the arena's climate, and it must still
+      // be standing there when the player switches to the other half.
+      if (_isConservatory && _conservatoryHoldsBody(c.position, room)) {
+        continue;
+      }
+      // And a body kneeling at one of the chapel's stones: the rite wants
+      // all three still there when Blood pulses.
+      if (_isFuneral && _funeralHoldsBody(c.position, room)) continue;
 
       var desired = Offset.zero;
 
@@ -9034,19 +9071,18 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return true;
     }
-    // The Echo Grave: the mouth, the lych-stones, the telling, the drowned
-    // brink, the sigil, the lamp and the hollow's mark all ride one
+    // The Echo Grave: the mouth, the lych-stones, the telling, the sunken
+    // brink, the sigil, the offering bowl and the undug grave all ride one
     // dispatcher — and the arena's stone, like Ice's pillar, must outrank the
     // guardian's own catch, because passing over IS the fight.
-    if (_isWake && _tryGraveVerb(a)) {
+    if (_isFuneral && _tryFuneralVerb(a)) {
       onChanged();
       return true;
     }
-    // The Verdant Crypt: the briar, the galls, the mulch pits, the lamps, the
-    // growth altar, the sepulchre, the hidden seed and the seed beds all ride
-    // one dispatcher — and the arena's root-gall, like Ice's pillar, must
+    // The Conservatory: every tending circle, the trellis root, the grey
+    // seed — and the arena's two circles, which like Ice's pillar must
     // outrank the guardian's own catch.
-    if (_isCrypt && _tryCryptVerb(a)) {
+    if (_isConservatory && _tryConservatoryVerb(a)) {
       onChanged();
       return true;
     }
@@ -9328,12 +9364,12 @@ class PlanetDungeonGame extends FlameGame {
       _keepReveal(a, room);
       return;
     }
-    if (_isWake) {
-      _graveReveal(a, room);
+    if (_isFuneral) {
+      _funeralReveal(a, room);
       return;
     }
-    if (_isCrypt) {
-      _cryptReveal(a, room);
+    if (_isConservatory) {
+      _conservatoryReveal(a, room);
       return;
     }
     if (_isVault) {
@@ -9694,8 +9730,8 @@ class PlanetDungeonGame extends FlameGame {
       // plain `_setHint` dropped. Where the lull is a condition rather than
       // a clock, the refusal names the condition.
       _setBlockedHint(
-        _isWake && !_wraithInPhase
-            ? 'Wraithord is in the other world. Pass over at the stone'
+        _isFuneral && !isRaid
+            ? 'Its shadow shields it'
             : _isArchive && !_inPillarShadow(currentRoom, g.position)
             ? 'Solarin can only be struck from a pillar\'s shadow'
             : 'It can\'t be hit yet. Wait for the lull',
@@ -9957,8 +9993,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isShaft && _iceDoorHidden(room, door)) return true;
     if (_isBog && _bogDoorHidden(room, door)) return true;
     if (_isRuins && _ruinsDoorHidden(room, door)) return true;
-    if (_isWake && _graveDoorHidden(room, door)) return true;
-    if (_isCrypt && _cryptDoorHidden(room, door)) return true;
+    if (_isFuneral && _funeralDoorHidden(room, door)) return true;
+    if (_isConservatory && _conservatoryDoorHidden(room, door)) return true;
     if (_isVault && _vaultDoorHidden(room, door)) return true;
     if (_isArchive && _archiveDoorHidden(room, door)) return true;
     if (_isHeart && _heartDoorHidden(room, door)) return true;
@@ -9991,8 +10027,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog && _bogDoorBlocked(room, door)) return true;
     if (_isRuins && _ruinsDoorBlocked(room, door)) return true;
     if (_isKeep && _keepDoorBlocked(room, door)) return true;
-    if (_isWake && _graveDoorBlocked(room, door)) return true;
-    if (_isCrypt && _cryptDoorBlocked(room, door)) return true;
+    if (_isFuneral && _funeralDoorBlocked(room, door)) return true;
+    if (_isConservatory && _conservatoryDoorBlocked(room, door)) return true;
     if (_isVault && _vaultDoorBlocked(room, door)) return true;
     if (_isArchive && _archiveDoorBlocked(room, door)) return true;
     if (_isHeart && _heartDoorBlocked(room, door)) return true;
@@ -10075,11 +10111,11 @@ class PlanetDungeonGame extends FlameGame {
     if (_isKeep && _keepDoorBlocked(room, door)) {
       return _keepDoorHint(room, door);
     }
-    if (_isWake && _graveDoorBlocked(room, door)) {
-      return _graveDoorHint(room, door);
+    if (_isFuneral && _funeralDoorBlocked(room, door)) {
+      return _funeralDoorHint(room, door);
     }
-    if (_isCrypt && _cryptDoorBlocked(room, door)) {
-      return _cryptDoorHint(room, door);
+    if (_isConservatory && _conservatoryDoorBlocked(room, door)) {
+      return _conservatoryDoorHint(room, door);
     }
     if (_isVault && _vaultDoorBlocked(room, door)) {
       return _vaultDoorHint(room, door);
@@ -10189,8 +10225,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog) return _bogObjectiveHint(room);
     if (_isRuins) return _ruinsObjectiveHint(room);
     if (_isKeep) return _keepObjectiveHint(room);
-    if (_isWake) return _graveObjectiveHint(room);
-    if (_isCrypt) return _cryptObjectiveHint(room);
+    if (_isFuneral) return _funeralObjectiveHint(room);
+    if (_isConservatory) return _conservatoryObjectiveHint(room);
     if (_isVault) return _vaultObjectiveHint(room);
     if (_isArchive) return _archiveObjectiveHint(room);
     if (_isHeart) return _heartObjectiveHint(room);
@@ -10292,8 +10328,8 @@ class PlanetDungeonGame extends FlameGame {
     // Crystal: the essence rides in the WAITING FACET, so the mouth cell only
     // holds it while the facet is standing there (§5.5 vault trick).
     if (_isKeep && !_keepVaultLive) return;
-    // Spirit: the hollow grave is a room the living world does not contain.
-    if (_isWake && !_graveVaultLive) return;
+    // Spirit: the keeper's niche is drifted with dust until Dust clears it.
+    if (_isFuneral && !_funeralVaultLive) return;
     if (discoveredClouds.contains(_vaultCacheId)) return;
     // Reach matches the bigger beacon visual.
     if ((a.position - pos).distance > 52) return;
@@ -10616,7 +10652,7 @@ class PlanetDungeonGame extends FlameGame {
         maxAlpha: 0.09,
         puff: _fx.puff,
       );
-    } else if (_isWake) {
+    } else if (_isFuneral) {
       // GRAVE MIST, low and cold. The generic sky clouds are pale grey and
       // made every barrow the same fogged slab (§7.11).
       drawDriftingClouds(
@@ -10689,8 +10725,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog) _renderBog(canvas, room);
     if (_isRuins) _renderRuins(canvas, room);
     if (_isKeep) _renderKeep(canvas, room);
-    if (_isWake) _renderGrave(canvas, room);
-    if (_isCrypt) _renderCrypt(canvas, room);
+    if (_isFuneral) _renderFuneral(canvas, room);
+    if (_isConservatory) _renderConservatory(canvas, room);
     if (_isVault) _renderVault(canvas, room);
     if (_isArchive) _renderArchive(canvas, room);
     if (_isHeart) _renderHeart(canvas, room);
@@ -10702,8 +10738,9 @@ class PlanetDungeonGame extends FlameGame {
     _renderHazards(canvas, room);
     _renderWalls(canvas, room);
     _renderDoors(canvas, room);
-    // Plant: bark over a crack a trunk has filled, and a bed's preview.
-    if (_isCrypt) _renderCryptOverDoors(canvas, room);
+    // Plant: the great plant's roots over the north door, and the buds'
+    // roots over the heart's.
+    if (_isConservatory) _renderConservatoryOverDoors(canvas, room);
     // Zero-sum darkness: dead trunk wings dim under a cheap eased tint —
     // drawn over the room fabric but UNDER every living thing, so the party,
     // the wisps and the glows stay readable in the dark.
@@ -10714,8 +10751,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog) _renderBogOverDoors(canvas, room);
     // Dust: sand heaped into a doorway a dune has choked.
     if (_isRuins) _renderRuinsOverDoors(canvas, room);
-    // Spirit: a crossing the OTHER world holds is shown over its shut glass.
-    if (_isWake) _renderGraveOverDoors(canvas, room);
+    // Spirit: the funeral gate and the chapel door, as portcullises.
+    if (_isFuneral) _renderFuneralOverDoors(canvas, room);
     if (_isSpire) _renderSpireWinds(canvas, room);
     _renderClouds(canvas, room);
     _renderAnchors(canvas, room);
@@ -10733,6 +10770,7 @@ class PlanetDungeonGame extends FlameGame {
       _renderRefusalPulse(canvas);
       _renderCreatures(canvas);
       _renderCarriedCloud(canvas);
+      if (_isFuneral) _renderFuneralCarried(canvas);
       _renderRelicDrop(canvas);
     }
     _renderVaultCacheGlow(canvas, room);
@@ -10842,7 +10880,7 @@ class PlanetDungeonGame extends FlameGame {
     final pos = room.vaultCache;
     if (pos == null) return;
     if (_isKeep && !_keepVaultLive) return;
-    if (_isWake && !_graveVaultLive) return;
+    if (_isFuneral && !_funeralVaultLive) return;
     if (discoveredClouds.contains(_vaultCacheId)) return;
     final color = elementColor(layout.element);
     final bright = Color.lerp(color, Colors.white, 0.45)!;
@@ -11039,8 +11077,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isBog) return _bogMoodTarget;
     if (_isRuins) return _ruinsMoodTarget;
     if (_isKeep) return _keepMoodTarget;
-    if (_isWake) return _graveMoodTarget;
-    if (_isCrypt) return _cryptMoodTarget;
+    if (_isFuneral) return _funeralMoodTarget;
+    if (_isConservatory) return _conservatoryMoodTarget;
     if (_isVault) return _vaultMoodTarget;
     if (_isArchive) return _archiveMoodTarget;
     if (_isHeart) return _heartMoodTarget;
@@ -13847,7 +13885,7 @@ class PlanetDungeonGame extends FlameGame {
           room.id == layout.entranceRoomId &&
               !_isVault &&
               !_isArchive &&
-              !_isWake,
+              !_isFuneral,
         );
       }
       return;
@@ -14311,8 +14349,8 @@ class PlanetDungeonGame extends FlameGame {
   /// someone left on the carpet.)
   Set<Rect> _planetOwnedWalls(DungeonRoom room) {
     if (_isCircuit) return {for (final c in room.stormCells) c.paneRect};
-    // Plant draws all three of its obstacles as what they actually are.
-    if (_isCrypt) return room.walls.toSet();
+    // Plant draws its pond and lamp standards as what they actually are.
+    if (_isConservatory) return room.walls.toSet();
     // So does Ice: the orrery's four walls ARE its iron standards, drawn by
     // the module. Made solid 2026-09-15 (a cast-iron column you can stand
     // inside is a decal), and the generic rock promptly drew over them.
@@ -14321,8 +14359,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isHeart) return room.walls.toSet();
     // And Dark: its three are slabs of obsidian lying on the void.
     if (_isVault) return room.walls.toSet();
-    // And Spirit's one wall is the lych gate's bier.
-    if (_isWake && room.grave?.vigil != null) return room.walls.toSet();
+    // And Spirit's one wall is the chapel's bier.
+    if (_isFuneral && room.funeral?.rite == true) return room.walls.toSet();
     return const {};
   }
 

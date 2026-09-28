@@ -57,45 +57,31 @@ void stand(PlanetDungeonGame g, String room, Offset at) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('every Plant bed previews the actual size trade before planting', () {
+  test('the trellis root previews exactly where the tendril will go', () {
     final g = game('Plant');
-    for (final bed in kCryptBeds) {
-      stand(g, bed.roomId, bed.crown);
-      for (final scale in PlantScale.values) {
-        g.crypt.reset();
-        g.crypt.scale = scale;
-        final line = g.puzzlePreview!;
-        expect(g.crypt.stateOf(bed.id), VineState.bare);
-        expect(
-          line,
-          contains(scale == PlantScale.tiny ? 'grow trunk' : 'grow creeper'),
-        );
-        expect(
-          line,
-          contains(
-            scale == PlantScale.tiny ? 'Closes the crack' : 'Keeps the crack',
-          ),
-        );
-        expect(line, isNot(contains('somewhere')));
-        g.activateAbility();
-        expect(
-          g.crypt.stateOf(bed.id),
-          scale == PlantScale.tiny ? VineState.trunk : VineState.creeper,
-        );
-      }
-    }
+    g.starMask = 1;
+    stand(g, 'trellis_garden', kTrellisRootKnuckle);
+    final t = g.greenhouse.trellis;
+    expect(g.puzzlePreview, contains('It stops at dry earth'));
+    t.watered = true;
+    expect(g.puzzlePreview, contains('open water'));
+    t.lit = TrellisLamp.west;
+    expect(g.puzzlePreview, contains('the end of the west bed'));
+    t.lit = TrellisLamp.east;
+    t.frozen = true;
+    final line = g.puzzlePreview!;
+    expect(line, contains('It reaches the bud'));
+    expect(line, contains('GROW · 6 tiles'));
+    // Reading it changed nothing.
+    expect(g.greenhouse.grown, isFalse);
   });
 
-  test('Spirit names both ends and both worlds without resting the ghost', () {
+  test('Spirit raises no line when walking the bearers\' flags', () {
     final g = game('Spirit');
-    for (final r in kGraveRevenants) {
-      stand(g, r.toldAt, r.seat);
-      final before = g.wake.field.rested.toSet();
-      final line = g.puzzlePreview!;
-      expect(line, contains(r.name));
-      expect(line, contains('opens for the living, closes for ghosts'));
-      expect(line, isNot(contains('somewhere')));
-      expect(g.wake.field.rested, before);
+    final fr = g.layout.rooms['bearers_court']!.funeral!;
+    for (var f = 0; f < 9; f++) {
+      stand(g, 'bearers_court', fr.flagCentre(f));
+      expect(g.puzzlePreview, isNull);
     }
   });
 

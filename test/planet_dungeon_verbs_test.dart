@@ -210,6 +210,13 @@ void main() {
       expect(dungeonRecipeResult('Crystal', 'Spirit'), 'Light');
       expect(dungeonRecipeResult('Water', 'Dark'), isNull);
     });
+
+    test('Spirit and Dust make Crystal, every time', () {
+      for (var i = 0; i < 50; i++) {
+        expect(dungeonRecipeResult('Spirit', 'Dust'), 'Crystal');
+        expect(dungeonRecipeResult('Dust', 'Spirit'), 'Crystal');
+      }
+    });
   });
 
   group('stat-scaled tunables', () {

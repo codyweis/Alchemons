@@ -588,11 +588,11 @@ void _layerIntoColumns(
 // HAND-PLACED CHARTS
 // ─────────────────────────────────────────────────────────
 //
-// The derived chart is right for most planets. Four are knotted enough that
+// The derived chart is right for most planets. Three are knotted enough that
 // it is merely legal — every door points the right way, but corridors run
-// long and cross: Plant's crypt (one geometry at two sizes, and nearly every
-// room touches nearly every other), Steam's ring round the crucible, Poison's
-// row of wards over a cloister, and Air's climbing spire. Those are placed by
+// long and cross: Steam's ring round the crucible, Poison's row of wards over
+// a cloister, and Air's climbing spire. (Plant's crypt was the fourth; the
+// Conservatory that replaced it is a plain cross and charts itself.) Those are placed by
 // hand on a grid, cell by cell, from their door walls. They are held to the
 // same rule as the derived ones (test/dungeon_full_map_chart_test.dart: a
 // room through an east door is drawn to the east), so a hand chart cannot
@@ -611,22 +611,6 @@ const double _kCellW = 2.3;
 const double _kCellH = 1.75;
 
 const Map<String, _HandChart> _kHandCharts = {
-  // Two sizes, one crypt. The niche and lantern court on top, the porch and
-  // fern gallery under them, the pollen stair below those and the moss walk
-  // under the stair (its north door climbs to it); the islet road then runs
-  // east and down to the heart.
-  'Plant': _HandChart({
-    'crypt_niche': Offset(1, 0),
-    'lantern_court': Offset(2.1, 0),
-    'root_porch': Offset(0, 1.35),
-    'fern_gallery': Offset(2.1, 1.1),
-    'pollen_stair': Offset(1, 2.1),
-    'mosswalk': Offset(1, 3.15),
-    'islet': Offset(2.6, 4.2),
-    'gourd_hollow': Offset(3.6, 4.2),
-    'bloom_hall': Offset(3.4, 5.25),
-    'botanica_heart': Offset(3.4, 6.35),
-  }),
   // A ring round the crucible: the north and south manifolds are the rim,
   // the causeway and the forge its two arcs, the heart under the rite.
   'Steam': _HandChart({

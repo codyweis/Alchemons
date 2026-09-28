@@ -250,6 +250,7 @@ const Map<String, String> _dungeonRecipes = {
   'Lava+Mud': 'Poison',
   'Plant+Mud': 'Poison',
   'Earth+Lightning': 'Crystal',
+  'Dust+Spirit': 'Crystal',
   'Lightning+Crystal': 'Spirit',
   'Crystal+Spirit': 'Light',
   'Poison+Spirit': 'Dark',
@@ -260,6 +261,10 @@ const Map<String, String> _dungeonRecipes = {
 };
 
 /// Element produced by combining [a] and [b] (order-independent), or null.
+///
+/// Every recipe works every time. No dungeon reaction is left to chance: a
+/// puzzle verb that can fail on a correct answer teaches the player that the
+/// answer was wrong.
 String? dungeonRecipeResult(String a, String b) =>
     _dungeonRecipes['$a+$b'] ?? _dungeonRecipes['$b+$a'];
 

@@ -1,3412 +1,923 @@
 // lib/games/planet_dungeon/planet_dungeon_game_plant.dart
 //
-// VERDANTHOS — the Verdant Crypt. Plant's puzzle logic + rendering, as a
-// `part of planet_dungeon_game.dart` (the treatment every planet after the Air
-// pilot gets). The layout, the span graph, the seed beds and the scale rule
-// all live in planet_dungeon_layout_plant.dart; this file is the rules that
-// drive them.
+// VERDANTHOS — THE CONSERVATORY. Plant's puzzle logic, as a `part of
+// planet_dungeon_game.dart`. The layout, the recipes, the tendril's rule and
+// the rite's root lattice are pure and live in planet_dungeon_layout_plant.dart; the
+// pictures live in planet_dungeon_game_plant_art.dart. Design: §9.20.
 //
-// World rule: *the crypt never changes size; you do.* See the layout file's
-// header for the full statement of the span sizes, the bed trade
-// (bare / creeper / trunk), the vault trick, and the strategic question.
+// World rule: *every plant here thrives in a different climate, and yours is
+// the hand that makes it.* One verb — the TENDING CIRCLE.
 //
-//  • Entry — the lich-gate is knotted shut with dead briar. PLANT unknots its
-//    own element and the crypt opens (§5.5, the eased entry reveal).
-//  • Star 0 (Lamp) — THE GRAVE-LAMPS. Three dead wicks: two giant wall
-//    sconces no small body reaches, and one thumb-sized wick in a niche no
-//    large hand fits. Lighting all three means changing size on the way, and
-//    nothing else — no bed committed, no vine grown. ELEMENT-ONLY, all three
-//    elements used: this is the star §4 guarantees to any trio of the right
-//    elements on a first descent.
-//  • Star 1 (Bloom) — THE GROWTH ALTAR, on the islet (§6's Tiny-Huge Island).
-//    Three steps, and the crypt fixes the size of each: loam (Mud, huge),
-//    seed (Plant, tiny), sun (Light+MASK, huge — the marquee gate). The islet
-//    carries NO bole, so each step is a separate arrival at a separate size,
-//    and the tiny one has no road until b_root's creeper is grown for it.
-//  • Rite (Bloom Hall) — conduit A is the Plant+MANE rood screen (§6 put this
-//    gate on Star 1; §4's first-descent guarantee wins, so it moved here);
-//    the sepulchre's clay is element-only Mud.
-//  • Star 2 (Shade) — MYS12 BOTANICA. §7: the guardian fights WITH the
-//    planet's rule. It does not shrink the crypt — it SWELLS YOU. Every strike
-//    beat bursts spores that put the party back in its own body and rots one
-//    vine out in the crypt, so it un-makes your roads while you fight it. Its
-//    lull exists only while you are small enough to be at the stem.
-//  • Lost Maxim — THE UNSEEN SHADE: the seed nobody planted lies where the
-//    giant root's TRUNK throws its shade — the trap the whole planet warns you
-//    off, because that trunk costs the only small road to the islet. Grow it,
-//    and under its shade a small body tends the seed the altar's own three
-//    ways in the altar's own order; then come back at your own size and see
-//    what grew.
-//
-// NON-STRANDABILITY (the design's one real danger — see `solveVerdantCrypt`):
-// a trunk fills the fissure it grew in, and the crypt's small graph is made of
-// fissures, so this is a stranding machine of the same family as Ice's flues
-// and Mud's fords. THE WITHERING is the valve: a Mud creature turns any mulch
-// pit twice and the crypt's season turns — every vine sloughs to mould, every
-// bed is bare, and the garden puts you out at its own gate in your own body.
-// Costly (every road you grew), always available, and it is what
-// `solveVerdantCrypt().strandable == 0` rests on.
+//  • Star 1 (Bloom) — THE THREE CLIMATES. The Dry Bed wants Water, the
+//    Hothouse Ice (Water + Spirit), the Shadehouse Light (Spirit + Crystal).
+//    When the third plant blooms the camera cuts to the hub: three motes fly
+//    in, bind in the central planter, and one great plant rises and prises
+//    the north door open. The star banks on the bind.
+//  • Star 2 (Bud) — THE TRELLIS GARDEN. Wet the soil, freeze the crossing,
+//    choose the lamp, then GROW at the root: the ghost shows exactly where
+//    the tendril will go. PULL takes it back for free.
+//  • Rite — THE ROOTBOUND DOOR. Seven buds on hanging roots, four rings at
+//    the tips. Water rises up its root and stops at ice; frost crawls through
+//    wet buds everywhere; light climbs dry bark and thaws the first frost it
+//    meets. Make the roots match the great plant's crown — which flowered in
+//    the hub on the Bud Star — and they let go. Light at the door is the
+//    planet's Crystal MASK gate; the stump prunes the roots bare, free.
+//  • Star 3 (Heart) — BOTANICA. Each strike wrecks the arena's climate; the
+//    lull opens only once it is fixed, at either of two circles.
+//  • Vault — the west bed's dead end is a lid: a tendril grown all the way
+//    there prises it up, and there are steps under it.
+//  • Lost Maxim — THE SEED THAT WANTED THE OPPOSITE: draw moisture, light
+//    and frost back from the grey seed in the hub's fourth planter.
 
 part of 'planet_dungeon_game.dart';
-
-/// Plant's lost maxim discovery id (the screen pays 20 gold on first find).
-const String kPlantUnseenShadeEggId = 'egg:plant_unseen_shade';
 
 // ── Device-tunable knobs ───────────────────────────────────
 // Plant has never been on a device; every number the feel depends on is named
 // here so a tuning pass is edit-one-block.
 
-/// How close a creature must stand to a bole, a mulch pit, a lamp, the briar,
-/// the altar, the sepulchre, the hidden seed or a bed to act on it.
-const double _kCryptReach = 70.0;
+/// How close a creature must stand to the trellis root or the grey seed to
+/// act on it.
+const double _kGreenReach = 72.0;
 
-/// How close the second body of a Mud+Light braid must stand (§6's recipe —
-/// it substitutes the ELEMENT, never a family).
-const double _kBraidReach = 150.0;
+/// The cutscene, in seconds after the third bloom. The bloom plays in its own
+/// wing first; then the camera cuts to the hub.
+const double _kCutDelay = 1.9;
+const double _kCutMotes = 1.7; // the motes fly in through the wing doors
+const double _kCutBind = 2.5; // they meet over the planter: the star banks
+const double _kCutRise = 4.3; // the great plant is up
+const double _kCutPry = 5.3; // its roots have the north door open
+const double _kCutEnd = 7.2; // and the shot has followed them in
 
-// A turned mulch pit stays armed for its second touch until the party leaves
-// the room. It was a four-second window (2026-09-25 review): the withering is
-// the most expensive verb on the planet, and a confirmation you can miss by
-// reading the warning is timing pressure, not caution.
+/// THE BUD STAR, in seconds after the tendril's tip reaches the island: it
+/// coils round the bud, the bud swells with light breaking through its seams,
+/// it bursts (the star banks), a star rises out of it, and a stream of pollen
+/// flows north and opens the way on.
+const double kBudCoil = 0.7;
+const double kBudBurst = 1.35;
+const double kBudDoor = 3.4;
+const double kBudEnd = 4.4;
 
-/// Grave-moths a relit lamp wakes (Star 0's one consequence). Light in a crypt
-/// is not free — something in the dark has been waiting for it.
-const int _kLampMoths = 2;
+/// How long the cut to the great plant's flowering crown holds.
+const double kCrownCut = 3.2;
 
-/// Wisps the heart-seed's planting wakes out of the loam (Star 1's
-/// consequence).
-const int _kSeedWisps = 2;
+/// Seconds per tile the tendril unrolls, growing and pulling.
+const double _kTendrilTileSeconds = 0.26;
 
-extension VerdantCryptDungeon on PlanetDungeonGame {
-  // ── Lifecycle ────────────────────────────────────────────
+/// Botanica: how long a strike takes to land, the restoration after a fix,
+/// and the lull that follows it.
+const double _kBotanicaStrike = 1.3;
+const double _kBotanicaRestore = 1.0;
+const double _kBotanicaLull = 6.0;
 
-  void _resetCryptState() {
-    if (!_isCrypt) return;
-    // A death regrows nothing and unshrinks nothing by itself — the crypt is
-    // puzzle state like every other planet's, so it resets with the run.
-    crypt.reset();
-    _bedGrow.clear();
-    _scaleFade = 0;
+extension ConservatoryDungeon on PlanetDungeonGame {
+  // ── Run state ─────────────────────────────────────────────
+
+  void _resetConservatoryState() {
+    if (!_isConservatory) return;
+    final g = greenhouse..reset();
+    _green.reset();
+    // §5.7: what a banked star made is standing on every later descent.
+    if (hasStar(0)) {
+      g.healed.addAll(Climate.values);
+      _green.settleWings();
+    }
+    if (hasStar(1)) {
+      g.trellis
+        ..watered = true
+        ..frozen = true
+        ..lit = TrellisLamp.east;
+      g.grown = true;
+      _green.settleTrellis(g.trellis, growTendril(g.trellis).path.length);
+    }
+    if (hasStar(2)) {
+      g.roots.setAll(kRootTarget);
+      g.rootsOpen = true;
+      _green.settleRoots();
+    }
+    if (discoveredClouds.contains(kPlantOppositeSeedEggId)) {
+      g.drawn.addAll(SeedChannel.values);
+      _green.settleSeed();
+    }
   }
 
-  // ── The map, at the size you are ─────────────────────────
+  // ── Doors ─────────────────────────────────────────────────
 
-  /// The span a door IS. One room pair, one span (pinned by the tests), so
-  /// the door the player walks and the edge the proof walks are the same
-  /// object and can never drift apart.
-  CryptSpan? _cryptSpanFor(DungeonRoom room, DungeonDoor door) =>
-      cryptSpanBetween(room.id, door.targetRoomId);
-
-  /// A vine that has not been grown is not a passage at all — there is
-  /// nothing there to see. Everything else the crypt SHOWS you, even when
-  /// your body is the wrong one for it: being told what you cannot fit
-  /// through is the whole teaching layer of this planet (§5.6 BLOCKED).
-  bool _cryptDoorHidden(DungeonRoom room, DungeonDoor door) {
-    if (!_isCrypt) return false;
-    if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
-      // The briar knots the gate: every way out of this room is shut with it.
+  bool _conservatoryDoorHidden(DungeonRoom room, DungeonDoor door) {
+    if (!_isConservatory) return false;
+    // The north door exists once the great plant's roots have it open — not
+    // on the frame the star banks, which is mid-cutscene.
+    if (room.id == 'conservatory' &&
+        door.targetRoomId == 'trellis_garden' &&
+        _green.cutT >= 0 &&
+        _green.cutT < _kCutPry) {
       return true;
     }
-    final span = _cryptSpanFor(room, door);
-    if (span == null) return false;
-    if (span.need == SpanNeed.creeper || span.need == SpanNeed.trunk) {
-      return !crypt.spanExists(span);
+    // The way north appears when the bud's pollen reaches it, not on the
+    // frame the star banks.
+    if (room.id == 'trellis_garden' &&
+        door.targetRoomId == 'rootbound_door' &&
+        _green.budBurstT >= 0 &&
+        _green.budBurstT < kBudDoor) {
+      return true;
+    }
+    if (room.id == 'trellis_garden' && door.targetRoomId == 'root_cellar') {
+      return !greenhouse.hatchOpen;
     }
     return false;
   }
 
-  /// Blocked, and visibly so: either your body is the wrong size for this
-  /// passage, or a trunk has grown up through the crack that used to be one.
-  bool _cryptDoorBlocked(DungeonRoom room, DungeonDoor door) {
-    if (!_isCrypt) return false;
-    final span = _cryptSpanFor(room, door);
-    if (span == null) return false;
-    if (!crypt.spanExists(span)) return true; // a fissure filled by its trunk
-    return !crypt.spanFits(span, crypt.scale);
+  /// Nothing in the Conservatory is locked by its own rules; the engine's
+  /// finale and guardian seals are the only shut doors.
+  bool _conservatoryDoorBlocked(DungeonRoom room, DungeonDoor door) => false;
+
+  String _conservatoryDoorHint(DungeonRoom room, DungeonDoor door) =>
+      'The way is shut';
+
+  // ── The verb ──────────────────────────────────────────────
+
+  bool _tryConservatoryVerb(DungeonCreature a) {
+    if (!_isConservatory || isRaid) return false;
+    final g = currentRoom.grove;
+    if (g == null) return false;
+    return _tryArenaRing(a, g) ||
+        _tryGreySeed(a, g) ||
+        _tryWingRing(a, g) ||
+        _tryTrellis(a, g) ||
+        _tryRite(a, g);
   }
 
-  /// One short clause naming exactly what is missing (§5.6 BLOCKED) — never a
-  /// method. How the crypt got this way is Mask's earned reading.
-  String _cryptDoorHint(DungeonRoom room, DungeonDoor door) {
-    final span = _cryptSpanFor(room, door)!;
-    if (!crypt.spanExists(span)) {
-      return 'A trunk has grown over this crack';
-    }
-    return span.size == SpanSize.tinyOnly
-        ? 'You\'re too big for ${span.look}. Shrink at a seed-gall'
-        : 'You\'re too small for ${span.look}. Grow back at a seed-gall';
-  }
+  /// The bodies standing in the ring at [at] (alive, in this room).
+  List<DungeonCreature> _inRing(Offset at) => [
+    for (final c in creatures)
+      if (c.alive && (c.position - at).distance <= kTendRingReach) c,
+  ];
 
-  // ── Verbs ────────────────────────────────────────────────
+  List<String> _ringElements(Offset at) => [
+    for (final c in _inRing(at)) c.member.element,
+  ];
 
-  /// Every Plant verb, in priority order. Returns true when one was consumed.
-  /// The arena's root-gall outranks the guardian's own catch (Ice's pillar and
-  /// Lightning's spike set that precedent) — the fight's errand must never be
-  /// eaten by a strike.
-  bool _tryCryptVerb(DungeonCreature a) {
-    if (!_isCrypt) return false;
-    return _tryBriarGate(a) ||
-        _tryRootBole(a) ||
-        _tryMulchPit(a) ||
-        _trySeedGall(a) ||
-        _tryGraveLamp(a) ||
-        _tryGrowthAltar(a) ||
-        _trySepulchre(a) ||
-        _tryShadeSeed(a) ||
-        _trySeedBed(a);
-  }
+  bool _standingIn(DungeonCreature a, Offset at) =>
+      (a.position - at).distance <= kTendRingReach;
 
-  /// The planet's growing verb is element-only PLANT (§4), and Mud+Light→Plant
-  /// (§6) stands in as a BRAID — two bodies at the same spot — for a party
-  /// whose Plant hand is down. A recipe substitutes the ELEMENT, never a
-  /// family, so it is never accepted at the rood screen or the altar's sun.
-  bool _cryptHasGreenHand(DungeonCreature a) {
-    final el = a.member.element;
-    if (el == 'Plant') return true;
-    if (el != 'Mud' && el != 'Light') return false;
-    final want = el == 'Mud' ? 'Light' : 'Mud';
-    return creatures.any(
-      (c) =>
-          !identical(c, a) &&
-          c.alive &&
-          c.member.element == want &&
-          (c.position - a.position).distance < _kBraidReach,
-    );
-  }
-
-  /// The entry rite: Plant unknots the dead briar off the lich-gate.
-  bool _tryBriarGate(DungeonCreature a) {
-    final pos = currentRoom.grove?.briarGate;
-    if (pos == null || entryDoorRevealed) return false;
-    if ((a.position - pos).distance > _kCryptReach) return false;
-    if (a.member.element != 'Plant') {
-      _setBlockedHint('Only Plant can untangle this briar');
-      return true;
-    }
-    entryDoorRevealed = true;
-    _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
-    _cue(SoundCue.dungeonGateOpen);
-    _setHint('The briar lets go of the gate, Verdanthos opens both its ways');
-    _spawnAlchemyBurst(
-      pos,
-      producedElement: 'Plant',
-      reagentElements: const ['Mud', 'Light'],
-      particleCount: 30,
-      intensity: 1.25,
-    );
-    return true;
-  }
-
-  /// A BOLE — a hollow seed-gall, and the only place in the crypt the party
-  /// changes size. Element-only Plant (braid allowed): the planet's whole
-  /// grammar has to work for any trio of the right elements (§4), and a size
-  /// you cannot undo is a softlock, so this verb is never gated and never
-  /// one-way.
-  bool _trySeedGall(DungeonCreature a) {
-    final pos = currentRoom.grove?.bole;
-    if (pos == null) return false;
-    if ((a.position - pos).distance > _kCryptReach) return false;
-    if (!_cryptHasGreenHand(a)) {
-      _setBlockedHint('Only Plant can wake a seed-gall');
-      return true;
-    }
-    _shiftScale(otherScale(crypt.scale), pos);
-    return true;
-  }
-
-  /// The one place a size is written. Everything that has to happen when the
-  /// party's body changes happens here, once.
-  void _shiftScale(PlantScale to, Offset at) {
-    if (crypt.scale == to) return;
-    crypt.scale = to;
-    _scaleFade = 1; // the old size's picture fades out over the new one
-    _cue(SoundCue.dungeonSwitch);
-    _cue(SoundCue.elementPlant);
-    // A CONSEQUENCE (§5.7): every passage in the crypt just changed for you.
-    speakConsequence(
-      to == PlantScale.tiny
-          ? 'The gall shrinks you. The moss is a forest now'
-          : 'The gall lets you go, back at full size',
-      3.0,
-    );
+  /// A ring asked for [product] and short of bodies: say which, spend nothing.
+  void _refuseRing(Offset at, String product, List<String> missing) {
+    _setBlockedHint(tendMissingLine(product, missing));
     _spawnAlchemyBurst(
       at,
-      producedElement: 'Plant',
-      reagentElements: const ['Light'],
-      particleCount: 36,
-      intensity: 1.3,
-    );
-  }
-
-  /// THE WITHERING — the anti-strand valve, in two touches.
-  ///
-  /// The first turns the litter and says the price out loud; the second turns
-  /// the crypt's season. Element-only Mud: a party without the ideal trio
-  /// still has to be able to undo itself.
-  bool _tryMulchPit(DungeonCreature a) {
-    final pos = currentRoom.grove?.mulchPit;
-    if (pos == null) return false;
-    if ((a.position - pos).distance > _kCryptReach) return false;
-    if (a.member.element != 'Mud') {
-      _setBlockedHint('Only Mud can turn this mulch');
-      return true;
-    }
-    if (crypt.isFallow) {
-      _setBlockedHint('Nothing to reset. The crypt is as it started');
-      return true;
-    }
-    if (crypt.armedPitRoom != currentRoomId) {
-      crypt.armedPitRoom = currentRoomId;
-      // Attempt-edged and explicit: the most expensive verb on the planet
-      // never fires on one careless press — and it is SPOKEN, because a
-      // warning nobody is shown is not a warning (§5.7).
-      _cue(SoundCue.dungeonSwitch);
-      speakConsequence(
-        'The mulch steams. Turn it again to reset every plant in the crypt',
-        4.0,
-      );
-      return true;
-    }
-    crypt.wither();
-    _bedGrow.clear();
-    _cue(SoundCue.dungeonWallBreak);
-    // The season sloughs the party out with the leaf-fall. Without this the
-    // valve could not save a small body on the islet, whose only small road
-    // is the very creeper the withering takes away — see the no-strand proof.
-    currentRoomId = layout.entranceRoomId;
-    _spreadCreaturesAround(layout.entranceSpawn);
-    _doorCooldown = 0.5;
-    _clearHints();
-    // A closing announces itself (§5.7): every road you grew is gone.
-    speakConsequence(
-      'The crypt resets. Every plant is gone and you\'re back at full size '
-      'at the gate',
-      4.6,
-    );
-    _spawnAlchemyBurst(
-      layout.entranceSpawn,
-      producedElement: 'Mud',
-      reagentElements: const ['Plant'],
-      particleCount: 44,
-      intensity: 1.4,
-    );
-    return true;
-  }
-
-  // ── Star 0 · THE GRAVE-LAMPS ─────────────────────────────
-
-  GraveLamp? _lampIn(DungeonRoom room) {
-    final id = room.grove?.lampId;
-    if (id == null) return null;
-    for (final l in kGraveLamps) {
-      if (l.id == id) return l;
-    }
-    return null;
-  }
-
-  /// The room the Lamp Star banks in, wherever it is (the solver and the
-  /// tally read it without walking there).
-  DungeonRoom? get _lampStarRoom {
-    for (final r in layout.rooms.values) {
-      if (r.grove?.starIndex == 0) return r;
-    }
-    return null;
-  }
-
-  /// A dead wick. Element-only Light — and the lamp only answers a body of
-  /// the size it was cut for, which is the whole star.
-  bool _tryGraveLamp(DungeonCreature a) {
-    final lamp = _lampIn(currentRoom);
-    if (lamp == null || crypt.lampsLit.contains(lamp.id)) return false;
-    if ((a.position - lamp.position).distance > _kCryptReach) return false;
-    if (a.member.element != 'Light') {
-      _setBlockedHint('Only Light can light this lamp');
-      return true;
-    }
-    if (crypt.scale != lamp.reach) {
-      _setBlockedHint(
-        lamp.reach == PlantScale.huge
-            ? 'Too high to reach while small'
-            : 'Too tiny to light at full size',
-      );
-      return true;
-    }
-    crypt.lampsLit.add(lamp.id);
-    _cue(SoundCue.elementLight);
-    _spawnAlchemyBurst(
-      lamp.position,
-      producedElement: 'Light',
-      reagentElements: const ['Plant'],
-      particleCount: 26,
-      intensity: 1.15,
-    );
-    // THE CONSEQUENCE (§7, one per star): a crypt is dark for a reason.
-    spawnWispWave(
-      element: 'Plant',
-      center: lamp.position,
-      count: _kLampMoths,
+      producedElement: product,
+      reagentElements: _ringElements(at),
       unstable: true,
-      announce: false,
+      particleCount: 10,
+      intensity: 0.6,
     );
-    if (!crypt.allLampsLit) {
-      _setHint('The wick catches, and something comes off the ceiling');
-      return true;
-    }
-    final room = _lampStarRoom;
-    final idx = room?.grove?.starIndex;
-    if (idx != null && !hasStar(idx)) {
-      _setHint('Three graves lit, and none of them by the same body');
-      earnStar(idx);
-    }
-    return true;
+    _green.ringRefused(at);
   }
 
-  // ── Star 1 · THE GROWTH ALTAR ────────────────────────────
-
-  /// The crypt's heart-seed, on the islet. Three steps, and the crypt fixes
-  /// the size of each — so the star is not three verbs, it is three arrivals
-  /// (§6: "relic needs both scales").
-  bool _tryGrowthAltar(DungeonCreature a) {
-    final pos = currentRoom.grove?.growthAltar;
-    final idx = currentRoom.grove?.starIndex;
-    if (pos == null || idx == null || hasStar(idx)) return false;
-    if ((a.position - pos).distance > _kCryptReach) return false;
-    final step = crypt.nextBloomStep;
-    if (step == null) return false;
-    if (crypt.scale != bloomStepScale(step)) {
-      // A GOAL, not a method (§5.6): what is wrong, in one clause.
-      _setBlockedHint(switch (step) {
-        BloomStep.loam => 'Too small to carry enough loam',
-        BloomStep.seed => 'Too big to get down into the bowl',
-        BloomStep.sun => 'Too small for the light to reach over the rim',
-      });
-      return true;
-    }
-    switch (step) {
-      case BloomStep.loam:
-        if (a.member.element != 'Mud') {
-          _setBlockedHint('The bowl needs loam first. Only Mud has it');
-          return true;
-        }
-        _setHint('Loam goes in over the old ash, and settles');
-      case BloomStep.seed:
-        if (!_cryptHasGreenHand(a)) {
-          _setBlockedHint('Only Plant can set the seed');
-          return true;
-        }
-        _setHint('The seed goes down into the dark, and the dark stirs');
-        // THE CONSEQUENCE: something else was sleeping in that loam.
-        spawnWispWave(
-          element: 'Plant',
-          center: pos,
-          count: _kSeedWisps,
-          unstable: true,
-          announce: false,
-        );
-      case BloomStep.sun:
-        // The planet's marquee family gate (§4) — a Light that can show what
-        // is not there. A recipe can never stand in for a family.
-        const req = DungeonInteractionRequirement(
-          element: 'Light',
-          requiredFamily: DungeonAbility.insight,
-        );
-        switch (evaluateInteraction(a.member, req)) {
-          case InteractionResult.passed:
-          case InteractionResult.passedViaRecipe:
-            _setHint('A sun that was never there comes over the rim');
-          case InteractionResult.blockedFamily:
-            // "The seal remembers" (§4): the chip stamps on first refusal.
-            final gate = layout.familyGateFor('altar_sun');
-            if (gate != null) {
-              _stampFamilyGate(gate);
-            } else {
-              _setBlockedHint('Only a Light Mask can stand in for the sun');
-            }
-            return true;
-          case InteractionResult.blockedElement:
-          case InteractionResult.blockedStat:
-            _setBlockedHint('The seed needs sunlight. Only Light can give it');
-            return true;
-        }
-    }
-    crypt.bloomStep++;
-    _cue(switch (step) {
-      BloomStep.loam => SoundCue.elementMud,
-      BloomStep.seed => SoundCue.elementPlant,
-      BloomStep.sun => SoundCue.elementLight,
+  /// The climate [product] made at the ring at [at]: the burst and the cue.
+  void _ringMade(Offset at, String product) {
+    _cue(switch (product) {
+      'Water' => SoundCue.elementWater,
+      'Ice' => SoundCue.elementIce,
+      _ => SoundCue.elementLight,
     });
     _spawnAlchemyBurst(
-      pos,
-      producedElement: 'Plant',
-      reagentElements: [bloomStepElement(step)],
-      particleCount: 28,
-      intensity: 1.2,
+      at,
+      producedElement: product,
+      reagentElements: kTendRecipes[product] ?? const [],
+      particleCount: 22,
+      intensity: 1.0,
     );
-    if (crypt.bloomWoken) {
-      _setHint('The heart-seed opens, and the whole crypt smells of spring');
-      earnStar(idx);
+    _green.ringFired(at, product);
+  }
+
+  // ── STAR 1 — THE THREE CLIMATES ───────────────────────────
+
+  bool _tryWingRing(DungeonCreature a, ConservatoryPlot g) {
+    final wing = g.wing;
+    if (wing == null || !_standingIn(a, wing.ring)) return false;
+    final product = climateFix(wing.climate);
+    if (greenhouse.healed.contains(wing.climate)) {
+      _setHint('It is thriving. This room needs nothing more');
+      return true;
+    }
+    final missing = tendMissing(product, _ringElements(wing.ring));
+    if (missing.isNotEmpty) {
+      _refuseRing(wing.ring, product, missing);
+      return true;
+    }
+    greenhouse.healed.add(wing.climate);
+    _ringMade(wing.ring, product);
+    _green.healWing(wing.climate);
+    if (greenhouse.wingsHealed && !hasStar(0)) {
+      _green.cutPending = _kCutDelay;
     }
     return true;
   }
 
-  // ── The rite · THE BLOOM HALL ────────────────────────────
+  /// The cutscene's clock, and the star on the bind.
+  void _updateBloomCut(double dt) {
+    final s = _green;
+    if (s.cutPending > 0) {
+      s.cutPending -= dt;
+      if (s.cutPending <= 0) {
+        s.cutPending = 0;
+        s.cutT = 0;
+        final hub = layout.rooms['conservatory']!;
+        cutTo('conservatory', hub.grove!.greatPlanter!, hold: _kCutPry + 0.2);
+      }
+      return;
+    }
+    // A run that healed all three and never saw the cut (a restored state, a
+    // test) still gets its star.
+    if (s.cutT < 0) {
+      if (greenhouse.wingsHealed && !hasStar(0)) s.cutPending = 0.01;
+      return;
+    }
+    final was = s.cutT;
+    s.cutT += dt;
+    if (was < _kCutBind && s.cutT >= _kCutBind) {
+      _cue(SoundCue.dungeonPuzzleSolved);
+      final at = layout.rooms['conservatory']!.grove!.greatPlanter!;
+      _spawnAlchemyBurst(
+        at,
+        producedElement: 'Plant',
+        reagentElements: const ['Water', 'Ice', 'Light'],
+        particleCount: 32,
+        intensity: 1.3,
+      );
+      earnStar(0);
+    }
+    if (was < _kCutRise - 1.2 && s.cutT >= _kCutRise - 1.2) {
+      _cue(SoundCue.elementPlant);
+      _shake = max(_shake, 4.0);
+    }
+    if (was < _kCutPry - 0.4 && s.cutT >= _kCutPry - 0.4) {
+      _cue(SoundCue.dungeonGateOpen);
+      _shake = max(_shake, 5.0);
+    }
+    if (was < _kCutPry && s.cutT >= _kCutPry) {
+      // Follow the roots through: the tendril's first shoot, in the garden.
+      cutTo('trellis_garden', kTrellisRootKnuckle, hold: _kCutEnd - _kCutPry);
+    }
+    if (s.cutT >= _kCutEnd) s.cutT = -1;
+  }
 
-  /// The rite's second half — element-only Mud, so a party missing the Mane
-  /// meets exactly ONE refusal in this hall rather than two.
-  bool _trySepulchre(DungeonCreature a) {
-    final pos = currentRoom.grove?.sepulchre;
-    if (pos == null) return false;
-    if ((a.position - pos).distance > _kCryptReach) return false;
-    if ((conduitEnergy['B'] ?? 0) > 0) return false;
-    if (a.member.element != 'Mud') {
-      _setBlockedHint('Only Mud can soften this clay');
+  // ── STAR 2 — THE TRELLIS GARDEN ───────────────────────────
+
+  bool _tryTrellis(DungeonCreature a, ConservatoryPlot g) {
+    if (!g.trellis) return false;
+    if ((a.position - kTrellisRootKnuckle).distance <= _kGreenReach) {
+      return _tryTrellisRoot(a);
+    }
+    for (final ring in kTrellisRings) {
+      if (!_standingIn(a, ring.at)) continue;
+      _tryTrellisRing(ring);
+      return true;
+    }
+    return false;
+  }
+
+  void _tryTrellisRing(TendRing ring) {
+    final t = greenhouse.trellis;
+    final product = ring.product!;
+    final lamp = ring.id == kTrellisWestLightRing.id
+        ? TrellisLamp.west
+        : ring.id == kTrellisEastLightRing.id
+        ? TrellisLamp.east
+        : null;
+    final done = switch (product) {
+      'Water' => t.watered,
+      'Ice' => t.frozen,
+      _ => t.lit == lamp,
+    };
+    if (done) {
+      _setHint(switch (product) {
+        'Water' => 'The soil is already wet, and it stays wet',
+        'Ice' => 'The crossing is already frozen, and it stays frozen',
+        _ => 'This lamp is already the lit one',
+      });
+      return;
+    }
+    final missing = tendMissing(product, _ringElements(ring.at));
+    if (missing.isNotEmpty) {
+      _refuseRing(ring.at, product, missing);
+      return;
+    }
+    _ringMade(ring.at, product);
+    switch (product) {
+      case 'Water':
+        t.watered = true;
+        _green.waterT = 0;
+        speakConsequence(
+          'Water runs down both beds and the root approach. The soil darkens',
+          3.4,
+        );
+      case 'Ice':
+        t.frozen = true;
+        _green.freezeT = 0;
+        speakConsequence('The pond freezes across the east bed\'s crossing');
+      default:
+        t.lit = lamp;
+        speakConsequence(
+          greenhouse.grown
+              ? 'The ${lamp == TrellisLamp.west ? 'west' : 'east'} lamp '
+                    'draws the glow out of the other. A grown tendril '
+                    'doesn\'t move for it'
+              : 'The ${lamp == TrellisLamp.west ? 'west' : 'east'} lamp '
+                    'lights and draws the glow out of the other',
+          3.6,
+        );
+    }
+  }
+
+  bool _tryTrellisRoot(DungeonCreature a) {
+    final g = greenhouse;
+    if (_green.tendrilMoving) return true; // let it finish
+    // Nor is the bud's opening something to pull out of.
+    if (_green.budBurstT >= 0 && _green.budBurstT < kBudEnd) return true;
+    if (g.grown) {
+      g.grown = false;
+      _green.tendrilTarget = 0;
+      _cue(SoundCue.dungeonSwitch);
+      speakConsequence(
+        'The tendril draws back to the root. Water, ice and lamp stay as '
+        'they are',
+        3.2,
+      );
+      return true;
+    }
+    final grow = growTendril(g.trellis);
+    if (grow.path.isEmpty) {
+      _setBlockedHint('The earth is dry');
+      _green.ringRefused(kTrellisRootKnuckle);
+      return true;
+    }
+    g.grown = true;
+    _green
+      ..tendrilPath = grow.path
+      ..tendrilStop = grow.stop
+      ..tendrilTarget = grow.path.length.toDouble()
+      ..tendrilLanded = false;
+    _cue(SoundCue.elementPlant);
+    return true;
+  }
+
+  /// The Bud Star's beats: the burst banks the star, and the pollen reaching
+  /// the north door opens it.
+  void _updateBudStar(double dt) {
+    final s = _green;
+    if (s.budBurstT < 0 || s.budBurstT >= 50) return;
+    final was = s.budBurstT;
+    s.budBurstT += dt;
+    final t = s.budBurstT;
+    if (was < kBudBurst && t >= kBudBurst) {
+      _cue(SoundCue.dungeonGateOpen);
+      _shake = max(_shake, 6.0);
+      _spawnAlchemyBurst(
+        trellisCellCentre(kTrellisIsland),
+        producedElement: 'Plant',
+        reagentElements: const ['Water', 'Ice', 'Light'],
+        particleCount: 34,
+        intensity: 1.3,
+      );
+      earnStar(1);
+      // The great plant drops one grey seed into the hub's fourth planter.
+      s.seedDropT = 0;
+    }
+    if (was < kBudDoor && t >= kBudDoor) {
+      // The reveal flare plays where the pollen lands, now the door is real.
+      _queueDoorReveal('trellis_garden', 'rootbound_door');
+      _cue(SoundCue.dungeonSecretReveal);
+      _shake = max(_shake, 2.5);
+    }
+    if (t >= kBudEnd) {
+      s.budBurstT = 99;
+      // THE CLUE: cut to the hub, where the great plant's crown flowers in
+      // the shape of the door's roots — the colours the door will want.
+      final hub = layout.rooms['conservatory']!.grove!.greatPlanter!;
+      s.crownBloomT = 0;
+      cutTo('conservatory', hub - const Offset(0, 150), hold: kCrownCut);
+    }
+  }
+
+  /// The tendril's unroll, and what happens when its tip arrives.
+  void _updateTendril(double dt) {
+    final s = _green;
+    final target = s.tendrilTarget;
+    if ((s.tendrilShown - target).abs() < 1e-6) return;
+    final step = dt / _kTendrilTileSeconds;
+    if (s.tendrilShown < target) {
+      s.tendrilShown = min(target, s.tendrilShown + step);
+      if (s.tendrilShown >= target && !s.tendrilLanded) {
+        s.tendrilLanded = true;
+        _tendrilArrived(s.tendrilStop);
+      }
+    } else {
+      // Pulling back is quicker than growing: it is an undo, not a show.
+      s.tendrilShown = max(target, s.tendrilShown - step * 1.8);
+    }
+  }
+
+  void _tendrilArrived(TendrilStop stop) {
+    switch (stop) {
+      case TendrilStop.bud:
+        if (hasStar(1)) {
+          speakConsequence('The tendril winds round the open bud again');
+          return;
+        }
+        // The show runs from `_updateBudStar`; the star banks on the burst.
+        _green.budBurstT = 0;
+        _cue(SoundCue.elementPlant);
+        // Hold the shot on the island for the whole of it.
+        cutTo(
+          'trellis_garden',
+          Offset.lerp(
+            trellisCellCentre(kTrellisIsland),
+            const Offset(435, 60),
+            0.3,
+          )!,
+          hold: kBudEnd,
+        );
+      case TendrilStop.bedEnd:
+        if (!greenhouse.hatchOpen) {
+          greenhouse.hatchOpen = true;
+          _green.hatchT = 0;
+          _cue(SoundCue.dungeonSecretReveal);
+          _shake = max(_shake, 2.5);
+          speakConsequence(
+            'The tip finds the end of the bed and prises its stone up. There '
+            'are steps under it',
+            4.2,
+          );
+        } else {
+          speakConsequence('The tendril stops at the stone, prised open');
+        }
+      case TendrilStop.water:
+        speakConsequence('The tendril stops at the edge of open water');
+      case TendrilStop.dry:
+        speakConsequence('The tendril stops where the earth is dry');
+      case TendrilStop.noLight:
+        speakConsequence('The tendril waits at the fork. No lamp is lit');
+    }
+  }
+
+  /// Test seam: play the crown's flowering from its first frame.
+  @visibleForTesting
+  void debugStartCrownBloom() => _green.crownBloomT = 0;
+
+  // ── THE RITE — THE ROOTBOUND DOOR ─────────────────────────
+
+  bool _tryRite(DungeonCreature a, ConservatoryPlot g) {
+    if (!g.rite) return false;
+    if ((a.position - kRootStump).distance <= _kGreenReach) {
+      return _tryRootStump();
+    }
+    String? tip;
+    for (final e in kRootRings.entries) {
+      if (_standingIn(a, e.value.at)) tip = e.key;
+    }
+    if (tip == null) return false;
+    final ring = kRootRings[tip]!.at;
+    final g2 = greenhouse;
+    if (g2.rootsOpen || hasStar(2)) {
+      _setHint('The roots have let go');
       return true;
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The clay needs the ${layout.starName(0)} and '
-        '${layout.starName(1)} first',
+        'The roots won\'t answer until you have the '
+        '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return true;
     }
-    conduitEnergy['B'] = double.infinity;
-    _cue(SoundCue.dungeonSwitch);
-    // SPOKEN: a plain hint from a press is dropped unasked.
-    speakConsequence('The clay slumps off the sepulchre. It stays open');
-    _spawnAlchemyBurst(
-      pos,
-      producedElement: 'Mud',
-      reagentElements: const ['Plant'],
-      particleCount: 30,
-      intensity: 1.2,
-    );
+    final made = ringProduct(_ringElements(ring));
+    if (made.both) {
+      _setBlockedHint('Not like this');
+      _green.ringRefused(ring);
+      return true;
+    }
+    final product = made.product;
+    if (product == null) {
+      _setBlockedHint('Not yet');
+      _green.ringRefused(ring);
+      return true;
+    }
+    if (product == 'Light') {
+      // THE GATE: the Crystal in the pair must be a Mask to focus it.
+      final masked = _inRing(ring).any(
+        (c) =>
+            c.member.element == 'Crystal' &&
+            abilityForFamily(c.member.family) == DungeonAbility.insight,
+      );
+      if (!masked) {
+        final gate = layout.familyGateFor('root_light');
+        if (gate != null) {
+          _stampFamilyGate(gate);
+        } else {
+          _setBlockedHint('Only a Crystal Mask can focus the light');
+        }
+        _green.ringRefused(ring);
+        return true;
+      }
+    }
+    final changed = g2.roots.apply(tip, product);
+    if (changed.isEmpty) {
+      _setBlockedHint('Nothing takes');
+      _green.ringRefused(ring);
+      return true;
+    }
+    _ringMade(ring, product);
+    _green.rootsChanged(tip, product, changed);
+    if (g2.roots.matches) {
+      g2.rootsOpen = true;
+      _green.unwindT = -0.9; // let the last climate land first
+      _energizeConduit('A');
+      _energizeConduit('B');
+      _cue(SoundCue.dungeonGateOpen);
+      _shake = max(_shake, 5.0);
+    }
+    onChanged();
     return true;
   }
 
-  // ── The beds — the planet's world edit ───────────────────
-
-  /// One seed, and the crypt decides what it becomes from the size of the
-  /// hand that set it. See the layout header: a shallow seed set by a giant
-  /// comes up a creeper (a road for a small body); a deep seed set by a small
-  /// body comes up a trunk (a road for a giant) and fills the fissure it grew
-  /// in. Both are permanent for the run; only the withering empties a bed.
-  bool _trySeedBed(DungeonCreature a) {
-    for (final b in cryptBedsIn(currentRoomId)) {
-      if ((a.position - b.crown).distance > _kCryptReach) continue;
-      if (!crypt.canPlant(b.id)) {
-        _setBlockedHint(
-          crypt.stateOf(b.id) == VineState.trunk
-              ? 'A trunk already grows here'
-              : 'A creeper already grows here',
-        );
-        return true;
-      }
-      if (!_cryptHasGreenHand(a)) {
-        _setBlockedHint('Only Plant can plant here');
-        return true;
-      }
-      final grown = crypt.plant(b.id)!;
-      _bedGrow[b.id] = 0; // it grows in front of you, toward its door
-      _cue(
-        grown == VineState.trunk
-            ? SoundCue.dungeonBlockMove
-            : SoundCue.elementPlant,
-      );
-      // A CONSEQUENCE (§5.7): a trunk has just filled the crack it grew in,
-      // and a creeper has just opened a road for the size you are not.
-      speakConsequence(_bedGrowthLine(b, grown), 3.4);
-      _spawnAlchemyBurst(
-        b.crown,
-        producedElement: 'Plant',
-        reagentElements: [a.member.element],
-        particleCount: grown == VineState.trunk ? 40 : 24,
-        intensity: grown == VineState.trunk ? 1.35 : 1.0,
-      );
-      // The road it just made (and, for a trunk, the one it just took) both
-      // deserve the reveal flourish the engine gives new doors.
-      for (final s in kCryptSpans) {
-        if (s.bedId != b.id) continue;
-        if (s.need == SpanNeed.fissure) continue;
-        if (!crypt.spanExists(s)) continue;
-        _queueDoorReveal(s.from, s.to);
-        _queueDoorReveal(s.to, s.from);
-      }
+  /// PRUNE: the roots shed every climate. Free, and as often as you like —
+  /// most of the lattice's states can no longer reach the crown.
+  bool _tryRootStump() {
+    final g = greenhouse;
+    if (g.rootsOpen || hasStar(2)) {
+      _setHint('The roots have let go');
       return true;
+    }
+    if (g.roots.bare) {
+      _setHint('The roots are bare');
+      return true;
+    }
+    final was = Map.of(g.roots.state);
+    g.roots.reset();
+    _green.rootsPruned(was);
+    _cue(SoundCue.dungeonWallBreak);
+    _shake = max(_shake, 2.0);
+    onChanged();
+    return true;
+  }
+
+  // ── STAR 3 — BOTANICA FIGHTS WITH THE CLIMATE ─────────────
+
+  /// §7 — the guardian fights WITH the planet's rule. Each strike turns the
+  /// arena too dry, too warm or too dark and holds it there; the lull opens
+  /// only after the climate is fixed, and runs in full from that moment.
+  /// Runs after the shared cycle in `_updateAltar`, so it owns the window.
+  void _updateBotanica(DungeonRoom room, double dt) {
+    if (room.guardian == null || room.grove == null || isRaid) return;
+    if (!guardianAwake || guardianArriving || hasStar(2)) return;
+    final g = greenhouse;
+    final s = _green;
+    if (s.lull > 0) {
+      s.lull = max(0.0, s.lull - dt);
+      guardianVulnerable = s.lull > 0;
+      if (s.lull <= 0) _botanicaStrike();
+      return;
+    }
+    guardianVulnerable = false;
+    if (s.strikeT >= 0) {
+      s.strikeT += dt;
+      if (s.strikeT >= _kBotanicaStrike) {
+        s.strikeT = -1;
+        g.arena = s.strikeClimate;
+        g.lastArena = s.strikeClimate;
+        _cue(SoundCue.dungeonHazardTrigger);
+        _shake = max(_shake, 6.0);
+        // A consequence the player must hear (§5.7), from update.
+        speakConsequence(
+          'The arena is ${climateWord(g.arena!).toLowerCase()}',
+          4.0,
+        );
+      }
+      return;
+    }
+    if (s.restoreT >= 0) {
+      s.restoreT += dt;
+      if (s.restoreT >= _kBotanicaRestore) {
+        s.restoreT = -1;
+        s.lull = _kBotanicaLull;
+        guardianVulnerable = true;
+      }
+      return;
+    }
+    if (g.arena == null) _botanicaStrike();
+  }
+
+  void _botanicaStrike() {
+    final g = greenhouse;
+    final choices = [
+      for (final c in Climate.values)
+        if (c != g.lastArena) c,
+    ];
+    _green
+      ..strikeClimate = choices[_combatRng.nextInt(choices.length)]
+      ..strikeT = 0;
+  }
+
+  bool _tryArenaRing(DungeonCreature a, ConservatoryPlot g) {
+    if (g.arenaRings.isEmpty) return false;
+    Offset? ring;
+    for (final r in g.arenaRings) {
+      if (_standingIn(a, r)) ring = r;
+    }
+    if (ring == null) return false;
+    final climate = greenhouse.arena;
+    if (climate == null) {
+      _setHint(
+        _green.lull > 0
+            ? 'The climate is right. Strike Botanica now'
+            : 'Nothing is wrong with the arena yet',
+      );
+      return true;
+    }
+    final product = climateFix(climate);
+    final missing = tendMissing(product, _ringElements(ring));
+    if (missing.isNotEmpty) {
+      _refuseRing(ring, product, missing);
+      return true;
+    }
+    _ringMade(ring, product);
+    _green
+      ..restoreT = 0
+      ..restoredClimate = climate;
+    greenhouse.arena = null;
+    speakConsequence('The arena is right again. Botanica is open to you', 3.4);
+    return true;
+  }
+
+  /// Is a body at [pos] standing in one of the arena's circles? Idle
+  /// companions there hold their ground instead of joining the fight
+  /// (`_updateIdleCompanionMovement`).
+  bool _conservatoryHoldsBody(Offset pos, DungeonRoom room) {
+    for (final r in room.grove?.arenaRings ?? const <Offset>[]) {
+      if ((pos - r).distance <= kTendRingReach) return true;
     }
     return false;
   }
 
-  String _bedGrowthLine(SeedBed bed, VineState grown) {
-    if (grown == VineState.creeper) {
-      return 'A creeper grows out of ${bed.look}. Small creatures can '
-          'climb it';
-    }
-    return 'A trunk grows, and ${bed.look} is filled in';
-  }
+  // ── THE LOST MAXIM — THE SEED THAT WANTED THE OPPOSITE ────
 
-  // ── Star 2 · BOTANICA ────────────────────────────────────
+  bool get _greySeedPlanted => hasStar(1);
 
-  /// The arena's own root-gall. Element-only Plant (braid allowed), and it
-  /// only ever shrinks: at your own size there is nothing to hit in among
-  /// those roots.
-  bool _tryRootBole(DungeonCreature a) {
-    final pos = currentRoom.grove?.rootBole;
-    if (pos == null) return false;
-    if ((a.position - pos).distance > _kCryptReach) return false;
-    if (crypt.isTiny) return false;
-    if (!_cryptHasGreenHand(a)) {
-      _setBlockedHint('Only Plant can wake a seed-gall');
+  bool _tryGreySeed(DungeonCreature a, ConservatoryPlot g) {
+    final at = g.seedPlanter;
+    if (at == null || !_greySeedPlanted) return false;
+    if ((a.position - at).distance > _kGreenReach) return false;
+    if (discoveredClouds.contains(kPlantOppositeSeedEggId) ||
+        _ritePendingEgg == kPlantOppositeSeedEggId) {
+      _setHint('It is in bloom, in the shade, the warm and the dry');
       return true;
     }
-    _shiftScale(PlantScale.tiny, pos);
-    return true;
-  }
-
-  /// §7 — the guardian fights WITH the planet's rule. Botanica does not
-  /// shrink the crypt; it SWELLS YOU. Its lull exists only while the party is
-  /// small enough to be in among the roots at the stem, and every strike beat
-  /// bursts spores that put you back in your own body AND rots one vine out
-  /// in the crypt — it un-makes your roads while you fight it.
-  void _updateBotanica(DungeonRoom room, double dt) {
-    if (room.guardian == null || !guardianAwake) return;
-    if (!crypt.isTiny) {
-      guardianVulnerable = false;
-      return;
-    }
-    if (guardianVulnerable && !_botanicaBitLastFrame) {
-      // The window opened: the flower answers by breathing out.
-      _botanicaBitLastFrame = true;
-      return;
-    }
-    if (!guardianVulnerable && _botanicaBitLastFrame) {
-      _botanicaBitLastFrame = false;
-      crypt.scale = PlantScale.huge;
-      _scaleFade = 1;
-      final rotted = _rotOneVine();
-      _cue(SoundCue.dungeonHazardTrigger);
-      // A closing announces itself (§5.7): from update, where a plain line is
-      // dropped unasked, and a road out in the crypt has just gone black.
-      speakConsequence(
-        rotted == null
-            ? 'Spores burst and you\'re back at full size'
-            : 'Spores burst. You\'re back at full size, and one of your vines '
-                  'rots',
-      );
-    }
-  }
-
-  /// The blight takes one road back. Deterministic (the first bed still
-  /// holding anything, in authored order) so a fight reads the same twice.
-  /// Returns the bed it emptied, or null when there is nothing to rot.
-  String? _rotOneVine() {
-    for (final b in kCryptBeds) {
-      if (crypt.stateOf(b.id) == VineState.bare) continue;
-      crypt.bed[b.id] = VineState.bare;
-      _bedGrow.remove(b.id);
-      return b.id;
-    }
-    return null;
-  }
-
-  // ── The Lost Maxim · THE UNSEEN SHADE ────────────────────
-  //
-  // THE SHADE THE TRAP THROWS (2026-09-19; the §7 maxim standard, and Mud's
-  // lesson that the best place to hide a secret is the state your own stars
-  // punish).
-  //
-  // It was already close (§7 graded it ▶): three tendings small, then a look
-  // from your own size. What it lacked was a PLACE with a reason, an order,
-  // and any hint at all. It hangs off the planet's own trap now:
-  //
-  //   1. GROW THE GIANT ROOT'S TRUNK. Plant b_root while SMALL and it comes
-  //      up wood — the bough over the gallery wall that fills the worm-run
-  //      and costs the only small road to the islet: the state the layout
-  //      header calls THE TRAP, the one every hint on this planet warns you
-  //      off, and 142 of the 448 states the withering exists for. Nothing is
-  //      pressed for the secret here; the bough THROWS A SHADE across the
-  //      gallery floor, and the seed nobody planted lies in it.
-  //   2. UNDER THE SHADE, SMALL, TEND IT THE ALTAR'S OWN THREE WAYS in the
-  //      altar's own order — loam (Mud), seed (Plant), sun (Light): the
-  //      repeated beat, and the planet's own three verbs. Out of order is a
-  //      puff and a sentence, and nothing is spent.
-  //   3. COME BACK AT YOUR OWN SIZE. The nearest gall from the gallery, for
-  //      a small body, is the porch's — out along the moss walk and back.
-  //      What grew in the shade is only visible to a body that can stand
-  //      back from it; a Plant hand at your own size and the rite of three.
-  //
-  // Nothing here asks for a family the riddle did not name, and the star
-  // path never passes it: the authored descent grows b_root as a CREEPER,
-  // and no star wants its trunk.
-
-  /// The giant root's trunk stands: the bough is throwing its shade.
-  bool get shadeThrown => crypt.stateOf('b_root') == VineState.trunk;
-
-  bool _tryShadeSeed(DungeonCreature a) {
-    if (discoveredClouds.contains(kPlantUnseenShadeEggId)) return false;
-    final pos = currentRoom.grove?.shadeSeed;
-    if (pos == null || crypt.shadeRisen) return false;
-    if ((a.position - pos).distance > _kCryptReach) return false;
-    final el = a.member.element;
-    if (!crypt.shadeTended) {
-      // ── 1 · the shade ──
-      if (!shadeThrown) {
-        // WHAT is missing (§5.6): nothing here casts a shadow yet.
-        _setBlockedHint('Nothing here throws shade');
-        return true;
-      }
-      if (!crypt.isTiny) {
-        _setBlockedHint('Something tiny in the shade. You need to be small');
-        return true;
-      }
-      // ── 2 · the three tendings, in the ground's order ──
-      final want = VerdantCrypt.shadeWants[crypt.shadeStep];
-      if (el != want) {
-        _spawnAlchemyBurst(
-          pos,
-          producedElement: el,
-          particleCount: 8,
-          intensity: 0.5,
-        );
-        _setBlockedHint(switch (crypt.shadeStep) {
-          0 => 'It needs loam first',
-          1 => 'It has loam. Now it needs a seed',
-          _ => 'It has loam and a seed. Now it needs sun',
-        });
-        return true;
-      }
-      crypt.shadeStep++;
-      _cue(switch (el) {
-        'Mud' => SoundCue.elementMud,
-        'Plant' => SoundCue.elementPlant,
-        _ => SoundCue.elementLight,
-      });
-      _spawnAlchemyBurst(
-        pos,
-        producedElement: 'Plant',
-        reagentElements: [el],
-        particleCount: 14 + crypt.shadeStep * 4,
-        intensity: 0.7 + crypt.shadeStep * 0.15,
-      );
+    final channel = seedChannelFor(a.member.element);
+    if (channel == null) {
+      _setBlockedHint('Nothing this creature carries runs to the seed');
       return true;
     }
-    // ── 3 · looked at, from your own size ──
-    if (crypt.isTiny) {
-      _spawnAlchemyBurst(
-        pos,
-        producedElement: el,
-        particleCount: 8,
-        intensity: 0.5,
-      );
-      _setBlockedHint('It has everything it needs. Come back at full size');
+    if (greenhouse.drawn.contains(channel)) {
+      _setBlockedHint('That channel is drawn back already');
       return true;
     }
-    if (el != 'Plant') {
-      _spawnAlchemyBurst(
-        pos,
-        producedElement: el,
-        particleCount: 8,
-        intensity: 0.5,
-      );
-      _setBlockedHint(
-        'Something has grown in the shade. Only Plant can gather it',
-      );
-      return true;
-    }
-    crypt.shadeRisen = true;
-    _cue(SoundCue.dungeonGateOpen);
-    // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    beginMaximRite(kPlantUnseenShadeEggId, pos);
+    greenhouse.drawn.add(channel);
+    _green.drawChannel(channel);
+    _cue(switch (channel) {
+      SeedChannel.moisture => SoundCue.elementWater,
+      SeedChannel.light => SoundCue.elementCrystal,
+      SeedChannel.frost => SoundCue.elementSpirit,
+    });
     _spawnAlchemyBurst(
-      pos,
-      producedElement: 'Plant',
-      reagentElements: const ['Mud', 'Light'],
-      particleCount: 44,
-      intensity: 1.5,
+      at,
+      producedElement: a.member.element,
+      particleCount: 14,
+      intensity: 0.8,
     );
+    // The plants tell it themselves (the user, 2026-09-27): a leaf
+    // uncurls with every channel, and nothing is said.
+    if (greenhouse.drawn.length < SeedChannel.values.length) return true;
+    _cue(SoundCue.dungeonGateOpen);
+    beginMaximRite(kPlantOppositeSeedEggId, at);
     return true;
   }
 
-  // ── Per-frame ────────────────────────────────────────────
+  /// The one nudge, given once ever, the first time the seed is seen.
+  void _greySeedNudge(DungeonCreature a, DungeonRoom room) {
+    final at = room.grove?.seedPlanter;
+    if (at == null || !_greySeedPlanted) return;
+    if (discoveredClouds.contains(kPlantOppositeSeedEggId)) return;
+    const id = 'teach:plant_grey_seed';
+    if (discoveredClouds.contains(id)) return;
+    if ((a.position - at).distance > 150) return;
+    _discoverCloud(id);
+    speakConsequence('A grey seed. It hated the rooms you healed', 4.2);
+  }
 
-  void _updateCrypt(DungeonCreature a, DungeonRoom room, double dt) {
-    if (!_isCrypt) return;
-    // Walking away from a steaming pit is the answer "no".
-    if (crypt.armedPitRoom != null && crypt.armedPitRoom != currentRoomId) {
-      crypt.armedPitRoom = null;
-    }
+  // ── Frame ─────────────────────────────────────────────────
+
+  void _updateConservatory(DungeonCreature a, DungeonRoom room, double dt) {
+    if (!_isConservatory) return;
+    _updateBloomCut(dt);
+    _updateTendril(dt);
+    _updateBudStar(dt);
     _updateBotanica(room, dt);
+    _greySeedNudge(a, room);
   }
 
   // ── Readouts, hints, insight (§5.6) ──────────────────────
 
-  /// STATE LEAVES THE CAPSULE (§5.6): the counters live beside the star
-  /// tracker, per room, never as prose that fades. SIZE is the default,
-  /// because on this planet it is the one number every decision turns on.
-  DungeonProgressReadout? _cryptProgressReadout() {
+  DungeonProgressReadout? _conservatoryProgressReadout() {
     final room = layout.rooms[currentRoomId];
-    final grove = room?.grove;
-    if (grove?.growthAltar != null && !hasStar(grove!.starIndex!)) {
-      final n = crypt.bloomStep;
+    final g = room?.grove;
+    if (g == null) return null;
+    if (g.arenaRings.isNotEmpty && guardianAwake && !hasStar(2)) {
+      final c = greenhouse.arena ?? _green.strikeClimateIfLanding;
       return DungeonProgressReadout(
-        label: 'BLOOM',
-        value: '$n/${BloomStep.values.length}',
-        fraction: n / BloomStep.values.length,
+        label: 'ARENA',
+        value: c == null
+            ? (_green.lull > 0 ? 'OPEN' : 'RIGHT')
+            : '${climateWord(c)} · ${climateFix(c).toUpperCase()}',
       );
     }
-    if (grove?.lampId != null && !hasStar(0)) {
-      final n = crypt.lampsLit.length;
+    if (g.seedPlanter != null &&
+        _greySeedPlanted &&
+        !discoveredClouds.contains(kPlantOppositeSeedEggId) &&
+        greenhouse.drawn.isNotEmpty) {
+      final n = greenhouse.drawn.length;
       return DungeonProgressReadout(
-        label: 'LAMPS',
-        value: '$n/${kGraveLamps.length}',
-        fraction: n / kGraveLamps.length,
+        label: 'SEED',
+        value: '$n/3',
+        fraction: n / 3,
       );
     }
-    return DungeonProgressReadout(
-      label: 'SIZE',
-      value: scaleWord(crypt.scale),
-      fraction: crypt.isTiny ? 0.25 : 1.0,
-    );
+    if (!hasStar(0)) {
+      final n = greenhouse.healed.length;
+      return DungeonProgressReadout(
+        label: 'CLIMATES',
+        value: '$n/3',
+        fraction: n / 3,
+      );
+    }
+    return null;
   }
 
-  /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
-  String? _cryptObjectiveHint(DungeonRoom room) {
+  /// WHAT, never HOW (§5.6): each wing says what is wrong with it.
+  String? _conservatoryObjectiveHint(DungeonRoom room) {
+    final g = room.grove;
+    if (g == null) return null;
     if (room.guardian != null) {
       return 'Botanica\'s Heart. The last star is here';
     }
-    if (room.grove?.sepulchre != null) {
-      return 'The Bloom Hall. The rite happens here';
-    }
-    if (room.grove?.growthAltar != null) {
-      return hasStar(room.grove!.starIndex!)
+    final wing = g.wing;
+    if (wing != null) {
+      return greenhouse.healed.contains(wing.climate)
           ? null
-          : 'The Islet. The growth altar is dry';
+          : climateComplaint(wing.climate);
+    }
+    if (g.trellis) {
+      return hasStar(1)
+          ? null
+          : 'The Trellis Garden. The bud across the pond is sealed';
+    }
+    if (g.rite) {
+      return hasStar(2) ? null : 'The Rootbound Door. The roots are knotted';
     }
     if (room.vaultCache != null) {
-      return 'Inside the altar\'s rim. Something is stored here';
+      return 'Under the trellis. Something is stored here';
     }
-    if (room.grove?.lampId != null && !hasStar(0)) {
-      return crypt.lampsLit.contains(room.grove!.lampId)
-          ? null
-          : 'An unlit grave-lamp';
-    }
-    if (room.id == 'crypt_niche') {
-      return 'The Crypt Niche';
-    }
-    if (room.id == 'pollen_stair') {
-      return 'The Pollen Stair. A seed-gall hangs here';
-    }
-    if (room.id == 'fern_gallery') {
-      return 'The Fern Gallery';
-    }
-    if (room.id == layout.entranceRoomId) {
-      return entryDoorRevealed
-          ? 'The Root Porch'
-          : 'The Root Porch. Dead briar knots the gate shut';
+    if (g.greatPlanter != null && !hasStar(0)) {
+      return 'The Conservatory. Three wings, and nothing growing';
     }
     return null;
   }
 
   /// AMBIENT is flavour only (§5.6): no mechanics, no elements, no families.
-  void _cryptAmbientHint(DungeonCreature a, DungeonRoom room) {
-    for (final b in cryptBedsIn(room.id)) {
-      if ((a.position - b.crown).distance > _kCryptReach) continue;
-      _setAmbientHint(switch (crypt.stateOf(b.id)) {
-        VineState.bare => 'Old soil, and it still smells like soil',
-        VineState.creeper => 'Something fine is moving along the ground here',
-        VineState.trunk => 'Bark, and a slow creak somewhere above it',
+  void _conservatoryAmbientHint(DungeonCreature a, DungeonRoom room) {
+    final g = room.grove;
+    final wing = g?.wing;
+    if (wing != null &&
+        !greenhouse.healed.contains(wing.climate) &&
+        (a.position - wing.plant).distance < 120) {
+      _setAmbientHint(switch (wing.climate) {
+        Climate.dry => 'The leaves crackle when you breathe near them',
+        Climate.warm => 'The air shimmers over the vents',
+        Climate.dark => 'It has grown toward a light that isn\'t there',
       });
       return;
     }
-    final gall = room.grove?.bole;
-    if (gall != null && (a.position - gall).distance < 110) {
-      _setAmbientHint('The gall breathes in, and does not breathe out');
-      return;
-    }
-    final pit = room.grove?.mulchPit;
-    if (pit != null && (a.position - pit).distance < 110) {
-      _setAmbientHint('Warm, and turning over on its own');
+    final seed = g?.seedPlanter;
+    if (seed != null &&
+        _greySeedPlanted &&
+        (a.position - seed).distance < 120 &&
+        !discoveredClouds.contains(kPlantOppositeSeedEggId)) {
+      _setAmbientHint('It leans away from the great plant');
     }
   }
 
-  /// INSIGHT is the only channel allowed to teach method (§5.6), and it is
-  /// tiered by Intelligence.
-  void _cryptReveal(DungeonCreature a, DungeonRoom room) {
-    final tier = revealHintTier(a.member.statIntelligence);
-    // BOTANICA'S ARENA has a fourth gall of its own and a rule of its own —
-    // the flower is only hurtable while you are small — and the crypt's size
-    // reading ("only three seed-galls") was all a HINT here used to say.
-    if (room.grove?.rootBole != null) {
-      _setInsightHint(switch (tier) {
-        0 => 'Botanica can only be hurt while you\'re small',
-        1 =>
-          'The root-gall here shrinks you. Its spores put you back to full '
-              'size',
-        _ =>
-          'Shrink at the root-gall, strike, and shrink again after each '
-              'burst. Each burst rots one of your vines',
-      });
-      return;
-    }
-    // THE VAULT'S DOOR is in this altar's rim. Once the Bloom Star is banked
-    // the altar has nothing left to teach, so its reading points at the
-    // pocket instead (this used to sit behind the altar branch and so only
-    // ever showed inside the hollow, where it was no use).
-    if (room.grove?.growthAltar != null &&
-        room.grove?.starIndex != null &&
-        hasStar(room.grove!.starIndex!) &&
-        !discoveredClouds.contains(_vaultCacheId)) {
-      _setInsightHint(
-        'There\'s a little door in the altar\'s rim. Only a small body fits '
-        'through it',
-      );
-      return;
-    }
-    if (room.grove?.growthAltar != null) {
-      _setInsightHint(switch (tier) {
-        0 => 'The altar needs three things, in order',
-        1 =>
-          'Loam, then a seed, then sunlight. Each one needs a different size',
-        _ =>
-          'Mud brings loam at full size. Plant sets the seed while small. '
-              'Then a Light Mask at full size gives it sun',
-      });
-      return;
-    }
-    if (room.grove?.lampId != null) {
-      _setInsightHint(switch (tier) {
-        0 => 'Three grave-lamps, and not all at the same size',
-        1 => 'Two lamps are high on the walls. One is a tiny wick in a crack',
-        _ =>
-          'Light the two big ones at full size, then shrink at a seed-gall '
-              'to light the tiny one',
-      });
-      return;
-    }
-    if (room.grove?.shadeSeed != null &&
-        shadeThrown &&
-        !discoveredClouds.contains(kPlantUnseenShadeEggId)) {
-      // ONE OBLIQUE LINE and nothing after it (the §7 maxim standard). It
-      // takes over from the bed's teaching only once the trap is sprung and
-      // the bough is throwing its shade.
-      _setInsightHint(
-        'Something small lies in the trunk\'s shade. It wants what the altar '
-        'wanted, in the same order',
-      );
-      return;
-    }
-    if (cryptBedsIn(room.id).isNotEmpty) {
-      _setInsightHint(switch (tier) {
-        0 => 'Plant can grow something in this bed',
-        1 => 'What grows depends on your size when you plant it',
-        _ =>
-          'Planted at full size, it grows a creeper small creatures can '
-              'climb. Planted small, it grows a trunk for full size, and the '
-              'trunk fills the crack it grew from',
-      });
-      return;
-    }
-    // Anywhere in the crypt, insight reads the SIZE — which is the planet.
-    _setInsightHint(switch (tier) {
-      0 => 'Some passages are for small creatures, some for full size',
-      1 =>
-        'Cracks and grates need you small. Rills, treads and boughs need full '
-            'size. Seed-galls switch your size',
-      _ =>
-        'Only three seed-galls change your size. Plan both sizes before you '
-            'plant. Mud at a mulch pit resets every plant if you get stuck',
-    });
-  }
-
-  /// Per-room mood — the porch is grey daylight, the crypt is deep green, and
-  /// the niche is the dark inside a wall.
-  double get _cryptMoodTarget => switch (currentRoomId) {
-    'root_porch' => 0.74,
-    'mosswalk' => 0.6,
-    'fern_gallery' => 0.5,
-    'pollen_stair' => 0.44,
-    'lantern_court' => crypt.allLampsLit ? 0.66 : 0.34,
-    'crypt_niche' => 0.18,
-    'islet' => 0.62,
-    'gourd_hollow' => 0.22,
-    'bloom_hall' => 0.4,
-    _ => guardianAwake ? 0.36 : 0.46,
-  };
-
-  // ── THE NO-STRAND PROOF ──────────────────────────────────
-
-  /// Exhaustive reachability over the crypt's whole state graph.
-  ///
-  /// A state is (which room you stand in) × (what SIZE you are) × (what each
-  /// bed holds). Every legal move is expanded: walking any span open at that
-  /// size in that arrangement, planting any bare bed in the room you stand in
-  /// (the product fixed by your size, exactly as the verb fixes it), waking a
-  /// gall, turning a mulch pit — and Botanica's spore burst, which swells you
-  /// and rots a vine and is not a move the player chooses at all. Including
-  /// the burst makes the enumerated set a strict SUPERSET of what play alone
-  /// can reach, and reachability is then audited using only the moves the
-  /// PLAYER controls. That is the honest form of the question: from anywhere
-  /// the world can put you, can you still get out.
-  ///
-  /// Four answers, all by construction rather than by argument:
-  ///
-  ///  1. `strandable` — states from which some room is no longer reachable.
-  ///     **It must be zero.** "Reachable" is checked for EVERY room in the
-  ///     layout, which is stronger than the brief asks: not just the exit and
-  ///     the unearned stars, but the vault as well.
-  ///  2. `strandableWithoutWithering` — the same audit with the mulch pits
-  ///     deleted. It is expected to be LARGE: the withering is load-bearing,
-  ///     not decoration, and if this ever drops to zero someone has quietly
-  ///     made a trunk reversible and the planet has lost its identity.
-  ///  3. `vaultLosable` — states from which the gourd hollow can no longer be
-  ///     entered WITHOUT paying a withering. It must be non-zero, because
-  ///     that cost is what makes the vault trick a trick (§5.5).
-  ///  4. `sizeLocked` — states from which the party can never be the OTHER
-  ///     size again without a withering. Being stuck at the wrong scale is
-  ///     this planet's own named hazard, so it is measured separately rather
-  ///     than folded into the room count.
-  ({
-    int states,
-    int arrangements,
-    int strandable,
-    int strandableWithoutWithering,
-    int vaultLosable,
-    int sizeLocked,
-  })
-  solveVerdantCrypt() {
-    final rooms = layout.rooms.keys.toList()..sort();
-    final ids = [for (final b in kCryptBeds) b.id];
-    final start = List.filled(ids.length, VineState.bare);
-    final gallRooms = {
-      for (final e in layout.rooms.entries)
-        if (e.value.grove?.bole != null) e.key,
-    };
-    final pitRooms = {
-      for (final e in layout.rooms.entries)
-        if (e.value.grove?.mulchPit != null) e.key,
-    };
-    final guardianRoom = layout.rooms.values
-        .firstWhere((r) => r.guardian != null)
-        .id;
-    final vaultRoom = layout.rooms.values
-        .firstWhere((r) => r.vaultCache != null)
-        .id;
-
-    String enc(String room, PlantScale s, List<VineState> v) =>
-        '$room|${s.index}|${v.map((x) => x.index).join()}';
-
-    VineState at(List<VineState> v, String id) => v[ids.indexOf(id)];
-
-    /// Whether a span exists in arrangement [v] — the SAME rule
-    /// [VerdantCrypt.spanExists] applies, restated over a plain list so the
-    /// search never has to mutate live state.
-    bool exists(CryptSpan s, List<VineState> v) {
-      final id = s.bedId;
-      if (id == null) return true;
-      return switch (s.need!) {
-        SpanNeed.fissure => at(v, id) != VineState.trunk,
-        SpanNeed.creeper => at(v, id) == VineState.creeper,
-        SpanNeed.trunk => at(v, id) == VineState.trunk,
-      };
-    }
-
-    bool fits(CryptSpan s, PlantScale size) => switch (s.size) {
-      SpanSize.both => true,
-      SpanSize.tinyOnly => size == PlantScale.tiny,
-      SpanSize.hugeOnly => size == PlantScale.huge,
-    };
-
-    /// Which doors are walkable. Derived from the SAME spans the engine gates
-    /// real doors with, via the room's own door list, so the proof can never
-    /// drift from the doors the player actually meets.
-    List<String> exits(String room, PlantScale size, List<VineState> v) {
-      final out = <String>[];
-      for (final d in layout.rooms[room]!.doors) {
-        final s = cryptSpanBetween(room, d.targetRoomId);
-        if (s == null) {
-          out.add(d.targetRoomId);
-          continue;
-        }
-        if (exists(s, v) && fits(s, size)) out.add(d.targetRoomId);
-      }
-      return out;
-    }
-
-    List<(String, PlantScale, List<VineState>)> moves(
-      String room,
-      PlantScale size,
-      List<VineState> v, {
-      required bool witheringEnabled,
-      required bool spores,
-    }) {
-      final out = <(String, PlantScale, List<VineState>)>[];
-      for (final t in exits(room, size, v)) {
-        out.add((t, size, v));
-      }
-      // Planting: the product is fixed by the size standing at the bed.
-      for (final b in cryptBedsIn(room)) {
-        if (at(v, b.id) != VineState.bare) continue;
-        final next = [...v];
-        next[ids.indexOf(b.id)] = size == PlantScale.huge
-            ? VineState.creeper
-            : VineState.trunk;
-        out.add((room, size, next));
-      }
-      // A gall flips the size, both ways, always.
-      if (gallRooms.contains(room)) out.add((room, otherScale(size), v));
-      // The arena's root-gall only ever shrinks.
-      if (layout.rooms[room]!.grove?.rootBole != null &&
-          size == PlantScale.huge) {
-        out.add((room, PlantScale.tiny, v));
-      }
-      // THE WITHERING: everything bare, your own body, out at the gate.
-      if (witheringEnabled && pitRooms.contains(room)) {
-        final fallow =
-            size == PlantScale.huge && v.every((x) => x == VineState.bare);
-        if (!fallow) {
-          out.add((layout.entranceRoomId, PlantScale.huge, start));
-        }
-      }
-      // Botanica's spore burst — the world's move, never the player's, and
-      // only ever inside the arena.
-      if (spores && room == guardianRoom) {
-        for (var i = 0; i < v.length; i++) {
-          if (v[i] == VineState.bare) continue;
-          final next = [...v];
-          next[i] = VineState.bare;
-          out.add((room, PlantScale.huge, next));
-        }
-        if (size != PlantScale.huge) out.add((room, PlantScale.huge, v));
-      }
-      return out;
-    }
-
-    ({Set<String> rooms, Set<int> sizes}) reach(
-      String room,
-      PlantScale size,
-      List<VineState> v, {
-      required bool witheringEnabled,
-    }) {
-      final seen = <String>{enc(room, size, v)};
-      final hitRooms = <String>{room};
-      final hitSizes = <int>{size.index};
-      final queue = [(room, size, v)];
-      while (queue.isNotEmpty) {
-        final (rm, sz, st) = queue.removeLast();
-        for (final m in moves(
-          rm,
-          sz,
-          st,
-          witheringEnabled: witheringEnabled,
-          spores: false,
-        )) {
-          final k = enc(m.$1, m.$2, m.$3);
-          if (!seen.add(k)) continue;
-          hitRooms.add(m.$1);
-          hitSizes.add(m.$2.index);
-          queue.add(m);
-        }
-      }
-      return (rooms: hitRooms, sizes: hitSizes);
-    }
-
-    // Every state the world can put the party in — player moves AND the
-    // flower's.
-    final live = <String, (String, PlantScale, List<VineState>)>{};
-    final first = (layout.entranceRoomId, PlantScale.huge, start);
-    live[enc(first.$1, first.$2, first.$3)] = first;
-    final queue = [first];
-    while (queue.isNotEmpty) {
-      final (rm, sz, st) = queue.removeLast();
-      for (final m in moves(rm, sz, st, witheringEnabled: true, spores: true)) {
-        final k = enc(m.$1, m.$2, m.$3);
-        if (live.containsKey(k)) continue;
-        live[k] = m;
-        queue.add(m);
-      }
-    }
-
-    var strandable = 0;
-    var without = 0;
-    var vaultLosable = 0;
-    var sizeLocked = 0;
-    for (final st in live.values) {
-      if (reach(st.$1, st.$2, st.$3, witheringEnabled: true).rooms.length <
-          rooms.length) {
-        strandable++;
-      }
-      final bare = reach(st.$1, st.$2, st.$3, witheringEnabled: false);
-      if (bare.rooms.length < rooms.length) without++;
-      if (!bare.rooms.contains(vaultRoom)) vaultLosable++;
-      if (bare.sizes.length < 2) sizeLocked++;
-    }
-    return (
-      states: live.length,
-      arrangements: {
-        for (final s in live.values) s.$3.map((x) => x.index).join(),
-      }.length,
-      strandable: strandable,
-      strandableWithoutWithering: without,
-      vaultLosable: vaultLosable,
-      sizeLocked: sizeLocked,
-    );
-  }
-
-  // ── Rendering ────────────────────────────────────────────
-  // VISUAL GRAMMAR (§5.5): scale is drawn as a change of REFERENCE, never as a
-  // change to the world. At huge the crypt's furniture is trim — a moss verge,
-  // a joint in the paving, a bead of dew. At tiny the SAME furniture is
-  // redrawn as terrain: the verge becomes a canopy of fronds, the joint a
-  // ravine with its section showing, the dew standing water. Nothing here is
-  // drawn like Dust's mound heights or Water's tide line, and there are no
-  // blur filters anywhere (the game's known jank source).
-
-  static const Color _kCryptGreen = Color(0xFF4E8B4A);
-  static const Color _kCryptDeep = Color(0xFF1D2E1E);
-  static const Color _kCryptBark = Color(0xFF6B4E33);
-  static const Color _kCryptBone = Color(0xFFD9D2BC);
-  static const Color _kCryptLamp = Color(0xFFF2D287);
-
-  void _renderCrypt(Canvas canvas, DungeonRoom room) {
-    _renderCryptGround(canvas, room);
-    // A SIZE CHANGE DISSOLVES (2026-09-25): the picture you just left fades
-    // out over the one you are now, so the moss visibly BECOMES a canopy
-    // rather than the room swapping in a frame. Two grounds for 0.7s.
-    if (_scaleFade > 0) {
-      canvas.saveLayer(
-        room.bounds.inflate(40),
-        Paint()..color = Colors.white.withValues(alpha: _scaleFade),
-      );
-      _renderCryptGround(canvas, room, tiny: !crypt.isTiny);
-      canvas.restore();
-    }
-    _renderGlassDoorPlugs(canvas, room);
-    _renderCryptSpans(canvas, room);
-    _renderCryptBeds(canvas, room);
-    _renderCryptObjects(canvas, room);
-  }
-
-  // Stone, soil and green. The crypt is limestone being eaten by a garden, so
-  // nothing in it is one colour: the paving runs from a pale weathered course
-  // to a slab so lichened it is nearly moss.
-  static const Color _kCryptStone = Color(0xFFA1977C);
-  static const Color _kCryptStoneCold = Color(0xFF333B2C);
-  static const Color _kCryptSeam = Color(0xFF11150F);
-  static const Color _kCryptSoil = Color(0xFF2A2115);
-  static const Color _kCryptMoss = Color(0xFF5A7A39);
-  static const Color _kCryptWater = Color(0xFF20403C);
-  static const Color _kCryptSheen = Color(0xFF9FD8C4);
-
-  /// THE GROUND. One geometry, two readings.
-  ///
-  /// The whole planet rests on a sentence — *the crypt never changes size; you
-  /// do* — and the art has to be able to carry it on its own, because the
-  /// player meets the picture before they meet the rule. So the room's ground
-  /// is built ONCE at its true world size and then rendered twice over: the
-  /// same ledger stones, the same joints between them, the same seeps and the
-  /// same moss, drawn as TRIM at your own size and as TERRAIN at a small one.
-  /// A joint is a hairline up here and a lit-walled ravine down there. A seep
-  /// is a bead of dew up here and standing water down there. Nothing moves
-  /// between the two pictures, which is what makes "this is the room I just
-  /// left" legible without a word of text.
-  ///
-  /// Cost: everything irregular is cached (see `_cryptGroundCache`). Per frame
-  /// this is fills and strokes over a fixed list, plus three phases — the fern
-  /// sway, the sheen on standing water, and a drift of spores.
-  void _renderCryptGround(Canvas canvas, DungeonRoom room, {bool? tiny}) {
-    return _renderCryptGroundAt(canvas, room, tiny ?? crypt.isTiny);
-  }
-
-  void _renderCryptGroundAt(Canvas canvas, DungeonRoom room, bool tiny) {
-    final g = _cryptGround(room);
-    final b = room.bounds.deflate(10);
-    final t = _time;
-
-    // The gourd is not a room of the crypt at all — it is the inside of a
-    // seed. It gets its own ground and none of the masonry below.
-    if (_cryptHas(room.id, 'shell')) {
-      _renderGourdShell(canvas, room, g, tiny, t);
-      return;
-    }
-
-    // THE ISLET STANDS IN WATER. Drawn first and OUTSIDE the paving, so the
-    // island reads as a thing the water surrounds rather than a blue frame
-    // painted on the floor (which is how the first attempt read).
-    if (_cryptHas(room.id, 'water')) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          room.bounds.deflate(8),
-          const Radius.circular(30),
-        ),
-        Paint()..color = const Color(0xFF0E2A34).withValues(alpha: 0.62),
-      );
-      // Two slow rings on the water. The islet read as a stone lozenge on a
-      // green floor until the water had something moving in it.
-      for (var k = 0; k < 2; k++) {
-        final ph = ((t * 0.10 + k * 0.5) % 1.0);
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: room.bounds.center,
-            width: b.width * (0.94 + ph * 0.10),
-            height: b.height * (0.94 + ph * 0.10),
-          ),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = _kCryptSheen.withValues(alpha: 0.10 * (1 - ph)),
-        );
-      }
-      canvas.drawPath(
-        g.shore,
-        Paint()..color = _kCryptSoil.withValues(alpha: 0.62),
-      );
-      // A wet line where the water meets the bank, not a drawn ellipse.
-      canvas.drawPath(
-        g.shore,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = _kCryptSheen.withValues(alpha: 0.16),
-      );
-    } else {
-      // Grave soil under the paving. Everything the stones do not cover is
-      // this, so a missing slab is a hole down to earth and not a hole in the
-      // floor. Alpha holds the FLOOR TRANSLUCENCY RULE.
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          room.bounds.deflate(8),
-          const Radius.circular(30),
-        ),
-        Paint()..color = _kCryptSoil.withValues(alpha: 0.42),
-      );
-    }
-
-    // The ledger stones, their joints and their epitaphs never move: baked
-    // once per room at each of the two sizes (planet_dungeon_game_plant_art).
-    _renderCryptLedger(canvas, room, g, tiny);
-
-    // ── the seeps ──────────────────────────────────────────
-    for (var i = 0; i < g.seeps.length; i++) {
-      final c = g.seeps[i];
-      final r = g.seepR[i];
-      if (tiny) {
-        canvas.drawOval(
-          Rect.fromCenter(center: c, width: r * 2.6, height: r * 1.5),
-          Paint()..color = _kCryptWater.withValues(alpha: 0.72),
-        );
-        final ph = sin(t * 0.6 + i * 1.7);
-        canvas.drawLine(
-          Offset(c.dx - r * 0.8, c.dy + ph * r * 0.3),
-          Offset(c.dx + r * 0.9, c.dy + ph * r * 0.3 - 1),
-          Paint()
-            ..strokeWidth = 1.3
-            ..color = _kCryptSheen.withValues(alpha: 0.20),
-        );
-      } else {
-        canvas.drawOval(
-          Rect.fromCenter(center: c, width: r * 0.9, height: r * 0.5),
-          Paint()..color = _kCryptWater.withValues(alpha: 0.50),
-        );
-      }
-    }
-
-    // ── moss ───────────────────────────────────────────────
-    // The same blotches both ways: a stain you walk over, or a canopy you
-    // walk under. The fronds are only drawn at tiny — up there moss has no
-    // silhouette, and drawing one anyway is what made the old render look
-    // like a lawn instead of a crypt.
-    for (var i = 0; i < g.moss.length; i++) {
-      canvas.drawPath(
-        g.moss[i],
-        Paint()..color = _kCryptMoss.withValues(alpha: tiny ? 0.18 : 0.10),
-      );
-      if (tiny) {
-        final c = g.mossCentre[i];
-        final r = g.mossR[i];
-        for (var k = 0; k < 3; k++) {
-          final a = -pi / 2 + (k - 2) * 0.42;
-          final h = r * (1.5 + 0.35 * ((i + k) % 3));
-          final sway = sin(t * 0.8 + i + k * 0.6) * 3;
-          canvas.drawPath(
-            Path()
-              ..moveTo(c.dx, c.dy)
-              ..quadraticBezierTo(
-                c.dx + cos(a) * h * 0.4,
-                c.dy + sin(a) * h * 0.5,
-                c.dx + cos(a) * h * 0.8 + sway,
-                c.dy + sin(a) * h,
-              ),
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.4
-              ..color = _kCryptGreen.withValues(alpha: 0.25),
-          );
-        }
-      }
-    }
-
-    // ── the roots that are taking the building apart ───────
-    _renderCryptRoots(canvas, g, tiny);
-
-    // ── the built edge ─────────────────────────────────────
-    _renderCryptMasonry(canvas, room, g, tiny, t);
-
-    // ── what this room in particular is ────────────────────
-    _renderCryptFixtures(canvas, room, g, tiny, t);
-
-    // The air of the place: spores off the fern, going nowhere in particular.
-    // The pollen stair is named for its air, so it gets three times as much
-    // of it and nothing else changes. A dozen circles at worst — the only
-    // thing in here that is genuinely per-frame.
-    final motes = _cryptHas(room.id, 'stair') ? 6 : 2;
-    for (var i = 0; i < motes; i++) {
-      final ph = (t * 0.05 + i * 0.17) % 1.0;
-      final x = b.left + 30 + ((i * 197) % (b.width.toInt() - 60));
-      final y = b.bottom - 20 - ph * (b.height - 60);
-      canvas.drawCircle(
-        Offset(x, y + sin(t * 0.7 + i * 2.1) * 9),
-        tiny ? 3.2 : 1.7,
-        Paint()
-          ..color = const Color(
-            0xFFE8E2A8,
-          ).withValues(alpha: 0.20 * (1 - ph) + 0.05),
-      );
-    }
-  }
-
-  void _paintCryptLedger(Canvas canvas, _CryptGround g, bool tiny) {
-    // ── the ledger stones ──────────────────────────────────
-    // A funerary floor is grave slabs, every one cut for a different body and
-    // laid at a different century, so no two are the same size and none of
-    // them line up. They come out of a recursive split of the room (see
-    // `_buildCryptGround`) precisely so that they CANNOT tile.
-    //
-    // QUIETER AT YOUR OWN SIZE (2026-09-24): sixty slabs at full contrast
-    // made every chamber the same busy mosaic, louder than the vines and
-    // beds that are the puzzle. Up here the paving is one worn floor with
-    // its joints; only at tiny does each slab stand up as terrain.
-    final shadow = Paint()
-      ..color = const Color(0xFF000000).withValues(alpha: tiny ? 0.30 : 0.12);
-    if (!tiny) {
-      // One worn floor, its joints doing the talking (drawn below).
-      for (final slab in g.slabs) {
-        canvas.drawPath(
-          slab,
-          Paint()
-            ..color = Color.lerp(
-              _kCryptStoneCold,
-              _kCryptStone,
-              0.35,
-            )!.withValues(alpha: 0.22),
-        );
-      }
-    }
-    for (var i = 0; i < g.slabs.length && tiny; i++) {
-      final tone = tiny ? g.slabTone[i] : 0.3 + g.slabTone[i] * 0.3;
-      // At tiny each slab is a mesa you stand on top of, so it throws a real
-      // shadow into the joint beside it; at huge it is flush paving and the
-      // shadow is only a suggestion of a lip.
-      canvas.save();
-      canvas.translate(1.5, tiny ? 6 : 2.5);
-      canvas.drawPath(g.slabs[i], shadow);
-      canvas.restore();
-      canvas.drawPath(
-        g.slabs[i],
-        Paint()
-          ..color = Color.lerp(
-            _kCryptStoneCold,
-            _kCryptStone,
-            tone,
-          )!.withValues(alpha: tiny ? 0.36 : 0.24),
-      );
-      // The lit upper edge. One stroke, clipped to the slab so it reads as
-      // the top face catching the light rather than an outline round it.
-      canvas.save();
-      canvas.clipPath(g.slabs[i]);
-      canvas.translate(0, tiny ? 3 : 1.2);
-      canvas.drawPath(
-        g.slabs[i],
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = tiny ? 4 : 1.6
-          ..color = _kCryptBone.withValues(
-            alpha: tiny ? 0.13 + 0.10 * tone : 0.05 + 0.04 * tone,
-          ),
-      );
-      canvas.restore();
-    }
-
-    // Decorative joints stay subordinate to actual routes. They do not
-    // participate in the passage graph; thick black channels misleadingly
-    // made them look like dozens of additional paths to solve.
-    for (var i = 0; i < g.seams.length; i++) {
-      final w = g.seamWidth[i];
-      if (tiny) {
-        // A ravine: banked rim, black section, and a fringe of moss where the
-        // light stops. The rim goes down first and wider, so the crack reads
-        // as something cut INTO the ground.
-        canvas.drawPath(
-          g.seams[i],
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = w + 2
-            ..color = _kCryptSoil.withValues(alpha: 0.32),
-        );
-        canvas.drawPath(
-          g.seams[i],
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = w
-            ..color = _kCryptSeam.withValues(alpha: 0.38),
-        );
-        if (w > 12) {
-          // Only the big ones get a lit wall — otherwise every hairline in
-          // the room sprouted a highlight and the floor turned to tinsel.
-          canvas.save();
-          canvas.translate(0, -w * 0.30);
-          canvas.drawPath(
-            g.seams[i],
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2
-              ..color = _kCryptMoss.withValues(alpha: 0.35),
-          );
-          canvas.restore();
-        }
-      } else {
-        canvas.drawPath(
-          g.seams[i],
-          Paint()
-            ..style = PaintingStyle.stroke
-            // Faint at your own size (2026-09-24): with the slabs one tone
-            // the joints became a web across the floor. The wide ones (the
-            // roads you walk small) still show; hairlines barely do.
-            ..strokeWidth = w > 12 ? 2.0 : 1.0
-            ..color = _kCryptSeam.withValues(alpha: w > 12 ? 0.3 : 0.14),
-        );
-      }
-    }
-
-    // ── worn epitaphs ──────────────────────────────────────
-    // Two or three strokes of a name nobody can read any more. At your own
-    // size they are shallow scratches; at tiny they are trenches you could
-    // lose a leg in, which is the joke the whole planet is built on.
-    for (var i = 0; i < g.carvings.length; i++) {
-      final c = g.carvings[i];
-      final a = g.carvingAngle[i];
-      final len = g.carvingLen[i];
-      final dx = cos(a) * len, dy = sin(a) * len;
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = tiny ? 2 : 1
-        ..color = _kCryptSeam.withValues(alpha: tiny ? 0.24 : 0.14);
-      for (var k = -1; k <= 1; k++) {
-        final o = Offset(
-          -dy / len * k * (tiny ? 13 : 7),
-          dx / len * k * (tiny ? 13 : 7),
-        );
-        canvas.drawLine(
-          c + o - Offset(dx / 2, dy / 2),
-          c + o + Offset(dx / 2, dy / 2),
-          p,
-        );
-      }
-    }
-  }
-
-  /// Roots reaching in under the wall course.
-  ///
-  /// FIRST ATTEMPT READ AS SCAFFOLDING: they were constant-width strokes that
-  /// ran clean across the room from one wall to the opposite one, so every
-  /// chamber had two brown scaffold poles laid over it in an X. A root is not
-  /// a beam — it comes in under the masonry and TAPERS to nothing, so these
-  /// are filled polygons that start thick at the wall and end at a point,
-  /// they curve hard, and they stop short of the middle of the room.
-  void _renderCryptRoots(Canvas canvas, _CryptGround g, bool tiny) {
-    for (var i = 0; i < g.roots.length; i++) {
-      canvas.save();
-      canvas.translate(2, 5);
-      canvas.drawPath(
-        g.roots[i],
-        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.28),
-      );
-      canvas.restore();
-      canvas.drawPath(
-        g.roots[i],
-        Paint()..color = const Color(0xFF2E2113).withValues(alpha: 0.92),
-      );
-      // The lit crest along the back of the root, so it reads as round.
-      canvas.drawPath(
-        g.rootCrests[i],
-        Paint()..color = _kCryptBark.withValues(alpha: 0.42),
-      );
-      // Feeder rootlets — a root with no branches is a pipe, and the first
-      // pass looked exactly like plumbing.
-      for (var k = 0; k < g.rootlets[i].length; k++) {
-        final a = g.rootlets[i][k];
-        canvas.drawLine(
-          a.$1,
-          a.$2,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = tiny ? 3.4 : 2.0
-            ..color = const Color(0xFF3A2A19).withValues(alpha: 0.8),
-        );
-      }
-    }
-  }
-
-  /// The wall course, its burial niches and its column stumps. This is the
-  /// architecture: a crypt seen from above is a band of ashlar with the
-  /// loculi cut into it, and the room's whole edge used to be a rounded
-  /// rectangle with a green lip.
-  void _renderCryptMasonry(
-    Canvas canvas,
-    DungeonRoom room,
-    _CryptGround g,
-    bool tiny,
-    double t,
-  ) {
-    for (var i = 0; i < g.masonry.length; i++) {
-      final r = g.masonry[i];
-      final tone = g.masonryTone[i];
-      canvas.drawRect(
-        r.translate(1, 2),
-        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.26),
-      );
-      // The course is deliberately DARKER and colder than the paving. When
-      // the two shared a palette the wall vanished into the floor and the
-      // whole room read as one quilt of stone with no edge to it.
-      canvas.drawRect(
-        r,
-        Paint()
-          ..color = Color.lerp(
-            const Color(0xFF20261C),
-            const Color(0xFF6C6754),
-            tone,
-          )!.withValues(alpha: 0.80),
-      );
-      canvas.drawRect(
-        Rect.fromLTRB(r.left, r.top, r.right, r.top + 3),
-        Paint()..color = _kCryptBone.withValues(alpha: 0.14),
-      );
-      canvas.drawRect(
-        r,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1
-          ..color = _kCryptSeam.withValues(alpha: 0.55),
-      );
-    }
-    // LOCULI — the shelves the crypt was built to hold. Dark slots of
-    // different depths; a few still have their slab, most do not.
-    for (var i = 0; i < g.loculi.length; i++) {
-      final r = g.loculi[i];
-      canvas.drawRect(r, Paint()..color = _kCryptSeam.withValues(alpha: 0.9));
-      if (g.loculiSlab[i]) {
-        canvas.drawRect(
-          r.deflate(2.5),
-          Paint()..color = _kCryptBone.withValues(alpha: 0.30),
-        );
-        canvas.drawLine(
-          Offset(r.left + 5, r.center.dy),
-          Offset(r.right - 5, r.center.dy),
-          Paint()
-            ..strokeWidth = 1
-            ..color = _kCryptSeam.withValues(alpha: 0.4),
-        );
-      }
-    }
-    // Column stumps: broken at different heights, because a colonnade with
-    // every drum the same height is a fence.
-    for (var i = 0; i < g.columns.length; i++) {
-      final c = g.columns[i];
-      final h = g.columnH[i];
-      canvas.drawOval(
-        Rect.fromCenter(center: c.translate(3, 4), width: 30, height: 15),
-        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.28),
-      );
-      // The shaft, seen from above and slightly in front: a body plus a DRUM
-      // TOP. Without the ellipse on top these were pale capsules standing on
-      // the floor and read as bottles, not stone.
-      canvas.drawRect(
-        Rect.fromLTRB(c.dx - 13, c.dy - h, c.dx + 13, c.dy),
-        Paint()..color = _kCryptStone.withValues(alpha: 0.50),
-      );
-      canvas.drawRect(
-        Rect.fromLTRB(c.dx + 4, c.dy - h, c.dx + 13, c.dy),
-        Paint()..color = _kCryptSeam.withValues(alpha: 0.22),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(c.dx, c.dy - h), width: 26, height: 13),
-        Paint()..color = _kCryptStoneCold.withValues(alpha: 0.85),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(c.dx, c.dy - h), width: 26, height: 13),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = _kCryptBone.withValues(alpha: 0.22),
-      );
-      // Fluting, two strokes. Any more and the stumps went stripy.
-      for (var k = -1; k <= 1; k += 2) {
-        canvas.drawLine(
-          Offset(c.dx + k * 6, c.dy - h + 8),
-          Offset(c.dx + k * 6, c.dy - 3),
-          Paint()
-            ..strokeWidth = 1.2
-            ..color = _kCryptSeam.withValues(alpha: 0.30),
-        );
-      }
-    }
-    // Fern clumps standing against the wall — the room's name, in the room.
-    for (var i = 0; i < g.ferns.length; i++) {
-      _drawFernClump(
-        canvas,
-        g.ferns[i],
-        g.fernH[i] * (tiny ? 2.6 : 1.0),
-        i * 1.31,
-        t,
-      );
-    }
-  }
-
-  /// A fern: five fronds off one crown, leaning apart, swaying on one phase.
-  void _drawFernClump(
-    Canvas canvas,
-    Offset at,
-    double h,
-    double phase,
-    double t,
-  ) {
-    final sway = sin(t * 0.6 + phase) * (h * 0.05);
-    for (var k = -2; k <= 2; k++) {
-      final lean = k * 0.40;
-      final hh = h * (1 - 0.13 * k.abs());
-      final tip = Offset(at.dx + sin(lean) * hh * 0.62 + sway, at.dy - hh);
-      canvas.drawPath(
-        Path()
-          ..moveTo(at.dx, at.dy)
-          ..quadraticBezierTo(
-            at.dx + sin(lean) * hh * 0.16,
-            at.dy - hh * 0.6,
-            tip.dx,
-            tip.dy,
-          ),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = max(1.4, h * 0.045)
-          ..color = _kCryptGreen.withValues(alpha: h > 52 ? 0.40 : 0.52),
-      );
-      if (h > 52) {
-        // Pinnae, but only when the frond is big enough for them to read.
-        for (var p = 1; p <= 3; p++) {
-          final u = p / 4;
-          final on = Offset.lerp(at, tip, u)!;
-          canvas.drawLine(
-            on,
-            on + Offset(-8.0 - u * 6, -5),
-            Paint()
-              ..strokeWidth = 1.6
-              ..color = _kCryptGreen.withValues(alpha: 0.36),
-          );
-          canvas.drawLine(
-            on,
-            on + Offset(8.0 + u * 6, -5),
-            Paint()
-              ..strokeWidth = 1.6
-              ..color = _kCryptGreen.withValues(alpha: 0.36),
-          );
-        }
-      }
-    }
-  }
-
-  /// What makes each room ITSELF rather than another lot of paving: the stair
-  /// that gives the pollen stair its name, the reeds round the islet, the
-  /// nave's chancel step, the arena's ring of root.
-  void _renderCryptFixtures(
-    Canvas canvas,
-    DungeonRoom room,
-    _CryptGround g,
-    bool tiny,
-    double t,
-  ) {
-    final b = room.bounds.deflate(10);
-
-    // THE BROKEN TREAD. A flight of steps really crossing the floor, one of
-    // them gone — which is the span the layout calls 'one step down, or a
-    // cliff', so it had better be a step you can see.
-    for (var i = 0; i < g.treads.length; i++) {
-      final r = g.treads[i];
-      if (g.treadBroken[i]) {
-        // Rubble where the tread was: the riser behind it, and the pieces.
-        canvas.drawRect(
-          r,
-          Paint()..color = _kCryptSeam.withValues(alpha: 0.62),
-        );
-        for (var k = 0; k < 4; k++) {
-          canvas.drawRect(
-            Rect.fromCenter(
-              center: Offset(r.left + r.width * (0.2 + k * 0.22), r.center.dy),
-              width: 16.0 + k * 5,
-              height: 11.0 + (k % 2) * 5,
-            ),
-            Paint()..color = _kCryptStone.withValues(alpha: 0.45),
-          );
-        }
-        continue;
-      }
-      canvas.drawRect(
-        r.translate(0, 6),
-        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.34),
-      );
-      canvas.drawRect(
-        r,
-        Paint()
-          ..color = Color.lerp(
-            _kCryptStoneCold,
-            _kCryptStone,
-            0.30,
-          )!.withValues(alpha: 0.80),
-      );
-      // RISER then NOSING. A flight seen from above is a stack of identical
-      // bars and nothing else — the descent only appears when each tread has
-      // a dark vertical face at its back and a lit lip at its front. Pale and
-      // half-transparent (the first attempt) the whole flight read as fog
-      // lying on the floor, so the stone here is nearly opaque.
-      canvas.drawRect(
-        Rect.fromLTRB(r.left, r.top, r.right, r.top + 11),
-        Paint()..color = _kCryptSeam.withValues(alpha: 0.72),
-      );
-      canvas.drawRect(
-        Rect.fromLTRB(r.left, r.bottom - 4, r.right, r.bottom),
-        Paint()..color = _kCryptBone.withValues(alpha: 0.22),
-      );
-    }
-
-    // REEDS round the islet's shore, leaning off the water.
-    for (var i = 0; i < g.reeds.length; i++) {
-      final c = g.reeds[i];
-      final sway = sin(t * 0.9 + i * 1.6) * 4;
-      final h = (tiny ? 46.0 : 22.0) + (i % 3) * 7;
-      canvas.drawLine(
-        c,
-        c + Offset(sway, -h),
-        Paint()
-          ..strokeWidth = tiny ? 3 : 1.6
-          ..strokeCap = StrokeCap.round
-          ..color = _kCryptGreen.withValues(alpha: 0.48),
-      );
-      canvas.drawCircle(
-        c + Offset(sway, -h - 2),
-        tiny ? 3.4 : 2.0,
-        Paint()..color = const Color(0xFF8A7A42).withValues(alpha: 0.55),
-      );
-    }
-
-    // THE CHANCEL STEP, in the bloom hall: a raised sanctuary platform across
-    // the far end, with the rood line where the screen stands.
-    if (_cryptHas(room.id, 'chancel')) {
-      final step = Rect.fromLTRB(b.left, b.bottom - 118, b.right, b.bottom);
-      canvas.drawRect(
-        step,
-        Paint()..color = _kCryptStone.withValues(alpha: 0.30),
-      );
-      canvas.drawRect(
-        Rect.fromLTRB(step.left, step.top, step.right, step.top + 6),
-        Paint()..color = _kCryptBone.withValues(alpha: 0.13),
-      );
-      canvas.drawRect(
-        Rect.fromLTRB(step.left, step.top + 7, step.right, step.top + 13),
-        Paint()..color = _kCryptSeam.withValues(alpha: 0.40),
-      );
-    }
-
-    // Fallen petals, only in the arena. They lie where the flower dropped
-    // them — banked at the edges, thinning inward, never scattered evenly.
-    // The buttress roots that bank the arena are ordinary crypt roots at
-    // eight times the scale and are drawn with the rest of them.
-    for (var i = 0; i < g.petals.length; i++) {
-      final c = g.petals[i];
-      final a = i * 0.7;
-      canvas.save();
-      canvas.translate(c.dx, c.dy);
-      canvas.rotate(a);
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset.zero, width: 42, height: 17),
-        Paint()..color = const Color(0xFFB9738F).withValues(alpha: 0.26),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: const Offset(0, -2), width: 30, height: 8),
-        Paint()..color = const Color(0xFFE8A8BE).withValues(alpha: 0.14),
-      );
-      canvas.restore();
-    }
-
-    // The crypt's three obstacles, each drawn as itself.
-    for (final w in room.walls) {
-      switch (room.id) {
-        case 'fern_gallery':
-          _drawRootButtress(canvas, w, tiny);
-        case 'lantern_court':
-          _drawFallenCatafalque(canvas, w, tiny);
-        default:
-          _drawToppledLintel(canvas, w, tiny);
-      }
-    }
-  }
-
-  // ── THE THREE OBSTACLES ──────────────────────────────────
-  //
-  // The engine used to lay a generic blue-grey bar over every `room.walls`
-  // rect, so a toppled lintel, a buttress of giant root and a fallen
-  // catafalque all arrived on screen as the same object; this render drew a
-  // mass UNDER the bar to give it a body. Now that the shared renderer skips
-  // a planet's claimed rects, nothing is drawn over these at all — and
-  // nothing was carrying their DEPTH either. The bar was generic but it was
-  // doing real work: a cast shadow, a lit upper face and a dark foot. Without
-  // those, a claimed rect reads as a flat panel lying on the carpet, which is
-  // exactly what the lintel became.
-  //
-  // So each object now carries its own solidity, by the same three cues, in
-  // the crypt's own palette — and since they are finally allowed to be three
-  // objects, they are three different objects. All of it is world-size
-  // geometry, so it reads at both scales without a branch: at tiny these are
-  // cliffs, and the shadow and the lit face only get more emphatic.
-
-  /// What puts a thing ON the floor rather than IN it, drawn before its body.
-  ///
-  /// A single cast shadow was not enough. The crypt's floor is already dark,
-  /// so black at half alpha over it is barely a change of tone and the object
-  /// went on reading as a differently-coloured slab. Two things fix it, and
-  /// both are here: a TWO-STAGE contact shadow (a wide faint pool and a tight
-  /// dark one — no blur filter anywhere, two alphas do the same work), and a
-  /// NEAR FACE, a band of the object's own thickness that projects below the
-  /// collision rect. The near face is the cue that actually lands: a block
-  /// with no visible side has no height, whatever its shading says.
-  ///
-  /// The light is up and behind the camera, which is where the ledger stones,
-  /// the wall course and the column stumps already put it. Nothing in a room
-  /// may disagree about that; one object lit from elsewhere flattens the lot.
-  void _cryptFooting(
-    Canvas canvas,
-    Rect w,
-    bool tiny, {
-    required double radius,
-    required Color nearFace,
-  }) {
-    final lift = tiny ? 11.0 : 7.5;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        w.translate(lift * 0.5, lift * 1.4).inflate(7),
-        Radius.circular(radius + 6),
-      ),
-      Paint()..color = const Color(0xFF000000).withValues(alpha: 0.24),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        w.translate(lift * 0.35, lift).inflate(1.5),
-        Radius.circular(radius),
-      ),
-      Paint()..color = const Color(0xFF000000).withValues(alpha: 0.60),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(
-          w.left,
-          w.bottom - w.height * 0.30,
-          w.right,
-          w.bottom + lift * 0.85,
-        ),
-        Radius.circular(radius),
-      ),
-      Paint()..color = nearFace,
-    );
-  }
-
-  /// A block's body: lit across its SHORT axis, because that is the axis a
-  /// solid turns through. A long beam is lit top to bottom; a standing column
-  /// is lit side to side. Getting this backwards is what makes a 3D object
-  /// look like a printed rectangle.
-  Paint _cryptSolid(Rect w, List<Color> ramp) {
-    final horizontal = w.width >= w.height;
-    return Paint()
-      ..shader = ui.Gradient.linear(
-        horizontal ? w.topCenter : w.centerLeft,
-        horizontal ? w.bottomCenter : w.centerRight,
-        ramp,
-        const [0.0, 0.52, 1.0],
-      );
-  }
-
-  /// THE TOPPLED LINTEL, over the root porch's gate. A carved beam that came
-  /// off the arch: squared, moulded down its length, and broken at both ends
-  /// — it did not arrive here cut, it arrived here falling.
-  void _drawToppledLintel(Canvas canvas, Rect w, bool tiny) {
-    // THE SILHOUETTE IS BROKEN, not the surface. Painting fracture wedges on
-    // a clean rounded rectangle did nothing at all — the outline is what the
-    // eye reads first, so the beam's own outline steps in at both ends. The
-    // bite is ≤12px on a 170px beam, inside the slack the engine's rounded
-    // corners already had, so it never asks you to collide with air.
-    const bite = 17.0;
-    final body = Path()
-      ..moveTo(w.left + bite, w.top)
-      ..lineTo(w.right - bite, w.top)
-      ..lineTo(w.right - bite * 0.45, w.top + w.height * 0.34)
-      ..lineTo(w.right, w.top + w.height * 0.52)
-      ..lineTo(w.right - bite * 0.8, w.bottom)
-      ..lineTo(w.left + bite * 0.55, w.bottom)
-      ..lineTo(w.left, w.top + w.height * 0.58)
-      ..lineTo(w.left + bite * 0.5, w.top + w.height * 0.28)
-      ..close();
-    _cryptFooting(
-      canvas,
-      w.deflate(2),
-      tiny,
-      radius: 3,
-      nearFace: const Color(0xFF262A1C),
-    );
-    // The ramp tops out at the wall course's own lightest block. Pale stone
-    // on a dark floor popped out of the room like a UI element — an obstacle
-    // has to be solid, not luminous.
-    canvas.drawPath(
-      body,
-      _cryptSolid(w, const [
-        Color(0xFF6F6A54),
-        Color(0xFF43452F),
-        Color(0xFF171B11),
-      ]),
-    );
-    canvas.save();
-    canvas.clipPath(body);
-    // The top face. A WIDE bright band turned the beam into a chrome pipe —
-    // a weathered lintel catches the light along a narrow crown and nowhere
-    // else, and everything below it is in its own shade.
-    canvas.drawRect(
-      Rect.fromLTRB(w.left, w.top + 1.5, w.right, w.top + w.height * 0.18),
-      Paint()..color = _kCryptBone.withValues(alpha: 0.11),
-    );
-    // Tooling and weathering: chisel marks across the crown and a few pits.
-    // A perfectly smooth body is the other half of why it read as a pipe.
-    for (var i = 0; i < 11; i++) {
-      final x = w.left + w.width * ((i * 0.091) + 0.05);
-      canvas.drawLine(
-        Offset(x, w.top + 3),
-        Offset(x + 2, w.top + w.height * (0.22 + (i % 3) * 0.06)),
-        Paint()
-          ..strokeWidth = 1.1
-          ..color = _kCryptSeam.withValues(alpha: 0.22),
-      );
-    }
-    // Lichen on the crown — the garden is eating this too, and it is what
-    // stops the beam looking like a machined part dropped into a crypt.
-    for (var i = 0; i < 3; i++) {
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(
-            w.left + w.width * (0.24 + i * 0.27),
-            w.top + w.height * (0.26 + (i % 2) * 0.18),
-          ),
-          width: 26.0 + i * 9,
-          height: w.height * 0.34,
-        ),
-        Paint()..color = _kCryptMoss.withValues(alpha: 0.26),
-      );
-    }
-    canvas.restore();
-    // The foot: the dark band where the beam meets the floor, and the single
-    // strongest cue that it is standing ON something.
-    canvas.drawRect(
-      Rect.fromLTRB(w.left, w.bottom - w.height * 0.20, w.right, w.bottom),
-      Paint()..color = _kCryptSeam.withValues(alpha: 0.55),
-    );
-    // The moulding — two fillets running the length. A lintel without them is
-    // a kerbstone.
-    for (final u in [0.40, 0.56]) {
-      canvas.drawRect(
-        Rect.fromLTRB(
-          w.left + 7,
-          w.top + w.height * u,
-          w.right - 7,
-          w.top + w.height * u + 2,
-        ),
-        Paint()..color = _kCryptSeam.withValues(alpha: 0.38),
-      );
-    }
-    // The fracture faces. Raw stone is LIGHTER than the lichened outside, not
-    // darker — painted near-black (the first attempt) the breaks disappeared
-    // into the room behind them and both ends read as a clean bevel.
-    for (final left in [true, false]) {
-      final x = left ? w.left + bite * 0.5 : w.right - bite * 0.45;
-      final s = left ? 1.0 : -1.0;
-      canvas.drawPath(
-        Path()
-          ..moveTo(x, w.top + w.height * 0.28)
-          ..lineTo(x + s * 10, w.top + 1)
-          ..lineTo(x + s * 10, w.bottom - 1)
-          ..lineTo(x - s * 2, w.bottom - w.height * 0.2)
-          ..close(),
-        Paint()..color = const Color(0xFF8E8871).withValues(alpha: 0.45),
-      );
-      canvas.drawLine(
-        Offset(x, w.top + w.height * 0.28),
-        Offset(x - s * 2, w.bottom - w.height * 0.2),
-        Paint()
-          ..strokeWidth = 1.4
-          ..color = _kCryptSeam.withValues(alpha: 0.6),
-      );
-    }
-    // And a split across it, a third of the way along — it is broken, not old.
-    final sx = w.left + w.width * 0.36;
-    canvas.drawPath(
-      Path()
-        ..moveTo(sx, w.top)
-        ..lineTo(sx + 5, w.center.dy)
-        ..lineTo(sx - 3, w.bottom),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = tiny ? 4 : 2
-        ..color = _kCryptSeam.withValues(alpha: 0.7),
-    );
-  }
-
-  /// THE BUTTRESS OF GIANT ROOT, in the fern gallery. Not masonry at all: a
-  /// living wall, round in section, with bark grain down its length and
-  /// rootlets splaying where it meets the floor. Its silhouette is allowed to
-  /// be softer than its hitbox — it is the one obstacle here that grew.
-  void _drawRootButtress(Canvas canvas, Rect w, bool tiny) {
-    final body = RRect.fromRectAndRadius(
-      w,
-      Radius.circular(w.shortestSide * 0.48),
-    );
-    _cryptFooting(
-      canvas,
-      w,
-      tiny,
-      radius: w.shortestSide * 0.48,
-      nearFace: const Color(0xFF261B0E),
-    );
-    // Rootlets first, so they read as going UNDER the buttress rather than
-    // being stuck on its face.
-    for (var k = 0; k < 6; k++) {
-      final u = 0.12 + k * 0.15;
-      final at = Offset(
-        w.center.dx + (k.isEven ? -1 : 1) * w.width * 0.4,
-        w.top + w.height * u,
-      );
-      canvas.drawLine(
-        at,
-        at + Offset((k.isEven ? -1 : 1) * (16.0 + k * 5), 9.0 - k * 2),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = tiny ? 5 : 3
-          ..color = const Color(0xFF2A1D10).withValues(alpha: 0.85),
-      );
-    }
-    canvas.drawRRect(
-      body,
-      // Kept in the same family as the roots running over the floor, so the
-      // buttress reads as one of them stood on end rather than as timber.
-      _cryptSolid(w, const [
-        Color(0xFF6E5233),
-        Color(0xFF3C2B1B),
-        Color(0xFF150D06),
-      ]),
-    );
-    // The lit cap at the top end: light comes from above in these rooms, and
-    // a column lit only across its width has no top.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w.left, w.top, w.width, w.height * 0.13),
-        Radius.circular(w.shortestSide * 0.45),
-      ),
-      Paint()..color = const Color(0xFF9A7846).withValues(alpha: 0.34),
-    );
-    // Bark grain, none of it straight and none of it evenly spaced — four
-    // lines on an even pitch is corduroy, which is what this first was.
-    const pitch = [0.17, 0.33, 0.41, 0.62, 0.79];
-    for (var k = 0; k < pitch.length; k++) {
-      final x = w.left + w.width * pitch[k];
-      canvas.drawPath(
-        Path()
-          ..moveTo(x, w.top + 6)
-          ..quadraticBezierTo(
-            x + (k.isEven ? 5 : -6),
-            w.center.dy,
-            x + (k.isEven ? -2 : 3),
-            w.bottom - 6,
-          ),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = tiny ? 3 : 1.6
-          ..color = const Color(0xFF17100A).withValues(alpha: 0.55),
-      );
-    }
-    // Two knots, at different heights and sizes. A dark ring round a LIGHTER
-    // middle drew two doughnuts — a knot is a raised boss, so it is a filled
-    // swelling with the shadow only under its lower edge.
-    for (final k in [0.31, 0.68]) {
-      final c = Offset(w.center.dx + (k < 0.5 ? -5 : 6), w.top + w.height * k);
-      final r = w.width * (k < 0.5 ? 0.20 : 0.15);
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: c.translate(1, 2),
-          width: r * 2.1,
-          height: r * 2.7,
-        ),
-        Paint()..color = const Color(0xFF150D06).withValues(alpha: 0.8),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: c, width: r * 2, height: r * 2.6),
-        Paint()..color = const Color(0xFF6B4F30).withValues(alpha: 0.95),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: c.translate(0, -r * 0.3),
-          width: r * 0.8,
-          height: r * 0.9,
-        ),
-        Paint()..color = const Color(0xFF33220F).withValues(alpha: 0.75),
-      );
-    }
-    // The foot, where it goes into the floor.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(w.left, w.bottom - w.height * 0.08, w.right, w.bottom),
-        Radius.circular(w.shortestSide * 0.4),
-      ),
-      Paint()..color = _kCryptSeam.withValues(alpha: 0.45),
-    );
-  }
-
-  /// THE FALLEN CATAFALQUE, in the lantern court. The bier the crypt's dead
-  /// were laid on: an arcaded stone chest with a lid — and the lid has SLID,
-  /// which is the whole word "fallen". Drawn slipped off its plinth rather
-  /// than tilted, so the silhouette still owns the rect the party walks round.
-  void _drawFallenCatafalque(Canvas canvas, Rect w, bool tiny) {
-    final chest = RRect.fromRectAndRadius(w, const Radius.circular(3));
-    _cryptFooting(
-      canvas,
-      w,
-      tiny,
-      radius: 3,
-      nearFace: const Color(0xFF262A1C),
-    );
-    canvas.drawRRect(
-      chest,
-      _cryptSolid(w, const [
-        Color(0xFF6E6A54),
-        Color(0xFF464837),
-        Color(0xFF191D14),
-      ]),
-    );
-    // THE ARCADED FACE, in the LOWER half of the chest. Put across the whole
-    // height it vanished under the lid and the catafalque read as a second
-    // toppled lintel; the plinth showing below the lid is what says "chest".
-    final face = Rect.fromLTRB(
-      w.left + 4,
-      w.top + w.height * 0.52,
-      w.right - 4,
-      w.bottom - w.height * 0.12,
-    );
-    canvas.drawRect(
-      face,
-      Paint()..color = const Color(0xFF2E3226).withValues(alpha: 0.55),
-    );
-    final bays = (w.width / 30).clamp(3, 9).toInt();
-    for (var i = 0; i < bays; i++) {
-      final cx = face.left + face.width * (i + 0.5) / bays;
-      final bw = face.width / bays * (0.56 + (i % 3) * 0.08);
-      final arch = Rect.fromCenter(
-        center: Offset(cx, face.bottom - face.height * 0.16),
-        width: bw,
-        height: face.height * 1.5,
-      );
-      final ink = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = _kCryptBone.withValues(alpha: 0.14);
-      canvas.save();
-      canvas.clipRect(face);
-      canvas.drawArc(arch, pi, pi, false, ink);
-      canvas.drawLine(
-        Offset(arch.left, arch.center.dy),
-        Offset(arch.left, face.bottom),
-        ink,
-      );
-      canvas.drawLine(
-        Offset(arch.right, arch.center.dy),
-        Offset(arch.right, face.bottom),
-        ink,
-      );
-      canvas.restore();
-    }
-    // The foot.
-    canvas.drawRect(
-      Rect.fromLTRB(w.left, w.bottom - w.height * 0.12, w.right, w.bottom),
-      Paint()..color = _kCryptSeam.withValues(alpha: 0.60),
-    );
-    // THE LID, slid off its plinth and turned a couple of degrees, sitting
-    // high on the chest so the arcade below it stays visible. A chest with
-    // its lid square on it is furniture; this is a grave that was opened.
-    canvas.save();
-    canvas.translate(w.center.dx, w.top + w.height * 0.26);
-    canvas.rotate(0.045);
-    final lid = Rect.fromCenter(
-      center: const Offset(19, 0),
-      width: w.width * 0.86,
-      height: w.height * 0.50,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(lid.translate(3, 7), const Radius.circular(3)),
-      Paint()..color = const Color(0xFF000000).withValues(alpha: 0.46),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(lid, const Radius.circular(3)),
-      Paint()
-        ..shader = ui.Gradient.linear(
-          lid.topCenter,
-          lid.bottomCenter,
-          const [Color(0xFF7E7961), Color(0xFF4E5040), Color(0xFF20241A)],
-          const [0.0, 0.5, 1.0],
-        ),
-    );
-    // The chamfer round the lid's top face.
-    canvas.drawRect(
-      Rect.fromLTRB(lid.left + 4, lid.top + 2, lid.right - 4, lid.top + 5),
-      Paint()..color = _kCryptBone.withValues(alpha: 0.13),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(lid.deflate(5), const Radius.circular(2)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = _kCryptSeam.withValues(alpha: 0.45),
-    );
-    // A corner broken off the lid, where it struck the floor — the raw stone
-    // inside, lighter than the lichened face, as at the lintel's ends.
-    canvas.drawPath(
-      Path()
-        ..moveTo(lid.right, lid.top)
-        ..lineTo(lid.right - 24, lid.top)
-        ..lineTo(lid.right - 9, lid.center.dy)
-        ..lineTo(lid.right, lid.center.dy + 2)
-        ..close(),
-      Paint()..color = const Color(0xFF8E8871).withValues(alpha: 0.38),
-    );
-    // Lichen creeping over the slab, as on the lintel.
-    for (var i = 0; i < 2; i++) {
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(
-            lid.left + lid.width * (0.28 + i * 0.34),
-            lid.top + lid.height * (0.42 + i * 0.20),
-          ),
-          width: 30.0 + i * 12,
-          height: lid.height * 0.40,
-        ),
-        Paint()..color = _kCryptMoss.withValues(alpha: 0.24),
-      );
-    }
-    canvas.restore();
-  }
-
-  /// INSIDE THE SEED. The gourd hollow is the vault — the pocket behind the
-  /// little door in the altar's rim — and it is not masonry at all: it is the
-  /// inside of a dried seed-case, which is why a body has to be small to be
-  /// in here.
-  void _renderGourdShell(
-    Canvas canvas,
-    DungeonRoom room,
-    _CryptGround g,
-    bool tiny,
-    double t,
-  ) {
-    final b = room.bounds.deflate(12);
-    final shell = Rect.fromCenter(
-      center: b.center,
-      width: b.width,
-      height: b.height,
-    );
-    // The corners of the room are inside the husk too — without this the
-    // gourd floated on a square of the generic stage tint.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        room.bounds.deflate(8),
-        const Radius.circular(30),
-      ),
-      Paint()..color = const Color(0xFF1B1408).withValues(alpha: 0.60),
-    );
-    // The case has THICKNESS: an outer husk, a shadowed inner face, and the
-    // pith floor. Drawn as two flat ovals it was a barrel lid.
-    canvas.drawOval(
-      shell,
-      Paint()..color = const Color(0xFF3A2C14).withValues(alpha: 0.62),
-    );
-    canvas.drawOval(
-      shell.deflate(10),
-      Paint()..color = const Color(0xFF8A7038).withValues(alpha: 0.50),
-    );
-    canvas.drawOval(
-      shell.deflate(26),
-      Paint()..color = const Color(0xFF241A0B).withValues(alpha: 0.40),
-    );
-    canvas.drawOval(
-      shell.deflate(34),
-      Paint()..color = const Color(0xFF6E5A2E).withValues(alpha: 0.45),
-    );
-    // Ribs of the case, bellying out toward the middle as a seed-case does.
-    for (var i = 0; i < g.ribs.length; i++) {
-      canvas.drawPath(
-        g.ribs[i],
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4
-          ..color = const Color(0xFF2E2210).withValues(alpha: 0.42),
-      );
-    }
-    // The pith: dry fibre lying in the bottom of the case. Each patch runs
-    // ONE way, in parallel strands — radiating them from a centre (the first
-    // attempt) drew a row of asterisks, which is the last thing a heap of dry
-    // fibre looks like.
-    for (var i = 0; i < g.moss.length; i++) {
-      final c = g.mossCentre[i];
-      final a = (i * 1.7) % pi;
-      final dir = Offset(cos(a), sin(a));
-      final nrm = Offset(-dir.dy, dir.dx);
-      for (var k = -2; k <= 2; k++) {
-        final len = 26.0 - (k.abs() * 5) + (i % 3) * 5;
-        final at = c + nrm * (k * 5.0);
-        canvas.drawLine(
-          at - dir * len,
-          at + dir * len,
-          Paint()
-            ..strokeWidth = 1.5
-            ..color = const Color(0xFFC8B87E).withValues(alpha: 0.14),
-        );
-      }
-    }
-    // THE WAY IN. The only light in here comes through the little door cut in
-    // the altar's rim — the door a body has to be small to use — so it falls
-    // in a wedge off that wall and says, without a word, how you got here.
-    for (final d in room.doors) {
-      final from = d.rect.center;
-      final into = Offset.lerp(from, b.center, 0.62)!;
-      final perp = Offset(-(into.dy - from.dy), into.dx - from.dx);
-      final pl = perp.distance == 0 ? 1.0 : perp.distance;
-      canvas.drawPath(
-        Path()
-          ..moveTo(from.dx, from.dy)
-          ..lineTo(into.dx + perp.dx / pl * 54, into.dy + perp.dy / pl * 54)
-          ..lineTo(into.dx - perp.dx / pl * 54, into.dy - perp.dy / pl * 54)
-          ..close(),
-        Paint()..color = const Color(0xFFF2E3A8).withValues(alpha: 0.07),
-      );
-    }
-    // Husk flakes off the shell, banked where they fell.
-    for (var i = 0; i < g.ferns.length && i < 9; i++) {
-      final c = g.ferns[i];
-      canvas.save();
-      canvas.translate(c.dx, c.dy);
-      canvas.rotate(i * 0.9);
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset.zero, width: 20, height: 7),
-        Paint()..color = const Color(0xFF4A3A1A).withValues(alpha: 0.45),
-      );
-      canvas.restore();
-    }
-    // Loose seeds, each with its own shine. They breathe very slightly —
-    // this room is the only place in the crypt with nothing else moving.
-    for (var i = 0; i < g.seeds.length; i++) {
-      final c = g.seeds[i];
-      final r = 7.0 + (i % 4) * 2.5 + sin(t * 0.8 + i) * 0.6;
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: c.translate(1, 3),
-          width: r * 2,
-          height: r * 1.5,
-        ),
-        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.25),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: c, width: r * 2, height: r * 1.5),
-        Paint()..color = const Color(0xFFD8C384).withValues(alpha: 0.60),
-      );
-      canvas.drawCircle(
-        c.translate(-r * 0.3, -r * 0.3),
-        r * 0.25,
-        Paint()..color = _kCryptBone.withValues(alpha: 0.40),
-      );
-    }
-  }
-
-  /// The room's ground, built once. Keyed by room id — every room in the
-  /// crypt has its own bounds, and the shapes are derived from those bounds,
-  /// so a room looks the same every time you walk into it and no two rooms
-  /// look alike.
-  _CryptGround _cryptGround(DungeonRoom room) =>
-      _cryptGroundCache.putIfAbsent(room.id, () => _buildCryptGround(room));
-
-  /// A size glyph at every passage the room can see: a low flat bar for a way
-  /// only a small body takes, a tall arch for one only a big body takes. The
-  /// bar is drawn in the party's own colour when it fits and in bone when it
-  /// does not, so "wrong size" is legible before you walk into it.
-  void _renderCryptObjects(Canvas canvas, DungeonRoom room) {
+  /// INSIGHT is the only channel allowed to teach method (§5.6), tiered by
+  /// Intelligence; tiers get shorter, not vaguer.
+  void _conservatoryReveal(DungeonCreature a, DungeonRoom room) {
+    // BARE, by the user's ruling (2026-09-27): a hint says what is WRONG and
+    // nothing about how to fix it — no recipes, no "stand in the ring", no
+    // steps. "This room is too dry" is the whole of it. Intelligence buys
+    // nothing extra here, so there are no tiers.
     final g = room.grove;
     if (g == null) return;
-
-    // The briar over the lich-gate, while it still holds.
-    final briar = g.briarGate;
-    if (briar != null && !entryDoorRevealed) {
-      final p = Paint()
-        ..color = const Color(0xFF6E5A3C)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4;
-      for (var i = 0; i < 5; i++) {
-        canvas.drawLine(
-          briar + Offset(-40.0 + i * 20, -46),
-          briar + Offset(40.0 - i * 20, 46),
-          p,
-        );
-      }
-    }
-
-    // A seed-gall: a hollow swelling on a stub of root, BREATHING — the slit
-    // in it opens and closes, and it is the only thing in the crypt that
-    // changes your size, so it has to look alive. (It was three concentric
-    // circles, which is a target.)
-    final gall = g.bole ?? g.rootBole;
-    if (gall != null) {
-      final breath = 0.5 + 0.5 * sin(_time * 1.6);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: gall + const Offset(0, 26),
-            width: 92,
-            height: 22,
-          ),
-          const Radius.circular(10),
-        ),
-        Paint()..color = _kCryptBark.withValues(alpha: 0.9),
+    if (g.arenaRings.isNotEmpty) {
+      final c = greenhouse.arena;
+      _setInsightHint(
+        c == null
+            ? 'Botanica can only be hurt while the arena is right'
+            : 'The arena is ${climateWord(c).toLowerCase()}',
       );
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: gall,
-          width: 66 + breath * 4,
-          height: 56 + breath * 3,
-        ),
-        Paint()..color = _kCryptBark,
-      );
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: gall + const Offset(-8, -8),
-          width: 30,
-          height: 20,
-        ),
-        Paint()..color = const Color(0xFF8A6A46).withValues(alpha: 0.6),
-      );
-      // The slit, and the green inside it.
-      final slit = 6.0 + breath * 8;
-      canvas.drawOval(
-        Rect.fromCenter(center: gall, width: 26, height: slit + 18),
-        Paint()..color = _kCryptGreen.withValues(alpha: 0.9),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: gall, width: 12, height: slit),
-        Paint()..color = _kCryptDeep,
-      );
-    }
-
-    // The mulch pit: a low heap of leaf-litter, warmer when it is armed.
-    final pit = g.mulchPit;
-    if (pit != null) {
-      final armed = crypt.armedPitRoom == room.id;
-      canvas.drawOval(
-        Rect.fromCenter(center: pit, width: 74, height: 34),
-        Paint()
-          ..color = (armed ? const Color(0xFF9A6A2E) : const Color(0xFF4A3A22)),
-      );
-      final leaf = Paint()
-        ..color = const Color(0xFF7C6A3E)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-      for (var i = -1; i <= 1; i++) {
-        canvas.drawLine(
-          pit + Offset(i * 20.0, -8),
-          pit + Offset(i * 20.0 + 10, 8),
-          leaf,
-        );
-      }
-      // Armed, it STEAMS — and keeps steaming until you turn it again or
-      // walk away. There is no clock on it.
-      if (armed) {
-        for (var k = 0; k < 3; k++) {
-          final ph = (_time * 0.55 + k / 3) % 1.0;
-          final p =
-              pit + Offset((k - 1) * 18 + sin(_time + k) * 5, -8 - ph * 46);
-          final r = 6 + ph * 10;
-          canvas.drawOval(
-            Rect.fromCenter(center: p, width: r * 1.4, height: r),
-            Paint()
-              ..color = const Color(
-                0xFFE6DCC4,
-              ).withValues(alpha: 0.28 * (1 - ph)),
-          );
-        }
-      }
-    }
-
-    // The grave-lamp: a bone sconce on a bracket, with a cup, and a FLAME in
-    // it once it is lit — a flame is a shape that moves, not a yellow dot.
-    // The sconces are cut at a mourner's eye and the niche's wick at a thumb.
-    final lamp = _lampIn(room);
-    if (lamp != null) {
-      final lit = crypt.lampsLit.contains(lamp.id);
-      final tall = lamp.reach == PlantScale.huge;
-      final k = tall ? 1.0 : 0.5;
-      final at = lamp.position;
-      // Bracket arm from the wall, and the sconce body.
-      canvas.drawLine(
-        at + Offset(0, 30 * k),
-        at + Offset(0, 8 * k),
-        Paint()
-          ..strokeWidth = 4 * k
-          ..color = const Color(0xFF6E5A3C),
-      );
-      canvas.drawPath(
-        Path()
-          ..moveTo(at.dx - 17 * k, at.dy - 6 * k)
-          ..lineTo(at.dx + 17 * k, at.dy - 6 * k)
-          ..lineTo(at.dx + 10 * k, at.dy + 12 * k)
-          ..lineTo(at.dx - 10 * k, at.dy + 12 * k)
-          ..close(),
-        Paint()..color = _kCryptBone.withValues(alpha: 0.85),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: at + Offset(0, -6 * k),
-          width: 34 * k,
-          height: 8 * k,
-        ),
-        Paint()..color = _kCryptDeep.withValues(alpha: 0.8),
-      );
-      if (lit) {
-        final f = 0.8 + 0.2 * sin(_time * 9 + at.dx);
-        final flame = Path()
-          ..moveTo(at.dx, at.dy - (6 + 30 * f) * k)
-          ..quadraticBezierTo(
-            at.dx + 9 * k,
-            at.dy - 14 * k,
-            at.dx,
-            at.dy - 6 * k,
-          )
-          ..quadraticBezierTo(
-            at.dx - 9 * k,
-            at.dy - 14 * k,
-            at.dx,
-            at.dy - (6 + 30 * f) * k,
-          )
-          ..close();
-        canvas.drawPath(
-          flame,
-          Paint()..color = _kCryptLamp.withValues(alpha: 0.92),
-        );
-        canvas.drawCircle(
-          at + Offset(0, -14 * k),
-          3 * k,
-          Paint()..color = Colors.white.withValues(alpha: 0.8),
-        );
-        for (var i = 2; i >= 1; i--) {
-          canvas.drawCircle(
-            at + Offset(0, -16 * k),
-            (18 + i * 10) * k,
-            Paint()..color = _kCryptLamp.withValues(alpha: 0.06),
-          );
-        }
-      } else {
-        // A dead wick, blackened.
-        canvas.drawLine(
-          at + Offset(0, -6 * k),
-          at + Offset(2 * k, -16 * k),
-          Paint()
-            ..strokeWidth = 2 * k
-            ..color = _kCryptDeep,
-        );
-      }
-      // The flame burns in a chimney of leaded glass (§7.11).
-      _drawLampChimney(canvas, at, k, lit);
-    }
-
-    // The growth altar, and the little door cut in its rim (§5.5's vault
-    // trick: plain to see from up here, and a hand high).
-    final altar = g.growthAltar;
-    if (altar != null) {
-      // The bowl swells or shrinks with the size change rather than
-      // jumping between its two readings.
-      final k = _tinyMix;
-      final bowl = Rect.fromCenter(
-        center: altar,
-        width: 130 + (320 - 130) * k,
-        height: 78 + (190 - 78) * k,
-      );
-      canvas.drawOval(
-        bowl,
-        Paint()..color = _kCryptBone.withValues(alpha: 0.5),
-      );
-      canvas.drawOval(
-        bowl.deflate(12 + 14 * k),
-        Paint()
-          ..color = crypt.bloomStep >= 1
-              ? const Color(0xFF4A3A22)
-              : _kCryptDeep.withValues(alpha: 0.6),
-      );
-      // The bowl's three steps as glass: loam, seed, sun (§7.11).
-      _drawAltarGlass(canvas, altar, bowl.deflate(12 + 14 * k));
-      // The rim door.
-      canvas.drawRect(
-        Rect.fromLTWH(bowl.right - 14, bowl.center.dy - 9, 14, 18),
-        Paint()..color = _kCryptDeep,
-      );
-    }
-
-    // The sepulchre: a stone chest sealed with clay, whose lid slides aside.
-    final tomb = g.sepulchre;
-    if (tomb != null) _drawSepulchre(canvas, tomb);
-
-    // THE UNSEEN SHADE (the Lost Maxim). While the giant root's trunk stands,
-    // its bough throws a shade across the gallery floor from the bed to the
-    // far wall; the seed nobody planted lies in it, and only a small body
-    // sees it. What grew there is only visible from your own size.
-    final shade = g.shadeSeed;
-    if (shade != null) {
-      final bed = cryptBedsIn(room.id).firstOrNull;
-      if (shadeThrown && bed != null && !crypt.shadeRisen) {
-        final from = bed.crown;
-        final dir = shade - from;
-        final n = Offset(-dir.dy, dir.dx) / dir.distance;
-        final sway = sin(_time * 0.7) * 6;
-        final wedge = Path()
-          ..moveTo(from.dx + n.dx * 22, from.dy + n.dy * 22)
-          ..lineTo(shade.dx + n.dx * 70 + sway, shade.dy + n.dy * 70)
-          ..lineTo(shade.dx - n.dx * 70 + sway, shade.dy - n.dy * 70)
-          ..lineTo(from.dx - n.dx * 22, from.dy - n.dy * 22)
-          ..close();
-        canvas.drawPath(
-          wedge,
-          Paint()
-            ..color = _kCryptDeep.withValues(alpha: crypt.isTiny ? 0.55 : 0.38),
-        );
-      }
-      if ((crypt.shadeRisen ||
-              discoveredClouds.contains(kPlantUnseenShadeEggId)) &&
-          !crypt.isTiny) {
-        // What grew in the shade: a tree of leaded glass, kept for good.
-        _drawShadeTree(canvas, shade);
-      } else if (crypt.isTiny && !crypt.shadeRisen && shadeThrown) {
-        // Loam, then a sprout, then a sprout with light on it.
-        if (crypt.shadeStep >= 1) {
-          canvas.drawOval(
-            Rect.fromCenter(
-              center: shade + const Offset(0, 6),
-              width: 46,
-              height: 22,
-            ),
-            Paint()..color = _kCryptSoil.withValues(alpha: 0.9),
-          );
-        }
-        canvas.drawCircle(shade, 9, Paint()..color = const Color(0xFF9CB47A));
-        if (crypt.shadeStep >= 2) {
-          canvas.drawLine(
-            shade,
-            shade + const Offset(0, -22),
-            Paint()
-              ..strokeWidth = 3
-              ..color = _kCryptGreen,
-          );
-          canvas.drawOval(
-            Rect.fromCenter(
-              center: shade + const Offset(6, -22),
-              width: 14,
-              height: 8,
-            ),
-            Paint()..color = _kCryptGreen,
-          );
-        }
-        if (crypt.shadeStep >= 3) {
-          canvas.drawCircle(
-            shade + const Offset(0, -18),
-            22,
-            Paint()..color = _kCryptLamp.withValues(alpha: 0.18),
-          );
-        }
-      } else if (crypt.shadeTended && !crypt.shadeRisen && !crypt.isTiny) {
-        // From your own size, before the look: a sapling where the shade lay.
-        canvas.drawLine(
-          shade,
-          shade + const Offset(0, -34),
-          Paint()
-            ..strokeWidth = 4
-            ..color = _kCryptBark,
-        );
-        canvas.drawCircle(
-          shade + const Offset(0, -40),
-          16,
-          Paint()..color = _kCryptGreen.withValues(alpha: 0.85),
-        );
-      }
-    }
-  }
-}
-
-// ─────────────────────────────────────────────────────────
-// THE GROUND, BUILT ONCE
-// ─────────────────────────────────────────────────────────
-
-/// One room's crypt floor and architecture, in world coordinates.
-///
-/// EVERYTHING IRREGULAR IN THE CRYPT LIVES HERE, and it is laid out exactly
-/// once per room rather than re-derived sixty times a second. What the render
-/// does per frame is fills and strokes over these lists plus three phases (a
-/// fern sway, a sheen on water, a drift of spores) — no allocation that grows
-/// with the party, the enemies or the puzzle state.
-class _CryptGround {
-  /// Grave slabs. Never a grid: they come out of a recursive split of the
-  /// room with random fractions and a random stopping size, then every corner
-  /// is jittered, so no two are the same shape and none of them line up.
-  final List<Path> slabs = [];
-  final List<double> slabTone = [];
-
-  /// The joints between them — the crypt's SMALL graph. A hairline at your
-  /// own size and a ravine at the other; one set of lines, two readings.
-  final List<Path> seams = [];
-  final List<double> seamWidth = [];
-
-  /// Worn epitaphs: a few strokes of a name, on a few slabs.
-  final List<Offset> carvings = [];
-  final List<double> carvingAngle = [];
-  final List<double> carvingLen = [];
-
-  /// Dew in the low spots — beads up here, standing water down there.
-  final List<Offset> seeps = [];
-  final List<double> seepR = [];
-
-  /// Moss blotches: a stain, or a canopy.
-  final List<Path> moss = [];
-  final List<Offset> mossCentre = [];
-  final List<double> mossR = [];
-
-  /// The roots taking the building apart: a filled, TAPERED body (a root is
-  /// not a beam), its lit crest, and its feeders.
-  final List<Path> roots = [];
-  final List<Path> rootCrests = [];
-  final List<List<(Offset, Offset)>> rootlets = [];
-
-  /// The wall course, its burial niches, its broken colonnade.
-  final List<Rect> masonry = [];
-  final List<double> masonryTone = [];
-  final List<Rect> loculi = [];
-  final List<bool> loculiSlab = [];
-  final List<Offset> columns = [];
-  final List<double> columnH = [];
-
-  /// Fern clumps against the wall.
-  final List<Offset> ferns = [];
-  final List<double> fernH = [];
-
-  /// The pollen stair's flight, and which tread is the broken one.
-  final List<Rect> treads = [];
-  final List<bool> treadBroken = [];
-
-  /// The islet: the shore it stands on, and the reeds round it.
-  Path shore = Path();
-  final List<Offset> reeds = [];
-
-  /// Botanica's arena: what the flower has dropped.
-  final List<Offset> petals = [];
-
-  /// The gourd hollow: the seed-case's ribs and what is loose inside it.
-  final List<Path> ribs = [];
-  final List<Offset> seeds = [];
-}
-
-/// Built grounds, by room id. Top-level and never cleared: the geometry is a
-/// pure function of the room's own bounds, so it is correct for the life of
-/// the process and a re-entry costs nothing.
-final Map<String, _CryptGround> _cryptGroundCache = {};
-
-/// What each room of the crypt IS, beyond its paving. Read by both the
-/// builder and the render, so a room cannot grow reeds in one and not the
-/// other.
-const Map<String, Set<String>> _kCryptRoomTraits = {
-  'root_porch': {'ferny'},
-  'mosswalk': {'loculi', 'ferny'},
-  'fern_gallery': {'giantroot', 'ferny'},
-  'pollen_stair': {'stair'},
-  'crypt_niche': {'loculi', 'tight'},
-  'lantern_court': {'colonnade'},
-  'islet': {'water'},
-  'gourd_hollow': {'shell'},
-  'bloom_hall': {'colonnade', 'chancel'},
-  'botanica_heart': {'arena'},
-};
-
-bool _cryptHas(String roomId, String trait) =>
-    _kCryptRoomTraits[roomId]?.contains(trait) ?? false;
-
-/// A closed, ragged blob. Eight points round an ellipse, each pushed in or
-/// out and joined with quadratics — nothing a garden makes has a clean edge.
-Path _cryptBlob(
-  Offset c,
-  double rx,
-  double ry,
-  double Function() rnd, {
-  double wobble = 0.3,
-}) {
-  const n = 8;
-  final pts = <Offset>[];
-  for (var i = 0; i < n; i++) {
-    final a = i / n * pi * 2;
-    final k = 1 + (rnd() - 0.5) * 2 * wobble;
-    pts.add(Offset(c.dx + cos(a) * rx * k, c.dy + sin(a) * ry * k));
-  }
-  final path = Path();
-  final mid0 = Offset.lerp(pts[n - 1], pts[0], 0.5)!;
-  path.moveTo(mid0.dx, mid0.dy);
-  for (var i = 0; i < n; i++) {
-    final cur = pts[i];
-    final mid = Offset.lerp(cur, pts[(i + 1) % n], 0.5)!;
-    path.quadraticBezierTo(cur.dx, cur.dy, mid.dx, mid.dy);
-  }
-  path.close();
-  return path;
-}
-
-/// Lay out one room. Deterministic from the room's own bounds.
-_CryptGround _buildCryptGround(DungeonRoom room) {
-  final g = _CryptGround();
-  final b = room.bounds.deflate(10);
-  var seed = (room.bounds.width * 31 + room.bounds.height * 17).toInt() | 1;
-  double rnd() {
-    seed = (seed * 1103515245 + 12345) & 0x3FFFFFFF;
-    return (seed >> 8) / 0x3FFFFF;
-  }
-
-  final shell = _cryptHas(room.id, 'shell');
-  final arena = _cryptHas(room.id, 'arena');
-  final water = _cryptHas(room.id, 'water');
-
-  // THE OPEN CENTRE. A guardian arena and a star room have to be walked and
-  // fought in, so every standing thing this builder makes is rejected out of
-  // the middle of the room and the detail is banked at the edges. Paving,
-  // joints, moss and seeps are floor and go everywhere — they are what you
-  // walk ON, not what you walk round.
-  final open = Rect.fromCenter(
-    center: b.center,
-    width: b.width * (arena ? 0.58 : 0.44),
-    height: b.height * (arena ? 0.56 : 0.42),
-  );
-
-  // Doors are holes in the wall course; a block laid across one reads as a
-  // bricked-up doorway with a door drawn on top of it.
-  final blocked = [for (final d in room.doors) d.rect.inflate(10)];
-  bool clearOfDoors(Rect r) {
-    for (final d in blocked) {
-      if (r.overlaps(d)) return false;
-    }
-    return true;
-  }
-
-  // ── the seed-case: no paving, no masonry, nothing built ──
-  if (shell) {
-    final o = Rect.fromCenter(
-      center: b.center,
-      width: b.width - 32,
-      height: b.height - 32,
-    );
-    for (var i = 0; i < 6; i++) {
-      final u = 0.13 + 0.15 * i + (rnd() - 0.5) * 0.05;
-      final x = o.left + o.width * u;
-      // How far down the case this rib runs depends on how far it is from
-      // the middle, so the ribs follow the belly instead of standing as a
-      // set of parallel vertical lines (which read as barrel staves).
-      final edge = (u - 0.5).abs() * 2;
-      final dy = o.height * 0.5 * sqrt(max(0.0, 1 - edge * edge)) * 0.92;
-      g.ribs.add(
-        Path()
-          ..moveTo(x, o.center.dy - dy)
-          ..quadraticBezierTo(
-            x + (x - o.center.dx) * 0.62,
-            o.center.dy,
-            x,
-            o.center.dy + dy,
-          ),
-      );
-    }
-    for (var i = 0; i < 6; i++) {
-      final c = Offset(
-        o.left + 40 + rnd() * (o.width - 80),
-        o.top + 34 + rnd() * (o.height - 68),
-      );
-      g.moss.add(_cryptBlob(c, 30 + rnd() * 44, 20 + rnd() * 26, rnd));
-      g.mossCentre.add(c);
-      g.mossR.add(16);
-    }
-    for (var i = 0; i < 11; i++) {
-      final p = Offset(
-        o.left + 34 + rnd() * (o.width - 68),
-        o.top + 30 + rnd() * (o.height - 60),
-      );
-      // Leave a standing spot in the middle: this pocket is small and the
-      // party arrives in it.
-      if (i > 2 && (p - b.center).distance < 46) continue;
-      g.seeds.add(p);
-    }
-    // Husk flakes, banked round the wall of the case (the shell branch of
-    // the render borrows the fern list for them — there is no fern in here).
-    for (var i = 0; i < 9; i++) {
-      final a = rnd() * pi * 2;
-      g.ferns.add(
-        b.center +
-            Offset(
-              cos(a) * o.width * 0.5 * (0.62 + rnd() * 0.30),
-              sin(a) * o.height * 0.5 * (0.62 + rnd() * 0.30),
-            ),
-      );
-      g.fernH.add(0);
-    }
-    return g;
-  }
-
-  // ── the paving ───────────────────────────────────────────
-  // A recursive split with random fractions and a random stopping size. This
-  // is the anti-grid: a lattice of identical stones is the one thing a
-  // funerary floor never is, and a regular lattice is this project's most
-  // common render failure.
-  // The paving stops well short of the wall, leaving a verge of grave soil
-  // the course sits in. Run to the wall (as the first attempt did) and the
-  // room has no edge at all: paving and masonry fuse into one quilt of stone
-  // and the picture reads as a WALL seen face-on rather than a floor.
-  final pave = water ? b.deflate(90) : b.deflate(46);
-  final minArea = (pave.width * pave.height / 18).clamp(9000.0, 28000.0);
-
-  // ROT PATCHES. A crypt eaten by a garden does not lose its paving evenly —
-  // it loses it where the water sits and the roots came through. Slabs whose
-  // centre falls in one of these go, so the floor is a run of stone with bare
-  // earth opening through it rather than a continuous carpet.
-  final rot = <(Offset, double)>[];
-  for (var i = 0; i < 3 + (rnd() * 3).floor(); i++) {
-    rot.add((
-      Offset(pave.left + rnd() * pave.width, pave.top + rnd() * pave.height),
-      50 + rnd() * 95,
-    ));
-  }
-  bool rotten(Offset c) {
-    for (final r in rot) {
-      if ((c - r.$1).distance < r.$2) return rnd() < 0.72;
-    }
-    return false;
-  }
-
-  late void Function(Rect, int) split;
-  split = (r, depth) {
-    if (depth >= 5 || r.width * r.height < minArea * (0.55 + rnd())) {
-      // A missing stone now and then: bare grave soil, and the reason the
-      // floor never reads as a continuous surface.
-      if (rnd() < 0.10 || rotten(r.center)) return;
-      final inset = 2.5 + rnd() * 3.5;
-      final q = r.deflate(inset);
-      if (q.width < 8 || q.height < 8) return;
-      double j() => (rnd() - 0.5) * 11;
-      // A SETTLED stone. The split gives four neighbours a shared straight
-      // edge, and a run of those is what made the paving read as brickwork —
-      // so every slab is turned a degree or two on its own centre, which
-      // breaks every long collinear line in the room.
-      final a = (rnd() - 0.5) * 0.13;
-      final ca = cos(a), sa = sin(a);
-      Offset turn(double x, double y) {
-        final dx = x - q.center.dx, dy = y - q.center.dy;
-        return Offset(
-          q.center.dx + dx * ca - dy * sa,
-          q.center.dy + dx * sa + dy * ca,
-        );
-      }
-
-      final p0 = turn(q.left + j(), q.top + j());
-      final p1 = turn(q.right + j(), q.top + j());
-      final p2 = turn(q.right + j(), q.bottom + j());
-      final p3 = turn(q.left + j(), q.bottom + j());
-      g.slabs.add(
-        Path()
-          ..moveTo(p0.dx, p0.dy)
-          ..lineTo(p1.dx, p1.dy)
-          ..lineTo(p2.dx, p2.dy)
-          ..lineTo(p3.dx, p3.dy)
-          ..close(),
-      );
-      g.slabTone.add(rnd());
-      // A worn name, on one slab in five.
-      if (rnd() < 0.2 && q.shortestSide > 44) {
-        g.carvings.add(q.center);
-        g.carvingAngle.add(q.width >= q.height ? 0.0 : pi / 2);
-        g.carvingLen.add(q.longestSide * 0.45);
-      }
       return;
     }
-    // Split the longer side most of the time — but not always, or the stones
-    // march. The fraction is never a half.
-    final long = r.width >= r.height;
-    final vertical = rnd() < 0.78 ? long : !long;
-    final f = 0.32 + rnd() * 0.36;
-    // The cut IS a joint: a jittered polyline, not a ruled line. Its width is
-    // its depth in the tree, so a room gets a few major fissures and many
-    // hairlines rather than one size of crack everywhere.
-    final w = switch (depth) {
-      0 => 10.0,
-      1 => 8.0,
-      2 => 6.0,
-      3 => 4.0,
-      _ => 3.0,
-    };
-    Offset a, z;
-    if (vertical) {
-      final x = r.left + r.width * f;
-      a = Offset(x, r.top);
-      z = Offset(x, r.bottom);
-    } else {
-      final y = r.top + r.height * f;
-      a = Offset(r.left, y);
-      z = Offset(r.right, y);
+    final wing = g.wing;
+    if (wing != null) {
+      _setInsightHint(
+        greenhouse.healed.contains(wing.climate)
+            ? 'It is thriving'
+            : climateComplaint(wing.climate),
+      );
+      return;
     }
-    // OVERSHOOT. A cut only spans its own sub-rectangle, so at tiny — where
-    // these are ravines a body walks down — every crack ended in a blunt
-    // round cap in the middle of the floor and the network read as a heap of
-    // loose worms. Six pixels past each end and the cracks meet.
-    final dir = z - a;
-    final dirLen = dir.distance == 0 ? 1.0 : dir.distance;
-    final over = Offset(dir.dx / dirLen, dir.dy / dirLen) * 7;
-    a -= over;
-    z += over;
-    final n = Offset(-(z.dy - a.dy), z.dx - a.dx);
-    final nl = n.distance == 0 ? 1.0 : n.distance;
-    final seam = Path()..moveTo(a.dx, a.dy);
-    for (var k = 1; k <= 3; k++) {
-      final u = k / 3;
-      final off = k == 3 ? 0.0 : (rnd() - 0.5) * (vertical ? 22 : 18);
-      final p =
-          Offset.lerp(a, z, u)! + Offset(n.dx / nl * off, n.dy / nl * off);
-      seam.lineTo(p.dx, p.dy);
+    if (g.trellis) {
+      _setInsightHint(
+        hasStar(1) ? 'The bud is open' : 'The bud across the pond is sealed',
+      );
+      return;
     }
-    g.seams.add(seam);
-    g.seamWidth.add(w);
-    if (vertical) {
-      final x = r.left + r.width * f;
-      split(Rect.fromLTRB(r.left, r.top, x, r.bottom), depth + 1);
-      split(Rect.fromLTRB(x, r.top, r.right, r.bottom), depth + 1);
-    } else {
-      final y = r.top + r.height * f;
-      split(Rect.fromLTRB(r.left, r.top, r.right, y), depth + 1);
-      split(Rect.fromLTRB(r.left, y, r.right, r.bottom), depth + 1);
+    if (g.rite) {
+      _setInsightHint(
+        greenhouse.rootsOpen
+            ? 'The roots have let go'
+            : 'The roots are knotted',
+      );
+      return;
     }
+    if (room.vaultCache != null) {
+      _setInsightHint('Something is stored down here');
+      return;
+    }
+    if (g.greatPlanter != null) {
+      _setInsightHint(
+        hasStar(0)
+            ? 'The great plant opened the way north'
+            : 'Nothing is growing',
+      );
+    }
+  }
+
+  /// Per-room mood — the hub is grey daylight, the shadehouse dark until its
+  /// light comes, the heart deep green.
+  double get _conservatoryMoodTarget => switch (currentRoomId) {
+    'conservatory' => hasStar(0) ? 0.74 : 0.6,
+    'dry_bed' => 0.7,
+    'hothouse' => 0.62,
+    'shadehouse' => greenhouse.healed.contains(Climate.dark) ? 0.66 : 0.28,
+    'trellis_garden' => 0.66,
+    'root_cellar' => 0.24,
+    'rootbound_door' => 0.42,
+    _ => guardianAwake ? 0.38 : 0.46,
   };
-  split(pave, 0);
 
-  // ── moss and seeps ───────────────────────────────────────
-  // Clustered, not sprinkled: moss grows where the water runs, so the
-  // blotches come in runs of two or three off one damp spot.
-  final clumps = (pave.width * pave.height / 100000).clamp(2, 4).toInt();
-  for (var i = 0; i < clumps; i++) {
-    final angle = i / clumps * pi * 2 + 0.4;
-    final at = Offset(
-      pave.center.dx + cos(angle) * pave.width * 0.43,
-      pave.center.dy + sin(angle) * pave.height * 0.43,
-    );
-    const n = 2;
-    for (var k = 0; k < n; k++) {
-      final c = at + Offset((rnd() - 0.5) * 90, (rnd() - 0.5) * 70);
-      final r = 15.0 + rnd() * 26;
-      g.moss.add(_cryptBlob(c, r, r * (0.5 + rnd() * 0.3), rnd, wobble: 0.34));
-      g.mossCentre.add(c);
-      g.mossR.add(r);
-    }
-    if (rnd() < 0.7) {
-      g.seeps.add(at + Offset((rnd() - 0.5) * 40, (rnd() - 0.5) * 30));
-      g.seepR.add(10.0 + rnd() * 13);
-    }
-  }
+  // ── Planning (planet_dungeon_game_planning.dart) ──────────
 
-  // ── the roots ────────────────────────────────────────────
-  // Each one comes in UNDER the wall course, curls, and tapers out before it
-  // reaches the middle of the room — so it never crosses the ground the
-  // party has to fight on, and it never reads as a beam laid over the floor.
-  //
-  // The guardian's arena gets the same thing at buttress scale and eight
-  // times over, banked round the edge. It got a RING first — nine points on
-  // an ellipse joined end to end — and that is exactly what it looked like:
-  // a brown hoop drawn on the floor. Separate roots that happen to crowd the
-  // same wall read as the root-bowl of something enormous; a closed curve
-  // never will.
-  //
-  // NEVER THROUGH A DOORWAY (2026-09-25 review). A root coming in under a
-  // door is a brown limb running from a way out into the room — which is
-  // exactly what a bough or a creeper road looks like, and on this planet
-  // those are the puzzle. A root whose foot lands within reach of any door
-  // is re-rolled along the wall.
-  final n = arena ? 8 : 2 + (rnd() * 2.4).floor();
-  final doorAt = [for (final d in room.doors) d.rect.center];
-  Offset wallFoot() {
-    final side = (rnd() * 4).floor();
-    return switch (side) {
-      0 => Offset(b.left + 40 + rnd() * (b.width - 80), b.top - 14),
-      1 => Offset(b.right + 14, b.top + 40 + rnd() * (b.height - 80)),
-      2 => Offset(b.left + 40 + rnd() * (b.width - 80), b.bottom + 14),
-      _ => Offset(b.left - 14, b.top + 40 + rnd() * (b.height - 80)),
-    };
-  }
-
-  for (var i = 0; i < n; i++) {
-    var a = arena
-        ? b.center +
-              Offset(
-                cos(i / n * pi * 2 + rnd() * 0.4) * b.width * 0.56,
-                sin(i / n * pi * 2 + rnd() * 0.4) * b.height * 0.56,
-              )
-        : wallFoot();
-    for (var tries = 0; tries < 12; tries++) {
-      if (!doorAt.any((d) => (d - a).distance < 150)) break;
-      a = arena
-          ? b.center +
-                Offset(
-                  cos(i / n * pi * 2 + 0.35 + tries * 0.2) * b.width * 0.56,
-                  sin(i / n * pi * 2 + 0.35 + tries * 0.2) * b.height * 0.56,
-                )
-          : wallFoot();
-    }
-    // A tip in the outer band: past the wall, short of the open centre.
-    // On the foot's own side of the room: a random angle put the tip by the
-    // OPPOSITE wall, and the root crossed the whole floor to get there.
-    final ang =
-        atan2(a.dy - b.center.dy, a.dx - b.center.dx) +
-        (rnd() - 0.5) * (arena ? 1.1 : 1.4);
-    // Short (2026-09-25): the tip used to stop 0.52–0.82 of the half-width
-    // from the centre, so a root swept whole rooms, under the beds and across
-    // the roads grown from them. It now stays in the band along the wall.
-    final reach = arena ? 0.46 + rnd() * 0.18 : 0.70 + rnd() * 0.16;
-    final z =
-        b.center +
-        Offset(
-          cos(ang) * b.width * 0.5 * reach,
-          sin(ang) * b.height * 0.5 * reach,
-        );
-    final mid = Offset.lerp(a, z, 0.5)!;
-    // A hard control offset, perpendicular-ish: a root that grew round
-    // something, not one that was surveyed.
-    final d = z - a;
-    final dl = d.distance == 0 ? 1.0 : d.distance;
-    final swing = (rnd() < 0.5 ? -1 : 1) * (0.34 + rnd() * 0.38) * dl;
-    final ctrl = mid + Offset(-d.dy / dl * swing, d.dx / dl * swing);
-    final base = arena ? 30.0 + rnd() * 26 : 13.0 + rnd() * 13;
-    Offset at(double u) =>
-        Offset.lerp(Offset.lerp(a, ctrl, u)!, Offset.lerp(ctrl, z, u)!, u)!;
-    // Taper: sample the curve, walk out along one side and back along the
-    // other, with the half-width falling to nothing at the tip.
-    const steps = 12;
-    final left = <Offset>[], right = <Offset>[];
-    for (var k = 0; k <= steps; k++) {
-      final u = k / steps;
-      final p = at(u);
-      final q = at(min(1.0, u + 0.03));
-      final t = q - p;
-      final tl = t.distance == 0 ? 1.0 : t.distance;
-      final hw = base * 0.5 * (1 - u * u) + 0.8;
-      final nn = Offset(-t.dy / tl, t.dx / tl) * hw;
-      left.add(p + nn);
-      right.add(p - nn);
-    }
-    final body = Path()..moveTo(left.first.dx, left.first.dy);
-    for (final p in left.skip(1)) {
-      body.lineTo(p.dx, p.dy);
-    }
-    for (final p in right.reversed) {
-      body.lineTo(p.dx, p.dy);
-    }
-    body.close();
-    g.roots.add(body);
-    // The crest is the same run at a third the width, shifted up the screen.
-    final crest = Path();
-    for (var k = 0; k <= steps; k++) {
-      final p = Offset.lerp(left[k], right[k], 0.32)! - const Offset(0, 2);
-      k == 0 ? crest.moveTo(p.dx, p.dy) : crest.lineTo(p.dx, p.dy);
-    }
-    for (var k = steps; k >= 0; k--) {
-      final p = Offset.lerp(left[k], right[k], 0.58)! - const Offset(0, 2);
-      crest.lineTo(p.dx, p.dy);
-    }
-    crest.close();
-    g.rootCrests.add(crest);
-    final feeders = <(Offset, Offset)>[];
-    for (var k = 1; k <= 3; k++) {
-      final u = (k / 4 + (rnd() - 0.5) * 0.12).clamp(0.05, 0.95);
-      final on = at(u);
-      final fa = rnd() * pi * 2;
-      feeders.add((on, on + Offset(cos(fa), sin(fa)) * (20 + rnd() * 28)));
-    }
-    g.rootlets.add(feeders);
-  }
-
-  // ── the wall course ──────────────────────────────────────
-  // Ashlar of uneven length, with gaps where a block has fallen out. The
-  // depth of the course varies too, so the room's edge is a built thing and
-  // not a border.
-  void course(bool horizontal, bool nearSide) {
-    var p = horizontal ? b.left : b.top;
-    final end = horizontal ? b.right : b.bottom;
-    while (p < end - 12) {
-      final len = 26.0 + rnd() * 54;
-      final depth = 18.0 + rnd() * 14;
-      final r = horizontal
-          ? Rect.fromLTWH(
-              p,
-              nearSide ? b.top : b.bottom - depth,
-              min(len, end - p),
-              depth,
-            )
-          : Rect.fromLTWH(
-              nearSide ? b.left : b.right - depth,
-              p,
-              depth,
-              min(len, end - p),
-            );
-      // One block in seven is missing — a course with no gaps in it is a
-      // frame, and a frame is what the plain floor already drew.
-      if (rnd() > 0.15 && clearOfDoors(r)) {
-        g.masonry.add(r);
-        g.masonryTone.add(rnd());
+  /// A nearby control's consequences, before committing. Describes the rule
+  /// — never the solution — and never mutates the live puzzle.
+  String? _conservatoryPreview(DungeonCreature a) {
+    final g = currentRoom.grove;
+    if (g == null) return null;
+    if (g.trellis &&
+        (a.position - kTrellisRootKnuckle).distance <= _kGreenReach) {
+      if (greenhouse.grown) {
+        return 'PULL · take the tendril back\n'
+            'Free. Water, ice and the lit lamp stay as they are.';
       }
-      p += len + 2 + rnd() * 5;
+      final grow = growTendril(greenhouse.trellis);
+      return 'GROW · ${grow.path.length} tiles\n'
+          '${switch (grow.stop) {
+            TendrilStop.bud => 'It reaches the bud.',
+            TendrilStop.dry => 'It stops at dry earth.',
+            TendrilStop.water => 'It stops at open water.',
+            TendrilStop.bedEnd => 'It stops at the end of the west bed.',
+            TendrilStop.noLight => 'It waits at the fork.',
+          }} The ghost shows the route.';
     }
-  }
-
-  if (water) {
-    // The islet's rim is its SHORE, not a wall — and it has to be well
-    // inside the room or the water it stands in is only visible in the four
-    // corners, which is how the first attempt drew it.
-    g.shore = _cryptBlob(
-      b.center,
-      b.width / 2 - 44,
-      b.height / 2 - 44,
-      rnd,
-      wobble: 0.11,
-    );
-    // Reeds stand on the shore ring, between the last stone and the water.
-    for (var i = 0; i < 20; i++) {
-      final a = i / 20 * pi * 2 + rnd() * 0.22;
-      final rx = b.width / 2 - 46 - rnd() * 22;
-      final ry = b.height / 2 - 46 - rnd() * 22;
-      g.reeds.add(b.center + Offset(cos(a) * rx, sin(a) * ry));
+    final seed = g.seedPlanter;
+    if (seed != null &&
+        _greySeedPlanted &&
+        !discoveredClouds.contains(kPlantOppositeSeedEggId) &&
+        (a.position - seed).distance <= _kGreenReach) {
+      final ch = seedChannelFor(a.member.element);
+      if (ch == null || greenhouse.drawn.contains(ch)) return null;
+      return 'DRAW BACK · ${switch (ch) {
+        SeedChannel.moisture => 'the moisture',
+        SeedChannel.light => 'the light',
+        SeedChannel.frost => 'the frost',
+      }}\n${greenhouse.drawn.length}/3 drawn. The healed wings stay healed.';
     }
-  } else {
-    // The arena gets its course too: Botanica grew INSIDE a crypt chamber,
-    // and an arena with no built edge is a field.
-    course(true, true);
-    course(true, false);
-    course(false, true);
-    course(false, false);
+    return null;
   }
-
-  // ── burial niches ────────────────────────────────────────
-  if (_cryptHas(room.id, 'loculi')) {
-    for (final top in [true, false]) {
-      var x = b.left + 30 + rnd() * 40;
-      while (x < b.right - 44) {
-        final w = 20.0 + rnd() * 16;
-        final h = 22.0 + rnd() * 14;
-        final r = Rect.fromLTWH(x, top ? b.top + 4 : b.bottom - 4 - h, w, h);
-        if (clearOfDoors(r) && rnd() > 0.22) {
-          g.loculi.add(r);
-          g.loculiSlab.add(rnd() < 0.35);
-        }
-        // Uneven spacing: these were cut as they were needed, over centuries.
-        x += w + 8 + rnd() * 46;
-      }
-    }
-  }
-
-  // ── colonnade ────────────────────────────────────────────
-  if (_cryptHas(room.id, 'colonnade')) {
-    for (final left in [true, false]) {
-      var y = b.top + 50 + rnd() * 60;
-      while (y < b.bottom - 50) {
-        final c = Offset(
-          left ? b.left + 44 + rnd() * 14 : b.right - 44 - rnd() * 14,
-          y,
-        );
-        final r = Rect.fromCenter(center: c, width: 30, height: 70);
-        if (clearOfDoors(r) && !open.contains(c)) {
-          g.columns.add(c);
-          g.columnH.add(28.0 + rnd() * 46);
-        }
-        y += 74 + rnd() * 78;
-      }
-    }
-  }
-
-  // ── ferns ────────────────────────────────────────────────
-  // Ferns grow where the damp and the broken ground are, which in this crypt
-  // means the VERGE between the last course of paving and the wall, and the
-  // rot patches. Scattered over the open floor (the first attempt) they read
-  // as weeds someone planted in rows of one.
-  {
-    final count = _cryptHas(room.id, 'ferny') ? 6 : 4;
-    for (var i = 0; i < count; i++) {
-      final a = i / count * pi * 2 + rnd() * 0.25;
-      final c =
-          b.center +
-          Offset(
-            cos(a) * (b.width / 2 - 22 - rnd() * 26),
-            sin(a) * (b.height / 2 - 22 - rnd() * 26),
-          );
-      if (!b.contains(c) || open.contains(c)) continue;
-      if (room.doors.any((d) => (d.rect.center - c).distance < 100)) continue;
-      g.ferns.add(c);
-      g.fernH.add(15.0 + rnd() * 18);
-    }
-  }
-
-  // ── the broken tread ─────────────────────────────────────
-  if (_cryptHas(room.id, 'stair')) {
-    // A real flight, descending down-left across the room, and the sixth
-    // step gone — which is exactly where the layout puts the repair bed
-    // ('the sifted soil under the broken tread', at 380,280). The two have
-    // to agree or the bed is sitting on nothing.
-    const a = Offset(560, 40), z = Offset(330, 340);
-    for (var i = 0; i < 8; i++) {
-      final c = Offset.lerp(a, z, i / 7)!;
-      // The treads OVERLAP. Spaced apart they were a ladder of bars with
-      // floor showing between them; a flight of stairs is a continuous mass.
-      g.treads.add(
-        Rect.fromCenter(center: c, width: 152 - i * 3.0, height: 48),
-      );
-      g.treadBroken.add(i == 6);
-    }
-  }
-
-  // ── what the flower has dropped ──────────────────────────
-  if (arena) {
-    for (var i = 0; i < 26; i++) {
-      final c = Offset(
-        b.left + 20 + rnd() * (b.width - 40),
-        b.top + 20 + rnd() * (b.height - 40),
-      );
-      if (open.contains(c)) continue;
-      g.petals.add(c);
-    }
-  }
-
-  return g;
 }

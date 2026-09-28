@@ -132,13 +132,14 @@ void main() {
     });
 
     test('an element+family gate is not fooled by the family alone', () {
-      // Plant's altar sun is Light+MASK. A Mask of the wrong element must not
-      // satisfy it, or the distinction the audit drew would be meaningless.
+      // Plant's sun bud is Crystal+MASK. A Mask of the wrong element must
+      // not satisfy it, or the distinction the audit drew would be
+      // meaningless.
       final demands = dungeonEntryDemands('Plant');
       final sun = demands.firstWhere((d) => d.family == 'Mask');
-      expect(sun.element, 'Light');
-      expect(sun.satisfiedBy([_m('Mud', 'mask')]), isFalse);
-      expect(sun.satisfiedBy([_m('Light', 'mask')]), isTrue);
+      expect(sun.element, 'Crystal');
+      expect(sun.satisfiedBy([_m('Water', 'mask')]), isFalse);
+      expect(sun.satisfiedBy([_m('Crystal', 'mask')]), isTrue);
     });
 
     test('an unmet demand can name itself on the placard', () {

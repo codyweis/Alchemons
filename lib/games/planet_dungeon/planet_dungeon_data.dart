@@ -1307,13 +1307,12 @@ class DungeonRoom {
   /// authored whole in planet_dungeon_layout_mud.dart rather than per room.
   final BogFen? fen;
 
-  /// Plant (the Verdant Crypt): this room's content in the crypt that is one
-  /// geometry at two sizes — its star, the boles and mulch pits, and the
-  /// single objects (briar, lamp, growth altar, sepulchre, shade seed, the
-  /// arena's root-gall). One field, because the crypt's spans and beds are
+  /// Plant (the Conservatory): this room's content — a wing's climate and
+  /// ring, the hub's planters, the trellis board, the rite's buds, the
+  /// arena's circles. One field, because the Conservatory's rules are
   /// authored whole in planet_dungeon_layout_plant.dart rather than per room,
   /// exactly as Ice's shaft and Dust's mounds are.
-  final CryptGrove? grove;
+  final ConservatoryPlot? grove;
 
   /// Dark (the Eclipse Vault): which QUARTER of the eclipse this room lies in,
   /// its star, and the single objects (the pall, the analemma, the snuffer,
@@ -1354,13 +1353,11 @@ class DungeonRoom {
   /// Ice's shaft and Dust's mounds are.
   final PrismHall? prism;
 
-  /// Spirit (the Echo Grave): this room's content in the field's two overlaid
-  /// worlds — the barrow it is, the gate's vigil, its lych-stone, the grave
-  /// mouth, the drowned cut's brink, its sigil half, the grave-lamp and
-  /// Wraithord's stone. One field, because the field's crossing graph is
-  /// authored whole in planet_dungeon_layout_spirit.dart rather than per room,
-  /// exactly as Plant's spans and Crystal's lattice are.
-  final EchoGrave? grave;
+  /// Spirit (the Unfinished Funeral): this room's memorial stone, its urn and
+  /// socket, and the one piece of the funeral it holds — the bell, the
+  /// bearers' court, the rite's bier and stones, the vigil chime, the maxim's
+  /// name stone. Rules in planet_dungeon_layout_spirit.dart.
+  final FuneralRoom? funeral;
 
   const DungeonRoom({
     required this.id,
@@ -1447,7 +1444,7 @@ class DungeonRoom {
     this.fen,
     this.ruins,
     this.prism,
-    this.grave,
+    this.funeral,
     this.grove,
     this.eclipse,
     this.hall,
@@ -1605,7 +1602,7 @@ extension DungeonRoomAffordances on DungeonRoom {
       sanguine != null ||
       ruins != null ||
       prism != null ||
-      grave != null;
+      funeral != null;
 }
 
 /// Everything [element]'s dungeon will demand of a descent party beyond its
@@ -1810,18 +1807,12 @@ class DungeonLayout {
         seen.add(keep.spectrumStarIndex);
         seen.add(keep.throneStarIndex);
       }
-      // Plant does the same with its one geometry at two sizes: the lantern
-      // court above and the islet across the rill.
+      // Plant carries its two non-guardian stars on the rooms that bank them:
+      // the hub (the three wings' bloom) and the trellis garden.
       if (room.grove?.starIndex != null) seen.add(room.grove!.starIndex!);
-      // Spirit declares BOTH of its non-guardian stars on the lych gate:
-      // neither belongs to a room — one is a fact about the LIVING crossings
-      // of the whole grave-field, the other about two halves of a sigil that
-      // lie in different worlds.
-      final vigil = room.grave?.vigil;
-      if (vigil != null) {
-        seen.add(vigil.roadStarIndex);
-        seen.add(vigil.sigilStarIndex);
-      }
+      // Spirit carries its two non-guardian stars on the rooms that bank
+      // them: the bell court and the bearers' court.
+      if (room.funeral?.starIndex != null) seen.add(room.funeral!.starIndex!);
       // Dark carries its two non-guardian stars on the quarter a room lies
       // in: the analemma court in the pall, the ossuary ring in the bones.
       if (room.eclipse?.starIndex != null) seen.add(room.eclipse!.starIndex!);
@@ -1872,8 +1863,7 @@ const DungeonLayout _airLayout = DungeonLayout(
   ],
   entranceRevealDoor: DungeonDoorRef('entry', 'hub'),
   finaleDoor: DungeonDoorRef('sky_loom', 'storm_rune_hall'),
-  riteAnnouncement:
-      'Wind and Loom are won. The storm door in the loom opens',
+  riteAnnouncement: 'Wind and Loom are won. The storm door in the loom opens',
   finaleSealedHint:
       'The storm door stays shut until you have the Wind and Loom stars',
   guardianSealedHint:
@@ -2733,8 +2723,7 @@ const DungeonLayout _fireLayout = DungeonLayout(
       'beyond it to wake the Simurgh',
   finaleSealedHint:
       'The chancel gate stays shut until you have the Ember and Ash stars',
-  guardianSealedHint:
-      'The sanctum stays shut until every bell has rung',
+  guardianSealedHint: 'The sanctum stays shut until every bell has rung',
   mercyShrineRoomId: 'high_altar',
   // Ideal: Firemask · Plantmane · Airwing — hinted by VERB, never by body
   // part: insight, the trail-leaving passage, flight.
@@ -3513,8 +3502,7 @@ const DungeonLayout _earthLayout = DungeonLayout(
   stars: [
     DungeonStarSpec(
       name: 'Marrow Star',
-      earnAnnouncement:
-          'The Marrow Star is yours. The ribs bridge the marrow',
+      earnAnnouncement: 'The Marrow Star is yours. The ribs bridge the marrow',
     ),
     DungeonStarSpec(
       name: 'Crystal Star',
@@ -3525,8 +3513,7 @@ const DungeonLayout _earthLayout = DungeonLayout(
   ],
   entranceRevealDoor: DungeonDoorRef('barrow_gate', 'sternum_court'),
   finaleDoor: DungeonDoorRef('sternum_court', 'skull_antechamber'),
-  riteAnnouncement:
-      'Marrow and Crystal are won. The skull\'s jaw opens',
+  riteAnnouncement: 'Marrow and Crystal are won. The skull\'s jaw opens',
   finaleSealedHint:
       'The skull\'s jaw stays shut until you have the Marrow and Crystal '
       'stars',
@@ -3878,8 +3865,7 @@ const DungeonLayout _lightningLayout = DungeonLayout(
   ],
   entranceRevealDoor: DungeonDoorRef('arc_gate', 'dynamo_court'),
   finaleDoor: DungeonDoorRef('dynamo_court', 'overload_maze'),
-  riteAnnouncement:
-      'Circuit and Storm are won. The breaker gate opens',
+  riteAnnouncement: 'Circuit and Storm are won. The breaker gate opens',
   finaleSealedHint:
       'The breaker gate stays shut until you have the Circuit and Storm '
       'stars',
@@ -4422,8 +4408,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
   stars: [
     DungeonStarSpec(
       name: 'Causeway Star',
-      earnAnnouncement:
-          'The Causeway Star is yours. Every vent is covered',
+      earnAnnouncement: 'The Causeway Star is yours. Every vent is covered',
     ),
     DungeonStarSpec(
       name: 'Cinder Star',
@@ -4434,8 +4419,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
   ],
   entranceRevealDoor: DungeonDoorRef('boiler_gate', 'manifold_south'),
   finaleDoor: DungeonDoorRef('manifold_north', 'crucible'),
-  riteAnnouncement:
-      'Causeway and Cinder are won. The crucible gate opens',
+  riteAnnouncement: 'Causeway and Cinder are won. The crucible gate opens',
   finaleSealedHint:
       'The crucible gate stays shut until you have the Causeway and Cinder '
       'stars',

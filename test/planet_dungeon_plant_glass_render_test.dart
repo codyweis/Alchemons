@@ -1,10 +1,11 @@
-// VERDANTHOS, IN GLASS — the states Plant's glass is meant to show
-// (docs/dungeons.md §7.11), asserted to be different pictures.
+// VERDANTHOS, IN GLASS — the states the Conservatory's glass is meant to
+// show (docs/dungeons.md §7.11, §9.20), asserted to be different pictures.
 //
 // The rooms whole are `planet_dungeon_whole_room_audit_test.dart
-// --dart-define=AUDIT=Plant`; this is the STATES. The kept shade tree is shot from a
-// game where only the maxim's id is set — a found maxim's mark must stand on
-// every later descent.
+// --dart-define=AUDIT=Plant`; this is the STATES, each reached by playing the
+// verb and letting its animation run. The opposite flower is shot from a game
+// where only the maxim's id is set — a found maxim's mark must stand on every
+// later descent.
 //
 // `mkdir -p build/room_audit` and run this to get the PNGs (PlantGlass_*.png).
 
@@ -20,8 +21,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<PlanetDungeonGame> _game(String roomId, {int stars = 0}) async {
-  const els = ['Plant', 'Mud', 'Light'];
-  const fams = ['horn', 'mask', 'wing'];
+  const els = ['Crystal', 'Spirit', 'Water'];
+  const fams = ['mask', 'kin', 'mane'];
   final party = [
     for (var i = 0; i < els.length; i++)
       CosmicPartyMember(
@@ -65,10 +66,31 @@ Future<PlanetDungeonGame> _game(String roomId, {int stars = 0}) async {
   return g;
 }
 
+/// Stand [els] in the ring at [at] and press with the first.
+void _tend(PlanetDungeonGame g, Offset at, List<String> els) {
+  final park = g.currentRoom.bounds.bottomRight - const Offset(40, 40);
+  for (final c in g.creatures) {
+    final i = els.indexOf(c.member.element);
+    c.position = i < 0 ? park : at + Offset(-14.0 + 14 * i, 0);
+  }
+  g.activeIndex = g.creatures.indexWhere((c) => c.member.element == els.first);
+  g.activateAbility();
+}
+
+void _park(PlanetDungeonGame g) {
+  final park = g.currentRoom.bounds.bottomRight - const Offset(40, 40);
+  for (final c in g.creatures) {
+    c.position = park;
+  }
+}
+
+Offset _wing(String room) =>
+    kPlanetDungeonLayouts['Plant']!.rooms[room]!.grove!.wing!.ring;
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('every state the crypt\'s glass shows', (tester) async {
+  testWidgets('every state the Conservatory\'s glass shows', (tester) async {
     await tester.runAsync(() async {
       final out = Directory('build/room_audit');
       final shots = <String, int>{};
@@ -76,10 +98,15 @@ void main() {
       Future<void> shoot(
         String name,
         String roomId, {
+        int stars = 0,
         void Function(PlanetDungeonGame g)? setup,
         double seconds = 0.4,
+        bool park = true,
       }) async {
-        final g = await _game(roomId);
+        final g = await _game(roomId, stars: stars);
+        g.debugResetPuzzleState();
+        g.currentRoomId = roomId;
+        if (park) _park(g);
         setup?.call(g);
         for (var i = 0; i < (seconds * 60).round(); i++) {
           g.update(1 / 60);
@@ -105,115 +132,209 @@ void main() {
         shots[name] = hash;
       }
 
-      // A grave-lamp, dead and lit.
-      await shoot('lamp_dead', 'lantern_court');
+      // The three wings, sick, mid-wash and healed.
+      for (final (room, els) in [
+        ('dry_bed', ['Water']),
+        ('hothouse', ['Water', 'Spirit']),
+        ('shadehouse', ['Spirit', 'Crystal']),
+      ]) {
+        await shoot('${room}_sick', room);
+        await shoot(
+          '${room}_wash',
+          room,
+          setup: (g) => _tend(g, _wing(room), els),
+          seconds: 1.1,
+        );
+        await shoot(
+          '${room}_healed',
+          room,
+          setup: (g) => _tend(g, _wing(room), els),
+          seconds: 4.0,
+        );
+      }
+
+      // The hub: bare, two wings healed, the cutscene's bind and rise, and
+      // the great plant standing.
+      await shoot('hub_bare', 'conservatory');
       await shoot(
-        'lamp_lit',
-        'lantern_court',
-        setup: (g) => g.crypt.lampsLit.add('lamp_court'),
+        'hub_two',
+        'conservatory',
+        setup: (g) => g.greenhouse.healed.addAll([Climate.dry, Climate.warm]),
+      );
+      await shoot('hub_standing', 'conservatory', stars: 1);
+      await shoot('hub_seed', 'conservatory', stars: 3);
+      await shoot(
+        'hub_seed_drawn',
+        'conservatory',
+        stars: 3,
+        setup: (g) {
+          final at = g.currentRoom.grove!.seedPlanter!;
+          _tend(g, at, ['Water']);
+          _tend(g, at, ['Crystal']);
+        },
+        seconds: 2.0,
+      );
+      await shoot(
+        'hub_flower',
+        'conservatory',
+        stars: 3,
+        setup: (g) => g.discoveredClouds.add(kPlantOppositeSeedEggId),
+        seconds: 3.6,
       );
 
-      // The growth altar: cold, two steps laid, woken.
-      await shoot('altar', 'islet');
-      await shoot('altar_two', 'islet', setup: (g) => g.crypt.bloomStep = 2);
-      await shoot('altar_woken', 'islet', setup: (g) => g.crypt.bloomStep = 3);
-
-      // The shade: the gallery bare, the tree growing as the rite binds, and
-      // the tree on a later descent.
-      await shoot('gallery', 'fern_gallery');
+      // The trellis: bare, the ghost once wet (stopping at the water), set up east,
+      // grown to the bud, and the hatch open.
+      await shoot('trellis_bare', 'trellis_garden', stars: 1);
       await shoot(
-        'gallery_rite',
-        'fern_gallery',
+        'trellis_wet_ghost',
+        'trellis_garden',
+        stars: 1,
+        setup: (g) => _tend(g, kTrellisWaterRing.at, ['Water']),
+        seconds: 2.0,
+      );
+      await shoot(
+        'trellis_set_east',
+        'trellis_garden',
+        stars: 1,
         setup: (g) {
-          g.crypt.shadeRisen = true;
-          g.beginMaximRite(
-            kPlantUnseenShadeEggId,
-            g.layout.rooms['fern_gallery']!.grove!.shadeSeed!,
+          _tend(g, kTrellisWaterRing.at, ['Water']);
+          _tend(g, kTrellisIceRing.at, ['Spirit', 'Water']);
+          _tend(g, kTrellisEastLightRing.at, ['Crystal', 'Spirit']);
+          _park(g);
+        },
+        seconds: 2.5,
+      );
+      // The Bud Star, beat by beat: the coil and swell, the burst with its
+      // star, the pollen streaming north, and the bloom settled.
+      for (final (name, secs) in [
+        ('trellis_bud_swell', 2.6),
+        ('trellis_bud_burst', 3.3),
+        ('trellis_bud_stream', 4.5),
+        ('trellis_grown', 5.6),
+        ('trellis_then_crown', 8.0),
+      ]) {
+        await shoot(
+          name,
+          'trellis_garden',
+          stars: 1,
+          setup: (g) {
+            _tend(g, kTrellisWaterRing.at, ['Water']);
+            _tend(g, kTrellisIceRing.at, ['Spirit', 'Water']);
+            _tend(g, kTrellisEastLightRing.at, ['Crystal', 'Spirit']);
+            _tend(g, kTrellisRootKnuckle, ['Water']);
+            _park(g);
+          },
+          seconds: secs,
+        );
+      }
+      await shoot(
+        'trellis_hatch',
+        'trellis_garden',
+        stars: 1,
+        setup: (g) {
+          _tend(g, kTrellisWaterRing.at, ['Water']);
+          _tend(g, kTrellisWestLightRing.at, ['Crystal', 'Spirit']);
+          _tend(g, kTrellisRootKnuckle, ['Water']);
+          _park(g);
+        },
+        seconds: 2.6,
+      );
+      await shoot('cellar', 'root_cellar', stars: 1);
+
+      // The rite: bare, mid-solve, a ghost preview, and the roots let go.
+      Offset ring(String tip) => kRootRings[tip]!.at;
+      await shoot('rite_bare', 'rootbound_door', stars: 3);
+      await shoot(
+        'rite_mid',
+        'rootbound_door',
+        stars: 3,
+        setup: (g) {
+          _tend(g, ring('C'), ['Water']);
+          _tend(g, ring('E'), ['Spirit', 'Crystal']);
+          _tend(g, ring('F'), ['Spirit', 'Crystal']);
+          _tend(g, ring('C'), ['Water', 'Spirit']);
+          _park(g);
+        },
+        seconds: 2.4,
+      );
+      await shoot(
+        'rite_climbing',
+        'rootbound_door',
+        stars: 3,
+        setup: (g) {
+          _tend(g, ring('C'), ['Water']);
+          _park(g);
+        },
+        seconds: 0.45,
+      );
+      await shoot(
+        'rite_ghost',
+        'rootbound_door',
+        stars: 3,
+        park: false,
+        setup: (g) {
+          _tend(g, ring('C'), ['Water']);
+          // Stand the ice pair in C's ring without pressing.
+          for (final c in g.creatures) {
+            c.position = c.member.element == 'Crystal'
+                ? g.currentRoom.bounds.bottomRight - const Offset(40, 40)
+                : ring('C');
+          }
+          g.activeIndex = g.creatures.indexWhere(
+            (c) => c.member.element == 'Water',
           );
+        },
+        seconds: 2.0,
+      );
+      await shoot(
+        'rite_open',
+        'rootbound_door',
+        stars: 3,
+        setup: (g) {
+          _tend(g, ring('C'), ['Water']);
+          _tend(g, ring('E'), ['Spirit', 'Crystal']);
+          _tend(g, ring('F'), ['Spirit', 'Crystal']);
+          _tend(g, ring('C'), ['Water', 'Spirit']);
+          _tend(g, ring('C'), ['Spirit', 'Crystal']);
+          _tend(g, ring('D'), ['Spirit', 'Crystal']);
+          _tend(g, ring('D'), ['Water']);
+          _park(g);
         },
         seconds: 1.4,
       );
+      // The crown: the key, flowering on the Bud Star's cut.
       await shoot(
-        'gallery_kept',
-        'fern_gallery',
-        setup: (g) => g.discoveredClouds.add(kPlantUnseenShadeEggId),
+        'hub_crown_blooming',
+        'conservatory',
+        stars: 3,
+        setup: (g) => g.debugStartCrownBloom(),
+        seconds: 1.2,
       );
 
-      // THE BEDS (2026-09-25): a creeper unrolled to the islet door, a trunk
-      // with its bough out to the court door and bark over the worm-run, a
-      // trunk caught half-grown, and the ghost a bare bed shows the body
-      // standing at it — a creeper at full size, a trunk when small.
-      void standAt(PlanetDungeonGame g, Offset p) {
-        for (final c in g.creatures) {
-          c.position = p;
-        }
-      }
-
-      final rootBed = cryptBedById('b_root')!.crown;
+      // Botanica's arena, calm and wrecked.
+      await shoot('arena', 'botanica_heart', stars: 3);
       await shoot(
-        'bed_creeper',
-        'fern_gallery',
-        setup: (g) => g.crypt.bed['b_root'] = VineState.creeper,
-      );
-      await shoot(
-        'bed_trunk',
-        'fern_gallery',
-        setup: (g) => g.crypt.bed['b_root'] = VineState.trunk,
-      );
-      await shoot(
-        'bed_growing',
-        'fern_gallery',
+        'arena_wrecked',
+        'botanica_heart',
+        stars: 3,
         setup: (g) {
-          g.crypt.scale = PlantScale.tiny;
-          standAt(g, rootBed);
-          g.setActive(0); // the Plant hand
-          g.activateAbility();
+          g.greenhouse.roots.setAll(kRootTarget);
+          g.greenhouse.rootsOpen = true;
+          g.conduitEnergy['A'] = double.infinity;
+          g.conduitEnergy['B'] = double.infinity;
         },
-        seconds: 0.7,
-      );
-      await shoot(
-        'bed_preview_huge',
-        'fern_gallery',
-        setup: (g) => standAt(g, rootBed + const Offset(0, 50)),
-      );
-      await shoot(
-        'bed_preview_tiny',
-        'fern_gallery',
-        setup: (g) {
-          g.crypt.scale = PlantScale.tiny;
-          standAt(g, rootBed + const Offset(0, 50));
-        },
-      );
-      await shoot(
-        'court_far_end',
-        'lantern_court',
-        setup: (g) => g.crypt.bed['b_root'] = VineState.trunk,
-      );
-      await shoot('tomb_sealed', 'bloom_hall');
-      await shoot(
-        'tomb_open',
-        'bloom_hall',
-        setup: (g) => g.conduitEnergy['B'] = double.infinity,
+        seconds: 6.0,
       );
 
-      for (final (a, b) in const [
-        ('gallery', 'bed_creeper'),
-        ('bed_creeper', 'bed_trunk'),
-        ('bed_trunk', 'bed_growing'),
-        ('gallery', 'bed_preview_huge'),
-        ('bed_preview_huge', 'bed_preview_tiny'),
-        ('tomb_sealed', 'tomb_open'),
-        ('lamp_dead', 'lamp_lit'),
-        ('altar', 'altar_two'),
-        ('altar_two', 'altar_woken'),
-        ('gallery', 'gallery_rite'),
-        ('gallery_rite', 'gallery_kept'),
-      ]) {
+      // Every state is its own picture.
+      final seen = <int, String>{};
+      for (final e in shots.entries) {
         expect(
-          shots[a] != shots[b],
-          isTrue,
-          reason: '$a and $b draw the same picture',
+          seen[e.value],
+          isNull,
+          reason: '${e.key} draws the same picture as ${seen[e.value]}',
         );
+        seen[e.value] = e.key;
       }
     });
   });
