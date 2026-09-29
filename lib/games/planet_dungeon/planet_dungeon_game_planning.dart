@@ -12,7 +12,9 @@ extension DungeonPlanning on PlanetDungeonGame {
     // should not raise a line on every square (the author, 2026-09-28).
     if (_isFuneral) return null;
     if (_isVault) return _vaultPreview(a);
-    if (_isArchive) return _archivePreview(a);
+    // The Beacon Archive shows NEXT PRESS in the readout instead; a line in
+    // the capsule at every beacon covered the room (the author, 2026-09-28).
+    if (_isArchive) return null;
     if (_isHeart) return _heartPreview(a);
     return null;
   }
@@ -40,21 +42,6 @@ extension DungeonPlanning on PlanetDungeonGame {
     return 'Dark · shadow toward ${leafWord(entered)}\n'
         '${changes.isEmpty ? 'Other shadows keep the same quarters dark' : changes.join('; ')}. '
         'Dark opens crossings; light joins rooms within a quarter.';
-  }
-
-  String? _archivePreview(DungeonCreature a) {
-    final b = archiveBeaconIn(currentRoomId);
-    if (b == null || !_planningNear(a, b.post)) return null;
-    final next = archive.previewPress(b.id);
-    final setting = next.settingOf(b.id);
-    final exposure = next.lumens;
-    final ready = kCourtEffigies
-        .where((e) => !archive.effigiesRead.contains(e.id) && next.canRead(e))
-        .length;
-    return 'Light · ${setting?.look ?? 'extinguish beacon'}\n'
-        '${archive.lumens} → $exposure lumens · '
-        '${exposure <= kArchiveHush ? 'within the hush' : 'too bright for slips'} · '
-        '$ready unread shadows readable.';
   }
 
   String? _heartPreview(DungeonCreature a) {

@@ -14,7 +14,6 @@ import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
-import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_light.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:flutter/material.dart';
@@ -191,16 +190,16 @@ const Map<String, String> kDungeonRoomLabels = {
   'umbral_reliquary': 'UMBRAL VAULT',
   'eclipse_nave': 'NAVE',
   'noctryos_totality': 'TOTALITY',
-  // Light — Beacon Archive.
-  'lumen_threshold': 'THRESHOLD',
-  'shadow_court': 'SHADOW COURT',
-  'moth_gallery': 'MOTH GALLERY',
-  'dark_stacks': 'DARK STACKS',
-  'catalogue_walk': 'CATALOGUE',
-  'oculus_stair': 'OCULUS STAIR',
+  // Light — the Shadow Floor.
+  'light_hall': 'GREAT HALL',
+  'own_shadow': 'OWN SHADOW',
+  'key_room': 'THE KEY',
+  'two_suns': 'TWO SUNS',
+  'two_gaps': 'TWO GAPS',
+  'door_of_shadow': 'DOOR OF SHADOW',
+  'eclipse_walk': 'THE ECLIPSE',
+  'solarin_orbit': 'SOLARIN',
   'sunless_reliquary': 'SUNLESS VAULT',
-  'reading_floor': 'READING FLOOR',
-  'solarin_oculus': 'THE OCULUS',
   // Blood — Hemavorn.
   'pericard_gate': 'PERICARD GATE',
   'arterial_run': 'ARTERIAL RUN',
@@ -791,7 +790,7 @@ class _FullMapLegend extends StatelessWidget {
   /// Nythralor adds its quarter marks and its portals.
   final bool vault;
 
-  /// The archive adds its bay-light marks.
+  /// The shadow floor adds its set-in-stone mark.
   final bool archive;
 
   @override
@@ -824,8 +823,11 @@ class _FullMapLegend extends StatelessWidget {
           _LegendChip(color: Color(0xFFA884E0), label: 'PORTAL'),
         ],
         if (archive) ...const [
-          _LegendChip(color: Color(0xFFFFE082), label: 'BAY LIT', ring: true),
-          _LegendChip(color: Color(0xFF5C6270), label: 'BAY DARK', ring: true),
+          _LegendChip(
+            color: Color(0xFFD2AB58),
+            label: 'SET IN STONE',
+            ring: true,
+          ),
         ],
       ],
     );
@@ -1506,8 +1508,9 @@ class _DungeonFullMapPainter extends CustomPainter {
 
     final leaf = room.eclipse?.leaf;
     if (leaf != null) _drawEclipseBadge(canvas, box, leaf);
-    final sector = room.hall?.sector;
-    if (sector != null) _drawArchiveBadge(canvas, box, sector);
+    if (room.hall != null && game.archive.solved.contains(room.id)) {
+      _drawArchiveBadge(canvas, box);
+    }
 
     final label = kDungeonRoomLabels[room.id] ?? room.id.toUpperCase();
     final tp = TextPainter(
@@ -1617,41 +1620,23 @@ class _DungeonFullMapPainter extends CustomPainter {
     }
   }
 
-  /// THE ARCHIVE: how much of this bay's sector the beacons light now — a
-  /// full gold disc (rim and inward), a half one (the rim only, a low beam
-  /// broken on a stack), or a dark one.
-  void _drawArchiveBadge(Canvas canvas, Rect box, HallSector sector) {
-    final a = game.archive;
-    final rim = a.isLit(HallCell(sector, HallBand.rim));
-    final inward = a.isLit(HallCell(sector, HallBand.inward));
+  /// THE SHADOW FLOOR: a room whose floor has set into stone — a black disc
+  /// with a gold seam, the same mark its span leaves across the hall.
+  void _drawArchiveBadge(Canvas canvas, Rect box) {
     final c = Offset(box.left + 13, box.top + 13);
-    const gold = Color(0xFFFFE082);
-    canvas.drawCircle(c, 6, Paint()..color = const Color(0xFF1A1D26));
-    if (rim) {
-      canvas.drawArc(
-        Rect.fromCircle(center: c, radius: 6),
-        math.pi,
-        math.pi,
-        true,
-        Paint()..color = gold,
-      );
-    }
-    if (inward) {
-      canvas.drawArc(
-        Rect.fromCircle(center: c, radius: 6),
-        0,
-        math.pi,
-        true,
-        Paint()..color = gold,
-      );
-    }
+    const gold = Color(0xFFD2AB58);
+    canvas.drawCircle(c, 6, Paint()..color = const Color(0xFF18151E));
+    canvas.drawRect(
+      Rect.fromCenter(center: c, width: 9, height: 2),
+      Paint()..color = gold,
+    );
     canvas.drawCircle(
       c,
       6,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2
-        ..color = gold.withValues(alpha: 0.6),
+        ..color = gold.withValues(alpha: 0.7),
     );
   }
 

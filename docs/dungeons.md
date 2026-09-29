@@ -34,8 +34,12 @@ decisions legible before a press, and removing idle waiting in Blood.
 - **Dark:** nearby gnomons forecast the quarters that actually change light,
   accounting for overlapping shadows. A second shadow can keep a quarter
   dark even after one gnomon moves.
-- **Light:** nearby beacons forecast their next beam, total exposure, the
-  hush threshold and how many unread effigies become readable. HUD previews
+- **Light:** at a beacon the HUD readout shows NEXT PRESS — the lumens and
+  the hall's five marks after one more press. (2026-09-28: the capsule line
+  that repeated it is gone, as are the line on every press and the ambient
+  flavour — the author: *"too many popups, I can't see anything, especially
+  by the lights"*. The count of effigies a press would make readable was cut
+  the same day: a number that rises as you cycle is a hill to climb.) HUD previews
   evaluate a separate lighting state instead of temporarily mutating the run.
 
 Previews use the existing hint space, yield to spoken feedback, and disappear
@@ -1392,7 +1396,7 @@ or it drifts into Water's seat.
     S1 Darkmask flips light/dark room states (bridges swap). S2 shadow-portal maze
     (Spirit reveals destinations, Poisonpip unlocks anchors). S3 extinguish every
     light (**Poison+Spirit→Dark**) → final door in total darkness.
-16. **Light — Beacon Archive** · Light+Crystal+Spirit · Lightmask/Crystalmask/Spiritpip ·
+16. **Light — Beacon Archive** · ⛔ PARTY CHANGED 2026-09-28 to **Light · Dark · Steam** (Lighthorn · Darkwing · Steampip) — see "LIGHT — THE POLISH PASS"; the entry below keeps the old trio as history · Light+Crystal+Spirit · Lightmask/Crystalmask/Spiritpip ·
     *the statues lie; their shadows cannot — and every lumen you spend is
     seen.* (Re-authored 2026-08-10 from the §5.5 row; supersedes truth/lie
     statue-picking.)
@@ -3884,7 +3888,196 @@ one real bug in the boss room. Rendered room by room first, then:
     sentence as Mud's, Ice's, Dust's and Dark's. `Light` stays out of
     `kPolishedDungeons` until it has been played.
 
+### LIGHT — THE SHADOW FLOOR (2026-09-28; BUILT, supersedes the Beacon Archive and its polish pass below; not yet played on device)
+
+The author, after playing the polished archive: *"this just seems like going
+around tapping things"* — and asked for Portal 2 / Gorogoa ahas. Prototyped
+as a web page first (`docs/prototypes/light_shadow_floor/`, with the JS
+solver every room was proved on), then built.
+
+**World rule: light is nothing. You fall through it. Only shadow holds your
+weight — and nothing stands on its own shadow.** Glass over a lightwell is a
+floor only where EVERY starlight reaching it is blocked by something that is
+not you. The starlights are shards of Solarin's star. Party Light · Dark ·
+Steam (unchanged). Light turns cranks (walks a railed starlight a notch) and
+sets the key room's starlight on a stud; **Dark pins the shadow it stands in**
+(the casters holding its square, and every glass square they alone hold, set
+into stone; a blank wall takes a pin only from the door-shaped monolith);
+**Steam breathes a veil** at a vent (a still caster) and rises once through a
+one-way pipe.
+
+**Shape: a hub that grows.** The Great Hall is a lightwell with an island;
+rooms I and II open off the near ledge, III and IV off the island, and each
+solved room sets one span of shadow-stone across a well. Star 1 = I+II, Star
+2 = III+IV, then the Door of Shadow (rite) on the far ledge and Solarin.
+  · **Entry:** Light wakes the hall's dark star.
+  · **I · Nothing stands on its own shadow** — cast a bridge beside the
+    starlight; the caster can't use it; Dark pins it and everyone crosses.
+  · **II · The key** — the arch on the north face is pure light; Steam's
+    veil gives the shadow something to land on; the tiny key's shadow is
+    magnified by distance and moves opposite to the starlight; exactly one of
+    21 studs lays it in the giant keyhole; Dark pins it and it turns.
+  · **III · Two suns** — floor only where BOTH starlights are blocked; Steam
+    pipes across (once) to hold the far one; the last crosser needs the pin.
+  · **IV · Two gaps, one pin** — each gap lit by its own one-way starlight;
+    the veil is a shadow that stays put. Pinning the first gap (Room I's
+    habit) is a DEAD END — proved.
+  · **The Door of Shadow (rite)** — crank the starlight behind the door
+    statue; its pinned shadow is the bridge AND a doorway cut through the
+    blank wall. Latches A and B; Solarin wakes below.
+  · **Solarin** — the engine's fight, with the lull as a PLACE: the active
+    body two squares off Solarin on floor that holds (behind a pillar). Each
+    lull strike swings Solarin round its orbit, the floor re-forms, and
+    anyone on bare light falls back to the ledge. No lone creature can win.
+  · **The Sunless Reliquary (vault)** — the starlight is behind the relic;
+    the only road is the relic's own shadow, aimed with the crank.
+  · **The Lost Maxim** — "Light walks on light": the gold sun in the far
+    well holds the Light creature and nobody else.
+
+  · **The Eclipse (added 2026-09-28, between the rite and Solarin)** — the
+    hard one, FOUND by search (`gen2.js`, ~1,000 layouts) for a room where
+    the crank, the pin and the veil are each necessary. Walls block
+    starlight: the railed star walks the top, two blocks in the glass
+    eclipse it, and each crank walks their shadow across the floor — you
+    ride it, and anyone left on glass it moves off falls back. The veil
+    holds the fixed star; the pin keeps the road at one moment. Fifty moves
+    at best; 80% of reachable positions are dead ends (`rank.js`).
+  · **Solarin reworked (same day):** three planned blows (not fourteen);
+    the reach is two squares on held floor; a ghost of its next orbit point
+    and a faint gold outline of the floor it will make; flares that charge
+    a second on anyone in its direct light (a pillar's shadow is shelter);
+    and with the whole party on the ledge it turns back to watch the door,
+    so it can never strand you.
+
+**Proofs** (`test/planet_dungeon_light_shadow_floor_test.dart`): every
+room's shortest plan replays legally and solves (I 23, III 27, IV 47,
+Solarin 16, vault 13, rite 34 moves); I, III, IV impossible without the pin;
+IV impossible without the veil; the IV trap is a dead end; the pipe is
+one-way and once-only; no lone creature beats Solarin; exactly one stud fits
+the key. Played through the real game object too (entry rite, arrivals,
+refused steps with bare lines, the pin, a pair banking a star, the spans,
+the maxim, Solarin's lull). Moments render test:
+`planet_dungeon_light_shadow_render_test.dart`.
+
+**Art:** ivory marble ledges, leaded amber/white glass lit from below (some
+panes stained), glow laid on the glass only, shadows as filled wedges from
+the bodies' real positions (they sweep as you walk), held glass turning to
+smoked stone, pinned squares obsidian with gold frames drawn as they set
+(rippling out from Dark), gilt goal borders with one rosette, carved
+pillars/monolith/relic, starlights with a white core, corona and turning
+tapered rays (one-way ones fan across their cone), the hall's spans setting
+with a flash, Solarin a huge star swinging round its orbit. All baked except
+the live half; no blur.
+
+**On device, check:** does "nothing stands on its own shadow" land in Room I
+without help; is the veil-as-screen readable in Room II; the Room IV trap —
+fair or cruel (Reset is the valve); Solarin's two-square lull at phone
+scale; whether the maxim sun is too tempting or too hidden.
+
+### LIGHT — THE POLISH PASS (2026-09-28; built, not yet played on device)
+
+Reviewed the Spirit/Plant way, then built on the author's call (*"lets do
+dark light and something that hasnt been used"*). Light stays out of
+`kPolishedDungeons` until it has been played.
+
+**THE PARTY — Light · Dark · Steam** (ideal Lighthorn · Darkwing ·
+Steampip). The old trio, Light · Crystal · Spirit, was Crystal's own party
+minus Lightning: the same Crystal+Spirit→Light braid (also Plant's), the same
+Crystalmask, and a Spirit Pip behind the shelves that was Crystal's Spirit
+Pip behind the crack. Crystal+Spirit is the only recipe that makes Light, so
+keeping a braid meant keeping both; the planet now has NO braid (Spirit's
+precedent), and a downed Light hand is a wait, not a strand. Steam was on no
+party but its own. Blood (Blood · Dark · Light) now shares two of three —
+accepted by the author.
+  · **Light** — the shutter, every beacon, the moth effigy, the ring.
+  · **Dark** — the scholar and sun effigies (a shadow is Dark's ground), the
+    rite's oriel, and the maxim's volume drawn in total darkness.
+  · **Steam** — the warden effigy (a shadow cast into the air shows only in
+    vapour), the slips (gummed in behind the shelves; steam lifts gum; a
+    **Steam Pip** is the planet's ONE hard gate), and the index (it fogs the
+    glass and the letters come up).
+
+**WHAT THE REVIEW FOUND, AND WHAT CHANGED**
+  · ✅ **HINTS WERE NOT BARE.** The HINT button was the old Intelligence-
+    tiered insight and gave the Dark Stacks' whole plan, the vault's walk and
+    the rite's two presses at tier two. It is one line now, what is WRONG
+    (*"The hall is not lit like the key"*, *"Too bright to draw a slip"*,
+    *"Two effigies are still unread"*), and a test holds every room's line to
+    the rule (one clause, ≤64 chars, no method verbs). Refusals too: the
+    effigies say *"The stone is in the dark"* / *"Its shadow falls on lit
+    floor"* and no longer name the bay to change; recipe refusals are gone.
+  · ✅ **STAR 0 COULD BE BRUTE-FORCED FROM FEEDBACK.** The preview counted
+    "N unread shadows readable" and each refusal named the exact cell — cycle
+    until the number rose. Both are cut; the drawn shadow (crisp truth vs a
+    smear) is the only read-out.
+  · ✅ **EXPERIMENTING WAS CHARGED A FIGHT.** Every crossing of the hush woke
+    two wardens (every full lap of the narthex crosses it) and every effigy
+    read woke two more. The wardens wake ONCE a run now, the first time the
+    hall goes over the hush; reads wake nothing.
+  · ✅ **THE LEDGER BEACON HAD TWO DEAD PRESSES.** Its bays are empty, so
+    "thrown high" lit the same floor as low. It is a three-cycle (blade, fan);
+    a test pins that no beacon has two settings lighting the same floor. The
+    no-strand proof is unchanged in kind: **0 strandable of 548**, latch 8,
+    Solarin loosed 47, ratchet 0.
+  · ✅ **THE RITE WAS TWO PRESSES — rebuilt as THE READING.** Dark opens the
+    oriel in the reading floor's west wall and a KEY falls on the floor: five
+    leaded panes, rim over inward, gold where the ring wants light. Light
+    turns the ring only while the hall matches. The key is CELLS and the
+    controls are BEACONS, so it is the occlusion rule run backwards, built
+    against three instincts (narthex high over the court; the arcade off the
+    narthex; the oriel's wide fan). `solveReadingKey` proves: **exactly one of
+    75 arrangements matches** (narthex low across the doorway, oriel's arcade
+    blade high, ledger blade), all three instincts miss, the ONLY way down to
+    the ring while it matches is the ledger's down-step (the key is its own
+    road), and the fewest presses from the keepers' blaze is **4**. A miss
+    says the same thing however close it was — no match count. The Crystal
+    Mask gate (`A`) is gone; the module latches A and B itself.
+  · ✅ **ART: the glass-inlay standard.** The floor was a hairline web (leaded
+    glass mesh on the rim, ruled courses in the heart). It is baked flagstone
+    now — bone limestone on the rim, black mirror-stone with the oculus's
+    reflection in the heart — with EDGE DRESSING (oak shelving along the
+    north wall, book heaps in the corners, a few loose pages, all held clear
+    of anything usable). The four obstacles were the engine's grey bar: the
+    lintel is carved and broken, the rest are cases gone over with their
+    books spilled. The lit-bay fan (whose diagonals left dark triangles in
+    every top corner) is a full-width wash that stops hard at the stack. The
+    beacon has filled iron legs and a flame whose height is the pitch; the
+    ring is brass with a glass eye; the slabs are carved with notched
+    numerals; the arena has three carved pillars and a brass sun inlaid under
+    Solarin. Glass only on puzzle things: sills, catalogue, oriel, key, ring.
+    All baked; per frame is one wash rect, twenty motes and the fixtures.
+
+  · ✅ **MORE LIGHT, MORE DIVINE** (author, same day): ivory marble rim and
+    pearl heart with gilt joints, a baked pool of white-gold light in every
+    bay, an inlaid gilt band with corner rosettes, pale limestone walls, a
+    pale-dawn sky, milky (not smoked) inert glass, brighter mood throughout.
+    An unlit bay is a cool lavender shade, not black, so lit/unlit still
+    reads.
+  · ✅ **THE SIX MOMENTS** (author: yes to all). Each is a visual clock on
+    `BeaconArchive` that only the render reads, runs ≤2.2s, and costs nothing
+    once done: the LIGHT SWEEPS in or out after a press (the wash travels
+    and the stack's shadow edge slides into place); an effigy's SHADOW
+    SHARPENS out of the smear with a gold catch on the stone; the oriel's
+    slats fold, a shaft drops and the KEY lights bay by bay; the RING turns a
+    quarter with a gilt index and a band of light ripples out; a SLIP
+    STEAMS out and flutters up; the MOTHS lift off the north shelving when
+    the wardens wake. `planet_dungeon_light_moments_test` triggers each
+    through the real verb, checks mid-frame ≠ end-frame and that every clock
+    runs out.
+
+**STILL OPEN / ON DEVICE, CHECK:** does the key read as "light the hall like
+this" without a word; is the effigy shadow (truth vs smear) legible at phone
+scale now the refusals are bare; is four presses + the walk round the rim the
+right weight for a rite; the flame-height pitch cue; and whether Star 1's two
+easy slips want tightening. `test/cosmic_progression_test.dart` fails on the
+base commit too (shard rewards) — unrelated, left alone.
+
 ### §9.15 LIGHT'S LOST MAXIM — the index
+
+> **2026-09-28:** the hands changed with the party. STEAM fogs the index
+> (the letters come up in the fog) where Crystal split it, and DARK draws the
+> volume, element-only, where a Spirit Pip did. The chain is otherwise the
+> same; the ledger's full-blaze setting is now its fan (setting 2).
 
 *Afraid of the Light* was a RESTRICTION: walk from the doorway to the
 reliquary with no lumen showing. That is the same total-darkness walk the

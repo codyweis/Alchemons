@@ -1865,13 +1865,16 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // Dark hand is free.
   'Dark': ['Dark', 'Poison', 'Spirit'],
   // Beacon Archive (Solarin): Light (kindles, aims and pitches every beacon —
-  // the planet's whole verb — reads two of the court's effigies, and works the
-  // reading floor's shutter-ring) + Crystal (reads the scholar effigy, and its
-  // Mask splits the prism oriel's one beam into the two the rite needs) +
-  // Spirit (reads the warden effigy, and its Pip goes behind the shelves for
-  // the slips). **Crystal+Spirit→Light** is the planet's own braid and works
-  // the shutter-ring when no Light hand is free.
-  'Light': ['Light', 'Crystal', 'Spirit'],
+  // the planet's whole verb — reads the moth effigy, and turns the reading
+  // floor's shutter-ring) + Dark (reads the scholar and the sun, opens the
+  // oriel whose key the ring wants, and draws the maxim's volume in total
+  // darkness) + Steam (reads the warden, whose shadow shows only in vapour;
+  // its Pip steams the gummed slips out from behind the shelves; and it fogs
+  // the index so its letters come up). Until 2026-09-28 this was Light ·
+  // Crystal · Spirit — Crystal's own party minus Lightning, with the same
+  // braid, the same Crystalmask and the same Spirit Pip behind a crack. No
+  // recipe joins these three, and Steam was on no party but its own.
+  'Light': ['Light', 'Dark', 'Steam'],
   // Sanguine Orrery (Hemavorn): Blood (the pericardium, two of the four
   // mouths, the rite's balance — and its Kin steadies the cannula in a wall
   // that will not hold still) + Dark (the arch mouth, and its Mask is the
@@ -1906,7 +1909,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Plant': ['Mask', 'Kin', 'Mane'], // Crystalmask · Spiritkin · Watermane
   'Spirit': ['Mask', 'Pip', 'Wing'], // Spiritmask · Bloodpip · Dustwing
   'Dark': ['Mask', 'Pip', 'Mane'], // Darkmask · Poisonpip · Spiritmane
-  'Light': ['Mask', 'Mask', 'Pip'], // Lightmask · Crystalmask · Spiritpip
+  'Light': ['Horn', 'Wing', 'Pip'], // Lighthorn · Darkwing · Steampip
   'Blood': ['Mane', 'Mask', 'Mask'], // Bloodmane · Darkmask · Lightmask
 };
 

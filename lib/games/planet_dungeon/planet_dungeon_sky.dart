@@ -197,9 +197,11 @@ const Map<String, DungeonSkyConfig> kDungeonSkyConfigs = {
     // brown-black and its stone a warm tan, and the whole planet read as
     // mud. A shadowed hall is COOL: slate in the dark, bone and gilt where
     // the beams land, and the beam itself stays white.
-    colorA: Color(0xFF151A26), // hall shadow, cool
-    colorB: Color(0xFFB9AE93), // bone limestone
-    colorC: Color(0xFFFFF6DC), // beam white
+    // MORE LIGHT, MORE DIVINE (2026-09-28, the author): the hall reads as a
+    // sanctuary now — a pale dawn vault, ivory, and white-gold light.
+    colorA: Color(0xFF7A7F94), // the vault, pale dawn blue
+    colorB: Color(0xFFEDE3CC), // ivory
+    colorC: Color(0xFFFFFBEE), // beam white
     intensity: 1.0,
     noiseScale: 2.0,
     flowSpeed: 0.4, // the light sweeps slowly; the player aims it

@@ -2,7 +2,6 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_blood.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
-import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_light.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,30 +104,11 @@ void main() {
     }
   });
 
-  test('Light forecasts all 125 arrangements without changing live state', () {
+  test('Light raises no planning line: the shadow floor shows itself', () {
+    // The Shadow Floor (2026-09-28) has no hidden settings to forecast: every
+    // shadow is drawn where it falls, and the floor it makes is the floor.
     final g = game('Light');
-    for (var n = 0; n < 125; n++) {
-      var state = n;
-      for (final b in kArchiveBeacons) {
-        g.archive.lamp[b.id] = state % b.stateCount;
-        state ~/= b.stateCount;
-      }
-      for (final b in kArchiveBeacons) {
-        stand(g, b.roomId, b.post);
-        final before = Map.of(g.archive.lamp);
-        final worst = g.archive.worstLumens;
-        final line = g.puzzlePreview!;
-        final readout = g.progressReadout!;
-        expect(g.archive.lamp, before);
-        expect(g.archive.worstLumens, worst);
-        g.archive.press(b.id);
-        expect(line, contains('→ ${g.archive.lumens} lumens'));
-        expect(readout.value, startsWith('${g.archive.lumens}/'));
-        g.archive.lamp
-          ..clear()
-          ..addAll(before);
-      }
-    }
+    expect(g.puzzlePreview, isNull);
   });
 
   test('Blood advances exactly one phase from any point, including wrap', () {

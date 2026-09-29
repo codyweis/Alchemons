@@ -67,15 +67,15 @@ extension DungeonGlassArt on PlanetDungeonGame {
       (_isVault && _vaultDoorBlocked(room, d)) ||
       (_isArchive && _archiveDoorBlocked(room, d));
 
-  /// A passage that becomes WALL when shut: Dark's shadow-ways and Light's
-  /// glass leaves, and the entrance's ways out before the rite. Dark's
-  /// light-walks and Light's mirror sills stay doorways and change what is
-  /// in them instead.
+  /// A passage that becomes WALL when shut: Dark's shadow-ways and the
+  /// entrance's ways out before the rite. Dark's light-walks stay doorways
+  /// and change what is in them instead. (Light's shadow floor has no world
+  /// doors of its own: its reliquary door is simply locked.)
   bool _worldDoorWalls(DungeonRoom room, DungeonDoor d) {
     if (!_hasWorldDoors) return false;
     if (room.id == layout.entranceRoomId) return true;
     if (_isVault) return _vaultSpanFor(room, d)?.cut == SpanCut.shadowWay;
-    return _archiveSillFor(room, d)?.cut == SillCut.glassLeaf;
+    return false;
   }
 
   void _easeWorldDoors(double dt) {

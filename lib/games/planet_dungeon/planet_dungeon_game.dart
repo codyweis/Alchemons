@@ -489,8 +489,11 @@ class PlanetDungeonGame extends FlameGame {
   /// Lull strikes needed to fell the guardian: 14 on a fresh save, 26 by the
   /// last dungeon (the strike chunk is a fraction of max HP, so raw HP alone
   /// wouldn't lengthen the strike path).
-  double get guardianStrikesNeeded =>
-      kGuardianBaseStrikes + clearedGuardianCount * 0.75;
+  double get guardianStrikesNeeded => _isArchive && !isRaid
+      // Solarin: three planned blows, each set up on the shadow floor — the
+      // fight is the puzzle, and fourteen of them would be a chore.
+      ? 3
+      : kGuardianBaseStrikes + clearedGuardianCount * 0.75;
 
   /// Synthetic discovery id for the entry passage reveal. Stored alongside
   /// cloud ids so the one-time entry puzzle stays solved across runs
@@ -1031,9 +1034,6 @@ class PlanetDungeonGame extends FlameGame {
   /// wall in one frame; entering a room starts them where they are.
   final Map<String, double> _vaultDoorShown = {};
   String? _vaultDoorRoom;
-
-  /// Light's afraid volume as SHOWN: 0 → 1 as it opens in its slab.
-  double _volumeShown = -1;
 
   /// Blood's garnet hearts as SHOWN: 0 → 1 as they light on every cock.
   double _lifeShown = -1;
@@ -1946,7 +1946,7 @@ class PlanetDungeonGame extends FlameGame {
   /// The whole archive: what each rim beacon is set to, and what that has lit.
   /// ONE field, because on this planet the light IS the floor (see
   /// planet_dungeon_layout_light.dart).
-  final BeaconArchive archive = BeaconArchive();
+  final ShadowRun archive = ShadowRun();
 
   bool get _isArchive => layout.element == 'Light';
   // ── Blood · the Sanguine Orrery (planet_dungeon_game_blood.dart) ──
@@ -4147,7 +4147,10 @@ class PlanetDungeonGame extends FlameGame {
     if (room.conduits.isEmpty &&
         room.guardian == null &&
         !(_isConservatory && room.grove?.rite == true) &&
-        !(_isFuneral && room.funeral?.rite == true)) {
+        !(_isFuneral && room.funeral?.rite == true) &&
+        // Light's rite is the Door of Shadow: its pinned doorway latches A
+        // and B from the module, and Solarin wakes as it opens.
+        !(_isArchive && room.hall?.grid == 'door_of_shadow')) {
       return;
     }
     if (_roomCleared(room)) return;
@@ -4224,6 +4227,9 @@ class PlanetDungeonGame extends FlameGame {
       // rods, Star 3's own vocabulary — forces a window the cycle never would.
       // Air-only, and raids have no rod field to rank.
       if (_isSpire) _applyRocDrag(room, dt);
+      // Solarin hangs where it hangs and swings round its orbit when struck;
+      // the lull is a PLACE — two squares off it, on floor that holds.
+      if (_isArchive && !isRaid) _applySolarinOrbit(room, dt);
       // Blightfang never opens a lull on a clock (§7): only the draught that
       // answers the strain it is WEARING forces the window, and it takes a
       // fresh habit the moment the window shuts. Poison-only; raids exempt.
@@ -4302,6 +4308,9 @@ class PlanetDungeonGame extends FlameGame {
     final e = _guardianEnemy;
     return (e != null && !e.isDead) ? e.position : g.position;
   }
+
+  @visibleForTesting
+  double get guardianHpFractionForTest => _guardianHpFraction;
 
   double get _guardianHpFraction {
     final e = _guardianEnemy;
@@ -6563,6 +6572,9 @@ class PlanetDungeonGame extends FlameGame {
       // And a body kneeling at one of the chapel's stones: the rite wants
       // all three still there when Blood pulses.
       if (_isFuneral && _funeralHoldsBody(c.position, room)) continue;
+      // And every body on the shadow floor: each one is a caster somebody may
+      // be standing on, and on glass a stance step is a fall.
+      if (_isArchive && room.hall != null) continue;
 
       var desired = Offset.zero;
 
@@ -9713,7 +9725,12 @@ class PlanetDungeonGame extends FlameGame {
   bool _tryGuardian(DungeonCreature a) {
     final g = currentRoom.guardian;
     if (g == null || !guardianAwake) return false;
-    if ((a.position - _guardianPosition(g)).distance > 90) return false;
+    // Solarin is struck from two squares off (the shadow floor's reach, which
+    // the lull already checks); every other guardian from arm's length.
+    final shadowReach = _isArchive && !isRaid && currentRoom.hall != null;
+    if (!shadowReach && (a.position - _guardianPosition(g)).distance > 90) {
+      return false;
+    }
     // Standing under a mystic in mid-fall: nothing to strike or calm yet. Only
     // the ground beneath it is refused — the room's own verbs (ranking rods,
     // herding the cell) stay live everywhere else while it comes down.
@@ -9732,8 +9749,8 @@ class PlanetDungeonGame extends FlameGame {
       _setBlockedHint(
         _isFuneral && !isRaid
             ? 'Its shadow shields it'
-            : _isArchive && !_inPillarShadow(currentRoom, g.position)
-            ? 'Solarin can only be struck from a pillar\'s shadow'
+            : _isArchive && !isRaid
+            ? 'Out of reach. Two squares from Solarin, on floor that holds'
             : 'It can\'t be hit yet. Wait for the lull',
       );
       return true;
@@ -9798,6 +9815,7 @@ class PlanetDungeonGame extends FlameGame {
       guardianHp -= maxGuardianHp / guardianStrikesNeeded;
     }
     guardianHitFlash = 0.3;
+    if (_isArchive && !isRaid) _solarinStruck();
     if (_guardianHpFraction <= 0 || guardianHp <= 0) {
       if (!hasStar(g.starIndex)) earnStar(g.starIndex);
       _guardianEnemy?.isDead = true;
@@ -9856,6 +9874,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isFoundry && _foundryBlocksAt(center, room)) return true;
     // Ice: a star-block is a lump of frozen sky, and nothing walks through it.
     if (_isShaft && _shaftBlocksAt(center, room)) return true;
+    // Light: glass holds only in shadow, and never under what casts it.
+    if (_isArchive && _archiveBlocksAt(center, room)) return true;
     // When walking, you can't leave solid ground (gaps / open sky block you).
     if (!flightActive && !_onSolidGround(center, room)) return true;
     return false;
@@ -9933,6 +9953,8 @@ class PlanetDungeonGame extends FlameGame {
     currentRoomId = d.targetRoomId;
     _roomEntryAnchor = d.targetSpawn;
     _spreadCreaturesAround(d.targetSpawn);
+    // Light: a grid room lays each body on its own square at the door.
+    if (_isArchive) _onArchiveArrive(d);
     _carryPursuersThroughDoor(d.targetSpawn);
     // Don't carry loom clouds out of the loom.
     carriedCloudId = null;
@@ -14361,6 +14383,9 @@ class PlanetDungeonGame extends FlameGame {
     if (_isVault) return room.walls.toSet();
     // And Spirit's one wall is the chapel's bier.
     if (_isFuneral && room.funeral?.rite == true) return room.walls.toSet();
+    // And Light's: a fallen lintel and three cases gone over, baked with the
+    // archive's fabric (2026-09-28).
+    if (_isArchive) return room.walls.toSet();
     return const {};
   }
 

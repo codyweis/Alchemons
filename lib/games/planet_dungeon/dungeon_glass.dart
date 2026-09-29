@@ -364,12 +364,13 @@ const GlassPalette kSanguineGlass = GlassPalette(
 const GlassPalette kLumenGlass = GlassPalette(
   lead: Color(0xFF0C0A08),
   leadLight: Color(0xFFF2E6C0),
+  // Milky, not smoked: unlit glass in a sanctuary (2026-09-28).
   frost: [
-    Color(0xFF3A3C44),
-    Color(0xFF42444C),
-    Color(0xFF36383F),
-    Color(0xFF4A4B52),
-    Color(0xFF3E4048),
+    Color(0xFF8E8C88),
+    Color(0xFF96948F),
+    Color(0xFF8A8883),
+    Color(0xFF9C9A94),
+    Color(0xFF928F8A),
   ],
   liveDeep: Color(0xFF8A6420),
   live: Color(0xFFFFE082),
@@ -378,12 +379,13 @@ const GlassPalette kLumenGlass = GlassPalette(
   silver: Color(0xFFEDE8DA),
   gold: Color(0xFFE4C16A),
   goldDeep: Color(0xFF6E5A30),
-  stoneTop: Color(0xFF8A8474),
-  stoneFace: Color(0xFF4A4840),
-  stoneFoot: Color(0xFF12120E),
-  floor: Color(0xFF2E2E30),
-  floorAlt: Color(0xFF28282A),
-  joint: Color(0xFF0C0C0A),
+  // Pale sanctuary limestone (2026-09-28: "more light and divine").
+  stoneTop: Color(0xFFEFE8D6),
+  stoneFace: Color(0xFFC2B79C),
+  stoneFoot: Color(0xFF6A604C),
+  floor: Color(0xFFE6DDC8),
+  floorAlt: Color(0xFFDAD0B8),
+  joint: Color(0xFFB39A62),
 );
 
 /// Nythralor: umbra glass — black glass with violet in it, and a lamp's

@@ -1322,13 +1322,10 @@ class DungeonRoom {
   /// shaft and Plant's crypt are.
   final EclipseHall? eclipse;
 
-  /// Light (the Beacon Archive): which SECTOR of the one great hall this bay
-  /// lies in, its star, and the single objects (the door-shutter, the court's
-  /// balustrade, the reading floor's shutter-ring, the arena's pillars). One
-  /// field, because the hall's sills, beacons, effigies and slips are authored
-  /// whole in planet_dungeon_layout_light.dart rather than per room, exactly
-  /// as Ice's shaft and Dark's quarters are.
-  final ArchiveHall? hall;
+  /// Light (the Shadow Floor): what kind of room this is — the hall, a grid
+  /// room of glass and starlights, or the key room — and which grid. The
+  /// grids themselves are authored in planet_dungeon_layout_light.dart.
+  final ShadowBay? hall;
 
   /// Blood (the Sanguine Orrery): this chamber's content on the figure-eight
   /// of veins — its star, and the single objects (the pericardium, the rite's
@@ -1816,8 +1813,7 @@ class DungeonLayout {
       // Dark carries its two non-guardian stars on the quarter a room lies
       // in: the analemma court in the pall, the ossuary ring in the bones.
       if (room.eclipse?.starIndex != null) seen.add(room.eclipse!.starIndex!);
-      // Light does the same with the sector a bay lies in: the shadow court in
-      // the court bay, the dark stacks out past both great stacks.
+      // Light's two stars are banked by pairs of rooms (I and II, III and IV).
       if (room.hall?.starIndex != null) seen.add(room.hall!.starIndex!);
       // Blood carries its two non-guardian stars on the chamber a room is:
       // the vena crossing where the eight crosses itself, and the capillary

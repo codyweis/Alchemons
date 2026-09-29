@@ -1029,7 +1029,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                       onTap: context.soundAction(
                         () => setState(() => _showFullMap = true),
                       ),
-                      child: DungeonMiniMap(game: game, boxSize: 106),
+                      // Small, so it never sits on a doorway in the room's
+                      // corner (Light's hall had one right under it).
+                      child: DungeonMiniMap(game: game, boxSize: 80),
                     ),
                   ),
                 ),

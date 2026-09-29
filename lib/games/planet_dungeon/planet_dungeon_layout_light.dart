@@ -1,1435 +1,1149 @@
 // lib/games/planet_dungeon/planet_dungeon_layout_light.dart
 //
-// SOLARIN — the Beacon Archive. Light's authored layout, its pure rules, and
-// the puzzle DATA its `part of planet_dungeon_game.dart` module reasons about.
+// SOLARIN — THE SHADOW FLOOR (the redesign of 2026-09-28; it replaces the
+// Beacon Archive whole). Light's layout, its pure rules, and the proof tools.
 //
-// TOPOLOGY (docs/dungeons.md §5.5, structural assignment table): **ONE GREAT
-// HALL — NO CORRIDORS. Light beams partition the space into moving "rooms".**
-// There is not one connective passage on this planet and not one wall between
-// two bays: the archive is a single round hall under a single oculus, and what
-// separates one bay of it from the next is nothing but whether there is
-// anything to walk on. Every room below is a BAY of that one hall, and every
-// "door" is a SILL — a stretch of the hall's broken floor.
+// WORLD RULE — *in this archive light is nothing. You fall through it. Only
+// shadow holds your weight.* The rooms float over a lightwell. Glass over the
+// well is a floor only where every starlight that reaches it is blocked, and
+// a shadow belongs to whatever casts it: nothing stands on its own shadow.
 //
-//     ── the Beacon Archive, ONE hall, five sectors ─────────
-//                     sector 0 · THE DOOR
-//        catalogue_walk ══ lumen_threshold ══ shadow_court
-//          (bc_ledger)   ╷   (bc_narthex)  ╷    (bc_oriel)
-//     s.4 │              ╷                 ╷              ║ s.1→2
-//     ════╪══ dark_stacks ══ moth_gallery ══╝              ║
-//         ║        s.3          s.2                        ║
-//         ╷                                                ║
-//     ┌───┴──────── THE DARK HEART ──────────────────┐     ║
-//     │  reading_floor ╷╴╴ oculus_stair ╴╴╷ sunless_reliquary
-//     │      │ s.2 slype        s.0       s.1  (THE VAULT) │
-//     │  (stone stair)                                     │
-//     │  solarin_oculus                                    │
-//     └────────────────────────────────────────────────────┘
+// The starlights are shards of Solarin's star that fell into the archive.
+// The party is Light · Dark · Steam:
+//   · LIGHT turns the cranks that walk a railed starlight along its notches,
+//     and in the key room sets the starlight on a brass stud.
+//   · DARK pins the shadow it stands in: the casters holding its square, and
+//     every glass square those casters alone hold, set into stone for good.
+//     A blank wall takes a pin only from the door-shaped monolith: the shadow
+//     of a door is a door.
+//   · STEAM breathes a veil at a vent (a still caster that stays where it was
+//     breathed), and rises once through a one-way pipe.
 //
-//     (══  a GLASS LEAF: the archive's floor is glass over a lightwell, and
-//          glass is nothing until there is light in it. Lit = a floor. Dark =
-//          a hole. Every sill around the RIM is one of these.
-//      ╷   a MIRROR SILL: a shelf of the archive's black mirror-stone. Plain
-//          walkable stone in the dark; under light it is a sheet of glare
-//          nobody crosses. Every sill INTO the heart is one of these.
-//      the oculus stair is neither — living stone, and no light has ever
-//      reached it.)
+// THE SHAPE — a hub that grows. The great hall is a lightwell with a stone
+// island in the middle. Rooms I and II open off the near ledge, III and IV
+// off the island. Each room you solve sets one span of shadow-stone across
+// the hall: I and II bridge the near well, III and IV the far one, and the
+// far ledge holds the Door of Shadow (the rite), which leads down to Solarin.
 //
-// WORLD RULE — *the statues lie; their shadows cannot — and every lumen you
-// spend is seen.*
-//
-// THE INVARIANT (§5.5, Light's claimed mechanic): **LIGHT-CONE OCCLUSION +
-// EXPOSURE MANAGEMENT.** Three beacons stand on the rim and throw light
-// INWARD across the hall. A beacon is set to an ARC (which sectors its cone
-// covers) and a PITCH:
-//
-//   • **LOW** — the beam breaks on the great stacks. In a sector where a stack
-//     stands, only the RIM band is lit and everything behind the stack stays
-//     in shadow. That shadow is the OCCLUSION, and it is the whole planet:
-//     it is how one act of light gives you a road and a shadow at once.
-//   • **HIGH** — the beam clears the stacks and floods the sector to its
-//     INWARD band as well. Further, brighter, and it fills in exactly the
-//     shadow you were standing in.
-//
-// In a sector with NOTHING standing in it, low and high are the same thing —
-// there is no shadow to be had, because a shadow needs something to cast it.
-// The two great stacks stand in sectors 1 and 2, and nowhere else.
-//
-// THE STRATEGIC QUESTION (§5.5): *aiming light builds paths AND exposes you —
-// illuminate as little as possible.* Every lumen burning in the hall is one
-// the moth-wardens can count, and the archive's own reading cannot be done
-// above a HUSH of two. So the run is not "how do I light the road", it is
-// "what is the smallest light that is still a road" — and the answer is
-// usually a low beam breaking on a stack, because that costs one lumen where
-// an open sector costs two.
-//
-// This is deliberately NOT Lightning's seat. Lightning owns beam
-// routing/reflection through rotatable mirrors, where the question is WHERE
-// THE BEAM GOES and the beam has a target. Nothing here has a target and
-// nothing reflects: a beacon's arc is chosen, not routed, and the thing the
-// player is actually placing is the SHADOW — the beam is only how you make
-// one. Nor is it Dark's inverting maze: Dark's four quarters are flipped by
-// three shadows in a closed zero-sum algebra where one act rewrites two
-// quarters and you can never have everything; here nothing is scarce at all
-// and you may light the whole archive at once if you dare — the pressure is
-// EXPOSURE, not a shortage of light. It is not Steam's budget either (nothing
-// is spent: douse a beacon and the lumens come straight back), not Dust's
-// conservation, not Plant's observer scale, not Crystal's permuting map, not
-// Mud's shape-authoring, not Air's ordering (every setting is freely
-// reversible, so order is nothing), and not Fire's sequence.
-//
-// ── THE ARCHIVE'S ARITHMETIC (all of it, and all provable) ─────
-// Five sectors, two bands (RIM and INWARD), two great stacks. A cell is lit
-// iff some kindled beacon's arc covers its sector AND (the band is RIM, or
-// the beacon is pitched HIGH, or nothing stands in that sector). From that
-// one sentence:
-//
-//   • **A stacked sector costs ONE lumen at low pitch and TWO at high; an
-//     empty sector costs TWO at any pitch.** The stacks are the only
-//     discount in the archive, and they are the only shadows in it.
-//   • **A sector with no stack can never be a road and a shadow at once.**
-//     Sector 0 — the door bay — is the clearest case: light it at all and
-//     both its bands go, so the undercroft into the heart shuts the instant
-//     the doorway brightens. This is what makes Star 0 a journey instead of
-//     a button (the effigies are pinned against exactly this).
-//   • **THE DARK HEART.** Every sill into the hall's middle is a mirror sill,
-//     so with the archive dark the heart is one connected floor and the rim
-//     is not there at all. Dark, the whole of the heart — the oculus stair,
-//     the reading floor, the reliquary and Solarin's own chamber — is
-//     reachable from the door. Lit, the rim is a ring and the heart is shut.
-//     The archive is two maps and the beacons choose which one you are in.
-//
-// THE VAULT TRICK (§5.5): *it stands in plain sight, and it is reachable only
-// across un-lit ground.* The sunless reliquary is not hidden. It is a shrine
-// on the hall's floor, visible from the doorway across an open room, and the
-// player will see it in the first ten seconds — and the only sill onto it is
-// the heartway, a mirror shelf in sector 1, which is a floor exactly while
-// sector 1's INNER band is not lit. Sector 1 is also the only way onto the rim
-// (the narthex leaf), and that is the trick: the beam that opens the archive
-// to you is the beam that takes the heart away — unless you throw it LOW, so
-// that the great stack standing in sector 1 keeps the shelf behind it in
-// shadow. The vault is the planet's own thesis as an errand: a road and a
-// shadow out of one act of light. The archive left blazing (the keepers threw
-// the narthex beacon HIGH) hides it completely, and a player who never learns
-// the pitch never sees the floor appear. The absolute version — everything
-// out, and the walk made in total darkness — is how the Lost Maxim is earned
-// (§6). No prior planet's trick is this: Dark's room does not exist in the
-// light, Plant's is visible-but-too-small, Ice's a mirror plus an
-// unrepeatable slide, Dust's a house you bury HARDER, Poison's the ward you
-// abandoned, Steam's spending the whole budget, Lightning's a dead trunk
-// walked dark, Crystal's a cell that only joins the grid in one
-// configuration, Spirit's a grave the living world does not contain.
-//
-// ── WHY THERE IS NO RESET VALVE, AND WHY THERE CANNOT BE A SOFTLOCK ──
-// Ice, Mud, Dust and Plant all shipped a costly full-reset valve. The Beacon
-// Archive needs none, and the reason is not a measurement or a lucky
-// geometry — **stranding is impossible by construction**:
-//
-//   **EVERY MOVE IN THIS ARCHIVE HAS AN INVERSE.**
-//
-//   1. **A step is invertible.** The only thing in the world that changes the
-//      light is a hand on a beacon, and every beacon stands on the RIM, in
-//      the bay it lights from. So while the party is walking a sill, nothing
-//      can be changing — the sill they are on is still a sill when they get
-//      off it, and the step straight back is always legal.
-//   2. **A beacon press is invertible.** Pressing cycles one beacon through
-//      DARK → its four settings → DARK, and the party is standing at the
-//      beacon the whole time, so four more presses put it exactly back. A
-//      five-cycle is its own undo.
-//   3. **Nothing else edits the map.** Reading an effigy, drawing a slip,
-//      taking the essence and finding the maxim change no sill at all. The
-//      two edits that are one-way — the door-shutter at the entrance and the
-//      rite opening the oculus stair — are purely ADDITIVE: a passage opens
-//      and never closes, and an additive edit cannot shrink reachability.
-//   4. **Solarin never touches the hall.** §7 wants the guardian to fight
-//      WITH the planet's rule, and it does — but its glare is ARENA-LOCAL: it
-//      lights wedges of its own floor and blinds what stands in them, and it
-//      cannot kindle, douse, aim or pitch a single beacon out in the archive.
-//      This is the one authoring decision the safety actually rests on, and
-//      the counterfactual pins it (let Solarin reach the beacons and states
-//      strand). The chamber is also a POCKET behind a phase-free stone stair,
-//      so even its own floor cannot shut on the party.
-//
-//   A move relation in which every edge has an inverse makes reachability an
-//   EQUIVALENCE: whatever the archive can put you into, it can take you out
-//   of, and every reachable state can reach every other. That is the whole
-//   proof, and `solveBeaconArchive` measures it anyway — **0 strandable of
-//   the 1,125 states the world can put the party in, with no valve** — plus
-//   the counterfactuals that say the safety is designed: make a kindled
-//   beacon a RATCHET that cannot be doused (a very natural reading of "every
-//   lumen you spend is seen") and the archive strands; let Solarin's glare
-//   reach the rim beacons and it strands again; and take the two great stacks
-//   out of the hall and the whole exposure star stops being winnable.
-//
-// Mechanic-ledger note (§5.5): Light claims **light-cone occlusion** — the
-// shadow, not the beam, is the thing the player is aiming, and it is aimed by
-// choosing what the light BREAKS ON — and **exposure management**, a live
-// instantaneous reading of how much of the world is currently visible, which
-// is neither Steam's spend-budget (nothing is consumed) nor Poison's triage
-// (nothing is abandoned). Under those: **the road and the wall are the same
-// object** — a lit cell is a floor on the glass and a wall on the mirror, so
-// one act of light is always simultaneously a gift and a theft, without any
-// zero-sum bookkeeping to make it so.
-//
-// VISUAL GRAMMAR (§5.5): Light's soft volumetric cones must read NOTHING like
-// Lightning's jagged bolts, and nothing here is drawn as a stroke. A lit cell
-// is a WEDGE — a filled fan of pale gold laid on the floor with a soft
-// gradient along its length and a hard clean edge across its arc, because the
-// edge of a shadow is the only sharp thing in this planet's vocabulary. A
-// stack's shadow is drawn as the wedge's BITE: the fan simply stops, and the
-// unlit shelf behind it is bare warm grey stone. Glass leaves glow from
-// inside when lit and are drawn as an empty outline when not; mirror shelves
-// are solid slate when dark and a flat sheet of white glare when lit. No
-// bolts, no arcs, no rays, no lens flares — and no blur filters anywhere (the
-// game's known jank source).
+// Every room's depth was proved by exhaustive search before it was built
+// (docs/prototypes/light_shadow_floor, the JS solver the prototype runs on),
+// and [solveShadowRoom] is the same search in Dart for the tests.
 
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
-// THE HALL — sectors and bands
+// THE GRID
 // ─────────────────────────────────────────────────────────
 
-/// The five sectors of the one hall, clockwise from the door. Every room lies
-/// in exactly one, and every sill is cut across exactly one, so the player can
-/// read the whole archive off five words and two bands.
-enum HallSector {
-  /// 0 — the door bay. NOTHING stands in it, which is the lesson.
-  door,
+/// One square of floor, in world units.
+const double kShadowCell = 64;
 
-  /// 1 — the court bay. The first of the two great stacks stands here.
-  court,
+/// Where the grid starts under a room's north wall face.
+const double kShadowTop = 48;
 
-  /// 2 — the arcade bay. The second great stack.
-  arcade,
+/// The three bodies, in the order the party lists them.
+const List<String> kShadowNames = ['Light', 'Dark', 'Steam'];
 
-  /// 3 — the shelf bay, out past the stacks.
-  shelf,
+const double kShadowBodyR = 0.36;
+const double kShadowVeilR = 0.45;
+const double kShadowStoneR = 0.5;
 
-  /// 4 — the ledger bay, and the long way round.
-  ledger,
+/// A square on a room's grid.
+typedef Sq = ({int x, int y});
+
+Sq sq(int x, int y) => (x: x, y: y);
+
+int sqKey(int x, int y) => y * 64 + x;
+Sq sqOf(int key) => (x: key % 64, y: key ~/ 64);
+
+/// World centre of grid square (x, y).
+Offset shadowCentre(int x, int y) =>
+    Offset((x + .5) * kShadowCell, kShadowTop + (y + .5) * kShadowCell);
+
+/// The grid square a world point stands in (clamped onto the grid).
+Sq shadowSquareAt(Offset p, int cols, int rows) => (
+  x: (p.dx / kShadowCell).floor().clamp(0, cols - 1),
+  y: ((p.dy - kShadowTop) / kShadowCell).floor().clamp(0, rows - 1),
+);
+
+/// A starlight: a shard of Solarin's star, shining every way or, with a
+/// [face], into a cone.
+class ShadowLamp {
+  final double x, y;
+  final double? face;
+  final double half;
+
+  /// 'fixed', 'rail' (walked by a crank) or 'solarin' (the star itself).
+  final String kind;
+  const ShadowLamp(
+    this.x,
+    this.y, {
+    this.face,
+    this.half = 0,
+    this.kind = 'fixed',
+  });
 }
 
-/// How far into the hall a cell lies. A beacon on the rim lights the RIM band
-/// of every sector in its arc; whether it also lights the INWARD band is the
-/// occlusion question.
-enum HallBand {
-  /// The outer walk, against the archive's wall. Always lit by any beam.
-  rim,
-
-  /// The inner shelf, toward the hall's heart. A stack in this sector keeps
-  /// it dark unless the beam is pitched HIGH over the stack.
-  inward,
+/// A round thing that throws a shadow: a body, the veil, a pillar, the
+/// monolith or the relic.
+class ShadowCaster {
+  final String id;
+  final double cx, cy, r;
+  final int x, y;
+  const ShadowCaster(this.id, this.cx, this.cy, this.r, this.x, this.y);
 }
 
-/// One cell of the hall: five sectors × two bands = ten, and that is the whole
-/// map's lighting state.
-class HallCell {
-  final HallSector sector;
-  final HallBand band;
-  const HallCell(this.sector, this.band);
+/// One room of the shadow floor, as authored. Map legend:
+///
+///   .  stone      ~  glass (floor only in shadow)      #  wall (blocks light)
+///   L  a starlight every way;  E N W S  one facing one way
+///   V  a steam vent   p  a pipe mouth (see [pipes])   G  goal stone
+///   P  pillar   M  the door-shaped monolith   R  the relic's plinth
+///   B  blank wall (opens only to the monolith's pinned shadow)
+///   n  a notch on the starlight's rail (see [rail])   C  the crank
+///   d  the dais (stone)
+class ShadowRoomDef {
+  final String id;
+  final List<String> map;
+  final Map<String, Sq> start;
+  final int pins;
+  final double cone;
+  final double? pillarR;
+  final List<Sq>? rail;
+  final int railStart;
+  final List<Sq>? orbit;
+  final int orbitStart;
 
-  @override
-  bool operator ==(Object other) =>
-      other is HallCell && other.sector == sector && other.band == band;
+  /// 'all' three on G, 'any' one on G, or 'hits' (Solarin struck thrice).
+  final String goal;
 
-  @override
-  int get hashCode => Object.hash(sector, band);
+  /// One-way, once-only pipes: Steam goes in at the first and rises at the
+  /// second.
+  final List<(Sq, Sq)> pipes;
+
+  const ShadowRoomDef({
+    required this.id,
+    required this.map,
+    required this.start,
+    this.pins = 0,
+    this.cone = 0.52,
+    this.pillarR,
+    this.rail,
+    this.railStart = 0,
+    this.orbit,
+    this.orbitStart = 0,
+    this.goal = 'all',
+    this.pipes = const [],
+  });
+
+  int get rows => map.length;
+  int get cols => map.first.length;
+  String at(int x, int y) => map[y][x];
+  bool inside(int x, int y) => x >= 0 && y >= 0 && x < cols && y < rows;
+  bool isGlass(int x, int y) => inside(x, y) && at(x, y) == '~';
+
+  List<ShadowLamp> get fixedLamps => [
+    for (var y = 0; y < rows; y++)
+      for (var x = 0; x < cols; x++)
+        if ('LENWS'.contains(at(x, y)))
+          ShadowLamp(
+            x.toDouble(),
+            y.toDouble(),
+            face: switch (at(x, y)) {
+              'E' => 0,
+              'S' => pi / 2,
+              'W' => pi,
+              'N' => -pi / 2,
+              _ => null,
+            },
+            half: cone,
+          ),
+  ];
+
+  List<Sq> get vents => [
+    for (var y = 0; y < rows; y++)
+      for (var x = 0; x < cols; x++)
+        if (at(x, y) == 'V') sq(x, y),
+  ];
+
+  List<ShadowCaster> get fixedCasters => [
+    for (var y = 0; y < rows; y++)
+      for (var x = 0; x < cols; x++)
+        if ('PMR'.contains(at(x, y)))
+          ShadowCaster(
+            '${at(x, y)}:$x,$y',
+            x + .5,
+            y + .5,
+            at(x, y) == 'P' && pillarR != null ? pillarR! : kShadowStoneR,
+            x,
+            y,
+          ),
+  ];
 }
 
-/// The archive's own word for a sector, for hints and readings.
-String sectorWord(HallSector s) => switch (s) {
-  HallSector.door => 'the door bay',
-  HallSector.court => 'the court bay',
-  HallSector.arcade => 'the arcade',
-  HallSector.shelf => 'the shelf bay',
-  HallSector.ledger => 'the ledger bay',
+/// Everything that changes in a shadow room.
+class ShadowState {
+  final Map<String, Sq> pos;
+  final int pins;
+  final Sq? veil;
+  final Set<int> pinned;
+  final int rail;
+  final int orbit;
+  final int hits;
+  final bool piped;
+
+  const ShadowState({
+    required this.pos,
+    required this.pins,
+    this.veil,
+    required this.pinned,
+    this.rail = 0,
+    this.orbit = 0,
+    this.hits = 0,
+    this.piped = false,
+  });
+
+  factory ShadowState.start(ShadowRoomDef d) => ShadowState(
+    pos: Map.of(d.start),
+    pins: d.pins,
+    pinned: const {},
+    rail: d.railStart,
+    orbit: d.orbitStart,
+  );
+
+  ShadowState copyWith({
+    Map<String, Sq>? pos,
+    int? pins,
+    Sq? veil,
+    Set<int>? pinned,
+    int? rail,
+    int? orbit,
+    int? hits,
+    bool? piped,
+  }) => ShadowState(
+    pos: pos ?? this.pos,
+    pins: pins ?? this.pins,
+    veil: veil ?? this.veil,
+    pinned: pinned ?? this.pinned,
+    rail: rail ?? this.rail,
+    orbit: orbit ?? this.orbit,
+    hits: hits ?? this.hits,
+    piped: piped ?? this.piped,
+  );
+
+  ShadowState moved(String who, Sq to) => copyWith(pos: {...pos, who: to});
+
+  String get encoded {
+    final b = StringBuffer();
+    for (final n in kShadowNames) {
+      b.write('${pos[n]!.x}.${pos[n]!.y}|');
+    }
+    b
+      ..write('$pins|')
+      ..write(veil == null ? '-' : '${veil!.x}.${veil!.y}')
+      ..write('|${piped ? 1 : 0}|$rail|$orbit|$hits|');
+    final p = pinned.toList()..sort();
+    b.write(p.join(';'));
+    return b.toString();
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// THE RULES (pure — the same sentences as the prototype's engine)
+// ─────────────────────────────────────────────────────────
+
+/// Every starlight burning right now.
+List<ShadowLamp> shadowLamps(ShadowRoomDef d, ShadowState s) {
+  final out = d.fixedLamps;
+  if (d.rail != null) {
+    final n = d.rail![s.rail];
+    out.add(ShadowLamp(n.x.toDouble(), n.y.toDouble(), kind: 'rail'));
+  }
+  if (d.orbit != null && s.hits < 3) {
+    final o = d.orbit![s.orbit];
+    out.add(ShadowLamp(o.x.toDouble(), o.y.toDouble(), kind: 'solarin'));
+  }
+  return out;
+}
+
+bool shadowSolid(ShadowRoomDef d, int x, int y, ShadowState s) {
+  if (!d.inside(x, y)) return true;
+  final c = d.at(x, y);
+  if ('#LENWSnPMR'.contains(c)) return true;
+  if (c == 'B') return !s.pinned.contains(sqKey(x, y));
+  if (d.orbit != null && s.hits < 3) {
+    final o = d.orbit![s.orbit];
+    if (o.x == x && o.y == y) return true;
+  }
+  return false;
+}
+
+/// Does starlight [l] reach square (x,y)? Inside its cone, no wall between.
+bool shadowLights(ShadowRoomDef d, ShadowLamp l, int x, int y) {
+  final lx = l.x + .5, ly = l.y + .5, px = x + .5, py = y + .5;
+  if (l.face != null) {
+    var a = atan2(py - ly, px - lx) - l.face!;
+    a = atan2(sin(a), cos(a));
+    if (a.abs() > l.half) return false;
+  }
+  final n = (sqrt((px - lx) * (px - lx) + (py - ly) * (py - ly)) * 6).ceil();
+  for (var i = 1; i < n; i++) {
+    final t = i / n;
+    final sx = (lx + (px - lx) * t).floor(), sy = (ly + (py - ly) * t).floor();
+    if ((sx == l.x.floor() && sy == l.y.floor()) || (sx == x && sy == y)) {
+      continue;
+    }
+    if (d.inside(sx, sy) && d.at(sx, sy) == '#') return false;
+  }
+  return true;
+}
+
+/// Is (x,y) in the shadow of a round caster at (cx,cy), radius r, from [l]?
+bool shadowCast(ShadowLamp l, double cx, double cy, double r, int x, int y) {
+  final lx = l.x + .5, ly = l.y + .5, px = x + .5, py = y + .5;
+  final dcx = cx - lx, dcy = cy - ly;
+  final dc = sqrt(dcx * dcx + dcy * dcy);
+  final dx = px - lx, dy = py - ly;
+  final dp = sqrt(dx * dx + dy * dy);
+  if (dp <= dc + .05) return false;
+  if (dcx * dx + dcy * dy <= 0) return false;
+  return (dcx * dy - dcy * dx).abs() / dp < r;
+}
+
+List<ShadowCaster> shadowCasters(
+  ShadowRoomDef d,
+  ShadowState s, {
+  String? except,
+}) => [
+  for (final n in kShadowNames)
+    if (n != except)
+      ShadowCaster(
+        n,
+        s.pos[n]!.x + .5,
+        s.pos[n]!.y + .5,
+        kShadowBodyR,
+        s.pos[n]!.x,
+        s.pos[n]!.y,
+      ),
+  if (s.veil != null)
+    ShadowCaster(
+      'veil',
+      s.veil!.x + .5,
+      s.veil!.y + .5,
+      kShadowVeilR,
+      s.veil!.x,
+      s.veil!.y,
+    ),
+  ...d.fixedCasters,
+];
+
+List<ShadowCaster> _holders(
+  ShadowRoomDef d,
+  ShadowState s,
+  ShadowLamp l,
+  int x,
+  int y, {
+  String? except,
+}) => [
+  for (final c in shadowCasters(d, s, except: except))
+    if (!(c.x == x && c.y == y) && shadowCast(l, c.cx, c.cy, c.r, x, y)) c,
+];
+
+/// Is glass (x,y) a floor for [who]? Pinned stone always is. Otherwise EVERY
+/// starlight reaching it must be blocked by something that is not [who].
+/// Glass no starlight reaches is still just glass: nothing.
+bool shadowHolds(ShadowRoomDef d, ShadowState s, int x, int y, String? who) {
+  if (s.pinned.contains(sqKey(x, y))) return true;
+  var lit = false;
+  for (final l in shadowLamps(d, s)) {
+    if (!shadowLights(d, l, x, y)) continue;
+    lit = true;
+    if (_holders(d, s, l, x, y, except: who).isEmpty) return false;
+  }
+  return lit;
+}
+
+String? shadowOccupant(ShadowState s, int x, int y, [String? except]) {
+  for (final n in kShadowNames) {
+    if (n != except && s.pos[n]!.x == x && s.pos[n]!.y == y) return n;
+  }
+  return null;
+}
+
+bool shadowCanStand(ShadowRoomDef d, ShadowState s, int x, int y, String who) {
+  if (shadowSolid(d, x, y, s)) return false;
+  if (shadowOccupant(s, x, y, who) != null) return false;
+  if (!d.isGlass(x, y)) return true;
+  return shadowHolds(d, s, x, y, who);
+}
+
+/// Would everyone else still be held if [who] stood at (x,y)? The name of
+/// whoever would fall, or null.
+String? shadowWouldDrop(
+  ShadowRoomDef d,
+  ShadowState s,
+  String who,
+  int x,
+  int y,
+) {
+  final t = s.moved(who, sq(x, y));
+  for (final n in kShadowNames) {
+    if (n == who) continue;
+    final p = t.pos[n]!;
+    if (d.isGlass(p.x, p.y) && !shadowHolds(d, t, p.x, p.y, n)) return n;
+  }
+  return null;
+}
+
+/// Why [who] may not step to (x,y): 'floor', 'holds:<name>', or null.
+String? shadowStepCheck(
+  ShadowRoomDef d,
+  ShadowState s,
+  String who,
+  int x,
+  int y,
+) {
+  if (!shadowCanStand(d, s, x, y, who)) return 'floor';
+  final drop = shadowWouldDrop(d, s, who, x, y);
+  return drop == null ? null : 'holds:$drop';
+}
+
+/// Dark pins "the shadow it stands in": the casters that hold its square,
+/// and every glass square those casters alone hold, become stone. A blank
+/// wall takes the pin only from the MONOLITH. Null when there is no shadow
+/// under Dark to pin.
+List<int>? shadowPinCells(ShadowRoomDef d, ShadowState s) {
+  final dk = s.pos['Dark']!;
+  if (!d.isGlass(dk.x, dk.y) || s.pinned.contains(sqKey(dk.x, dk.y))) {
+    return null;
+  }
+  final lamps = shadowLamps(d, s);
+  final used = <String>{};
+  for (final l in lamps) {
+    if (!shadowLights(d, l, dk.x, dk.y)) continue;
+    final h = _holders(d, s, l, dk.x, dk.y, except: 'Dark');
+    if (h.isEmpty) return null;
+    used.addAll(h.map((c) => c.id));
+  }
+  final monolith = used.any((id) => id.startsWith('M:'));
+  final out = <int>[];
+  for (var y = 0; y < d.rows; y++) {
+    for (var x = 0; x < d.cols; x++) {
+      final c = d.at(x, y);
+      if (!(c == '~' || (c == 'B' && monolith))) continue;
+      if (s.pinned.contains(sqKey(x, y))) continue;
+      var ok = true, lit = false;
+      for (final l in lamps) {
+        if (!shadowLights(d, l, x, y)) continue;
+        lit = true;
+        final h = _holders(d, s, l, x, y).where((c) => used.contains(c.id));
+        if (h.isEmpty) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok && lit) out.add(sqKey(x, y));
+    }
+  }
+  return out;
+}
+
+/// After the light moves (a crank, or Solarin struck), anyone on glass that
+/// no longer holds falls back to where the room lets them in.
+({ShadowState state, List<String> fell}) shadowResolveFalls(
+  ShadowRoomDef d,
+  ShadowState s,
+) {
+  var pos = Map.of(s.pos);
+  final fell = <String>[];
+  for (final n in kShadowNames) {
+    final p = pos[n]!;
+    if (!d.isGlass(p.x, p.y)) continue;
+    if (shadowHolds(d, s.copyWith(pos: pos), p.x, p.y, n)) continue;
+    fell.add(n);
+  }
+  for (final n in fell) {
+    final homes = [d.start[n]!, ...d.start.values];
+    final free = homes.firstWhere(
+      (h) => !kShadowNames.any(
+        (m) => m != n && pos[m]!.x == h.x && pos[m]!.y == h.y,
+      ),
+      orElse: () => d.start[n]!,
+    );
+    pos = {...pos, n: free};
+  }
+  return (state: s.copyWith(pos: pos), fell: fell);
+}
+
+/// Can [who] strike Solarin from where it stands? Two squares, no further.
+bool shadowSolarinReach(ShadowRoomDef d, ShadowState s, String who) {
+  if (d.orbit == null || s.hits >= 3) return false;
+  final o = d.orbit![s.orbit], p = s.pos[who]!;
+  final dx = (p.x - o.x).toDouble(), dy = (p.y - o.y).toDouble();
+  return sqrt(dx * dx + dy * dy) <= 2.01;
+}
+
+bool shadowSolved(ShadowRoomDef d, ShadowState s) {
+  if (d.goal == 'hits') return s.hits >= 3;
+  bool on(String n) => d.at(s.pos[n]!.x, s.pos[n]!.y) == 'G';
+  return d.goal == 'any' ? kShadowNames.any(on) : kShadowNames.every(on);
+}
+
+/// Every legal move from [s], for the solver.
+List<(String, ShadowState)> shadowMoves(
+  ShadowRoomDef d,
+  ShadowState s, {
+  Set<String>? actors,
+}) {
+  bool may(String n) => actors == null || actors.contains(n);
+  final out = <(String, ShadowState)>[];
+  for (final n in kShadowNames) {
+    if (!may(n)) continue;
+    final p = s.pos[n]!;
+    for (final (dx, dy) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
+      final x = p.x + dx, y = p.y + dy;
+      if (shadowStepCheck(d, s, n, x, y) != null) continue;
+      out.add(('$n>$x,$y', s.moved(n, sq(x, y))));
+    }
+  }
+  if (s.pins > 0 && may('Dark')) {
+    final cells = shadowPinCells(d, s);
+    if (cells != null && cells.isNotEmpty) {
+      out.add((
+        'pin',
+        s.copyWith(pinned: {...s.pinned, ...cells}, pins: s.pins - 1),
+      ));
+    }
+  }
+  final st = s.pos['Steam']!;
+  if (may('Steam')) {
+    if (d.vents.any((v) => v.x == st.x && v.y == st.y) &&
+        !(s.veil != null && s.veil!.x == st.x && s.veil!.y == st.y)) {
+      out.add(('veil', s.copyWith(veil: st)));
+    }
+    if (!s.piped) {
+      for (final (a, b) in d.pipes) {
+        if (st.x != a.x || st.y != a.y) continue;
+        if (shadowOccupant(s, b.x, b.y, 'Steam') != null) continue;
+        out.add(('pipe', s.copyWith(piped: true, pos: {...s.pos, 'Steam': b})));
+      }
+    }
+  }
+  final li = s.pos['Light']!;
+  if (d.rail != null && d.at(li.x, li.y) == 'C' && may('Light')) {
+    out.add((
+      'crank',
+      shadowResolveFalls(
+        d,
+        s.copyWith(rail: (s.rail + 1) % d.rail!.length),
+      ).state,
+    ));
+  }
+  if (d.orbit != null) {
+    for (final n in kShadowNames) {
+      if (!may(n) || !shadowSolarinReach(d, s, n)) continue;
+      out.add((
+        'strike($n)',
+        shadowResolveFalls(
+          d,
+          s.copyWith(hits: s.hits + 1, orbit: (s.orbit + 1) % d.orbit!.length),
+        ).state,
+      ));
+    }
+  }
+  return out;
+}
+
+/// Breadth-first search to a solved state: the fewest moves, and the plan.
+({bool solvable, int states, List<String> plan}) solveShadowRoom(
+  ShadowRoomDef d, {
+  ShadowState? from,
+  Set<String>? actors,
+  int limit = 400000,
+  bool Function(String label)? allow,
+}) {
+  final s0 = from ?? ShadowState.start(d);
+  final seen = <String, (String, String)?>{s0.encoded: null};
+  final q = <ShadowState>[s0];
+  var head = 0;
+  ShadowState? goal;
+  while (head < q.length && seen.length < limit) {
+    final s = q[head++];
+    if (shadowSolved(d, s)) {
+      goal = s;
+      break;
+    }
+    for (final (label, t) in shadowMoves(d, s, actors: actors)) {
+      if (allow != null && !allow(label)) continue;
+      final e = t.encoded;
+      if (seen.containsKey(e)) continue;
+      seen[e] = (s.encoded, label);
+      q.add(t);
+    }
+  }
+  if (goal == null) {
+    return (solvable: false, states: seen.length, plan: const <String>[]);
+  }
+  final plan = <String>[];
+  for (var e = goal.encoded; seen[e] != null; e = seen[e]!.$1) {
+    plan.insert(0, seen[e]!.$2);
+  }
+  return (solvable: true, states: seen.length, plan: plan);
+}
+
+// ─────────────────────────────────────────────────────────
+// THE ROOMS
+// ─────────────────────────────────────────────────────────
+
+const ShadowRoomDef kRoomOwnShadow = ShadowRoomDef(
+  id: 'own_shadow',
+  map: [
+    '...~~~~~GGG',
+    '...~~~~~GGG',
+    '...~~~~~GGG',
+    'L..~~~~~GGG',
+    '...~~~~~GGG',
+    '...~~~~~GGG',
+    '...~~~~~GGG',
+  ],
+  start: {'Light': (x: 1, y: 5), 'Dark': (x: 2, y: 5), 'Steam': (x: 1, y: 4)},
+  pins: 1,
+);
+
+const ShadowRoomDef kRoomTwoSuns = ShadowRoomDef(
+  id: 'two_suns',
+  map: [
+    '...~~~~~GGG',
+    '...~~~~~GGG',
+    '...~~~~~GGG',
+    'L..~~~~~GGL',
+    '...~~~~~GGG',
+    '...~~~~~GGG',
+    '..p~~~~~pGG',
+  ],
+  pipes: [((x: 2, y: 6), (x: 8, y: 6))],
+  start: {'Light': (x: 1, y: 5), 'Dark': (x: 0, y: 5), 'Steam': (x: 1, y: 4)},
+  pins: 1,
+);
+
+const ShadowRoomDef kRoomTwoGaps = ShadowRoomDef(
+  id: 'two_gaps',
+  // Authored upside down from the prototype (a mirror image proves the same
+  // thing), so its door can sit on its north wall under the hall's south one.
+  map: [
+    '....~~.S.##',
+    '..V.~~...##',
+    'E...~~...##',
+    '....~~#..##',
+    '#######~~##',
+    '#######~~##',
+    '#######~~##',
+    '######GGGGG',
+    '######GGGGG',
+  ],
+  start: {'Light': (x: 1, y: 1), 'Dark': (x: 1, y: 0), 'Steam': (x: 0, y: 0)},
+  pins: 1,
+);
+
+const ShadowRoomDef kRoomDoorOfShadow = ShadowRoomDef(
+  id: 'door_of_shadow',
+  map: [
+    'n..~~~~~BGG',
+    'n..~~~~~BGG',
+    'n..~~~~~BGG',
+    'nM.~~~~~BGG',
+    'n..~~~~~BGG',
+    'n..~~~~~BGG',
+    'C..~~~~~BGG',
+  ],
+  rail: [
+    (x: 0, y: 0),
+    (x: 0, y: 1),
+    (x: 0, y: 2),
+    (x: 0, y: 3),
+    (x: 0, y: 4),
+    (x: 0, y: 5),
+  ],
+  start: {'Light': (x: 1, y: 5), 'Dark': (x: 2, y: 5), 'Steam': (x: 2, y: 4)},
+  pins: 1,
+);
+
+const ShadowRoomDef kRoomSolarin = ShadowRoomDef(
+  id: 'solarin_orbit',
+  map: [
+    '~~~~~~~~~~~',
+    '..~~~~~~~~~',
+    '..~~~P~~~~~',
+    '..~~~~~~~~~',
+    '..~~~d~~P~~',
+    '..~~~~~~~~~',
+    '..~~~P~~~~~',
+    '..~~~~~~~~~',
+    '~~~~~~~~~~~',
+  ],
+  orbit: [(x: 9, y: 4), (x: 5, y: 7), (x: 5, y: 1)],
+  pillarR: 0.42,
+  goal: 'hits',
+  start: {'Light': (x: 1, y: 3), 'Dark': (x: 1, y: 4), 'Steam': (x: 0, y: 5)},
+);
+
+const ShadowRoomDef kRoomReliquary = ShadowRoomDef(
+  id: 'sunless_reliquary',
+  map: [
+    '...#~~~~~~n',
+    '...#~~~~~~n',
+    '...#~~~~~~n',
+    '...~~GR~~~n',
+    '...#~~~~~~n',
+    '...#~~~~~~n',
+    'C..#~~~~~~n',
+  ],
+  rail: [
+    (x: 10, y: 0),
+    (x: 10, y: 1),
+    (x: 10, y: 2),
+    (x: 10, y: 3),
+    (x: 10, y: 4),
+    (x: 10, y: 5),
+  ],
+  goal: 'any',
+  start: {'Light': (x: 0, y: 1), 'Dark': (x: 0, y: 2), 'Steam': (x: 1, y: 2)},
+);
+
+/// THE ECLIPSE — the last room before Solarin, and the hard one. Found by a
+/// search over several hundred layouts (docs/prototypes/light_shadow_floor,
+/// gen2.js) for the room where the crank, the pin and the veil are each
+/// necessary: fifty moves at best, and four of every five positions the
+/// party can reach are dead ends.
+///
+/// Its idea: WALLS BLOCK STARLIGHT. The railed star walks along the top, the
+/// two blocks in the glass eclipse it, and each turn of the crank walks their
+/// shadow across the floor — you ride it, and a body left on glass the
+/// shadow has moved off falls back to the ledge. The veil holds the fixed
+/// star off the path; the pin is spent at the one moment it keeps the road.
+const ShadowRoomDef kRoomEclipse = ShadowRoomDef(
+  id: 'eclipse_walk',
+  map: [
+    '..nnnnnGG',
+    '..~~~~~GG',
+    '..~~~~~GG',
+    'E.~~##~GG',
+    '.V~~~~~GG',
+    'C.~~~~~GG',
+  ],
+  rail: [(x: 2, y: 0), (x: 3, y: 0), (x: 4, y: 0), (x: 5, y: 0), (x: 6, y: 0)],
+  railStart: 1,
+  cone: 0.8,
+  start: {'Light': (x: 1, y: 3), 'Dark': (x: 0, y: 0), 'Steam': (x: 1, y: 2)},
+  pins: 1,
+);
+
+/// Every grid room, by the id [ShadowBay.grid] names.
+const Map<String, ShadowRoomDef> kShadowRooms = {
+  'own_shadow': kRoomOwnShadow,
+  'two_suns': kRoomTwoSuns,
+  'two_gaps': kRoomTwoGaps,
+  'door_of_shadow': kRoomDoorOfShadow,
+  'eclipse_walk': kRoomEclipse,
+  'solarin_orbit': kRoomSolarin,
+  'sunless_reliquary': kRoomReliquary,
 };
 
-/// THE TWO GREAT STACKS — and the only two things in the hall tall enough to
-/// keep a shadow. Everything the planet can do it can do because these are
-/// here, and the counterfactual in `solveBeaconArchive` measures what the
-/// archive is without them.
-const Set<HallSector> kGreatStacks = {HallSector.court, HallSector.arcade};
-
-bool sectorHasStack(HallSector s) => kGreatStacks.contains(s);
+/// The four rooms whose spans build the hall's bridge, in order, and the
+/// star each pair banks.
+const List<String> kBridgeRooms = [
+  'own_shadow',
+  'key_room',
+  'two_suns',
+  'two_gaps',
+];
+const Map<String, int> kBridgeStar = {
+  'own_shadow': 0,
+  'key_room': 0,
+  'two_suns': 1,
+  'two_gaps': 1,
+};
 
 // ─────────────────────────────────────────────────────────
-// THE BEACONS
+// THE HALL
 // ─────────────────────────────────────────────────────────
 
-/// How high a beacon is thrown.
-enum BeamPitch {
-  /// The beam breaks on the stacks. In a stacked sector only the RIM band
-  /// lights and the shelf behind stays in shadow — the occlusion the whole
-  /// planet is built on, and the cheap setting.
-  low,
-
-  /// The beam clears the stacks and fills the sector to its INWARD band. It
-  /// reaches further and it costs more, and it fills in the exact shadow the
-  /// low beam was giving you.
-  high,
-}
-
-/// One thing a beacon can be set to.
-class BeamSetting {
-  /// The sectors this cone covers. Authored as an arc of the hall, never as a
-  /// path to a target — nothing in the Beacon Archive is aimed AT anything
-  /// (that is Lightning's seat).
-  final List<HallSector> arc;
-  final BeamPitch pitch;
-
-  /// One clause for the reading and the render.
-  final String look;
-
-  const BeamSetting({
-    required this.arc,
-    required this.pitch,
-    required this.look,
-  });
-
-  bool covers(HallSector s) => arc.contains(s);
-
-  /// Whether this cone reaches [cell] — the occlusion rule, stated once.
-  bool reaches(HallCell cell) {
-    if (!covers(cell.sector)) return false;
-    if (cell.band == HallBand.rim) return true;
-    return pitch == BeamPitch.high || !sectorHasStack(cell.sector);
-  }
-}
-
-/// A beacon on the archive's rim.
-///
-/// AUTHORING RULE, and the first half of the no-strand proof: **every beacon
-/// stands on the RIM, in a bay of the hall, and there is not one in the
-/// heart.** The archive is lit from its edge inward, which is what makes the
-/// heart a place where nothing can change under you — and it means the hand
-/// that changes the world is always standing in the room it changes.
-class Beacon {
-  final String id;
-
-  /// The bay it stands in. Always a rim bay.
-  final String roomId;
-
-  /// Where in [roomId] the pan sits (the kindle verb's reach).
-  final Offset post;
-
-  /// The sector it stands in.
-  final HallSector sector;
-
-  /// Its four settings, in the order one press walks them. State 0 is always
-  /// DARK, so a press cycles DARK → 1 → 2 → 3 → 4 → DARK: a five-cycle, and
-  /// four more presses put any setting back exactly where it was.
-  final List<BeamSetting> settings;
-
-  /// One clause of scenery.
-  final String look;
-
-  const Beacon({
-    required this.id,
-    required this.roomId,
-    required this.post,
-    required this.sector,
-    required this.settings,
-    required this.look,
-  });
-
-  /// How many states this beacon has, DARK included.
-  int get stateCount => settings.length + 1;
-}
-
-/// The three beacons. Each covers a different reach of the hall and no two
-/// can be pressed from the same bay, so which one you are willing to walk to
-/// is as much of the decision as what you set it to.
-const List<Beacon> kArchiveBeacons = [
-  // THE NARTHEX BEACON. It stands in the doorway and is the only light that
-  // reaches sector 1, so it is the only thing that opens the rim at all — and
-  // sector 1 is where the reliquary's mirror shelf lies, which is the vault
-  // trick in one object: the beam that lets you in takes the heart away.
-  Beacon(
-    id: 'bc_narthex',
-    roomId: 'lumen_threshold',
-    post: Offset(360, 250),
-    sector: HallSector.door,
-    settings: [
-      BeamSetting(
-        arc: [HallSector.court, HallSector.arcade],
-        pitch: BeamPitch.low,
-        look: 'a low fan across the court and the arcade',
-      ),
-      BeamSetting(
-        arc: [HallSector.court, HallSector.arcade],
-        pitch: BeamPitch.high,
-        look: 'the same fan, thrown high over the stacks',
-      ),
-      BeamSetting(
-        arc: [HallSector.door, HallSector.court],
-        pitch: BeamPitch.low,
-        look: 'a low fan back across the doorway',
-      ),
-      BeamSetting(
-        arc: [HallSector.door, HallSector.court],
-        pitch: BeamPitch.high,
-        look: 'the doorway fan, thrown high',
-      ),
-    ],
-    look: 'the narthex beacon, a brass pan on a tripod of black iron',
-  ),
-  // THE ORIEL BEACON, in the shadow court. The only light that can hold the
-  // arcade on its own, which is what lets the party carry a single small lamp
-  // out along the rim instead of the narthex's wide fan.
-  Beacon(
-    id: 'bc_oriel',
-    roomId: 'shadow_court',
-    post: Offset(430, 260),
-    sector: HallSector.court,
-    settings: [
-      BeamSetting(
-        arc: [HallSector.arcade],
-        pitch: BeamPitch.low,
-        look: 'one low blade across the arcade',
-      ),
-      BeamSetting(
-        arc: [HallSector.arcade],
-        pitch: BeamPitch.high,
-        look: 'the arcade blade, thrown high',
-      ),
-      BeamSetting(
-        arc: [HallSector.arcade, HallSector.shelf],
-        pitch: BeamPitch.low,
-        look: 'a low fan out to the shelves',
-      ),
-      BeamSetting(
-        arc: [HallSector.arcade, HallSector.shelf],
-        pitch: BeamPitch.high,
-        look: 'the shelf fan, thrown high',
-      ),
-    ],
-    look: 'the oriel beacon, set in the court\'s broken window',
-  ),
-  // THE LEDGER BEACON, at the far end of the rim. It is the reason the dark
-  // stacks can be come at from BEHIND — set it, walk the whole heart in the
-  // dark, and come up under the shelves with one lamp burning.
-  Beacon(
-    id: 'bc_ledger',
-    roomId: 'catalogue_walk',
-    post: Offset(400, 250),
-    sector: HallSector.ledger,
-    settings: [
-      BeamSetting(
-        arc: [HallSector.ledger],
-        pitch: BeamPitch.low,
-        look: 'one low blade down the ledger walk',
-      ),
-      BeamSetting(
-        arc: [HallSector.ledger],
-        pitch: BeamPitch.high,
-        look: 'the ledger blade, thrown high',
-      ),
-      BeamSetting(
-        arc: [HallSector.shelf, HallSector.ledger],
-        pitch: BeamPitch.low,
-        look: 'a low fan back along the shelves',
-      ),
-      BeamSetting(
-        arc: [HallSector.shelf, HallSector.ledger],
-        pitch: BeamPitch.high,
-        look: 'the shelf fan, thrown high',
-      ),
-    ],
-    look: 'the ledger beacon, a cracked lens on a copper stand',
-  ),
+/// The great hall: near ledge, near well, island, far well, far ledge. The
+/// wells are DEEP light, lit from below, where no shadow can hold: only the
+/// spans a solved room sets, and — for one body — the gold sun.
+const List<String> kHallMap = [
+  '...**...**...',
+  '...**...**...',
+  '...**...**...',
+  '...**...**...',
+  '...**...O*...',
+  '...**...**...',
+  '...**...**...',
 ];
 
-Beacon? archiveBeaconById(String id) {
-  for (final b in kArchiveBeacons) {
-    if (b.id == id) return b;
-  }
-  return null;
+const int kHallCols = 13, kHallRows = 7;
+
+/// Which span each room sets.
+const Map<String, Sq> kHallSpans = {
+  'own_shadow': (x: 3, y: 3),
+  'key_room': (x: 4, y: 3),
+  'two_suns': (x: 8, y: 3),
+  'two_gaps': (x: 9, y: 3),
+};
+
+/// The gold sun inlaid in the far well — the Lost Maxim. Light walks on
+/// light; nothing else does.
+const Sq kHallSun = (x: 8, y: 4);
+
+/// The hall's own star on its stand, on the near ledge. Waking it is the
+/// entry rite.
+const Offset kHallKindle = Offset(160, 400);
+
+// ─────────────────────────────────────────────────────────
+// ROOM II — THE KEY (a floor below, the arch on the north face)
+// ─────────────────────────────────────────────────────────
+
+/// How deep the key room's north face is: tall, because the arch is in it.
+const double kKeyFace = 176;
+
+/// One key-room unit, in world.
+const double kKeyU = 64;
+
+/// The tiny key on its plinth, in floor units (x across, y out from the
+/// arch's wall, z up).
+const double kKeyX = 6.5, kKeyY = 3.6, kKeyZ = 0.55;
+const double kKeyLampZ = 0.5;
+const double kArchL = 3, kArchR = 7, kArchSpring = 1.6, kArchApex = 2.4;
+const List<double> kKeyStudX = [3, 4, 5, 6, 7, 8, 9];
+const List<double> kKeyStudY = [4.0, 4.8, 5.6];
+const double kKeyAnswerX = 7, kKeyAnswerY = 4.8;
+
+/// Floor units to world.
+Offset keyFloor(double x, double y) => Offset(x * kKeyU, kKeyFace + y * kKeyU);
+
+/// How much the key's shadow is magnified on the arch from a starlight at
+/// floor distance [ly] from the wall.
+double keyMagnify(double ly) => ly / (ly - kKeyY);
+
+/// A key point (x, z) projected onto the arch from a starlight at (lx, ly).
+(double, double) keyProject(double lx, double ly, double x, double z) {
+  final m = keyMagnify(ly);
+  return (lx + (x - lx) * m, kKeyLampZ + (z - kKeyLampZ) * m);
 }
 
-Beacon? archiveBeaconIn(String roomId) {
-  for (final b in kArchiveBeacons) {
-    if (b.roomId == roomId) return b;
-  }
-  return null;
+/// The one stud that lays the key's shadow in the lock.
+bool keyFits(double lx, double ly) =>
+    (lx - kKeyAnswerX).abs() < .01 && (ly - kKeyAnswerY).abs() < .01;
+
+// ─────────────────────────────────────────────────────────
+// PER-ROOM CONTENT
+// ─────────────────────────────────────────────────────────
+
+/// Everything the shadow floor puts in one room. Carried on
+/// `DungeonRoom.hall`, so one field serves the planet.
+class ShadowBay {
+  /// 'hall', 'grid' or 'key'.
+  final String kind;
+
+  /// The grid room id in [kShadowRooms] (kind 'grid').
+  final String? grid;
+
+  const ShadowBay.hall() : kind = 'hall', grid = null;
+  const ShadowBay.grid(String this.grid) : kind = 'grid';
+  const ShadowBay.key() : kind = 'key', grid = null;
+
+  ShadowRoomDef? get def => grid == null ? null : kShadowRooms[grid];
+
+  /// The star a room's solving counts toward (the pairs bank together).
+  int? get starIndex => kind == 'key' ? 0 : kBridgeStar[grid];
 }
 
 // ─────────────────────────────────────────────────────────
-// SILLS — the hall's floor, in both states at once
+// THE RUN — pure state, one per descent
 // ─────────────────────────────────────────────────────────
 
-/// What a sill is made of.
-enum SillCut {
-  /// A GLASS LEAF. The archive's floor is glass laid over its lightwells, and
-  /// glass is nothing until there is light in it: lit, it is a floor; dark, it
-  /// is a hole. Every sill around the RIM is one of these, so the rim is a
-  /// road you build.
-  glassLeaf,
-
-  /// A MIRROR SILL. A shelf of the archive's black mirror-stone: plain
-  /// walkable stone in the dark, and under light a sheet of glare nobody can
-  /// walk into. Every sill into the HEART is one of these, so the heart is a
-  /// road you must NOT light.
-  mirrorSill,
-
-  /// The one thing in the archive light has never reached: the oculus stair,
-  /// cut in living stone under the overhang. Phase-free on purpose — see the
-  /// header, reason 4.
-  stone,
-}
-
-/// One sill of the hall, authored once and read from both ends.
-///
-/// The layout test enforces that EVERY door has a reciprocal door, statically
-/// (§5.5 keeps that invariant for the whole game). A map whose connectivity
-/// changes at runtime lives inside that rule the only honest way, the one
-/// Crystal established and Plant, Spirit and Dark reused: **the doors are
-/// constant and reciprocal, and what varies is whether there is anything to
-/// walk on in the state the archive is currently in.**
-class HallSill {
-  final String id;
-  final String from;
-  final String to;
-  final SillCut cut;
-
-  /// The cell this sill lies in — the one whose light decides it. Null exactly
-  /// when [cut] is [SillCut.stone].
-  final HallCell? cell;
-
-  /// One clause naming the sill, used by the blocked line and the render.
-  final String look;
-
-  const HallSill({
-    required this.id,
-    required this.from,
-    required this.to,
-    required this.cut,
-    required this.look,
-    this.cell,
-  });
-
-  bool joins(String a, String b) =>
-      (from == a && to == b) || (from == b && to == a);
-}
-
-/// The whole hall as sills. Ten, and every room pair appears exactly once — so
-/// a door and a sill are one-to-one and the no-strand proof cannot drift from
-/// the floor the player actually walks.
-///
-/// Read the shape off the cuts: every RIM sill is glass (a road you light) and
-/// every sill into the HEART is mirror (a road you must not), with the single
-/// stone stair down to Solarin. That is the topology stated as data.
-const List<HallSill> kArchiveSills = [
-  // ── THE RIM · a ring of glass over the lightwells ─────
-  // The lightwell, closing the ring back to the doorway. Sector 0 has nothing
-  // standing in it, so lighting this leaf also floods the undercroft below and
-  // cuts the heart off from the door — the archive's first hard trade.
-  HallSill(
-    id: 'sl_lightwell',
-    from: 'lumen_threshold',
-    to: 'catalogue_walk',
-    cut: SillCut.glassLeaf,
-    cell: HallCell(HallSector.door, HallBand.rim),
-    look: 'the lightwell leaf',
-  ),
-  // The narthex leaf — the only way onto the rim, and the beam that lights it
-  // is the beam that shuts the reliquary. See the header's vault trick.
-  HallSill(
-    id: 'sl_narthex',
-    from: 'lumen_threshold',
-    to: 'shadow_court',
-    cut: SillCut.glassLeaf,
-    cell: HallCell(HallSector.court, HallBand.rim),
-    look: 'the narthex leaf',
-  ),
-  HallSill(
-    id: 'sl_arcade',
-    from: 'shadow_court',
-    to: 'moth_gallery',
-    cut: SillCut.glassLeaf,
-    cell: HallCell(HallSector.arcade, HallBand.rim),
-    look: 'the arcade leaf',
-  ),
-  HallSill(
-    id: 'sl_stackwalk',
-    from: 'moth_gallery',
-    to: 'dark_stacks',
-    cut: SillCut.glassLeaf,
-    cell: HallCell(HallSector.shelf, HallBand.rim),
-    look: 'the stack-walk leaf',
-  ),
-  HallSill(
-    id: 'sl_ledger',
-    from: 'dark_stacks',
-    to: 'catalogue_walk',
-    cut: SillCut.glassLeaf,
-    cell: HallCell(HallSector.ledger, HallBand.rim),
-    look: 'the ledger leaf',
-  ),
-  // The down-step: the ledger walk's floor falls away inward into the reading
-  // floor, and the fall is glass too. This is the back door into the heart,
-  // and the only lit way in.
-  HallSill(
-    id: 'sl_downstep',
-    from: 'catalogue_walk',
-    to: 'reading_floor',
-    cut: SillCut.glassLeaf,
-    cell: HallCell(HallSector.ledger, HallBand.inward),
-    look: 'the down-step',
-  ),
-
-  // ── THE HEART · black mirror-stone ────────────────────
-  // The undercroft, straight in from the door. Sector 0 is empty, so any light
-  // at all in the doorway glares this shut.
-  HallSill(
-    id: 'sl_undercroft',
-    from: 'lumen_threshold',
-    to: 'oculus_stair',
-    cut: SillCut.mirrorSill,
-    cell: HallCell(HallSector.door, HallBand.inward),
-    look: 'the undercroft shelf',
-  ),
-  // THE HEARTWAY — the vault's one sill (§5.5). A shelf of mirror-stone in
-  // sector 1, walkable exactly while sector 1's inward band is dark. The
-  // reliquary is in plain sight from here in every state; it is the FLOOR
-  // that comes and goes.
-  HallSill(
-    id: 'sl_heartway',
-    from: 'oculus_stair',
-    to: 'sunless_reliquary',
-    cut: SillCut.mirrorSill,
-    cell: HallCell(HallSector.court, HallBand.inward),
-    look: 'the heartway shelf',
-  ),
-  HallSill(
-    id: 'sl_slype',
-    from: 'oculus_stair',
-    to: 'reading_floor',
-    cut: SillCut.mirrorSill,
-    cell: HallCell(HallSector.arcade, HallBand.inward),
-    look: 'the slype',
-  ),
-
-  // ── THE ONE PASSAGE LIGHT NEVER REACHES ───────────────
-  HallSill(
-    id: 'sl_oculus',
-    from: 'reading_floor',
-    to: 'solarin_oculus',
-    cut: SillCut.stone,
-    look: 'the oculus stair',
-  ),
-];
-
-/// The sill joining these two rooms, or null. One pair, one sill — pinned by
-/// the tests.
-HallSill? archiveSillBetween(String a, String b) {
-  for (final s in kArchiveSills) {
-    if (s.joins(a, b)) return s;
-  }
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────
-// STAR 0 — THE SHADOW COURT
-// ─────────────────────────────────────────────────────────
-
-/// One of the four effigies standing round the shadow court's balustrade.
-///
-/// §6: *statues claim doors, but a statue's SHADOW shows its true shape.* The
-/// stone is a lie and the shadow is not, so an effigy can only be read while
-/// the effigy itself STANDS IN LIGHT and the niche it throws its shadow into
-/// stands in SHADOW. That is the planet's own rule at object scale — light and
-/// occlusion in one act — and it is why this star is the tutorial for
-/// everything else in the archive.
-///
-/// Star 0 is the planet's FIRST-DESCENT star (§4): it is earnable by ANY trio
-/// of Light/Crystal/Spirit, uses all three elements at full power, and needs
-/// nothing unlocked. §6 put a Crystalmask gate (the beam-split) on this
-/// planet's FIRST star; **§4's first-descent guarantee wins**, so that gate has
-/// moved onto the rite's prism oriel — exactly as Plant moved its Plantmane
-/// gate onto the rood screen and Dark its Darkmask gate onto the reredos.
-class Effigy {
-  final String id;
-
-  /// Where it stands in the court (the read verb's reach).
-  final Offset position;
-
-  /// The cell the effigy itself must be standing in the light of.
-  final HallCell stand;
-
-  /// The cell its shadow is thrown into. It must be DARK, or there is no
-  /// shadow to read and the stone keeps its lie.
-  final HallCell niche;
-
-  /// The element that reads it. Element-only (§4) — any family, full power.
-  /// All three of the planet's entry elements appear, so the ideal trio is
-  /// not required and any correct-element party finishes the court.
-  final String element;
-
-  /// What the stone claims to be, and what the shadow says it is. Flavour for
-  /// the reading and the render — the truth is never a puzzle input.
-  final String stone;
-  final String truth;
-
-  const Effigy({
-    required this.id,
-    required this.position,
-    required this.stand,
-    required this.niche,
-    required this.element,
-    required this.stone,
-    required this.truth,
-  });
-}
-
-/// The four effigies, in the order the balustrade carries them (they may be
-/// read in any order — nothing here is a sequence; Fire owns that seat).
-///
-/// The set is authored so that **no single arrangement of the beacons reads
-/// all four**, which is what makes Star 0 a journey rather than a button. The
-/// guarantee is structural rather than tuned: the moth wants sector 0's inward
-/// band DARK and the sun wants sector 0's rim LIT, and sector 0 has nothing
-/// standing in it — so its two bands go together, always, and those two
-/// effigies are mutually exclusive by the absence of a stack. The test pins it.
-const List<Effigy> kCourtEffigies = [
-  Effigy(
-    id: 'ef_moth',
-    position: Offset(190, 190),
-    stand: HallCell(HallSector.court, HallBand.rim),
-    niche: HallCell(HallSector.door, HallBand.inward),
-    element: 'Light',
-    stone: 'a moth with its wings shut',
-    truth: 'the shadow has them open, and it is enormous',
-  ),
-  Effigy(
-    id: 'ef_key',
-    position: Offset(330, 160),
-    stand: HallCell(HallSector.arcade, HallBand.rim),
-    niche: HallCell(HallSector.court, HallBand.inward),
-    element: 'Crystal',
-    stone: 'a scholar holding a key',
-    truth: 'the shadow is holding a knife',
-  ),
-  Effigy(
-    id: 'ef_warden',
-    position: Offset(470, 190),
-    stand: HallCell(HallSector.ledger, HallBand.rim),
-    niche: HallCell(HallSector.arcade, HallBand.inward),
-    element: 'Spirit',
-    stone: 'a warden facing the door',
-    truth: 'the shadow is facing the other way',
-  ),
-  Effigy(
-    id: 'ef_sun',
-    position: Offset(330, 300),
-    stand: HallCell(HallSector.door, HallBand.rim),
-    niche: HallCell(HallSector.ledger, HallBand.inward),
-    element: 'Light',
-    stone: 'a sun on a pole',
-    truth: 'the shadow of it is a hole',
-  ),
-];
-
-Effigy? courtEffigyById(String id) {
-  for (final e in kCourtEffigies) {
-    if (e.id == id) return e;
-  }
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────
-// STAR 1 — THE DARK STACKS
-// ─────────────────────────────────────────────────────────
-
-/// The archive's HUSH: the most light the reading will bear, in lumens.
-///
-/// This is not a budget (Steam owns that seat and nothing here is spent — put
-/// a beacon out and the lumens come straight back). It is an instantaneous
-/// reading of how much of the hall is currently visible, and the archive
-/// simply will not be read while more than this is burning.
-///
-/// Two is chosen against the geometry, not by feel: a stacked sector at low
-/// pitch costs ONE lumen and an empty sector costs TWO, so a hush of two is
-/// exactly "one small lamp, and it had better be breaking on a stack."
-const int kArchiveHush = 2;
-
-/// A slip lodged in the dark behind the shelves — §6's Dark Stacks.
-///
-/// Star 1 is the exposure star. Each slip lies in a bay that CANNOT be reached
-/// with the archive dark, so the party must light a road to it — and it cannot
-/// be drawn unless the whole hall is under the hush when they get there. Light
-/// is both the road and the alarm, and the star is the smallest light that is
-/// still a road (§5.5's strategic question, scored).
-///
-/// The one hard family gate on this star (§4: max one per star) is a **Spirit
-/// PIP** — small enough to go behind the shelves, and at home in the unlit
-/// dark. §6 declared exactly this candidate.
-class HushSlip {
-  final String id;
-
-  /// The bay it lies in, and where in it.
-  final String roomId;
-  final Offset position;
-
-  /// One clause of what the slip says, for the popup and the render.
-  final String line;
-
-  const HushSlip({
-    required this.id,
-    required this.roomId,
-    required this.position,
-    required this.line,
-  });
-}
-
-/// The three slips. Every one of them is in a bay that is unreachable with the
-/// archive dark, and the three are deliberately NOT all reachable under the
-/// hush by the same plan: the court and the gallery fall to one narrow low fan
-/// off the narthex beacon, and the shelves do not — the only way under the
-/// hush at the stacks is to set the ledger beacon first, walk the whole heart
-/// in the dark, and come up at them from BEHIND. That is the run's real
-/// decision, and the proof measures it.
-const List<HushSlip> kArchiveSlips = [
-  HushSlip(
-    id: 'slip_court',
-    roomId: 'shadow_court',
-    position: Offset(120, 330),
-    line: 'a shelf-slip, in a hand that stopped mid-word',
-  ),
-  HushSlip(
-    id: 'slip_gallery',
-    roomId: 'moth_gallery',
-    position: Offset(650, 200),
-    line: 'a shelf-slip, gnawed at one corner',
-  ),
-  HushSlip(
-    id: 'slip_stacks',
-    roomId: 'dark_stacks',
-    position: Offset(150, 400),
-    line: 'a shelf-slip, and the ink on it is still wet',
-  ),
-];
-
-HushSlip? archiveSlipById(String id) {
-  for (final s in kArchiveSlips) {
-    if (s.id == id) return s;
-  }
-  return null;
-}
-
-List<HushSlip> archiveSlipsIn(String roomId) => [
-  for (final s in kArchiveSlips)
-    if (s.roomId == roomId) s,
-];
-
-// ─────────────────────────────────────────────────────────
-// THE LIVE STATE — pure rules, no Flutter, no engine
-// ─────────────────────────────────────────────────────────
-
-/// Everything the Beacon Archive tracks for one run.
-///
-/// Kept deliberately small: this planet's whole difficulty is a REACHABILITY
-/// question and an EXPOSURE question, so the state is what those two depend on
-/// — what each beacon is set to — plus the per-star tallies.
-class BeaconArchive {
-  BeaconArchive() {
+/// Everything the Shadow Floor tracks for one run, and the visual clocks the
+/// render reads (named here so the render has somewhere to keep them).
+class ShadowRun {
+  ShadowRun() {
     reset();
   }
 
-  /// What each beacon is set to, keyed by [Beacon.id]: 0 is DARK and 1..4
-  /// index into its settings. This IS the map, and it is the exposure meter
-  /// too; everything else is derived.
-  final Map<String, int> lamp = {};
+  /// Each grid room's state, made on first entry.
+  final Map<String, ShadowState> rooms = {};
 
-  /// Effigies whose shadow has been read (Star 0).
-  final Set<String> effigiesRead = {};
+  /// Rooms solved this run (the bridge rooms, the rite, the vault).
+  final Set<String> solved = {};
 
-  /// Slips drawn out of the dark (Star 1).
-  final Set<String> slipsDrawn = {};
+  /// ROOM II: where its starlight stands, whether the veil hangs, and
+  /// whether the key has been set in the lock.
+  double keyLampX = 4, keyLampY = 5.6;
+  bool keyVeil = false;
+  bool keyPinned = false;
 
-  /// THE INDEX (the Lost Maxim). The catalogue on the ledger walk is a case
-  /// of ten panes, one per cell of the hall, and it is whole only when EVERY
-  /// cell is lit — ten lumens, the state every star here forbids. Read whole,
-  /// it names the one slab in the oculus stair the archive's last volume was
-  /// filed under; the volume is drawn in TOTAL darkness, by the one hand
-  /// small enough to reach behind a shelf.
-  int indexSocket = 0;
-  bool indexRead = false;
+  // ── The moments: seconds since each began (visual only) ──
+  final Map<String, double> spanSet = {}; // room id -> time its span set
+  final Map<int, double> stoneSet = {}; // square key -> time it set, per room
+  String? stoneRoom;
+  double railFrom = -1, railT = -9; // the railed starlight gliding
+  double orbitFrom = -1, orbitT = -9; // Solarin swinging round
+  double veilT = -9, pinT = -9, keyT = -9, solvedT = -9, maximT = -9;
+  final Map<String, double> fellT = {};
 
-  /// How many slabs stand in the oculus stair for the index to name.
-  static const int indexSocketCount = 5;
+  // ── The render's caches (so a frame does not re-derive the floor) ──
+  /// Which glass squares hold for someone right now, and when each began to.
+  String? heldKey;
+  Set<int> held = const {};
+  final Map<int, double> heldSince = {};
+  String? heldRoom;
 
-  /// Seconds left on the last kindle's bloom. Purely visual, and named here so
-  /// the render has nowhere else to keep it.
-  double bloom = 0;
+  /// SOLARIN'S FLARE: when it began charging, and at whom; and the
+  /// last time one landed (visual).
+  double flareT = -9, flareHitT = -9, flareNext = 3;
+  String? flareAt;
 
-  /// Where Solarin is looking, in radians. ARENA-LOCAL and deliberately not
-  /// part of the hall's lighting at all — the mystic's glare never reaches a
-  /// beacon, which is the one authoring decision the no-strand proof rests on
-  /// (see the header, reason 4).
-  double glare = 0;
+  /// What the floor will be once Solarin swings on (cached per floor).
+  String? nextHeldKey;
+  Set<int> nextHeld = const {};
 
-  /// How many lumens the archive has shown at once, at its worst. The
-  /// readout's second line, and the closest thing this planet has to a bill.
-  int worstLumens = 0;
+  /// What a pin would set from where Dark stands (cached per floor).
+  String? pinPreviewKey;
+  List<int> pinPreview = const [];
 
-  /// The archive as its keepers left it: the narthex beacon thrown HIGH across
-  /// the court and the arcade — blazing, four lumens, twice the hush — and
-  /// everything else out. The doorway is dark, so the undercroft into the
-  /// heart is open; the court is lit, so the rim is open too — and both the
-  /// heartway onto the reliquary and the slype are glared shut by the very
-  /// beam that opened the rim. The first thing the archive teaches is that the
-  /// same beam thrown LOWER costs half as much and gives the shelves back.
+  /// Where ROOM II's starlight is drawn (it glides between studs).
+  double keyShowX = 4, keyShowY = 5.6;
+
+  ShadowState state(String id) =>
+      rooms.putIfAbsent(id, () => ShadowState.start(kShadowRooms[id]!));
+
+  void resetRoom(String id) {
+    rooms.remove(id);
+    solved.remove(id);
+    if (id == 'key_room') {
+      keyLampX = 4;
+      keyLampY = 5.6;
+      keyVeil = false;
+      keyPinned = false;
+    }
+  }
+
   void reset() {
-    lamp
-      ..clear()
-      ..['bc_narthex'] = 2
-      ..['bc_oriel'] = 0
-      ..['bc_ledger'] = 0;
-    effigiesRead.clear();
-    slipsDrawn.clear();
-    indexRead = false;
-    bloom = 0;
-    glare = 0;
-    worstLumens = 0;
+    rooms.clear();
+    solved.clear();
+    keyLampX = 4;
+    keyLampY = 5.6;
+    keyVeil = false;
+    keyPinned = false;
+    spanSet.clear();
+    stoneSet.clear();
+    stoneRoom = null;
+    fellT.clear();
   }
 
-  // ── The light ─────────────────────────────────────────
-
-  /// What [beaconId] is set to right now, or null while it is dark.
-  BeamSetting? settingOf(String beaconId) {
-    final b = archiveBeaconById(beaconId);
-    if (b == null) return null;
-    final i = lamp[beaconId] ?? 0;
-    if (i <= 0 || i > b.settings.length) return null;
-    return b.settings[i - 1];
-  }
-
-  bool isKindled(String beaconId) => settingOf(beaconId) != null;
-
-  /// Whether [cell] is lit: some kindled beacon's cone reaches it. Two cones
-  /// can cover the same sector at different pitches — the HIGH one wins, which
-  /// is the deeper lesson of the planet: a shadow is only a shadow while
-  /// nothing else is throwing light past it.
-  bool isLit(HallCell cell) {
-    for (final b in kArchiveBeacons) {
-      final s = settingOf(b.id);
-      if (s != null && s.reaches(cell)) return true;
-    }
-    return false;
-  }
-
-  bool isDark(HallCell cell) => !isLit(cell);
-
-  /// Every cell of the hall, in reading order.
-  static const List<HallCell> allCells = [
-    HallCell(HallSector.door, HallBand.rim),
-    HallCell(HallSector.door, HallBand.inward),
-    HallCell(HallSector.court, HallBand.rim),
-    HallCell(HallSector.court, HallBand.inward),
-    HallCell(HallSector.arcade, HallBand.rim),
-    HallCell(HallSector.arcade, HallBand.inward),
-    HallCell(HallSector.shelf, HallBand.rim),
-    HallCell(HallSector.shelf, HallBand.inward),
-    HallCell(HallSector.ledger, HallBand.rim),
-    HallCell(HallSector.ledger, HallBand.inward),
-  ];
-
-  /// THE EXPOSURE METER: how many cells of the hall are lit right now. Not a
-  /// budget — it goes up and it comes straight back down — but every lumen of
-  /// it is something the moth-wardens can see, and the archive will not be
-  /// read above [kArchiveHush].
-  int get lumens {
-    var n = 0;
-    for (final c in allCells) {
-      if (isLit(c)) n++;
-    }
-    return n;
-  }
-
-  bool get underHush => lumens <= kArchiveHush;
-
-  /// Evaluate a control on an isolated lighting state. HUD reads must never
-  /// temporarily write into the live hall, even when they restore it afterward.
-  BeaconArchive previewPress(String beaconId) {
-    final preview = BeaconArchive()
-      ..lamp.clear()
-      ..lamp.addAll(lamp);
-    preview.press(beaconId);
-    return preview;
-  }
-
-  /// Press a beacon: it walks DARK → 1 → 2 → 3 → 4 → DARK. A five-cycle, and
-  /// the party is standing at it the whole time — reason 2 of the no-strand
-  /// proof, and the reason this planet needs no valve.
-  ///
-  /// Returns the new setting, or null when the beacon has just gone out.
-  BeamSetting? press(String beaconId) {
-    final b = archiveBeaconById(beaconId);
-    if (b == null) return null;
-    final next = ((lamp[beaconId] ?? 0) + 1) % b.stateCount;
-    lamp[beaconId] = next;
-    final l = lumens;
-    if (l > worstLumens) worstLumens = l;
-    return settingOf(beaconId);
-  }
-
-  // ── The map, in the state the archive is in ───────────
-
-  /// Whether [sill] is a floor right now. A glass leaf is a floor while its
-  /// cell is lit; a mirror shelf while its cell is dark; the oculus stair
-  /// always.
-  bool sillOpen(HallSill sill) => switch (sill.cut) {
-    SillCut.stone => true,
-    SillCut.glassLeaf => isLit(sill.cell!),
-    SillCut.mirrorSill => isDark(sill.cell!),
-  };
-
-  // ── Star 0 ────────────────────────────────────────────
-
-  bool get courtRead => effigiesRead.length >= kCourtEffigies.length;
-
-  /// Whether [e]'s shadow can be read in the arrangement the archive is in:
-  /// the stone in light, and the niche it throws into in shadow.
-  bool canRead(Effigy e) =>
-      !effigiesRead.contains(e.id) && isLit(e.stand) && isDark(e.niche);
-
-  // ── Star 1 ────────────────────────────────────────────
-
-  bool get everySlipDrawn => slipsDrawn.length >= kArchiveSlips.length;
+  bool get bridgeWhole => kBridgeRooms.every(solved.contains);
 }
 
 // ─────────────────────────────────────────────────────────
-// PER-ROOM HALL CONTENT
+// THE LAYOUT (grid squares: centre = ((x+.5)·64, 48+(y+.5)·64))
 // ─────────────────────────────────────────────────────────
+//
+// Every doorway faces the hall across the wall between them: the hall's
+// north doors come up through a room's south wall, its south doors down
+// through a north wall, so you never arrive on the side you left from.
 
-/// Everything the Beacon Archive put in one bay. Carried on
-/// `DungeonRoom.hall` so exactly one field had to be added to the shared room
-/// model, and so a bay's star index and its SECTOR are visible to the layout
-/// invariants and to the proof.
-class ArchiveHall {
-  /// The sector this bay lies in. Required — the whole planet is this.
-  final HallSector sector;
-
-  /// The star this bay banks (null = a bay that only holds light).
-  final int? starIndex;
-
-  /// The entry rite: the archive's door-shutter, folded across the doorway.
-  /// Element-only Light (§4).
-  final Offset? doorShutter;
-
-  /// Star 0: the court's balustrade, and the four effigies standing on it.
-  final Offset? balustrade;
-
-  /// The rite's shutter-ring — element-only Light with **Crystal+Spirit→Light**
-  /// as the braid, and the module latches `conduitEnergy['B']` itself.
-  ///
-  /// The reading floor's other half is conduit 'A', the prism oriel, which is
-  /// the planet's Crystal+MASK gate. Authoring the ring as a family-less
-  /// Conduit would let the engine's channel verb step over it — the same
-  /// reason Ice left its cold font out, Dust its great glass, Plant its
-  /// sepulchre and Dark its snuffer.
-  final Offset? shutterRing;
-
-  /// Solarin's arena pillars: the three things in the chamber tall enough to
-  /// keep a shadow, and the only places its glare does not reach (§7 — the
-  /// guardian fights WITH the planet's rule).
-  final List<Offset> gazePillars;
-
-  /// The Lost Maxim's index-case, on the ledger walk: ten panes, one per cell
-  /// of the hall, whole only when the whole hall is lit.
-  final Offset? catalogue;
-
-  /// The Lost Maxim's five slabs in the oculus stair, one of which the index
-  /// names. In [BeaconArchive.indexSocketCount] order.
-  final List<Offset> indexSockets;
-
-  const ArchiveHall({
-    required this.sector,
-    this.starIndex,
-    this.doorShutter,
-    this.balustrade,
-    this.shutterRing,
-    this.gazePillars = const [],
-    this.catalogue,
-    this.indexSockets = const [],
-  });
-}
-
-/// Every bay's sector, derived from the layout so the module, the render and
-/// the proof can never disagree about which sector a room is in.
-Map<String, HallSector> archiveSectorOfRoom(DungeonLayout layout) => {
-  for (final e in layout.rooms.entries)
-    if (e.value.hall != null) e.key: e.value.hall!.sector,
-};
-
-// ─────────────────────────────────────────────────────────
-// THE LAYOUT
-// ─────────────────────────────────────────────────────────
-
-/// Solarin — the Beacon Archive.
+/// Solarin — the Shadow Floor.
 const DungeonLayout lightLayout = DungeonLayout(
   element: 'Light',
-  entranceRoomId: 'lumen_threshold',
-  entranceSpawn: Offset(120, 250),
-  title: 'THE BEACON ARCHIVE',
+  entranceRoomId: 'light_hall',
+  entranceSpawn: Offset(96, 272),
+  title: 'THE SHADOW FLOOR',
   descentTitle: 'Solarin Archive',
   stars: [
     DungeonStarSpec(
       name: 'Shadow Star',
-      earnAnnouncement: 'The Shadow Star is yours. All four effigies are read',
+      earnAnnouncement:
+          'The Shadow Star is yours. The near well is bridged in shadow',
     ),
     DungeonStarSpec(
-      name: 'Hush Star',
-      earnAnnouncement: 'The Hush Star is yours. All three slips are drawn',
+      name: 'Stone Star',
+      earnAnnouncement:
+          'The Stone Star is yours. The far well is bridged, and the Door of '
+          'Shadow waits',
     ),
     DungeonStarSpec(name: 'Corona Star'),
   ],
-  // The archive's own shutter is folded across the doorway until a Light hand
-  // draws it back.
-  entranceRevealDoor: DungeonDoorRef('lumen_threshold', 'shadow_court'),
-  finaleDoor: DungeonDoorRef('reading_floor', 'solarin_oculus'),
-  // The stair itself stays shut on Solarin until the rite wakes it, so the
-  // line names the rite, not the stair (the hint audit, 2026-09-25).
+  // The hall's star is dark until Light wakes it, and Room I's door with it.
+  entranceRevealDoor: DungeonDoorRef('light_hall', 'own_shadow'),
+  finaleDoor: DungeonDoorRef('light_hall', 'door_of_shadow'),
   riteAnnouncement:
-      'Shadow and Hush are won. Split the oriel and turn the ring on the '
-      'Reading Floor to wake Solarin',
-  riteWakeLine:
-      'The oriel is split and the ring is round. Solarin is awake under the '
-      'oculus',
-  finaleSealedHint:
-      'The stair stays shut until you have the Shadow and Hush stars',
-  guardianSealedHint:
-      'Solarin won\'t wake until the oriel and the ring on the Reading '
-      'Floor are both done',
-  mercyShrineRoomId: 'moth_gallery',
-  // Ideal: Lightmask · Crystalmask · Spiritpip — hinted by VERB, never body
-  // part (§4): a light that can be small, second sight, and what my smallest
-  // doors admit.
+      'Shadow and Stone are won. The Door of Shadow is on the far ledge',
+  riteWakeLine: 'Solarin wakes, and turns its light on you',
+  finaleSealedHint: 'The Door of Shadow waits on the Shadow and Stone stars',
+  guardianSealedHint: 'Solarin sleeps behind a wall with no door in it',
+  mercyShrineRoomId: 'light_hall',
   riddle: [
-    'Send me Light: I am read in the dark, and my wardens count every lumen you spend;',
-    'a Crystal Mask, to split my one shaft in two;',
-    'and a Spirit Pip, because everything worth having lies behind my shelves.',
+    'Send me Light, to turn my stars on their rails, for my floors are only shadow;',
+    'Dark, to set a passing shadow into stone and keep it there;',
+    'and Steam, to hang a veil where the light has nothing to land on.',
   ],
   primer: [
-    'Beacons decide which floors hold: glass holds when lit, mirror when dark.',
-    'The wardens wake if too much of the hall is lit.',
-  ],
-  // §4 budget: TWO hard gates, on two different objects and two different
-  // entry slots, and never two on one star. Star 0 (the shadow court) is
-  // deliberately UNGATED and uses all three elements at full power, so any
-  // trio of Light/Crystal/Spirit progresses on a first descent — §6 put a
-  // Crystalmask gate (the beam-split) on this planet's FIRST star, and §4's
-  // first-descent guarantee wins, so that gate moved onto the rite's prism
-  // oriel. The beacons themselves — the planet's whole verb — are element-only
-  // Light and always available: an archive you cannot re-light is a softlock,
-  // so the light verb is never gated, never one-way, and never on a cooldown.
-  familyGates: [
-    DungeonFamilyGate(
-      objectId: 'hush_slip',
-      element: 'Spirit',
-      family: 'Pip',
-      hintLine: 'Only a Spirit Pip can reach behind the shelves',
-    ),
-    DungeonFamilyGate(
-      objectId: 'A',
-      element: 'Crystal',
-      family: 'Mask',
-      hintLine: 'Only a Crystal Mask can split this oriel\'s beam',
-    ),
+    'Light is nothing here. Only shadow holds your weight.',
+    'Nothing stands on its own shadow.',
   ],
   rooms: {
-    // ── THE LUMEN THRESHOLD (entrance · sector 0) ─────────
-    // The doorway, and the whole grammar of the archive in one bay: three ways
-    // out of it, and they are of all three kinds. The lightwell leaf west and
-    // the narthex leaf east are glass — roads you build. The undercroft south
-    // is mirror-stone — a road you must NOT light. And sector 0 has nothing
-    // standing in it, so any beam that opens the lightwell also glares the
-    // undercroft shut. The player learns the planet here without being told
-    // anything.
-    'lumen_threshold': DungeonRoom(
-      id: 'lumen_threshold',
-      bounds: Rect.fromLTWH(0, 0, 720, 480),
-      walls: [
-        Rect.fromLTWH(250, 80, 200, 26), // the fallen lintel
-      ],
-      doors: [
-        // The narthex leaf, east onto the rim (glass, court · rim).
-        DungeonDoor(
-          rect: Rect.fromLTWH(696, 185, 24, 110),
-          targetRoomId: 'shadow_court',
-          targetSpawn: Offset(60, 260),
-        ),
-        // The lightwell leaf, west round to the ledger walk (glass, door·rim).
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 185, 24, 110),
-          targetRoomId: 'catalogue_walk',
-          targetSpawn: Offset(660, 250),
-        ),
-        // The undercroft, straight in to the heart (mirror, door · inward).
-        DungeonDoor(
-          rect: Rect.fromLTWH(305, 456, 110, 24),
-          targetRoomId: 'oculus_stair',
-          targetSpawn: Offset(360, 120),
-        ),
-      ],
-      hall: ArchiveHall(sector: HallSector.door, doorShutter: Offset(620, 240)),
-    ),
-
-    // ── THE SHADOW COURT (Star 0 · sector 1) ──────────────
-    // The court under the first great stack. The balustrade carries the four
-    // effigies, and one of the three slips lies where the court's shelving
-    // fell in. The court has no way out but glass, so it is a place you have
-    // to keep lit to be in — and the star in it asks you to make shadows while
-    // you stand in light, which is the archive's thesis.
-    'shadow_court': DungeonRoom(
-      id: 'shadow_court',
-      bounds: Rect.fromLTWH(0, 0, 700, 460),
-      walls: [
-        Rect.fromLTWH(520, 250, 150, 28), // the toppled case
-      ],
+    // ── THE GREAT HALL (entrance, hub) ───────────────────
+    'light_hall': DungeonRoom(
+      id: 'light_hall',
+      bounds: Rect.fromLTWH(0, 0, 832, 496),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 205, 24, 110),
-          targetRoomId: 'lumen_threshold',
-          targetSpawn: Offset(640, 240),
-        ),
-        // The arcade leaf, on round the rim (glass, arcade · rim).
-        DungeonDoor(
-          rect: Rect.fromLTWH(676, 175, 24, 110),
-          targetRoomId: 'moth_gallery',
-          targetSpawn: Offset(60, 250),
-        ),
-      ],
-      hall: ArchiveHall(
-        sector: HallSector.court,
-        starIndex: 0,
-        balustrade: Offset(330, 230),
-      ),
-    ),
-
-    // ── THE MOTH GALLERY (mercy shrine · sector 2) ────────
-    // Under the second great stack, where the wardens roost. Two glass leaves
-    // and nothing else: the gallery is a bay you can only be in while a light
-    // is holding it, which is exactly why the shrine is here.
-    'moth_gallery': DungeonRoom(
-      id: 'moth_gallery',
-      bounds: Rect.fromLTWH(0, 0, 800, 500),
-      walls: [
-        Rect.fromLTWH(340, 240, 180, 28), // a run of empty shelving
-      ],
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 195, 24, 110),
-          targetRoomId: 'shadow_court',
-          targetSpawn: Offset(640, 235),
-        ),
-        // The stack-walk leaf (glass, shelf · rim).
-        DungeonDoor(
-          rect: Rect.fromLTWH(776, 195, 24, 110),
-          targetRoomId: 'dark_stacks',
-          targetSpawn: Offset(60, 260),
-        ),
-      ],
-      hall: ArchiveHall(sector: HallSector.arcade),
-    ),
-
-    // ── THE DARK STACKS (Star 1 · sector 3) ───────────────
-    // §6's Dark Stacks, out past both great stacks where nothing occludes for
-    // you any more. Its slip is the run's hard one: sector 3 is empty, so a
-    // beam that opens the stack-walk from the gallery side lights two cells at
-    // once and blows the hush — the only way in under two lumens is the ledger
-    // beacon set beforehand and the whole dark heart walked to get behind it.
-    'dark_stacks': DungeonRoom(
-      id: 'dark_stacks',
-      bounds: Rect.fromLTWH(0, 0, 780, 520),
-      walls: [
-        Rect.fromLTWH(300, 250, 200, 30), // the collapsed stack
-      ],
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 205, 24, 110),
-          targetRoomId: 'moth_gallery',
-          targetSpawn: Offset(720, 250),
-        ),
-        // The ledger leaf (glass, ledger · rim).
-        DungeonDoor(
-          rect: Rect.fromLTWH(756, 205, 24, 110),
-          targetRoomId: 'catalogue_walk',
-          targetSpawn: Offset(60, 250),
-        ),
-      ],
-      hall: ArchiveHall(sector: HallSector.shelf, starIndex: 1),
-    ),
-
-    // ── THE CATALOGUE WALK (sector 4) ─────────────────────
-    // The far end of the rim, and the ledger beacon on it. Three ways out and
-    // every one of them glass: the ledger leaf back along the rim, the
-    // lightwell home to the door, and the down-step inward into the reading
-    // floor — the only LIT way into the heart there is.
-    'catalogue_walk': DungeonRoom(
-      id: 'catalogue_walk',
-      bounds: Rect.fromLTWH(0, 0, 760, 500),
-      doors: [
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 195, 24, 110),
-          targetRoomId: 'dark_stacks',
-          targetSpawn: Offset(700, 260),
+          rect: Rect.fromLTWH(72, 0, 110, 24),
+          targetRoomId: 'own_shadow',
+          targetSpawn: Offset(96, 400),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(736, 195, 24, 110),
-          targetRoomId: 'lumen_threshold',
-          targetSpawn: Offset(60, 240),
+          rect: Rect.fromLTWH(0, 313, 24, 110),
+          targetRoomId: 'key_room',
+          targetSpawn: Offset(560, 298),
         ),
-        // The down-step, inward (glass, ledger · inward).
         DungeonDoor(
-          rect: Rect.fromLTWH(325, 476, 110, 24),
-          targetRoomId: 'reading_floor',
-          targetSpawn: Offset(120, 150),
+          rect: Rect.fromLTWH(328, 0, 110, 24),
+          targetRoomId: 'two_suns',
+          targetSpawn: Offset(96, 400),
         ),
-      ],
-      // THE CATALOGUE stands against the walk's wall: the Lost Maxim's index.
-      hall: ArchiveHall(sector: HallSector.ledger, catalogue: Offset(400, 90)),
-    ),
-
-    // ── THE OCULUS STAIR (the heart · sector 0) ───────────
-    // The hall's middle, and the one bay whose every way out is mirror-stone.
-    // No beacon stands here and no beacon ever will (see the header): the
-    // archive is lit from its rim inward, so nothing in the heart can change
-    // the light, and the heart is therefore a place where the floor you walked
-    // in on is still the floor when you turn round.
-    'oculus_stair': DungeonRoom(
-      id: 'oculus_stair',
-      bounds: Rect.fromLTWH(0, 0, 720, 480),
-      doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(305, 0, 110, 24),
-          targetRoomId: 'lumen_threshold',
-          targetSpawn: Offset(360, 400),
+          rect: Rect.fromLTWH(328, 472, 110, 24),
+          targetRoomId: 'two_gaps',
+          targetSpawn: Offset(96, 144),
         ),
-        // The heartway, east onto the reliquary (mirror, court · inward).
         DungeonDoor(
-          rect: Rect.fromLTWH(696, 185, 24, 110),
+          rect: Rect.fromLTWH(72, 472, 110, 24),
           targetRoomId: 'sunless_reliquary',
-          targetSpawn: Offset(60, 170),
+          targetSpawn: Offset(96, 144),
         ),
-        // The slype, on into the reading floor (mirror, arcade · inward).
         DungeonDoor(
-          rect: Rect.fromLTWH(305, 456, 110, 24),
-          targetRoomId: 'reading_floor',
-          targetSpawn: Offset(400, 130),
+          rect: Rect.fromLTWH(808, 185, 24, 110),
+          targetRoomId: 'door_of_shadow',
+          targetSpawn: Offset(96, 400),
         ),
       ],
-      // THE FIVE SLABS the index can name, in an arc under the oculus. The
-      // volume under one of them is drawn in total darkness only (the maxim).
-      hall: ArchiveHall(
-        sector: HallSector.door,
-        indexSockets: [
-          Offset(200, 310),
-          Offset(280, 215),
-          Offset(360, 180),
-          Offset(440, 215),
-          Offset(520, 310),
-        ],
-      ),
+      hall: ShadowBay.hall(),
     ),
 
-    // ── THE SUNLESS RELIQUARY (the vault · sector 1) ──────
-    // §5.5's trick: it stands in PLAIN SIGHT. There is no wall between this
-    // shrine and the rest of the hall and there never was — the player can see
-    // the essence burning on it from the doorway on the first descent. What
-    // comes and goes is the FLOOR: the heartway is mirror-stone in sector 1,
-    // and sector 1 is the one sector the rim cannot be opened without. Put
-    // everything out and walk here in the dark, which is also how the maxim is
-    // earned (§6).
-    //
-    // It is a POCKET — one sill, and only the light out on the rim can close
-    // it, which nothing in here can change. That is what keeps the trick from
-    // being a trap (Ice's shelf rule).
-    'sunless_reliquary': DungeonRoom(
-      id: 'sunless_reliquary',
-      bounds: Rect.fromLTWH(0, 0, 440, 340),
+    // ── I · NOTHING STANDS ON ITS OWN SHADOW ─────────────
+    'own_shadow': DungeonRoom(
+      id: 'own_shadow',
+      bounds: Rect.fromLTWH(0, 0, 704, 496),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 105, 24, 110),
-          targetRoomId: 'oculus_stair',
-          targetSpawn: Offset(640, 240),
+          rect: Rect.fromLTWH(72, 472, 110, 24),
+          targetRoomId: 'light_hall',
+          targetSpawn: Offset(96, 80),
         ),
       ],
-      vaultCache: Offset(260, 170),
-      hall: ArchiveHall(sector: HallSector.court),
+      // The verb, once ever — never the answer.
+      teach: 'Dark can set the shadow it stands in into stone',
+      hall: ShadowBay.grid('own_shadow'),
     ),
 
-    // ── THE READING FLOOR (the rite · sector 2) ───────────
-    // Conduit A is the planet's Crystal+MASK gate — the PRISM ORIEL, which
-    // gives one beam to a sight that only reads what is already shown and two
-    // to a sight that does not. The floor's own half is the SHUTTER-RING:
-    // §6's remote kindling, element-only Light with **Crystal+Spirit→Light**
-    // authored as the braid for a party whose Light hand is down. The module
-    // latches `conduitEnergy['B']` itself.
-    'reading_floor': DungeonRoom(
-      id: 'reading_floor',
-      bounds: Rect.fromLTWH(0, 0, 800, 540),
+    // ── II · THE KEY ─────────────────────────────────────
+    'key_room': DungeonRoom(
+      id: 'key_room',
+      bounds: Rect.fromLTWH(0, 0, 640, 560),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(345, 0, 110, 24),
-          targetRoomId: 'oculus_stair',
-          targetSpawn: Offset(360, 400),
-        ),
-        // Back up the down-step, out to the ledger walk (glass).
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 115, 24, 110),
-          targetRoomId: 'catalogue_walk',
-          targetSpawn: Offset(380, 400),
-        ),
-        // The oculus stair — the one passage light has never reached.
-        DungeonDoor(
-          rect: Rect.fromLTWH(345, 516, 110, 24),
-          targetRoomId: 'solarin_oculus',
-          targetSpawn: Offset(450, 150),
+          rect: Rect.fromLTWH(616, 236, 24, 110),
+          targetRoomId: 'light_hall',
+          targetSpawn: Offset(96, 336),
         ),
       ],
-      conduits: [
-        Conduit(
-          id: 'A',
-          position: Offset(250, 280),
-          requireElement: 'Crystal',
-          requiredFamily: DungeonAbility.insight,
-        ),
-      ],
-      hall: ArchiveHall(
-        sector: HallSector.arcade,
-        shutterRing: Offset(560, 280),
-      ),
+      hall: ShadowBay.key(),
     ),
 
-    // ── SOLARIN'S OCULUS (Star 2 · sector 2) ──────────────
-    // §7 — the mystic fights WITH the planet's rule. Solarin is wounded light:
-    // it BLINDS wherever it looks, sweeping a cone across its own floor, and
-    // its lull exists only for a party standing in the shadow one of the three
-    // pillars is throwing. Occlusion, at the scale of a fight.
-    //
-    // What it deliberately does NOT do is touch the archive outside. Its glare
-    // cannot kindle, douse, aim or pitch a beacon, so nothing out in the hall
-    // can move while the party is down here — and the chamber is a POCKET
-    // behind the phase-free stone stair besides. That pair of decisions is the
-    // one thing the no-strand proof actually rests on, and the counterfactual
-    // pins it.
-    'solarin_oculus': DungeonRoom(
-      id: 'solarin_oculus',
-      bounds: Rect.fromLTWH(0, 0, 900, 640),
+    // ── III · TWO SUNS ───────────────────────────────────
+    'two_suns': DungeonRoom(
+      id: 'two_suns',
+      bounds: Rect.fromLTWH(0, 0, 704, 496),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(395, 0, 110, 24),
-          targetRoomId: 'reading_floor',
-          targetSpawn: Offset(400, 420),
+          rect: Rect.fromLTWH(72, 472, 110, 24),
+          targetRoomId: 'light_hall',
+          targetSpawn: Offset(416, 80),
+        ),
+      ],
+      teach: 'Steam can rise through a pipe, once',
+      hall: ShadowBay.grid('two_suns'),
+    ),
+
+    // ── IV · TWO GAPS, ONE PIN ───────────────────────────
+    'two_gaps': DungeonRoom(
+      id: 'two_gaps',
+      bounds: Rect.fromLTWH(0, 0, 704, 624),
+      doors: [
+        DungeonDoor(
+          rect: Rect.fromLTWH(72, 0, 110, 24),
+          targetRoomId: 'light_hall',
+          targetSpawn: Offset(416, 400),
+        ),
+      ],
+      hall: ShadowBay.grid('two_gaps'),
+    ),
+
+    // ── THE DOOR OF SHADOW (the rite) ────────────────────
+    'door_of_shadow': DungeonRoom(
+      id: 'door_of_shadow',
+      bounds: Rect.fromLTWH(0, 0, 704, 496),
+      doors: [
+        DungeonDoor(
+          rect: Rect.fromLTWH(72, 472, 110, 24),
+          targetRoomId: 'light_hall',
+          targetSpawn: Offset(736, 208),
+        ),
+        DungeonDoor(
+          rect: Rect.fromLTWH(680, 185, 24, 110),
+          targetRoomId: 'eclipse_walk',
+          targetSpawn: Offset(96, 144),
+        ),
+      ],
+      hall: ShadowBay.grid('door_of_shadow'),
+    ),
+
+    // ── THE ECLIPSE (the last room before Solarin) ───────
+    'eclipse_walk': DungeonRoom(
+      id: 'eclipse_walk',
+      bounds: Rect.fromLTWH(0, 0, 576, 432),
+      doors: [
+        DungeonDoor(
+          rect: Rect.fromLTWH(0, 57, 24, 110),
+          targetRoomId: 'door_of_shadow',
+          targetSpawn: Offset(608, 208),
+        ),
+        DungeonDoor(
+          rect: Rect.fromLTWH(552, 185, 24, 110),
+          targetRoomId: 'solarin_orbit',
+          targetSpawn: Offset(96, 272),
+        ),
+      ],
+      hall: ShadowBay.grid('eclipse_walk'),
+    ),
+
+    // ── SOLARIN (Star 3) ─────────────────────────────────
+    'solarin_orbit': DungeonRoom(
+      id: 'solarin_orbit',
+      bounds: Rect.fromLTWH(0, 0, 704, 624),
+      doors: [
+        DungeonDoor(
+          rect: Rect.fromLTWH(0, 249, 24, 110),
+          targetRoomId: 'eclipse_walk',
+          targetSpawn: Offset(480, 208),
         ),
       ],
       guardian: GuardianNode(
-        position: Offset(450, 300),
+        position: Offset(608, 336),
         starIndex: 2,
         encounter: GuardianEncounterRequirement(
           element: 'Light',
@@ -1438,10 +1152,22 @@ const DungeonLayout lightLayout = DungeonLayout(
           canDefeat: true,
         ),
       ),
-      hall: ArchiveHall(
-        sector: HallSector.arcade,
-        gazePillars: [Offset(200, 430), Offset(450, 500), Offset(700, 430)],
-      ),
+      hall: ShadowBay.grid('solarin_orbit'),
+    ),
+
+    // ── THE SUNLESS RELIQUARY (the vault) ────────────────
+    'sunless_reliquary': DungeonRoom(
+      id: 'sunless_reliquary',
+      bounds: Rect.fromLTWH(0, 0, 704, 496),
+      doors: [
+        DungeonDoor(
+          rect: Rect.fromLTWH(72, 0, 110, 24),
+          targetRoomId: 'light_hall',
+          targetSpawn: Offset(96, 400),
+        ),
+      ],
+      vaultCache: Offset(352, 272),
+      hall: ShadowBay.grid('sunless_reliquary'),
     ),
   },
 );
