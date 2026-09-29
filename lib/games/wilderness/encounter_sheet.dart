@@ -99,6 +99,34 @@ class EncounterOverlay extends StatefulWidget {
   /// cosmic prologue) hide it rather than announce "LEGENDARY".
   final bool showRarityBadge;
 
+  /// A harvest or fusion roll failed. The encounter stays open for another
+  /// try; the host decides what a failure costs.
+  final VoidCallback? onAttemptFailed;
+
+  /// The fusion catalyst is spent and the roll is about to be made: the host
+  /// can start drawing the pair toward each other through the wait.
+  final VoidCallback? onFusionCalibrating;
+
+  /// The fusion roll failed. Awaited, so the host can play the pair
+  /// recoiling apart before the panel reports it.
+  final Future<void> Function(Color party, Color wild)? onFusionFailedInScene;
+
+  /// Overrides for the leave confirmation shown when [warnOnRun] is set.
+  final String? runWarningTitle;
+  final String? runWarningBody;
+
+  /// Added to the harvest chance — a specimen worn down in a fight is
+  /// easier to hold.
+  final double harvestBonus;
+
+  /// Identity pinned top-left instead of centred, for hosts that stage the
+  /// creatures themselves in the middle of the frame.
+  final bool dossierHud;
+
+  /// A Leave action at the bottom-left, for hosts with no Map action and no
+  /// exit of their own.
+  final bool showLeaveAction;
+
   const EncounterOverlay({
     super.key,
     required this.encounter,
@@ -117,6 +145,14 @@ class EncounterOverlay extends StatefulWidget {
     this.showFusionAction = true,
     this.showMapAction = true,
     this.showRarityBadge = true,
+    this.onAttemptFailed,
+    this.onFusionCalibrating,
+    this.onFusionFailedInScene,
+    this.runWarningTitle,
+    this.runWarningBody,
+    this.harvestBonus = 0,
+    this.dossierHud = false,
+    this.showLeaveAction = false,
   });
 
   @override
@@ -129,6 +165,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   String? _chosenInstanceId;
   bool _busy = false;
   bool _wildReady = false;
+
   int _wildFusionQty = 0;
 
   /// Which harvester the Harvest button draws. Null until the kit answers.
@@ -419,7 +456,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                         const SizedBox(width: AppSpace.md),
                         Expanded(
                           child: Text(
-                            'Leave the void?',
+                            widget.runWarningTitle ?? 'Leave the void?',
                             style: bracketText(
                               ctx,
                               17,
@@ -433,8 +470,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     ),
                     const SizedBox(height: AppSpace.lg),
                     Text(
-                      'The void will remain in the rift, but this encounter '
-                      'will be lost if you return.',
+                      widget.runWarningBody ??
+                          'The void will remain in the rift, but this '
+                              'encounter will be lost if you return.',
                       style: bracketText(
                         ctx,
                         12.5,
@@ -544,6 +582,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                         ? _wildPotentialReadings(wildCreature)
                         : null,
                     opacity: slide,
+                    dossier: widget.dossierHud,
+                    leftGutter: widget.dossierHud ? 0 : kEncounterHudLeftGutter,
                     partyStripWidth: _supportsFusion
                         ? partyStripGutterFor(
                             widget.party.length,
@@ -604,7 +644,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     onCapture: !_busy
                         ? () => _handleCapture(context, wildCreature)
                         : null,
-                    onRun: () => _handleRun(context),
+                    onRun: () {
+                      if (!_busy) _handleRun(context);
+                    },
+                    showLeaveAction: widget.showLeaveAction,
                     showFusionAction: _supportsFusion,
                     showMapAction: widget.showMapAction,
                     wildFusionQty: _wildFusionQty,
@@ -754,6 +797,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       if (mounted) setState(() => _wildFusionQty = max(0, _wildFusionQty - 1));
 
       widget.onPreRollShake?.call();
+      widget.onFusionCalibrating?.call();
       HapticFeedback.mediumImpact();
       // Fusion had no voice at all — only the harvest did, so half the
       // encounter played silent. The same three beats the harvest uses: the
@@ -874,6 +918,19 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           await db.inventoryDao.addItemQty(InvKeys.wildFusion, 1);
           if (mounted) setState(() => _wildFusionQty++);
         }
+        widget.onAttemptFailed?.call();
+        final recoil = widget.onFusionFailedInScene;
+        if (recoil != null && ctx.mounted) {
+          final repo = ctx.read<CreatureCatalog>();
+          Color colorOf(Creature? c) => c != null && c.types.isNotEmpty
+              ? BreedConstants.getTypeColor(c.types.first)
+              : Colors.white;
+          await recoil(
+            colorOf(repo.getCreatureById(instance.baseId)),
+            colorOf(wildCreature),
+          );
+          if (!mounted) return;
+        }
         setState(() => _status = 'Fusion destabilized. Try again.');
       }
     } finally {
@@ -937,6 +994,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           device: selectedDevice,
           target: wildCreature,
           forceSuccess: widget.isCaptureTutorial,
+          bonusChance: widget.harvestBonus,
         );
       }
 
@@ -1002,6 +1060,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       } else {
         HapticFeedback.lightImpact();
         if (ctx.mounted) ctx.sound(SoundCue.captureEscape, owner: this);
+        widget.onAttemptFailed?.call();
         setState(() => _status = 'Harvester failed to secure the specimen.');
         // The panel slides back for a failure, so the status line is visible
         // again — but only after the slide, which is exactly when the player
@@ -1337,7 +1396,10 @@ class _ActionPanel extends StatelessWidget {
     this.showMapAction = true,
     this.wildFusionQty = 0,
     this.harvesterBiome,
+    this.showLeaveAction = false,
   });
+
+  final bool showLeaveAction;
 
   @override
   Widget build(BuildContext context) {
@@ -1351,6 +1413,15 @@ class _ActionPanel extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
+            if (showLeaveAction) ...[
+              _ActionButton(
+                label: 'Leave',
+                icon: AppIcons.arrow_back_rounded,
+                accentColor: _kPalette.muted,
+                onPressed: canAct ? onRun : null,
+              ),
+              const Spacer(),
+            ],
             if (showFusionAction && !isCaptureTutorial) ...[
               _ActionButton(
                 disabled: !isPartySelected || wildFusionQty < 1,

@@ -893,30 +893,3 @@ void _drawAlchemyEffectCanvas({
       break;
   }
 }
-
-// Lightweight ring-minion type (top-level)
-class RingMinion {
-  Offset position;
-  String element;
-  double health;
-  double radius;
-  double speed;
-  String type = 'shooter'; // 'shooter' or 'charger'
-  double shootCooldown = 0.0;
-  // Orbital spawn (portal) fields
-  Offset? orbitCenter;
-  double orbitAngle = 0;
-  double orbitRadius = 0;
-  double orbitTime = 0;
-  double life = 0;
-  double attackCooldown = 0;
-  bool dead = false;
-
-  RingMinion({
-    required this.position,
-    required this.element,
-    required this.health,
-    required this.radius,
-    required this.speed,
-  });
-}

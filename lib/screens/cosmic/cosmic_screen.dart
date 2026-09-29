@@ -44,6 +44,10 @@ import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
+import 'package:alchemons/screens/cosmic/wild_space_encounter_screen.dart';
+import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/wilderness.dart' show PartyMember;
+import 'package:alchemons/services/wild_breed_randomizer.dart';
 import 'package:alchemons/screens/cosmic/elemental_nexus_screen.dart';
 import 'package:alchemons/screens/cosmic/cosmic_prologue_screen.dart';
 import 'package:alchemons/screens/cosmic/widgets/elemental_cache_popup.dart';
@@ -159,9 +163,14 @@ class _CosmicScreenState extends State<CosmicScreen>
   static const _cachesPrefsKey = 'cosmic_elemental_caches_v1';
   String? _nearPocketPortalElement; // non-null when near a pocket portal
 
-  // Battle Ring state
-  bool _isNearBattleRing = false;
-  static const _battleRingPrefsKey = 'cosmic_battle_ring_v1';
+  // Wild Alchemons in space. The encounter needs the full specimen (genetics,
+  // natures, Potentials); the game only carries its combat identity.
+  final Map<String, Creature> _wildSpecimens = {};
+  bool _wildEncounterOpen = false;
+
+  /// The portal tear is playing in space; the HUD steps out of the shot.
+  bool _wildTearActive = false;
+  static const _retiredBattleRingPrefsKey = 'cosmic_battle_ring_v1';
 
   // Trait contest state
   CosmicContestArena? _nearContestArena;
@@ -650,12 +659,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       savedNexus = ElementalNexus.deserialise(nexusRaw);
     }
 
-    // Load battle ring state
-    final battleRingRaw = prefs.getString(_battleRingPrefsKey);
-    BattleRing? savedBattleRing;
-    if (battleRingRaw != null && battleRingRaw.isNotEmpty) {
-      savedBattleRing = BattleRing.deserialise(battleRingRaw);
-    }
+    // The Battle Ring is gone; drop its leftover save.
+    unawaited(prefs.remove(_retiredBattleRingPrefsKey));
 
     // Load blood ring state
     final bloodRingRaw = prefs.getString(_bloodRingPrefsKey);
@@ -706,9 +711,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       onStarDustCollected: _onStarDustCollected,
       onNearRift: _onNearRift,
       onNearNexus: _onNearNexus,
-      onNearBattleRing: _onNearBattleRing,
       onNearBloodRing: _onNearBloodRing,
-      onBattleRingCancelled: _onBattleRingCancelled,
       onNearContestArena: _onNearContestArena,
       onContestHintCollected: _onContestHintCollected,
       onHomePlanetBuilt: _onHomePlanetBuilt,
@@ -784,12 +787,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       game.enterNexusPocket();
       _saveNexusState();
     }
-    // Restore battle ring state
-    if (savedBattleRing != null) {
-      game.battleRing.discovered = savedBattleRing.discovered;
-      game.battleRing.currentLevel = savedBattleRing.currentLevel;
-      game.battleRing.inBattle = false; // always reset on load
-    }
     if (savedBloodRing != null) {
       game.bloodRing.discovered = savedBloodRing.discovered;
       game.bloodRing.ritualCompleted = savedBloodRing.ritualCompleted;
@@ -805,8 +802,15 @@ class _CosmicScreenState extends State<CosmicScreen>
       game.bloodRing.lastOfferingStrength = savedBloodRing.lastOfferingStrength;
       game.bloodRing.lastOfferingBeauty = savedBloodRing.lastOfferingBeauty;
     }
-    game.onBattleRingWon = _onBattleRingWon;
-    game.onBattleRingLost = _onBattleRingLost;
+    game.onWildSpawnWanted = _onWildSpawnWanted;
+    game.onWildContact = _onWildContact;
+    game.onWildTearStarted = _onWildTearStarted;
+    game.onWildDuelEnded = _onWildDuelEnded;
+    if (mounted) {
+      game.showWildPotentials = context
+          .read<ConstellationEffectsService>()
+          .hasWildPotentialAnalyzer();
+    }
     // Deploy orbitals if equipped and have stockpile
     if (_customizationState.hasOrbitals && orbitalStock > 0) {
       final toDeploy = min(OrbitalSentinel.maxActive, orbitalStock);
@@ -1188,11 +1192,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
     if (_game == null || slotIndex >= _partyMembers.length) return;
-    // Block swapping companions during a ring battle
-    if (_game!.battleRing.inBattle) {
-      _showQuote('Cannot swap companions during a battle ring fight!');
-      return;
-    }
     var member = _partyMembers[slotIndex];
     if (member == null) return;
 
@@ -1274,11 +1273,6 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   void _handleReturnCompanion(int slotIndex) {
     if (_game == null || !_activeCompanionSlots.contains(slotIndex)) return;
-    // Block recall during a battle ring fight
-    if (_game!.battleRing.inBattle) {
-      _showQuote('Cannot recall during a battle ring fight!');
-      return;
-    }
     _saveCompanionHp(slotIndex);
     _game!.returnCompanion(slotIndex);
     setState(() => _activeCompanionSlots.remove(slotIndex));
@@ -1324,10 +1318,6 @@ class _CosmicScreenState extends State<CosmicScreen>
         minDist,
         (_world.elementalNexus.position - point).distance -
             ElementalNexus.visualRadius,
-      );
-      minDist = min(
-        minDist,
-        (_world.battleRing.position - point).distance - BattleRing.visualRadius,
       );
       minDist = min(
         minDist,
@@ -1425,8 +1415,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   void _summonSandboxCompanion(Creature creature) {
     final game = _game;
     if (game == null) return;
-    if (game.battleRing.inBattle) {
-      _showQuote('Finish the battle ring fight before sandbox summoning.');
+    if (game.wildDuelActive) {
+      _showQuote('Finish the fight before sandbox summoning.');
       return;
     }
     if (_activeCompanionSlots.isNotEmpty) {
@@ -1737,8 +1727,8 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   void _onCompanionAutoReturned(CosmicPartyMember member) {
     if (!mounted) return;
-    // During a ring battle the companion must stay deployed.
-    if (_game?.battleRing.inBattle == true) return;
+    // Mid-fight the companion stays deployed.
+    if (_game?.wildDuelActive == true) return;
     final slot = member.slotIndex;
     _saveCompanionHp(slot);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1749,16 +1739,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   void _onCompanionDied(CosmicPartyMember member) {
     if (!mounted) return;
     final slot = member.slotIndex;
-    // If in a ring battle the loss callback handles everything – just clean up here.
-    if (_game?.battleRing.inBattle == true) {
-      // Mark slot dead and clear. Combat never changes breeding stamina.
-      _companionHpFraction[slot] = 0.0;
-      _companionSpecialCooldown[slot] = 0.0;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _activeCompanionSlots.remove(slot));
-      });
-      return;
-    }
     // Mark this slot as dead (0 HP)
     _companionHpFraction[slot] = 0.0;
     _companionSpecialCooldown[slot] = 0.0;
@@ -1945,7 +1925,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       _saveMissileState();
       _saveNexusState();
       _saveCacheState();
-      _saveBattleRingState();
       _saveBloodRingState();
     }
     _checkQuoteMilestones();
@@ -2436,22 +2415,241 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
-  // ── Battle Ring handlers ──
+  // ── Wild Alchemons ──
 
-  void _onNearBattleRing(bool isNear) {
-    if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _isNearBattleRing != isNear) {
-          setState(() => _isNearBattleRing = isNear);
-        }
-      });
+  /// How often each family turns up in the wild, in percent. The big,
+  /// build-defining families are the finds; lets are the everyday.
+  static const Map<String, int> _wildFamilyOdds = {
+    'Kin': 1,
+    'Wing': 2,
+    'Horn': 5,
+    'Mask': 5,
+    'Mane': 25,
+    'Pip': 25,
+    'Let': 37,
+  };
+
+  /// The game wants a creature at [position]. Near a planet it is one of
+  /// that planet's element; out in the open, any element already found.
+  Future<void> _onWildSpawnWanted(Offset position, String? element) async {
+    final game = _game;
+    if (game == null || !mounted) return;
+    if (widget.memoryTutorial || _homeBuildTutorialLock) {
+      game.cancelWildSpawnRequest();
+      return;
     }
+    final catalog = context.read<CreatureCatalog>();
+    final db = context.read<AlchemonsDatabase>();
+    if (!catalog.isLoaded || catalog.creatures.isEmpty) {
+      game.cancelWildSpawnRequest();
+      return;
+    }
+    final rng = Random();
+    var wanted = element;
+    if (wanted == null) {
+      final found = _world.planets.where((p) => p.discovered).toList();
+      final pool = found.isEmpty ? _world.planets : found;
+      wanted = pool[rng.nextInt(pool.length)].element;
+    }
+
+    // Family first, by how common each family is in the wild; then the
+    // species of that family in this element. Mystics never wander — they
+    // are summoned.
+    final byFamily = <String, List<Creature>>{};
+    for (final c in catalog.creatures) {
+      final family = c.mutationFamily;
+      if (family == null ||
+          family == 'Mystic' ||
+          !_wildFamilyOdds.containsKey(family) ||
+          !c.types.contains(wanted)) {
+        continue;
+      }
+      (byFamily[family] ??= []).add(c);
+    }
+    final totalOdds = byFamily.keys.fold<int>(
+      0,
+      (sum, f) => sum + _wildFamilyOdds[f]!,
+    );
+    if (totalOdds <= 0) {
+      game.cancelWildSpawnRequest();
+      return;
+    }
+    var roll = rng.nextInt(totalOdds);
+    Creature? picked;
+    for (final entry in byFamily.entries) {
+      roll -= _wildFamilyOdds[entry.key]!;
+      if (roll < 0) {
+        picked = entry.value[rng.nextInt(entry.value.length)];
+        break;
+      }
+    }
+    if (picked == null) {
+      game.cancelWildSpawnRequest();
+      return;
+    }
+    final rarity = EncounterRarity.values.firstWhere(
+      (e) => e.label == picked!.rarity.toLowerCase(),
+      orElse: () => EncounterRarity.rare,
+    );
+
+    final arcane = await db.settingsDao.isArcanePortalUnlocked();
+    if (!mounted || !identical(_game, game)) return;
+    final generated = WildlifeGenerator(
+      catalog,
+    ).generate(picked.id, rarity: rarity.label);
+    if (generated == null) {
+      game.cancelWildSpawnRequest();
+      return;
+    }
+    // Rolled once, here: what the scanner shows in space is exactly what
+    // the encounter shows and what a harvest or fusion passes on.
+    final specimen = WildCreatureRandomizer().randomizeWildCreature(
+      generated,
+      arcaneBoostUnlocked: arcane,
+    );
+    final stats = specimen.stats;
+    if (stats == null) {
+      game.cancelWildSpawnRequest();
+      return;
+    }
+
+    final family = specimen.mutationFamily ?? 'kin';
+    final id = 'wild_${DateTime.now().microsecondsSinceEpoch}';
+    final member = CosmicPartyMember(
+      instanceId: id,
+      baseId: specimen.id,
+      displayName: specimen.name,
+      imagePath: 'assets/images/${specimen.image}',
+      element: specimen.types.isNotEmpty ? specimen.types.first : wanted,
+      family: family,
+      // Space gets harder as guardians fall: level 2 early, 10 at the end.
+      level: CosmicBalance.rollSpaceLevel(game.guardiansDefeated, rng) * 2,
+      statSpeed: stats.speed,
+      statIntelligence: stats.intelligence,
+      statStrength: stats.strength,
+      statBeauty: stats.beauty,
+      statSpeedPotential: stats.speedPotential,
+      statIntelligencePotential: stats.intelligencePotential,
+      statStrengthPotential: stats.strengthPotential,
+      statBeautyPotential: stats.beautyPotential,
+      slotIndex: -1,
+      staminaBars: 999,
+      staminaMax: 999,
+      spriteSheet: specimen.spriteData != null
+          ? sheetFromCreature(specimen)
+          : null,
+      spriteVisuals: visualsFromInstance(specimen, null),
+    );
+
+    // Forget specimens whose creature has already left space.
+    final live = game.wildAlchemons.map((w) => w.id).toSet();
+    _wildSpecimens.removeWhere((key, _) => !live.contains(key));
+    _wildSpecimens[id] = specimen;
+
+    final f = family.toLowerCase();
+    game.addWildAlchemon(
+      SpaceWildAlchemon(
+        id: id,
+        member: member,
+        rarity: rarity.label,
+        position: position,
+        // Horns and manes hold their ground; the rest let you come to them.
+        territorial: f == 'horn' || f == 'mane',
+        driftAngle: rng.nextDouble() * 2 * pi,
+      ),
+    );
   }
 
-  Future<void> _saveBattleRingState() async {
-    if (_game == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_battleRingPrefsKey, _game!.battleRing.serialise());
+  /// Fights with wild Alchemons play out without captions — the space view
+  /// carries them. Only the collapse is felt, since that is the moment to
+  /// ram.
+  void _onWildDuelEnded(SpaceWildAlchemon wild, WildDuelEnd how) {
+    if (!mounted) return;
+    if (how == WildDuelEnd.exhausted) HapticFeedback.mediumImpact();
+  }
+
+  /// The ship hit a wild Alchemon and the tear has begun opening in space.
+  void _onWildTearStarted() {
+    if (!mounted) return;
+    HapticFeedback.heavyImpact();
+    _playCosmicSfx(SoundCue.cosmicPortalOpen);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _wildTearActive = true);
+    });
+  }
+
+  /// The tear has swallowed the view: pause space and open the encounter
+  /// behind the dark, where the turn to landscape cannot be seen.
+  Future<void> _onWildContact(SpaceWildAlchemon wild) async {
+    final game = _game;
+    if (game == null || !mounted) return;
+    final specimen = _wildSpecimens[wild.id];
+    if (specimen == null || _wildEncounterOpen) {
+      game.resolveWildContact(wild.id, gone: specimen == null);
+      setState(() => _wildTearActive = false);
+      return;
+    }
+    _wildEncounterOpen = true;
+    game.pauseEngine();
+
+    final backdrop = game.captureEncounterBackdrop();
+    final party = _partyMembers
+        .whereType<CosmicPartyMember>()
+        .map((m) => PartyMember(instanceId: m.instanceId))
+        .toList();
+    // Worn down is easier to hold; exhausted, easiest.
+    final harvestBonus = wild.isExhausted
+        ? 0.30
+        : (1 - wild.hpFraction).clamp(0.0, 1.0) * 0.25;
+    final rarity = EncounterRarity.values.firstWhere(
+      (e) => e.label == wild.rarity,
+      orElse: () => EncounterRarity.rare,
+    );
+
+    final audio = context.read<AudioController>();
+    unawaited(audio.playPortalMusic());
+    WildSpaceEncounterResult? result;
+    try {
+      result = await Navigator.of(context).push<WildSpaceEncounterResult>(
+        PageRouteBuilder(
+          // No fade in: the tear already ended on the same dark the
+          // encounter opens from.
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: const Duration(milliseconds: 260),
+          pageBuilder: (_, __, ___) => WildSpaceEncounterScreen(
+            creature: specimen,
+            rarity: rarity,
+            party: party,
+            backdrop: backdrop,
+            harvestBonus: harvestBonus,
+            exhausted: wild.isExhausted,
+          ),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+        ),
+      );
+    } finally {
+      backdrop.image?.dispose();
+      _wildEncounterOpen = false;
+    }
+    if (!mounted) return;
+    unawaited(audio.playCosmicExplorationMusic(cycle: false));
+
+    final gone =
+        result == WildSpaceEncounterResult.taken ||
+        result == WildSpaceEncounterResult.lost;
+    if (!identical(_game, game)) {
+      setState(() => _wildTearActive = false);
+      return;
+    }
+    game.resolveWildContact(wild.id, gone: gone);
+    if (gone) _wildSpecimens.remove(wild.id);
+    if (result == WildSpaceEncounterResult.lost) {
+      _showQuote('${specimen.name} is gone.');
+    }
+    // Resuming plays the tear closing back up in space.
+    if (!_showMiniMap && !_anyOverlayOpen) game.resumeEngine();
+    setState(() => _wildTearActive = false);
   }
 
   void _onNearBloodRing(bool isNear) {
@@ -3306,6 +3504,10 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
     if (_game == null || _nearContestArena == null) return;
+    if (_game!.wildDuelActive) {
+      _showQuote('Finish the fight first.');
+      return;
+    }
     if (_activeCompanionSlots.isEmpty) {
       _showQuote('Summon a companion first to enter a contest.');
       return;
@@ -3417,279 +3619,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       HapticFeedback.mediumImpact();
     }
     if (mounted) setState(() {});
-  }
-
-  /// Fixed opponent roster for each battle ring level.
-  static const _battleRingOpponents = <int, (String, String)>{
-    0: ('LET13', 'common'), // Poisonlet
-    1: ('WNG04', 'legendary'), // Airwing
-    2: ('MAN14', 'uncommon'), // Spiritmane
-    3: ('MSK09', 'rare'), // Icemask
-    4: ('HOR16', 'rare'), // Lighthorn
-    5: ('MAN05', 'uncommon'), // Steammane
-    6: ('PIP06', 'uncommon'), // Lavapip
-    7: ('MAN03', 'uncommon'), // Earthmane
-    8: ('KIN12', 'legendary'), // Plantkin
-    9: ('WNG01', 'legendary'), // Firewing
-  };
-
-  void _handleBattleRingTap() async {
-    if (_homeBuildTutorialLock) {
-      _showQuote('Build your home base first.');
-      return;
-    }
-    if (_game == null || !_game!.isNearBattleRing) return;
-    HapticFeedback.heavyImpact();
-
-    final br = _game!.battleRing;
-
-    if (br.isCompleted) {
-      // Practice arena now spawns a random opponent (level 10 strength)
-      if (_activeCompanionSlots.isEmpty) {
-        _showQuote('Summon a companion first to enter the ring!');
-        return;
-      }
-      if (br.inBattle) return;
-
-      // Choose a random species from the catalog and generate a hydrated creature
-      final catalog = context.read<CreatureCatalog>();
-      if (!catalog.isLoaded || catalog.creatures.isEmpty) {
-        _showQuote('Creature catalog not available.');
-        return;
-      }
-      final rng = Random();
-      final choice = catalog.creatures[rng.nextInt(catalog.creatures.length)];
-      final rarities = catalog.allRarities();
-      String? chosenRarity;
-      if (rarities.isNotEmpty) {
-        // Pick a random rarity so practice opponents vary in type/strength.
-        chosenRarity = rarities[rng.nextInt(rarities.length)];
-      } else {
-        chosenRarity = choice.rarity;
-      }
-      final gen = WildlifeGenerator(catalog);
-      final hydrated = gen.generate(choice.id, rarity: chosenRarity);
-      if (hydrated == null) {
-        _showQuote('Could not generate opponent!');
-        return;
-      }
-
-      final speed = CosmicBalance.rollArenaStat(10, rng);
-      final intelligence = CosmicBalance.rollArenaStat(10, rng);
-      final strength = CosmicBalance.rollArenaStat(10, rng);
-      final beauty = CosmicBalance.rollArenaStat(10, rng);
-
-      final base = catalog.getCreatureById(hydrated.id);
-      final typeName = (base?.types.isNotEmpty ?? false)
-          ? base!.types.first
-          : 'Earth';
-      final family = base?.mutationFamily ?? 'kin';
-      final displayName = base?.name ?? hydrated.id;
-      final sheet = base?.spriteData != null ? sheetFromCreature(base!) : null;
-      final visuals = visualsFromInstance(base, null);
-
-      final ringCenter = br.position;
-      const ringRadius = 162.0;
-      final companionPos = Offset(ringCenter.dx + ringRadius, ringCenter.dy);
-      final opponentPos = Offset(ringCenter.dx - ringRadius, ringCenter.dy);
-
-      final opponentMember = CosmicPartyMember(
-        instanceId:
-            'practice_opponent_${DateTime.now().millisecondsSinceEpoch}',
-        baseId: hydrated.id,
-        displayName: displayName,
-        imagePath: base?.image != null ? 'assets/images/${base!.image}' : null,
-        element: typeName,
-        family: family,
-        level: 10,
-        statSpeed: speed,
-        statIntelligence: intelligence,
-        statStrength: strength,
-        statBeauty: beauty,
-        slotIndex: -1,
-        staminaBars: 999,
-        staminaMax: 999,
-        spriteSheet: sheet,
-        spriteVisuals: visuals,
-        visualVariant: null,
-        spawnPosition: opponentPos,
-      );
-
-      br.inBattle = true;
-      _saveBattleRingState();
-      _game!.spawnBattleRingOpponent(opponentMember);
-
-      // Move companion anchor to its spawn position
-      if (_game!.activeCompanion != null) {
-        _game!.activeCompanion!.anchorPosition = companionPos;
-        _game!.activeCompanion!.position = companionPos;
-      }
-
-      setState(() {});
-      _showQuote('Practice Arena, $displayName enters the ring!');
-      return;
-    }
-
-    // Normal level — deploy active companion into the ring in-world
-    if (_activeCompanionSlots.isEmpty) {
-      _showQuote('Summon a companion first to enter the ring!');
-      return;
-    }
-    if (br.inBattle) return; // already fighting
-
-    _startBattleRingFight();
-  }
-
-  /// Spawn the ring opponent in-world and start the 1v1.
-  void _startBattleRingFight() {
-    if (_game == null) return;
-    final br = _game!.battleRing;
-    final level = br.currentLevel;
-
-    final entry = _battleRingOpponents[level];
-    if (entry == null) return;
-    final (speciesId, rarity) = entry;
-
-    final catalog = context.read<CreatureCatalog>();
-    final gen = WildlifeGenerator(catalog);
-    final hydrated = gen.generate(speciesId, rarity: rarity);
-    if (hydrated == null) {
-      _showQuote('Could not generate opponent!');
-      return;
-    }
-
-    final rng = Random();
-    final arenaLevel = level + 1;
-    final speed = CosmicBalance.rollArenaStat(arenaLevel, rng);
-    final intelligence = CosmicBalance.rollArenaStat(arenaLevel, rng);
-    final strength = CosmicBalance.rollArenaStat(arenaLevel, rng);
-    final beauty = CosmicBalance.rollArenaStat(arenaLevel, rng);
-
-    // Build a CosmicPartyMember for the opponent
-    final base = catalog.getCreatureById(hydrated.id);
-    final typeName = (base?.types.isNotEmpty ?? false)
-        ? base!.types.first
-        : 'Earth';
-    final family = base?.mutationFamily ?? 'kin';
-    final displayName = base?.name ?? speciesId;
-    final sheet = base?.spriteData != null ? sheetFromCreature(base!) : null;
-    var visuals = visualsFromInstance(base, null);
-
-    // Calculate spawn positions at opposite ends of the ring
-    final ringCenter = br.position;
-    // Make the octagon battle ring 10% smaller for tighter fights
-    const ringRadius = 162.0; // was 180.0
-    // Player's companion at 0 degrees, opponent at 180 degrees
-    final companionPos = Offset(ringCenter.dx + ringRadius, ringCenter.dy);
-    final opponentPos = Offset(ringCenter.dx - ringRadius, ringCenter.dy);
-
-    // Determine opponent tint/variant
-    String? visualVariant;
-    if (level == 9) {
-      visualVariant = 'prismatic';
-    } else if (level == 3 || level == 4) {
-      visualVariant = 'cryogenic';
-    } else if (level == 1 || level == 7) {
-      visualVariant = 'albino';
-    }
-    if (visualVariant != null) {
-      visuals = SpriteVisuals(
-        scale: visuals.scale,
-        saturation: visuals.saturation,
-        brightness: visuals.brightness,
-        hueShiftDeg: visuals.hueShiftDeg,
-        isPrismatic: visualVariant == 'prismatic' ? true : visuals.isPrismatic,
-        tint: visualVariant == 'cryogenic'
-            ? const Color(0xFF7CC6FF).withValues(alpha: 0.35)
-            : visualVariant == 'albino'
-            ? null
-            : visuals.tint,
-        alchemyEffect: visuals.alchemyEffect,
-        variantFaction: visuals.variantFaction,
-      );
-    }
-
-    final opponentMember = CosmicPartyMember(
-      instanceId: 'ring_opponent_$level',
-      baseId: hydrated.id,
-      displayName: displayName,
-      imagePath: base?.image != null ? 'assets/images/${base!.image}' : null,
-      element: typeName,
-      family: family,
-      level: level + 1,
-      statSpeed: speed,
-      statIntelligence: intelligence,
-      statStrength: strength,
-      statBeauty: beauty,
-      slotIndex: -1,
-      staminaBars: 999,
-      staminaMax: 999,
-      spriteSheet: sheet,
-      spriteVisuals: visuals,
-      visualVariant: visualVariant,
-      spawnPosition: opponentPos,
-    );
-
-    br.inBattle = true;
-    _saveBattleRingState();
-    _game!.spawnBattleRingOpponent(opponentMember);
-
-    // Move companion anchor to its spawn position
-    if (_game!.activeCompanion != null) {
-      _game!.activeCompanion!.anchorPosition = companionPos;
-      _game!.activeCompanion!.position = companionPos;
-    }
-
-    setState(() {});
-    _showQuote('Level ${level + 1}, $displayName enters the ring!');
-  }
-
-  void _onBattleRingWon() {
-    if (!mounted || _game == null) return;
-    final br = _game!.battleRing;
-    final goldReward = br.goldReward;
-    final completedLevel = br.currentLevel;
-
-    br.inBattle = false;
-    br.currentLevel = (br.currentLevel + 1).clamp(0, BattleRing.maxLevels);
-    _saveBattleRingState();
-
-    final db = context.read<AlchemonsDatabase>();
-    if (goldReward > 0) {
-      db.currencyDao.addGold(goldReward);
-    }
-
-    HapticFeedback.heavyImpact();
-    if (completedLevel >= BattleRing.maxLevels) {
-      _showQuote('Practice match complete.');
-    } else if (br.currentLevel >= BattleRing.maxLevels) {
-      _showQuote('Arena completed! +$goldReward gold');
-    } else {
-      _showQuote('Level ${completedLevel + 1} complete! +$goldReward gold');
-    }
-    setState(() {});
-  }
-
-  void _onBattleRingLost() {
-    if (!mounted || _game == null) return;
-    final br = _game!.battleRing;
-    br.inBattle = false;
-    _saveBattleRingState();
-
-    HapticFeedback.mediumImpact();
-    _showQuote('Your Alchemon was defeated! Try again.');
-    setState(() {});
-  }
-
-  void _onBattleRingCancelled() {
-    if (!mounted || _game == null) return;
-    final br = _game!.battleRing;
-    br.inBattle = false;
-    _saveBattleRingState();
-
-    HapticFeedback.mediumImpact();
-    _showQuote('Battle canceled. Your Alchemon retreated.');
-    setState(() {});
   }
 
   bool _isMysticBloodCompanion(CosmicPartyMember member) {
@@ -5443,7 +5372,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       _saveOrbitalState(),
       _saveNexusState(),
       _saveCacheState(),
-      _saveBattleRingState(),
       _saveBloodRingState(),
     ]);
   }
@@ -7420,7 +7348,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         .clamp(0.0, 400.0)
         .toDouble();
     final isMemoryTutorial = widget.memoryTutorial;
-    final showCosmicHud = !isMemoryTutorial;
+    final showCosmicHud = !isMemoryTutorial && !_wildTearActive;
     final showJoystickControl = isMemoryTutorial || _showJoystick;
     final largeJoystickControl = isMemoryTutorial || _largeJoystick;
     final tutorialTargetPos = _survivalTutorialTargetPos;
@@ -8396,7 +8324,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   _game != null &&
                   _nearContestArena != null &&
                   _nearMarketPOI == null &&
-                  !_isNearBattleRing &&
                   !_isNearBloodRing &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
@@ -8480,92 +8407,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   },
                 ),
 
-              // ── Battle Ring button ──
-              if (showCosmicHud &&
-                  _game != null &&
-                  _isNearBattleRing &&
-                  !_game!.battleRing.inBattle &&
-                  !_showMiniMap &&
-                  !_anyOverlayOpen)
-                Positioned(
-                  bottom: 100,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: context.soundAction(_handleBattleRingTap),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: const Color(0xFFFFD740),
-                            width: 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(
-                                0xFFFFD740,
-                              ).withValues(alpha: 0.5),
-                              blurRadius: 24,
-                            ),
-                            BoxShadow(
-                              color: const Color(
-                                0xFFFF6F00,
-                              ).withValues(alpha: 0.2),
-                              blurRadius: 40,
-                              spreadRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  AppIcons.sports_mma,
-                                  color: Color(0xFFFFD740),
-                                  size: 22,
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  _game!.battleRing.isCompleted
-                                      ? 'PRACTICE ARENA'
-                                      : 'DEPLOY ALCHEMON TO START',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 2,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _game!.battleRing.isCompleted
-                                  ? 'Endless Battles'
-                                  : _game!.battleRing.levelLabel,
-                              style: TextStyle(
-                                color: Colors.white60,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
               // ── Sealed elemental cache prompt ──
               // Seven prompts share the bottom:100 slot. The cache is the
               // newest arrival, so it yields to every landmark that can also
@@ -8579,7 +8420,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   _nearContestArena == null &&
                   !_isNearRift &&
                   !_isNearNexus &&
-                  !_isNearBattleRing &&
                   !_isNearBloodRing &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)

@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:alchemons/constants/black_market_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/economy_balance.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -19,21 +18,6 @@ void main() {
   setUpAll(loadNatures);
 
   group('Economy balance', () {
-    test('battle ring only grants gold on first clears', () {
-      final ring = BattleRing(position: const Offset(0, 0));
-
-      expect(ring.goldReward, 1);
-
-      ring.currentLevel = 6;
-      expect(ring.goldReward, 2);
-
-      ring.currentLevel = 9;
-      expect(ring.goldReward, 5);
-
-      ring.currentLevel = BattleRing.maxLevels;
-      expect(ring.goldReward, 0);
-    });
-
     test('boss rematch gold stays scarce even at top difficulty', () {
       var totalGold = 0;
       for (var i = 0; i < 5000; i++) {

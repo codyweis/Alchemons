@@ -592,6 +592,11 @@ const Map<String, String> kPlanetDisplayName = {
 
 String planetName(String element) => kPlanetDisplayName[element] ?? element;
 
+/// How far a planet's territory reaches from its centre. Wild Alchemons of
+/// its element live inside; space is faintly tinted by it; the maps shade
+/// it. Close planets overlap and the nearer one wins.
+const double kPlanetTerritoryRadius = 3000.0;
+
 // ─────────────────────────────────────────────────────────
 // COSMIC PLANET
 // ─────────────────────────────────────────────────────────
@@ -599,27 +604,30 @@ String planetName(String element) => kPlanetDisplayName[element] ?? element;
 /// Per-element planet size & gravity mass.
 // Size passes: ×1.2, then another ×1.2 — except the tiny/small tier
 // (Air, Lightning, Spirit, Ice, Poison), which got ×1.5 in the second pass
-// so the smallest worlds stop reading as specks. Derived values (particle
+// so the smallest worlds stop reading as specks — then ×1.2 again for all
+// but Light (2026-09-29), which was already the largest presence in space;
+// then Zephyria ×1.5, Etherion ×4, Glaceron ×1.3 and Nythralor ×1.5 on
+// their own (2026-09-29, the player's call — the spirit world should loom). Derived values (particle
 // field, patrol/lair orbits, approach detection) key off these radii and
 // scale with them.
 const Map<String, double> kPlanetRadius = {
-  'Fire': 131,
-  'Lava': 159,
-  'Lightning': 100,
-  'Water': 217,
-  'Ice': 127,
-  'Steam': 145,
-  'Earth': 174,
-  'Mud': 123,
-  'Dust': 290,
-  'Crystal': 145,
-  'Air': 82,
-  'Plant': 116,
-  'Poison': 136,
-  'Spirit': 100,
-  'Dark': 138,
+  'Fire': 157,
+  'Lava': 191,
+  'Lightning': 120,
+  'Water': 260,
+  'Ice': 198,
+  'Steam': 174,
+  'Earth': 209,
+  'Mud': 148,
+  'Dust': 348,
+  'Crystal': 174,
+  'Air': 147,
+  'Plant': 139,
+  'Poison': 163,
+  'Spirit': 480,
+  'Dark': 249,
   'Light': 289,
-  'Blood': 152,
+  'Blood': 182,
 };
 
 /// Gravity strength multiplier per element (bigger / denser = stronger pull).
@@ -832,98 +840,6 @@ class ElementalNexus {
       harvesterAwarded: parts[4] == '1',
       inPocket: pocketFlag,
       prePocketShipPos: prePocketPos,
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────
-// BATTLE RING (10-level arena with 1v1 encounters)
-// ─────────────────────────────────────────────────────────
-
-class BattleRing {
-  Offset position;
-  bool discovered;
-
-  /// Current level (0-based). 0–9 = levels 1–10. 10 = all beaten, practice mode.
-  int currentLevel;
-
-  /// True while a 1v1 battle is actively in progress.
-  bool inBattle;
-
-  BattleRing({
-    required this.position,
-    this.discovered = false,
-    this.currentLevel = 0,
-    this.inBattle = false,
-  });
-
-  /// Visual outer radius of the octagon ring.
-  static const double visualRadius = 300.0;
-
-  /// Interaction radius (proximity to trigger popup).
-  static const double interactRadius = 400.0;
-
-  /// Exit radius (hysteresis band so popup doesn't flicker).
-  static const double exitRadius = 500.0;
-
-  /// If the ship leaves this far from the arena center, the active battle ends.
-  static const double cancelRadius = 900.0;
-
-  /// Number of levels in total.
-  static const int maxLevels = 10;
-
-  /// Whether all 10 levels are beaten → practice arena.
-  bool get isCompleted => currentLevel >= maxLevels;
-
-  /// Gold reward is limited to first clears only.
-  /// Practice matches grant no gold once the arena is complete.
-  int get goldReward {
-    if (isCompleted) return 0;
-    if (currentLevel >= 9) return 5;
-    if (currentLevel >= 6) return 2;
-    return 1;
-  }
-
-  /// Opponent rarity for the current level.
-  /// Levels 1–3 = common, 4–6 = uncommon, 7–8 = rare, 9–10 = legendary.
-  String get opponentRarity {
-    if (currentLevel >= 8) return 'legendary';
-    if (currentLevel >= 6) return 'rare';
-    if (currentLevel >= 3) return 'uncommon';
-    return 'common';
-  }
-
-  /// Opponent stat cap for the current level.
-  /// Linear scale: level 1 = 1.5, level 10 = 4.5.
-  double get opponentStatMax => 1.5 + (currentLevel * (3.0 / 9.0));
-
-  /// Display name for the current level.
-  String get levelLabel =>
-      isCompleted ? 'PRACTICE ARENA' : 'LEVEL ${currentLevel + 1} / $maxLevels';
-
-  String serialise() {
-    return '${position.dx.toStringAsFixed(1)},'
-        '${position.dy.toStringAsFixed(1)}|'
-        '${discovered ? 1 : 0}|'
-        '$currentLevel|'
-        '${inBattle ? 1 : 0}';
-  }
-
-  factory BattleRing.deserialise(String raw) {
-    final parts = raw.split('|');
-    if (parts.length < 3) {
-      return BattleRing(position: const Offset(0, 0));
-    }
-    final posParts = parts[0].split(',');
-    final pos = Offset(
-      double.tryParse(posParts[0]) ?? 0,
-      double.tryParse(posParts[1]) ?? 0,
-    );
-    return BattleRing(
-      position: pos,
-      discovered: parts[1] == '1',
-      currentLevel: (int.tryParse(parts[2]) ?? 0).clamp(0, maxLevels),
-      inBattle: parts.length > 3 ? parts[3] == '1' : false,
     );
   }
 }
@@ -1221,7 +1137,7 @@ class CosmicWorld {
     required this.particleSwarms,
     required this.prismaticField,
     required this.elementalNexus,
-    required this.battleRing,
+    required this.retiredArenaPosition,
     required this.bloodRing,
     required this.contestArenas,
     required this.contestHintNotes,
@@ -1233,7 +1149,12 @@ class CosmicWorld {
   final List<ParticleSwarm> particleSwarms;
   final PrismaticField prismaticField;
   final ElementalNexus elementalNexus;
-  final BattleRing battleRing;
+
+  /// Where the retired Battle Ring stood. Nothing is drawn here any more, but
+  /// the spot is still generated and still counts as a landmark: the world is
+  /// rebuilt from a saved seed on every load, and dropping it would shift the
+  /// Blood Ring, the contest arenas and every cache in existing saves.
+  final Offset retiredArenaPosition;
   final BloodRing bloodRing;
   final List<CosmicContestArena> contestArenas;
   final List<CosmicContestHintNote> contestHintNotes;
@@ -1362,8 +1283,8 @@ class CosmicWorld {
 
     final elementalNexus = ElementalNexus(position: nexusPos);
 
-    // ── Battle Ring (octagonal arena) ──
-    // Place far from everything — same strategy as nexus.
+    // ── Retired Battle Ring spot ──
+    // Still rolled, so everything placed after it lands where it always has.
     Offset ringPos = Offset(margin, margin);
     double bestRingDist = 0;
     for (int attempt = 0; attempt < 2000; attempt++) {
@@ -1384,7 +1305,6 @@ class CosmicWorld {
         ringPos = candidate;
       }
     }
-    final battleRing = BattleRing(position: ringPos);
 
     // ── Blood Ring (ending ritual portal) ──
     // Place far from all landmarks so it feels like a hidden final destination.
@@ -1437,7 +1357,7 @@ class CosmicWorld {
       particleSwarms: swarms,
       prismaticField: prismaticField,
       elementalNexus: elementalNexus,
-      battleRing: battleRing,
+      retiredArenaPosition: ringPos,
       bloodRing: bloodRing,
       contestArenas: contestArenas,
       contestHintNotes: contestHintNotes,
@@ -2762,6 +2682,20 @@ const Map<String, List<CustomizationParam>> kRecipeParams = {
       defaultValue: 'Normal',
     ),
   ],
+  'black_hole': [
+    CustomizationParam(
+      key: 'disk',
+      label: 'Disk',
+      options: ['Tight', 'Wide'],
+      defaultValue: 'Wide',
+    ),
+    CustomizationParam(
+      key: 'spin',
+      label: 'Spin',
+      options: ['Slow', 'Normal', 'Fast'],
+      defaultValue: 'Normal',
+    ),
+  ],
   'planetary_rings': [
     CustomizationParam(
       key: 'count',
@@ -2798,7 +2732,7 @@ class HomeRecipe {
   });
 }
 
-/// The 20 built-in home customization recipes.
+/// The built-in home customization recipes.
 const List<HomeRecipe> kHomeRecipes = [
   // ── Visual (planet decorations) ──
   HomeRecipe(
@@ -2981,6 +2915,24 @@ const List<HomeRecipe> kHomeRecipes = [
     category: HomeRecipeCategory.visual,
     ingredients: {'Air': 100, 'Dust': 100, 'Crystal': 100, 'Spirit': 100},
     iconName: 'trip_origin',
+  ),
+  HomeRecipe(
+    id: 'black_hole',
+    name: 'Black Hole',
+    description:
+        'Premium. Your world becomes the eye of a feeding black hole: a disk '
+        'of burning matter wheels round it, and whatever strays too close '
+        'spirals in.',
+    category: HomeRecipeCategory.visual,
+    // Priced well above every other cosmetic — the premium one.
+    ingredients: {
+      'Dark': 500,
+      'Spirit': 300,
+      'Crystal': 300,
+      'Blood': 200,
+      'Light': 150,
+    },
+    iconName: 'brightness_1',
   ),
 
   // Cargo Hold is handled specially as a leveled upgrade (see CargoUpgrade).

@@ -278,15 +278,12 @@ extension CosmicGameWorldSystems on CosmicGame {
       _wasNearRift = false;
       _wasNearNexus = false;
       _isNearNexus = false;
-      _wasNearBattleRing = false;
-      _isNearBattleRing = false;
       _wasNearBloodRing = false;
       _isNearBloodRing = false;
       onNearPlanet?.call(null);
       onNearMarket?.call(null);
       onNearRift?.call(false);
       onNearNexus?.call(false);
-      onNearBattleRing?.call(false);
       onNearBloodRing?.call(false);
       onNearContestArena?.call(null);
     } else {
@@ -348,13 +345,9 @@ extension CosmicGameWorldSystems on CosmicGame {
     projectiles.clear();
     _missiles.clear();
     elemParticles.clear();
-    battleRingOpponent = null;
-    ringOpponentProjectiles.clear();
-    ringMinions.clear();
-    _pendingRingMinionCount = 0;
-    _pendingRingMinionLevel = 0;
-    _pendingRingMinionElement = null;
-    _ringMinionsSpawnedForCurrentOpponent = false;
+    duelOpponent = null;
+    duelOpponentProjectiles.clear();
+    _duelWildId = null;
   }
 
   void resetSandboxCombatState() {
@@ -899,112 +892,6 @@ extension CosmicGameWorldSystems on CosmicGame {
       if (e.packId == hit.packId) {
         e.provoked = true;
         e.behavior = EnemyBehavior.aggressive;
-      }
-    }
-  }
-
-  void _updateRingMinions(double dt) {
-    for (var mi = ringMinions.length - 1; mi >= 0; mi--) {
-      final m = ringMinions[mi];
-      if (m.dead) {
-        ringMinions.removeAt(mi);
-        continue;
-      }
-      m.life += dt;
-      m.attackCooldown = (m.attackCooldown - dt).clamp(0.0, 100.0);
-      // If orbitTime > 0, animate orbit (portal) until emergence
-      if (m.orbitTime > 0) {
-        m.orbitTime -= dt;
-        // Chargers should have a much subtler portal wobble; shooters spin faster.
-        if (m.type == 'charger') {
-          m.orbitAngle += (0.4 + _rng.nextDouble() * 0.6) * dt;
-          m.orbitRadius += dt * 1.5; // minimal expansion for chargers
-        } else {
-          m.orbitAngle += (1.2 + _rng.nextDouble() * 1.6) * dt; // spin
-          m.orbitRadius += dt * 3.0; // reduced expansion for shooters
-        }
-        if (m.orbitCenter != null) {
-          m.position = Offset(
-            m.orbitCenter!.dx + cos(m.orbitAngle) * m.orbitRadius,
-            m.orbitCenter!.dy + sin(m.orbitAngle) * m.orbitRadius,
-          );
-        }
-        if (m.orbitTime <= 0) {
-          // Emerge: small VFX to show portal spawn
-          _spawnHitSpark(m.position, elementColor(m.element));
-        }
-        continue; // don't move toward companion until emerged
-      }
-
-      // Different behaviors per minion type after emergence
-      if (m.type == 'shooter') {
-        // Shooters hold position / orbit and periodically fire at the
-        // player's companion.
-        if (m.orbitCenter != null) {
-          // gentle orbital hover
-          m.orbitAngle += (0.6 + _rng.nextDouble() * 0.8) * dt;
-          m.position = Offset(
-            m.orbitCenter!.dx + cos(m.orbitAngle) * m.orbitRadius,
-            m.orbitCenter!.dy + sin(m.orbitAngle) * m.orbitRadius,
-          );
-        } else if (activeCompanion != null && activeCompanion!.isAlive) {
-          // small drift toward the companion but stay mostly stationary
-          final comp = activeCompanion!;
-          final toComp = comp.position - m.position;
-          final dist = toComp.distance;
-          if (dist > 2.0) {
-            final step = (m.speed * 0.35) * dt;
-            m.position += (toComp / dist) * min(step, dist);
-          }
-        }
-        // Shooting
-        m.shootCooldown -= dt;
-        if (m.shootCooldown <= 0 &&
-            activeCompanion != null &&
-            activeCompanion!.isAlive) {
-          m.shootCooldown = 0.6 + _rng.nextDouble() * 1.2;
-          final comp = activeCompanion!;
-          final ang = atan2(
-            comp.position.dy - m.position.dy,
-            comp.position.dx - m.position.dx,
-          );
-          // Use the ring opponent's family so the projectile visuals match
-          final fam = battleRingOpponent?.member.family ?? 'neutral';
-          final basics = createFamilyBasicAttack(
-            origin: m.position,
-            angle: ang,
-            element: m.element,
-            family: fam,
-            damage: max(2.0, (m.health * 0.12)),
-          );
-          ringOpponentProjectiles.addAll(basics);
-        }
-      } else {
-        // Charger: slowly move in toward the player's companion and
-        // slam into it for high contact damage. They are tanky.
-        if (activeCompanion != null && activeCompanion!.isAlive) {
-          final comp = activeCompanion!;
-          final toComp = comp.position - m.position;
-          final dist = toComp.distance;
-          if (dist > 2.0) {
-            final step = (m.speed * 0.6) * dt; // slow, steady approach
-            m.position += (toComp / dist) * min(step, dist);
-          }
-          // Heavy contact damage when they reach the companion
-          if (dist < (m.radius + 15)) {
-            if (m.attackCooldown <= 0) {
-              // Slower, less devastating hits from chargers
-              m.attackCooldown = 2.2;
-              final contactDmg = 6.0 + (m.health / 12.0);
-              final dmg = max(
-                1,
-                (contactDmg * 100 / (100 + comp.physDef)).round(),
-              );
-              comp.takeDamage(dmg);
-              _spawnHitSpark(comp.position, elementColor(m.element));
-            }
-          }
-        }
       }
     }
   }
@@ -3106,139 +2993,6 @@ extension CosmicGameWorldSystems on CosmicGame {
     return image;
   }
 
-  /// Renders the battle ring octagon + orbiting balls to an off-screen texture.
-  ui.Image _buildBattleRingTexture(double riftPulse) {
-    const sz = CosmicGame._battleRingTexSize;
-    const worldR = CosmicGame._battleRingTexWorldR;
-    final scale = sz / (worldR * 2);
-    final center = Offset(sz / 2, sz / 2);
-
-    final recorder = ui.PictureRecorder();
-    final c = Canvas(
-      recorder,
-      Rect.fromLTWH(0, 0, sz.toDouble(), sz.toDouble()),
-    );
-
-    final pulse = 0.85 + 0.15 * sin(riftPulse * 1.5);
-    const octR = BattleRing.visualRadius; // world-unit octagon radius
-
-    // Subtle arena floor glow
-    c.drawCircle(
-      center,
-      octR * 0.8 * scale,
-      Paint()
-        ..color = const Color(0xFF1A0A2E).withValues(alpha: 0.5)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 80 * scale),
-    );
-
-    // Octagon outline with golden glow
-    final octPath = Path();
-    for (var i = 0; i < 8; i++) {
-      final a = i * pi / 4 - pi / 8; // start rotated for flat top
-      final x = center.dx + cos(a) * octR * scale;
-      final y = center.dy + sin(a) * octR * scale;
-      if (i == 0) {
-        octPath.moveTo(x, y);
-      } else {
-        octPath.lineTo(x, y);
-      }
-    }
-    octPath.close();
-
-    // Outer glow
-    c.drawPath(
-      octPath,
-      Paint()
-        ..color = const Color(0xFFFFD740).withValues(alpha: 0.25 * pulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 18 * scale
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 20 * scale),
-    );
-
-    // Main ring stroke
-    c.drawPath(
-      octPath,
-      Paint()
-        ..color = const Color(0xFFFFD740).withValues(alpha: 0.7)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4 * scale,
-    );
-
-    // Inner glow ring (slightly smaller octagon)
-    final innerPath = Path();
-    for (var i = 0; i < 8; i++) {
-      final a = i * pi / 4 - pi / 8;
-      final x = center.dx + cos(a) * octR * 0.85 * scale;
-      final y = center.dy + sin(a) * octR * 0.85 * scale;
-      if (i == 0) {
-        innerPath.moveTo(x, y);
-      } else {
-        innerPath.lineTo(x, y);
-      }
-    }
-    innerPath.close();
-    c.drawPath(
-      innerPath,
-      Paint()
-        ..color = const Color(0xFFFF6F00).withValues(alpha: 0.15 * pulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 8 * scale
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 10 * scale),
-    );
-
-    // 8 orbiting energy balls around the octagon
-    const ballColors = [
-      Color(0xFFFF5252), // red
-      Color(0xFF448AFF), // blue
-      Color(0xFF69F0AE), // green
-      Color(0xFFFFD740), // gold
-      Color(0xFFE040FB), // magenta
-      Color(0xFF00E5FF), // cyan
-      Color(0xFFFF6E40), // deep orange
-      Color(0xFFB388FF), // purple
-    ];
-    for (var i = 0; i < 8; i++) {
-      final baseAngle = i * pi / 4;
-      final a = baseAngle + riftPulse * 0.8 + sin(riftPulse * 1.2 + i) * 0.15;
-      final orbitR = (octR + 60 + 15 * sin(riftPulse * 2.0 + i * 0.7)) * scale;
-      final bx = center.dx + cos(a) * orbitR;
-      final by = center.dy + sin(a) * orbitR;
-      // Glow
-      c.drawCircle(
-        Offset(bx, by),
-        18 * pulse * scale,
-        Paint()
-          ..color = ballColors[i].withValues(alpha: 0.4 * pulse)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12 * scale),
-      );
-      // Core
-      c.drawCircle(
-        Offset(bx, by),
-        6 * scale,
-        Paint()..color = ballColors[i].withValues(alpha: 0.9),
-      );
-    }
-
-    // Corner accents at each octagon vertex
-    for (var i = 0; i < 8; i++) {
-      final a = i * pi / 4 - pi / 8;
-      final vx = center.dx + cos(a) * octR * scale;
-      final vy = center.dy + sin(a) * octR * scale;
-      c.drawCircle(
-        Offset(vx, vy),
-        8 * pulse * scale,
-        Paint()
-          ..color = const Color(0xFFFFD740).withValues(alpha: 0.6 * pulse)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6 * scale),
-      );
-    }
-
-    final picture = recorder.endRecording();
-    final image = picture.toImageSync(sz, sz);
-    picture.dispose();
-    return image;
-  }
-
   /// Renders the pocket dimension blurred elements to an off-screen texture.
   ui.Image _buildPocketTexture(double riftPulse) {
     const sz = CosmicGame._pocketTexSize;
@@ -3452,14 +3206,12 @@ extension CosmicGameWorldSystems on CosmicGame {
       }
     }
 
-    if (battleRing.inBattle) {
-      for (final rm in ringMinions) {
-        if (rm.dead) continue;
-        final d2 = (rm.position - origin).distanceSquared;
-        if (d2 < bestDist2) {
-          bestDist2 = d2;
-          bestTarget = rm.position;
-        }
+    final opp = duelOpponent;
+    if (wildDuelActive && opp != null && opp.isAlive) {
+      final d2 = (opp.position - origin).distanceSquared;
+      if (d2 < bestDist2) {
+        bestDist2 = d2;
+        bestTarget = opp.position;
       }
     }
 

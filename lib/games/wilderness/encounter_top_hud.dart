@@ -147,6 +147,7 @@ class WildEncounterTopHud extends StatelessWidget {
     this.leftGutter = kEncounterHudLeftGutter,
     this.opacity = 1,
     this.animateName = true,
+    this.dossier = false,
   });
 
   final String name;
@@ -168,6 +169,12 @@ class WildEncounterTopHud extends StatelessWidget {
 
   /// Off in tests and wherever the type-in would only cost frames.
   final bool animateName;
+
+  /// Pinned to the top-left and left-aligned, with a smaller name, so the
+  /// middle of the frame belongs to the creatures. Hosts that stage their
+  /// own specimens (the space encounter) use this; the wilderness keeps the
+  /// centred title.
+  final bool dossier;
 
   @override
   Widget build(BuildContext context) {
@@ -194,6 +201,7 @@ class WildEncounterTopHud extends StatelessWidget {
               breedChance: breedChance,
               potentials: potentials,
               animateName: animateName,
+              dossier: dossier,
             ),
           ),
         );
@@ -203,7 +211,11 @@ class WildEncounterTopHud extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(width: leftGutter),
-              Expanded(child: Center(child: identity)),
+              Expanded(
+                child: dossier
+                    ? Align(alignment: Alignment.topLeft, child: identity)
+                    : Center(child: identity),
+              ),
               if (strip != null) ...[
                 const SizedBox(width: kEncounterHudGap),
                 SizedBox(width: partyStripWidth, child: strip),
@@ -227,7 +239,9 @@ class WildEncounterTopHud extends StatelessWidget {
             ],
             Padding(
               padding: EdgeInsets.only(left: strip == null ? leftGutter : 0),
-              child: Center(child: identity),
+              child: dossier
+                  ? Align(alignment: Alignment.topLeft, child: identity)
+                  : Center(child: identity),
             ),
           ],
         );
@@ -247,8 +261,10 @@ class _EncounterIdentity extends StatelessWidget {
     required this.breedChance,
     required this.potentials,
     required this.animateName,
+    this.dossier = false,
   });
 
+  final bool dossier;
   final String name;
   final String rarity;
   final String status;
@@ -279,6 +295,9 @@ class _EncounterIdentity extends StatelessWidget {
 
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: dossier
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
       children: [
         if (showRarityBadge) ...[
           Container(
@@ -305,9 +324,9 @@ class _EncounterIdentity extends StatelessWidget {
           animate: animateName,
           style: TextStyle(
             color: _kPalette.ink,
-            fontSize: 30,
+            fontSize: dossier ? 21 : 30,
             fontWeight: FontWeight.w900,
-            letterSpacing: 3.0,
+            letterSpacing: dossier ? 2.2 : 3.0,
             shadows: [
               const Shadow(
                 color: Colors.black87,
@@ -321,7 +340,7 @@ class _EncounterIdentity extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: AppSpace.sm),
+        SizedBox(height: dossier ? 6 : AppSpace.sm),
         CustomPaint(
           painter: BracketFramePainter(
             color: statusStyle.accent.withValues(alpha: 0.7),

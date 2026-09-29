@@ -45,6 +45,7 @@ Future<bool> showHarvestCinematic({
   required String deviceLabel,
   HarvesterProfile? profile,
   Duration minDuration = const Duration(milliseconds: 1600),
+  Offset? focus,
   required Future<bool> Function() task,
 }) {
   return Navigator.of(context)
@@ -58,6 +59,7 @@ Future<bool> showHarvestCinematic({
             deviceLabel: deviceLabel,
             profile: profile ?? HarvesterProfile.forBiome(null),
             minDuration: minDuration,
+            focus: focus,
             task: task,
           ),
           transitionsBuilder: (_, a, __, child) =>
@@ -79,7 +81,12 @@ class _HarvestCinematicPage extends StatefulWidget {
     required this.profile,
     required this.minDuration,
     required this.task,
+    this.focus,
   });
+
+  /// Where on screen the specimen stands, when it is a live one standing
+  /// somewhere other than the middle. The field closes on that spot.
+  final Offset? focus;
 
   /// Null when the specimen is already on screen behind this overlay.
   final Widget? targetSprite;
@@ -185,36 +192,45 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
             success: _success ?? false,
             resolving: _resolving,
           );
+          final stage = SizedBox(
+            width: 420,
+            height: 420,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // The apparatus, behind the specimen where it belongs.
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _ContainmentFieldPainter(
+                      beat: beat,
+                      color: widget.targetColor,
+                      profile: widget.profile,
+                    ),
+                  ),
+                ),
+                if (widget.targetSprite != null)
+                  _Specimen(
+                    beat: beat,
+                    sprite: widget.targetSprite!,
+                    color: widget.targetColor,
+                  ),
+              ],
+            ),
+          );
+          final focus = widget.focus;
           return Stack(
             fit: StackFit.expand,
             children: [
-              Center(
-                child: SizedBox(
+              if (focus == null)
+                Center(child: stage)
+              else
+                Positioned(
+                  left: focus.dx - 210,
+                  top: focus.dy - 210,
                   width: 420,
                   height: 420,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // The apparatus, behind the specimen where it belongs.
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: _ContainmentFieldPainter(
-                            beat: beat,
-                            color: widget.targetColor,
-                            profile: widget.profile,
-                          ),
-                        ),
-                      ),
-                      if (widget.targetSprite != null)
-                        _Specimen(
-                          beat: beat,
-                          sprite: widget.targetSprite!,
-                          color: widget.targetColor,
-                        ),
-                    ],
-                  ),
+                  child: stage,
                 ),
-              ),
               Positioned(
                 bottom: 46,
                 left: 24,

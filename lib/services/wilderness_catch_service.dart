@@ -171,6 +171,7 @@ class CatchService {
     required CatchDeviceType device,
     required Creature target,
     bool forceSuccess = false,
+    double bonusChance = 0,
   }) async {
     // Check if player has the device
     if (!await hasDevice(device)) {
@@ -218,7 +219,7 @@ class CatchService {
 
     // 🌿 Constellation harvesting bonus: +5% / +10% / +15% flat
     final bonus = constellation.getWildernessHarvestBonus(); // 0.0–0.15
-    final catchChance = (baseChance + bonus).clamp(0.01, 0.98);
+    final catchChance = (baseChance + bonus + bonusChance).clamp(0.01, 0.98);
 
     // Roll for success
     final roll = _rng.nextDouble();

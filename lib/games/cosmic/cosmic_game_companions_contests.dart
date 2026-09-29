@@ -13,10 +13,6 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     double hpFraction = 1.0,
     double? initialSpecialCooldown,
   }) {
-    // Block swapping companions during a ring battle — callers may not
-    // always check this (UI normally does), so enforce it here.
-    if (battleRing.inBattle) return;
-
     // Already active in this slot? Recall it instead of stacking.
     if (activeCompanions.containsKey(slotIndex)) {
       returnCompanion(slotIndex);
@@ -196,8 +192,9 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     }
   }
 
-  /// Spawn a battle ring opponent at the ring center.
-  void spawnBattleRingOpponent(CosmicPartyMember member) {
+  /// Put an Alchemon on the field to fight the player's companion: a wild
+  /// one that has been engaged, or a contest rival.
+  void spawnDuelOpponent(CosmicPartyMember member) {
     final speed = member.statSpeed.toDouble();
     final intel = member.statIntelligence.toDouble();
     final strength = member.statStrength.toDouble();
@@ -254,9 +251,9 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     final specScale = (CosmicGame._companionSpeciesScale[family] ?? 1.0) * 1.0;
 
     // Use spawnPosition if provided, else default to ring center
-    final placePos = member.spawnPosition ?? battleRing.position;
+    final placePos = member.spawnPosition ?? ship.pos;
 
-    battleRingOpponent = CosmicCompanion(
+    duelOpponent = CosmicCompanion(
       member: member,
       position: placePos,
       anchor: placePos,
@@ -275,29 +272,15 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       invincibleTimer: 1.5,
       visualVariant: member.visualVariant,
     );
-    ringOpponentProjectiles.clear();
-
-    // Spawn a few small assisting wisps/minions depending on opponent level.
-    // Use a gentle scale so higher levels spawn a few more helpers.
-    // Schedule ring minions to spawn later when the opponent reaches
-    // half health. We compute the planned count/level/element now and
-    // create them on the health-threshold trigger so they appear like
-    // portals mid-fight.
-    _ringMinionsSpawnedForCurrentOpponent = false;
-    _pendingRingMinionCount = ((level) / 2).floor().clamp(0, 6);
-    _pendingRingMinionLevel = level;
-    _pendingRingMinionElement = member.element;
-    debugPrint(
-      'Scheduled $_pendingRingMinionCount ring minions for level $level',
-    );
+    duelOpponentProjectiles.clear();
 
     // Reset and preload static sprite fallback.
-    _ringOpponentFallbackSprite = null;
-    _ringOpponentFallbackScale = 1.0;
-    _loadRingOpponentFallbackSprite(member);
+    _duelOpponentFallbackSprite = null;
+    _duelOpponentFallbackScale = 1.0;
+    _loadDuelOpponentFallbackSprite(member);
 
     // Load sprite
-    _loadRingOpponentSprite(member);
+    _loadDuelOpponentSprite(member);
   }
 
   String _toBundleImageKey(String raw) {
@@ -323,11 +306,11 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     return frame.image;
   }
 
-  Future<void> _loadRingOpponentFallbackSprite(CosmicPartyMember member) async {
+  Future<void> _loadDuelOpponentFallbackSprite(CosmicPartyMember member) async {
     final rawPath = member.imagePath;
     if (rawPath == null || rawPath.trim().isEmpty) return;
     final expectedInstanceId = member.instanceId;
-    final token = ++_ringOpponentFallbackLoadToken;
+    final token = ++_duelOpponentFallbackLoadToken;
     try {
       ui.Image image;
       try {
@@ -335,34 +318,34 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       } catch (_) {
         image = await _loadUiImageFromBundle(_toBundleImageKey(rawPath));
       }
-      if (token != _ringOpponentFallbackLoadToken ||
-          battleRingOpponent?.member.instanceId != expectedInstanceId) {
+      if (token != _duelOpponentFallbackLoadToken ||
+          duelOpponent?.member.instanceId != expectedInstanceId) {
         return;
       }
-      _ringOpponentFallbackSprite = Sprite(image);
+      _duelOpponentFallbackSprite = Sprite(image);
       final desiredSize = 62.4;
       final sx = desiredSize / image.width;
       final sy = desiredSize / image.height;
-      final specScale = battleRingOpponent?.speciesScale ?? 1.3;
-      _ringOpponentFallbackScale =
+      final specScale = duelOpponent?.speciesScale ?? 1.3;
+      _duelOpponentFallbackScale =
           min(sx, sy) * (member.spriteVisuals?.scale ?? 1.0) * specScale;
     } catch (e) {
       debugPrint('Failed to load ring opponent fallback sprite: $rawPath - $e');
     }
   }
 
-  Future<void> _loadRingOpponentSprite(CosmicPartyMember member) async {
-    final loadToken = ++_ringOpponentSpriteLoadToken;
+  Future<void> _loadDuelOpponentSprite(CosmicPartyMember member) async {
+    final loadToken = ++_duelOpponentSpriteLoadToken;
     final expectedInstanceId = member.instanceId;
     final sheet = member.spriteSheet;
     final sheetPath = sheet?.path ?? '<no-sheet>';
-    _ringOpponentSpriteLoadsInFlight++;
+    _duelOpponentSpriteLoadsInFlight++;
     try {
       if (sheet == null) {
-        if (loadToken == _ringOpponentSpriteLoadToken &&
-            battleRingOpponent?.member.instanceId == expectedInstanceId) {
-          _ringOpponentTicker = null;
-          _ringOpponentVisuals = null;
+        if (loadToken == _duelOpponentSpriteLoadToken &&
+            duelOpponent?.member.instanceId == expectedInstanceId) {
+          _duelOpponentTicker = null;
+          _duelOpponentVisuals = null;
         }
         return;
       }
@@ -372,8 +355,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       } catch (_) {
         image = await _loadUiImageFromBundle(_toBundleImageKey(sheet.path));
       }
-      if (loadToken != _ringOpponentSpriteLoadToken ||
-          battleRingOpponent?.member.instanceId != expectedInstanceId) {
+      if (loadToken != _duelOpponentSpriteLoadToken ||
+          duelOpponent?.member.instanceId != expectedInstanceId) {
         return;
       }
       final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
@@ -387,144 +370,44 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
           loop: true,
         ),
       );
-      _ringOpponentTicker = anim.createTicker();
-      _ringOpponentVisuals = member.spriteVisuals;
+      _duelOpponentTicker = anim.createTicker();
+      _duelOpponentVisuals = member.spriteVisuals;
       debugPrint(
-        'Ring opponent visuals loaded: alchemy=${_ringOpponentVisuals?.alchemyEffect} variant=${_ringOpponentVisuals?.variantFaction} tint=${_ringOpponentVisuals?.tint}',
+        'Ring opponent visuals loaded: alchemy=${_duelOpponentVisuals?.alchemyEffect} variant=${_duelOpponentVisuals?.variantFaction} tint=${_duelOpponentVisuals?.tint}',
       );
       final desiredSize = 62.4;
       final sx = desiredSize / sheet.frameSize.x;
       final sy = desiredSize / sheet.frameSize.y;
-      final specScale = battleRingOpponent?.speciesScale ?? 1.3;
-      _ringOpponentSpriteScale =
-          min(sx, sy) * (_ringOpponentVisuals?.scale ?? 1.0) * specScale;
-      _ringOpponentSpriteRetryTimer = 0.0;
+      final specScale = duelOpponent?.speciesScale ?? 1.3;
+      _duelOpponentSpriteScale =
+          min(sx, sy) * (_duelOpponentVisuals?.scale ?? 1.0) * specScale;
+      _duelOpponentSpriteRetryTimer = 0.0;
     } catch (e) {
       debugPrint('Failed to load ring opponent sprite: $sheetPath - $e');
-      if (loadToken == _ringOpponentSpriteLoadToken &&
-          battleRingOpponent?.member.instanceId == expectedInstanceId) {
-        _ringOpponentTicker = null;
-        _ringOpponentVisuals = null;
+      if (loadToken == _duelOpponentSpriteLoadToken &&
+          duelOpponent?.member.instanceId == expectedInstanceId) {
+        _duelOpponentTicker = null;
+        _duelOpponentVisuals = null;
       }
     } finally {
-      _ringOpponentSpriteLoadsInFlight = max(
+      _duelOpponentSpriteLoadsInFlight = max(
         0,
-        _ringOpponentSpriteLoadsInFlight - 1,
+        _duelOpponentSpriteLoadsInFlight - 1,
       );
     }
   }
 
-  // Spawn the pending ring minions (called when opponent hits half health).
-  void _spawnPendingRingMinions() {
-    if (_pendingRingMinionCount <= 0 || battleRingOpponent == null) return;
-    ringMinions.clear();
-    final level = _pendingRingMinionLevel;
-    final element =
-        _pendingRingMinionElement ?? battleRingOpponent!.member.element;
-    final placePos = battleRingOpponent!.anchorPosition;
-    // Decide how many chargers vs shooters. Chargers are the slow, tanky
-    // slam units that spawn opposite the player's companion and do high
-    // contact damage. Shooters spawn around the arena and fire at the
-    // companion. We aim for 3-5 chargers (depending on level) but never
-    // exceed the total pending count.
-    final desiredChargers = (3 + (level ~/ 5)).clamp(3, 5);
-    final chargersToSpawn = min(_pendingRingMinionCount, desiredChargers);
-    final shootersToSpawn = max(0, _pendingRingMinionCount - chargersToSpawn);
-
-    // Spawn shooters around the ring center
-    for (var si = 0; si < shootersToSpawn; si++) {
-      final ang = _rng.nextDouble() * 2 * pi;
-      final startRadius = 30.0 + _rng.nextDouble() * 20.0;
-      final pos = Offset(
-        placePos.dx + cos(ang) * startRadius,
-        placePos.dy + sin(ang) * startRadius,
-      );
-      final m = RingMinion(
-        position: pos,
-        element: element,
-        health: 10.0 + level * 1.8,
-        radius: 10.0,
-        speed: 70.0 + level * 4.0,
-      );
-      m.type = 'shooter';
-      m.shootCooldown = 0.5 + _rng.nextDouble() * 1.0;
-      m.orbitCenter = battleRing.position;
-      m.orbitAngle = ang;
-      m.orbitRadius = startRadius;
-      m.orbitTime = 0.6 + _rng.nextDouble() * 0.9;
-      ringMinions.add(m);
-    }
-
-    // Spawn chargers opposite the player's companion (if present), else
-    // place them around the ring edge.
-    final comp = activeCompanion;
-    for (var ci = 0; ci < chargersToSpawn; ci++) {
-      double ang;
-      double spawnR = BattleRing.visualRadius - 20.0 + _rng.nextDouble() * 24.0;
-      if (comp != null && comp.isAlive) {
-        // Angle from ring center -> companion, then flip to opposite side
-        final baseAng = atan2(
-          comp.position.dy - battleRing.position.dy,
-          comp.position.dx - battleRing.position.dx,
-        );
-        ang = baseAng + pi + ((_rng.nextDouble() - 0.5) * 0.6);
-      } else {
-        ang = _rng.nextDouble() * 2 * pi;
-      }
-      final pos = Offset(
-        battleRing.position.dx + cos(ang) * spawnR,
-        battleRing.position.dy + sin(ang) * spawnR,
-      );
-      final m = RingMinion(
-        position: pos,
-        element: element,
-        // Slightly less tanky than before to avoid overwhelming damage
-        health: 20.0 + level * 6.0,
-        radius: 14.0,
-        speed: 34.0 + level * 1.5,
-      );
-      m.type = 'charger';
-      m.orbitCenter = battleRing.position;
-      m.orbitAngle = ang;
-      m.orbitRadius = spawnR;
-      m.orbitTime = 0.6 + _rng.nextDouble() * 0.9;
-      ringMinions.add(m);
-    }
-    _ringMinionsSpawnedForCurrentOpponent = true;
-    debugPrint('Spawned ${ringMinions.length} ring minions at $placePos');
-  }
-
-  void dismissBattleRingOpponent() {
-    battleRingOpponent = null;
-    ringOpponentProjectiles.clear();
-    ringMinions.clear();
-    _ringOpponentTicker = null;
-    _ringOpponentVisuals = null;
-    _ringOpponentFallbackSprite = null;
-    _ringOpponentFallbackScale = 1.0;
-    _ringOpponentFallbackLoadToken++;
-    _ringOpponentSpriteLoadToken++;
-    _ringOpponentSpriteRetryTimer = 0.0;
-    _ringOpponentSpriteLoadsInFlight = 0;
-    // Reset pending minion spawn state
-    _ringMinionsSpawnedForCurrentOpponent = false;
-    _pendingRingMinionCount = 0;
-    _pendingRingMinionLevel = 0;
-    _pendingRingMinionElement = null;
-  }
-
-  void cancelBattleRingFight() {
-    if (!battleRing.inBattle) return;
-    battleRing.inBattle = false;
-    companionProjectiles.clear();
-    ringOpponentProjectiles.clear();
-    dismissBattleRingOpponent();
-    if (activeCompanion != null &&
-        activeCompanion!.isAlive &&
-        !activeCompanion!.returning) {
-      returnCompanion(_primaryCompanionSlot);
-    }
-    onBattleRingCancelled?.call();
+  void dismissDuelOpponent() {
+    duelOpponent = null;
+    duelOpponentProjectiles.clear();
+    _duelOpponentTicker = null;
+    _duelOpponentVisuals = null;
+    _duelOpponentFallbackSprite = null;
+    _duelOpponentFallbackScale = 1.0;
+    _duelOpponentFallbackLoadToken++;
+    _duelOpponentSpriteLoadToken++;
+    _duelOpponentSpriteRetryTimer = 0.0;
+    _duelOpponentSpriteLoadsInFlight = 0;
   }
 
   void beginBeautyContestCinematic({
@@ -553,15 +436,13 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     boosting = false;
 
     companionProjectiles.clear();
-    ringOpponentProjectiles.clear();
-    ringMinions.clear();
+    duelOpponentProjectiles.clear();
     vfxParticles.clear();
     vfxRings.clear();
 
     // Spawn real opponent sprite/visuals in arena.
-    spawnBattleRingOpponent(opponentMember);
-    _ringOpponentSpriteRetryTimer = 1.1;
-    battleRing.inBattle = false;
+    spawnDuelOpponent(opponentMember);
+    _duelOpponentSpriteRetryTimer = 1.1;
 
     const orbitR = 170.0;
     const introOppOffset = Offset(220, -80);
@@ -589,19 +470,19 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     comp.returning = false;
     comp.returnTimer = 0;
 
-    if (battleRingOpponent != null) {
+    if (duelOpponent != null) {
       _beautyContestOppIntroStart = _wrap(
         Offset(
           oppIntroTarget.dx + introOppOffset.dx,
           oppIntroTarget.dy + introOppOffset.dy,
         ),
       );
-      battleRingOpponent!.position = _beautyContestOppIntroStart;
-      battleRingOpponent!.anchorPosition = battleRingOpponent!.position;
+      duelOpponent!.position = _beautyContestOppIntroStart;
+      duelOpponent!.anchorPosition = duelOpponent!.position;
       // Beauty contest should show full sprites immediately (no summon scale-in).
-      battleRingOpponent!.life = 1.0;
-      battleRingOpponent!.returning = false;
-      battleRingOpponent!.returnTimer = 0;
+      duelOpponent!.life = 1.0;
+      duelOpponent!.returning = false;
+      duelOpponent!.returnTimer = 0;
     }
   }
 
@@ -646,14 +527,12 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     boosting = false;
 
     companionProjectiles.clear();
-    ringOpponentProjectiles.clear();
-    ringMinions.clear();
+    duelOpponentProjectiles.clear();
     vfxParticles.clear();
     vfxRings.clear();
 
-    spawnBattleRingOpponent(opponentMember);
-    _ringOpponentSpriteRetryTimer = 1.1;
-    battleRing.inBattle = false;
+    spawnDuelOpponent(opponentMember);
+    _duelOpponentSpriteRetryTimer = 1.1;
 
     const outerRx = 222.0;
     const outerRy = 124.0;
@@ -682,18 +561,18 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     comp.returning = false;
     comp.returnTimer = 0;
 
-    if (battleRingOpponent != null) {
+    if (duelOpponent != null) {
       _beautyContestOppIntroStart = _wrap(
         Offset(
           oppIntroTarget.dx + introOppOffset.dx,
           oppIntroTarget.dy + introOppOffset.dy,
         ),
       );
-      battleRingOpponent!.position = _beautyContestOppIntroStart;
-      battleRingOpponent!.anchorPosition = battleRingOpponent!.position;
-      battleRingOpponent!.life = 1.0;
-      battleRingOpponent!.returning = false;
-      battleRingOpponent!.returnTimer = 0;
+      duelOpponent!.position = _beautyContestOppIntroStart;
+      duelOpponent!.anchorPosition = duelOpponent!.position;
+      duelOpponent!.life = 1.0;
+      duelOpponent!.returning = false;
+      duelOpponent!.returnTimer = 0;
     }
   }
 
@@ -737,14 +616,12 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     boosting = false;
 
     companionProjectiles.clear();
-    ringOpponentProjectiles.clear();
-    ringMinions.clear();
+    duelOpponentProjectiles.clear();
     vfxParticles.clear();
     vfxRings.clear();
 
-    spawnBattleRingOpponent(opponentMember);
-    _ringOpponentSpriteRetryTimer = 1.1;
-    battleRing.inBattle = false;
+    spawnDuelOpponent(opponentMember);
+    _duelOpponentSpriteRetryTimer = 1.1;
 
     const introOppOffset = Offset(210, -42);
     final compIntroTarget = Offset(
@@ -771,18 +648,18 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     comp.returning = false;
     comp.returnTimer = 0;
 
-    if (battleRingOpponent != null) {
+    if (duelOpponent != null) {
       _beautyContestOppIntroStart = _wrap(
         Offset(
           oppIntroTarget.dx + introOppOffset.dx,
           oppIntroTarget.dy + introOppOffset.dy,
         ),
       );
-      battleRingOpponent!.position = _beautyContestOppIntroStart;
-      battleRingOpponent!.anchorPosition = battleRingOpponent!.position;
-      battleRingOpponent!.life = 1.0;
-      battleRingOpponent!.returning = false;
-      battleRingOpponent!.returnTimer = 0;
+      duelOpponent!.position = _beautyContestOppIntroStart;
+      duelOpponent!.anchorPosition = duelOpponent!.position;
+      duelOpponent!.life = 1.0;
+      duelOpponent!.returning = false;
+      duelOpponent!.returnTimer = 0;
     }
   }
 
@@ -828,14 +705,12 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     boosting = false;
 
     companionProjectiles.clear();
-    ringOpponentProjectiles.clear();
-    ringMinions.clear();
+    duelOpponentProjectiles.clear();
     vfxParticles.clear();
     vfxRings.clear();
 
-    spawnBattleRingOpponent(opponentMember);
-    _ringOpponentSpriteRetryTimer = 1.1;
-    battleRing.inBattle = false;
+    spawnDuelOpponent(opponentMember);
+    _duelOpponentSpriteRetryTimer = 1.1;
 
     const introOppOffset = Offset(230, -56);
     final compIntroTarget = Offset(
@@ -862,18 +737,18 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     comp.returning = false;
     comp.returnTimer = 0;
 
-    if (battleRingOpponent != null) {
+    if (duelOpponent != null) {
       _beautyContestOppIntroStart = _wrap(
         Offset(
           oppIntroTarget.dx + introOppOffset.dx,
           oppIntroTarget.dy + introOppOffset.dy,
         ),
       );
-      battleRingOpponent!.position = _beautyContestOppIntroStart;
-      battleRingOpponent!.anchorPosition = battleRingOpponent!.position;
-      battleRingOpponent!.life = 1.0;
-      battleRingOpponent!.returning = false;
-      battleRingOpponent!.returnTimer = 0;
+      duelOpponent!.position = _beautyContestOppIntroStart;
+      duelOpponent!.anchorPosition = duelOpponent!.position;
+      duelOpponent!.life = 1.0;
+      duelOpponent!.returning = false;
+      duelOpponent!.returnTimer = 0;
     }
   }
 
@@ -908,13 +783,13 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     _intelligenceContestOrbit = 0.0;
     _intelligenceContestOrbPos = Offset.zero;
     companionProjectiles.clear();
-    ringOpponentProjectiles.clear();
-    dismissBattleRingOpponent();
+    duelOpponentProjectiles.clear();
+    dismissDuelOpponent();
   }
 
   void _updateBeautyContestCinematic(double dt) {
     final comp = activeCompanion;
-    final opp = battleRingOpponent;
+    final opp = duelOpponent;
     if (comp == null || opp == null || !opp.isAlive) {
       endBeautyContestCinematic();
       return;
@@ -924,21 +799,21 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     _riftPulse += dt;
     _beautyContestCompHopTimer = max(0.0, _beautyContestCompHopTimer - dt);
     _beautyContestOppHopTimer = max(0.0, _beautyContestOppHopTimer - dt);
-    _ringOpponentSpriteRetryTimer = max(
+    _duelOpponentSpriteRetryTimer = max(
       0.0,
-      _ringOpponentSpriteRetryTimer - dt,
+      _duelOpponentSpriteRetryTimer - dt,
     );
     final primarySlot = _primaryCompanionSlot;
     if (primarySlot != null) _companionTickers[primarySlot]?.update(dt);
-    _ringOpponentTicker?.update(dt);
+    _duelOpponentTicker?.update(dt);
 
     // Retry opponent sprite load in-case an async load raced or failed.
-    if (_ringOpponentTicker == null &&
+    if (_duelOpponentTicker == null &&
         opp.member.spriteSheet != null &&
-        _ringOpponentSpriteLoadsInFlight == 0 &&
-        _ringOpponentSpriteRetryTimer <= 0) {
-      _ringOpponentSpriteRetryTimer = 1.1;
-      _loadRingOpponentSprite(opp.member);
+        _duelOpponentSpriteLoadsInFlight == 0 &&
+        _duelOpponentSpriteRetryTimer <= 0) {
+      _duelOpponentSpriteRetryTimer = 1.1;
+      _loadDuelOpponentSprite(opp.member);
     }
 
     if (_beautyContestIntroActive) {
@@ -1154,7 +1029,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         casterIntelligence: opp.member.statIntelligence.toDouble(),
         targetPos: comp.position,
       );
-      ringOpponentProjectiles.addAll(result.projectiles);
+      duelOpponentProjectiles.addAll(result.projectiles);
       _spawnHitSpark(opp.position, elementColor(opp.member.element));
     }
     if (!_beautyContestCompAbilityB &&
@@ -1192,7 +1067,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         casterIntelligence: opp.member.statIntelligence.toDouble(),
         targetPos: comp.position,
       );
-      ringOpponentProjectiles.addAll(result.projectiles);
+      duelOpponentProjectiles.addAll(result.projectiles);
       _spawnHitSpark(opp.position, elementColor(opp.member.element));
     }
 
@@ -1228,7 +1103,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     }
 
     updateContestProjectiles(companionProjectiles);
-    updateContestProjectiles(ringOpponentProjectiles);
+    updateContestProjectiles(duelOpponentProjectiles);
 
     for (var i = vfxParticles.length - 1; i >= 0; i--) {
       vfxParticles[i].update(dt);

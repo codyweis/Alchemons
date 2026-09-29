@@ -10,7 +10,7 @@ extension CosmicGameElementalCaches on CosmicGame {
 
     // The pocket dimension and the ring arena run on borrowed coordinates —
     // proximity out in the open cosmos means nothing while the ship is there.
-    if (inNexusPocket || battleRing.inBattle) {
+    if (inNexusPocket || wildDuelActive) {
       if (_nearestCache != null) {
         _nearestCache = null;
         onNearCache?.call(null);

@@ -433,22 +433,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
       }
     }
 
-    final br = widget.world.battleRing;
-    if (br.discovered) {
-      final d = (br.position - tapPos).distance;
-      if (d < 1080) {
-        tryUpdate(
-          _MiniMapTravelPromptData(
-            title: br.isCompleted ? 'BATTLE ARENA' : 'BATTLE RING',
-            subtitle: 'Combat landmark',
-            accent: const Color(0xFFFFD740),
-            icon: AppIcons.shield_rounded,
-          ),
-          d,
-        );
-      }
-    }
-
     final ring = widget.world.bloodRing;
     if (ring.discovered) {
       final d = (ring.position - tapPos).distance;
@@ -2050,500 +2034,70 @@ class _PlanetPreviewPainter extends CustomPainter {
   });
 
   final CosmicPlanet planet;
+
+  /// Seconds added to the moment shown — the planet as it looks in space,
+  /// turned this far.
   final double spin;
   final bool highlighted;
   final double? explicitRadius;
   final double alpha;
 
-  static final _sphereShaderPaintCache = <int, Paint>{};
-
-  static void _drawSphere(
-    Canvas c,
-    Offset p,
-    double r,
-    Color color, {
-    double highlight = 0.4,
-    double shadow = 0.6,
-    double alpha = 1.0,
-  }) {
-    final baseColor = color.withValues(alpha: color.a * alpha);
-    final key = Object.hash(
-      baseColor,
-      (r * 10).round(),
-      (highlight * 100).round(),
-      (shadow * 100).round(),
-      p.dx.round(),
-      p.dy.round(),
-    );
-    final paint = _sphereShaderPaintCache.putIfAbsent(
-      key,
-      () => Paint()
-        ..shader = RadialGradient(
-          colors: [
-            Color.lerp(baseColor, Colors.white, highlight)!,
-            baseColor,
-            Color.lerp(baseColor, Colors.black, shadow)!,
-          ],
-          stops: const [0.0, 0.55, 1.0],
-          center: const Alignment(-0.35, -0.35),
-          radius: 1.05,
-        ).createShader(Rect.fromCircle(center: p, radius: r)),
-    );
-    c.drawCircle(p, r, paint);
-  }
+  /// The moment each card shows: the moon in front of Aquathos, the turning
+  /// worlds at a flattering angle.
+  static const double _moment = 2.7;
 
   @override
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
-    final r = explicitRadius ?? min(size.width, size.height) * 0.42;
-    final col = planet.color;
-    final glowA = highlighted ? 0.13 : 0.07;
-    final showDetail = highlighted || r >= 30;
+    final art = planetArtFor(planet);
+    // The same art as in space. A planet whose rings or moon reach further
+    // is drawn smaller, so it keeps inside its card.
+    final full = explicitRadius ?? min(size.width, size.height) * 0.42;
+    final r = min(full, (size.width / 2 + 12) / art.cardReach);
+    final t = _moment + spin;
 
-    canvas.drawCircle(
-      c,
-      r * (highlighted ? 1.55 : 1.3),
-      Paint()
-        ..color = col.withValues(alpha: glowA * alpha)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = highlighted ? r * 0.2 : r * 0.14,
+    final bounds = Rect.fromCenter(
+      center: c,
+      width: size.width + 40,
+      height: size.height + 40,
     );
-
-    switch (planet.element) {
-      case 'Fire':
-        if (showDetail) {
-          for (var i = 0; i < 6; i++) {
-            final a = spin * 0.8 + i * pi / 3;
-            canvas.drawCircle(
-              Offset(c.dx + cos(a) * r * 1.2, c.dy + sin(a) * r * 1.2),
-              r * (0.2 + 0.08 * sin(spin * 2 + i)),
-              Paint()
-                ..color = const Color(
-                  0xFFFF6D00,
-                ).withValues(alpha: 0.22 * alpha),
-            );
-          }
-        }
-        _drawSphere(canvas, c, r, col, alpha: alpha);
-
-      case 'Lava':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFF3E2723),
-          highlight: 0.2,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          final crack = Paint()
-            ..color = const Color(0xFFFFAB40).withValues(alpha: 0.6 * alpha)
-            ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = 1.5;
-          for (var i = 0; i < 4; i++) {
-            final a = i * (pi * 2 / 4) + spin * 0.2;
-            canvas.drawLine(
-              Offset(c.dx + cos(a) * r * 0.2, c.dy + sin(a) * r * 0.2),
-              Offset(
-                c.dx + cos(a + 0.5) * r * 0.82,
-                c.dy + sin(a + 0.5) * r * 0.82,
-              ),
-              crack,
-            );
-          }
-        }
-
-      case 'Lightning':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFF1A237E),
-          highlight: 0.5,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          canvas.drawCircle(
-            c,
-            r * (1.2 + 0.08 * sin(spin * 2.0)),
-            Paint()
-              ..color = const Color(0xFF90CAF9).withValues(alpha: 0.28 * alpha)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.4,
-          );
-          for (var i = 0; i < 7; i++) {
-            final a = spin * (0.9 + i * 0.08) + i * (pi * 2 / 7);
-            canvas.drawCircle(
-              Offset(c.dx + cos(a) * r * 1.3, c.dy + sin(a) * r * 1.3),
-              r * 0.06,
-              Paint()..color = Colors.white.withValues(alpha: 0.72 * alpha),
-            );
-          }
-        }
-
-      case 'Water':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFF0D47A1),
-          highlight: 0.35,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          canvas.save();
-          canvas.clipPath(
-            Path()..addOval(Rect.fromCircle(center: c, radius: r)),
-          );
-          for (var i = 0; i < 5; i++) {
-            final y = c.dy - r + (2 * r) * (i + 0.5) / 5;
-            final p = Path()..moveTo(c.dx - r - 8, y);
-            for (var x = -r - 8.0; x <= r + 8; x += 4) {
-              p.lineTo(
-                c.dx + x,
-                y + sin((x / r) * pi * 2 + spin * 1.1 + i) * r * 0.07,
-              );
-            }
-            p
-              ..lineTo(c.dx + r + 8, c.dy + r + 8)
-              ..lineTo(c.dx - r - 8, c.dy + r + 8)
-              ..close();
-            canvas.drawPath(
-              p,
-              Paint()
-                ..color = Colors.white.withValues(
-                  alpha: (0.08 + i * 0.03) * alpha,
-                ),
-            );
-          }
-          canvas.restore();
-        }
-
-      case 'Ice':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFFB3E5FC),
-          shadow: 0.45,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          for (var i = 0; i < 5; i++) {
-            final a = i * 1.2 + spin * 0.07;
-            canvas.drawLine(
-              Offset(c.dx + cos(a) * r * 0.15, c.dy + sin(a) * r * 0.15),
-              Offset(
-                c.dx + cos(a + 0.7) * r * 0.82,
-                c.dy + sin(a + 0.7) * r * 0.82,
-              ),
-              Paint()
-                ..color = Colors.white.withValues(alpha: 0.45 * alpha)
-                ..strokeWidth = 1.0,
-            );
-          }
-        }
-
-      case 'Steam':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFF607D8B),
-          highlight: 0.35,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          for (var i = 0; i < 7; i++) {
-            final a = i * 0.9 + spin * 0.6;
-            canvas.drawCircle(
-              Offset(c.dx + cos(a) * r * 1.2, c.dy + sin(a) * r * 1.0),
-              r * 0.2,
-              Paint()..color = Colors.white.withValues(alpha: 0.11 * alpha),
-            );
-          }
-        }
-
-      case 'Earth':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFF5D4037),
-          highlight: 0.28,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          final rng = Random(planet.element.hashCode);
-          for (var i = 0; i < 6; i++) {
-            final a = rng.nextDouble() * pi * 2;
-            final d = r * (0.2 + rng.nextDouble() * 0.55);
-            canvas.drawCircle(
-              Offset(c.dx + cos(a) * d, c.dy + sin(a) * d),
-              r * (0.1 + rng.nextDouble() * 0.12),
-              Paint()
-                ..color = const Color(
-                  0xFF8BC34A,
-                ).withValues(alpha: 0.5 * alpha),
-            );
-          }
-        }
-
-      case 'Mud':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFF4E342E),
-          highlight: 0.18,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          for (var i = 0; i < 7; i++) {
-            final a = i * (pi * 2 / 7) + spin * 0.2;
-            canvas.drawCircle(
-              Offset(c.dx + cos(a) * r * 0.58, c.dy + sin(a) * r * 0.58),
-              r * 0.07,
-              Paint()..color = Colors.black.withValues(alpha: 0.28 * alpha),
-            );
-          }
-        }
-
-      case 'Dust':
-        _drawSphere(canvas, c, r, col, shadow: 0.42, alpha: alpha);
-        if (showDetail) {
-          canvas
-            ..save()
-            ..translate(c.dx, c.dy)
-            ..scale(1.0, 0.35)
-            ..drawCircle(
-              Offset.zero,
-              r * 1.9,
-              Paint()
-                ..color = col.withValues(alpha: 0.4 * alpha)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 2,
-            )
-            ..restore();
-        }
-
-      case 'Crystal':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          col,
-          highlight: 0.62,
-          shadow: 0.3,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          for (var i = 0; i < 6; i++) {
-            final a = i * (pi * 2 / 6) + spin * 0.12;
-            final p1 = Offset(c.dx + cos(a) * r * 0.2, c.dy + sin(a) * r * 0.2);
-            final p2 = Offset(
-              c.dx + cos(a + 0.22) * r * 0.74,
-              c.dy + sin(a + 0.22) * r * 0.74,
-            );
-            final p3 = Offset(
-              c.dx + cos(a - 0.22) * r * 0.74,
-              c.dy + sin(a - 0.22) * r * 0.74,
-            );
-            canvas.drawPath(
-              Path()
-                ..moveTo(p1.dx, p1.dy)
-                ..lineTo(p2.dx, p2.dy)
-                ..lineTo(p3.dx, p3.dy)
-                ..close(),
-              Paint()..color = Colors.white.withValues(alpha: 0.18 * alpha),
-            );
-          }
-        }
-
-      case 'Air':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          col,
-          highlight: 0.55,
-          shadow: 0.2,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          for (var i = 0; i < 4; i++) {
-            final y = c.dy - r * 0.55 + i * r * 0.38;
-            final p = Path()..moveTo(c.dx - r, y);
-            for (var s = 0; s <= 18; s++) {
-              final fx = s / 18;
-              p.lineTo(
-                c.dx - r + fx * r * 2,
-                y + sin(fx * pi * 3 + spin * 1.2 + i) * r * 0.07,
-              );
-            }
-            canvas.drawPath(
-              p,
-              Paint()
-                ..color = Colors.white.withValues(alpha: 0.2 * alpha)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.0,
-            );
-          }
-        }
-
-      case 'Plant':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFF33691E),
-          highlight: 0.25,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          for (var i = 0; i < 5; i++) {
-            final a = i * (pi * 2 / 5) + spin * 0.2;
-            canvas.drawLine(
-              Offset(c.dx + cos(a) * r * 0.92, c.dy + sin(a) * r * 0.92),
-              Offset(
-                c.dx + cos(a + 0.4) * r * 1.25,
-                c.dy + sin(a + 0.4) * r * 1.25,
-              ),
-              Paint()
-                ..color = const Color(0xFF66BB6A).withValues(alpha: 0.7 * alpha)
-                ..strokeWidth = 1.2,
-            );
-          }
-        }
-
-      case 'Poison':
-        _drawSphere(canvas, c, r, col, highlight: 0.22, alpha: alpha);
-        if (showDetail) {
-          for (var i = 0; i < 6; i++) {
-            final a = i * 1.05 + spin * 0.35;
-            canvas.drawCircle(
-              Offset(c.dx + cos(a) * r * 1.25, c.dy + sin(a) * r * 1.05),
-              r * 0.22,
-              Paint()
-                ..color = const Color(
-                  0xFFBA68C8,
-                ).withValues(alpha: 0.16 * alpha),
-            );
-          }
-        }
-
-      case 'Spirit':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFF303F9F),
-          highlight: 0.42,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          for (var i = 0; i < 5; i++) {
-            final a = spin * 0.7 + i * (pi * 2 / 5);
-            canvas.drawCircle(
-              Offset(c.dx + cos(a) * r * 1.15, c.dy + sin(a) * r * 1.15),
-              r * 0.09,
-              Paint()..color = Colors.white.withValues(alpha: 0.65 * alpha),
-            );
-          }
-        }
-
-      case 'Dark':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFF1A0930),
-          highlight: 0.12,
-          shadow: 0.72,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          canvas.drawCircle(
-            c,
-            r * 1.32,
-            Paint()
-              ..color = const Color(0xFF6A0DAD).withValues(alpha: 0.28 * alpha)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.4,
-          );
-        }
-
-      case 'Light':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFFFFF8E1),
-          highlight: 0.7,
-          shadow: 0.22,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          for (var i = 0; i < 8; i++) {
-            final a = i * (pi * 2 / 8) + spin * 0.08;
-            canvas.drawLine(
-              Offset(c.dx + cos(a) * r * 1.05, c.dy + sin(a) * r * 1.05),
-              Offset(c.dx + cos(a) * r * 1.42, c.dy + sin(a) * r * 1.42),
-              Paint()
-                ..color = const Color(
-                  0xFFFFECB3,
-                ).withValues(alpha: 0.55 * alpha)
-                ..strokeWidth = 1.2,
-            );
-          }
-        }
-
-      case 'Blood':
-        _drawSphere(
-          canvas,
-          c,
-          r,
-          const Color(0xFF8B0000),
-          highlight: 0.25,
-          alpha: alpha,
-        );
-        if (showDetail) {
-          canvas.drawCircle(
-            c,
-            r * (1.2 + 0.06 * sin(spin * 1.5)),
-            Paint()
-              ..color = const Color(0xFFD32F2F).withValues(alpha: 0.35 * alpha)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.6,
-          );
-        }
-
-      default:
-        _drawSphere(canvas, c, r, col, alpha: alpha);
-    }
-
-    if (highlighted) {
-      canvas.drawCircle(
-        c,
-        r * 1.07,
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.10 * alpha)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.6,
+    canvas.save();
+    canvas.clipRect(bounds);
+    if (alpha < 1) {
+      canvas.saveLayer(
+        bounds,
+        Paint()..color = Color.fromRGBO(0, 0, 0, alpha),
       );
     }
+    if (highlighted) {
+      // Selected: lifted by a soft pool of its own light, not a ring.
+      final glow = r * 1.9;
+      canvas.drawCircle(
+        c,
+        glow,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              planet.color.withValues(alpha: 0.22),
+              planet.color.withValues(alpha: 0),
+            ],
+          ).createShader(Rect.fromCircle(center: c, radius: glow)),
+      );
+    }
+    art.paintBack(canvas, c, r, t);
+    art.paintBody(canvas, c, r, t);
+    art.paintFront(canvas, c, r, t);
+    if (alpha < 1) canvas.restore();
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _PlanetPreviewPainter old) {
-    if (old.planet.element != planet.element) return true;
-    if (old.highlighted != highlighted) return true;
-    if (old.explicitRadius != explicitRadius) return true;
-    if (old.alpha != alpha) return true;
-    if (!highlighted && !old.highlighted) return false;
-    return old.spin != spin;
-  }
+  bool shouldRepaint(covariant _PlanetPreviewPainter old) =>
+      old.planet.element != planet.element ||
+      old.highlighted != highlighted ||
+      old.explicitRadius != explicitRadius ||
+      old.alpha != alpha ||
+      old.spin != spin;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2726,6 +2280,17 @@ class _MiniMapPainter extends CustomPainter {
     final showStructureLabels = scale >= 0.014;
     final showPoiLabels = scale >= 0.016;
     final showContestLabels = scale >= 0.018;
+
+    // Territories under the planets, so the map shows where each
+    // element's wild Alchemons live.
+    for (final planet in world.planets) {
+      if (!planet.discovered) continue;
+      canvas.drawCircle(
+        planet.position * scale,
+        kPlanetTerritoryRadius * scale,
+        Paint()..color = planet.color.withValues(alpha: 0.10),
+      );
+    }
 
     // Planets
     for (final planet in world.planets) {
@@ -3155,51 +2720,6 @@ class _MiniMapPainter extends CustomPainter {
       }
       if (showStructureLabels) {
         _paintLabel(canvas, 'ELEMENTAL NEXUS', nexusColor, 0.7, nxPos, 12);
-      }
-    }
-
-    // Battle Ring
-    final br = world.battleRing;
-    if (br.discovered) {
-      final brPos = br.position * scale;
-      const brColor = Color(0xFFFFD740);
-
-      canvas.drawCircle(brPos, 12, _glowPaint(brColor, 0.25, 8));
-
-      final octPath = Path();
-      for (var i = 0; i < 8; i++) {
-        final a = i * pi / 4 - pi / 8;
-        final pt = Offset(brPos.dx + cos(a) * 8, brPos.dy + sin(a) * 8);
-        if (i == 0) {
-          octPath.moveTo(pt.dx, pt.dy);
-        } else {
-          octPath.lineTo(pt.dx, pt.dy);
-        }
-      }
-      octPath.close();
-      canvas
-        ..drawPath(
-          octPath,
-          Paint()
-            ..color = brColor.withValues(alpha: 0.8)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5,
-        )
-        ..drawCircle(
-          brPos,
-          2.5,
-          Paint()..color = brColor.withValues(alpha: 0.9),
-        );
-
-      if (showStructureLabels) {
-        _paintLabel(
-          canvas,
-          br.isCompleted ? 'BATTLE ARENA' : 'BATTLE RING',
-          brColor,
-          0.7,
-          brPos,
-          12,
-        );
       }
     }
 

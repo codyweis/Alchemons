@@ -134,6 +134,19 @@ class _MiniCirclePainter extends CustomPainter {
 
     final viewR = size.shortestSide / 2;
 
+    // The territory the radar sits in shows as a wash of its element.
+    for (final planet in world.planets) {
+      if (!planet.discovered) continue;
+      final p = toMini(planet.position);
+      final tr = kPlanetTerritoryRadius * mapScale;
+      if ((p - center).distance > viewR + tr) continue;
+      canvas.drawCircle(
+        p,
+        tr,
+        Paint()..color = planet.color.withValues(alpha: 0.12),
+      );
+    }
+
     for (final planet in world.planets) {
       if (!planet.discovered) continue;
       final p = toMini(planet.position);
@@ -463,17 +476,6 @@ class _MiniCirclePainter extends CustomPainter {
           p,
           2.8,
           Paint()..color = const Color(0xFFB388FF).withValues(alpha: 0.8),
-        );
-      }
-    }
-
-    if (world.battleRing.discovered) {
-      final p = toMini(world.battleRing.position);
-      if ((p - center).distance <= viewR + 8) {
-        canvas.drawCircle(
-          p,
-          2.8,
-          Paint()..color = const Color(0xFFFFD740).withValues(alpha: 0.9),
         );
       }
     }

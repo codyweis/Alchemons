@@ -29,6 +29,8 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'cosmic_data.dart';
 import 'cosmic_cache_data.dart';
 import 'cosmic_cache_vfx.dart';
+import 'portal_tear_paint.dart';
+import 'planets/planet_art.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/systems/effects/effect.dart';
 import 'package:alchemons/systems/effects/effect_loader.dart';
@@ -41,6 +43,7 @@ part 'cosmic_game_world_systems.dart';
 part 'cosmic_game_home_visuals.dart';
 part 'cosmic_game_caches.dart';
 part 'cosmic_game_mask.dart';
+part 'cosmic_game_wild.dart';
 
 /// Cached icon-glyph painters for item loot drops — same shop icon set
 /// resolved via [InventoryItemArtwork.offerFor], baked once per (icon, color)
@@ -182,9 +185,7 @@ class CosmicGame extends FlameGame with PanDetector {
     this.onCompanionAutoReturned,
     this.onCompanionDied,
     this.onNearNexus,
-    this.onNearBattleRing,
     this.onNearBloodRing,
-    this.onBattleRingCancelled,
     this.onNearContestArena,
     this.onContestHintCollected,
     Set<String>? initialCustomizations,
@@ -267,7 +268,6 @@ class CosmicGame extends FlameGame with PanDetector {
   final void Function(SpacePOI? poi)? onNearMarket;
   final void Function(CosmicPartyMember member)? onCompanionAutoReturned;
   final void Function(CosmicPartyMember member)? onCompanionDied;
-  final VoidCallback? onBattleRingCancelled;
   final void Function(CosmicContestArena? arena)? onNearContestArena;
   final void Function(CosmicContestHintNote note)? onContestHintCollected;
 
@@ -304,10 +304,6 @@ class CosmicGame extends FlameGame with PanDetector {
   // Cached creature images for orbital chamber sprites
   final Map<String, ui.Image> _chamberSpriteCache = {};
 
-  ui.Picture? _staticEffectsPicture;
-  Set<String> _cachedCustomizations = {};
-  double _cachedVr = 0;
-
   // Stars stored in spatial grid for fast rendering
   static const double _starChunkSize = 800.0;
   late int _starGridW;
@@ -340,13 +336,6 @@ class CosmicGame extends FlameGame with PanDetector {
   bool _isNearNexus = false;
   void Function(bool isNear)? onNearNexus;
 
-  // Battle Ring (octagonal arena)
-  late BattleRing battleRing = world_.battleRing;
-  bool _wasNearBattleRing = false;
-  bool _isNearBattleRing = false;
-  bool get isNearBattleRing => _isNearBattleRing;
-  void Function(bool isNear)? onNearBattleRing;
-
   // Blood Ring (ending ritual portal)
   late BloodRing bloodRing = world_.bloodRing;
   bool _wasNearBloodRing = false;
@@ -354,41 +343,92 @@ class CosmicGame extends FlameGame with PanDetector {
   bool get isNearBloodRing => _isNearBloodRing;
   void Function(bool isNear)? onNearBloodRing;
 
-  // Trait contest arenas + hint notes (separate system from battle ring)
+  // Trait contest arenas + hint notes
   late List<CosmicContestArena> contestArenas = world_.contestArenas;
   late List<CosmicContestHintNote> contestHintNotes = world_.contestHintNotes;
   CosmicContestArena? nearContestArena;
 
-  // Battle Ring opponent (in-world 1v1)
-  CosmicCompanion? battleRingOpponent;
-  final List<Projectile> ringOpponentProjectiles = [];
-  // Lightweight minions summoned to assist the ring opponent.
-  // These are local to the ring fight and only target the player's companion.
-  final List<RingMinion> ringMinions = [];
-  // Pending minion spawn data: we spawn helpers only once the opponent
-  // drops below half health. These fields store the planned spawn so we can
-  // delay visual portal emergence until the threshold is reached.
-  bool _ringMinionsSpawnedForCurrentOpponent = false;
-  int _pendingRingMinionCount = 0;
-  int _pendingRingMinionLevel = 0;
-  String? _pendingRingMinionElement;
+  // The one Alchemon fighting the player in-world: a wild one in a duel, or
+  // a contest rival during a contest cinematic. Contests only stage it; the
+  // duel update runs only while [wildDuelActive].
+  CosmicCompanion? duelOpponent;
+  final List<Projectile> duelOpponentProjectiles = [];
 
-  // Lightweight ring-minion type
-  // Local to this file: small helpers that assist the ring opponent.
-  // They only target the player's companion and can be shot by the ship.
-  // Keep this small to avoid pulling in extra dependencies.
+  // Wild Alchemons drifting in space — see cosmic_game_wild.dart.
+  final List<SpaceWildAlchemon> wildAlchemons = [];
+  String? _duelWildId;
+  bool get wildDuelActive => _duelWildId != null;
+  // Starts most of the way to the first arrival so space is not empty for
+  // the first stretch of a visit.
+  double _wildSpawnTimer = 3.0;
+  bool _wildSpawnRequested = false;
+  bool _wildContactPending = false;
+  SpaceWildAlchemon? nearWild;
 
-  SpriteAnimationTicker? _ringOpponentTicker;
-  SpriteVisuals? _ringOpponentVisuals;
-  double _ringOpponentSpriteScale = 1.0;
-  Sprite? _ringOpponentFallbackSprite;
-  double _ringOpponentFallbackScale = 1.0;
-  int _ringOpponentFallbackLoadToken = 0;
-  int _ringOpponentSpriteLoadToken = 0;
-  double _ringOpponentSpriteRetryTimer = 0.0;
-  int _ringOpponentSpriteLoadsInFlight = 0;
-  VoidCallback? onBattleRingWon;
-  VoidCallback? onBattleRingLost;
+  /// Potential readouts over wild Alchemons (Wild Potential Scanner).
+  bool showWildPotentials = false;
+
+  /// Asks the screen for a creature at [position]. [element] is the nearby
+  /// planet's element, or null in open space.
+  void Function(Offset position, String? element)? onWildSpawnWanted;
+
+  /// The ship rammed [wild]; space should pause and the portal open.
+  void Function(SpaceWildAlchemon wild)? onWildContact;
+  void Function(SpaceWildAlchemon? wild)? onNearWild;
+  void Function(SpaceWildAlchemon wild)? onWildDuelStarted;
+  void Function(SpaceWildAlchemon wild, WildDuelEnd how)? onWildDuelEnded;
+
+  // The portal tear played in space when the ship rams one: time slows, the
+  // camera leans in on the creature, and the tear opens until it swallows
+  // the screen. The encounter opens behind that dark.
+  SpaceWildAlchemon? _tearWild;
+  bool _tearHandedOff = false;
+  double _tearT = 0;
+  double _tearCloseT = -1;
+  double _tearClock = 0;
+  Offset _tearWorld = Offset.zero;
+  Color _tearColor = Colors.white;
+  Offset _camPan = Offset.zero;
+  Offset _camPanFrom = Offset.zero;
+  double _camZoomMul = 1.0;
+  static const double _tearOpenSeconds = 0.95;
+  static const double _tearCloseSeconds = 0.55;
+
+  /// The tear has started; the screen clears its HUD for the shot.
+  VoidCallback? onWildTearStarted;
+
+  // Territories are lived in; the deep space between them is sparse.
+  static const int _maxWildInTerritory = 5;
+  static const double _wildIntervalInTerritory = 6.0;
+  static const int _maxWildInDeepSpace = 2;
+  static const double _wildIntervalInDeepSpace = 15.0;
+
+  /// Share of a territory's arrivals that are its own element; the rest are
+  /// strays from anywhere already discovered.
+  static const double _wildTerritoryNativeShare = 0.8;
+  static const double _wildDespawnRange = 3400.0;
+  static const double _wildNearRange = 360.0;
+  static const double _wildLabelRange = 480.0;
+  static const double _wildContactRange = 42.0;
+  static const double _wildTerritoryRange = 250.0;
+  static const double _wildCompanionEngageRange = 200.0;
+  static const double _wildTetherRadius = 320.0;
+  static const double _wildDisengageRange = 1400.0;
+  static const double _wildExhaustedSeconds = 30.0;
+
+  /// Ship shots are tuned against enemy health; an Alchemon's companion-scale
+  /// HP needs them heavier so a ship alone can still win a fight.
+  static const double _wildShipShotScale = 4.0;
+
+  SpriteAnimationTicker? _duelOpponentTicker;
+  SpriteVisuals? _duelOpponentVisuals;
+  double _duelOpponentSpriteScale = 1.0;
+  Sprite? _duelOpponentFallbackSprite;
+  double _duelOpponentFallbackScale = 1.0;
+  int _duelOpponentFallbackLoadToken = 0;
+  int _duelOpponentSpriteLoadToken = 0;
+  double _duelOpponentSpriteRetryTimer = 0.0;
+  int _duelOpponentSpriteLoadsInFlight = 0;
 
   // Beauty contest in-arena cinematic (non-combat showcase)
   bool _beautyContestCinematicActive = false;
@@ -679,7 +719,7 @@ class CosmicGame extends FlameGame with PanDetector {
         planets: world_.planets,
         landmarks: [
           world_.elementalNexus.position,
-          world_.battleRing.position,
+          world_.retiredArenaPosition,
           world_.bloodRing.position,
           world_.prismaticField.position,
           ...world_.riftPortals.map((r) => r.position),
@@ -718,13 +758,6 @@ class CosmicGame extends FlameGame with PanDetector {
   double _pocketCacheTime = -1;
   static const int _pocketTexSize = 512;
   static const double _pocketCacheInterval = 0.1;
-
-  // Battle Ring cached render-to-texture
-  ui.Image? _battleRingCachedImage;
-  double _battleRingCacheTime = -1;
-  static const int _battleRingTexSize = 512;
-  static const double _battleRingCacheInterval = 0.1;
-  static const double _battleRingTexWorldR = 550.0;
 
   // Feeding-pack spawn: separate timer, spawns near asteroid belt
   double _feedingPackTimer = 0;
@@ -769,7 +802,9 @@ class CosmicGame extends FlameGame with PanDetector {
   /// Current zoom level index (0 = close, 1 = mid, 2 = far).
   int get currentZoomLevel => _zoomLevelIndex;
 
-  double get cameraZoom => _currentZoom;
+  /// The zoom the world is drawn at: the player's preset, pushed in further
+  /// while a portal tear plays.
+  double get cameraZoom => _currentZoom * _camZoomMul;
 
   void cycleZoomLevel() {
     _zoomLevelIndex = (_zoomLevelIndex + 1) % _zoomPresets.length;
@@ -779,8 +814,8 @@ class CosmicGame extends FlameGame with PanDetector {
     _zoomAnimComplete = false;
   }
 
-  double get camX => ship.pos.dx - size.x / (2 * _currentZoom);
-  double get camY => ship.pos.dy - size.y / (2 * _currentZoom);
+  double get camX => ship.pos.dx + _camPan.dx - size.x / (2 * cameraZoom);
+  double get camY => ship.pos.dy + _camPan.dy - size.y / (2 * cameraZoom);
 
   // ── lifecycle ──────────────────────────────────────────
 
@@ -978,20 +1013,18 @@ class CosmicGame extends FlameGame with PanDetector {
         best = e.position;
       }
     }
-    // Ring minions are a third list again, and only exist mid-ring-fight.
-    // Asteroids are deliberately NOT here: they take fire too, but they are
-    // scenery to be mined, and an armed ship would otherwise chew through
-    // every rock it drifted past.
-    if (battleRing.inBattle) {
-      for (final rm in ringMinions) {
-        if (rm.dead) continue;
-        final dx = rm.position.dx - from.dx;
-        final dy = rm.position.dy - from.dy;
-        final d2 = dx * dx + dy * dy;
-        if (d2 < bestDist2) {
-          bestDist2 = d2;
-          best = rm.position;
-        }
+    // A wild Alchemon is a target only once the player has picked the
+    // fight. Asteroids are deliberately NOT here: they take fire too, but
+    // they are scenery to be mined, and an armed ship would otherwise chew
+    // through every rock it drifted past.
+    final opp = duelOpponent;
+    if (wildDuelActive && opp != null && opp.isAlive) {
+      final dx = opp.position.dx - from.dx;
+      final dy = opp.position.dy - from.dy;
+      final d2 = dx * dx + dy * dy;
+      if (d2 < bestDist2) {
+        bestDist2 = d2;
+        best = opp.position;
       }
     }
     final boss = activeBoss;
@@ -1047,10 +1080,14 @@ class CosmicGame extends FlameGame with PanDetector {
 
   // ── Companion (party alchemon) ──
 
-  /// Species-type scale factors for companion sprites. Shared with survival —
-  /// see [kCompanionSpeciesScale] in cosmic_data.dart.
-  static const Map<String, double> _companionSpeciesScale =
-      kCompanionSpeciesScale;
+  /// Species-type scale factors for sprites in cosmic space. Survival uses
+  /// [kCompanionSpeciesScale] as is; space draws wings twice and horns half
+  /// again as large, so the big families read as big against the dark.
+  static final Map<String, double> _companionSpeciesScale = {
+    ...kCompanionSpeciesScale,
+    'wing': kCompanionSpeciesScale['wing']! * 2.0,
+    'horn': kCompanionSpeciesScale['horn']! * 1.5,
+  };
 
   static double _clampDouble(double value, double minValue, double maxValue) {
     return value.clamp(minValue, maxValue).toDouble();
@@ -1193,24 +1230,24 @@ class CosmicGame extends FlameGame with PanDetector {
     return hash.isEven ? 1 : -1;
   }
 
-  static const double _battleRingDamageMultiplier = 1.35;
-  static const double _battleRingDefenseScale = 0.68;
+  static const double _duelDamageMultiplier = 1.35;
+  static const double _duelDefenseScale = 0.68;
 
-  int _battleRingDamageAfterDefense(double rawDamage, int defense) {
+  int _duelDamageAfterDefense(double rawDamage, int defense) {
     return max(
       1,
       (rawDamage *
-              _battleRingDamageMultiplier *
+              _duelDamageMultiplier *
               100 /
-              (100 + defense * _battleRingDefenseScale))
+              (100 + defense * _duelDefenseScale))
           .round(),
     );
   }
 
-  Offset _updateRingDuelMovement({
+  Offset _updateDuelMovement({
     required Offset actorPos,
     required Offset targetPos,
-    required Offset ringCenter,
+    Offset? ringCenter,
     required double dt,
     required String family,
     required String idSeed,
@@ -1254,13 +1291,16 @@ class CosmicGame extends FlameGame with PanDetector {
 
     var nextPos = actorPos + move * dt;
 
-    // Keep the duel inside the ring instead of letting strafe movement drift
-    // fighters outward over time.
-    const ringLimit = 168.0;
-    final fromCenter = nextPos - ringCenter;
-    final fromCenterDist = fromCenter.distance;
-    if (fromCenterDist > ringLimit) {
-      nextPos = ringCenter + (fromCenter / fromCenterDist) * ringLimit;
+    // Keep a fenced duel inside its circle instead of letting strafe
+    // movement drift fighters outward over time. Open-space duels pass no
+    // centre and range freely.
+    if (ringCenter != null) {
+      const ringLimit = 168.0;
+      final fromCenter = nextPos - ringCenter;
+      final fromCenterDist = fromCenter.distance;
+      if (fromCenterDist > ringLimit) {
+        nextPos = ringCenter + (fromCenter / fromCenterDist) * ringLimit;
+      }
     }
 
     final minTargetGap = min(attackRange, specialRange) * 0.28;
@@ -1325,16 +1365,16 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    if (battleRingOpponent != null && battleRingOpponent!.isAlive) {
-      if (!comp.chargeHitIds!.contains(battleRingOpponent.hashCode)) {
-        final d = _distanceToSegment(battleRingOpponent!.position, from, to);
+    if (wildDuelActive && duelOpponent != null && duelOpponent!.isAlive) {
+      if (!comp.chargeHitIds!.contains(duelOpponent.hashCode)) {
+        final d = _distanceToSegment(duelOpponent!.position, from, to);
         if (d <= sweepRadius + 28.0) {
-          battleRingOpponent!.takeDamage(comp.chargeDamage.round());
+          duelOpponent!.takeDamage(comp.chargeDamage.round());
           _spawnHitSpark(
-            battleRingOpponent!.position,
+            duelOpponent!.position,
             elementColor(comp.member.element),
           );
-          comp.chargeHitIds!.add(battleRingOpponent.hashCode);
+          comp.chargeHitIds!.add(duelOpponent.hashCode);
           hit = true;
         }
       }
@@ -1414,7 +1454,7 @@ class CosmicGame extends FlameGame with PanDetector {
   }
 
   bool _companionTetherAllowsTarget(Offset targetPos) {
-    if (!companionTethered || battleRing.inBattle) return true;
+    if (!companionTethered || wildDuelActive) return true;
     return (targetPos - ship.pos).distance <= _companionTetherEngageRange;
   }
 
@@ -1789,10 +1829,7 @@ class CosmicGame extends FlameGame with PanDetector {
   }
 
   /// [slam] is false when the charge is cut short (tether) rather than landed.
-  void _releaseCompanionChargeBurst(
-    CosmicCompanion comp, {
-    bool slam = true,
-  }) {
+  void _releaseCompanionChargeBurst(CosmicCompanion comp, {bool slam = true}) {
     final pending = comp.pendingChargeBurst;
     if (pending == null) return;
     if (slam) {
@@ -3417,6 +3454,7 @@ class CosmicGame extends FlameGame with PanDetector {
   @override
   void update(double dt) {
     super.update(dt);
+    if (_tearWild != null || _tearCloseT >= 0) dt = _tickPortalTear(dt);
     _elapsed += dt;
     _updateOpenWingBeams(dt);
     updateMaskRuntime(dt);
@@ -4277,35 +4315,29 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       }
 
-      // ── projectile vs ring-minion collision (ring fight only) ──
-      if (i < projectiles.length &&
-          projectiles[i] == p &&
-          battleRing.inBattle &&
-          ringMinions.isNotEmpty) {
-        for (var ri = ringMinions.length - 1; ri >= 0; ri--) {
-          final rm = ringMinions[ri];
-          if (rm.dead) continue;
-          final rdx = p.position.dx - rm.position.dx;
-          final rdy = p.position.dy - rm.position.dy;
-          final rHitR = rm.radius + Projectile.radius;
-          if (rdx * rdx + rdy * rdy < rHitR * rHitR) {
+      // ── projectile vs a wild Alchemon you are fighting ──
+      // Only the one in a duel takes fire. Grazing ones are not targets, so
+      // a stray shot at an enemy never starts a fight the player did not ask
+      // for.
+      if (i < projectiles.length && projectiles[i] == p) {
+        final opp = duelOpponent;
+        if (wildDuelActive && opp != null && opp.isAlive) {
+          final odx = p.position.dx - opp.position.dx;
+          final ody = p.position.dy - opp.position.dy;
+          final oHitR = 18.0 + Projectile.radius;
+          if (odx * odx + ody * ody < oHitR * oHitR) {
             final projDmg = HomeCustomizationState.shipProjectileHitDamage(
               level: ammoUpgradeLevel,
               machineGun: isMachineGun,
             );
-            rm.health -= projDmg;
-            _spawnHitSpark(p.position, elementColor(rm.element));
+            opp.takeDamage(
+              _duelDamageAfterDefense(
+                projDmg * _wildShipShotScale,
+                opp.physDef,
+              ),
+            );
+            _spawnHitSpark(p.position, elementColor(opp.member.element));
             projectiles.removeAt(i);
-            if (rm.health <= 0) {
-              rm.dead = true;
-              _spawnKillVfx(
-                rm.position,
-                elementColor(rm.element),
-                rm.radius,
-                false,
-              );
-            }
-            break;
           }
         }
       }
@@ -4410,11 +4442,11 @@ class CosmicGame extends FlameGame with PanDetector {
         _companionSpriteScales.remove(slot);
         onCompanionDied?.call(diedMember);
       } else {
-        // Auto-return if companion is far off screen (skip during ring battle)
+        // Auto-return if companion is far off screen (skip mid-duel)
         final margin = 350.0;
         final dx = (comp.position.dx - ship.pos.dx).abs();
         final dy = (comp.position.dy - ship.pos.dy).abs();
-        if (!battleRing.inBattle &&
+        if (!wildDuelActive &&
             sandboxArenaRadius == null &&
             (dx > size.x / (2 * cameraZoom) + margin ||
                 dy > size.y / (2 * cameraZoom) + margin)) {
@@ -4423,9 +4455,7 @@ class CosmicGame extends FlameGame with PanDetector {
           onCompanionAutoReturned?.call(comp.member);
         } else {
           final ringDuelActive =
-              battleRing.inBattle &&
-              battleRingOpponent != null &&
-              battleRingOpponent!.isAlive;
+              wildDuelActive && duelOpponent != null && duelOpponent!.isAlive;
           if (comp.basicHasteTimer > 0) {
             comp.basicHasteTimer = max(0.0, comp.basicHasteTimer - dt);
             if (comp.basicHasteTimer <= 0) {
@@ -4577,12 +4607,10 @@ class CosmicGame extends FlameGame with PanDetector {
           CosmicEnemy? nearestEnemy;
           double nearestDist = targetAcquireRange;
 
-          // During ring battle, prioritise the ring opponent
+          // Mid-duel, the wild Alchemon comes first
           bool targetIsRingOpponent = false;
-          if (battleRingOpponent != null &&
-              battleRingOpponent!.isAlive &&
-              battleRing.inBattle) {
-            final rd = (battleRingOpponent!.position - comp.position).distance;
+          if (duelOpponent != null && duelOpponent!.isAlive && wildDuelActive) {
+            final rd = (duelOpponent!.position - comp.position).distance;
             if (rd < nearestDist) {
               nearestDist = rd;
               targetIsRingOpponent = true;
@@ -4616,7 +4644,7 @@ class CosmicGame extends FlameGame with PanDetector {
               nearestEnemy != null ||
               (activeBoss != null && nearestDist < targetAcquireRange)) {
             final targetPos = targetIsRingOpponent
-                ? battleRingOpponent!.position
+                ? duelOpponent!.position
                 : (nearestEnemy?.position ?? activeBoss!.position);
             // Face target (for sprite flipping & shooting direction)
             final toTarget = targetPos - comp.position;
@@ -4624,10 +4652,9 @@ class CosmicGame extends FlameGame with PanDetector {
 
             var distToTarget = toTarget.distance;
             if (ringDuelActive) {
-              comp.position = _updateRingDuelMovement(
+              comp.position = _updateDuelMovement(
                 actorPos: comp.position,
                 targetPos: targetPos,
-                ringCenter: battleRing.position,
                 dt: dt,
                 family: family,
                 idSeed: comp.member.instanceId,
@@ -4821,23 +4848,21 @@ class CosmicGame extends FlameGame with PanDetector {
     }
     _updateOpenKinSupports(dt);
 
-    // ── update battle ring opponent ──
-    if (battleRingOpponent != null && battleRing.inBattle) {
-      final opp = battleRingOpponent!;
+    // ── update the wild Alchemon being fought ──
+    if (duelOpponent != null && wildDuelActive) {
+      final opp = duelOpponent!;
       opp.life += dt;
       opp.invincibleTimer = (opp.invincibleTimer - dt).clamp(0.0, 10.0);
-      _ringOpponentTicker?.update(dt);
+      _duelOpponentTicker?.update(dt);
 
       if (opp.currentHp <= 0) {
-        // Ring opponent died — player wins
-        _spawnKillVfx(
-          opp.position,
-          elementColor(opp.member.element),
-          16,
-          false,
-        );
-        dismissBattleRingOpponent();
-        onBattleRingWon?.call();
+        // Beaten, not killed: it collapses and can be rammed.
+        _endWildDuel(WildDuelEnd.exhausted);
+      } else if (_shipDead) {
+        _endWildDuel(WildDuelEnd.shipDown);
+      } else if (_toroidalDistance(opp.position, ship.pos) >
+          _wildDisengageRange) {
+        _endWildDuel(WildDuelEnd.disengaged);
       } else {
         final duelTargetActive =
             activeCompanion != null && activeCompanion!.isAlive;
@@ -4890,19 +4915,12 @@ class CosmicGame extends FlameGame with PanDetector {
         opp.basicCooldown = (opp.basicCooldown - dt).clamp(0.0, 100.0);
         opp.specialCooldown = (opp.specialCooldown - dt).clamp(0.0, 100.0);
 
-        // If we haven't spawned helper minions for this opponent yet,
-        // check whether the opponent has dropped below half HP and
-        // trigger the portal/orbital spawn then.
-        if (!_ringMinionsSpawnedForCurrentOpponent &&
-            battleRingOpponent != null &&
-            battleRingOpponent!.currentHp <=
-                (battleRingOpponent!.maxHp * 0.5)) {
-          _spawnPendingRingMinions();
-        }
-
-        // Target the player's companion
-        if (activeCompanion != null && activeCompanion!.isAlive) {
-          final comp = activeCompanion!;
+        // Target the player's companion, or the ship when none is out.
+        {
+          final liveComp = activeCompanion != null && activeCompanion!.isAlive
+              ? activeCompanion
+              : null;
+          final comp = _WildDuelTarget(this, liveComp);
           final toComp = comp.position - opp.position;
           var distToComp = toComp.distance;
           opp.angle = atan2(toComp.dy, toComp.dx);
@@ -4927,7 +4945,7 @@ class CosmicGame extends FlameGame with PanDetector {
               opp.position += (toTarget / dist) * min(step, dist);
               opp.angle = atan2(toTarget.dy, toTarget.dx);
             } else {
-              final dmg = _battleRingDamageAfterDefense(
+              final dmg = _duelDamageAfterDefense(
                 opp.chargeDamage,
                 comp.physDef,
               );
@@ -4956,10 +4974,9 @@ class CosmicGame extends FlameGame with PanDetector {
             );
             final toCompNow = comp.position - opp.position;
             distToComp = toCompNow.distance;
-            opp.position = _updateRingDuelMovement(
+            opp.position = _updateDuelMovement(
               actorPos: opp.position,
               targetPos: comp.position,
-              ringCenter: battleRing.position,
               dt: dt,
               family: family,
               idSeed: opp.member.instanceId,
@@ -4983,7 +5000,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 family: opp.member.family,
                 damage: opp.physAtk.toDouble(),
               );
-              ringOpponentProjectiles.addAll(basics);
+              duelOpponentProjectiles.addAll(basics);
             }
 
             // Special attack
@@ -5003,7 +5020,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 casterStrength: opp.member.statStrength.toDouble(),
                 targetPos: comp.position,
               );
-              ringOpponentProjectiles.addAll(result.projectiles);
+              duelOpponentProjectiles.addAll(result.projectiles);
               if (result.shieldHp > 0) opp.shieldHp = result.shieldHp;
               if (result.chargeTimer > 0) {
                 opp.chargeTimer = result.chargeTimer;
@@ -5028,21 +5045,21 @@ class CosmicGame extends FlameGame with PanDetector {
               _spawnHitSpark(opp.position, elementColor(opp.member.element));
             }
           }
-        } else if (activeCompanion == null || !activeCompanion!.isAlive) {
-          // Companion died during ring battle — player loses
-          dismissBattleRingOpponent();
-          onBattleRingLost?.call();
         }
       }
     }
 
-    // ── update ring opponent projectiles ──
-    for (var i = ringOpponentProjectiles.length - 1; i >= 0; i--) {
-      final p = ringOpponentProjectiles[i];
+    // ── update the fought Alchemon's projectiles ──
+    // They are aimed at the companion when one is out, else at the ship.
+    final duelShotTarget = activeCompanion != null && activeCompanion!.isAlive
+        ? _WildDuelTarget(this, activeCompanion)
+        : (wildDuelActive && !_shipDead ? _WildDuelTarget(this, null) : null);
+    for (var i = duelOpponentProjectiles.length - 1; i >= 0; i--) {
+      final p = duelOpponentProjectiles[i];
       var transferringToOrbit = false;
 
-      if (p.homing && activeCompanion != null && activeCompanion!.isAlive) {
-        final target = activeCompanion!.position;
+      if (p.homing && duelShotTarget != null) {
+        final target = duelShotTarget.position;
         final desired = atan2(
           target.dy - p.position.dy,
           target.dx - p.position.dx,
@@ -5097,14 +5114,12 @@ class CosmicGame extends FlameGame with PanDetector {
           p.orbitCenter!.dx + cos(p.orbitAngle) * p.orbitRadius,
           p.orbitCenter!.dy + sin(p.orbitAngle) * p.orbitRadius,
         );
-        if (p.turretInterval > 0 &&
-            activeCompanion != null &&
-            activeCompanion!.isAlive) {
+        if (p.turretInterval > 0 && duelShotTarget != null) {
           p.turretTimer += dt;
           if (p.turretTimer >= p.turretInterval) {
             p.turretTimer -= p.turretInterval;
-            ringOpponentProjectiles.add(
-              _createEscortTurretShot(p, activeCompanion!.position),
+            duelOpponentProjectiles.add(
+              _createEscortTurretShot(p, duelShotTarget.position),
             );
           }
         }
@@ -5117,14 +5132,12 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       } else if (p.stationary) {
         // no movement
-        if (p.turretInterval > 0 &&
-            activeCompanion != null &&
-            activeCompanion!.isAlive) {
+        if (p.turretInterval > 0 && duelShotTarget != null) {
           p.turretTimer += dt;
           if (p.turretTimer >= p.turretInterval) {
             p.turretTimer -= p.turretInterval;
-            ringOpponentProjectiles.add(
-              _createEscortTurretShot(p, activeCompanion!.position),
+            duelOpponentProjectiles.add(
+              _createEscortTurretShot(p, duelShotTarget.position),
             );
           }
         }
@@ -5139,7 +5152,7 @@ class CosmicGame extends FlameGame with PanDetector {
         p.trailTimer += dt;
         if (p.trailTimer >= p.trailInterval) {
           p.trailTimer -= p.trailInterval;
-          ringOpponentProjectiles.add(
+          duelOpponentProjectiles.add(
             Projectile(
               position: p.position,
               angle: 0,
@@ -5168,7 +5181,7 @@ class CosmicGame extends FlameGame with PanDetector {
         p.clustered = true;
         for (var ci = 0; ci < p.clusterCount; ci++) {
           final ca = ci * (pi * 2 / p.clusterCount);
-          ringOpponentProjectiles.add(
+          duelOpponentProjectiles.add(
             Projectile(
               position: Offset(
                 p.position.dx + cos(ca) * 10,
@@ -5192,28 +5205,30 @@ class CosmicGame extends FlameGame with PanDetector {
 
       p.life -= dt;
       if (p.life <= 0) {
-        ringOpponentProjectiles.removeAt(i);
+        duelOpponentProjectiles.removeAt(i);
         continue;
       }
 
-      // Hit player's companion
-      if (activeCompanion != null && activeCompanion!.isAlive) {
-        final comp = activeCompanion!;
+      // Hit the player's companion, or the ship
+      if (duelShotTarget != null) {
+        final comp = duelShotTarget;
         final hitRadius = Projectile.radius * p.radiusMultiplier;
         final dx = p.position.dx - comp.position.dx;
         final dy = p.position.dy - comp.position.dy;
-        if (dx * dx + dy * dy < (hitRadius + 15) * (hitRadius + 15)) {
+        final bodyRadius = comp.isShip ? 20.0 : 15.0;
+        if (dx * dx + dy * dy <
+            (hitRadius + bodyRadius) * (hitRadius + bodyRadius)) {
           final pierceFalloff = p.piercing
               ? pow(0.7, p.pierceCount).toDouble()
               : 1.0;
-          final dmg = _battleRingDamageAfterDefense(
+          final dmg = _duelDamageAfterDefense(
             p.damage * pierceFalloff,
             comp.elemDef,
           );
           comp.takeDamage(dmg);
           _spawnHitSpark(
             p.position,
-            elementColor(battleRingOpponent?.member.element ?? 'Earth'),
+            elementColor(duelOpponent?.member.element ?? 'Earth'),
           );
           if (p.piercing) {
             p.pierceCount++;
@@ -5222,14 +5237,12 @@ class CosmicGame extends FlameGame with PanDetector {
             p.pierceCount++;
             p.angle += pi * 0.65 + (_rng.nextDouble() * pi * 0.7);
           } else {
-            ringOpponentProjectiles.removeAt(i);
+            duelOpponentProjectiles.removeAt(i);
           }
           continue;
         }
       }
     }
-
-    _updateRingMinions(dt);
 
     // ── update companion projectiles ──
     void resolveAbilityEffect(
@@ -6095,15 +6108,13 @@ class CosmicGame extends FlameGame with PanDetector {
             bestTarget = e.position;
           }
         }
-        // Also allow companion projectiles to home onto ring minions during a ring fight
-        if (battleRing.inBattle) {
-          for (final rm in ringMinions) {
-            if (rm.dead) continue;
-            final d = (rm.position - p.position).distance;
-            if (d < bestDist) {
-              bestDist = d;
-              bestTarget = rm.position;
-            }
+        // Home onto the wild Alchemon being fought, too.
+        final duelOpp = duelOpponent;
+        if (wildDuelActive && duelOpp != null && duelOpp.isAlive) {
+          final d = (duelOpp.position - p.position).distance;
+          if (d < bestDist) {
+            bestDist = d;
+            bestTarget = duelOpp.position;
           }
         }
         if (activeBoss != null) {
@@ -6605,58 +6616,20 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       }
 
-      // Hit ring minions (when in a ring fight)
+      // Hit the wild Alchemon being fought
       if (i < companionProjectiles.length &&
-          battleRing.inBattle &&
-          ringMinions.isNotEmpty) {
+          duelOpponent != null &&
+          duelOpponent!.isAlive &&
+          wildDuelActive) {
         final cp = companionProjectiles[i];
-        for (var ri = ringMinions.length - 1; ri >= 0; ri--) {
-          final rm = ringMinions[ri];
-          if (rm.dead) continue;
-          final rdx = cp.position.dx - rm.position.dx;
-          final rdy = cp.position.dy - rm.position.dy;
-          final hitRadius = Projectile.radius * cp.radiusMultiplier;
-          if (rdx * rdx + rdy * rdy <
-              (rm.radius + hitRadius) * (rm.radius + hitRadius)) {
-            final pierceFalloff = cp.piercing
-                ? pow(0.7, cp.pierceCount).toDouble()
-                : 1.0;
-            final dmg = cp.damage * pierceFalloff;
-            rm.health -= dmg;
-            _spawnHitSpark(cp.position, elementColor(rm.element));
-            if (cp.piercing && cp.abilityFamily != 'pip') {
-              cp.pierceCount++;
-            } else {
-              companionProjectiles.removeAt(i);
-            }
-            if (rm.health <= 0) {
-              rm.dead = true;
-              _spawnKillVfx(
-                rm.position,
-                elementColor(rm.element),
-                rm.radius,
-                false,
-              );
-            }
-            break;
-          }
-        }
-      }
-
-      // Hit ring opponent
-      if (i < companionProjectiles.length &&
-          battleRingOpponent != null &&
-          battleRingOpponent!.isAlive &&
-          battleRing.inBattle) {
-        final cp = companionProjectiles[i];
-        final opp = battleRingOpponent!;
+        final opp = duelOpponent!;
         final odx = cp.position.dx - opp.position.dx;
         final ody = cp.position.dy - opp.position.dy;
         if (odx * odx + ody * ody < (15 + hitRadius) * (15 + hitRadius)) {
           final pierceFalloff = cp.piercing
               ? pow(0.7, cp.pierceCount).toDouble()
               : 1.0;
-          final dmg = _battleRingDamageAfterDefense(
+          final dmg = _duelDamageAfterDefense(
             cp.damage * pierceFalloff,
             opp.elemDef,
           );
@@ -6979,8 +6952,10 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    // ── enemy spawning (random, scattered) — paused during battle ring ──
-    if (!battleRing.inBattle && !sandboxMode) {
+    _updateWildAlchemons(dt);
+
+    // ── enemy spawning (random, scattered) — paused mid-duel ──
+    if (!wildDuelActive && !sandboxMode) {
       _enemySpawnTimer += dt;
       if (_enemySpawnTimer >= _enemySpawnInterval &&
           enemies.length < _maxEnemies) {
@@ -7001,7 +6976,7 @@ class CosmicGame extends FlameGame with PanDetector {
           _spawnFeedingPack();
         }
       }
-    } // end !battleRing.inBattle guard
+    } // end !wildDuelActive guard
 
     // ── enemy AI update ──
     for (var i = enemies.length - 1; i >= 0; i--) {
@@ -7479,34 +7454,6 @@ class CosmicGame extends FlameGame with PanDetector {
       // Discover on approach
       if (!nx.discovered && nd < ElementalNexus.interactRadius + 300) {
         nx.discovered = true;
-      }
-    }
-
-    // ── battle ring proximity ──
-    {
-      final br = battleRing;
-      var bdx = br.position.dx - ship.pos.dx;
-      var bdy = br.position.dy - ship.pos.dy;
-      if (bdx > ww / 2) bdx -= ww;
-      if (bdx < -ww / 2) bdx += ww;
-      if (bdy > wh / 2) bdy -= wh;
-      if (bdy < -wh / 2) bdy += wh;
-      final bd = sqrt(bdx * bdx + bdy * bdy);
-      final threshold = _wasNearBattleRing
-          ? BattleRing.exitRadius
-          : BattleRing.interactRadius;
-      final nowNearBR = bd < threshold;
-      if (br.inBattle && bd > BattleRing.cancelRadius) {
-        cancelBattleRingFight();
-      }
-      if (nowNearBR != _wasNearBattleRing) {
-        _wasNearBattleRing = nowNearBR;
-        _isNearBattleRing = nowNearBR;
-        onNearBattleRing?.call(nowNearBR);
-      }
-      // Discover on approach
-      if (!br.discovered && bd < BattleRing.interactRadius + 300) {
-        br.discovered = true;
       }
     }
 
@@ -8219,7 +8166,7 @@ class CosmicGame extends FlameGame with PanDetector {
           );
           final winner = _beautyContestPlayerWon
               ? activeCompanion
-              : battleRingOpponent;
+              : duelOpponent;
           if (winner != null) {
             markerPos = Offset.lerp(clashCenter, winner.position, revealT)!;
           }
@@ -8520,10 +8467,18 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
+    // ── planet territories: a faint wash of each element ──
+    _renderTerritories(canvas, cx, cy, screenW, screenH);
+
     // ── planets ──
     for (final pc in planetComps) {
       final planet = pc.planet;
-      if (isOutsideViewport(planet.position, cx, cy, screenW, screenH)) {
+      // Culled by what it actually covers — body, glow, rings — not by its
+      // centre: Etherion and Cindrath are big enough that their centres can
+      // be a screen away while their edges are in view.
+      final reach = planet.radius * 2.6;
+      if ((planet.position.dx - cx - screenW / 2).abs() > screenW / 2 + reach ||
+          (planet.position.dy - cy - screenH / 2).abs() > screenH / 2 + reach) {
         continue;
       }
 
@@ -8555,6 +8510,8 @@ class CosmicGame extends FlameGame with PanDetector {
         );
       }
 
+      // The ship, so a planet's loose matter can part round it.
+      pc.art.wake = ship.pos;
       pc.render(canvas, _elapsed);
     }
 
@@ -9392,56 +9349,6 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    // ── battle ring (octagonal arena – cached texture) ──
-    {
-      final br = battleRing;
-      final bp = br.position;
-      if ((bp.dx - cx - screenW / 2).abs() < screenW * 2.5 &&
-          (bp.dy - cy - screenH / 2).abs() < screenH * 2.5) {
-        // Rebuild cached texture ~10 fps
-        if (_battleRingCachedImage == null ||
-            (_riftPulse - _battleRingCacheTime).abs() >=
-                _battleRingCacheInterval) {
-          _battleRingCachedImage?.dispose();
-          _battleRingCachedImage = _buildBattleRingTexture(_riftPulse);
-          _battleRingCacheTime = _riftPulse;
-        }
-
-        // Draw cached texture scaled to world coordinates
-        final img = _battleRingCachedImage!;
-        const texR = _battleRingTexWorldR;
-        canvas.save();
-        canvas.translate(bp.dx - texR, bp.dy - texR);
-        canvas.scale(
-          texR * 2 / _battleRingTexSize,
-          texR * 2 / _battleRingTexSize,
-        );
-        canvas.drawImage(img, Offset.zero, Paint());
-        canvas.restore();
-
-        // Label when nearby
-        if (_isNearBattleRing || (bp - ship.pos).distance < 500) {
-          final label = br.isCompleted ? 'BATTLE ARENA' : 'BATTLE RING';
-          final textPainter = TextPainter(
-            text: TextSpan(
-              text: label,
-              style: const TextStyle(
-                color: Color(0x99FFFFFF),
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 2,
-              ),
-            ),
-            textDirection: TextDirection.ltr,
-          )..layout();
-          textPainter.paint(
-            canvas,
-            Offset(bp.dx - textPainter.width / 2, bp.dy + 80),
-          );
-        }
-      }
-    }
-
     // ── blood ring (ending ritual portal) ──
     {
       final ring = bloodRing;
@@ -9629,30 +9536,13 @@ class CosmicGame extends FlameGame with PanDetector {
         final col = hp.blendedColor;
 
         // Warm aura
-        canvas.drawCircle(
-          hpPos,
-          vr * 2.5,
-          Paint()
-            ..color = col.withValues(alpha: 0.12)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 25),
-        );
+        _paintHomeAura(canvas, hpPos, vr, col);
 
         // ── Customization visual effects (rendered behind planet body) ──
         _renderHomeEffectsBehind(canvas, hpPos, vr, col);
 
-        // Planet body — gradient sphere
-        final bodyPaint = Paint()
-          ..shader = ui.Gradient.radial(
-            Offset(hpPos.dx - vr * 0.3, hpPos.dy - vr * 0.3),
-            vr * 1.5,
-            [
-              Color.lerp(col, Colors.white, 0.35)!,
-              col,
-              Color.lerp(col, Colors.black, 0.5)!,
-            ],
-            [0.0, 0.5, 1.0],
-          );
-        canvas.drawCircle(hpPos, vr, bodyPaint);
+        // Planet body
+        _paintHomeSphere(canvas, hpPos, vr, col);
 
         // ── Customization visual effects (rendered in front of planet) ──
         _renderHomeEffectsFront(canvas, hpPos, vr, col);
@@ -11790,6 +11680,9 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
+    // ── wild Alchemons (behind the companions that fight them) ──
+    _renderWildAlchemons(canvas, cx, cy, screenW, screenH);
+
     // ── companions ──
     for (final entry in activeCompanions.entries) {
       final slotIndex = entry.key;
@@ -11802,7 +11695,7 @@ class CosmicGame extends FlameGame with PanDetector {
       final eColor = elementColor(comp.member.element);
 
       // Animation timing
-      const summonDur = 0.7; // summon animation duration
+      const summonDur = 0.9; // summon animation duration
       const retreatDur = 0.6;
       final isSummoning = comp.life < summonDur && !comp.returning;
       final summonT = isSummoning
@@ -11812,81 +11705,45 @@ class CosmicGame extends FlameGame with PanDetector {
           ? (comp.returnTimer / retreatDur).clamp(0.0, 1.0)
           : 1.0;
 
-      // Ease curves
+      // It steps out of a tear of its own element, and back into one when
+      // recalled — the same portal the ship tears to reach wild ones.
+      final emerge = isSummoning
+          ? Curves.easeOutBack.transform(
+              ((summonT - 0.18) / 0.55).clamp(0.0, 1.0),
+            )
+          : 1.0;
       final summonScale =
-          (isSummoning ? Curves.elasticOut.transform(summonT) : 1.0) *
-          _beautyContestCompVisualScale;
+          (0.25 + 0.75 * emerge) * _beautyContestCompVisualScale;
       final retreatScale = comp.returning
           ? Curves.easeInBack.transform(retreatT)
           : 1.0;
       final animScale = summonScale * retreatScale;
-      final opacity = comp.returning ? retreatT : 1.0;
+      final opacity = comp.returning
+          ? retreatT
+          : isSummoning
+          ? ((summonT - 0.15) / 0.3).clamp(0.0, 1.0)
+          : 1.0;
 
       canvas.save();
       canvas.translate(compPos.dx, compPos.dy);
 
-      // ── Summon VFX: expanding ring + converging particles ──
+      final tearHeight = 74.88 * comp.speciesScale * 1.35;
       if (isSummoning) {
-        // Expanding flash ring
-        final ringRadius = 12.0 + summonT * 60.0;
-        final ringAlpha = (1.0 - summonT) * 0.7;
-        canvas.drawCircle(
-          Offset.zero,
-          ringRadius,
-          Paint()
-            ..color = eColor.withValues(alpha: ringAlpha)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.0 * (1.0 - summonT) + 0.5
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        paintSummonTear(
+          canvas,
+          centre: Offset.zero,
+          height: tearHeight,
+          t: summonT,
+          color: eColor,
         );
-        // Inner flash glow
-        canvas.drawCircle(
-          Offset.zero,
-          20 * summonT,
-          Paint()
-            ..color = Colors.white.withValues(alpha: (1.0 - summonT) * 0.5)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+      } else if (comp.returning) {
+        paintSummonTear(
+          canvas,
+          centre: Offset.zero,
+          height: tearHeight,
+          t: 1 - retreatT,
+          color: eColor,
         );
-        // Converging particle dots (6 swirling inward)
-        for (var i = 0; i < 6; i++) {
-          final pAngle = (i / 6) * pi * 2 + comp.life * 8;
-          final pDist = 50.0 * (1.0 - summonT);
-          final px = cos(pAngle) * pDist;
-          final py = sin(pAngle) * pDist;
-          canvas.drawCircle(
-            Offset(px, py),
-            2.5 * (1.0 - summonT * 0.5),
-            Paint()..color = eColor.withValues(alpha: (1.0 - summonT) * 0.8),
-          );
-        }
-      }
-
-      // ── Retreat VFX: dispersing particles + shrinking ring ──
-      if (comp.returning) {
-        // Shrinking ring
-        final ringRadius = 40.0 * retreatT;
-        final ringAlpha = retreatT * 0.5;
-        canvas.drawCircle(
-          Offset.zero,
-          ringRadius,
-          Paint()
-            ..color = eColor.withValues(alpha: ringAlpha)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.0 * retreatT + 0.5
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-        );
-        // Dispersing particles (8 flying outward)
-        for (var i = 0; i < 8; i++) {
-          final pAngle = (i / 8) * pi * 2 + _elapsed * 3;
-          final pDist = 15.0 + 60.0 * (1.0 - retreatT);
-          final px = cos(pAngle) * pDist;
-          final py = sin(pAngle) * pDist;
-          canvas.drawCircle(
-            Offset(px, py),
-            2.0 * retreatT,
-            Paint()..color = eColor.withValues(alpha: retreatT * 0.6),
-          );
-        }
       }
 
       // Outer aura glow
@@ -12054,9 +11911,9 @@ class CosmicGame extends FlameGame with PanDetector {
       canvas.restore();
     }
 
-    // ── battle ring opponent ──
-    if (battleRingOpponent != null && battleRingOpponent!.isAlive) {
-      final opp = battleRingOpponent!;
+    // ── duel opponent (a fought wild Alchemon, or a contest rival) ──
+    if (duelOpponent != null && duelOpponent!.isAlive) {
+      final opp = duelOpponent!;
       final oppPos = opp.position;
       final eColor = elementColor(opp.member.element);
 
@@ -12109,14 +11966,14 @@ class CosmicGame extends FlameGame with PanDetector {
       );
 
       // Render sprite
-      if (_ringOpponentTicker != null) {
-        final sprite = _ringOpponentTicker!.getSprite();
+      if (_duelOpponentTicker != null) {
+        final sprite = _duelOpponentTicker!.getSprite();
         final paint = Paint()
           ..color = Colors.white
           ..filterQuality = ui.FilterQuality.high;
 
-        if (_ringOpponentVisuals != null) {
-          final v = _ringOpponentVisuals!;
+        if (_duelOpponentVisuals != null) {
+          final v = _duelOpponentVisuals!;
           final isAlbino = v.brightness == 1.45 && !v.isPrismatic;
           if (isAlbino) {
             paint.colorFilter = _albinoColorFilter(v.brightness);
@@ -12126,21 +11983,21 @@ class CosmicGame extends FlameGame with PanDetector {
         }
 
         // Simple effect overlays for ring opponent (behind sprite)
-        if (_ringOpponentVisuals?.alchemyEffect != null) {
-          final opponentScale = _ringOpponentSpriteScale * summonScale;
+        if (_duelOpponentVisuals?.alchemyEffect != null) {
+          final opponentScale = _duelOpponentSpriteScale * summonScale;
           _drawAlchemyEffectCanvas(
             canvas: canvas,
-            effect: _ringOpponentVisuals!.alchemyEffect!,
+            effect: _duelOpponentVisuals!.alchemyEffect!,
             spriteScale: opponentScale,
             baseSpriteSize: 48.0,
-            variantFaction: _ringOpponentVisuals?.variantFaction,
+            variantFaction: _duelOpponentVisuals?.variantFaction,
             elapsed: _elapsed,
             opacity: 0.95,
           );
         }
 
         final facingRight = cos(opp.angle) > 0;
-        final totalScale = _ringOpponentSpriteScale * summonScale;
+        final totalScale = _duelOpponentSpriteScale * summonScale;
         canvas.save();
         if (facingRight) {
           canvas.scale(-totalScale, totalScale);
@@ -12149,14 +12006,14 @@ class CosmicGame extends FlameGame with PanDetector {
         }
         sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
         canvas.restore();
-      } else if (_ringOpponentFallbackSprite != null) {
+      } else if (_duelOpponentFallbackSprite != null) {
         final paint = Paint()
           ..color = Colors.white
           ..filterQuality = ui.FilterQuality.high;
-        final totalScale = _ringOpponentFallbackScale * summonScale;
+        final totalScale = _duelOpponentFallbackScale * summonScale;
         canvas.save();
         canvas.scale(totalScale);
-        _ringOpponentFallbackSprite!.render(
+        _duelOpponentFallbackSprite!.render(
           canvas,
           anchor: Anchor.center,
           overridePaint: paint,
@@ -12214,12 +12071,10 @@ class CosmicGame extends FlameGame with PanDetector {
       canvas.restore();
     }
 
-    // ── render ring opponent projectiles ──
-    for (final rp in ringOpponentProjectiles) {
+    // ── render duel opponent projectiles ──
+    for (final rp in duelOpponentProjectiles) {
       final rpPos = rp.position;
-      final projColor = elementColor(
-        battleRingOpponent?.member.element ?? 'Fire',
-      );
+      final projColor = elementColor(duelOpponent?.member.element ?? 'Fire');
       final vs = rp.radiusMultiplier.clamp(0.5, 3.0);
       // Red-tinted glow trail
       canvas.drawCircle(
@@ -12244,48 +12099,6 @@ class CosmicGame extends FlameGame with PanDetector {
         rpPos,
         3.0 * vs,
         Paint()..color = projColor.withValues(alpha: 0.9),
-      );
-    }
-
-    // ── render ring minions (assistants) ──
-    for (final m in ringMinions) {
-      if (m.dead) continue;
-      final mPos = m.position;
-      final mColor = elementColor(m.element);
-      // If still in orbit (portal), draw a shimmer ring
-      if (m.orbitTime > 0 && m.orbitCenter != null) {
-        final ringR = m.orbitRadius;
-        canvas.drawCircle(
-          mPos,
-          ringR * 0.6,
-          Paint()
-            ..color = mColor.withValues(alpha: 0.18)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-        );
-        canvas.drawCircle(
-          mPos,
-          4.0,
-          Paint()..color = mColor.withValues(alpha: 0.95),
-        );
-        continue;
-      }
-
-      // Glow + core
-      canvas.drawCircle(
-        mPos,
-        m.radius * 1.8,
-        Paint()..color = mColor.withValues(alpha: 0.18),
-      );
-      canvas.drawCircle(
-        mPos,
-        m.radius,
-        Paint()..color = mColor.withValues(alpha: 0.95),
-      );
-      // Small red dot if hostile (marks them as enemy)
-      canvas.drawCircle(
-        Offset(mPos.dx, mPos.dy),
-        2.0,
-        Paint()..color = Colors.black.withValues(alpha: 0.9),
       );
     }
 
@@ -12497,6 +12310,8 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     canvas.restore();
+
+    _renderPortalTear(canvas);
   }
 
   // ── fog ────────────────────────────────────────────────
