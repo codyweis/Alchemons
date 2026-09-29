@@ -245,13 +245,7 @@ void _limb(
 /// drawn as one radial gradient. For the planets whose look IS soft glow and
 /// fog (the originals the player preferred), at the cost of a plain fill
 /// instead of a blur pass.
-void _softCircle(
-  Canvas c,
-  Offset at,
-  double radius,
-  Color col,
-  double sigma,
-) {
+void _softCircle(Canvas c, Offset at, double radius, Color col, double sigma) {
   if (radius <= 0 || col.a <= 0) return;
   final outer = radius + 2 * sigma;
   final inner = max(0.0, radius - 2 * sigma);
@@ -284,12 +278,18 @@ void _softStroke(Canvas c, Path path, Color col, double width, double sigma) {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round
     ..strokeJoin = StrokeJoin.round;
-  c.drawPath(path, p
-    ..strokeWidth = width + sigma * 3
-    ..color = col.withValues(alpha: col.a * 0.35));
-  c.drawPath(path, p
-    ..strokeWidth = width + sigma * 1.2
-    ..color = col.withValues(alpha: col.a * 0.6));
+  c.drawPath(
+    path,
+    p
+      ..strokeWidth = width + sigma * 3
+      ..color = col.withValues(alpha: col.a * 0.35),
+  );
+  c.drawPath(
+    path,
+    p
+      ..strokeWidth = width + sigma * 1.2
+      ..color = col.withValues(alpha: col.a * 0.6),
+  );
 }
 
 /// The glow every planet used to sit in: a disc of its colour at 15%, two
@@ -388,6 +388,35 @@ Offset _wakePush(double x, double y, Offset? wake, double reach, double push) {
   return Offset((dx * ca - dy * sa) * s, (dx * sa + dy * ca) * s);
 }
 
+/// Stirs a point at ([x], [y]) near [wake] — the ship passing through a
+/// ring. The point is carried a little way round the ship and turns on a
+/// small eddy of its own, more the nearer it is. Gentler than [_wakePush]
+/// (Nythralor's parting): nothing is cleared, the matter just moves.
+/// Returns the offset and how hard it was stirred (0–1); null out of reach.
+(double, double, double)? _stir(
+  double x,
+  double y,
+  Offset wake,
+  double reach,
+  double t,
+  double phase,
+) {
+  final dx = x - wake.dx, dy = y - wake.dy;
+  final d2 = dx * dx + dy * dy;
+  if (d2 >= reach * reach) return null;
+  final k = 1 - sqrt(d2) / reach;
+  // Carried round the ship.
+  final turn = 0.5 * k * k;
+  final ct = cos(turn), st = sin(turn);
+  final e = reach * 0.07 * k;
+  final w = t * 4 + phase * 5;
+  return (
+    dx * ct - dy * st - dx + cos(w) * e,
+    dx * st + dy * ct - dy + sin(w) * e,
+    k,
+  );
+}
+
 /// Clips to the disc for the body's surface layers.
 void _clipDisc(Canvas c, Offset p, double r) =>
     c.clipPath(Path()..addOval(Rect.fromCircle(center: p, radius: r)));
@@ -476,11 +505,21 @@ class _BlobField {
       final sz = size * (0.6 + rng.nextDouble() * 0.8);
       sizes.add(sz);
       final shape = rng.nextInt(1 << 30);
-      cores.add(sphereBlob(x, y, z, sz, Random(shape),
-          stretch: stretch, rough: rough));
+      cores.add(
+        sphereBlob(x, y, z, sz, Random(shape), stretch: stretch, rough: rough),
+      );
       if (soft > 1) {
-        halos.add(sphereBlob(x, y, z, sz * soft, Random(shape),
-            stretch: stretch, rough: rough));
+        halos.add(
+          sphereBlob(
+            x,
+            y,
+            z,
+            sz * soft,
+            Random(shape),
+            stretch: stretch,
+            rough: rough,
+          ),
+        );
       }
     }
     return _BlobField._(cores, halos, sizes);
@@ -611,8 +650,10 @@ class _FacetShell {
       final lambert = (nx * _lx + ny * _ly + nz * _lz).clamp(0.0, 1.0);
       addSphereRing(buckets[(lambert * (levels - 1)).round()], view, rings[i]);
       if (glintAlpha > 0 && nz > 0) {
-        final spec = pow((nx * hx + ny * hy + nz * hz).clamp(0.0, 1.0),
-            glintPower).toDouble();
+        final spec = pow(
+          (nx * hx + ny * hy + nz * hz).clamp(0.0, 1.0),
+          glintPower,
+        ).toDouble();
         if (spec > 0.15) glints.add((rings[i], spec));
       }
     }
@@ -622,7 +663,10 @@ class _FacetShell {
     for (final (ring, spec) in glints) {
       final g = Path();
       addSphereRing(g, view, ring);
-      c.drawPath(g, Paint()..color = glint.withValues(alpha: glintAlpha * spec));
+      c.drawPath(
+        g,
+        Paint()..color = glint.withValues(alpha: glintAlpha * spec),
+      );
     }
   }
 }
@@ -715,8 +759,12 @@ class _ParticleRing {
 
     final grains = <(double, double, double, double)>[];
     for (var i = 0; i < count; i++) {
-      grains.add((laneRadius(), rng.nextDouble() * 2 * pi,
-          0.4 + rng.nextDouble() * 0.9, rng.nextDouble() * 2 * pi));
+      grains.add((
+        laneRadius(),
+        rng.nextDouble() * 2 * pi,
+        0.4 + rng.nextDouble() * 0.9,
+        rng.nextDouble() * 2 * pi,
+      ));
     }
     for (var k = 0; k < clumps; k++) {
       final a = rng.nextDouble() * 2 * pi;
@@ -741,31 +789,47 @@ class _ParticleRing {
   double _preparedR = 0;
   Offset? _preparedWake;
 
-  void _prepare(double r, double t, Offset? wakeLocal, double flat, bool nearIsDown) {
-    if (t == _preparedT && r == _preparedR && wakeLocal == _preparedWake) return;
+  void _prepare(
+    double r,
+    double t,
+    Offset? wakeLocal,
+    double flat,
+    bool nearIsDown,
+  ) {
+    if (t == _preparedT && r == _preparedR && wakeLocal == _preparedWake) {
+      return;
+    }
     _preparedT = t;
     _preparedR = r;
     _preparedWake = wakeLocal;
     _near.clear();
     _far.clear();
-    final reach = max(150.0, r * 0.55);
+    final reach = max(130.0, r * 0.45);
     for (final (rad, a0, size, phase) in grains) {
       final a = a0 + t * speed / (rad * sqrt(rad));
       final sy = sin(a);
       var x = cos(a) * rad * r;
       var y = sy * rad * r * flat;
-      // The ship flying through parts the ring round it.
-      final push = _wakePush(x, y, wakeLocal, reach, reach * 0.4);
-      x += push.dx;
-      y += push.dy;
-      final bucket = (sin(t * 2.2 + phase) > brightCut ? 2 : 0) +
-          (size > 0.85 ? 1 : 0);
+      var lit = sin(t * 2.2 + phase) > brightCut;
+      // The ship stirs the ring as it passes: grains near it eddy round it
+      // and catch the light.
+      if (wakeLocal != null) {
+        final stir = _stir(x, y, wakeLocal, reach, t, phase);
+        if (stir != null) {
+          x += stir.$1;
+          y += stir.$2;
+          // Flickering as it is disturbed, not all lit at once.
+          if (stir.$3 > 0.3 && sin(t * 7 + phase * 11) > -0.3) lit = true;
+        }
+      }
+      final bucket = (lit ? 2 : 0) + (size > 0.85 ? 1 : 0);
       ((sy > 0) == nearIsDown ? _near : _far).add(bucket, x, y);
     }
   }
 
   /// The near half ([front]) or the far half. [wake] is the ship's world
-  /// position, when there is one.
+  /// position, when there is one: the ring stirs round it (see [_stir]) —
+  /// it does not part, which is Nythralor's alone.
   void paint(
     Canvas c,
     Offset p,
@@ -792,9 +856,11 @@ class _ParticleRing {
     c.save();
     c.translate(p.dx, p.dy);
     c.rotate(angle);
-    c.clipRect(front == (nearSign > 0)
-        ? Rect.fromLTRB(-far, 0, far, far)
-        : Rect.fromLTRB(-far, -far, far, 0));
+    c.clipRect(
+      front == (nearSign > 0)
+          ? Rect.fromLTRB(-far, 0, far, far)
+          : Rect.fromLTRB(-far, -far, far, 0),
+    );
 
     // The lanes: one soft gradient in the ring's own plane.
     c.save();
@@ -805,15 +871,10 @@ class _ParticleRing {
       Offset.zero,
       outer,
       Paint()
-        ..shader = ui.Gradient.radial(
-          Offset.zero,
-          outer,
-          [
-            for (final a in laneAlphas)
-              (laneTint ?? laneColor).withValues(alpha: a * breathe * alpha),
-          ],
-          laneStops,
-        ),
+        ..shader = ui.Gradient.radial(Offset.zero, outer, [
+          for (final a in laneAlphas)
+            (laneTint ?? laneColor).withValues(alpha: a * breathe * alpha),
+        ], laneStops),
     );
     c.restore();
 
@@ -822,7 +883,12 @@ class _ParticleRing {
     for (var b = 0; b < 4; b++) {
       final d = r * grainSize * ((b & 1) == 1 ? 1.2 : 0.75) * 2;
       final col = b >= 2 ? bright : dim;
-      batch.draw(c, b, d, alpha >= 1 ? col : col.withValues(alpha: col.a * alpha));
+      batch.draw(
+        c,
+        b,
+        d,
+        alpha >= 1 ? col : col.withValues(alpha: col.a * alpha),
+      );
     }
     c.restore();
   }
@@ -847,16 +913,7 @@ enum MoteMotion {
   twinkle,
 }
 
-enum MoteShape {
-  dot,
-  streak,
-  drop,
-  leaf,
-  shard,
-  bubble,
-  puff,
-  pebble,
-}
+enum MoteShape { dot, streak, drop, leaf, shard, bubble, puff, pebble }
 
 /// Loose matter in a planet's territory. Placed by hashing world tiles, so
 /// nothing is stored and a mote is where it was when you come back; each
@@ -962,8 +1019,17 @@ class TerritoryMotes {
   }
 
   /// One mote into the batches.
-  void _gather(Offset pos, double heading, double sz, bool big, int stage,
-      double ph, double t, Canvas c, double depth) {
+  void _gather(
+    Offset pos,
+    double heading,
+    double sz,
+    bool big,
+    int stage,
+    double ph,
+    double t,
+    Canvas c,
+    double depth,
+  ) {
     final tumble = ph * 2 * pi + t * spin * (ph > 0.5 ? 1 : -1);
     switch (shape) {
       case MoteShape.dot:
@@ -980,8 +1046,10 @@ class TerritoryMotes {
         // Bright only while a face is toward the upper left.
         final glint = pow(max(0.0, cos(tumble - 2.4)), 6).toDouble();
         final lit = glint > 0.35;
-        _paths[stage + (lit ? _stages : 0)]
-            .addPath(vfxShard(pos, sz * 2.6, sz * 0.9, tumble), Offset.zero);
+        _paths[stage + (lit ? _stages : 0)].addPath(
+          vfxShard(pos, sz * 2.6, sz * 0.9, tumble),
+          Offset.zero,
+        );
         if (lit) _dots.add(stage * 2 + (big ? 1 : 0), pos.dx, pos.dy);
       case MoteShape.bubble:
         _dots.add(stage * 2 + (big ? 1 : 0), pos.dx, pos.dy);
@@ -996,16 +1064,23 @@ class TerritoryMotes {
           pos,
           pr,
           Paint()
-            ..shader = ui.Gradient.radial(pos, pr, [
-              col.withValues(alpha: 0.16 * a),
-              col.withValues(alpha: 0.07 * a),
-              col.withValues(alpha: 0),
-            ], const [0.0, 0.5, 1.0]),
+            ..shader = ui.Gradient.radial(
+              pos,
+              pr,
+              [
+                col.withValues(alpha: 0.16 * a),
+                col.withValues(alpha: 0.07 * a),
+                col.withValues(alpha: 0),
+              ],
+              const [0.0, 0.5, 1.0],
+            ),
         );
       case MoteShape.pebble:
         final tone = (0.5 + 0.5 * cos(tumble - 2.4)) > 0.5 ? 1 : 0;
-        _paths[stage + tone * _stages]
-            .addPath(vfxBlob(pos, sz * 1.3, ph * 97, n: 6, wobble: 0.3), Offset.zero);
+        _paths[stage + tone * _stages].addPath(
+          vfxBlob(pos, sz * 1.3, ph * 97, n: 6, wobble: 0.3),
+          Offset.zero,
+        );
     }
   }
 
@@ -1049,8 +1124,11 @@ class TerritoryMotes {
         case MoteShape.shard:
           fill.color = col.withValues(alpha: 0.5 * a);
           c.drawPath(_paths[s], fill);
-          fill.color = Color.lerp(col, const Color(0xFFFFFFFF), 0.6)!
-              .withValues(alpha: 0.9 * a);
+          fill.color = Color.lerp(
+            col,
+            const Color(0xFFFFFFFF),
+            0.6,
+          )!.withValues(alpha: 0.9 * a);
           c.drawPath(_paths[s + _stages], fill);
         case MoteShape.pebble:
           fill.color = dying.withValues(alpha: 0.9 * a);
@@ -1062,8 +1140,14 @@ class TerritoryMotes {
       }
       if (!_spots.isEmpty(s)) {
         final hd = shape == MoteShape.bubble ? size * 0.8 : size * 0.6;
-        _spots.draw(c, s, hd,
-            const Color(0xFFFFFFFF).withValues(alpha: (shape == MoteShape.bubble ? 0.5 : 0.35) * a));
+        _spots.draw(
+          c,
+          s,
+          hd,
+          const Color(
+            0xFFFFFFFF,
+          ).withValues(alpha: (shape == MoteShape.bubble ? 0.5 : 0.35) * a),
+        );
       }
     }
   }
@@ -1109,5 +1193,90 @@ class TerritoryMotes {
           ph * 2 * pi,
         );
     }
+  }
+}
+
+// ── for the rest of the world ───────────────────────────────────────────────
+//
+// The blur-free glows the planets are drawn with, for the world's other
+// painters (points of interest, rifts, caches, the ship), which used to ask
+// for a gaussian blur pass per glow.
+
+/// What `drawCircle` with `MaskFilter.blur(BlurStyle.normal, sigma)` drew,
+/// as one radial gradient.
+void paintSoftCircle(
+  Canvas c,
+  Offset at,
+  double radius,
+  Color col,
+  double sigma,
+) => _softCircle(c, at, radius, col, sigma);
+
+/// What a blurred stroked circle drew: a ring as bright as a stroke that
+/// thin comes out under that blur, over a wider, fainter haze.
+void paintSoftRing(
+  Canvas c,
+  Offset at,
+  double radius,
+  Color col,
+  double width,
+  double sigma,
+) {
+  if (col.a <= 0) return;
+  final peak = 1 - exp(-width / (1.9 * max(sigma, 0.01)));
+  final p = Paint()..style = PaintingStyle.stroke;
+  c.drawCircle(
+    at,
+    radius,
+    p
+      ..strokeWidth = width + sigma * 4
+      ..color = col.withValues(alpha: col.a * peak * 0.45),
+  );
+  c.drawCircle(
+    at,
+    radius,
+    p
+      ..strokeWidth = width + sigma * 1.5
+      ..color = col.withValues(alpha: col.a * peak * 0.6),
+  );
+}
+
+/// Many small blurred dots without the blur, batched. Add each dot to a
+/// step (a class of size and brightness), then draw each step once: a
+/// wide faint pass under a narrower brighter one, which at this size reads
+/// as the blurred circle it replaces.
+class GlowDots {
+  GlowDots(int steps) : _b = _DotBatch(steps);
+
+  final _DotBatch _b;
+
+  void clear() => _b.clear();
+
+  void add(int step, double x, double y) => _b.add(step, x, y);
+
+  /// Step [step]'s dots as a circle of [radius] under a blur of [sigma].
+  void drawGlow(Canvas c, int step, double radius, double sigma, Color col) {
+    if (_b.isEmpty(step) || col.a <= 0) return;
+    final peak = radius >= 2 * sigma
+        ? 1.0
+        : 1 - exp(-(radius * radius) / (2 * sigma * sigma));
+    _b.draw(
+      c,
+      step,
+      (radius + 2 * sigma) * 2,
+      col.withValues(alpha: col.a * peak * 0.4),
+    );
+    _b.draw(
+      c,
+      step,
+      (radius + 0.5 * sigma) * 2,
+      col.withValues(alpha: col.a * peak * 0.6),
+    );
+  }
+
+  /// Step [step]'s dots as crisp discs of [radius].
+  void drawDots(Canvas c, int step, double radius, Color col) {
+    if (_b.isEmpty(step) || col.a <= 0) return;
+    _b.draw(c, step, radius * 2, col);
   }
 }

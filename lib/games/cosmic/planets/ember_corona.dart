@@ -71,11 +71,16 @@ class _EmberCorona {
       p,
       corona,
       Paint()
-        ..shader = ui.Gradient.radial(p, corona, [
-          const Color(0xFFFF8A2A).withValues(alpha: 0.5 * alpha),
-          const Color(0xFFE8521A).withValues(alpha: 0.22 * alpha),
-          const Color(0xFFB8260A).withValues(alpha: 0),
-        ], [r / corona, (r / corona + 1) / 2, 1.0]),
+        ..shader = ui.Gradient.radial(
+          p,
+          corona,
+          [
+            const Color(0xFFFF8A2A).withValues(alpha: 0.5 * alpha),
+            const Color(0xFFE8521A).withValues(alpha: 0.22 * alpha),
+            const Color(0xFFB8260A).withValues(alpha: 0),
+          ],
+          [r / corona, (r / corona + 1) / 2, 1.0],
+        ),
     );
 
     final tt = t * pace;
@@ -85,17 +90,18 @@ class _EmberCorona {
       final flare = 0.6 + 0.4 * sin(t * 1.7 + fph) * sin(t * 0.9 + fph * 2);
       final life = (tt / period + phase) % 1.0;
       // Spreading as they climb, and curling.
-      final a = a0 +
-          t * 0.015 +
-          jitter * (0.4 + 1.6 * life) +
-          curl * life * life * 4;
+      final a =
+          a0 + t * 0.015 + jitter * (0.4 + 1.6 * life) + curl * life * life * 4;
       final rise = r * reach * strength * flare * pow(life, 0.8);
       final dist = r * 0.95 + rise;
       final er = size * (0.6 + 0.4 * strength) * (1 - life * 0.7);
       if (er < 0.25) continue;
       final stage = min(_stages.length - 1, (life * _stages.length).floor());
-      _out.add(stage * 2 + (er > 0.7 ? 1 : 0), p.dx + cos(a) * dist,
-          p.dy + sin(a) * dist);
+      _out.add(
+        stage * 2 + (er > 0.7 ? 1 : 0),
+        p.dx + cos(a) * dist,
+        p.dy + sin(a) * dist,
+      );
     }
     // Embers keep a readable size on a small world.
     final unit = max(r * 0.02, 1.4);
@@ -103,7 +109,12 @@ class _EmberCorona {
       final (col, a) = _stages[k];
       for (var sz = 0; sz < 2; sz++) {
         final d = unit * (sz == 0 ? 0.5 : 0.95) * 2;
-        _out.draw(c, k * 2 + sz, d * 2.0, col.withValues(alpha: a * 0.1 * alpha));
+        _out.draw(
+          c,
+          k * 2 + sz,
+          d * 2.0,
+          col.withValues(alpha: a * 0.1 * alpha),
+        );
         _out.draw(c, k * 2 + sz, d, col.withValues(alpha: a * alpha));
       }
     }

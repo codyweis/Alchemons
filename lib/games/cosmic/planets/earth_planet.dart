@@ -34,8 +34,17 @@ class EarthPlanetArt extends PlanetArt {
         final lat = asin(y.clamp(-1.0, 1.0)) + dl;
         final lon = atan2(z, x) + dn;
         final (sx, sy, sz) = sphereAt(lat, lon);
-        levels[k].add(sphereBlob(sx, sy, sz, size * steps[k],
-            Random(m * 7919 + k * 31), rough: 0.38, sides: 22));
+        levels[k].add(
+          sphereBlob(
+            sx,
+            sy,
+            sz,
+            size * steps[k],
+            Random(m * 7919 + k * 31),
+            rough: 0.38,
+            sides: 22,
+          ),
+        );
       }
     }
     final canyons = <Float64List>[];
@@ -90,7 +99,13 @@ class EarthPlanetArt extends PlanetArt {
 
   /// Boulders on an orbit tilted off the equator: the far ones ([front]
   /// false) are drawn behind the planet.
-  void _paintRocks(Canvas c, Offset p, double r, double t, {required bool front}) {
+  void _paintRocks(
+    Canvas c,
+    Offset p,
+    double r,
+    double t, {
+    required bool front,
+  }) {
     for (final (orbit, phase, size, shape) in _rocks) {
       final a = phase + t * 0.3 / (orbit * orbit);
       // Orbit plane: tilted so it crosses in front low and behind high.
@@ -106,8 +121,13 @@ class EarthPlanetArt extends PlanetArt {
         Paint()..color = _rockDark,
       );
       c.drawPath(
-        vfxBlob(at + Offset(-sz * 0.22, -sz * 0.24), sz * 0.72, shape + 3,
-            n: 6, wobble: 0.3),
+        vfxBlob(
+          at + Offset(-sz * 0.22, -sz * 0.24),
+          sz * 0.72,
+          shape + 3,
+          n: 6,
+          wobble: 0.3,
+        ),
         Paint()..color = _rockLit,
       );
     }
@@ -131,16 +151,17 @@ class EarthPlanetArt extends PlanetArt {
     c.drawCircle(
       p,
       r,
-      Paint()
-        ..shader = ui.Gradient.radial(p, r, _low, const [0.0, 0.7, 1.0]),
+      Paint()..shader = ui.Gradient.radial(p, r, _low, const [0.0, 0.7, 1.0]),
     );
     // Terraces: each step first as its cast shadow, then itself, from the
     // valley floor up.
     final cast = Offset(r * 0.016, r * 0.02);
     for (var k = 0; k < _levels.length; k++) {
       final step = _levels[k].gather(view);
-      c.drawPath(step.shift(cast),
-          Paint()..color = _cast.withValues(alpha: 0.55));
+      c.drawPath(
+        step.shift(cast),
+        Paint()..color = _cast.withValues(alpha: 0.55),
+      );
       c.drawPath(step, Paint()..color = _steps[k]);
     }
 

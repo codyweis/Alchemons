@@ -73,7 +73,9 @@ class LavaPlanetArt extends PlanetArt {
         final y = rng.nextDouble() * 2 - 1;
         final z = rng.nextDouble() * 2 - 1;
         final l = sqrt(x * x + y * y + z * z);
-        if (l > 0.2 && l <= 1) return Float64List.fromList([x / l, y / l, z / l]);
+        if (l > 0.2 && l <= 1) {
+          return Float64List.fromList([x / l, y / l, z / l]);
+        }
       }
     }
 

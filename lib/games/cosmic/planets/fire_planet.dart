@@ -58,19 +58,32 @@ class FirePlanetArt extends PlanetArt {
       p,
       r,
       Paint()
-        ..shader = ui.Gradient.radial(p, r, [
-          Color.lerp(const Color(0xFFFFB44A), const Color(0xFFFFD27A), breathe)!,
-          const Color(0xFFF07A26),
-          const Color(0xFFD2461A),
-          const Color(0xFF8E1E08),
-        ], const [0.0, 0.45, 0.78, 1.0]),
+        ..shader = ui.Gradient.radial(
+          p,
+          r,
+          [
+            Color.lerp(
+              const Color(0xFFFFB44A),
+              const Color(0xFFFFD27A),
+              breathe,
+            )!,
+            const Color(0xFFF07A26),
+            const Color(0xFFD2461A),
+            const Color(0xFF8E1E08),
+          ],
+          const [0.0, 0.45, 0.78, 1.0],
+        ),
     );
     // Slow churn across it: soft darker and brighter patches turning with
     // the world.
     c.save();
     _clipDisc(c, p, r);
     for (var i = 0; i < 7; i++) {
-      final sp = view.project(_churn[i * 3], _churn[i * 3 + 1], _churn[i * 3 + 2]);
+      final sp = view.project(
+        _churn[i * 3],
+        _churn[i * 3 + 1],
+        _churn[i * 3 + 2],
+      );
       if (sp.depth < 0) continue;
       final pulse = 0.5 + 0.5 * sin(t * 0.5 + i * 1.9);
       _softCircle(

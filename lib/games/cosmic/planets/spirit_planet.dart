@@ -63,28 +63,39 @@ class SpiritPlanetArt extends PlanetArt {
       p,
       r,
       Paint()
-        ..shader = ui.Gradient.radial(p, r, [
-          const Color(0xFF1A2654).withValues(alpha: 0.74 * presence),
-          const Color(0xFF121A40).withValues(alpha: 0.78 * presence),
-          const Color(0xFF0B1030).withValues(alpha: 0.92 * presence),
-        ], const [0.0, 0.72, 1.0]),
+        ..shader = ui.Gradient.radial(
+          p,
+          r,
+          [
+            const Color(0xFF1A2654).withValues(alpha: 0.74 * presence),
+            const Color(0xFF121A40).withValues(alpha: 0.78 * presence),
+            const Color(0xFF0B1030).withValues(alpha: 0.92 * presence),
+          ],
+          const [0.0, 0.72, 1.0],
+        ),
     );
     // The soul in it: a light, not a ball — bright at its heart and fading
     // into the glass, drifting and breathing, with motes of it circling
     // inside.
-    final core = p +
+    final core =
+        p +
         Offset(sin(t * 0.31) * r * 0.06, cos(t * 0.23) * r * 0.05 - r * 0.04);
     final cr = r * (0.5 + 0.03 * sin(t * 0.9));
     c.drawCircle(
       core,
       cr,
       Paint()
-        ..shader = ui.Gradient.radial(core, cr, [
-          const Color(0xFFEFFFFC).withValues(alpha: 0.95 * presence),
-          _aqua.withValues(alpha: 0.7 * presence),
-          const Color(0xFF3AB8C0).withValues(alpha: 0.28 * presence),
-          const Color(0xFF3AB8C0).withValues(alpha: 0),
-        ], const [0.0, 0.18, 0.5, 1.0]),
+        ..shader = ui.Gradient.radial(
+          core,
+          cr,
+          [
+            const Color(0xFFEFFFFC).withValues(alpha: 0.95 * presence),
+            _aqua.withValues(alpha: 0.7 * presence),
+            const Color(0xFF3AB8C0).withValues(alpha: 0.28 * presence),
+            const Color(0xFF3AB8C0).withValues(alpha: 0),
+          ],
+          const [0.0, 0.18, 0.5, 1.0],
+        ),
     );
     final mote = Paint();
     for (var i = 0; i < 7; i++) {
@@ -94,7 +105,9 @@ class SpiritPlanetArt extends PlanetArt {
       final glow = 0.5 + 0.5 * sin(t * 1.3 + i * 2.1);
       mote.color = _aqua.withValues(alpha: 0.12 * glow * presence);
       c.drawCircle(at, r * 0.035, mote);
-      mote.color = const Color(0xFFEFFFFC).withValues(alpha: 0.8 * glow * presence);
+      mote.color = const Color(
+        0xFFEFFFFC,
+      ).withValues(alpha: 0.8 * glow * presence);
       c.drawCircle(at, r * 0.009, mote);
     }
     // Veils of aqua and violet light drifting slowly round the heart.
@@ -106,7 +119,9 @@ class SpiritPlanetArt extends PlanetArt {
         c,
         p + Offset(cos(a), sin(a) * 0.8) * (dist * r),
         size * r,
-        (i.isEven ? _aqua : _violet).withValues(alpha: 0.1 * breathe * presence),
+        (i.isEven ? _aqua : _violet).withValues(
+          alpha: 0.1 * breathe * presence,
+        ),
         r * 0.14,
       );
     }

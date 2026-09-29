@@ -144,8 +144,15 @@ class WaterPlanetArt extends PlanetArt {
       const Color(0xFF1E88E5).withValues(alpha: 0.05 + 0.02 * sin(t * 0.6)),
       r * 0.4,
     );
-    _limb(c, p, r, const Color(0xFF7ABDFF), alpha: 0.34, inner: 0.88,
-        outer: 1.08);
+    _limb(
+      c,
+      p,
+      r,
+      const Color(0xFF7ABDFF),
+      alpha: 0.34,
+      inner: 0.88,
+      outer: 1.08,
+    );
   }
 
   /// AQUATHOS HAS A MOON, and the tide dungeon down there runs on its
@@ -202,10 +209,16 @@ class WaterPlanetArt extends PlanetArt {
     const craters = [(0.3, 0.32, 0.09), (-0.4, 0.2, 0.07), (0.05, -0.45, 0.06)];
     for (final (dx, dy, k) in craters) {
       final cc = at + Offset(dx * mr, dy * mr);
-      c.drawCircle(cc, mr * k,
-          Paint()..color = const Color(0xFF6E7784).withValues(alpha: 0.35));
-      c.drawCircle(cc - lightDir * (mr * k * 0.3), mr * k * 0.7,
-          Paint()..color = const Color(0xFFE6EAF0).withValues(alpha: 0.18));
+      c.drawCircle(
+        cc,
+        mr * k,
+        Paint()..color = const Color(0xFF6E7784).withValues(alpha: 0.35),
+      );
+      c.drawCircle(
+        cc - lightDir * (mr * k * 0.3),
+        mr * k * 0.7,
+        Paint()..color = const Color(0xFFE6EAF0).withValues(alpha: 0.18),
+      );
     }
 
     // THE PHASE. A shadow disc slid along the light axis: centred on the
@@ -230,11 +243,16 @@ class WaterPlanetArt extends PlanetArt {
       at,
       outer,
       Paint()
-        ..shader = ui.Gradient.radial(at, outer, [
-          const Color(0xFFB8C2CE).withValues(alpha: 0),
-          const Color(0xFFB8C2CE).withValues(alpha: 0.28),
-          const Color(0xFFB8C2CE).withValues(alpha: 0),
-        ], [0.86, mr / outer, 1.0]),
+        ..shader = ui.Gradient.radial(
+          at,
+          outer,
+          [
+            const Color(0xFFB8C2CE).withValues(alpha: 0),
+            const Color(0xFFB8C2CE).withValues(alpha: 0.28),
+            const Color(0xFFB8C2CE).withValues(alpha: 0),
+          ],
+          [0.86, mr / outer, 1.0],
+        ),
     );
   }
 

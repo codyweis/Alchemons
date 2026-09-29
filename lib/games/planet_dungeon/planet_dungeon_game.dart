@@ -15,6 +15,7 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
+import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic/vfx_shapes.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
@@ -15452,83 +15453,17 @@ class PlanetDungeonGame extends FlameGame {
       // the crawl would undo the whole point of the crawl.
       if (_isVenom && identical(enemy, monastery.body)) continue;
       final base = elementColor(enemy.element);
-      // Dive telegraph: a tightening ring during the windup so the swoop is
-      // readable and dodgeable.
-      final motion = enemy.flightSteering;
-      if (motion != null && motion.showTelegraphRing) {
-        canvas.drawCircle(
-          enemy.position,
-          enemy.radius + 6 + motion.windupTimer * 46,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = Color.lerp(
-              base,
-              Colors.white,
-              0.5,
-            )!.withValues(alpha: 0.75),
-        );
-      }
       final flash = enemy.hitFlash > 0
           ? Color.lerp(base, Colors.white, enemy.hitFlash.clamp(0.0, 1.0))!
           : base;
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          enemy.position,
-          enemy.radius * (enemy.isElite ? 2.8 : 2.1),
-          flash.withValues(alpha: enemy.isElite ? 0.34 : 0.22),
-        );
-      }
-      canvas.save();
-      canvas.translate(enemy.position.dx, enemy.position.dy);
-      canvas.rotate(enemy.angle);
-      for (var i = 0; i < 4; i++) {
-        final a = i * pi / 2 + _time * (enemy.isElite ? 1.2 : 1.8);
-        final path = Path()
-          ..moveTo(cos(a) * enemy.radius * 0.4, sin(a) * enemy.radius * 0.4)
-          ..quadraticBezierTo(
-            cos(a + 0.35) * enemy.radius * 1.1,
-            sin(a + 0.35) * enemy.radius * 1.1,
-            cos(a) * enemy.radius * 1.7,
-            sin(a) * enemy.radius * 1.7,
-          );
-        canvas.drawPath(
-          path,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = enemy.isElite ? 3 : 2
-            ..strokeCap = StrokeCap.round
-            ..color = flash.withValues(alpha: 0.38),
-        );
-      }
-      canvas.drawCircle(
-        Offset.zero,
-        enemy.radius,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            Offset(-enemy.radius * 0.2, -enemy.radius * 0.25),
-            enemy.radius * 1.25,
-            [
-              Color.lerp(flash, Colors.white, 0.45)!.withValues(alpha: 0.95),
-              flash.withValues(alpha: 0.82),
-              const Color(0xFF05070D).withValues(alpha: 0.92),
-            ],
-            const [0.0, 0.52, 1.0],
-          ),
+      // The same body survival and open space draw (cosmic_enemy_vfx.dart):
+      // dive telegraph, attack tells and root wraps included.
+      drawSurvivalEnemy(
+        canvas: canvas,
+        enemy: enemy,
+        time: _time,
+        reduceLabels: true,
       );
-      // Horn+Plant root: thorned vines climbing over the body.
-      if (enemy.hornPlantRootTimer > 0) {
-        drawHornPlantRootWrap(
-          canvas: canvas,
-          r: enemy.radius,
-          time: _time,
-          seed: enemy.hashCode % 17 * 0.37,
-          strength: (enemy.hornPlantRootTimer / 0.4).clamp(0.0, 1.0),
-        );
-      }
-      canvas.restore();
 
       final barW = enemy.radius * 2.2;
       final bar = Rect.fromCenter(

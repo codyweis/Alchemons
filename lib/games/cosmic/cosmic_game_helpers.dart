@@ -30,12 +30,12 @@ void _drawBloodAuraCanvas(
     final orbitR = radius * (0.62 + 0.28 * sin(elapsed * 1.7 + i));
     final pos = Offset(cos(angle) * orbitR, sin(angle) * orbitR);
     final dropletR = radius * (0.06 + 0.03 * sin(elapsed * 2.4 + i));
-    canvas.drawCircle(
+    paintSoftCircle(
+      canvas,
       pos,
       dropletR,
-      Paint()
-        ..color = const Color(0xFFFF6B6B).withValues(alpha: 0.78 * opacity)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, dropletR * 0.8),
+      const Color(0xFFFF6B6B).withValues(alpha: 0.78 * opacity),
+      dropletR * 0.8,
     );
   }
 }
@@ -166,14 +166,13 @@ void _drawRitualGoldCanvas(
   );
 
   for (final factor in [1.02, 0.76]) {
-    canvas.drawCircle(
+    paintSoftRing(
+      canvas,
       Offset.zero,
       radius * factor,
-      Paint()
-        ..color = const Color(0xFFE9C76B).withValues(alpha: 0.42 * opacity)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = radius * (factor > 0.9 ? 0.08 : 0.05)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.04),
+      const Color(0xFFE9C76B).withValues(alpha: 0.42 * opacity),
+      radius * (factor > 0.9 ? 0.08 : 0.05),
+      radius * 0.04,
     );
   }
 
@@ -244,26 +243,26 @@ void _drawAlchemyGlowCanvas(
   final midR = radius * 1.45 * pulse;
   final coreR = radius * 0.9 * pulse;
 
-  canvas.drawCircle(
+  paintSoftCircle(
+    canvas,
     Offset.zero,
     outerR,
-    Paint()
-      ..color = const Color(0xFF6A5CFF).withValues(alpha: 0.20 * opacity)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, outerR * 0.35),
+    const Color(0xFF6A5CFF).withValues(alpha: 0.20 * opacity),
+    outerR * 0.35,
   );
-  canvas.drawCircle(
+  paintSoftCircle(
+    canvas,
     Offset.zero,
     midR,
-    Paint()
-      ..color = const Color(0xFF25D1FF).withValues(alpha: 0.26 * opacity)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, midR * 0.26),
+    const Color(0xFF25D1FF).withValues(alpha: 0.26 * opacity),
+    midR * 0.26,
   );
-  canvas.drawCircle(
+  paintSoftCircle(
+    canvas,
     Offset.zero,
     coreR,
-    Paint()
-      ..color = Colors.white.withValues(alpha: 0.12 * opacity)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, coreR * 0.18),
+    Colors.white.withValues(alpha: 0.12 * opacity),
+    coreR * 0.18,
   );
 }
 
@@ -275,31 +274,31 @@ void _drawElementalAuraCanvas(
   double opacity,
 ) {
   final orbitR = radius * (1.10 + 0.06 * sin(elapsed * 2.0));
-  canvas.drawCircle(
+  paintSoftCircle(
+    canvas,
     Offset.zero,
     radius * 1.25,
-    Paint()
-      ..color = essence.withValues(alpha: 0.30 * opacity)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.32),
+    essence.withValues(alpha: 0.30 * opacity),
+    radius * 0.32,
   );
-  canvas.drawCircle(
+  paintSoftCircle(
+    canvas,
     Offset.zero,
     radius * 0.72,
-    Paint()
-      ..color = Colors.white.withValues(alpha: 0.14 * opacity)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.20),
+    Colors.white.withValues(alpha: 0.14 * opacity),
+    radius * 0.20,
   );
   for (int i = 0; i < 5; i++) {
     final a = elapsed * 2.0 + (i / 5) * pi * 2;
     final p = Offset(cos(a) * orbitR, sin(a) * orbitR);
     final flicker = 0.55 + 0.45 * sin(elapsed * 8.0 + i * 0.9);
     final pr = radius * (0.09 + 0.04 * flicker);
-    canvas.drawCircle(
+    paintSoftCircle(
+      canvas,
       p,
       pr,
-      Paint()
-        ..color = essence.withValues(alpha: (0.70 + 0.45 * flicker) * opacity)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, pr * 0.9),
+      essence.withValues(alpha: (0.70 + 0.45 * flicker) * opacity),
+      pr * 0.9,
     );
   }
 }
@@ -353,12 +352,12 @@ void _drawVolcanicAuraCanvas(
     final a = elapsed * 3.0 + (i / 6) * pi * 2;
     final d = radius * 1.25;
     final p = Offset(cos(a) * d, sin(a) * d);
-    canvas.drawCircle(
+    paintSoftCircle(
+      canvas,
       p,
       radius * 0.10,
-      Paint()
-        ..color = Colors.amber.withValues(alpha: 0.65 * opacity)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.12),
+      Colors.amber.withValues(alpha: 0.65 * opacity),
+      radius * 0.12,
     );
   }
 }
@@ -733,12 +732,12 @@ void _drawIntelligenceHaloCanvas(
     canvas.drawLine(nodes[i], nodes[(i + 2) % nodes.length], link);
   }
   for (final n in nodes) {
-    canvas.drawCircle(
+    paintSoftCircle(
+      canvas,
       n,
       max(1.6, radius * 0.04),
-      Paint()
-        ..color = const Color(0xFFC5CAE9).withValues(alpha: 0.82 * opacity)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.04),
+      const Color(0xFFC5CAE9).withValues(alpha: 0.82 * opacity),
+      radius * 0.04,
     );
   }
 }
@@ -796,13 +795,14 @@ void _drawWavebreakerCrownCanvas(
   for (var i = 0; i < 5; i++) {
     final a = -pi / 2 + spin * 0.48 + i * 2 * pi / 5;
     final point = Offset(cos(a) * radius * 1.04, sin(a) * radius * 1.04);
-    canvas.drawCircle(
+    paintSoftCircle(
+      canvas,
       point,
       max(1.2, radius * 0.07),
-      Paint()
-        ..color = (i.isEven ? const Color(0xFF57E7F2) : const Color(0xFFE4C16A))
-            .withValues(alpha: 0.88 * opacity)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.04),
+      (i.isEven ? const Color(0xFF57E7F2) : const Color(0xFFE4C16A)).withValues(
+        alpha: 0.88 * opacity,
+      ),
+      radius * 0.04,
     );
   }
 

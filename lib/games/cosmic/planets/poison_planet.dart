@@ -27,12 +27,30 @@ class PoisonPlanetArt extends PlanetArt {
       popping.setAll(i * 3, [x, y, z]);
     }
     return PoisonPlanetArt._(
-      _BlobField.scatter(rng, 110, size: 0.06, rough: 0.06, soft: 1,
-          uniform: true),
-      _BlobField.scatter(rng, 120, size: 0.028, rough: 0.05, soft: 1,
-          uniform: true),
-      _BlobField.scatter(rng, 16, size: 0.045, rough: 0.05, soft: 1,
-          uniform: true),
+      _BlobField.scatter(
+        rng,
+        110,
+        size: 0.06,
+        rough: 0.06,
+        soft: 1,
+        uniform: true,
+      ),
+      _BlobField.scatter(
+        rng,
+        120,
+        size: 0.028,
+        rough: 0.05,
+        soft: 1,
+        uniform: true,
+      ),
+      _BlobField.scatter(
+        rng,
+        16,
+        size: 0.045,
+        rough: 0.05,
+        soft: 1,
+        uniform: true,
+      ),
       popping,
     );
   }
@@ -54,10 +72,12 @@ class PoisonPlanetArt extends PlanetArt {
       final sp = view.project(cs[i * 3], cs[i * 3 + 1], cs[i * 3 + 2]);
       if (sp.depth < 0.25) continue;
       final br = r * field.sizes[i] * sp.depth * k;
-      path.addOval(Rect.fromCircle(
-        center: sp.offset + Offset(-br * 0.42, -br * 0.45),
-        radius: br * 0.24,
-      ));
+      path.addOval(
+        Rect.fromCircle(
+          center: sp.offset + Offset(-br * 0.42, -br * 0.45),
+          radius: br * 0.24,
+        ),
+      );
     }
     return path;
   }
@@ -70,19 +90,22 @@ class PoisonPlanetArt extends PlanetArt {
   @override
   void paintBody(Canvas c, Offset p, double r, double t) {
     final view = SphereView(p, r, _spin.matrixAt(t));
-    c.drawPath(_froth.limbBumps(view, scale: 0.6),
-        Paint()..color = const Color(0xFF3A1450));
+    c.drawPath(
+      _froth.limbBumps(view, scale: 0.6),
+      Paint()..color = const Color(0xFF3A1450),
+    );
     c.save();
     _clipDisc(c, p, r);
     c.drawCircle(
       p,
       r,
       Paint()
-        ..shader = ui.Gradient.radial(p, r, const [
-          Color(0xFF3E1452),
-          Color(0xFF2A0C3A),
-          Color(0xFF16061F),
-        ], const [0.0, 0.7, 1.0]),
+        ..shader = ui.Gradient.radial(
+          p,
+          r,
+          const [Color(0xFF3E1452), Color(0xFF2A0C3A), Color(0xFF16061F)],
+          const [0.0, 0.7, 1.0],
+        ),
     );
     final shadow = Offset(r * 0.014, r * 0.018);
     for (final (field, col) in [
@@ -90,21 +113,28 @@ class PoisonPlanetArt extends PlanetArt {
       (_small, const Color(0xFF8A40A8)),
     ]) {
       final path = field.gather(view);
-      c.drawPath(path.shift(shadow),
-          Paint()..color = const Color(0xFF12041A).withValues(alpha: 0.7));
+      c.drawPath(
+        path.shift(shadow),
+        Paint()..color = const Color(0xFF12041A).withValues(alpha: 0.7),
+      );
       c.drawPath(path, Paint()..color = col);
     }
-    final glint = Paint()..color = const Color(0xFFE2B8F6).withValues(alpha: 0.8);
+    final glint = Paint()
+      ..color = const Color(0xFFE2B8F6).withValues(alpha: 0.8);
     c.drawPath(_glints(view, _froth), glint);
     c.drawPath(_glints(view, _small), glint);
     _shade(c, p, r, night: const Color(0xFF07020A));
 
     // The acid, above the night: it makes its own light.
     final breathe = 0.85 + 0.15 * sin(t * 0.8);
-    c.drawPath(_acid.gather(view),
-        Paint()..color = _acidCol.withValues(alpha: 0.9 * breathe));
-    c.drawPath(_glints(view, _acid, k: 1.1),
-        Paint()..color = const Color(0xFFE6FFD0).withValues(alpha: 0.85));
+    c.drawPath(
+      _acid.gather(view),
+      Paint()..color = _acidCol.withValues(alpha: 0.9 * breathe),
+    );
+    c.drawPath(
+      _glints(view, _acid, k: 1.1),
+      Paint()..color = const Color(0xFFE6FFD0).withValues(alpha: 0.85),
+    );
     final pop = Paint();
     for (var i = 0; i < _popping.length ~/ 3; i++) {
       final sp = view.project(
@@ -123,8 +153,15 @@ class PoisonPlanetArt extends PlanetArt {
       c.drawCircle(sp.offset + Offset(-br * 0.4, -br * 0.4), br * 0.26, pop);
     }
     c.restore();
-    _limb(c, p, r, const Color(0xFFA6FF70), alpha: 0.16, inner: 0.95,
-        outer: 1.05);
+    _limb(
+      c,
+      p,
+      r,
+      const Color(0xFFA6FF70),
+      alpha: 0.16,
+      inner: 0.95,
+      outer: 1.05,
+    );
   }
 
   @override

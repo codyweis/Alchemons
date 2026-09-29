@@ -2854,14 +2854,12 @@ extension CosmicGameWorldSystems on CosmicGame {
         1.0,
       );
       if (sBright < 0.2) continue;
-      c.drawCircle(
+      paintSoftCircle(
+        c,
         Offset(sx, sy),
         2.0 + sBright * 2.5,
-        Paint()
-          ..color = PrismaticField.auroraColors[i % 8].withValues(
-            alpha: sBright * 0.5,
-          )
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        PrismaticField.auroraColors[i % 8].withValues(alpha: sBright * 0.5),
+        6,
       );
     }
 
@@ -2927,12 +2925,12 @@ extension CosmicGameWorldSystems on CosmicGame {
     final pulse = 0.85 + 0.15 * sin(riftPulse * 1.8);
 
     // Huge dark gravitational well glow
-    c.drawCircle(
+    paintSoftCircle(
+      c,
       center,
       600 * scale,
-      Paint()
-        ..color = const Color(0xFF000000).withValues(alpha: 0.9)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 200 * scale),
+      const Color(0xFF000000).withValues(alpha: 0.9),
+      200 * scale,
     );
 
     // Four elemental glows orbiting
@@ -2947,12 +2945,12 @@ extension CosmicGameWorldSystems on CosmicGame {
       final orbitR = (400.0 + 50 * sin(riftPulse * 2 + i)) * scale;
       final gx = center.dx + cos(a) * orbitR;
       final gy = center.dy + sin(a) * orbitR;
-      c.drawCircle(
+      paintSoftCircle(
+        c,
         Offset(gx, gy),
         40 * pulse * scale,
-        Paint()
-          ..color = eColors[i].withValues(alpha: 0.45 * pulse)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 30 * scale),
+        eColors[i].withValues(alpha: 0.45 * pulse),
+        30 * scale,
       );
     }
 
@@ -2976,14 +2974,13 @@ extension CosmicGameWorldSystems on CosmicGame {
     // Pulsing dark rings with multi-element shimmer
     for (var i = 0; i < 4; i++) {
       final ringR = (300.0 + i * 90 + 30 * sin(riftPulse * 2.5 + i)) * scale;
-      c.drawCircle(
+      paintSoftRing(
+        c,
         center,
         ringR,
-        Paint()
-          ..color = eColors[i].withValues(alpha: 0.18 - i * 0.03)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 12.5 * scale
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 15 * scale),
+        eColors[i].withValues(alpha: 0.18 - i * 0.03),
+        12.5 * scale,
+        15 * scale,
       );
     }
 
@@ -3010,14 +3007,13 @@ extension CosmicGameWorldSystems on CosmicGame {
     final pulse = 0.85 + 0.15 * sin(riftPulse * 2.0);
 
     // Pocket boundary glow (faint ring)
-    c.drawCircle(
+    paintSoftRing(
+      c,
       center,
       ElementalNexus.pocketRadius * scale,
-      Paint()
-        ..color = const Color(0xFF7C4DFF).withValues(alpha: 0.08)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 40 * scale
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 30 * scale),
+      const Color(0xFF7C4DFF).withValues(alpha: 0.08),
+      40 * scale,
+      30 * scale,
     );
 
     // 4 elemental portal glows (only the blurred outer glow + rim ring)
@@ -3036,33 +3032,32 @@ extension CosmicGameWorldSystems on CosmicGame {
       final col = portalColors[i];
 
       // Outer glow
-      c.drawCircle(
+      paintSoftCircle(
+        c,
         pp,
         80 * scale,
-        Paint()
-          ..color = col.withValues(alpha: 0.2 * pulse)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 25 * scale),
+        col.withValues(alpha: 0.2 * pulse),
+        25 * scale,
       );
 
       // Rim ring with blur
-      c.drawCircle(
+      paintSoftRing(
+        c,
         pp,
         50 * pulse * scale,
-        Paint()
-          ..color = col.withValues(alpha: 0.4 * pulse)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5 * scale
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3 * scale),
+        col.withValues(alpha: 0.4 * pulse),
+        2.5 * scale,
+        3 * scale,
       );
     }
 
     // Center marker glow
-    c.drawCircle(
+    paintSoftCircle(
+      c,
       center,
       20 * scale,
-      Paint()
-        ..color = const Color(0xFF7C4DFF).withValues(alpha: 0.12)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12 * scale),
+      const Color(0xFF7C4DFF).withValues(alpha: 0.12),
+      12 * scale,
     );
 
     final picture = recorder.endRecording();

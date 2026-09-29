@@ -190,9 +190,11 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       vr * 0.75,
       Paint()
         ..shader = ui.Gradient.radial(core, vr * 0.75, [
-          Color.lerp(col, Colors.white, 0.6)!.withValues(
-            alpha: 0.16 + 0.1 * breathe,
-          ),
+          Color.lerp(
+            col,
+            Colors.white,
+            0.6,
+          )!.withValues(alpha: 0.16 + 0.1 * breathe),
           Color.lerp(col, Colors.white, 0.6)!.withValues(alpha: 0),
         ]),
     );
@@ -270,7 +272,6 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
 
   // ── Sizing for the original painters ──────────────────────────────────────
 
-
   double _planetEffectScale(double vr) => (vr / 80.0).clamp(0.6, 2.8);
 
   double _scaledEffectPx(
@@ -283,10 +284,6 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     if (max == null) return scaled.clamp(min, double.infinity);
     return scaled.clamp(min, max);
   }
-
-
-
-
 
   // ══════════════════════════════════════════════════════════════════════════
   //  FRONT-PLANET EFFECTS  (drawn after the planet body)
@@ -323,11 +320,11 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       customizationOptions,
       wake: ship.pos,
       sizeTier: homePlanet?.sizeTierIndex ?? 0,
+      color: col,
     );
   }
 
   // ── Individual front effects ──────────────────────────────────────────────
-
 
   void _drawVineTendrils(Canvas canvas, Offset pos, double vr, double t) {
     final lenMul = switch (customizationOptions['vine_tendrils.length'] ??
@@ -462,12 +459,6 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     }
   }
 
-
-
-
-
-
-
   void _drawSteamVents(Canvas canvas, Offset pos, double vr, double t) {
     final ventCount = switch (customizationOptions['steam_vents.jets'] ?? '4') {
       '2' => 2,
@@ -499,11 +490,6 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       }
     }
   }
-
-
-
-
-
 
   // ── Phantom Phase — planet fades translucent periodically ──────────────────
 

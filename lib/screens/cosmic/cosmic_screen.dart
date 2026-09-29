@@ -2623,6 +2623,16 @@ class _CosmicScreenState extends State<CosmicScreen>
             backdrop: backdrop,
             harvestBonus: harvestBonus,
             exhausted: wild.isExhausted,
+            partyLargestScale: _partyMembers
+                .whereType<CosmicPartyMember>()
+                .fold<double>(
+                  1,
+                  (big, m) => max(
+                    big,
+                    CosmicGame.spaceSpeciesScale(m.family) *
+                        (m.spriteVisuals?.scale ?? 1),
+                  ),
+                ),
           ),
           transitionsBuilder: (_, animation, __, child) =>
               FadeTransition(opacity: animation, child: child),

@@ -34,11 +34,32 @@ class IcePlanetArt extends PlanetArt {
         laneColor: const Color(0xFFCFEFFA),
         laneReach: 2.3,
         laneStops: const [
-          0, 0.6, 0.63, 0.67, 0.695, 0.72, 0.75, 0.826, 0.852, 0.878, 0.92,
+          0,
+          0.6,
+          0.63,
+          0.67,
+          0.695,
+          0.72,
+          0.75,
+          0.826,
+          0.852,
+          0.878,
+          0.92,
           0.96,
         ],
         laneAlphas: const [
-          0, 0, 0.16, 0.22, 0.03, 0.05, 0.26, 0.22, 0.03, 0.14, 0.08, 0,
+          0,
+          0,
+          0.16,
+          0.22,
+          0.03,
+          0.05,
+          0.26,
+          0.22,
+          0.03,
+          0.14,
+          0.08,
+          0,
         ],
         dim: const Color(0xFFB8DCEC).withValues(alpha: 0.6),
         bright: const Color(0xFFFFFFFF),
@@ -84,11 +105,12 @@ class IcePlanetArt extends PlanetArt {
       p,
       r,
       Paint()
-        ..shader = ui.Gradient.radial(p, r, const [
-          Color(0xFF3A7494),
-          Color(0xFF285A7A),
-          Color(0xFF16395A),
-        ], const [0.0, 0.7, 1.0]),
+        ..shader = ui.Gradient.radial(
+          p,
+          r,
+          const [Color(0xFF3A7494), Color(0xFF285A7A), Color(0xFF16395A)],
+          const [0.0, 0.7, 1.0],
+        ),
     );
     _floes.paint(c, view, _ice, glintAlpha: 0.75, glintPower: 30);
     final cap = Paint()..color = const Color(0xFFF4FAFD);
@@ -97,8 +119,15 @@ class IcePlanetArt extends PlanetArt {
     }
     _shade(c, p, r, strength: 0.85, night: const Color(0xFF040C18));
     c.restore();
-    _limb(c, p, r, const Color(0xFFC4F2FF), alpha: 0.22, inner: 0.94,
-        outer: 1.06);
+    _limb(
+      c,
+      p,
+      r,
+      const Color(0xFFC4F2FF),
+      alpha: 0.22,
+      inner: 0.94,
+      outer: 1.06,
+    );
   }
 
   @override

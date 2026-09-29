@@ -15,11 +15,7 @@ import 'dart:ui';
 /// A pole leaning [roll] to the side and [lean] toward the viewer, turning
 /// once every [period] seconds.
 class SphereSpin {
-  const SphereSpin({
-    required this.period,
-    this.roll = -0.35,
-    this.lean = 0.32,
-  });
+  const SphereSpin({required this.period, this.roll = -0.35, this.lean = 0.32});
 
   final double period;
   final double roll;
@@ -84,7 +80,8 @@ class SphereView {
   final double radius;
   final Float64List m;
 
-  double depthOf(double x, double y, double z) => m[6] * x + m[7] * y + m[8] * z;
+  double depthOf(double x, double y, double z) =>
+      m[6] * x + m[7] * y + m[8] * z;
 
   SpherePoint project(double x, double y, double z) {
     final sx = m[0] * x + m[1] * y + m[2] * z;
@@ -250,7 +247,11 @@ class SpherePlates {
 void addSphereRing(Path path, SphereView view, Float64List ring) {
   final n = ring.length ~/ 3;
   for (var k = 0; k < n; k++) {
-    final o = view.projectClamped(ring[k * 3], ring[k * 3 + 1], ring[k * 3 + 2]);
+    final o = view.projectClamped(
+      ring[k * 3],
+      ring[k * 3 + 1],
+      ring[k * 3 + 2],
+    );
     if (k == 0) {
       path.moveTo(o.dx, o.dy);
     } else {
@@ -263,7 +264,8 @@ void addSphereRing(Path path, SphereView view, Float64List ring) {
 /// A view with no position or size — the unit disc at the origin. Static
 /// shapes (latitude bands, polar caps: anything symmetric about the pole,
 /// which never moves on screen) are built once in it and drawn scaled.
-SphereView unitView(SphereSpin spin) => SphereView(Offset.zero, 1, spin.matrixAt(0));
+SphereView unitView(SphereSpin spin) =>
+    SphereView(Offset.zero, 1, spin.matrixAt(0));
 
 /// An irregular ring round the surface point ([cx], [cy], [cz]) at roughly
 /// [radius] arc radians, for clouds, pools, continents. [rough] is how far
@@ -298,7 +300,8 @@ Float64List sphereBlob(
   final out = Float64List(sides * 3);
   for (var k = 0; k < sides; k++) {
     final th = 2 * pi * k / sides;
-    final wob = 1 + rough * (0.65 * sin(k1 * th + p1) + 0.35 * sin(k2 * th + p2));
+    final wob =
+        1 + rough * (0.65 * sin(k1 * th + p1) + 0.35 * sin(k2 * th + p2));
     final s = radius * wob;
     final dx = cos(th) * stretch, dy = sin(th);
     final dl = sqrt(dx * dx + dy * dy);
@@ -343,7 +346,8 @@ Path? visibleRegion(
   Offset screen(double x, double y) => Offset(c.dx + x * r, c.dy - y * r);
 
   if (front == n) {
-    final path = Path()..moveTo(screen(vx[0], vy[0]).dx, screen(vx[0], vy[0]).dy);
+    final path = Path()
+      ..moveTo(screen(vx[0], vy[0]).dx, screen(vx[0], vy[0]).dy);
     for (var i = 1; i < n; i++) {
       final o = screen(vx[i], vy[i]);
       path.lineTo(o.dx, o.dy);
@@ -379,7 +383,10 @@ Path? visibleRegion(
 
   final path = Path();
   final entry0 = crossAngle((start - 1 + n) % n, start);
-  path.moveTo(screen(cos(entry0), sin(entry0)).dx, screen(cos(entry0), sin(entry0)).dy);
+  path.moveTo(
+    screen(cos(entry0), sin(entry0)).dx,
+    screen(cos(entry0), sin(entry0)).dy,
+  );
   var i = start;
   var walked = 0;
   while (walked < n) {

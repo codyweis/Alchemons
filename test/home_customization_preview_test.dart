@@ -52,12 +52,14 @@ void main() {
         game.cycleZoomLevel();
         game.update(t);
       }
-      game.restoreHomePlanet(HomePlanet(
-        position: game.ship.pos + shift,
-        activeColor: color,
-        sizeTierLevel: 3,
-        activeSizeTier: 3,
-      ));
+      game.restoreHomePlanet(
+        HomePlanet(
+          position: game.ship.pos + shift,
+          activeColor: color,
+          sizeTierLevel: 3,
+          activeSizeTier: 3,
+        ),
+      );
       game.activeCustomizations = {id};
       if (world) {
         game.update(1 / 60);
@@ -80,14 +82,22 @@ void main() {
       final cellH = world ? cell * 0.45 : cell;
       final rec = ui.PictureRecorder();
       final c = Canvas(rec);
-      c.drawRect(Rect.fromLTWH(0, 0, cell * cols, cellH * rows),
-          Paint()..color = const Color(0xFF020010));
+      c.drawRect(
+        Rect.fromLTWH(0, 0, cell * cols, cellH * rows),
+        Paint()..color = const Color(0xFF020010),
+      );
       final rng = Random(3);
       for (var i = 0; i < 1200; i++) {
         c.drawCircle(
-          Offset(rng.nextDouble() * cell * cols, rng.nextDouble() * cellH * rows),
+          Offset(
+            rng.nextDouble() * cell * cols,
+            rng.nextDouble() * cellH * rows,
+          ),
           0.6 + rng.nextDouble(),
-          Paint()..color = Colors.white.withValues(alpha: 0.15 + rng.nextDouble() * 0.4),
+          Paint()
+            ..color = Colors.white.withValues(
+              alpha: 0.15 + rng.nextDouble() * 0.4,
+            ),
         );
       }
       for (var i = 0; i < images.length; i++) {
@@ -96,14 +106,26 @@ void main() {
           img,
           Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
           world
-              ? Rect.fromLTWH((i % cols) * cell, (i ~/ cols) * cell * 0.45,
-                  cell, cell * 0.45)
-              : Rect.fromLTWH((i % cols) * cell, (i ~/ cols) * cell, cell, cell),
+              ? Rect.fromLTWH(
+                  (i % cols) * cell,
+                  (i ~/ cols) * cell * 0.45,
+                  cell,
+                  cell * 0.45,
+                )
+              : Rect.fromLTWH(
+                  (i % cols) * cell,
+                  (i ~/ cols) * cell,
+                  cell,
+                  cell,
+                ),
           Paint()..filterQuality = FilterQuality.medium,
         );
       }
       final pic = rec.endRecording();
-      final img = pic.toImageSync((cell * cols).round(), (cellH * rows).round());
+      final img = pic.toImageSync(
+        (cell * cols).round(),
+        (cellH * rows).round(),
+      );
       final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
       File(out).writeAsBytesSync(bytes!.buffer.asUint8List());
     });

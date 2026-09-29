@@ -162,7 +162,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       );
       // Fit sprite into ~48px box, then apply species + 30% scale (sized up
       // another 30%, then another 20% again per design request).
-      final desiredSize = 74.88;
+      const desiredSize = CosmicGame.spriteBox;
       final sx = desiredSize / sheet.frameSize.x;
       final sy = desiredSize / sheet.frameSize.y;
       final specScale = activeCompanions[slotIndex]?.speciesScale ?? 1.3;
@@ -323,7 +323,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         return;
       }
       _duelOpponentFallbackSprite = Sprite(image);
-      final desiredSize = 62.4;
+      const desiredSize = CosmicGame.spriteBox;
       final sx = desiredSize / image.width;
       final sy = desiredSize / image.height;
       final specScale = duelOpponent?.speciesScale ?? 1.3;
@@ -375,7 +375,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       debugPrint(
         'Ring opponent visuals loaded: alchemy=${_duelOpponentVisuals?.alchemyEffect} variant=${_duelOpponentVisuals?.variantFaction} tint=${_duelOpponentVisuals?.tint}',
       );
-      final desiredSize = 62.4;
+      const desiredSize = CosmicGame.spriteBox;
       final sx = desiredSize / sheet.frameSize.x;
       final sy = desiredSize / sheet.frameSize.y;
       final specScale = duelOpponent?.speciesScale ?? 1.3;
@@ -1555,7 +1555,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         debugPrint(
           'Garrison sprite visuals[$index]: alchemy=${g.visuals?.alchemyEffect} variant=${g.visuals?.variantFaction} tint=${g.visuals?.tint}',
         );
-        final desiredSize = 52.0;
+        const desiredSize = CosmicGame.spriteBox;
         final sx = desiredSize / sheet.frameSize.x;
         final sy = desiredSize / sheet.frameSize.y;
         g.spriteScale =

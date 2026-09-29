@@ -46,6 +46,7 @@ Future<bool> showHarvestCinematic({
   HarvesterProfile? profile,
   Duration minDuration = const Duration(milliseconds: 1600),
   Offset? focus,
+  double focusScale = 1,
   required Future<bool> Function() task,
 }) {
   return Navigator.of(context)
@@ -60,6 +61,7 @@ Future<bool> showHarvestCinematic({
             profile: profile ?? HarvesterProfile.forBiome(null),
             minDuration: minDuration,
             focus: focus,
+            focusScale: focusScale,
             task: task,
           ),
           transitionsBuilder: (_, a, __, child) =>
@@ -82,7 +84,12 @@ class _HarvestCinematicPage extends StatefulWidget {
     required this.minDuration,
     required this.task,
     this.focus,
+    this.focusScale = 1,
   });
+
+  /// How large the field is drawn, for a live specimen smaller or larger
+  /// than the stage it was designed around.
+  final double focusScale;
 
   /// Where on screen the specimen stands, when it is a live one standing
   /// somewhere other than the middle. The field closes on that spot.
@@ -222,14 +229,22 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
             fit: StackFit.expand,
             children: [
               if (focus == null)
-                Center(child: stage)
+                Center(
+                  child: Transform.scale(
+                    scale: widget.focusScale,
+                    child: stage,
+                  ),
+                )
               else
                 Positioned(
                   left: focus.dx - 210,
                   top: focus.dy - 210,
                   width: 420,
                   height: 420,
-                  child: stage,
+                  child: Transform.scale(
+                    scale: widget.focusScale,
+                    child: stage,
+                  ),
                 ),
               Positioned(
                 bottom: 46,

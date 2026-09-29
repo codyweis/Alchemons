@@ -741,7 +741,7 @@ extension CosmicGameWild on CosmicGame {
       );
       // Same box and species scale as a summoned companion, so a wild one
       // reads as exactly the size of the one you own.
-      const desiredSize = 74.88;
+      const desiredSize = CosmicGame.spriteBox;
       final fit = min(
         desiredSize / sheet.frameSize.x,
         desiredSize / sheet.frameSize.y,

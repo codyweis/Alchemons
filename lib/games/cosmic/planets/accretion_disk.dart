@@ -155,17 +155,22 @@ class _AccretionDisk {
       Offset.zero,
       reach,
       Paint()
-        ..shader = ui.Gradient.radial(Offset.zero, reach, [
-          const Color(0xFFE8C8FF).withValues(alpha: 0),
-          const Color(0xFFE8C8FF).withValues(alpha: alpha * pulse),
-          const Color(0xFFA070F0).withValues(alpha: alpha * 0.45 * pulse),
-          const Color(0xFF6A3AB8).withValues(alpha: 0),
-        ], [
-          (inner - 0.25) / (inner + 0.72),
-          (inner - 0.16) / (inner + 0.72),
-          (inner + 0.17) / (inner + 0.72),
-          1.0,
-        ]),
+        ..shader = ui.Gradient.radial(
+          Offset.zero,
+          reach,
+          [
+            const Color(0xFFE8C8FF).withValues(alpha: 0),
+            const Color(0xFFE8C8FF).withValues(alpha: alpha * pulse),
+            const Color(0xFFA070F0).withValues(alpha: alpha * 0.45 * pulse),
+            const Color(0xFF6A3AB8).withValues(alpha: 0),
+          ],
+          [
+            (inner - 0.25) / (inner + 0.72),
+            (inner - 0.16) / (inner + 0.72),
+            (inner + 0.17) / (inner + 0.72),
+            1.0,
+          ],
+        ),
     );
     c.restore();
   }
@@ -185,8 +190,12 @@ class _AccretionDisk {
       for (var sz = 0; sz < 2; sz++) {
         final b = k * 2 + sz;
         final d = r * 0.0055 * (sz == 0 ? 0.7 : 1.15) * 2 * grain;
-        batch.draw(c, b, d * 2.2,
-            heat[k].withValues(alpha: 0.06 + 0.02 * (3 - k)));
+        batch.draw(
+          c,
+          b,
+          d * 2.2,
+          heat[k].withValues(alpha: 0.06 + 0.02 * (3 - k)),
+        );
         batch.draw(c, b, d, heat[k].withValues(alpha: 0.85 - k * 0.12));
       }
     }
@@ -203,24 +212,28 @@ class _AccretionDisk {
       p,
       band,
       Paint()
-        ..shader = ui.Gradient.radial(p, band, [
-          const Color(0xFFE8C8FF).withValues(alpha: 0),
-          const Color(0xFFE8C8FF).withValues(alpha: 0.22),
-          const Color(0xFFA070F0).withValues(alpha: 0.08),
-          const Color(0xFF6A3AB8).withValues(alpha: 0),
-        ], [
-          0.9 / (inner + 0.2),
-          1.06 / (inner + 0.2),
-          1.2 / (inner + 0.2),
-          1.0,
-        ]),
+        ..shader = ui.Gradient.radial(
+          p,
+          band,
+          [
+            const Color(0xFFE8C8FF).withValues(alpha: 0),
+            const Color(0xFFE8C8FF).withValues(alpha: 0.22),
+            const Color(0xFFA070F0).withValues(alpha: 0.08),
+            const Color(0xFF6A3AB8).withValues(alpha: 0),
+          ],
+          [0.9 / (inner + 0.2), 1.06 / (inner + 0.2), 1.2 / (inner + 0.2), 1.0],
+        ),
     );
     for (var k = heat.length - 1; k >= 0; k--) {
       for (var sz = 0; sz < 2; sz++) {
         final b = k * 2 + sz;
         final d = r * 0.0055 * (sz == 0 ? 0.7 : 1.15) * 1.6 * grain;
-        _bent.draw(c, b, d * 2.4,
-            heat[k].withValues(alpha: 0.05 + 0.02 * (3 - k)));
+        _bent.draw(
+          c,
+          b,
+          d * 2.4,
+          heat[k].withValues(alpha: 0.05 + 0.02 * (3 - k)),
+        );
         _bent.draw(c, b, d, heat[k].withValues(alpha: 0.7 - k * 0.12));
       }
     }

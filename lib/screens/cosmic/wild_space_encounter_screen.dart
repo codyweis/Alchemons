@@ -16,7 +16,7 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart'
-    show CosmicEncounterBackdrop;
+    show CosmicEncounterBackdrop, CosmicGame;
 import 'package:alchemons/games/cosmic/portal_tear_paint.dart';
 import 'package:alchemons/games/wilderness/disintegration.dart';
 import 'package:alchemons/games/wilderness/encounter_sheet.dart';
@@ -51,6 +51,7 @@ class WildSpaceEncounterScreen extends StatefulWidget {
     required this.backdrop,
     this.harvestBonus = 0,
     this.exhausted = false,
+    this.partyLargestScale = 1,
   });
 
   /// The prepared specimen — the same Potentials shown over it in space.
@@ -60,6 +61,10 @@ class WildSpaceEncounterScreen extends StatefulWidget {
   final CosmicEncounterBackdrop backdrop;
   final double harvestBonus;
   final bool exhausted;
+
+  /// The biggest party member's size in space (family × size genetics), so
+  /// the stage leaves room for whichever ally is picked.
+  final double partyLargestScale;
 
   @override
   State<WildSpaceEncounterScreen> createState() =>
@@ -153,6 +158,13 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
     setState(() => _hudReady = true);
   }
 
+  WildSpaceStage _stage() => WildSpaceStage.forPair(
+    MediaQuery.sizeOf(context),
+    creature: widget.creature,
+    ally: _partyCreature,
+    partyLargest: widget.partyLargestScale,
+  );
+
   /// Through the calibration wait the pair already start coming apart and
   /// leaning in, so the verdict lands on something in motion.
   void _fusionCalibrating() {
@@ -173,7 +185,7 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
 
   Future<Rect?> _fuseInScene(Color party, Color wild) async {
     if (_partyCreature == null || !mounted) return null;
-    final stage = WildSpaceStage(MediaQuery.sizeOf(context));
+    final stage = _stage();
     setState(() => _mergeColors = (party, wild));
     await _merge.forward();
     return Rect.fromCenter(center: stage.meeting, width: 1, height: 1);
@@ -202,7 +214,11 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
       targetColor: accent,
       deviceLabel: profile.biomeId.toUpperCase(),
       profile: profile,
-      focus: WildSpaceStage(MediaQuery.sizeOf(context)).wild,
+      focus: _stage().wild,
+      // The field closes to fit the specimen, not a fixed size.
+      focusScale:
+          (_stage().wildSize * WildSpaceStage.sizeGene(widget.creature) / 208)
+              .clamp(0.45, 1.5),
       task: task,
     );
     if (!mounted) return held;
@@ -250,6 +266,7 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
               breakFree: _breakFree,
               taken: _taken,
               allySummon: _allySummon,
+              partyLargestScale: widget.partyLargestScale,
               mergeColors: _mergeColors,
             ),
 
@@ -345,6 +362,7 @@ class WildSpaceBackdrop extends StatefulWidget {
     this.breakFree = kAlwaysDismissedAnimation,
     this.taken = kAlwaysDismissedAnimation,
     this.allySummon = kAlwaysCompleteAnimation,
+    this.partyLargestScale = 1,
     this.behindSpecimen,
   });
 
@@ -369,6 +387,9 @@ class WildSpaceBackdrop extends StatefulWidget {
 
   /// 0→1 as the ally steps out of its summon tear.
   final Animation<double> allySummon;
+
+  /// See [WildSpaceEncounterScreen.partyLargestScale].
+  final double partyLargestScale;
 
   /// An extra layer between the planet and the specimen. Previews use it to
   /// stand this frame in for the space view the tear opens in.
@@ -438,7 +459,12 @@ class _WildSpaceBackdropState extends State<WildSpaceBackdrop>
         // ── the stage: the specimen, and the ally picked to fuse ──
         LayoutBuilder(
           builder: (context, constraints) => _Stage(
-            stage: WildSpaceStage(constraints.biggest),
+            stage: WildSpaceStage.forPair(
+              constraints.biggest,
+              creature: widget.creature,
+              ally: party,
+              partyLargest: widget.partyLargestScale,
+            ),
             creature: widget.creature,
             party: party,
             accent: accent,
@@ -462,18 +488,55 @@ class _WildSpaceBackdropState extends State<WildSpaceBackdrop>
 /// identity panel owns the top-left and the actions the bottom edge, so
 /// the pair share a line just below the middle: the specimen right of
 /// centre facing left, the ally left of centre facing it.
+///
+/// Sizes are space's own: each creature's box is its family scale times one
+/// shared unit, and its size genetics scale it inside that box — so a let
+/// beside a wing is as small here as it is out there. The unit is set by
+/// the biggest creature the encounter could have to fit (the specimen or any
+/// party member), so nothing resizes when an ally steps in.
 class WildSpaceStage {
-  WildSpaceStage(Size size)
-    : wildSize = (size.height * 0.40).clamp(120.0, 180.0),
-      wild = Offset(size.width * 0.63, size.height * 0.57),
-      ally = Offset(size.width * 0.31, size.height * 0.57);
+  WildSpaceStage(
+    Size size, {
+    double wildFamilyScale = 1,
+    double allyFamilyScale = 1,
+    double largest = 1,
+  }) : unit = min(size.height * 0.26, size.height * 0.5 / max(largest, 0.5)),
+       wild = Offset(size.width * 0.63, size.height * 0.58),
+       ally = Offset(size.width * 0.31, size.height * 0.58),
+       _wildFamily = wildFamilyScale,
+       _allyFamily = allyFamilyScale;
 
-  final double wildSize;
+  /// For [creature], met beside an [ally] if one is picked, in a party whose
+  /// biggest member draws at [partyLargest] (family × size genetics).
+  factory WildSpaceStage.forPair(
+    Size size, {
+    required Creature creature,
+    Creature? ally,
+    double partyLargest = 1,
+  }) {
+    final wildFamily = spaceFamilyScale(creature);
+    return WildSpaceStage(
+      size,
+      wildFamilyScale: wildFamily,
+      allyFamilyScale: ally == null ? 1 : spaceFamilyScale(ally),
+      largest: max(wildFamily * sizeGene(creature), partyLargest),
+    );
+  }
+
+  /// The box a family-scale-1 Alchemon is drawn in.
+  final double unit;
   final Offset wild;
   final Offset ally;
+  final double _wildFamily;
+  final double _allyFamily;
 
-  double get allySize => wildSize * 0.82;
+  double get wildSize => unit * _wildFamily;
+  double get allySize => unit * _allyFamily;
   Offset get meeting => Offset.lerp(ally, wild, 0.5)!;
+
+  static double spaceFamilyScale(Creature c) =>
+      CosmicGame.spaceSpeciesScale(c.mutationFamily ?? 'kin');
+  static double sizeGene(Creature c) => visualsFromInstance(c, null).scale;
 }
 
 // The fusion's beats, matching the wilderness fusion field exactly: come

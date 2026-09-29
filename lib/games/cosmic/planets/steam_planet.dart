@@ -25,8 +25,11 @@ class SteamPlanetArt extends PlanetArt {
     final rng = Random(seed);
     final clouds = [
       for (var i = 0; i < 8; i++)
-        (rng.nextDouble() * pi * 2, 0.8 + rng.nextDouble() * 1.2,
-            0.12 + rng.nextDouble() * 0.08),
+        (
+          rng.nextDouble() * pi * 2,
+          0.8 + rng.nextDouble() * 1.2,
+          0.12 + rng.nextDouble() * 0.08,
+        ),
     ];
     final vents = [
       for (var i = 0; i < 4; i++)
@@ -144,11 +147,7 @@ class SteamPlanetArt extends PlanetArt {
         final frac = s / 6.0;
         final sr = r * (0.04 + 0.08 * frac) * intensity;
         final sa = ((0.35 - frac * 0.3) * intensity).clamp(0.0, 0.4);
-        final steam = Color.lerp(
-          const Color(0xFFFFFFFF),
-          _col,
-          frac,
-        )!;
+        final steam = Color.lerp(const Color(0xFFFFFFFF), _col, frac)!;
         _softCircle(
           c,
           Offset(gx + nx * height * frac, gy + ny * height * frac),

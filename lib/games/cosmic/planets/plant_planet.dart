@@ -14,10 +14,22 @@ class PlantPlanetArt extends PlanetArt {
 
   factory PlantPlanetArt(int seed) {
     final rng = Random(seed * 47 + 31);
-    final crowns = _BlobField.scatter(rng, 150, size: 0.065, rough: 0.14,
-        soft: 1, uniform: true);
-    final young = _BlobField.scatter(rng, 40, size: 0.045, rough: 0.14,
-        soft: 1, uniform: true);
+    final crowns = _BlobField.scatter(
+      rng,
+      150,
+      size: 0.065,
+      rough: 0.14,
+      soft: 1,
+      uniform: true,
+    );
+    final young = _BlobField.scatter(
+      rng,
+      40,
+      size: 0.045,
+      rough: 0.14,
+      soft: 1,
+      uniform: true,
+    );
     final edge = <(double, double, double, double)>[];
     final cs = crowns.centres;
     for (var i = 0; i < crowns.cores.length; i++) {
@@ -72,22 +84,27 @@ class PlantPlanetArt extends PlanetArt {
       p,
       r,
       Paint()
-        ..shader = ui.Gradient.radial(p, r, const [
-          Color(0xFF1E4E24),
-          Color(0xFF173F1C),
-          Color(0xFF0E2A12),
-        ], const [0.0, 0.7, 1.0]),
+        ..shader = ui.Gradient.radial(
+          p,
+          r,
+          const [Color(0xFF1E4E24), Color(0xFF173F1C), Color(0xFF0E2A12)],
+          const [0.0, 0.7, 1.0],
+        ),
     );
     // Crown on crown, each casting a little shadow to the lower right, so
     // the canopy stands up in lumps rather than lying flat.
     final crowns = _gatherRings(view, _crowns.cores, _crowns.centres);
     final cast = Offset(r * 0.018, r * 0.022);
-    c.drawPath(crowns.shift(cast),
-        Paint()..color = const Color(0xFF0C2410).withValues(alpha: 0.75));
+    c.drawPath(
+      crowns.shift(cast),
+      Paint()..color = const Color(0xFF0C2410).withValues(alpha: 0.75),
+    );
     c.drawPath(crowns, Paint()..color = const Color(0xFF357A3A));
     final young = _gatherRings(view, _young.cores, _young.centres);
-    c.drawPath(young.shift(cast * 0.7),
-        Paint()..color = const Color(0xFF123218).withValues(alpha: 0.6));
+    c.drawPath(
+      young.shift(cast * 0.7),
+      Paint()..color = const Color(0xFF123218).withValues(alpha: 0.6),
+    );
     c.drawPath(young, Paint()..color = const Color(0xFF56A04A));
     _sheen(c, p, r, const Color(0xFFE8FFB0), alpha: 0.16);
     _shade(c, p, r, night: const Color(0xFF020803));

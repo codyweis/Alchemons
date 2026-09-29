@@ -780,6 +780,9 @@ class CosmicGame extends FlameGame with PanDetector {
   final AbilityVfxPool _abilityVfx = AbilityVfxPool();
   final List<VfxShockRing> vfxRings = [];
 
+  /// Scratch for the batched soft dots of swarms and galaxy whirls.
+  final GlowDots _swarmDots = GlowDots(6);
+
   // Camera offset (ship is always centred; camera follows ship)
   // Three zoom presets: current (closest), medium, wide.
   static const double _zoomClose = 0.85;
@@ -1081,12 +1084,24 @@ class CosmicGame extends FlameGame with PanDetector {
   // ── Companion (party alchemon) ──
 
   /// Species-type scale factors for sprites in cosmic space. Survival uses
-  /// [kCompanionSpeciesScale] as is; space draws wings twice and horns half
-  /// again as large, so the big families read as big against the dark.
+  /// [kCompanionSpeciesScale] as is; space draws wings and horns half again
+  /// as large, and mystics as large as wings, so the big families read as
+  /// big against the dark.
+  /// Every Alchemon in space — summoned, garrisoned, wild, fighting or a
+  /// contest rival — is fitted to this box before its family and size
+  /// genetics scale it, so the same creature is the same size everywhere.
+  static const double spriteBox = 74.88;
+
+  /// The family scale space draws [family] at (see [_companionSpeciesScale]).
+  static double spaceSpeciesScale(String family) =>
+      _companionSpeciesScale[family.toLowerCase()] ?? 1.0;
+
   static final Map<String, double> _companionSpeciesScale = {
     ...kCompanionSpeciesScale,
-    'wing': kCompanionSpeciesScale['wing']! * 2.0,
+    'wing': kCompanionSpeciesScale['wing']! * 1.5,
     'horn': kCompanionSpeciesScale['horn']! * 1.5,
+    // Mystics stand as large as wings.
+    'mystic': kCompanionSpeciesScale['wing']! * 1.5,
   };
 
   static double _clampDouble(double value, double minValue, double maxValue) {
@@ -7925,7 +7940,7 @@ class CosmicGame extends FlameGame with PanDetector {
     double screenW,
     double screenH,
   ) {
-    final paint = Paint();
+    final dots = _starDots..clear();
     for (final layer in _parallaxLayers) {
       final f = layer.factor;
       final ox = cx * f;
@@ -7942,12 +7957,47 @@ class CosmicGame extends FlameGame with PanDetector {
           final tileY = row * _parallaxTile + shiftY;
           for (final s in layer.stars) {
             final twinkle = 0.6 + 0.4 * sin(_elapsed * s.twinkleSpeed + s.x);
-            paint.color = Colors.white.withValues(
-              alpha: s.brightness * twinkle,
+            _addStar(
+              dots,
+              tileX + s.x,
+              tileY + s.y,
+              s.size,
+              s.brightness * twinkle,
             );
-            canvas.drawCircle(Offset(tileX + s.x, tileY + s.y), s.size, paint);
           }
         }
+      }
+    }
+    _drawStars(canvas, dots);
+  }
+
+  /// Stars go in batches — four sizes by eight brightnesses, each drawn
+  /// once — instead of a circle apiece: the starfield was most of a
+  /// frame's draw calls (~850 of ~900).
+  final GlowDots _starDots = GlowDots(32);
+
+  static void _addStar(
+    GlowDots dots,
+    double x,
+    double y,
+    double size,
+    double alpha,
+  ) {
+    if (alpha < 0.02) return;
+    final sb = ((size - 0.5) * 2).floor().clamp(0, 3);
+    final ab = (alpha * 8).floor().clamp(0, 7);
+    dots.add(sb * 8 + ab, x, y);
+  }
+
+  static void _drawStars(Canvas canvas, GlowDots dots) {
+    for (var sb = 0; sb < 4; sb++) {
+      for (var ab = 0; ab < 8; ab++) {
+        dots.drawDots(
+          canvas,
+          sb * 8 + ab,
+          0.75 + sb * 0.5,
+          Colors.white.withValues(alpha: (ab + 0.5) / 8),
+        );
       }
     }
   }
@@ -7975,7 +8025,7 @@ class CosmicGame extends FlameGame with PanDetector {
     _renderParallaxLayers(canvas, cx, cy, screenW, screenH);
 
     // ── background stars (spatial grid lookup) ──
-    final starPaint = Paint();
+    final stars = _starDots..clear();
     final minCX = ((cx / _starChunkSize).floor() - 1).clamp(0, _starGridW - 1);
     final maxCX = (((cx + screenW) / _starChunkSize).floor() + 1).clamp(
       0,
@@ -7991,13 +8041,11 @@ class CosmicGame extends FlameGame with PanDetector {
         for (final star in _starGrid[gy * _starGridW + gx]) {
           final twinkle =
               0.5 + 0.5 * sin(_elapsed * star.twinkleSpeed + star.x * 0.01);
-          starPaint.color = Colors.white.withValues(
-            alpha: star.brightness * twinkle,
-          );
-          canvas.drawCircle(Offset(star.x, star.y), star.size, starPaint);
+          _addStar(stars, star.x, star.y, star.size, star.brightness * twinkle);
         }
       }
     }
+    _drawStars(canvas, stars);
 
     // ── element particles ──
     for (final p in elemParticles) {
@@ -8034,23 +8082,21 @@ class CosmicGame extends FlameGame with PanDetector {
         final haloR = 300.0 + 24.0 * sin(_elapsed * 0.9);
         final sweepR = 212.0 + 12.0 * sin(_elapsed * 1.6);
 
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           center,
           haloR,
-          Paint()
-            ..color = const Color(
-              0xFFF06292,
-            ).withValues(alpha: (0.18 + pulse * 0.10) * introFade)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60),
+          const Color(
+            0xFFF06292,
+          ).withValues(alpha: (0.18 + pulse * 0.10) * introFade),
+          60,
         );
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           center,
           220,
-          Paint()
-            ..color = const Color(
-              0xFF80DEEA,
-            ).withValues(alpha: 0.14 * introFade)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 38),
+          const Color(0xFF80DEEA).withValues(alpha: 0.14 * introFade),
+          38,
         );
         canvas.drawCircle(
           center,
@@ -8069,14 +8115,12 @@ class CosmicGame extends FlameGame with PanDetector {
             center.dx + cos(a) * sweepR,
             center.dy + sin(a) * sweepR * 0.58,
           );
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             p,
             7.0 + 1.2 * sin(_elapsed * 2.2 + i),
-            Paint()
-              ..color = const Color(
-                0xFFFFE082,
-              ).withValues(alpha: 0.24 * introFade)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+            const Color(0xFFFFE082).withValues(alpha: 0.24 * introFade),
+            10,
           );
         }
       } else if (_contestCinematicMode == _ContestCinematicMode.speed) {
@@ -8198,14 +8242,14 @@ class CosmicGame extends FlameGame with PanDetector {
           final travel = (_elapsed * 0.24 + i / 8) % 1.0;
           final laneX = laneLeft.dx + (laneRight.dx - laneLeft.dx) * travel;
           final laneY = clashCenterBase.dy + sin(_elapsed * 2.8 + i) * 1.5;
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             Offset(laneX, laneY),
             1.8 + (i % 2) * 0.5,
-            Paint()
-              ..color = const Color(
-                0xFFFFF3E0,
-              ).withValues(alpha: (0.10 + pulse * 0.06) * introFade)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+            const Color(
+              0xFFFFF3E0,
+            ).withValues(alpha: (0.10 + pulse * 0.06) * introFade),
+            2,
           );
         }
         canvas.drawCircle(
@@ -8242,23 +8286,23 @@ class CosmicGame extends FlameGame with PanDetector {
             ..strokeWidth = 1.6,
         );
 
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           clashCenter,
           170,
-          Paint()
-            ..color = const Color(
-              0xFFFFA65A,
-            ).withValues(alpha: (0.13 + pulse * 0.08) * introFade)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 26),
+          const Color(
+            0xFFFFA65A,
+          ).withValues(alpha: (0.13 + pulse * 0.08) * introFade),
+          26,
         );
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           clashCenter,
           108,
-          Paint()
-            ..color = const Color(
-              0xFFFFE0B2,
-            ).withValues(alpha: (0.08 + pulse * 0.06) * introFade)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+          const Color(
+            0xFFFFE0B2,
+          ).withValues(alpha: (0.08 + pulse * 0.06) * introFade),
+          12,
         );
         for (var i = 0; i < 12; i++) {
           final a = _elapsed * 2.4 + i * (pi * 2 / 12);
@@ -8277,14 +8321,12 @@ class CosmicGame extends FlameGame with PanDetector {
         }
 
         // Moving alchemical force marker tracks control of the center.
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           markerPos,
           20,
-          Paint()
-            ..color = markerColor.withValues(
-              alpha: (0.15 + pulse * 0.12) * introFade,
-            )
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+          markerColor.withValues(alpha: (0.15 + pulse * 0.12) * introFade),
+          8,
         );
         canvas.drawCircle(
           markerPos,
@@ -8313,37 +8355,36 @@ class CosmicGame extends FlameGame with PanDetector {
           biasNorm,
         )!;
 
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           latticeCenter,
           240,
-          Paint()
-            ..color = const Color(
-              0xFF7E57C2,
-            ).withValues(alpha: (0.14 + pulse * 0.07) * introFade)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 46),
+          const Color(
+            0xFF7E57C2,
+          ).withValues(alpha: (0.14 + pulse * 0.07) * introFade),
+          46,
         );
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           latticeCenter,
           146,
-          Paint()
-            ..color = const Color(
-              0xFFB3E5FC,
-            ).withValues(alpha: (0.08 + pulse * 0.04) * introFade)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24),
+          const Color(
+            0xFFB3E5FC,
+          ).withValues(alpha: (0.08 + pulse * 0.04) * introFade),
+          24,
         );
 
         for (var i = 0; i < 3; i++) {
           final radius = 62.0 + i * 44.0;
-          canvas.drawCircle(
+          paintSoftRing(
+            canvas,
             latticeCenter,
             radius,
-            Paint()
-              ..color = const Color(
-                0xFFD1C4E9,
-              ).withValues(alpha: (0.09 - i * 0.02) * introFade)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.2
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+            const Color(
+              0xFFD1C4E9,
+            ).withValues(alpha: (0.09 - i * 0.02) * introFade),
+            1.2,
+            2,
           );
         }
 
@@ -8387,14 +8428,12 @@ class CosmicGame extends FlameGame with PanDetector {
           );
         }
 
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           orbPos,
           32,
-          Paint()
-            ..color = orbColor.withValues(
-              alpha: (0.22 + pulse * 0.09) * introFade,
-            )
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+          orbColor.withValues(alpha: (0.22 + pulse * 0.09) * introFade),
+          12,
         );
         canvas.drawCircle(
           orbPos,
@@ -8418,6 +8457,9 @@ class CosmicGame extends FlameGame with PanDetector {
     for (final swarm in world_.particleSwarms) {
       final elColor = elementColor(swarm.element);
       final pulseAlpha = 0.6 + 0.3 * sin(swarm.pulse * 1.8);
+      // Batched: every mote in the swarm goes in one of six classes (two
+      // sizes, three brightnesses) and each class is drawn once.
+      final motes = _swarmDots..clear();
 
       for (final mote in swarm.motes) {
         if (mote.collected) continue;
@@ -8450,20 +8492,20 @@ class CosmicGame extends FlameGame with PanDetector {
                     (0.7 + 0.3 * sin(swarm.pulse * 2.5 + mote.orbitPhase)))
                 .clamp(0.0, 1.0);
 
-        // Outer glow
-        canvas.drawCircle(
-          Offset(mx, my),
-          mote.size + 4,
-          Paint()
-            ..color = elColor.withValues(alpha: moteAlpha * 0.25)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        final bright = moteAlpha < 0.5 ? 0 : (moteAlpha < 0.72 ? 1 : 2);
+        motes.add((mote.size < 2.75 ? 0 : 3) + bright, mx, my);
+      }
+      for (var k = 0; k < 6; k++) {
+        final size = k < 3 ? 2.1 : 3.4;
+        final a = const [0.42, 0.61, 0.8][k % 3];
+        motes.drawGlow(
+          canvas,
+          k,
+          size + 4,
+          6,
+          elColor.withValues(alpha: a * 0.25),
         );
-        // Core
-        canvas.drawCircle(
-          Offset(mx, my),
-          mote.size,
-          Paint()..color = elColor.withValues(alpha: moteAlpha * 0.9),
-        );
+        motes.drawDots(canvas, k, size, elColor.withValues(alpha: a * 0.9));
       }
     }
 
@@ -8489,14 +8531,12 @@ class CosmicGame extends FlameGame with PanDetector {
         final pp = planet.position;
         final r = planet.radius;
         final pulse = 0.5 + 0.5 * sin(_elapsed * 1.6);
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           pp,
           r * (1.5 + pulse * 0.25),
-          Paint()
-            ..color = const Color(
-              0xFFE25544,
-            ).withValues(alpha: 0.10 + pulse * 0.08)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 30),
+          const Color(0xFFE25544).withValues(alpha: 0.10 + pulse * 0.08),
+          30,
         );
         canvas.drawCircle(
           pp,
@@ -8525,12 +8565,12 @@ class CosmicGame extends FlameGame with PanDetector {
 
       // Outer glow
       final glowAlpha = 0.3 + 0.2 * sin(_elapsed * 2.0 + dust.index * 0.7);
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         dp,
         14,
-        Paint()
-          ..color = const Color(0xFFFFD700).withValues(alpha: glowAlpha)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+        const Color(0xFFFFD700).withValues(alpha: glowAlpha),
+        10,
       );
       // Core sparkle
       final coreAlpha = 0.7 + 0.3 * sin(_elapsed * 3.0 + dust.index * 1.3);
@@ -8565,36 +8605,43 @@ class CosmicGame extends FlameGame with PanDetector {
       final isComplete = whirl.state == WhirlState.completed;
       final baseAlpha = isComplete ? 0.15 : (isActive ? 1.0 : 0.6);
 
-      // Outer spiral arms
+      // Outer spiral arms: sixty soft dots, drawn in five steps from the
+      // bright heart outward, each step once.
+      final arms = _swarmDots..clear();
       for (var arm = 0; arm < 3; arm++) {
         final armOffset = arm * pi * 2 / 3;
         for (var i = 0; i < 20; i++) {
           final frac = i / 20.0;
           final spiralAngle = whirl.rotation + armOffset + frac * pi * 2.5;
           final spiralR = whirl.radius * (0.15 + frac * 0.85);
-          final sx = wp.dx + cos(spiralAngle) * spiralR;
-          final sy = wp.dy + sin(spiralAngle) * spiralR;
-          final dotAlpha = (1.0 - frac) * 0.5 * baseAlpha;
-          final dotSize = 2.5 + (1.0 - frac) * 2.0;
-          canvas.drawCircle(
-            Offset(sx, sy),
-            dotSize,
-            Paint()
-              ..color = wColor.withValues(alpha: dotAlpha)
-              ..maskFilter = MaskFilter.blur(BlurStyle.normal, dotSize),
+          arms.add(
+            i ~/ 4,
+            wp.dx + cos(spiralAngle) * spiralR,
+            wp.dy + sin(spiralAngle) * spiralR,
           );
         }
+      }
+      for (var k = 0; k < 5; k++) {
+        final frac = (k * 4 + 1.5) / 20.0;
+        final dotSize = 2.5 + (1.0 - frac) * 2.0;
+        arms.drawGlow(
+          canvas,
+          k,
+          dotSize,
+          dotSize,
+          wColor.withValues(alpha: (1.0 - frac) * 0.5 * baseAlpha),
+        );
       }
 
       // Core glow
       final coreSize = whirl.radius * (isActive ? 0.35 : 0.25);
       final corePulse = 0.8 + 0.2 * sin(whirl.pulse * 3);
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         wp,
         coreSize * corePulse,
-        Paint()
-          ..color = wColor.withValues(alpha: 0.4 * baseAlpha)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, coreSize),
+        wColor.withValues(alpha: 0.4 * baseAlpha),
+        coreSize,
       );
       canvas.drawCircle(
         wp,
@@ -8720,14 +8767,12 @@ class CosmicGame extends FlameGame with PanDetector {
           for (var layer = 0; layer < 5; layer++) {
             final nR = poi.radius * (0.5 + layer * 0.3);
             final drift = sin(poi.life * 0.2 + layer * 0.8) * 15;
-            canvas.drawCircle(
+            paintSoftCircle(
+              canvas,
               Offset(pp.dx + drift, pp.dy + drift * 0.7),
               nR,
-              Paint()
-                ..color = nColor.withValues(
-                  alpha: nAlpha * (1.0 - layer * 0.15),
-                )
-                ..maskFilter = MaskFilter.blur(BlurStyle.normal, nR * 0.8),
+              nColor.withValues(alpha: nAlpha * (1.0 - layer * 0.15)),
+              nR * 0.8,
             );
           }
           for (var s = 0; s < 6; s++) {
@@ -8766,12 +8811,12 @@ class CosmicGame extends FlameGame with PanDetector {
           // Ambient distress beacon glow
           if (!poi.interacted) {
             final beaconPulse = 0.15 + 0.1 * sin(poi.life * 2.5);
-            canvas.drawCircle(
+            paintSoftCircle(
+              canvas,
               pp,
               45,
-              Paint()
-                ..color = const Color(0xFFFF6F00).withValues(alpha: beaconPulse)
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 25),
+              const Color(0xFFFF6F00).withValues(alpha: beaconPulse),
+              25,
             );
           }
           canvas.save();
@@ -8871,21 +8916,21 @@ class CosmicGame extends FlameGame with PanDetector {
           final spark1 = sin(poi.life * 5) > 0.6;
           final spark2 = sin(poi.life * 3.7 + 1.5) > 0.5;
           if (spark1) {
-            canvas.drawCircle(
+            paintSoftCircle(
+              canvas,
               const Offset(8, -3),
               4,
-              Paint()
-                ..color = const Color(0xFFFF6F00).withValues(alpha: 0.6)
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+              const Color(0xFFFF6F00).withValues(alpha: 0.6),
+              5,
             );
           }
           if (spark2) {
-            canvas.drawCircle(
+            paintSoftCircle(
+              canvas,
               const Offset(-12, 4),
               3,
-              Paint()
-                ..color = const Color(0xFFFFAB00).withValues(alpha: 0.4)
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+              const Color(0xFFFFAB00).withValues(alpha: 0.4),
+              3,
             );
           }
 
@@ -8903,12 +8948,12 @@ class CosmicGame extends FlameGame with PanDetector {
 
           // Small blinking red distress light
           if (!poi.interacted && sin(poi.life * 4) > 0.8) {
-            canvas.drawCircle(
+            paintSoftCircle(
+              canvas,
               const Offset(-20, -6),
               2.5,
-              Paint()
-                ..color = const Color(0xFFFF1744).withValues(alpha: 0.8)
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+              const Color(0xFFFF1744).withValues(alpha: 0.8),
+              3,
             );
           }
 
@@ -8939,19 +8984,19 @@ class CosmicGame extends FlameGame with PanDetector {
           final baseDir = Offset(cos(fallAngle), sin(fallAngle));
 
           // Broad atmospheric haze so it reads like a moving storm region.
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             pp,
             zoneR * 0.9,
-            Paint()
-              ..color = mColor.withValues(alpha: 0.05)
-              ..maskFilter = MaskFilter.blur(BlurStyle.normal, zoneR * 0.22),
+            mColor.withValues(alpha: 0.05),
+            zoneR * 0.22,
           );
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             pp,
             zoneR * 0.45,
-            Paint()
-              ..color = Colors.white.withValues(alpha: 0.03)
-              ..maskFilter = MaskFilter.blur(BlurStyle.normal, zoneR * 0.15),
+            Colors.white.withValues(alpha: 0.03),
+            zoneR * 0.15,
           );
 
           // Meteors fly through one-after-another (not static floating dots).
@@ -9006,12 +9051,12 @@ class CosmicGame extends FlameGame with PanDetector {
                 ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6),
             );
 
-            canvas.drawCircle(
+            paintSoftCircle(
+              canvas,
               head,
               1.9 + (i % 2) * 0.5,
-              Paint()
-                ..color = Colors.white.withValues(alpha: alpha)
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
+              Colors.white.withValues(alpha: alpha),
+              1.2,
             );
           }
 
@@ -9036,26 +9081,25 @@ class CosmicGame extends FlameGame with PanDetector {
           for (var ring = 0; ring < 4; ring++) {
             final anomR =
                 poi.radius * (0.3 + ring * 0.25) + sin(poi.life * 3 + ring) * 5;
-            canvas.drawCircle(
+            paintSoftRing(
+              canvas,
               pp,
               anomR,
-              Paint()
-                ..color = const Color(
-                  0xFF7C4DFF,
-                ).withValues(alpha: (0.12 - ring * 0.02) * wAlphaScale)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 2
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+              const Color(
+                0xFF7C4DFF,
+              ).withValues(alpha: (0.12 - ring * 0.02) * wAlphaScale),
+              2,
+              4,
             );
           }
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             pp,
             poi.radius * 0.2,
-            Paint()
-              ..color = const Color(
-                0xFFB388FF,
-              ).withValues(alpha: 0.4 + 0.2 * sin(poi.life * 4))
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+            const Color(
+              0xFFB388FF,
+            ).withValues(alpha: 0.4 + 0.2 * sin(poi.life * 4)),
+            6,
           );
           if (!poi.interacted) {
             final anomTp = TextPainter(
@@ -9124,12 +9168,12 @@ class CosmicGame extends FlameGame with PanDetector {
               ..strokeWidth = 1.5,
           );
           // Inner glow
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             Offset.zero,
             poi.radius * 0.3,
-            Paint()
-              ..color = mColor.withValues(alpha: 0.3 + 0.15 * sin(poi.life * 2))
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+            mColor.withValues(alpha: 0.3 + 0.15 * sin(poi.life * 2)),
+            8,
           );
           // Center icon dot
           canvas.drawCircle(
@@ -9187,14 +9231,12 @@ class CosmicGame extends FlameGame with PanDetector {
           const portalCore = Color(0xFFB388FF);
 
           // Outer pulsing glow
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             pp,
             poi.radius * 1.8,
-            Paint()
-              ..color = portalColor.withValues(
-                alpha: 0.06 + 0.03 * sin(poi.life * 2),
-              )
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24),
+            portalColor.withValues(alpha: 0.06 + 0.03 * sin(poi.life * 2)),
+            24,
           );
 
           // Concentric rings
@@ -9202,26 +9244,23 @@ class CosmicGame extends FlameGame with PanDetector {
             final ringR =
                 poi.radius * (0.4 + ring * 0.2) +
                 sin(poi.life * 2.5 + ring * 0.8) * 4;
-            canvas.drawCircle(
+            paintSoftRing(
+              canvas,
               pp,
               ringR,
-              Paint()
-                ..color = portalColor.withValues(alpha: 0.25 - ring * 0.04)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 2.0 - ring * 0.2
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+              portalColor.withValues(alpha: 0.25 - ring * 0.04),
+              2.0 - ring * 0.2,
+              3,
             );
           }
 
           // Inner vortex core
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             pp,
             poi.radius * 0.25,
-            Paint()
-              ..color = portalCore.withValues(
-                alpha: 0.5 + 0.25 * sin(poi.life * 3),
-              )
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+            portalCore.withValues(alpha: 0.5 + 0.25 * sin(poi.life * 3)),
+            8,
           );
 
           // Orbiting void sparks
@@ -9270,13 +9309,7 @@ class CosmicGame extends FlameGame with PanDetector {
         final col = rift.color;
         final core = rift.coreColor;
         // Outer glow
-        canvas.drawCircle(
-          rp,
-          48,
-          Paint()
-            ..color = col.withValues(alpha: 0.08)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
-        );
+        paintSoftCircle(canvas, rp, 48, col.withValues(alpha: 0.08), 18);
         // Dark void core
         canvas.drawCircle(rp, 28, Paint()..color = core);
         // Pulsing rings (faction-colored)
@@ -9360,12 +9393,12 @@ class CosmicGame extends FlameGame with PanDetector {
             BloodRing.visualRadius * (0.92 + 0.06 * sin(_riftPulse * 1.4));
 
         // Outer blood haze
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           rp,
           outerR * 1.18,
-          Paint()
-            ..color = const Color(0xFF7F0000).withValues(alpha: 0.22 * pulse)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28),
+          const Color(0xFF7F0000).withValues(alpha: 0.22 * pulse),
+          28,
         );
 
         // Main ritual ring
@@ -9471,12 +9504,12 @@ class CosmicGame extends FlameGame with PanDetector {
           ..strokeWidth = 2.2
           ..color = col.withValues(alpha: 0.76 * pulse),
       );
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         ap,
         CosmicContestArena.visualRadius * 0.22,
-        Paint()
-          ..color = col.withValues(alpha: 0.28 * pulse)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        col.withValues(alpha: 0.28 * pulse),
+        8,
       );
 
       if (nearContestArena == arena || (ap - ship.pos).distance < 520) {
@@ -9508,14 +9541,12 @@ class CosmicGame extends FlameGame with PanDetector {
         continue;
       }
       final nPulse = 0.5 + 0.5 * sin(_elapsed * 3.4 + note.id.hashCode * 0.01);
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         np,
         18 + nPulse * 4,
-        Paint()
-          ..color = const Color(
-            0xFFB3E5FC,
-          ).withValues(alpha: 0.1 + nPulse * 0.1)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        const Color(0xFFB3E5FC).withValues(alpha: 0.1 + nPulse * 0.1),
+        8,
       );
       canvas.drawCircle(
         np,
@@ -9556,12 +9587,12 @@ class CosmicGame extends FlameGame with PanDetector {
 
           // Subtle aura glow
           final auraPulse = 0.4 + 0.2 * sin(_elapsed * 2.5 + g.position.dx);
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             Offset.zero,
             18 * g.spriteScale,
-            Paint()
-              ..color = eColor.withValues(alpha: auraPulse * 0.25)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+            eColor.withValues(alpha: auraPulse * 0.25),
+            8,
           );
 
           if (g.member.family.toLowerCase() == 'kin') {
@@ -9730,12 +9761,12 @@ class CosmicGame extends FlameGame with PanDetector {
       final chamberVisuals = chamber.spriteVisuals;
 
       // 1. Outer aura (pulsing glow)
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         cp,
         r * 2.5 * pulse,
-        Paint()
-          ..color = col.withValues(alpha: 0.18)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 1.5),
+        col.withValues(alpha: 0.18),
+        r * 1.5,
       );
 
       if (chamberVisuals?.alchemyEffect != null) {
@@ -9970,14 +10001,12 @@ class CosmicGame extends FlameGame with PanDetector {
           final shimmer = 0.6 + 0.4 * sin(drop.life * 4.0);
           final spin = drop.life * 2.5 + drop.position.dx * 0.02;
           // Outer glow
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             drawPos,
             9.6,
-            Paint()
-              ..color = const Color(
-                0xFF7C4DFF,
-              ).withValues(alpha: 0.3 * fadeAlpha)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+            const Color(0xFF7C4DFF).withValues(alpha: 0.3 * fadeAlpha),
+            8,
           );
           // Diamond shape
           canvas.save();
@@ -10014,12 +10043,12 @@ class CosmicGame extends FlameGame with PanDetector {
           // Health orb — soft red glowing orb
           final hpPulse =
               0.9 + 0.2 * sin(drop.life * 4.5 + drop.position.dy * 0.02);
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             drawPos,
             12,
-            Paint()
-              ..color = drop.color.withValues(alpha: 0.22 * fadeAlpha * hpPulse)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+            drop.color.withValues(alpha: 0.22 * fadeAlpha * hpPulse),
+            10,
           );
           canvas.drawCircle(
             drawPos,
@@ -10048,12 +10077,12 @@ class CosmicGame extends FlameGame with PanDetector {
           // Element orb — colored glow
           final pulse =
               0.8 + 0.2 * sin(drop.life * 4.5 + drop.position.dy * 0.02);
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             drawPos,
             10,
-            Paint()
-              ..color = drop.color.withValues(alpha: 0.25 * fadeAlpha * pulse)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+            drop.color.withValues(alpha: 0.25 * fadeAlpha * pulse),
+            8,
           );
           canvas.drawCircle(
             drawPos,
@@ -10091,12 +10120,12 @@ class CosmicGame extends FlameGame with PanDetector {
             final tint =
                 ElementResources.byBiomeId[portalBiome]?.color ?? drop.color;
             final pulse = 0.85 + 0.15 * sin(drop.life * 3.0);
-            canvas.drawCircle(
+            paintSoftCircle(
+              canvas,
               drawPos,
               19.2,
-              Paint()
-                ..color = tint.withValues(alpha: 0.28 * fadeAlpha * pulse)
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+              tint.withValues(alpha: 0.28 * fadeAlpha * pulse),
+              12,
             );
             PortalKeyGlyph.paintGlyph(
               canvas,
@@ -10110,12 +10139,12 @@ class CosmicGame extends FlameGame with PanDetector {
             // Real shop icon (harvesters etc.) — same glyph as the shop.
             final tint = offer!.iconColor ?? drop.color;
             final pulse = 0.85 + 0.15 * sin(drop.life * 3.0);
-            canvas.drawCircle(
+            paintSoftCircle(
+              canvas,
               drawPos,
               16.8,
-              Paint()
-                ..color = tint.withValues(alpha: 0.28 * fadeAlpha * pulse)
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+              tint.withValues(alpha: 0.28 * fadeAlpha * pulse),
+              12,
             );
             final tp = _itemIconPainter(offer.icon, tint);
             if (fadeAlpha < 1.0) {
@@ -10137,12 +10166,12 @@ class CosmicGame extends FlameGame with PanDetector {
             final pulse = 0.7 + 0.3 * sin(drop.life * 5.0);
             final spin = drop.life * 1.8;
             // Large outer glow
-            canvas.drawCircle(
+            paintSoftCircle(
+              canvas,
               drawPos,
               14,
-              Paint()
-                ..color = drop.color.withValues(alpha: 0.3 * fadeAlpha * pulse)
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+              drop.color.withValues(alpha: 0.3 * fadeAlpha * pulse),
+              12,
             );
             // Hexagonal shape
             canvas.save();
@@ -10242,12 +10271,12 @@ class CosmicGame extends FlameGame with PanDetector {
 
       final bpColor = elementColor(bp.element);
       // Glow
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         pp,
         bp.radius * 2.5,
-        Paint()
-          ..color = bpColor.withValues(alpha: 0.25)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, bp.radius * 2),
+        bpColor.withValues(alpha: 0.25),
+        bp.radius * 2,
       );
       // Core
       canvas.drawCircle(pp, bp.radius, Paint()..color = bpColor);
@@ -10270,13 +10299,7 @@ class CosmicGame extends FlameGame with PanDetector {
       // Ammo color based on active customization
       final ammoColor = _ammoColor;
       // Glow trail
-      canvas.drawCircle(
-        pp,
-        6,
-        Paint()
-          ..color = ammoColor.withValues(alpha: 0.3)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-      );
+      paintSoftCircle(canvas, pp, 6, ammoColor.withValues(alpha: 0.3), 6);
       // Core bolt
       final tailX = pp.dx - cos(p.angle) * 10;
       final tailY = pp.dy - sin(p.angle) * 10;
@@ -10298,12 +10321,12 @@ class CosmicGame extends FlameGame with PanDetector {
         continue;
       }
       // Missile glow
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         mp,
         10,
-        Paint()
-          ..color = const Color(0xFFFF6F00).withValues(alpha: 0.3)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        const Color(0xFFFF6F00).withValues(alpha: 0.3),
+        8,
       );
       // Missile body (small triangle)
       canvas.save();
@@ -10316,12 +10339,12 @@ class CosmicGame extends FlameGame with PanDetector {
         ..close();
       canvas.drawPath(missilePath, Paint()..color = const Color(0xFFFF8F00));
       // Exhaust trail
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         const Offset(0, 6),
         3,
-        Paint()
-          ..color = const Color(0xFFFFAB40).withValues(alpha: 0.6)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        const Color(0xFFFFAB40).withValues(alpha: 0.6),
+        4,
       );
       canvas.restore();
     }
@@ -10331,12 +10354,12 @@ class CosmicGame extends FlameGame with PanDetector {
       final op = o.positionAround(ship.pos);
       final a = o.spawnOpacity; // fade-in alpha
       // Outer glow
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         op,
         OrbitalSentinel.hitboxRadius,
-        Paint()
-          ..color = const Color(0xFF42A5F5).withValues(alpha: 0.15 * a)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        const Color(0xFF42A5F5).withValues(alpha: 0.15 * a),
+        8,
       );
       // Core
       canvas.drawCircle(
@@ -10539,12 +10562,12 @@ class CosmicGame extends FlameGame with PanDetector {
       if (cp.decoy && cp.decoyHp > 0 && cp.stationary) {
         final pulse = 0.72 + 0.28 * sin(cp.life * 4.5);
         final runeR = 9.0 * vs;
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           cpp,
           runeR * 2.8,
-          Paint()
-            ..color = projColor.withValues(alpha: 0.08 * pulse)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, runeR * 1.6),
+          projColor.withValues(alpha: 0.08 * pulse),
+          runeR * 1.6,
         );
         final outer = Path();
         for (var j = 0; j < 6; j++) {
@@ -10579,12 +10602,12 @@ class CosmicGame extends FlameGame with PanDetector {
         final pulse = 0.7 + 0.3 * sin(cp.life * 4.0);
         final totemR = 8.0 * vs;
         // Aggro aura: large pulsing ring that draws enemies
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           cpp,
           totemR * 3.0 * pulse,
-          Paint()
-            ..color = projColor.withValues(alpha: 0.08)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, totemR * 2),
+          projColor.withValues(alpha: 0.08),
+          totemR * 2,
         );
         // Outer diamond shape (rotating)
         final rotAngle = cp.life * 2.0;
@@ -10641,14 +10664,12 @@ class CosmicGame extends FlameGame with PanDetector {
           );
         }
 
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           cpp,
           auraR,
-          Paint()
-            ..color = projColor.withValues(
-              alpha: (cp.stationary ? 0.12 : 0.08) * pulse,
-            )
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, runeR),
+          projColor.withValues(alpha: (cp.stationary ? 0.12 : 0.08) * pulse),
+          runeR,
         );
 
         final outer = Path();
@@ -10915,12 +10936,12 @@ class CosmicGame extends FlameGame with PanDetector {
         // ── Homing orb rendering (Spirit, Blood) ──
         // Pulsating outer glow
         final pulse = 0.6 + 0.4 * sin(cp.life * 8.0);
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           cpp,
           10.0 * vs * pulse,
-          Paint()
-            ..color = projColor.withValues(alpha: 0.2)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+          projColor.withValues(alpha: 0.2),
+          10,
         );
         // Inner orb
         canvas.drawCircle(
@@ -10937,31 +10958,31 @@ class CosmicGame extends FlameGame with PanDetector {
       } else if (vs >= 1.6 && cp.speedMultiplier < 0.5) {
         // ── Cloud/AoE rendering (Steam, Ice nova, Mud) ──
         final cloudR = 8.0 * vs;
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           cpp,
           cloudR,
-          Paint()
-            ..color = projColor.withValues(alpha: 0.18)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, cloudR * 0.8),
+          projColor.withValues(alpha: 0.18),
+          cloudR * 0.8,
         );
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           cpp,
           cloudR * 0.5,
-          Paint()
-            ..color = projColor.withValues(alpha: 0.35)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+          projColor.withValues(alpha: 0.35),
+          4,
         );
       } else if (cp.stationary) {
         // ── Mine/trap rendering (Mask specials, lingering zones) ──
         final pulse = 0.7 + 0.3 * sin(cp.life * 6.0);
         final mineR = 6.0 * vs;
         // Danger zone glow
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           cpp,
           mineR * 1.5,
-          Paint()
-            ..color = projColor.withValues(alpha: 0.12 * pulse)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, mineR),
+          projColor.withValues(alpha: 0.12 * pulse),
+          mineR,
         );
         // Mine body
         canvas.drawCircle(
@@ -11637,12 +11658,12 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       } else if (cp.orbitCenter != null) {
         final pulse = 0.8 + 0.2 * sin(cp.orbitAngle * 3);
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           cpp,
           5.0 * vs * pulse,
-          Paint()
-            ..color = projColor.withValues(alpha: 0.3)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+          projColor.withValues(alpha: 0.3),
+          6,
         );
         canvas.drawCircle(
           cpp,
@@ -11659,12 +11680,12 @@ class CosmicGame extends FlameGame with PanDetector {
         final glowR = 8.0 * vs;
         final tailLen = 8.0 * vs;
         // Glow trail
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           cpp,
           glowR,
-          Paint()
-            ..color = projColor.withValues(alpha: 0.25)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6.0 * vs),
+          projColor.withValues(alpha: 0.25),
+          6.0 * vs,
         );
         // Core bolt
         final tailX = cpp.dx - cos(cp.angle) * tailLen;
@@ -11748,12 +11769,12 @@ class CosmicGame extends FlameGame with PanDetector {
 
       // Outer aura glow
       final auraPulse = 0.5 + 0.3 * sin(_elapsed * 3.0);
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         Offset.zero,
         33.6 * animScale,
-        Paint()
-          ..color = eColor.withValues(alpha: auraPulse * 0.3 * opacity)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+        eColor.withValues(alpha: auraPulse * 0.3 * opacity),
+        14,
       );
 
       // ── Shield bubble (Horn special) ──
@@ -11933,14 +11954,13 @@ class CosmicGame extends FlameGame with PanDetector {
       if (isSummoning) {
         final ringRadius = 12.0 + summonT * 80.0;
         final ringAlpha = (1.0 - summonT) * 0.7;
-        canvas.drawCircle(
+        paintSoftRing(
+          canvas,
           Offset.zero,
           ringRadius,
-          Paint()
-            ..color = const Color(0xFFFF4040).withValues(alpha: ringAlpha)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.0 * (1.0 - summonT) + 0.5
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+          const Color(0xFFFF4040).withValues(alpha: ringAlpha),
+          3.0 * (1.0 - summonT) + 0.5,
+          8,
         );
         for (var i = 0; i < 8; i++) {
           final pAngle = (i / 8) * pi * 2 + opp.life * 6;
@@ -11957,12 +11977,12 @@ class CosmicGame extends FlameGame with PanDetector {
 
       // Red-tinted aura glow (enemy)
       final auraPulse = 0.5 + 0.3 * sin(_elapsed * 3.0);
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         Offset.zero,
         28 * summonScale,
-        Paint()
-          ..color = const Color(0xFFFF4040).withValues(alpha: auraPulse * 0.25)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+        const Color(0xFFFF4040).withValues(alpha: auraPulse * 0.25),
+        14,
       );
 
       // Render sprite
@@ -12077,12 +12097,12 @@ class CosmicGame extends FlameGame with PanDetector {
       final projColor = elementColor(duelOpponent?.member.element ?? 'Fire');
       final vs = rp.radiusMultiplier.clamp(0.5, 3.0);
       // Red-tinted glow trail
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         rpPos,
         8.0 * vs,
-        Paint()
-          ..color = projColor.withValues(alpha: 0.15)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        projColor.withValues(alpha: 0.15),
+        8,
       );
       canvas.drawLine(
         rpPos,
@@ -12131,15 +12151,12 @@ class CosmicGame extends FlameGame with PanDetector {
           final coreRadius = (4.2 - i * 0.5) * (0.35 + 0.65 * fill);
           final glowAlpha = (0.14 + 0.30 * fill) * pulse;
           final coreAlpha = 0.24 + 0.62 * fill;
-          canvas.drawCircle(
+          paintSoftCircle(
+            canvas,
             trailCenter,
             glowRadius,
-            Paint()
-              ..color = const Color(0xFFFF6F00).withValues(alpha: glowAlpha)
-              ..maskFilter = MaskFilter.blur(
-                BlurStyle.normal,
-                10 - i.toDouble(),
-              ),
+            const Color(0xFFFF6F00).withValues(alpha: glowAlpha),
+            10 - i.toDouble(),
           );
           canvas.drawCircle(
             trailCenter,
@@ -12150,14 +12167,14 @@ class CosmicGame extends FlameGame with PanDetector {
         }
 
         final corePulse = 0.92 + 0.18 * sin(_elapsed * 15);
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           exhaustCenter,
           7.5 * corePulse,
-          Paint()
-            ..color = const Color(
-              0xFFFF6F00,
-            ).withValues(alpha: isBoosting ? 0.5 : 0.28 * _boostTrailVisual)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+          const Color(
+            0xFFFF6F00,
+          ).withValues(alpha: isBoosting ? 0.5 : 0.28 * _boostTrailVisual),
+          10,
         );
         canvas.drawCircle(
           exhaustCenter,
@@ -12210,12 +12227,12 @@ class CosmicGame extends FlameGame with PanDetector {
       final sz = p.size * a;
       if (sz <= 0) continue;
       // Glow
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         Offset(p.x, p.y),
         sz * 2,
-        Paint()
-          ..color = p.color.withValues(alpha: a * 0.3)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, sz * 2),
+        p.color.withValues(alpha: a * 0.3),
+        sz * 2,
       );
       // Core
       canvas.drawCircle(
@@ -12260,12 +12277,12 @@ class CosmicGame extends FlameGame with PanDetector {
           Paint()..color = Color.fromRGBO(255, 255, 255, flashT * 0.8),
         );
         // Central purple burst
-        canvas.drawCircle(
+        paintSoftCircle(
+          canvas,
           center,
           sw * 0.8 * flashT,
-          Paint()
-            ..color = Color.fromRGBO(124, 77, 255, flashT * 0.5)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, 60 * flashT),
+          Color.fromRGBO(124, 77, 255, flashT * 0.5),
+          60 * flashT,
         );
       }
 
@@ -12295,14 +12312,13 @@ class CosmicGame extends FlameGame with PanDetector {
           );
         }
         // Vignette ring
-        canvas.drawCircle(
+        paintSoftRing(
+          canvas,
           center,
           sw * 0.6,
-          Paint()
-            ..color = Color.fromRGBO(124, 77, 255, tunnelT * 0.15)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = sw * 0.4
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, sw * 0.2),
+          Color.fromRGBO(124, 77, 255, tunnelT * 0.15),
+          sw * 0.4,
+          sw * 0.2,
         );
       }
 

@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 
 import 'cosmic_cache_data.dart';
 import 'cosmic_data.dart';
+import 'planets/planet_art.dart';
 
 /// The dormant construct: a slowly turning alchemical seal with an
 /// element-flavoured core. Deliberately cheap — up to 17 of these exist.
@@ -22,12 +23,12 @@ void paintSealedCache(Canvas canvas, Offset p, String element, double life) {
   final breathe = 0.5 + 0.5 * sin(t * 1.4);
 
   // Soft aura.
-  canvas.drawCircle(
+  paintSoftCircle(
+    canvas,
     p,
     r * 1.5,
-    Paint()
-      ..color = c.withValues(alpha: 0.10 + 0.05 * breathe)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 26),
+    c.withValues(alpha: 0.10 + 0.05 * breathe),
+    26,
   );
 
   // Outer ring.
@@ -88,13 +89,7 @@ void paintSealedCache(Canvas canvas, Offset p, String element, double life) {
     r * (0.20 + 0.05 * breathe),
     Paint()..color = c.withValues(alpha: 0.85),
   );
-  canvas.drawCircle(
-    p,
-    r * 0.34,
-    Paint()
-      ..color = c.withValues(alpha: 0.30 * breathe)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-  );
+  paintSoftCircle(canvas, p, r * 0.34, c.withValues(alpha: 0.30 * breathe), 8);
 }
 
 /// Paint the unsealing of an [element] cache centred on [p].
@@ -173,12 +168,12 @@ void _unsealAura(
   double bloom,
 ) {
   final radius = _r * (1.3 + charge * 0.5 + bloom * 1.1);
-  canvas.drawCircle(
+  paintSoftCircle(
+    canvas,
     p,
     radius,
-    Paint()
-      ..color = c.withValues(alpha: 0.10 + charge * 0.15 + bloom * 0.12)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 20 + bloom * 22),
+    c.withValues(alpha: 0.10 + charge * 0.15 + bloom * 0.12),
+    20 + bloom * 22,
   );
 }
 
@@ -472,21 +467,21 @@ void _motifSteam(
   for (var i = 0; i < 6; i++) {
     final a = t * 1.4 + i * (pi / 3);
     final rr = _r * (0.8 + crack * 1.4);
-    canvas.drawCircle(
+    paintSoftCircle(
+      canvas,
       Offset(p.dx + cos(a) * rr, p.dy + sin(a) * rr),
       10 + crack * 16,
-      Paint()
-        ..color = c.withValues(alpha: 0.28)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+      c.withValues(alpha: 0.28),
+      10,
     );
   }
   if (crack > 0.5) {
-    canvas.drawCircle(
+    paintSoftCircle(
+      canvas,
       p,
       _r * 2.2 * crack,
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.22 * crack)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 30),
+      Colors.white.withValues(alpha: 0.22 * crack),
+      30,
     );
   }
 }
@@ -515,12 +510,12 @@ void _motifEarth(
     canvas.drawPath(path, _fill(c, 0.72));
     canvas.drawPath(path, _stroke(const Color(0xFFD7CCC8), 0.5, 1.4));
   }
-  canvas.drawCircle(
+  paintSoftCircle(
+    canvas,
     p,
     _r * 0.5 * charge,
-    Paint()
-      ..color = const Color(0xFFFFCC80).withValues(alpha: 0.3 * charge)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+    const Color(0xFFFFCC80).withValues(alpha: 0.3 * charge),
+    14,
   );
 }
 
@@ -789,13 +784,7 @@ void _motifSpirit(
     }
     canvas.drawPath(tail, _stroke(pale, 0.45 + 0.3 * charge, 2.4));
 
-    canvas.drawCircle(
-      wp,
-      6 + charge * 5,
-      Paint()
-        ..color = c.withValues(alpha: 0.7)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
+    paintSoftCircle(canvas, wp, 6 + charge * 5, c.withValues(alpha: 0.7), 6);
     canvas.drawCircle(wp, 3.0, _fill(Colors.white, 0.95));
   }
 

@@ -27,10 +27,22 @@ class MudPlanetArt extends PlanetArt {
       bubbles.setAll(i * 3, [x, y, z]);
     }
     return MudPlanetArt._(
-      _BlobField.scatter(rng, 150, size: 0.055, rough: 0.2, soft: 1,
-          uniform: true),
-      _BlobField.scatter(rng, 9, size: 0.08, rough: 0.35, soft: 1,
-          stretch: 1.4),
+      _BlobField.scatter(
+        rng,
+        150,
+        size: 0.055,
+        rough: 0.2,
+        soft: 1,
+        uniform: true,
+      ),
+      _BlobField.scatter(
+        rng,
+        9,
+        size: 0.08,
+        rough: 0.35,
+        soft: 1,
+        stretch: 1.4,
+      ),
       bubbles,
     );
   }
@@ -53,25 +65,30 @@ class MudPlanetArt extends PlanetArt {
   @override
   void paintBody(Canvas c, Offset p, double r, double t) {
     final view = SphereView(p, r, _spin.matrixAt(t));
-    c.drawPath(_domes.limbBumps(view, scale: 0.5),
-        Paint()..color = const Color(0xFF2E2317));
+    c.drawPath(
+      _domes.limbBumps(view, scale: 0.5),
+      Paint()..color = const Color(0xFF2E2317),
+    );
     c.save();
     _clipDisc(c, p, r);
     c.drawCircle(
       p,
       r,
       Paint()
-        ..shader = ui.Gradient.radial(p, r, const [
-          Color(0xFF3E3022),
-          Color(0xFF2E2318),
-          Color(0xFF1C150E),
-        ], const [0.0, 0.7, 1.0]),
+        ..shader = ui.Gradient.radial(
+          p,
+          r,
+          const [Color(0xFF3E3022), Color(0xFF2E2318), Color(0xFF1C150E)],
+          const [0.0, 0.7, 1.0],
+        ),
     );
     c.drawPath(_pools.gather(view), Paint()..color = const Color(0xFF4A4A30));
 
     final domes = _domes.gather(view);
-    c.drawPath(domes.shift(Offset(r * 0.014, r * 0.018)),
-        Paint()..color = _deep.withValues(alpha: 0.8));
+    c.drawPath(
+      domes.shift(Offset(r * 0.014, r * 0.018)),
+      Paint()..color = _deep.withValues(alpha: 0.8),
+    );
     c.drawPath(domes, Paint()..color = _dome);
 
     // A wet glint on every dome facing us, on its side toward the light.
@@ -81,11 +98,13 @@ class MudPlanetArt extends PlanetArt {
       final sp = view.project(cs[i * 3], cs[i * 3 + 1], cs[i * 3 + 2]);
       if (sp.depth < 0.2) continue;
       final dr = r * _domes.sizes[i] * sp.depth;
-      glints.addOval(Rect.fromCenter(
-        center: sp.offset + Offset(-dr * 0.38, -dr * 0.42),
-        width: dr * 0.55,
-        height: dr * 0.38,
-      ));
+      glints.addOval(
+        Rect.fromCenter(
+          center: sp.offset + Offset(-dr * 0.38, -dr * 0.42),
+          width: dr * 0.55,
+          height: dr * 0.38,
+        ),
+      );
     }
     c.drawPath(glints, Paint()..color = _wet.withValues(alpha: 0.75));
 
@@ -110,8 +129,15 @@ class MudPlanetArt extends PlanetArt {
 
     _shade(c, p, r, night: const Color(0xFF050402));
     c.restore();
-    _limb(c, p, r, const Color(0xFF8A7A50), alpha: 0.14, inner: 0.95,
-        outer: 1.05);
+    _limb(
+      c,
+      p,
+      r,
+      const Color(0xFF8A7A50),
+      alpha: 0.14,
+      inner: 0.95,
+      outer: 1.05,
+    );
   }
 
   @override

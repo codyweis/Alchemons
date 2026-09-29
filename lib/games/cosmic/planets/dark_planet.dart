@@ -40,8 +40,11 @@ class DarkPlanetArt extends PlanetArt {
         Offset.zero,
         r * (1.8 + i * 0.3),
         Paint()
-          ..color = Color.lerp(_col, _deepPurple, i * 0.2)!
-              .withValues(alpha: 0.08 + 0.03 * sin(t * 1.5 + i)),
+          ..color = Color.lerp(
+            _col,
+            _deepPurple,
+            i * 0.2,
+          )!.withValues(alpha: 0.08 + 0.03 * sin(t * 1.5 + i)),
       );
     }
     c.restore();

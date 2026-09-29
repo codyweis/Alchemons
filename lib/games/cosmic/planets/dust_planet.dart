@@ -21,18 +21,44 @@ class DustPlanetArt extends PlanetArt {
     const lats = [0.18, 0.46, 0.82];
     const cols = [Color(0x30FFE6BC), Color(0x2A8A5A30), Color(0x38FFEBC8)];
     for (var i = 0; i < lats.length; i++) {
-      final n = latitudeCap(unit, lats[i], wave: 0.035, waves: 5, phase: i * 1.0);
-      final s = latitudeCap(unit, -lats[i] - 0.04, south: true, wave: 0.035,
-          waves: 4, phase: i * 2.0);
+      final n = latitudeCap(
+        unit,
+        lats[i],
+        wave: 0.035,
+        waves: 5,
+        phase: i * 1.0,
+      );
+      final s = latitudeCap(
+        unit,
+        -lats[i] - 0.04,
+        south: true,
+        wave: 0.035,
+        waves: 4,
+        phase: i * 2.0,
+      );
       if (n != null) bands.add((n, cols[i]));
       if (s != null) bands.add((s, cols[(i + 1) % 3]));
     }
     return DustPlanetArt._(
       bands,
-      _BlobField.scatter(rng, 12, size: 0.09, spread: 2.2, stretch: 1.8,
-          rough: 0.35, soft: 1),
-      _BlobField.scatter(rng, 4, size: 0.16, spread: 1.0, stretch: 2.8,
-          rough: 0.35, soft: 1),
+      _BlobField.scatter(
+        rng,
+        12,
+        size: 0.09,
+        spread: 2.2,
+        stretch: 1.8,
+        rough: 0.35,
+        soft: 1,
+      ),
+      _BlobField.scatter(
+        rng,
+        4,
+        size: 0.16,
+        spread: 1.0,
+        stretch: 2.8,
+        rough: 0.35,
+        soft: 1,
+      ),
       _ParticleRing(
         rng,
         spin: _spin,
@@ -40,10 +66,30 @@ class DustPlanetArt extends PlanetArt {
         laneColor: const Color(0xFFE8C08A),
         laneReach: 2.6,
         laneStops: const [
-          0, 0.47, 0.54, 0.58, 0.64, 0.69, 0.77, 0.81, 0.85, 0.93, 1.0,
+          0,
+          0.47,
+          0.54,
+          0.58,
+          0.64,
+          0.69,
+          0.77,
+          0.81,
+          0.85,
+          0.93,
+          1.0,
         ],
         laneAlphas: const [
-          0, 0, 0.12, 0.2, 0.1, 0.24, 0.2, 0.05, 0.13, 0.04, 0,
+          0,
+          0,
+          0.12,
+          0.2,
+          0.1,
+          0.24,
+          0.2,
+          0.05,
+          0.13,
+          0.04,
+          0,
         ],
         dim: const Color(0xFFD8B884).withValues(alpha: 0.55),
         bright: const Color(0xFFFFF0D4).withValues(alpha: 0.9),
@@ -80,25 +126,35 @@ class DustPlanetArt extends PlanetArt {
       p,
       r,
       Paint()
-        ..shader = ui.Gradient.radial(p, r, const [
-          Color(0xFFE6BE88),
-          Color(0xFFC89A64),
-          Color(0xFF8C653C),
-        ], const [0.0, 0.7, 1.0]),
+        ..shader = ui.Gradient.radial(
+          p,
+          r,
+          const [Color(0xFFE6BE88), Color(0xFFC89A64), Color(0xFF8C653C)],
+          const [0.0, 0.7, 1.0],
+        ),
     );
     for (final (path, col) in _bands) {
       _drawUnit(c, p, r, path, Paint()..color = col);
     }
     final rock = _rock.gather(view);
-    c.drawPath(rock.shift(Offset(r * 0.012, r * 0.015)),
-        Paint()..color = const Color(0xFF6E4424).withValues(alpha: 0.45));
+    c.drawPath(
+      rock.shift(Offset(r * 0.012, r * 0.015)),
+      Paint()..color = const Color(0xFF6E4424).withValues(alpha: 0.45),
+    );
     c.drawPath(rock, Paint()..color = const Color(0xFFA06C40));
     _storm.paint(c, storm, const Color(0xFFF6E2BE), 0.4);
     _sheen(c, p, r, const Color(0xFFFFF0D0), alpha: 0.18);
     _shade(c, p, r, night: const Color(0xFF080503));
     c.restore();
-    _limb(c, p, r, const Color(0xFFF0C890), alpha: 0.26, inner: 0.9,
-        outer: 1.08);
+    _limb(
+      c,
+      p,
+      r,
+      const Color(0xFFF0C890),
+      alpha: 0.26,
+      inner: 0.9,
+      outer: 1.08,
+    );
   }
 
   @override

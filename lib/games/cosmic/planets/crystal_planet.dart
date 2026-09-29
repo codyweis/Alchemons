@@ -89,8 +89,11 @@ class CrystalPlanetArt extends PlanetArt {
       c.drawPath(
         buckets[k],
         Paint()
-          ..color = Color.lerp(_dark, _lit, k / (_levels - 1))!
-              .withValues(alpha: 0.82),
+          ..color = Color.lerp(
+            _dark,
+            _lit,
+            k / (_levels - 1),
+          )!.withValues(alpha: 0.82),
       );
     }
     for (final (ring, spec) in glints) {

@@ -44,10 +44,20 @@ class AirPlanetArt extends PlanetArt {
   @override
   void paintBack(Canvas c, Offset p, double r, double t) {
     _oldAura(c, p, r, _col);
-    _softCircle(c, p, r * 2.5,
-        _col.withValues(alpha: 0.04 + 0.02 * sin(t * 0.4)), r * 1.2);
-    _softCircle(c, p, r * 1.8,
-        _col.withValues(alpha: 0.06 + 0.02 * sin(t * 0.7)), r * 0.6);
+    _softCircle(
+      c,
+      p,
+      r * 2.5,
+      _col.withValues(alpha: 0.04 + 0.02 * sin(t * 0.4)),
+      r * 1.2,
+    );
+    _softCircle(
+      c,
+      p,
+      r * 1.8,
+      _col.withValues(alpha: 0.06 + 0.02 * sin(t * 0.7)),
+      r * 0.6,
+    );
   }
 
   @override
@@ -80,21 +90,37 @@ class AirPlanetArt extends PlanetArt {
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round;
-      c.drawPath(spine, band
-        ..strokeWidth = bandWidth * 2.2
-        ..color = const Color(0xFFFFFFFF).withValues(alpha: alpha * 0.35));
-      c.drawPath(spine, band
-        ..strokeWidth = bandWidth * 1.2
-        ..color = const Color(0xFFFFFFFF).withValues(alpha: alpha * 0.55));
-      c.drawPath(spine, band
-        ..strokeWidth = bandWidth * 0.5
-        ..color = const Color(0xFFFFFFFF).withValues(alpha: alpha * 0.6));
+      c.drawPath(
+        spine,
+        band
+          ..strokeWidth = bandWidth * 2.2
+          ..color = const Color(0xFFFFFFFF).withValues(alpha: alpha * 0.35),
+      );
+      c.drawPath(
+        spine,
+        band
+          ..strokeWidth = bandWidth * 1.2
+          ..color = const Color(0xFFFFFFFF).withValues(alpha: alpha * 0.55),
+      );
+      c.drawPath(
+        spine,
+        band
+          ..strokeWidth = bandWidth * 0.5
+          ..color = const Color(0xFFFFFFFF).withValues(alpha: alpha * 0.6),
+      );
     }
 
     c.restore();
     // A soft luminous rim of air.
-    _limb(c, p, r, const Color(0xFFE2F5FF), alpha: 0.3, inner: 0.86,
-        outer: 1.1);
+    _limb(
+      c,
+      p,
+      r,
+      const Color(0xFFE2F5FF),
+      alpha: 0.3,
+      inner: 0.86,
+      outer: 1.1,
+    );
   }
 
   @override
@@ -105,9 +131,18 @@ class AirPlanetArt extends PlanetArt {
       final orbitR = r * (1.1 + 0.3 * sin(i * 1.7));
       final a = t * speed * (i.isEven ? 1 : -1) + i * pi * 2 / 10;
       final bob = sin(t * 2.0 + i * 0.9) * r * 0.1;
-      final at = Offset(p.dx + cos(a) * orbitR, p.dy + sin(a) * orbitR * 0.35 + bob);
+      final at = Offset(
+        p.dx + cos(a) * orbitR,
+        p.dy + sin(a) * orbitR * 0.35 + bob,
+      );
       final alpha = (0.3 + 0.2 * sin(t * 3 + i)).clamp(0.0, 1.0);
-      _softCircle(c, at, size * 3, _col.withValues(alpha: alpha * 0.2), size * 2);
+      _softCircle(
+        c,
+        at,
+        size * 3,
+        _col.withValues(alpha: alpha * 0.2),
+        size * 2,
+      );
       c.drawCircle(
         at,
         size,

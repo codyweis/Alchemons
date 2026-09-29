@@ -6,10 +6,12 @@
 // A budget test, not a golden: it does not care what the planets look like
 // (test/planet_look_preview_test.dart renders that), only what they cost.
 
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
+import 'package:alchemons/games/cosmic/planets/planet_art.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Records what a frame asks the GPU to do.
@@ -123,5 +125,52 @@ void main() {
     // Generous for a JIT test run; on device it is a fraction of this, at
     // world load.
     expect(built, lessThan(1500), reason: 'all 17 took $built ms');
+  });
+
+  test('home customizations draw no blur, and stay cheap even all at once', () {
+    const p = Offset(5000, 5000);
+    const r = 190.0;
+    // The ship parked inside the rings, so the wake path runs too.
+    const ship = Offset(5230, 5040);
+    final fx = HomeEffectsArt.instance;
+    int census(Set<String> active, double t) {
+      final c = _CensusCanvas();
+      fx.paintBehind(
+        c as Canvas,
+        p,
+        r,
+        t,
+        active,
+        const {},
+        wake: ship,
+        sizeTier: 3,
+      );
+      fx.paintFront(
+        c as Canvas,
+        p,
+        r,
+        t,
+        active,
+        const {},
+        wake: ship,
+        sizeTier: 3,
+      );
+      expect(c.blurredDraws, 0, reason: '$active blurs at t=$t');
+      return c.draws;
+    }
+
+    for (final id in HomeEffectsArt.handled) {
+      var worst = 0;
+      for (var t = 0.0; t < 30; t += 0.23) {
+        worst = max(worst, census({id}, t));
+      }
+      // Each is a few batched point draws and a handful of soft fills.
+      expect(worst, lessThanOrEqualTo(60), reason: '$id peaks at $worst');
+    }
+    var all = 0;
+    for (var t = 0.0; t < 30; t += 0.23) {
+      all = max(all, census(HomeEffectsArt.handled, t));
+    }
+    expect(all, lessThanOrEqualTo(400), reason: 'everything at once: $all');
   });
 }

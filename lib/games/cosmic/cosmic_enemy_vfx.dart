@@ -1,6 +1,9 @@
 // lib/games/cosmic/cosmic_enemy_vfx.dart
 //
-// How a survival enemy is drawn.
+// How an enemy is drawn — in survival, in open space and in the planet
+// dungeons. The bodies themselves are painted by enemy_body_art.dart; this
+// file maps each mode's entity onto them and adds the tells, marks, bars and
+// the horde atlas.
 //
 // Lifted out of cosmic_survival_game so the silhouette has one definition that
 // the game, and the preview harness that renders the enemy contact sheets, can
@@ -19,7 +22,10 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/enemy_body_art.dart';
 import 'package:alchemons/games/cosmic/horn_vfx.dart';
+import 'package:alchemons/games/cosmic/planets/planet_art.dart';
+import 'package:alchemons/games/cosmic/vfx_shapes.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
@@ -81,6 +87,7 @@ class EnemyVisual {
     this.rootTimer = 0,
     this.isPlagueCore = false,
     this.visualColor,
+    this.seed = 0,
   });
 
   final ui.Offset position;
@@ -116,6 +123,9 @@ class EnemyVisual {
   final bool isPlagueCore;
   final Color? visualColor;
 
+  /// Stable per body, so a crowd does not flicker and turn in lockstep.
+  final double seed;
+
   factory EnemyVisual.fromSurvival(CosmicSurvivalEnemy e) => EnemyVisual(
     position: e.position,
     angle: e.angle,
@@ -144,6 +154,7 @@ class EnemyVisual {
     rootTimer: e.hornPlantRootTimer,
     isPlagueCore: e.isPlagueCore,
     visualColor: e.visualColor,
+    seed: _seedOf(e),
   );
 
   factory EnemyVisual.fromOpenWorld(CosmicEnemy e) => EnemyVisual(
@@ -167,8 +178,11 @@ class EnemyVisual {
       CosmicEnemyVariant.standard => 1.0,
     },
     flightSteering: e.flightSteering,
+    seed: _seedOf(e),
   );
 }
+
+double _seedOf(Object o) => (identityHashCode(o) & 1023) / 1023 * 2 * pi;
 
 bool _heavy(EnemyTier t) => t == EnemyTier.brute || t == EnemyTier.colossus;
 
@@ -201,20 +215,8 @@ double _stretchFor(EnemyConduct c, EnemyTrait? t, EnemyTier tier) {
 int openWorldVariantSigilPoints(CosmicEnemyVariant v) =>
     v == CosmicEnemyVariant.standard ? 0 : 3;
 
-// Normalized swarm materials are shared across bodies. The detailed renderer
-// below still owns elites, traits, roots and active attack telegraphs.
-final _swarmHex = Path()
-  ..moveTo(0, -1)
-  ..lineTo(0.866, -0.5)
-  ..lineTo(0.866, 0.5)
-  ..lineTo(0, 1)
-  ..lineTo(-0.866, 0.5)
-  ..lineTo(-0.866, -0.5)
-  ..close();
-final _swarmMaterials = <String, ui.Shader>{};
-final _swarmPaint = Paint();
-
-/// Visual-only simplification; movement, collision and statuses are untouched.
+/// Bodies simple enough to go out in the horde atlas once the field is busy.
+/// Visual-only; movement, collision and statuses are untouched.
 bool canSimplifySurvivalSwarmEnemy(CosmicSurvivalEnemy enemy) =>
     (enemy.tier == EnemyTier.wisp || enemy.tier == EnemyTier.drone) &&
     !enemy.isElite &&
@@ -227,112 +229,52 @@ bool canSimplifySurvivalSwarmEnemy(CosmicSurvivalEnemy enemy) =>
     enemy.maneRootTimer <= 0 &&
     !(enemy.slowTimer > 0 && enemy.slowMultiplier <= 0.1);
 
-void _drawSurvivalSwarmEnemy(
-  Canvas canvas,
-  CosmicSurvivalEnemy enemy,
-  double time,
-) {
-  final color = elementColor(enemy.element);
-  // Keys come from the finite element/tier roster, never individual enemies.
-  final key = '${enemy.element}:${enemy.tier.name}';
-  final shader = _swarmMaterials.putIfAbsent(
-    key,
-    () => ui.Gradient.radial(
-      const Offset(-0.2, -0.25),
-      1.25,
-      [
-        Color.lerp(color, Colors.white, 0.45)!,
-        color.withValues(alpha: 0.85),
-        color.withValues(alpha: enemy.tier == EnemyTier.wisp ? 0 : 0.4),
-      ],
-      const [0, 0.5, 1],
-    ),
-  );
-  canvas.save();
-  canvas.translate(enemy.position.dx, enemy.position.dy);
-  final breathe = enemy.tier == EnemyTier.wisp
-      ? 0.86 + 0.10 * sin(time * 6 + enemy.angle * 5)
-      : 1.0;
-  canvas.scale(enemy.radius * breathe);
-  _swarmPaint
-    ..style = PaintingStyle.fill
-    ..shader = shader
-    ..color = Colors.white;
-  if (enemy.tier == EnemyTier.wisp) {
-    canvas.drawCircle(Offset.zero, 1, _swarmPaint);
-  } else {
-    canvas.drawPath(_swarmHex, _swarmPaint);
-  }
-  _swarmPaint
-    ..shader = null
-    ..color = Colors.white.withValues(
-      alpha: 0.45 + 0.5 * enemy.hitFlash.clamp(0.0, 1.0),
-    );
-  canvas.drawCircle(
-    const Offset(-0.15, -0.18),
-    enemy.hitFlash > 0 ? 0.5 : 0.16,
-    _swarmPaint,
-  );
-  canvas.restore();
-  if (enemy.hpFraction < 0.99) {
-    // Only damaged bodies need a health read at horde density.
-    canvas.drawLine(
-      enemy.position + Offset(-enemy.radius, -enemy.radius - 3),
-      enemy.position +
-          Offset(enemy.radius * (2 * enemy.hpFraction - 1), -enemy.radius - 3),
-      _swarmPaint
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = color.withValues(alpha: 0.65),
-    );
-  }
-}
-
 // ── Batched swarm bodies ───────────────────────────────────────────────────
 //
-// At horde density the per-body draw calls above dominate the frame (device
+// At horde density the per-body draw calls dominate the frame (device
 // profile, 1,000 bodies: ~31% of the UI thread in drawCircle alone, and the
-// matching raster cost). The same silhouettes are baked once into an atlas —
-// one row per element, columns wisp / wisp-flash / drone / drone-flash — and
-// every simplifiable body goes out in a single drawRawAtlas.
+// matching raster cost). So the bodies are baked once into an atlas from the
+// same painters the live pass uses — one row per element, a few animation
+// frames and a hit-flash cell per tier — and every simplifiable body goes out
+// in a single drawRawAtlas, turned to its heading so a wisp's tail trails
+// behind it and a sentinel looks where it is going.
 
 const _kSwarmAtlasElements = [
   'Fire', 'Lava', 'Lightning', 'Water', 'Ice', 'Steam', 'Earth', 'Mud', //
   'Dust', 'Crystal', 'Air', 'Plant', 'Poison', 'Spirit', 'Dark', 'Light',
   'Blood',
 ];
-const double _kSwarmCell = 64;
+const double _kSwarmCell = 72;
 
-/// Atlas columns: (tier, hit-flash). Wisp/drone use the simplified swarm
-/// silhouette; sentinel/phantom are baked from the detailed renderer itself,
-/// so a dense field keeps the shapes that say "this one shoots" and "this one
-/// blinks".
-const _kSwarmColumns = [
-  (EnemyTier.wisp, false),
-  (EnemyTier.wisp, true),
-  (EnemyTier.drone, false),
-  (EnemyTier.drone, true),
-  (EnemyTier.sentinel, false),
-  (EnemyTier.sentinel, true),
-  (EnemyTier.phantom, false),
-  (EnemyTier.phantom, true),
+/// Animation frames baked per tier, then one hit-flash cell.
+const int _kSwarmFrames = 3;
+const int _kSwarmCellsPerTier = _kSwarmFrames + 1;
+const double _kSwarmFps = 9;
+
+const _kSwarmTiers = [
+  EnemyTier.wisp,
+  EnemyTier.drone,
+  EnemyTier.sentinel,
+  EnemyTier.phantom,
 ];
 
-/// Body radius in atlas pixels per column. Baked detailed bodies carry a 2r
-/// aura, so they are drawn smaller to stay inside the cell.
-double _swarmUnit(EnemyTier tier) =>
-    tier == EnemyTier.wisp || tier == EnemyTier.drone ? 20 : 13;
+/// Body radius in atlas pixels, and how far the body sits forward of the
+/// cell's centre (body radii) so a trailing tail has room behind it.
+(double, double) _swarmSpec(EnemyTier tier) => switch (tier) {
+  EnemyTier.wisp => (14, 0.35),
+  EnemyTier.drone => (14, 0.1),
+  _ => (14, 0),
+};
 
-int _swarmColumn(EnemyTier tier, bool flash) {
-  final base = switch (tier) {
-    EnemyTier.wisp => 0,
-    EnemyTier.drone => 2,
-    EnemyTier.sentinel => 4,
-    EnemyTier.phantom => 6,
-    _ => -1,
-  };
-  return base < 0 ? -1 : base + (flash ? 1 : 0);
+int _swarmColumn(EnemyTier tier, bool flash, int frame) {
+  final t = _kSwarmTiers.indexOf(tier);
+  if (t < 0) return -1;
+  return t * _kSwarmCellsPerTier + (flash ? _kSwarmFrames : frame);
 }
+
+/// The time each baked frame shows. Frames are spread through a second so
+/// the flicker and twinkle differ from one to the next.
+double _swarmFrameTime(int frame) => frame * 0.37;
 
 ui.Image? _swarmAtlas;
 
@@ -341,61 +283,76 @@ ui.Image _buildSwarmAtlas() {
   final canvas = Canvas(rec);
   for (var row = 0; row < _kSwarmAtlasElements.length; row++) {
     final element = _kSwarmAtlasElements[row];
-    final color = elementColor(element);
-    for (var col = 0; col < _kSwarmColumns.length; col++) {
-      final (tier, flash) = _kSwarmColumns[col];
-      final centre = Offset(
-        col * _kSwarmCell + _kSwarmCell / 2,
-        row * _kSwarmCell + _kSwarmCell / 2,
-      );
-      if (tier == EnemyTier.sentinel || tier == EnemyTier.phantom) {
-        drawEnemy(
-          canvas: canvas,
-          enemy: EnemyVisual(
-            position: centre,
-            angle: 0,
-            radius: _swarmUnit(tier),
-            element: element,
-            tier: tier,
-            hpFraction: 1,
-            hitFlash: flash ? 1 : 0,
+    final pal = enemyPalette(element);
+    for (final tier in _kSwarmTiers) {
+      final (unit, shift) = _swarmSpec(tier);
+      for (var f = 0; f <= _kSwarmFrames; f++) {
+        final flash = f == _kSwarmFrames;
+        final col = _swarmColumn(tier, flash, f);
+        canvas.save();
+        canvas.clipRect(
+          Rect.fromLTWH(
+            col * _kSwarmCell,
+            row * _kSwarmCell,
+            _kSwarmCell,
+            _kSwarmCell,
           ),
-          time: 0,
-          reduceLabels: true,
         );
-        continue;
-      }
-      final wisp = tier == EnemyTier.wisp;
-      canvas.save();
-      canvas.translate(centre.dx, centre.dy);
-      canvas.scale(_swarmUnit(tier));
-      final body = Paint()
-        ..shader = ui.Gradient.radial(
-          const Offset(-0.2, -0.25),
-          1.25,
-          [
-            Color.lerp(color, Colors.white, 0.45)!,
-            color.withValues(alpha: 0.85),
-            color.withValues(alpha: wisp ? 0 : 0.4),
-          ],
-          const [0, 0.5, 1],
+        // Baked facing +x: the batch turns each body to its heading.
+        canvas.translate(
+          col * _kSwarmCell + _kSwarmCell / 2 + shift * unit,
+          row * _kSwarmCell + _kSwarmCell / 2,
         );
-      if (wisp) {
-        canvas.drawCircle(Offset.zero, 1, body);
-      } else {
-        canvas.drawPath(_swarmHex, body);
+        canvas.scale(unit);
+        final t = _swarmFrameTime(flash ? 0 : f);
+        final hit = flash ? 1.0 : 0.0;
+        switch (tier) {
+          case EnemyTier.wisp:
+            paintWispBody(
+              canvas,
+              pal,
+              time: t,
+              seed: 0,
+              heading: 0,
+              flash: hit,
+            );
+          case EnemyTier.drone:
+            paintDroneBody(
+              canvas,
+              pal,
+              time: t,
+              seed: 0,
+              heading: 0,
+              flash: hit,
+            );
+          case EnemyTier.sentinel:
+            paintSentinelBody(
+              canvas,
+              pal,
+              time: t,
+              seed: 0,
+              heading: 0,
+              flash: hit,
+            );
+          case EnemyTier.phantom:
+            paintPhantomBody(
+              canvas,
+              pal,
+              time: t,
+              seed: 0,
+              heading: 0,
+              flash: hit,
+            );
+          default:
+            break;
+        }
+        canvas.restore();
       }
-      canvas.drawCircle(
-        const Offset(-0.15, -0.18),
-        flash ? 0.5 : 0.16,
-        Paint()..color = Colors.white.withValues(alpha: flash ? 0.95 : 0.45),
-      );
-      canvas.restore();
     }
   }
   final pic = rec.endRecording();
   final image = pic.toImageSync(
-    (_kSwarmCell * _kSwarmColumns.length).toInt(),
+    (_kSwarmCell * _kSwarmTiers.length * _kSwarmCellsPerTier).toInt(),
     (_kSwarmCell * _kSwarmAtlasElements.length).toInt(),
   );
   pic.dispose();
@@ -407,7 +364,7 @@ ui.Image _buildSwarmAtlas() {
 /// information the atlas cannot show (elite, trait, roots, a hard freeze,
 /// custom colour) still gets the full renderer.
 bool canBakeDenseSurvivalEnemy(CosmicSurvivalEnemy enemy) =>
-    _swarmColumn(enemy.tier, false) >= 0 &&
+    _swarmColumn(enemy.tier, false, 0) >= 0 &&
     !enemy.isElite &&
     enemy.trait == null &&
     !enemy.isPlagueCore &&
@@ -451,21 +408,26 @@ class SurvivalSwarmBatch {
     final row = _kSwarmAtlasElements.indexOf(enemy.element);
     if (row < 0) return false;
     final tier = enemy.tier;
-    final col = _swarmColumn(tier, enemy.hitFlash > 0.3);
+    final seed = identityHashCode(enemy) & 1023;
+    final frame = (time * _kSwarmFps + seed).floor() % _kSwarmFrames;
+    final col = _swarmColumn(tier, enemy.hitFlash > 0.3, frame);
     if (col < 0) return false;
-    final wisp = tier == EnemyTier.wisp;
-    final breathe = wisp ? 0.86 + 0.10 * sin(time * 6 + enemy.angle * 5) : 1.0;
-    final scale = enemy.radius * breathe / _swarmUnit(tier);
+    final (unit, shift) = _swarmSpec(tier);
+    final scale = enemy.radius / unit;
     if ((_count + 1) * 4 > _xforms.length) {
       _xforms = Float32List(_xforms.length * 2)..setAll(0, _xforms);
       _rects = Float32List(_rects.length * 2)..setAll(0, _rects);
     }
+    // Turned about the body, which sits [shift] forward of the cell centre.
+    final scos = scale * cos(enemy.angle);
+    final ssin = scale * sin(enemy.angle);
+    final ax = _kSwarmCell / 2 + shift * unit;
+    const ay = _kSwarmCell / 2;
     final i = _count * 4;
-    const half = _kSwarmCell / 2;
-    _xforms[i] = scale;
-    _xforms[i + 1] = 0;
-    _xforms[i + 2] = enemy.position.dx - scale * half;
-    _xforms[i + 3] = enemy.position.dy - scale * half;
+    _xforms[i] = scos;
+    _xforms[i + 1] = ssin;
+    _xforms[i + 2] = enemy.position.dx - scos * ax + ssin * ay;
+    _xforms[i + 3] = enemy.position.dy - ssin * ax - scos * ay;
     _rects[i] = col * _kSwarmCell;
     _rects[i + 1] = row * _kSwarmCell;
     _rects[i + 2] = (col + 1) * _kSwarmCell;
@@ -541,7 +503,9 @@ class SurvivalSwarmBatch {
   }
 }
 
-/// Survival's entry point.
+/// Survival's entry point. [simplifySwarm] is kept for the call site; every
+/// body now draws through the same cheap unit-space painters, so there is
+/// no separate crowd silhouette to fall back to.
 void drawSurvivalEnemy({
   required Canvas canvas,
   required CosmicSurvivalEnemy enemy,
@@ -549,10 +513,6 @@ void drawSurvivalEnemy({
   bool reduceLabels = false,
   bool simplifySwarm = false,
 }) {
-  if (simplifySwarm && canSimplifySurvivalSwarmEnemy(enemy)) {
-    _drawSurvivalSwarmEnemy(canvas, enemy, time);
-    return;
-  }
   drawEnemy(
     canvas: canvas,
     enemy: EnemyVisual.fromSurvival(enemy),
@@ -595,9 +555,6 @@ void drawEnemy({
     EliteAffix.relentless => const Color(0xFFA78BFA),
     null => eColor,
   };
-  final flashColor = enemy.hitFlash > 0
-      ? Color.lerp(eColor, Colors.white, enemy.hitFlash)!
-      : eColor;
   final r = enemy.radius;
   final elapsed = time;
   final variantScale = enemy.squash;
@@ -610,295 +567,97 @@ void drawEnemy({
     canvas.scale(variantScale, variantYScale);
   }
 
-  // Outer elemental aura (all tiers)
-  canvas.drawCircle(
-    Offset.zero,
-    r * 2.0,
-    Paint()
-      ..color = eColor.withValues(alpha: 0.10)
-      ..maskFilter = null,
-  );
+  final pal = enemyPalette(enemy.element, enemy.visualColor);
+  final seed = enemy.seed;
+  // Where the body is in its attack, for the bodies that perform it.
+  final ap = enemy.actionProgress.clamp(0.0, 1.0);
+  final windUp = enemy.actionPhase == EnemyActionPhase.windUp ? ap : 0.0;
+  final commit = enemy.actionPhase == EnemyActionPhase.commit ? 1 - ap : 0.0;
+  final recover = enemy.actionPhase == EnemyActionPhase.recover ? 1 - ap : 0.0;
 
   if (enemy.isElite && enemy.eliteAffix != null) {
-    canvas.drawCircle(
-      Offset.zero,
-      r * 2.3,
-      Paint()
-        ..color = affixColor.withValues(alpha: 0.16)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4,
-    );
+    // The body stands in a pool of its affix's light — an aura, not a hoop.
+    vfxSpill(canvas, Offset.zero, r * 2.6, affixColor, 0.42);
   }
 
+  canvas.save();
+  canvas.scale(r);
   switch (enemy.tier) {
     case EnemyTier.wisp:
-      final flicker = 0.7 + 0.3 * sin(elapsed * 6 + enemy.angle * 5);
-      final wobble = r * flicker;
-      canvas.drawCircle(
-        Offset.zero,
-        wobble,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            const Offset(-1, -1),
-            wobble,
-            [
-              Colors.white.withValues(alpha: 0.7 * flicker),
-              flashColor.withValues(alpha: 0.5 * flicker),
-              flashColor.withValues(alpha: 0.0),
-            ],
-            [0.0, 0.5, 1.0],
-          ),
+      paintWispBody(
+        canvas,
+        pal,
+        time: elapsed,
+        seed: seed,
+        heading: enemy.angle,
+        flash: enemy.hitFlash,
       );
-      canvas.drawCircle(
-        Offset.zero,
-        r * 0.15,
-        Paint()
-          ..color = Colors.red.withValues(alpha: 0.9 * flicker)
-          ..maskFilter = null,
-      );
-
-    case EnemyTier.sentinel:
-      canvas.drawCircle(
-        Offset.zero,
-        r,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            Offset(-r * 0.25, -r * 0.25),
-            r * 1.2,
-            [
-              Color.lerp(
-                flashColor,
-                Colors.white,
-                0.35,
-              )!.withValues(alpha: 0.9),
-              flashColor.withValues(alpha: 0.8),
-              Color.lerp(flashColor, Colors.black, 0.5)!.withValues(alpha: 0.7),
-            ],
-            [0.0, 0.5, 1.0],
-          ),
-      );
-      canvas.drawCircle(
-        Offset(-r * 0.2, -r * 0.25),
-        r * 0.3,
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.3)
-          ..maskFilter = null,
-      );
-      canvas.save();
-      canvas.rotate(elapsed * 0.3 + enemy.angle);
-      final ringR = r * 1.8;
-      canvas.drawCircle(
-        Offset.zero,
-        ringR,
-        Paint()
-          ..color = eColor.withValues(alpha: 0.12)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.8,
-      );
-      for (var i = 0; i < 3; i++) {
-        final orbitAngle = elapsed * (1.2 + i * 0.4) + i * pi * 2 / 3;
-        final ox = cos(orbitAngle) * ringR;
-        final oy = sin(orbitAngle) * ringR;
-        final satR = r * (0.18 + i * 0.04);
-        canvas.drawCircle(
-          Offset(ox, oy),
-          satR * 2,
-          Paint()
-            ..color = eColor.withValues(alpha: 0.2)
-            ..maskFilter = null,
-        );
-        canvas.drawCircle(
-          Offset(ox, oy),
-          satR,
-          Paint()
-            ..shader = ui.Gradient.radial(
-              Offset(ox - satR * 0.3, oy - satR * 0.3),
-              satR,
-              [
-                Colors.white.withValues(alpha: 0.7),
-                eColor.withValues(alpha: 0.8),
-              ],
-            ),
-        );
-      }
-      canvas.restore();
-      canvas.drawCircle(
-        Offset.zero,
-        r * 0.25,
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.5)
-          ..maskFilter = null,
-      );
-
     case EnemyTier.drone:
-      final twitch = sin(elapsed * 12 + enemy.angle * 7) * r * 0.08;
-      final hexPath = Path();
-      for (var i = 0; i < 6; i++) {
-        final a = i * pi / 3 - pi / 6;
-        final hr = r * (1.0 + (i.isEven ? twitch / r : -twitch / r));
-        final hx = cos(a) * hr;
-        final hy = sin(a) * hr;
-        if (i == 0) {
-          hexPath.moveTo(hx, hy);
-        } else {
-          hexPath.lineTo(hx, hy);
-        }
-      }
-      hexPath.close();
-      canvas.drawPath(
-        hexPath,
-        Paint()
-          ..shader = ui.Gradient.linear(
-            Offset(0, -r),
-            Offset(0, r),
-            [
-              Color.lerp(flashColor, Colors.white, 0.4)!.withValues(alpha: 0.9),
-              flashColor.withValues(alpha: 0.85),
-              Color.lerp(flashColor, Colors.black, 0.3)!.withValues(alpha: 0.7),
-            ],
-            [0.0, 0.5, 1.0],
-          ),
+      paintDroneBody(
+        canvas,
+        pal,
+        time: elapsed,
+        seed: seed,
+        heading: enemy.actionPhase == null ? enemy.angle : enemy.actionAngle,
+        charge: windUp,
+        dash: commit,
+        flash: enemy.hitFlash,
       );
-      canvas.drawPath(
-        hexPath,
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.25)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0,
+    case EnemyTier.sentinel:
+      paintSentinelBody(
+        canvas,
+        pal,
+        time: elapsed,
+        seed: seed,
+        heading: enemy.actionPhase == null ? enemy.angle : enemy.actionAngle,
+        charge: windUp,
+        release: max(commit, recover * 0.6),
+        flash: enemy.hitFlash,
       );
-      final eyePulse = 0.6 + 0.4 * sin(elapsed * 8 + enemy.angle * 3);
-      canvas.drawCircle(
-        Offset.zero,
-        r * 0.2,
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.9 * eyePulse)
-          ..maskFilter = null,
-      );
-      for (var s = 0; s < 2; s++) {
-        final sparkAngle = enemy.angle + pi + (s - 0.5) * 0.4;
-        final sparkDist = r * (1.2 + 0.3 * sin(elapsed * 10 + s * 3));
-        canvas.drawCircle(
-          Offset(cos(sparkAngle) * sparkDist, sin(sparkAngle) * sparkDist),
-          r * 0.12,
-          Paint()
-            ..color = eColor.withValues(alpha: 0.5 * eyePulse)
-            ..maskFilter = null,
-        );
-      }
-
     case EnemyTier.phantom:
-      drawEnemyTendrils(canvas, r, eColor, elapsed, seed: enemy.angle);
-      // Hollow: you see space through it. The old phantom was a dimmed brute —
-      // same silhouette, lower alpha — which made it both the least visible
-      // enemy in the game and indistinguishable from the tier above it.
-      final ghostPhase = elapsed * 1.5 + enemy.angle * 2;
-      final breathe = 1.0 + 0.10 * sin(ghostPhase);
-      final gap = 0.55 + 0.25 * sin(ghostPhase * 0.7);
-      final ringPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = r * 0.30
-        ..color = eColor.withValues(alpha: 0.72);
-      // Two broken arcs leave the body open at the seams.
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset.zero, radius: r * breathe),
-        ghostPhase * 0.4,
-        pi * 2 - gap,
-        false,
-        ringPaint,
+      paintPhantomBody(
+        canvas,
+        pal,
+        time: elapsed,
+        seed: seed,
+        heading: enemy.angle,
+        fade: enemy.actionPhase == EnemyActionPhase.commit ? 1.0 : windUp,
+        exposed: recover,
+        flash: enemy.hitFlash,
       );
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset.zero, radius: r * 0.58 * breathe),
-        -ghostPhase * 0.6,
-        pi * 1.1,
-        false,
-        ringPaint
-          ..strokeWidth = r * 0.16
-          ..color = Color.lerp(
-            eColor,
-            Colors.white,
-            0.5,
-          )!.withValues(alpha: 0.55),
-      );
-      // A single bright pip marks where the mass actually is.
-      canvas.drawCircle(
-        Offset.zero,
-        r * 0.17,
-        Paint()
-          ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.85 * breathe),
-      );
-
     case EnemyTier.brute:
       if (enemy.isPlagueCore) {
-        drawEnemyTendrils(
-          canvas,
-          r,
-          flashColor,
-          elapsed,
-          count: 8,
-          seed: enemy.angle,
-        );
-        final beat = 1.0 + 0.08 * sin(elapsed * 3.2);
-        canvas.drawCircle(
-          Offset.zero,
-          r * 0.75 * beat,
-          Paint()..color = Color.lerp(flashColor, Colors.black, 0.48)!,
-        );
-        canvas.drawCircle(
-          Offset.zero,
-          r * 0.52 * beat,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..color = flashColor,
-        );
-        canvas.drawCircle(
-          Offset.zero,
-          r * 0.24 * beat,
-          Paint()..color = Color.lerp(flashColor, Colors.white, 0.65)!,
-        );
+        _drawPlagueCore(canvas, pal, elapsed, seed, enemy.hitFlash);
       } else {
-        _drawHeavyBody(canvas, enemy, flashColor, elapsed, colossus: false);
+        _drawHeavyBody(canvas, enemy, pal, elapsed, colossus: false);
       }
-      final bruteHpFrac = enemy.hpFraction;
-      if (bruteHpFrac < 1.0 || enemy.isPlagueCore) {
-        final barW = r * 2.5;
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(center: Offset(0, -r - 8), width: barW, height: 3),
-            const Radius.circular(1.5),
-          ),
-          Paint()..color = Colors.black.withValues(alpha: 0.6),
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(-barW / 2, -r - 8 - 1.5, barW * bruteHpFrac, 3),
-            const Radius.circular(1.5),
-          ),
-          Paint()..color = Color.lerp(Colors.red, eColor, bruteHpFrac)!,
-        );
-      }
-
     case EnemyTier.colossus:
-      _drawHeavyBody(canvas, enemy, flashColor, elapsed, colossus: true);
-      final colHpFrac = enemy.hpFraction;
-      if (colHpFrac < 1.0) {
-        final barW = r * 3.0;
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(center: Offset(0, -r - 10), width: barW, height: 4),
-            const Radius.circular(2),
-          ),
-          Paint()..color = Colors.black.withValues(alpha: 0.6),
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(-barW / 2, -r - 10 - 2, barW * colHpFrac, 4),
-            const Radius.circular(2),
-          ),
-          Paint()..color = Color.lerp(Colors.red, eColor, colHpFrac)!,
-        );
-      }
+      _drawHeavyBody(canvas, enemy, pal, elapsed, colossus: true);
+  }
+  canvas.restore();
+
+  if (enemy.tier == EnemyTier.brute || enemy.tier == EnemyTier.colossus) {
+    final colossus = enemy.tier == EnemyTier.colossus;
+    final hpFrac = enemy.hpFraction;
+    if (hpFrac < 1.0 || enemy.isPlagueCore) {
+      final barW = r * (colossus ? 3.0 : 2.5);
+      final barH = colossus ? 4.0 : 3.0;
+      final barY = -r - (colossus ? 10 : 8);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset(0, barY), width: barW, height: barH),
+          Radius.circular(barH / 2),
+        ),
+        Paint()..color = Colors.black.withValues(alpha: 0.6),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(-barW / 2, barY - barH / 2, barW * hpFrac, barH),
+          Radius.circular(barH / 2),
+        ),
+        Paint()..color = Color.lerp(Colors.red, eColor, hpFrac)!,
+      );
+    }
   }
 
   // Variant mark. This is the only thing on an ordinary enemy that says which
@@ -949,6 +708,10 @@ final Path _enemyTendril = Path()
   ..cubicTo(1.30, 1.00, 0.98, -0.10, 0.50, 0.12)
   ..close();
 
+final Map<int, ui.Shader> _tendrilShaders = {};
+
+/// Living limbs, filled — dark flesh at the root going to the colour's
+/// light at the tips, no outline.
 void drawEnemyTendrils(
   Canvas canvas,
   double radius,
@@ -957,11 +720,21 @@ void drawEnemyTendrils(
   int count = 5,
   double seed = 0,
 }) {
-  final fill = Paint()..color = Color.lerp(color, Colors.black, 0.30)!;
-  final edge = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 0.035
-    ..color = Color.lerp(color, Colors.white, 0.25)!;
+  final fill = Paint()
+    ..shader = _tendrilShaders.putIfAbsent(
+      color.toARGB32(),
+      () => ui.Gradient.radial(
+        Offset.zero,
+        2.1,
+        [
+          Color.lerp(color, Colors.black, 0.72)!,
+          Color.lerp(color, Colors.black, 0.35)!,
+          Color.lerp(color, Colors.white, 0.2)!.withValues(alpha: 0.75),
+          color.withValues(alpha: 0.0),
+        ],
+        const [0.2, 0.5, 0.82, 1.0],
+      ),
+    );
   canvas.save();
   canvas.scale(radius);
   for (var i = 0; i < count; i++) {
@@ -970,37 +743,51 @@ void drawEnemyTendrils(
     canvas.rotate(i * 2 * pi / count + sway * 0.16 + seed * 0.1);
     canvas.scale(0.94 + sway * 0.10, i.isEven ? 1.0 : -1.0);
     canvas.drawPath(_enemyTendril, fill);
-    canvas.drawPath(_enemyTendril, edge);
     canvas.restore();
   }
   canvas.restore();
 }
 
-// Unit geometry is built once; animation only changes canvas transforms.
-final Path _bruteArmor = Path()
-  ..moveTo(-0.94, -0.24)
-  ..lineTo(-0.70, -0.73)
-  ..lineTo(0.18, -0.87)
-  ..lineTo(0.82, -0.49)
-  ..lineTo(0.60, -0.23)
-  ..lineTo(-0.25, -0.14)
-  ..close();
-final Path _colossusArmor = Path()
-  ..moveTo(0.47, -0.21)
-  ..lineTo(0.79, -0.43)
-  ..lineTo(1.14, -0.28)
-  ..lineTo(1.36, 0)
-  ..lineTo(1.14, 0.28)
-  ..lineTo(0.79, 0.43)
-  ..lineTo(0.47, 0.21)
-  ..close();
+/// The outbreak core: a beating furnace in a knot of limbs. Unit space.
+void _drawPlagueCore(
+  Canvas canvas,
+  EnemyPalette pal,
+  double time,
+  double seed,
+  double flash,
+) {
+  drawEnemyTendrils(canvas, 1, pal.essence, time, count: 8, seed: seed);
+  final beat = 1.0 + 0.08 * sin(time * 3.2);
+  canvas.save();
+  canvas.scale(0.78 * beat);
+  canvas.drawCircle(Offset.zero, 1, Paint()..shader = pal.orb);
+  canvas.restore();
+  canvas.save();
+  canvas.scale(0.52 * beat);
+  canvas.drawCircle(
+    Offset.zero,
+    1,
+    Paint()
+      ..shader = pal.spark
+      ..color = Colors.white.withValues(alpha: 0.85 + 0.15 * sin(time * 6.4)),
+  );
+  canvas.restore();
+  if (flash > 0.02) {
+    canvas.drawCircle(
+      Offset.zero,
+      0.9,
+      Paint()..color = Colors.white.withValues(alpha: 0.6 * flash.clamp(0, 1)),
+    );
+  }
+}
 
-/// Heavy enemies perform through their armor, with a bounded number of draws.
-/// Open-world bodies breathe; survival also drives the actual attack phases.
+/// Heavy enemies perform through their shell: the brute's plates part and
+/// its furnace blazes through the channel; the colossus's crown draws in on
+/// the wind-up and blows out on the strike. Unit space.
 void _drawHeavyBody(
   Canvas canvas,
   EnemyVisual enemy,
-  Color color,
+  EnemyPalette pal,
   double time, {
   required bool colossus,
 }) {
@@ -1012,81 +799,32 @@ void _drawHeavyBody(
     _ => 0.0,
   };
   final recoil = enemy.actionPhase == EnemyActionPhase.commit ? 1 - p : 0.0;
-  final breath = sin(time * (colossus ? 1.3 : 2.0) + enemy.angle);
-  final fill = Paint()..color = Color.lerp(color, Colors.black, 0.48)!;
-  final edge = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeJoin = StrokeJoin.round
-    ..strokeWidth = 0.035
-    ..color = Color.lerp(color, Colors.white, 0.25)!;
-  final light = Paint()
-    ..color = Color.lerp(color, Colors.white, 0.30 + charge * 0.60)!;
-  canvas.save();
-  canvas.scale(enemy.radius);
   if (!colossus) {
-    canvas.rotate(enemy.actionPhase == null ? enemy.angle : enemy.actionAngle);
-    canvas.translate(-recoil * 0.13, 0);
-    // Broad paired plates leave a visible central firing channel.
-    canvas.drawOval(const Rect.fromLTWH(-0.85, -0.38, 1.7, 0.76), fill);
-    for (final side in [-1.0, 1.0]) {
-      canvas.save();
-      canvas.scale(1.0, side);
-      canvas.translate(0.0, -0.18 * charge - 0.015 * breath);
-      canvas.drawPath(_bruteArmor, fill);
-      canvas.drawPath(_bruteArmor, edge);
-      canvas.drawLine(
-        const Offset(-0.60, -0.49),
-        const Offset(0.12, -0.62),
-        edge,
-      );
-      canvas.restore();
-    }
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: const Offset(0.12, 0),
-        width: 0.78,
-        height: 0.18 + charge * 0.18,
-      ),
-      light,
+    paintBruteBody(
+      canvas,
+      pal,
+      time: time,
+      seed: enemy.seed,
+      facing: enemy.actionPhase == null ? enemy.angle : enemy.actionAngle,
+      charge: charge,
+      recoil: recoil,
+      flash: enemy.hitFlash,
     );
-    canvas.drawCircle(const Offset(0.72, 0), 0.13 + charge * 0.09, light);
-    // Rear exhaust slits give the body a direction even while idle.
-    canvas.drawLine(
-      const Offset(-0.89, -0.14),
-      const Offset(-1.06, -0.14),
-      edge,
-    );
-    canvas.drawLine(const Offset(-0.89, 0.14), const Offset(-1.06, 0.14), edge);
   } else {
-    final contraction = enemy.actionPhase == EnemyActionPhase.windUp
-        ? -0.15 * charge
-        : 0.22 * recoil + 0.03 * breath;
-    canvas.rotate(enemy.angle * 0.12 + sin(time * 0.35) * 0.035);
-    canvas.drawCircle(Offset.zero, 0.65, fill);
-    // Six broad articulated segments replace the thin, low-contrast tendrils.
-    for (var segment = 0; segment < 6; segment++) {
-      canvas.save();
-      canvas.rotate(segment * pi / 3);
-      canvas.translate(contraction, 0);
-      canvas.drawPath(_colossusArmor, fill);
-      canvas.drawPath(_colossusArmor, edge);
-      canvas.drawLine(const Offset(0.66, 0), const Offset(1.12, 0), edge);
-      canvas.drawCircle(const Offset(0.87, 0), 0.065, light);
-      canvas.restore();
-    }
-    canvas.drawCircle(Offset.zero, 0.34 + 0.10 * charge, light);
-    canvas.drawCircle(
-      Offset.zero,
-      0.17 + 0.06 * charge,
-      fill..color = const Color(0xFFFFF3DB),
-    );
-    canvas.drawCircle(
-      Offset.zero,
-      0.49,
-      edge..color = color.withValues(alpha: 0.55 + 0.4 * charge),
+    final breath = sin(time * 1.3 + enemy.seed);
+    paintColossusBody(
+      canvas,
+      pal,
+      time: time,
+      seed: enemy.seed,
+      turn: enemy.angle * 0.12 + sin(time * 0.35) * 0.035,
+      contraction: enemy.actionPhase == EnemyActionPhase.windUp
+          ? -0.15 * charge
+          : 0.22 * recoil + 0.03 * breath,
+      charge: charge,
+      flash: enemy.hitFlash,
     );
   }
-  canvas.restore();
 }
 
 /// Cached boss-name painters, module-level for the same reason the affix ones
@@ -1112,6 +850,15 @@ TextPainter _bossNamePainter(String name, Color color) {
   );
 }
 
+/// A boss's palette: its own colour in its element's material, pushed
+/// toward blood-red while it is enraged.
+EnemyPalette _bossPalette(String element, Color color, bool enraged) {
+  final base = enraged ? Color.lerp(color, const Color(0xFFE53935), 0.35)! : color;
+  return base == elementColor(element)
+      ? enemyPalette(element)
+      : enemyPalette(element, base);
+}
+
 void drawSurvivalBoss({
   required Canvas canvas,
   required SurvivalBoss boss,
@@ -1121,7 +868,6 @@ void drawSurvivalBoss({
   final bColor = boss.color;
   final r = boss.radius;
   final elapsed = time;
-  final pulse = 0.8 + 0.2 * sin(elapsed * 2.5);
   final spawnTarget = boss.spawnTargetPosition;
   if (boss.isSpawning && spawnTarget != null) {
     final introT = 1.0 - (boss.spawnIntroTimer / boss.spawnIntroDuration);
@@ -1301,92 +1047,50 @@ void drawSurvivalBoss({
 
   canvas.save();
   canvas.translate(boss.position.dx, boss.position.dy);
-  if (boss.discipline == SurvivalBossDiscipline.riftcaller ||
-      boss.type == BossType.carrier) {
-    drawEnemyTendrils(
+
+  final pal = _bossPalette(boss.template.element, bColor, boss.enraged);
+  final form = bossFormFor(boss.type);
+  canvas.save();
+  canvas.scale(r);
+  paintBossForm(
+    canvas,
+    pal,
+    form,
+    time: elapsed,
+    seed: boss.template.name.length * 0.7,
+    heading: boss.charging ? boss.chargeAngle : boss.angle,
+    charge: boss.charging ? 1 : 0,
+    enraged: boss.enraged,
+    shield: boss.shieldUp,
+    reduceGlows: reduceGlows,
+    flash: boss.hitFlash,
+  );
+  canvas.restore();
+
+  if (boss.shieldUp && form != BossForm.spire) {
+    vfxSoftRing(
       canvas,
-      r * 0.95,
-      bColor,
-      elapsed,
-      count: 8,
-      seed: boss.enraged ? elapsed * 0.35 : 0,
-    );
-  }
-
-  final auraColor = boss.enraged
-      ? Colors.red.withValues(alpha: 0.15 * pulse)
-      : bColor.withValues(alpha: 0.12 * pulse);
-  if (!reduceGlows) {
-    canvas.drawCircle(
       Offset.zero,
-      r * 2.5,
-      Paint()
-        ..color = auraColor
-        ..maskFilter = null,
+      r * 1.32,
+      r * 0.16,
+      const Color(0xFF7FE8F4),
+      0.42 + 0.12 * sin(elapsed * 3),
     );
   }
-
-  canvas.drawCircle(
-    Offset.zero,
-    r,
-    Paint()
-      ..shader = ui.Gradient.radial(
-        Offset(-r * 0.3, -r * 0.3),
-        r * 1.5,
-        [
-          Color.lerp(bColor, Colors.white, 0.2)!.withValues(alpha: 0.85),
-          bColor.withValues(alpha: 0.8),
-          Color.lerp(bColor, Colors.black, 0.5)!.withValues(alpha: 0.7),
-        ],
-        [0.0, 0.4, 1.0],
-      ),
-  );
-
-  if (boss.shieldUp) {
-    canvas.drawCircle(
-      Offset.zero,
-      r * 1.3,
-      Paint()
-        ..color = Colors.cyan.withValues(alpha: 0.2 + 0.1 * sin(elapsed * 3))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..maskFilter = null,
-    );
-  }
-
-  for (var i = 0; i < 6; i++) {
-    final orbitAngle = elapsed * 0.8 + i * pi / 3;
-    final orbitR = r * 1.4;
-    final mx = cos(orbitAngle) * orbitR;
-    final my = sin(orbitAngle) * orbitR;
-    canvas.drawCircle(
-      Offset(mx, my),
-      3,
-      Paint()
-        ..color = bColor.withValues(alpha: 0.6 + 0.2 * sin(elapsed * 2 + i)),
-    );
-  }
-
-  canvas.drawCircle(
-    Offset.zero,
-    r * 0.3,
-    Paint()
-      ..color = Colors.white.withValues(alpha: 0.4 * pulse)
-      ..maskFilter = null,
-  );
 
   final hpFrac = boss.hpFraction;
   final barW = r * 3.0;
+  final barY = -r * bossFormReach(form) - 12;
   canvas.drawRRect(
     RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset(0, -r - 14), width: barW, height: 5),
+      Rect.fromCenter(center: Offset(0, barY), width: barW, height: 5),
       const Radius.circular(2.5),
     ),
     Paint()..color = Colors.black.withValues(alpha: 0.7),
   );
   canvas.drawRRect(
     RRect.fromRectAndRadius(
-      Rect.fromLTWH(-barW / 2, -r - 14 - 2.5, barW * hpFrac, 5),
+      Rect.fromLTWH(-barW / 2, barY - 2.5, barW * hpFrac, 5),
       const Radius.circular(2.5),
     ),
     Paint()
@@ -1417,22 +1121,8 @@ void drawSurvivalBoss({
     }
   }
 
-  // Discipline sigil — the lair boss's treatment, brought to survival. Seven
-  // disciplines rendered as the same sphere before this, so an artillery boss
-  // that snipes from the rim looked exactly like a duelist that closes.
-  drawBossSigil(
-    canvas: canvas,
-    centre: Offset.zero,
-    radius: r,
-    color: Color.lerp(bColor, const Color(0xFFFFFFFF), 0.35)!,
-    points: disciplineSigilPoints(boss.discipline),
-    motes: bossTypeMotes(boss.type),
-    time: elapsed,
-    alpha: reduceGlows ? 0.75 : 1.0,
-  );
-
   final nameTP = _bossNamePainter(boss.template.name, bColor);
-  nameTP.paint(canvas, Offset(-nameTP.width / 2, -r - 24));
+  nameTP.paint(canvas, Offset(-nameTP.width / 2, barY - 12));
 
   canvas.restore();
 }
@@ -1456,8 +1146,10 @@ void drawOpenWorldEnemy({
 // ─────────────────────────────────────────────────────────────────────────────
 // Open-world boss
 //
-// The lair boss you fight in roaming space — a third enemy renderer, distinct
-// again from survival's drawSurvivalBoss. Six MaskFilter.blur sites here.
+// The lair boss you fight in roaming space. It shares survival's six boss
+// forms (boss_forms.dart) and keeps its own tells: the charger's lance and
+// the gunner's shield. It used to carry six MaskFilter.blur sites; it
+// carries none.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void drawOpenWorldBoss({
@@ -1468,196 +1160,68 @@ void drawOpenWorldBoss({
   final bp = boss.position;
   // Culling stays with the caller, which owns the camera.
   final bColor = elementColor(boss.element);
+  final r = boss.radius;
+  final pal = _bossPalette(boss.element, bColor, boss.enraged);
 
   canvas.save();
   canvas.translate(bp.dx, bp.dy);
 
-  // Outer aura — breathing glow (warden enrage turns it red)
-  final pulse = 0.8 + 0.2 * sin(time * 2.5);
-  final auraColor = (boss.enraged)
-      ? Color.lerp(bColor, Colors.red, 0.6)!
-      : bColor;
-  canvas.drawCircle(
-    Offset.zero,
-    boss.radius * 3.0 * pulse,
-    Paint()
-      ..color = auraColor.withValues(alpha: boss.enraged ? 0.12 : 0.06)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, boss.radius * 1.5),
-  );
-  // Secondary aura ring
-  canvas.drawCircle(
-    Offset.zero,
-    boss.radius * 2.0 * pulse,
-    Paint()
-      ..color = auraColor.withValues(alpha: boss.enraged ? 0.15 : 0.08)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, boss.radius * 0.8),
-  );
+  final form = bossFormFor(boss.type);
 
-  if (boss.type == BossType.carrier) {
-    drawEnemyTendrils(
-      canvas,
-      boss.radius * 0.95,
-      bColor,
-      time,
-      count: 8,
-      seed: boss.enraged ? time * 0.35 : 0,
-    );
-  }
-
-  // ── Charger: directional wedge indicator + charge trail ──
-  if (boss.type == BossType.charger) {
+  // Charger: the wake it leaves while it dashes (the comet's own tail
+  // streams out long and fast as well).
+  if (boss.type == BossType.charger && boss.charging) {
     canvas.save();
     canvas.rotate(boss.angle);
-    // Pointed wedge in front
-    final wedge = Path()
-      ..moveTo(boss.radius * 1.5, 0)
-      ..lineTo(boss.radius * 0.4, -boss.radius * 0.5)
-      ..lineTo(boss.radius * 0.4, boss.radius * 0.5)
-      ..close();
-    canvas.drawPath(
-      wedge,
-      Paint()
-        ..color = bColor.withValues(alpha: boss.charging ? 0.8 : 0.3)
-        ..maskFilter = boss.charging
-            ? const MaskFilter.blur(BlurStyle.normal, 4)
-            : null,
+    paintSoftCircle(
+      canvas,
+      Offset(-r * 1.5, 0),
+      r * 0.8,
+      pal.essence.withValues(alpha: 0.4),
+      12,
     );
-    // Charge trail glow behind boss when dashing
-    if (boss.charging) {
-      canvas.drawCircle(
-        Offset(-boss.radius * 1.5, 0),
-        boss.radius * 0.8,
-        Paint()
-          ..color = bColor.withValues(alpha: 0.4)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
-      );
-    }
     canvas.restore();
   }
 
-  // ── Gunner: shield ring ──
-  if ((boss.type == BossType.gunner || boss.type == BossType.bulwark) &&
-      boss.shieldUp) {
+  canvas.save();
+  canvas.scale(r);
+  paintBossForm(
+    canvas,
+    pal,
+    form,
+    time: time,
+    seed: boss.name.length * 0.7,
+    heading: boss.angle,
+    charge: boss.charging ? 1 : 0,
+    enraged: boss.enraged,
+    shield: boss.shieldUp && boss.type == BossType.bulwark,
+  );
+  canvas.restore();
+
+  // The gunner: a shield of cold light while it holds. (The bulwark's is
+  // the glass barrier its spire wears.)
+  if (boss.type == BossType.gunner && boss.shieldUp) {
     final shieldAlpha =
         (boss.shieldHealth /
                 (boss.type == BossType.bulwark
                     ? CosmicBalance.bossShieldHealth(boss.level) * 1.4
                     : CosmicBalance.bossShieldHealth(boss.level)))
             .clamp(0.0, 1.0);
-    canvas.drawCircle(
+    vfxSoftRing(
+      canvas,
       Offset.zero,
-      boss.type == BossType.bulwark ? boss.radius * 1.85 : boss.radius * 1.6,
-      Paint()
-        ..color = Colors.cyanAccent.withValues(alpha: 0.2 * shieldAlpha)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-    );
-    canvas.drawCircle(
-      Offset.zero,
-      boss.type == BossType.bulwark ? boss.radius * 1.55 : boss.radius * 1.4,
-      Paint()
-        ..color = Colors.cyanAccent.withValues(alpha: 0.5 * shieldAlpha)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0,
+      boss.type == BossType.bulwark ? r * 1.55 : r * 1.4,
+      r * 0.2,
+      const Color(0xFF7FE8F4),
+      0.55 * shieldAlpha,
     );
   }
-
-  // Orbiting rune motes
-  final moteCount = switch (boss.type) {
-    BossType.charger => 4,
-    BossType.gunner => 6,
-    BossType.skirmisher => 5,
-    BossType.bulwark => 6,
-    BossType.carrier => 7,
-    BossType.warden => 8,
-  };
-  for (var i = 0; i < moteCount; i++) {
-    final moteA = time * 1.2 + i * pi * 2 / moteCount;
-    final moteR = boss.radius * (1.3 + 0.15 * sin(time * 3 + i));
-    final mp = Offset(cos(moteA) * moteR, sin(moteA) * moteR);
-    canvas.drawCircle(
-      mp,
-      2.5,
-      Paint()
-        ..color = (boss.enraged ? Colors.red : bColor).withValues(alpha: 0.7)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-    );
-  }
-
-  // Core body — radial gradient orb
-  canvas.drawCircle(
-    Offset.zero,
-    boss.radius,
-    Paint()
-      ..shader = ui.Gradient.radial(
-        Offset(-boss.radius * 0.2, -boss.radius * 0.2),
-        boss.radius * 1.1,
-        [
-          Colors.white.withValues(alpha: 0.5 * pulse),
-          Color.lerp(bColor, Colors.white, 0.2)!.withValues(alpha: 0.8 * pulse),
-          bColor.withValues(alpha: 0.6 * pulse),
-          bColor.withValues(alpha: 0.0),
-        ],
-        [0.0, 0.25, 0.6, 1.0],
-      ),
-  );
-
-  // Inner sigil — type determines complexity
-  canvas.save();
-  canvas.rotate(time * 0.6);
-  final sigR = boss.radius * 0.55;
-  canvas.drawCircle(
-    Offset.zero,
-    sigR,
-    Paint()
-      ..color = Colors.white.withValues(alpha: 0.2)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0,
-  );
-  // Star points scale with type
-  final starPoints = switch (boss.type) {
-    BossType.charger => 5,
-    BossType.gunner => 7,
-    BossType.skirmisher => 8,
-    BossType.bulwark => 4,
-    BossType.carrier => 6,
-    BossType.warden => 9,
-  };
-  final sigPath = Path();
-  for (var i = 0; i < starPoints; i++) {
-    final a1 = i * pi * 2 / starPoints - pi / 2;
-    final a2 = a1 + pi * 2 / starPoints * 3;
-    final p1 = Offset(cos(a1) * sigR, sin(a1) * sigR);
-    final p2 = Offset(cos(a2) * sigR, sin(a2) * sigR);
-    sigPath.moveTo(p1.dx, p1.dy);
-    sigPath.lineTo(p2.dx, p2.dy);
-  }
-  canvas.drawPath(
-    sigPath,
-    Paint()
-      ..color = Colors.white.withValues(alpha: 0.15)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8,
-  );
-  // Warden: second inner inscribed ring when enraged
-  if (boss.type == BossType.warden && boss.enraged) {
-    canvas.drawCircle(
-      Offset.zero,
-      sigR * 0.6,
-      Paint()
-        ..color = Colors.red.withValues(alpha: 0.3)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
-  }
-  canvas.restore();
 
   // Health bar above boss
-  final barWidth = boss.radius * 2.5;
-  final barHeight = 4.0;
-  final barY = -boss.radius - 14.0;
+  final barWidth = r * 2.5;
+  const barHeight = 4.0;
+  final barY = -r * bossFormReach(form) - 12.0;
   final hpFrac = (boss.health / boss.maxHealth).clamp(0.0, 1.0);
-
-  // Background
   canvas.drawRRect(
     RRect.fromRectAndRadius(
       Rect.fromCenter(
@@ -1669,11 +1233,14 @@ void drawOpenWorldBoss({
     ),
     Paint()..color = Colors.black.withValues(alpha: 0.6),
   );
-  // Fill
-  final fillW = barWidth * hpFrac;
   canvas.drawRRect(
     RRect.fromRectAndRadius(
-      Rect.fromLTWH(-barWidth / 2, barY - barHeight / 2, fillW, barHeight),
+      Rect.fromLTWH(
+        -barWidth / 2,
+        barY - barHeight / 2,
+        barWidth * hpFrac,
+        barHeight,
+      ),
       const Radius.circular(2),
     ),
     Paint()..color = Color.lerp(Colors.red, bColor, hpFrac)!,
@@ -1682,18 +1249,8 @@ void drawOpenWorldBoss({
   // Boss name + level. The type used to be prefixed as an emoji — a pistol, a
   // crown, a dart board — which read as chat decoration on top of a hand-drawn
   // alchemical game. The archetype is already legible from the boss's own
-  // silhouette and its orbiting mote count; it did not need a sticker.
-  final namePainter = TextPainter(
-    text: TextSpan(
-      text: 'Lv${boss.level} ${boss.name}',
-      style: TextStyle(
-        color: Colors.white.withValues(alpha: 0.8),
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-    textDirection: TextDirection.ltr,
-  )..layout();
+  // crown and the moons riding its ring; it did not need a sticker.
+  final namePainter = _bossLabelPainter('Lv${boss.level} ${boss.name}');
   namePainter.paint(
     canvas,
     Offset(-namePainter.width / 2, barY - barHeight - 14),
@@ -1701,6 +1258,23 @@ void drawOpenWorldBoss({
 
   canvas.restore();
 }
+
+final Map<String, TextPainter> _bossLabels = {};
+
+TextPainter _bossLabelPainter(String text) => _bossLabels.putIfAbsent(
+  text,
+  () => TextPainter(
+    text: TextSpan(
+      text: text,
+      style: TextStyle(
+        color: Colors.white.withValues(alpha: 0.8),
+        fontSize: 10,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout(),
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Boss lair marker
@@ -1721,13 +1295,7 @@ void drawBossLair({
   final pulse = 0.5 + 0.3 * sin(time * 2.0);
 
   // Ominous aura
-  canvas.drawCircle(
-    Offset(lp.dx, lp.dy),
-    BossLair.activationRadius * 0.4,
-    Paint()
-      ..color = const Color(0xFFFF1744).withValues(alpha: 0.06 * pulse)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 40),
-  );
+  paintSoftCircle(canvas, Offset(lp.dx, lp.dy), BossLair.activationRadius * 0.4, const Color(0xFFFF1744).withValues(alpha: 0.06 * pulse), 40);
 
   // Rotating diamond shape
   canvas.save();
@@ -1753,13 +1321,7 @@ void drawBossLair({
   canvas.restore();
 
   // Inner glow dot
-  canvas.drawCircle(
-    Offset(lp.dx, lp.dy),
-    6,
-    Paint()
-      ..color = const Color(0xFFFF1744).withValues(alpha: 0.5 * pulse)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-  );
+  paintSoftCircle(canvas, Offset(lp.dx, lp.dy), 6, const Color(0xFFFF1744).withValues(alpha: 0.5 * pulse), 6);
   canvas.drawCircle(
     Offset(lp.dx, lp.dy),
     3,
@@ -1791,9 +1353,8 @@ void drawBossLair({
 // identically, so the player could not tell a splitter from a summoner until it
 // went off in their face.
 //
-// These two primitives generalise the lair boss's language. They are separated
-// by budget, not by style: a boss is one entity on screen and can afford the
-// full sigil, while enemies come in dozens and get a mark of a few strokes.
+// Bosses no longer wear a mark: each archetype is its own form (see
+// boss_forms.dart). Enemies come in dozens and get a mark of a few draws.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The wind-up tell, drawn in the enemy's local space.
@@ -1811,59 +1372,51 @@ void _drawActionTelegraph(
   final phase = enemy.actionPhase;
   if (phase == null) return;
   final p = enemy.actionProgress;
+  final light = Color.lerp(eColor, Colors.white, 0.45)!;
 
   switch (phase) {
     case EnemyActionPhase.windUp:
-      // Closing ring: starts wide, tightens onto the body as it completes.
-      final ringR = r * (3.2 - 2.0 * p);
-      canvas.drawCircle(
+      // A band of light closing onto the body: starts wide, tightens as the
+      // attack approaches. The body itself shows the charge building.
+      vfxSoftRing(
+        canvas,
         Offset.zero,
-        ringR,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6 + 2.4 * p
-          ..color = Color.lerp(
-            eColor,
-            Colors.white,
-            0.45,
-          )!.withValues(alpha: 0.35 + 0.5 * p),
-      );
-      // The core charges — the circle building in the middle.
-      canvas.drawCircle(
-        Offset.zero,
-        r * 0.55 * p,
-        Paint()..color = Colors.white.withValues(alpha: 0.35 + 0.5 * p),
+        r * (3.2 - 2.0 * p),
+        r * (0.12 + 0.1 * p) + 1.5,
+        light,
+        0.35 + 0.5 * p,
       );
       // Shockwaves are radial; a directional tell would promise a safe side.
       if (enemy.tier != EnemyTier.colossus) {
-        // Aim line: where it is going to land.
-        final d = Offset(cos(enemy.actionAngle), sin(enemy.actionAngle));
-        canvas.drawLine(
-          d * r * 1.1,
-          d * (r * 1.1 + 46 * p),
-          Paint()
-            ..strokeWidth = 1.0 + 1.4 * p
-            ..strokeCap = StrokeCap.round
-            ..color = eColor.withValues(alpha: 0.25 + 0.55 * p),
+        // A lance of light laid out where it is going to land.
+        final len = 10 + 46 * p;
+        canvas.save();
+        canvas.rotate(enemy.actionAngle);
+        canvas.translate(r * 1.1, 0);
+        vfxCrossLit(
+          canvas,
+          vfxLens(len, 3.0 + 3.0 * p, len * 0.15, len * 0.6),
+          1.5 + 1.5 * p,
+          eColor,
+          light,
+          0.35 + 0.55 * p,
         );
+        canvas.restore();
       }
 
     case EnemyActionPhase.commit:
-      canvas.drawCircle(
-        Offset.zero,
-        r * 1.35,
-        Paint()..color = Colors.white.withValues(alpha: 0.35 * (1 - p)),
-      );
+      // The burst: light thrown off the body, spent as it goes.
+      vfxSpill(canvas, Offset.zero, r * (1.4 + 0.5 * p), light, 0.4 * (1 - p));
 
     case EnemyActionPhase.recover:
       // Vented and open: the window that pays you for reading the tell.
-      canvas.drawCircle(
+      vfxSoftRing(
+        canvas,
         Offset.zero,
-        r * 1.2,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = Colors.white.withValues(alpha: 0.30 * (1 - p)),
+        r * 1.25,
+        r * 0.14,
+        Colors.white,
+        0.28 * (1 - p),
       );
 
     case EnemyActionPhase.idle:
@@ -1909,9 +1462,12 @@ int disciplineSigilPoints(SurvivalBossDiscipline d) => switch (d) {
   SurvivalBossDiscipline.riftcaller => 9,
 };
 
-/// A cheap archetype mark for ordinary enemies: one inscribed star path plus
-/// an optional pip. Two draw calls, one Path, no blur — affordable on every
-/// enemy on screen, which is the constraint that rules out the full sigil.
+/// A cheap archetype mark for ordinary enemies: a sigil burned into the
+/// body — a dark filled star against its light, with a spark at each point.
+/// Filled, not a stroked outline, so it reads as something the body carries
+/// rather than a sticker on it; dark against bright cores, sparks against
+/// dark shells. Two draw calls, no blur — affordable on every enemy
+/// on screen, which is the constraint that rules out the full sigil.
 void drawEnemyArchetypeMark({
   required ui.Canvas canvas,
   required ui.Offset centre,
@@ -1922,10 +1478,11 @@ void drawEnemyArchetypeMark({
   double alpha = 0.85,
 }) {
   if (points <= 0) return;
-  final r = radius * 0.62;
-  final inner = r * 0.46;
+  final r = radius * 0.6;
+  final inner = r * 0.4;
   final spin = time * 0.55;
   final path = ui.Path();
+  final tips = Float32List(points * 2);
   for (var i = 0; i < points * 2; i++) {
     final a = spin + i * pi / points;
     final rr = i.isEven ? r : inner;
@@ -1935,63 +1492,23 @@ void drawEnemyArchetypeMark({
     } else {
       path.lineTo(p.dx, p.dy);
     }
-  }
-  path.close();
-  _markPaint
-    ..color = color.withValues(alpha: alpha)
-    ..strokeWidth = 1.15;
-  canvas.drawPath(path, _markPaint);
-}
-
-/// The full sigil, for bosses: inscribed ring, star, and orbiting rune motes.
-/// This is the lair boss's treatment, made reusable.
-void drawBossSigil({
-  required ui.Canvas canvas,
-  required ui.Offset centre,
-  required double radius,
-  required ui.Color color,
-  required int points,
-  required int motes,
-  required double time,
-  double alpha = 1.0,
-}) {
-  canvas.save();
-  canvas.translate(centre.dx, centre.dy);
-  canvas.rotate(time * 0.6);
-  final sigR = radius * 0.55;
-  _markPaint
-    ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.22 * alpha)
-    ..strokeWidth = 1.0;
-  canvas.drawCircle(ui.Offset.zero, sigR, _markPaint);
-
-  final path = ui.Path();
-  for (var i = 0; i < points; i++) {
-    final a = i * pi * 2 / points - pi / 2;
-    final p = ui.Offset(cos(a), sin(a)) * sigR;
-    if (i == 0) {
-      path.moveTo(p.dx, p.dy);
-    } else {
-      path.lineTo(p.dx, p.dy);
+    if (i.isEven) {
+      tips[i] = p.dx;
+      tips[i + 1] = p.dy;
     }
-    // Chord across the circle gives the woven look the lair boss has.
-    final b = ((i + points ~/ 2) % points) * pi * 2 / points - pi / 2;
-    final q = ui.Offset(cos(b), sin(b)) * sigR;
-    path.lineTo(q.dx, q.dy);
   }
   path.close();
-  _markPaint
-    ..color = color.withValues(alpha: 0.55 * alpha)
-    ..strokeWidth = 1.1;
-  canvas.drawPath(path, _markPaint);
-  canvas.restore();
-
-  for (var i = 0; i < motes; i++) {
-    final a = time * 1.2 + i * pi * 2 / motes;
-    final rr = radius * (1.28 + 0.12 * sin(time * 3 + i));
-    canvas.drawCircle(
-      centre + ui.Offset(cos(a), sin(a)) * rr,
-      2.2,
-      ui.Paint()..color = color.withValues(alpha: 0.7 * alpha),
-    );
-  }
+  canvas.drawPath(
+    path,
+    _markFill..color = const ui.Color(0xFF05040A).withValues(alpha: 0.62 * alpha),
+  );
+  canvas.drawRawPoints(
+    ui.PointMode.points,
+    tips,
+    _markPaint
+      ..color = color.withValues(alpha: alpha)
+      ..strokeWidth = max(2.2, radius * 0.22),
+  );
 }
+
+final ui.Paint _markFill = ui.Paint();

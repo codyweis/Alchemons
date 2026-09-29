@@ -28,8 +28,14 @@ class LightPlanetArt extends PlanetArt {
     ];
     return LightPlanetArt._(
       bands,
-      _BlobField.scatter(rng, 14, size: 0.05, spread: 2.2, stretch: 1.6,
-          soft: 1),
+      _BlobField.scatter(
+        rng,
+        14,
+        size: 0.05,
+        spread: 2.2,
+        stretch: 1.6,
+        soft: 1,
+      ),
     );
   }
 
@@ -58,12 +64,17 @@ class LightPlanetArt extends PlanetArt {
       p,
       r,
       Paint()
-        ..shader = ui.Gradient.radial(p, r, const [
-          Color(0xFFFFFCEE),
-          Color(0xFFFFF0C0),
-          Color(0xFFF7D888),
-          Color(0xFFE9BC62),
-        ], const [0.0, 0.5, 0.85, 1.0]),
+        ..shader = ui.Gradient.radial(
+          p,
+          r,
+          const [
+            Color(0xFFFFFCEE),
+            Color(0xFFFFF0C0),
+            Color(0xFFF7D888),
+            Color(0xFFE9BC62),
+          ],
+          const [0.0, 0.5, 0.85, 1.0],
+        ),
     );
     for (final (path, col) in _bands) {
       _drawUnit(c, p, r, path, Paint()..color = col);
@@ -71,8 +82,15 @@ class LightPlanetArt extends PlanetArt {
     _faculae.paint(c, view, const Color(0xFFFFFFFF), 0.5, halo: 0);
     _shade(c, p, r, strength: 0.14, night: const Color(0xFF6A4A10));
     c.restore();
-    _limb(c, p, r, const Color(0xFFFFF4CC), alpha: 0.45, inner: 0.95,
-        outer: 1.05);
+    _limb(
+      c,
+      p,
+      r,
+      const Color(0xFFFFF4CC),
+      alpha: 0.45,
+      inner: 0.95,
+      outer: 1.05,
+    );
   }
 
   @override

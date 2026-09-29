@@ -58,10 +58,15 @@ class ShipComponent {
     final enginePulse = 0.85 + 0.15 * sin(elapsed * 9);
 
     // Engine glow
-    final glowPaint = Paint()
-      ..color = const Color(0x7000CFFF).withValues(alpha: 0.55 * enginePulse)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
-    if (_glow) canvas.drawCircle(const Offset(0, 18), 9, glowPaint);
+    if (_glow) {
+      paintSoftCircle(
+        canvas,
+        const Offset(0, 18),
+        9,
+        const Color(0x7000CFFF).withValues(alpha: 0.55 * enginePulse),
+        14,
+      );
+    }
 
     // Twin engine plumes
     for (final x in const [-5.5, 5.5]) {
@@ -195,10 +200,15 @@ class ShipComponent {
     final phase = sin(elapsed * 4.6);
 
     // Dark-matter exhaust glow
-    final glowPaint = Paint()
-      ..color = const Color(0x708B00FF).withValues(alpha: 0.55 + phase * 0.06)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
-    if (_glow) canvas.drawCircle(const Offset(0, 18), 8, glowPaint);
+    if (_glow) {
+      paintSoftCircle(
+        canvas,
+        const Offset(0, 18),
+        8,
+        const Color(0x708B00FF).withValues(alpha: 0.55 + phase * 0.06),
+        16,
+      );
+    }
 
     for (final x in const [-5.0, 5.0]) {
       canvas.drawCircle(
@@ -340,12 +350,16 @@ class ShipComponent {
     final phase = sin(elapsed * 3.2);
 
     // Solar halo behind the ship gives it a radiant capital-ship profile.
-    final haloPaint = Paint()
-      ..color = const Color(0x66FFD54F).withValues(alpha: 0.34 + phase * 0.05)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    if (_glow) canvas.drawCircle(const Offset(0, -1), 18.5, haloPaint);
+    if (_glow) {
+      paintSoftRing(
+        canvas,
+        const Offset(0, -1),
+        18.5,
+        const Color(0x66FFD54F).withValues(alpha: 0.34 + phase * 0.05),
+        2.4,
+        6,
+      );
+    }
     canvas.drawCircle(
       const Offset(0, -1),
       12.5,
@@ -356,10 +370,15 @@ class ShipComponent {
     );
 
     // Triple engine array
-    final flarePaint = Paint()
-      ..color = const Color(0x85FF9A00).withValues(alpha: 0.62 + phase * 0.07)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
-    if (_glow) canvas.drawCircle(const Offset(0, 18), 12, flarePaint);
+    if (_glow) {
+      paintSoftCircle(
+        canvas,
+        const Offset(0, 18),
+        12,
+        const Color(0x85FF9A00).withValues(alpha: 0.62 + phase * 0.07),
+        18,
+      );
+    }
     for (final x in const [-8.0, 0.0, 8.0]) {
       canvas.drawCircle(
         Offset(x, 16),
@@ -386,15 +405,21 @@ class ShipComponent {
       final flareLen = 7 + 4 * sin(elapsed * 4.2 + w * 1.7);
       final fx = cos(flareAngle) * (13 + flareLen);
       final fy = sin(flareAngle) * (13 + flareLen) * 0.42;
-      canvas.drawCircle(
-        Offset(fx, fy),
-        3.2,
-        Paint()
-          ..color = const Color(0x55FFD95C)
-          ..maskFilter = _glow
-              ? const MaskFilter.blur(BlurStyle.normal, 7)
-              : null,
-      );
+      if (_glow) {
+        paintSoftCircle(
+          canvas,
+          Offset(fx, fy),
+          3.2,
+          const Color(0x55FFD95C),
+          7,
+        );
+      } else {
+        canvas.drawCircle(
+          Offset(fx, fy),
+          3.2,
+          Paint()..color = const Color(0x55FFD95C),
+        );
+      }
     }
 
     // This skin is intentionally not a sleek dart; it's a radiant war-barge.
@@ -538,10 +563,15 @@ class ShipComponent {
   void _renderInferno(Canvas canvas, double elapsed) {
     final phase = sin(elapsed * 5.8);
 
-    final flameGlow = Paint()
-      ..color = const Color(0x88FF5A1F).withValues(alpha: 0.58 + phase * 0.07)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
-    if (_glow) canvas.drawCircle(const Offset(0, 19), 12, flameGlow);
+    if (_glow) {
+      paintSoftCircle(
+        canvas,
+        const Offset(0, 19),
+        12,
+        const Color(0x88FF5A1F).withValues(alpha: 0.58 + phase * 0.07),
+        18,
+      );
+    }
 
     for (final x in const [-6.5, 6.5]) {
       canvas.drawCircle(
@@ -713,10 +743,15 @@ class ShipComponent {
   void _renderCrystal(Canvas canvas, double elapsed) {
     final phase = sin(elapsed * 3.7);
 
-    final prismGlow = Paint()
-      ..color = const Color(0x6698F5FF).withValues(alpha: 0.48 + phase * 0.05)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
-    if (_glow) canvas.drawCircle(const Offset(0, 18), 10, prismGlow);
+    if (_glow) {
+      paintSoftCircle(
+        canvas,
+        const Offset(0, 18),
+        10,
+        const Color(0x6698F5FF).withValues(alpha: 0.48 + phase * 0.05),
+        16,
+      );
+    }
 
     // Floating shard motes
     for (var i = 0; i < 5; i++) {

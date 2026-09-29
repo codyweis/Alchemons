@@ -70,8 +70,13 @@ class LightningPlanetArt extends PlanetArt {
     _oldAura(c, p, r, _col);
     final gravR = r * 2.2;
     // The haze of charge out to its reach.
-    _softCircle(c, p, gravR, _col.withValues(alpha: 0.04 + 0.02 * sin(t * 4)),
-        gravR * 0.3);
+    _softCircle(
+      c,
+      p,
+      gravR,
+      _col.withValues(alpha: 0.04 + 0.02 * sin(t * 4)),
+      gravR * 0.3,
+    );
 
     // Bolts striking in toward it from that reach.
     for (var i = 0; i < _bolts.length; i++) {
@@ -80,7 +85,8 @@ class LightningPlanetArt extends PlanetArt {
       final flash = sin(phase) * sin(phase * 3.7 + i);
       if (flash <= 0.3) continue;
       final a = ((flash - 0.3) * 1.4).clamp(0.0, 1.0);
-      final startAngle = (seed * 0.1 + t * 0.15 * (i.isEven ? 1 : -1)) % (pi * 2);
+      final startAngle =
+          (seed * 0.1 + t * 0.15 * (i.isEven ? 1 : -1)) % (pi * 2);
       final reach = gravR * (0.85 + 0.15 * sin(t * 2 + i));
       final start = p + Offset(cos(startAngle), sin(startAngle)) * reach;
       final endAngle = startAngle + swing;
@@ -96,7 +102,13 @@ class LightningPlanetArt extends PlanetArt {
         path.lineTo(q.dx, q.dy);
       }
       _strike(c, path, a);
-      _softCircle(c, start, 3.0 + 2.0 * a, _white.withValues(alpha: a * 0.7), 4);
+      _softCircle(
+        c,
+        start,
+        3.0 + 2.0 * a,
+        _white.withValues(alpha: a * 0.7),
+        4,
+      );
     }
   }
 
@@ -136,11 +148,16 @@ class LightningPlanetArt extends PlanetArt {
         sp.offset,
         rr,
         Paint()
-          ..shader = ui.Gradient.radial(sp.offset, rr, [
-            _flash.withValues(alpha: 0.7 * f),
-            _flash.withValues(alpha: 0.22 * f),
-            _flash.withValues(alpha: 0),
-          ], const [0.0, 0.35, 1.0]),
+          ..shader = ui.Gradient.radial(
+            sp.offset,
+            rr,
+            [
+              _flash.withValues(alpha: 0.7 * f),
+              _flash.withValues(alpha: 0.22 * f),
+              _flash.withValues(alpha: 0),
+            ],
+            const [0.0, 0.35, 1.0],
+          ),
       );
       if (f > 0.45) _cloudBolt(c, sp.offset, rr * 0.8, f, i * 977 + cycle);
     }
@@ -154,8 +171,13 @@ class LightningPlanetArt extends PlanetArt {
       _white.withValues(alpha: 0.12 + 0.08 * sin(t * 4.5)),
       r * 0.3,
     );
-    _softCircle(c, p, r * 1.3, _col.withValues(alpha: 0.06 + 0.04 * sin(t * 6)),
-        r * 0.25);
+    _softCircle(
+      c,
+      p,
+      r * 1.3,
+      _col.withValues(alpha: 0.06 + 0.04 * sin(t * 6)),
+      r * 0.25,
+    );
   }
 
   /// A forked bolt seen through the cloud.
@@ -185,12 +207,18 @@ class LightningPlanetArt extends PlanetArt {
       ..style = PaintingStyle.stroke
       ..strokeJoin = StrokeJoin.round
       ..strokeCap = StrokeCap.round;
-    c.drawPath(main, stroke
-      ..strokeWidth = len * 0.07
-      ..color = _boltGlow.withValues(alpha: 0.28 * f));
-    c.drawPath(main, stroke
-      ..strokeWidth = max(0.8, len * 0.018)
-      ..color = _white.withValues(alpha: 0.9 * f));
+    c.drawPath(
+      main,
+      stroke
+        ..strokeWidth = len * 0.07
+        ..color = _boltGlow.withValues(alpha: 0.28 * f),
+    );
+    c.drawPath(
+      main,
+      stroke
+        ..strokeWidth = max(0.8, len * 0.018)
+        ..color = _white.withValues(alpha: 0.9 * f),
+    );
   }
 
   @override
