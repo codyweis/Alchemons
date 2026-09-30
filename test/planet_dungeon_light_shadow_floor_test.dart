@@ -721,6 +721,21 @@ void main() {
       expect(g.archive.state('solarin_orbit').orbit, (s0 + 1) % 3);
     });
 
+    test('SOLARIN fights in a debug rematch, its star already banked', () {
+      final g = _game()..entryDoorRevealed = true;
+      g.starMask = 0x7;
+      g.debugSpawnGuardian();
+      for (var i = 0; i < 900 && g.guardianArriving; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.guardianArriving, isFalse);
+      final o = g.archive.state('solarin_orbit').orbit;
+      for (var i = 0; i < 60 * 7; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.archive.state('solarin_orbit').orbit, isNot(o), reason: 'moved');
+    });
+
     test('SOLARIN\'s glass is all floor: its light burns, it never drops', () {
       final g = _arena();
       final light = g.creatures[0];

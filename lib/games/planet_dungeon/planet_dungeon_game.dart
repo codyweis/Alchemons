@@ -4155,7 +4155,9 @@ class PlanetDungeonGame extends FlameGame {
         !(_isArchive && room.hall?.grid == 'door_of_shadow')) {
       return;
     }
-    if (_roomCleared(room)) return;
+    // A debug rematch re-fights a guardian whose star is already banked; its
+    // fight (the lull cycle, each planet's own hook) still has to run.
+    if (_roomCleared(room) && !debugGuardianRematch) return;
     // §9.1 REWORK: conduits LATCH. Nothing decays here any more — the altar is
     // a question about the storm's route, not about how fast you can run.
     final aLive = (conduitEnergy['A'] ?? 0) > 0;
