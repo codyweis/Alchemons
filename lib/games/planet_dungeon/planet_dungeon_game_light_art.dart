@@ -1017,7 +1017,8 @@ extension ShadowFloorArt on PlanetDungeonGame {
     }
     // SOLARIN: its bolts in flight, where they broke, and the burn on
     // whoever its light catches on bare glass.
-    if (def.orbit != null) {
+    final solarinUp = _guardianEnemy != null && !_guardianEnemy!.isDead;
+    if (def.orbit != null && solarinUp) {
       for (final b in archive.bolts) {
         final v = b.v.distance;
         if (v < 1) continue;

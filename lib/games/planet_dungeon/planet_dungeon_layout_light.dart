@@ -522,7 +522,7 @@ const double kSolarinWarn = 3.0;
 
 /// Seconds a swing takes. Its light comes from where it is along the way,
 /// so the shadows creep across the floor, slow enough to walk with.
-const double kSolarinSwing = 8.0;
+const double kSolarinSwing = 16.0;
 
 /// Health per second its light burns from the active body (of 100).
 const double kSolarinBurnDps = 42;

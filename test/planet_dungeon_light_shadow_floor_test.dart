@@ -808,6 +808,43 @@ void main() {
       expect(g.archive.bolts, isEmpty);
     });
 
+    test('SOLARIN brought down: nothing swings or fires any more', () {
+      final g = _arena();
+      g.creatures[0].position = shadowCentre(7, 2);
+      g.archive.boltNext = 0;
+      g.update(1 / 60);
+      expect(g.archive.bolts, isNotEmpty);
+      // Three blows from its shadow bring it down (a debug rematch keeps the
+      // fight hook running afterwards, which is where this showed).
+      g.debugGuardianRematch = true;
+      for (var hit = 0; hit < 3; hit++) {
+        final o = kRoomSolarin.orbit![g.archive.state('solarin_orbit').orbit];
+        final spot = {
+          (x: 9, y: 4): sq(7, 4),
+          (x: 5, y: 7): sq(5, 5),
+          (x: 5, y: 1): sq(5, 3),
+        }[o]!;
+        g.archive
+          ..orbitFrom = -1
+          ..swingNext = 99;
+        g.creatures[0].position = shadowCentre(spot.x, spot.y);
+        g.update(2.0); // the strike cooldown
+        expect(g.guardianVulnerable, isTrue, reason: 'blow ${hit + 1}');
+        g.activateAbility();
+      }
+      expect(g.guardianHpFractionForTest, lessThanOrEqualTo(0));
+      final o = g.archive.state('solarin_orbit').orbit;
+      g.archive
+        ..swingNext = 0
+        ..boltNext = 0;
+      for (var i = 0; i < 60 * 3; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.archive.bolts, isEmpty, reason: 'no bolts');
+      expect(g.archive.state('solarin_orbit').orbit, o, reason: 'no swing');
+      expect(g.archive.state('solarin_orbit').sun, isNull);
+    });
+
     test('SOLARIN leaves the ledge by the door alone', () {
       final g = _arena();
       g.archive.boltNext = 0;

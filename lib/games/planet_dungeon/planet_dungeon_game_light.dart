@@ -495,6 +495,16 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
     final def = _gridOf(room);
     if (def?.orbit == null) return;
     final e = _guardianEnemy;
+    // Brought down: its light goes out where it fell. Nothing swings, burns
+    // or fires any more (a debug rematch keeps this hook running after).
+    if ((e != null && e.isDead) || _guardianHpFraction <= 0) {
+      guardianVulnerable = false;
+      archive.bolts.clear();
+      final s = archive.state(def!.id);
+      if (s.sun != null) archive.rooms[def.id] = s.copyWith(still: true);
+      archive.orbitFrom = -1;
+      return;
+    }
     // ITS RHYTHM: hold, warn, swing. Faster once it is hurt.
     archive.swingNext -= dt;
     if (archive.swingNext <= 0) _solarinSwing(def!, _liveState(room));
