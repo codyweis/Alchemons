@@ -171,6 +171,48 @@ void main() {
     for (var t = 0.0; t < 30; t += 0.23) {
       all = max(all, census(HomeEffectsArt.handled, t));
     }
+    // The heaviest settings there are: density adds grains, not draws.
+    const heavy = {
+      'black_hole.density': 'Maximum',
+      'black_hole.disk': 'Vast',
+      'black_hole.color': 'Spectral',
+      'planetary_rings.width': 'Vast',
+      'planetary_rings.count': '3',
+    };
+    for (final id in ['black_hole', 'planetary_rings']) {
+      for (var t = 0.0; t < 30; t += 0.23) {
+        final c = _CensusCanvas();
+        fx.paintBehind(
+          c as Canvas,
+          p,
+          r,
+          t,
+          {id},
+          heavy,
+          wake: ship,
+          sizeTier: 3,
+        );
+        fx.paintFront(
+          c as Canvas,
+          p,
+          r,
+          t,
+          {id},
+          heavy,
+          wake: ship,
+          sizeTier: 3,
+        );
+        expect(c.blurredDraws, 0);
+        expect(c.draws, lessThanOrEqualTo(60), reason: '$id heavy: ${c.draws}');
+      }
+    }
+    // The premium colours' bodies, blur-free too.
+    for (final id in ['Void', 'Radiant']) {
+      final c = _CensusCanvas();
+      expect(fx.paintPremiumAura(c as Canvas, p, r, 3, id), isTrue);
+      expect(fx.paintPremiumBody(c as Canvas, p, r, 3, id), isTrue);
+      expect(c.blurredDraws, 0, reason: id);
+    }
     expect(all, lessThanOrEqualTo(400), reason: 'everything at once: $all');
   });
 }

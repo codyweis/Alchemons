@@ -2,6 +2,7 @@ import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/utils/section_router.dart';
 import 'package:alchemons/widgets/exit_game_dialog.dart';
 import 'package:alchemons/widgets/half_cultivation_chip.dart';
+import 'package:alchemons/widgets/particle_title.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/audio/audio.dart';
 // (imports unchanged except where noted)
@@ -2627,26 +2628,11 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         Column(
           children: [
-            //use asset image here
-            ClipRect(
-              child: Align(
-                // ✅ Change this back to center!
-                alignment: Alignment.center,
-                // Adjust this value until the padding is gone from BOTH sides.
-                // It will likely be a value like 0.7 or 0.6.
-                heightFactor: 0.2,
-                child: theme.brightness == Brightness.dark
-                    ? Image.asset(
-                        'assets/images/ui/alchemonstitle.png',
-                        height: 300,
-                        gaplessPlayback: true,
-                      )
-                    : Image.asset(
-                        'assets/images/ui/alchemonstitledark.png',
-                        height: 300,
-                        gaplessPlayback: true,
-                      ),
-              ),
+            // The title in particles: it fills in letter by letter at
+            // launch; drag through it, tap it, hold it to recolour it.
+            ParticleTitle(
+              darkBackdrop: theme.brightness == Brightness.dark,
+              active: _animationsEnabled,
             ),
             Text(
               'Research Facility',

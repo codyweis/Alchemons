@@ -88,6 +88,8 @@ class EnemyVisual {
     this.isPlagueCore = false,
     this.visualColor,
     this.seed = 0,
+    this.facing,
+    this.turn = 0,
   });
 
   final ui.Offset position;
@@ -126,7 +128,31 @@ class EnemyVisual {
   /// Stable per body, so a crowd does not flicker and turn in lockstep.
   final double seed;
 
-  factory EnemyVisual.fromSurvival(CosmicSurvivalEnemy e) => EnemyVisual(
+  /// Where the body points — its heading eased (see EnemyFacing) — and how
+  /// fast it is turning. Null facing draws at the raw heading.
+  final double? facing;
+  final double turn;
+
+  /// The angle the body is drawn at.
+  double get bodyAngle =>
+      facing ?? (actionPhase == null ? angle : actionAngle);
+
+  /// Survival's body at the render clock [time]: advances its eased facing.
+  factory EnemyVisual.fromSurvival(CosmicSurvivalEnemy e, double time) {
+    final facing = e.facing.follow(
+      e.action.isBusy ? e.action.aimAngle : e.angle,
+      time,
+    );
+    return EnemyVisual._survival(e, facing, e.facing.turn);
+  }
+
+  factory EnemyVisual._survival(
+    CosmicSurvivalEnemy e,
+    double facing,
+    double turn,
+  ) => EnemyVisual(
+    facing: facing,
+    turn: turn,
     position: e.position,
     angle: e.angle,
     radius: e.radius,
@@ -157,7 +183,10 @@ class EnemyVisual {
     seed: _seedOf(e),
   );
 
-  factory EnemyVisual.fromOpenWorld(CosmicEnemy e) => EnemyVisual(
+  /// The open world's body at the render clock [time].
+  factory EnemyVisual.fromOpenWorld(CosmicEnemy e, double time) => EnemyVisual(
+    facing: e.facing.follow(e.angle, time),
+    turn: e.facing.turn,
     position: e.position,
     angle: e.angle,
     radius: e.radius,
@@ -261,7 +290,7 @@ const _kSwarmTiers = [
 /// Body radius in atlas pixels, and how far the body sits forward of the
 /// cell's centre (body radii) so a trailing tail has room behind it.
 (double, double) _swarmSpec(EnemyTier tier) => switch (tier) {
-  EnemyTier.wisp => (14, 0.35),
+  EnemyTier.wisp => (14, 0.15),
   EnemyTier.drone => (14, 0.1),
   _ => (14, 0),
 };
@@ -317,6 +346,8 @@ ui.Image _buildSwarmAtlas() {
               flash: hit,
             );
           case EnemyTier.drone:
+            // Every frame the same pose: stepping between poses at the
+            // atlas's frame rate reads as a stutter.
             paintDroneBody(
               canvas,
               pal,
@@ -324,6 +355,7 @@ ui.Image _buildSwarmAtlas() {
               seed: 0,
               heading: 0,
               flash: hit,
+              rock: false,
             );
           case EnemyTier.sentinel:
             paintSentinelBody(
@@ -419,8 +451,12 @@ class SurvivalSwarmBatch {
       _rects = Float32List(_rects.length * 2)..setAll(0, _rects);
     }
     // Turned about the body, which sits [shift] forward of the cell centre.
-    final scos = scale * cos(enemy.angle);
-    final ssin = scale * sin(enemy.angle);
+    final facing = enemy.facing.follow(
+      enemy.action.isBusy ? enemy.action.aimAngle : enemy.angle,
+      time,
+    );
+    final scos = scale * cos(facing);
+    final ssin = scale * sin(facing);
     final ax = _kSwarmCell / 2 + shift * unit;
     const ay = _kSwarmCell / 2;
     final i = _count * 4;
@@ -464,7 +500,7 @@ class SurvivalSwarmBatch {
       _count = 0;
     }
     for (final enemy in _telegraphs) {
-      final visual = EnemyVisual.fromSurvival(enemy);
+      final visual = EnemyVisual.fromSurvival(enemy, time);
       final color = elementColor(enemy.element);
       final steering = visual.flightSteering;
       if (steering != null && steering.showTelegraphRing) {
@@ -515,7 +551,7 @@ void drawSurvivalEnemy({
 }) {
   drawEnemy(
     canvas: canvas,
-    enemy: EnemyVisual.fromSurvival(enemy),
+    enemy: EnemyVisual.fromSurvival(enemy, time),
     time: time,
     reduceLabels: reduceLabels,
   );
@@ -563,7 +599,7 @@ void drawEnemy({
   canvas.save();
   canvas.translate(enemy.position.dx, enemy.position.dy);
   if (variantScale != 1.0 || variantYScale != 1.0) {
-    canvas.rotate(enemy.angle * 0.08);
+    canvas.rotate(enemy.bodyAngle * 0.08);
     canvas.scale(variantScale, variantYScale);
   }
 
@@ -589,7 +625,8 @@ void drawEnemy({
         pal,
         time: elapsed,
         seed: seed,
-        heading: enemy.angle,
+        heading: enemy.bodyAngle,
+        turn: enemy.turn,
         flash: enemy.hitFlash,
       );
     case EnemyTier.drone:
@@ -598,7 +635,8 @@ void drawEnemy({
         pal,
         time: elapsed,
         seed: seed,
-        heading: enemy.actionPhase == null ? enemy.angle : enemy.actionAngle,
+        heading: enemy.bodyAngle,
+        turn: enemy.turn,
         charge: windUp,
         dash: commit,
         flash: enemy.hitFlash,
@@ -609,7 +647,7 @@ void drawEnemy({
         pal,
         time: elapsed,
         seed: seed,
-        heading: enemy.actionPhase == null ? enemy.angle : enemy.actionAngle,
+        heading: enemy.bodyAngle,
         charge: windUp,
         release: max(commit, recover * 0.6),
         flash: enemy.hitFlash,
@@ -620,7 +658,7 @@ void drawEnemy({
         pal,
         time: elapsed,
         seed: seed,
-        heading: enemy.angle,
+        heading: enemy.bodyAngle,
         fade: enemy.actionPhase == EnemyActionPhase.commit ? 1.0 : windUp,
         exposed: recover,
         flash: enemy.hitFlash,
@@ -805,7 +843,7 @@ void _drawHeavyBody(
       pal,
       time: time,
       seed: enemy.seed,
-      facing: enemy.actionPhase == null ? enemy.angle : enemy.actionAngle,
+      facing: enemy.bodyAngle,
       charge: charge,
       recoil: recoil,
       flash: enemy.hitFlash,
@@ -817,7 +855,7 @@ void _drawHeavyBody(
       pal,
       time: time,
       seed: enemy.seed,
-      turn: enemy.angle * 0.12 + sin(time * 0.35) * 0.035,
+      turn: enemy.bodyAngle * 0.12 + sin(time * 0.35) * 0.035,
       contraction: enemy.actionPhase == EnemyActionPhase.windUp
           ? -0.15 * charge
           : 0.22 * recoil + 0.03 * breath,
@@ -1141,7 +1179,11 @@ void drawOpenWorldEnemy({
   required CosmicEnemy e,
   required double time,
 }) =>
-    drawEnemy(canvas: canvas, enemy: EnemyVisual.fromOpenWorld(e), time: time);
+    drawEnemy(
+      canvas: canvas,
+      enemy: EnemyVisual.fromOpenWorld(e, time),
+      time: time,
+    );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Open-world boss

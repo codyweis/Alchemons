@@ -676,8 +676,10 @@ class AbilityPreviewGame extends CosmicSurvivalGame {
   }
 
   /// Posts take many basic hits to fall, so the ring is standing most of the
-  /// time; a good special still clears a few.
-  double _dummyHp() => _atk() * 6.0;
+  /// time; a good special still clears a few. (Raised from 6 when bodies
+  /// doubled in size: a doubled body catches about 2.6x the hits of every
+  /// pierce and blast, measured against the ring falling as often as before.)
+  double _dummyHp() => _atk() * 15.0;
 
   /// Runners fall to a few basic hits: they are here to die on the way in.
   double _runnerHp() => _atk() * 2.2;
@@ -736,6 +738,10 @@ class AbilityPreviewGame extends CosmicSurvivalGame {
   void _applyCamera() {
     cameraPanOffset = _userPan - _shipSeat;
   }
+
+  /// Posts that have fallen and are waiting to come back.
+  @visibleForTesting
+  int get debugPostsAwaitingReturn => _respawnTimers.length;
 
   /// Where every practice body stands, for the preview harness.
   @visibleForTesting

@@ -9,7 +9,9 @@ import 'kin_vfx.dart';
 import 'pip_vfx.dart';
 import 'wing_vfx.dart';
 import 'mask_trap_vfx.dart';
+import 'let_vfx.dart';
 export 'horn_vfx.dart';
+export 'let_vfx.dart';
 export 'mystic_world_vfx.dart';
 export 'kin_vfx.dart';
 export 'pip_vfx.dart';
@@ -3521,6 +3523,17 @@ bool drawLetElementalProjectileVisual({
               projectile.tauntRadius > 0));
   if (!isLetProjectile) return false;
 
+  // Let's own ground — what a meteor leaves in its crater — has its own art.
+  if (drawLetGroundZone(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    time: time,
+    reduceAmbient: reduceAmbient,
+  )) {
+    return true;
+  }
+
   if (projectile.stationary && !projectile.decoy) {
     _drawLetFallout(
       canvas,
@@ -4461,9 +4474,8 @@ void _drawLetFallout(
       _paintFireZone(canvas, position, radius, color, white, time, pulse, vs);
       return;
     case 'Plant':
-      // Let+Plant leaves four of these standing for thirty seconds each —
-      // the longest-lived placements in the game, and the board calls them
-      // vines that remain until an enemy collides with them.
+      // Let's own vines are drawn by let_vfx.dart; this is the fallback for
+      // other parked Plant placements that reach this painter.
       _paintPlantZone(
         canvas,
         position,
@@ -6693,16 +6705,25 @@ class LetSkyfallImpact {
     required this.position,
     required this.color,
     required this.radius,
-    this.duration = 0.42,
+    this.element,
+    this.minor = false,
+    this.duration = kLetCraterDuration,
   }) : age = 0;
 
   final ui.Offset position;
   final ui.Color color;
   final double radius;
+
+  /// Which element fell — what the crater throws and what it is made of.
+  final String? element;
+
+  /// A mastery auto-attack rock rather than the special: bowl, lip and stone
+  /// only, so a Let firing every second does not bury the arena in debris.
+  final bool minor;
   final double duration;
   double age;
 
-  /// 0 at touchdown, 1 when the flash is spent.
+  /// 0 at touchdown, 1 when the crater is gone.
   double get t => (age / duration).clamp(0.0, 1.0);
   bool get dead => age >= duration;
 }
@@ -6811,90 +6832,31 @@ void drawLetSkyfallTelegraph({
   canvas.drawCircle(centre, shadowR * 0.5, _shapePaint);
 }
 
-/// The landing. [age] runs 0 at touchdown to 1 when the flash is spent.
+/// The landing. [age] runs 0 at touchdown to 1 when the crater is gone.
 ///
-/// Round, not squashed. The arena is seen from directly overhead, so a crater
-/// is a circle — an oval reads as an eye staring up out of the floor, which is
-/// what the first pass at this looked like.
-///
-/// Kept thin and brief on purpose. The debris particles the same landing
-/// throws carry most of the punch; what is drawn here is the flash and the
-/// shock leaving it, and anything heavier turns every impact into a sticker.
+/// The painting lives in let_vfx.dart ([drawLetCrater]): each element throws
+/// its own material out of the bowl. [color] is kept for callers that have no
+/// element to hand; with neither, the crater is plain stone.
 void drawLetSkyfallImpact({
   required ui.Canvas canvas,
   required ui.Offset centre,
   required ui.Color color,
   required double radius,
   required double age,
+  String? element,
+  bool minor = false,
   bool reduceAmbient = false,
 }) {
-  final t = age.clamp(0.0, 1.0);
-  final fade = 1.0 - t;
-  if (fade <= 0.01) return;
-  final hot = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.72)!;
-
-  // White core, gone almost at once. The punch.
-  final flash = fade * fade * fade;
-  final coreR = radius * (0.55 - 0.34 * t);
-  if (coreR > 0.5 && flash > 0.01) {
-    _shapePaint
-      ..color = const ui.Color(0xFFFFFFFF)
-      ..shader = ui.Gradient.radial(
-        centre,
-        coreR,
-        [
-          const ui.Color(0xFFFFFFFF).withValues(alpha: 0.95 * flash),
-          hot.withValues(alpha: 0.50 * flash),
-          color.withValues(alpha: 0.0),
-        ],
-        const [0.0, 0.40, 1.0],
-      );
-    canvas.drawCircle(centre, coreR, _shapePaint);
-    _shapePaint.shader = null;
-  }
-
-  // The shock leaving the crater: one thin ring, out fast and gone. Kept
-  // mostly element-coloured — mixing it hot turned every neutral element's
-  // ring into the same grey hoop, which read as a UI pulse rather than fire,
-  // water or stone leaving a crater.
-  final rim = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.25)!;
-  final shockR = radius * (0.38 + 0.78 * _easeOutFast(t));
-  _shapeStrokePaint
-    ..color = rim.withValues(alpha: 0.55 * fade * fade)
-    ..strokeWidth = (radius * 0.05 + 0.8) * fade;
-  canvas.drawCircle(centre, shockR, _shapeStrokePaint);
-
-  if (!reduceAmbient) {
-    // A fainter second front trailing the first, so the shock has depth
-    // rather than being one travelling hoop.
-    final innerR = radius * (0.24 + 0.54 * _easeOutFast(t));
-    _shapeStrokePaint
-      ..color = color.withValues(alpha: 0.32 * fade * fade)
-      ..strokeWidth = (radius * 0.035 + 0.6) * fade;
-    canvas.drawCircle(centre, innerR, _shapeStrokePaint);
-  }
-
-  // Scorch on the ground under it all. Faint — the element's own zone art is
-  // what marks the crater from here on, and doubling up muddies both.
-  _shapePaint
-    ..color = const ui.Color(0xFFFFFFFF)
-    ..shader = ui.Gradient.radial(
-      centre,
-      radius * 0.86,
-      [
-        color.withValues(alpha: 0.22 * fade),
-        color.withValues(alpha: 0.07 * fade),
-        color.withValues(alpha: 0.0),
-      ],
-      const [0.0, 0.55, 1.0],
-    );
-  canvas.drawCircle(centre, radius * 0.86, _shapePaint);
-  _shapePaint.shader = null;
+  drawLetCrater(
+    canvas: canvas,
+    centre: centre,
+    element: element,
+    radius: radius,
+    t: age,
+    minor: minor,
+    reduceAmbient: reduceAmbient,
+  );
 }
-
-/// Fast out of the gate, long tail. Impacts read wrong on a linear ramp — the
-/// energy has to be spent almost immediately and then coast.
-double _easeOutFast(double t) => 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t);
 
 /// Builds a closed, smoothly curved ribbon that follows [spine] and tapers
 /// from [baseWidth] at the first point to [tipWidth] at the last.

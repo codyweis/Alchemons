@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -49,8 +50,13 @@ void main() {
 
       expect(boss, isNotNull);
       expect(boss!.template.isTitanic, isTrue);
-      expect(boss.radius, lessThan(boss.template.radius));
-      expect(boss.radius, inInclusiveRange(84.0, 104.0));
+      // Smaller than the same titan in open space, which wears the template
+      // radius at the same boss scale.
+      expect(boss.radius, lessThan(boss.template.radius * kBossSizeScale));
+      expect(
+        boss.radius,
+        inInclusiveRange(84.0 * kBossSizeScale, 104.0 * kBossSizeScale),
+      );
     });
 
     test('survival boss templates do not repeat back to back', () {

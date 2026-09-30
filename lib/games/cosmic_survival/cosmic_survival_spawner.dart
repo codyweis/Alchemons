@@ -14,6 +14,7 @@ import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
+import 'package:alchemons/games/shared/enemy_facing.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 
 enum CosmicEnemyTarget { orb, ship, companion }
@@ -322,6 +323,9 @@ class CosmicSurvivalEnemy with MasteryPayloadStatuses {
   // Shared hover/dive steering state (lazily created by whichever mode is
   // driving this enemy). See games/shared/enemy_flight_steering.dart.
   FlightSteeringState? flightSteering;
+
+  /// Where the body points, easing after the steering heading (visual only).
+  final EnemyFacing facing = EnemyFacing();
 
   /// The body's signature attack, as a four-phase performance.
   /// See games/shared/enemy_action.dart.
@@ -660,14 +664,17 @@ double tierBaseHp(EnemyTier tier) => switch (tier) {
   EnemyTier.colossus => 400,
 };
 
-double tierRadius(EnemyTier tier) => switch (tier) {
-  EnemyTier.wisp => 6,
-  EnemyTier.drone => 10,
-  EnemyTier.sentinel => 14,
-  EnemyTier.phantom => 12,
-  EnemyTier.brute => 20,
-  EnemyTier.colossus => 28,
-};
+/// A survival body's radius: authored size times [enemySizeScale].
+double tierRadius(EnemyTier tier) =>
+    enemySizeScale(tier) *
+    switch (tier) {
+      EnemyTier.wisp => 6,
+      EnemyTier.drone => 10,
+      EnemyTier.sentinel => 14,
+      EnemyTier.phantom => 12,
+      EnemyTier.brute => 20,
+      EnemyTier.colossus => 28,
+    };
 
 double tierBaseSpeed(EnemyTier tier) => switch (tier) {
   EnemyTier.wisp => 90,
@@ -727,9 +734,16 @@ const _kElements = [
 class CosmicSurvivalSpawner {
   static const double earlyAdvanceKillThreshold = 0.90;
 
-  CosmicSurvivalSpawner({Random? random}) : _rng = random ?? Random();
+  CosmicSurvivalSpawner({Random? random})
+    : _rng = random ?? Random(),
+      // Seeded when the main stream is, so a seeded run stays reproducible.
+      _knotRng = random == null ? Random() : Random(7919);
 
   final Random _rng;
+
+  /// Draws for wisp knots only. Kept off [_rng] so laying knots does not
+  /// reshuffle every other spawn decision a seeded run depends on.
+  final Random _knotRng;
   final List<String> _recentBossNames = <String>[];
   final List<String> _recentBossElements = <String>[];
 
@@ -754,6 +768,12 @@ class CosmicSurvivalSpawner {
   double _spawnTimer = 0;
   int _spawnedThisWave = 0;
   int _artilleryThisWave = 0;
+
+  // The wisp knot being laid down: where it is, its element, and how many
+  // more wisps join it. See [_spawnEnemy].
+  Offset? _knotAt;
+  String _knotElement = 'Fire';
+  int _knotLeft = 0;
   int _broodThisWave = 0;
   int _targetCountThisWave = 0;
   bool _waveActive = false;
@@ -795,6 +815,8 @@ class CosmicSurvivalSpawner {
     bossSpawned = false;
     _spawnedThisWave = 0;
     _artilleryThisWave = 0;
+    _knotLeft = 0;
+    _knotAt = null;
     _broodThisWave = 0;
     _targetCountThisWave = _enemyCountForWave(currentWave);
     _spawnTimer = 0;
@@ -1097,7 +1119,13 @@ class CosmicSurvivalSpawner {
         : hordeBody
         ? (_rng.nextDouble() < 0.72 ? EnemyTier.wisp : EnemyTier.drone)
         : _tierForWave(currentWave);
-    final element = _kElements[_rng.nextInt(_kElements.length)];
+    // Wisps come in knots of two to five rather than strung out one per
+    // step along the front: a knot reads as a creature, a lone spark as a
+    // stray pixel. A knot shares an element and a spot on the front.
+    final joinsKnot =
+        tier == EnemyTier.wisp && !isBossWave && _knotLeft > 0 && _knotAt != null;
+    final rolledElement = _kElements[_rng.nextInt(_kElements.length)];
+    final element = joinsKnot ? _knotElement : rolledElement;
     // CONDUCT — how it moves, straight from the wave's shape.
     var conduct = _conductForWave(currentWave, tier);
     if ((currentPattern == SurvivalWavePattern.siegePush ||
@@ -1169,10 +1197,26 @@ class CosmicSurvivalSpawner {
     final depth = isBossWave
         ? 0.0
         : ((band ~/ fronts) % 6) * 18 + _rng.nextDouble() * 12;
-    final pos = Offset(
+    var pos = Offset(
       orbPos.dx + cos(angle) * (margin + depth),
       orbPos.dy + sin(angle) * (margin + depth),
     );
+    if (joinsKnot) {
+      pos =
+          _knotAt! +
+          Offset.fromDirection(
+            _knotRng.nextDouble() * 2 * pi,
+            tierRadius(tier) * (1.8 + _knotRng.nextDouble() * 1.8),
+          );
+      _knotLeft--;
+    } else if (tier == EnemyTier.wisp &&
+        !isBossWave &&
+        _knotRng.nextDouble() < 0.72) {
+      // Start a knot here: this wisp and one to four more.
+      _knotAt = pos;
+      _knotElement = element;
+      _knotLeft = 1 + _knotRng.nextInt(4);
+    }
 
     // Elite champion chance past wave 20
     final isElite =
@@ -1610,9 +1654,9 @@ class CosmicSurvivalSpawner {
     if (template.isTitanic) {
       // Titanic templates were 150 at 0.64; they shrank to 120 for open space
       // and this keeps survival's titans the size they were (96).
-      return (template.radius * 0.8).clamp(84.0, 104.0);
+      return (template.radius * 0.8).clamp(84.0, 104.0) * kBossSizeScale;
     }
-    return (template.radius * 0.9).clamp(24.0, 46.0);
+    return (template.radius * 0.9).clamp(24.0, 46.0) * kBossSizeScale;
   }
 
   /// Create a boss for a boss wave.

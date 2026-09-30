@@ -12,6 +12,7 @@ import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/systems/effects/has_effects.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/games/shared/enemy_facing.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -2259,6 +2260,60 @@ class ElementStorage {
 // HOME PLANET
 // ─────────────────────────────────────────────────────────
 
+/// A premium home planet colour: not an element's, bought with several.
+/// Its [id] is stored in [HomePlanet.activeColor] / [HomePlanet.unlockedColors]
+/// alongside element names, so no save format changes.
+class PremiumHomeColor {
+  const PremiumHomeColor({
+    required this.id,
+    required this.label,
+    required this.swatch,
+    required this.cost,
+  });
+
+  final String id;
+  final String label;
+
+  /// What the planet tints its effects and menus with.
+  final Color swatch;
+
+  /// Elements spent to unlock it.
+  final Map<String, int> cost;
+}
+
+/// The premium colours, each drawn specially (see `_paintHomeSphere`):
+/// Void is Nythralor's black, Radiant a light too bright to look at.
+const List<PremiumHomeColor> kPremiumHomeColors = [
+  PremiumHomeColor(
+    id: 'Void',
+    label: 'Void Black',
+    swatch: Color(0xFF1A0B2E),
+    cost: {'Dark': 400, 'Spirit': 200, 'Blood': 150},
+  ),
+  PremiumHomeColor(
+    id: 'Radiant',
+    label: 'Radiant Light',
+    swatch: Color(0xFFFFF4D6),
+    cost: {'Light': 400, 'Fire': 200, 'Crystal': 150},
+  ),
+];
+
+PremiumHomeColor? premiumHomeColor(String? id) {
+  for (final c in kPremiumHomeColors) {
+    if (c.id == id) return c;
+  }
+  return null;
+}
+
+/// The colour a home planet colour id shows as: an element's, a premium
+/// one's swatch, or the default gray for none.
+Color homeColorSwatch(String? id) {
+  if (id == null) return const Color(0xFF607D8B);
+  return kElementColors[id] ??
+      premiumHomeColor(id)?.swatch ??
+      const Color(0xFF607D8B);
+}
+
 /// Data model for the player's personal home planet.
 /// Built at the ship's current position — only one per world.
 class HomePlanet {
@@ -2297,13 +2352,9 @@ class HomePlanet {
        activeSizeTier = activeSizeTier ?? 0,
        unlockedColors = unlockedColors ?? {};
 
-  /// Planet color — uses selected element color, or default gray.
-  Color get blendedColor {
-    if (activeColor != null && kElementColors.containsKey(activeColor)) {
-      return kElementColors[activeColor]!;
-    }
-    return const Color(0xFF607D8B); // default gray
-  }
+  /// Planet color — uses selected element color (or premium color), or
+  /// default gray.
+  Color get blendedColor => homeColorSwatch(activeColor);
 
   /// Visual growth: radius based on the *active* (selected) tier.
   /// Tiny→40, Small→80, Medium→130, Big→185, Huge→250.
@@ -2689,8 +2740,20 @@ const Map<String, List<CustomizationParam>> kRecipeParams = {
     CustomizationParam(
       key: 'disk',
       label: 'Disk',
-      options: ['Tight', 'Wide'],
+      options: ['Tight', 'Wide', 'Vast'],
       defaultValue: 'Wide',
+    ),
+    CustomizationParam(
+      key: 'density',
+      label: 'Density',
+      options: ['Normal', 'Dense', 'Very Dense', 'Maximum'],
+      defaultValue: 'Normal',
+    ),
+    CustomizationParam(
+      key: 'color',
+      label: 'Color',
+      options: ['Violet', 'Solar', 'Crimson', 'Azure', 'Emerald', 'Spectral'],
+      defaultValue: 'Violet',
     ),
     CustomizationParam(
       key: 'spin',
@@ -2711,6 +2774,12 @@ const Map<String, List<CustomizationParam>> kRecipeParams = {
       label: 'Style',
       options: ['Icy', 'Rocky', 'Prismatic'],
       defaultValue: 'Icy',
+    ),
+    CustomizationParam(
+      key: 'width',
+      label: 'Width',
+      options: ['Narrow', 'Normal', 'Wide', 'Vast'],
+      defaultValue: 'Normal',
     ),
   ],
 };
@@ -3608,6 +3677,25 @@ class LootDrop {
 // COSMIC ENEMIES
 // ─────────────────────────────────────────────────────────
 
+/// How much bigger than authored an enemy body is — drawn AND collided, so
+/// what you see is what you hit. The one knob for enemy size in survival and
+/// open space; every radius authored there is scaled by it when the body is
+/// made (open space in [CosmicEnemy], survival in `tierRadius`). Planet
+/// dungeons keep their own hand-sized radii: their rooms are laid out round
+/// them.
+///
+/// 2026-09-29: wisps half again, everything else doubled — the bodies were
+/// rebuilt with detail that was lost at their old size.
+///
+/// Size order in both modes: wisp < drone < phantom < sentinel < brute <
+/// colossus. A drone must read bigger than a wisp — the dark dart looks
+/// smaller than a glowing wisp at the same radius, so it wants about 1.4×.
+double enemySizeScale(EnemyTier tier) => tier == EnemyTier.wisp ? 1.5 : 2.0;
+
+/// Bosses grow with the field, so every boss still stands over the biggest
+/// body round it.
+const double kBossSizeScale = 2.0;
+
 /// Tier of cosmic enemy.
 enum EnemyTier {
   /// Tiny flickering orb — fast, fragile.
@@ -3679,6 +3767,19 @@ class CosmicEnemy {
   /// -1 = solo (no pack).
   int packId;
 
+  /// A small roaming flock (wisps, two to five): its members make the same
+  /// idle turns at the same moments, so a flock that set out together stays
+  /// together, and it is culled like a solo body rather than kept like an
+  /// anchored pack.
+  final bool flock;
+
+  /// How many idle turns this body has made — the flock's shared clock.
+  int flockTurn = 0;
+
+  /// What is left of an idle turn or jink, eased into the heading over the
+  /// next frames rather than taken at once.
+  double turnLeft = 0;
+
   /// Home position for territorial / feeding enemies.
   Offset? homePos;
 
@@ -3702,11 +3803,14 @@ class CosmicEnemy {
   /// commits to an attack). See games/shared/enemy_flight_steering.dart.
   FlightSteeringState? flightSteering;
 
+  /// Where the body points, easing after the steering heading (visual only).
+  final EnemyFacing facing = EnemyFacing();
+
   CosmicEnemy({
     required this.position,
     required this.element,
     required this.tier,
-    required this.radius,
+    required double radius,
     required this.health,
     required this.speed,
     this.angle = 0,
@@ -3715,6 +3819,7 @@ class CosmicEnemy {
     EnemyBehavior behavior = EnemyBehavior.aggressive,
     this.provoked = false,
     this.packId = -1,
+    this.flock = false,
     this.homePos,
     this.aggroRadius = 300,
     this.stalkDistance = 500,
@@ -3728,6 +3833,8 @@ class CosmicEnemy {
        // be derived from it below.
        // ignore: prefer_initializing_formals
        behavior = behavior,
+       // Authored at the old body sizes; see [enemySizeScale].
+       radius = radius * enemySizeScale(tier),
        // Converged taxonomy, derived during migration. See
        // docs/enemy_taxonomy.md.
        conduct = conductFromOpenWorld(behavior, variant);
@@ -3856,7 +3963,7 @@ class CosmicBoss {
     required this.name,
     required this.element,
     required this.level,
-    required this.radius,
+    required double radius,
     required this.maxHealth,
     required this.speed,
     this.angle = 0,
@@ -3885,6 +3992,8 @@ class CosmicBoss {
     BossType? forcedType,
   }) : health = maxHealth,
        baseSpeed = speed,
+       // Authored at the old sizes; see [kBossSizeScale].
+       radius = radius * kBossSizeScale,
        type = forcedType ?? bossTypeForLevel(level);
 
   Color get color => elementColor(element);
@@ -12324,6 +12433,18 @@ class CosmicCompanion with HasEffects {
   Offset? pendingChargeOrigin;
   double pendingChargeAngle;
   static const double pipSteamWindowDuration = 9.0;
+
+  /// Open-space steering. The companion flies with a velocity toward a goal
+  /// (its place in the follow formation, or its station in a fight) instead
+  /// of lerping to it, so it arcs into place and keeps up with the ship.
+  Offset velocity = Offset.zero;
+
+  /// Last frame's goal, so the steering can match a goal that is moving.
+  Offset? steerGoal;
+
+  /// What it is fighting (an enemy, the boss or the wild Alchemon), held so
+  /// it does not flip between two targets at similar range.
+  Object? combatTarget;
 
   final String? visualVariant;
 

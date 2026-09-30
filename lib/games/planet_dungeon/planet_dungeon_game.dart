@@ -557,6 +557,7 @@ class PlanetDungeonGame extends FlameGame {
   // Let meteor craters. Shared struct + shared painter, so the dungeon's
   // landings are pixel-identical to survival's.
   final List<LetSkyfallImpact> _letSkyfallImpacts = [];
+  final List<LetFx> _letFx = [];
   final List<HornFx> _hornFx = [];
 
   /// Hard ceiling on live projectiles — survival's number (220), for the same
@@ -4469,6 +4470,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateCombatEnemies(dt);
     _updateCombatProjectiles(dt);
     updateLetSkyfallImpacts(_letSkyfallImpacts, dt);
+    updateLetFx(_letFx, dt);
     updateHornFx(_hornFx, dt);
     _updateWingBeams(dt);
     _updateIdleCompanionAttacks();
@@ -4983,6 +4985,7 @@ class PlanetDungeonGame extends FlameGame {
       LetSkyfallImpact(
         position: centre,
         color: elementColor(p.element ?? 'Fire'),
+        element: p.element,
         radius: blast,
       ),
     );
@@ -5179,6 +5182,29 @@ class PlanetDungeonGame extends FlameGame {
       p.life -= dt;
       if (p.life <= 0) {
         combatProjectiles.removeAt(i);
+        continue;
+      }
+
+      // Let's ground never collides. Its zones act through their tick above,
+      // and a vine strikes the first body in its reach and is spent.
+      if (p.stationary && p.abilityFamily == 'let') {
+        if (CosmicAbilityRuntime.isLetVine(p)) {
+          for (final enemy in combatEnemies) {
+            if (enemy.isDead) continue;
+            final reach = p.effectRadius + enemy.radius;
+            if ((enemy.position - p.position).distanceSquared > reach * reach) {
+              continue;
+            }
+            pushLetFx(_letFx, LetFx.lash(from: p.position, to: enemy.position));
+            _damageEnemyDirect(
+              enemy,
+              p.effectPower,
+              sourceSlot: p.sourceSlotIndex,
+            );
+            combatProjectiles.removeAt(i);
+            break;
+          }
+        }
         continue;
       }
 
@@ -8426,33 +8452,11 @@ class PlanetDungeonGame extends FlameGame {
   }) {
     final element = projectile.element ?? '';
     final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
+    final zone = CosmicAbilityRuntime.letContactZone(element);
+    if (zone != null && isMeteorCore) {
+      _spawnLetZone(projectile, enemy.position, element, zone);
+    }
     switch (element) {
-      case 'Dust':
-        if (isMeteorCore) {
-          _spawnLetZone(
-            projectile,
-            enemy.position,
-            element: element,
-            tickEffect: AbilityEffectKind.slow,
-            radius: 130,
-            duration: 4.5,
-            power: projectile.effectPower * 0.25,
-          );
-        }
-        break;
-      case 'Lava':
-        if (isMeteorCore) {
-          _spawnLetZone(
-            projectile,
-            enemy.position,
-            element: element,
-            tickEffect: AbilityEffectKind.burn,
-            radius: 145,
-            duration: 4.2,
-            power: projectile.damage * 0.13,
-          );
-        }
-        break;
       case 'Poison':
         enemy.slowTimer = max(enemy.slowTimer, 2.2);
         enemy.slowMultiplier = min(enemy.slowMultiplier, 0.72);
@@ -8462,18 +8466,6 @@ class PlanetDungeonGame extends FlameGame {
           projectile.damage * 0.20,
           sourceSlot: projectile.sourceSlotIndex,
         );
-        if (isMeteorCore) {
-          _spawnLetZone(
-            projectile,
-            enemy.position,
-            element: element,
-            tickEffect: AbilityEffectKind.poison,
-            radius: 116,
-            duration: 3.8,
-            power: projectile.damage * 0.08,
-            visualScale: 1.9,
-          );
-        }
         break;
       case 'Earth':
         _healAllCreatures(projectile.damage * 0.26 * 0.4);
@@ -8484,18 +8476,6 @@ class PlanetDungeonGame extends FlameGame {
           sourceSlot: projectile.sourceSlotIndex,
           exclude: enemy,
         );
-        if (isMeteorCore) {
-          _spawnLetZone(
-            projectile,
-            enemy.position,
-            element: element,
-            tickEffect: AbilityEffectKind.stun,
-            radius: 128,
-            duration: 3.2,
-            power: projectile.damage * 0.10,
-            visualScale: 1.55,
-          );
-        }
         break;
       case 'Spirit':
         if (!enemy.isDead &&
@@ -8506,6 +8486,12 @@ class PlanetDungeonGame extends FlameGame {
             enemy.hp + 1,
             sourceSlot: projectile.sourceSlotIndex,
           );
+          if (isMeteorCore) {
+            pushLetFx(
+              _letFx,
+              LetFx.soul(position: enemy.position, bodyRadius: enemy.radius),
+            );
+          }
         } else if (!enemy.isDead) {
           _damageEnemyDirect(
             enemy,
@@ -8515,7 +8501,10 @@ class PlanetDungeonGame extends FlameGame {
         }
         break;
       case 'Crystal':
-        enemy.slowTimer = max(enemy.slowTimer, 3.5);
+        enemy.slowTimer = max(
+          enemy.slowTimer,
+          CosmicAbilityRuntime.kLetCrystalHold,
+        );
         enemy.slowMultiplier = min(enemy.slowMultiplier, 0.10);
         enemy.knockbackVelocity = Offset.zero;
         _damageEnemyDirect(
@@ -8530,6 +8519,18 @@ class PlanetDungeonGame extends FlameGame {
           sourceSlot: projectile.sourceSlotIndex,
           exclude: enemy,
         );
+        if (isMeteorCore && !enemy.isDead) {
+          final held = enemy;
+          pushLetFx(
+            _letFx,
+            LetFx.crystal(
+              position: held.position,
+              bodyRadius: held.radius,
+              duration: CosmicAbilityRuntime.kLetCrystalHold,
+              anchor: () => held.isDead ? null : held.position,
+            ),
+          );
+        }
         break;
       case 'Lightning':
         _triggerChainLightning(
@@ -8545,18 +8546,40 @@ class PlanetDungeonGame extends FlameGame {
         );
         break;
       case 'Ice':
-        enemy.slowTimer = max(enemy.slowTimer, 3.2);
+        enemy.slowTimer = max(
+          enemy.slowTimer,
+          CosmicAbilityRuntime.kLetIceHold,
+        );
         enemy.slowMultiplier = min(enemy.slowMultiplier, 0.05);
         enemy.knockbackVelocity = Offset.zero;
+        if (isMeteorCore && !enemy.isDead) {
+          final held = enemy;
+          pushLetFx(
+            _letFx,
+            LetFx.frost(
+              position: held.position,
+              bodyRadius: held.radius,
+              duration: CosmicAbilityRuntime.kLetIceHold,
+              anchor: () => held.isDead ? null : held.position,
+            ),
+          );
+        }
         break;
       case 'Water':
+        final reach = CosmicAbilityRuntime.letWaterReach(projectile);
         _damageEnemiesNear(
           enemy.position,
-          max(125, projectile.effectRadius),
+          reach,
           projectile.damage * 0.42,
           sourceSlot: projectile.sourceSlotIndex,
           exclude: enemy,
         );
+        if (isMeteorCore) {
+          pushLetFx(
+            _letFx,
+            LetFx.splash(position: enemy.position, radius: reach),
+          );
+        }
         break;
       default:
         break;
@@ -8582,9 +8605,13 @@ class PlanetDungeonGame extends FlameGame {
   }) {
     if (!killed && projectile.element != 'Air') return;
     final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
+    final zone = CosmicAbilityRuntime.letKillZone(projectile.element);
+    if (zone != null && isMeteorCore) {
+      _spawnLetZone(projectile, center, projectile.element!, zone);
+    }
     switch (projectile.element) {
       case 'Air':
-        final radius = max(180.0, projectile.effectRadius);
+        final radius = CosmicAbilityRuntime.letAirReach(projectile);
         for (final enemy in combatEnemies) {
           if (enemy.isDead) continue;
           if ((enemy.position - center).distance > radius) continue;
@@ -8595,23 +8622,21 @@ class PlanetDungeonGame extends FlameGame {
                 (dir / dist) * (340 + projectile.damage * 5.0).clamp(120, 760);
           }
         }
+        if (isMeteorCore) {
+          pushLetFx(_letFx, LetFx.gust(position: center, radius: radius));
+        }
         break;
       case 'Plant':
         if (isMeteorCore) {
-          for (var i = 0; i < 4; i++) {
-            final a = projectile.angle + (i - 1.5) * 0.75;
-            _spawnLetZone(
-              projectile,
-              _clampToBounds(
-                center + Offset(cos(a), sin(a)) * (28 + i * 8),
-                currentRoom,
+          for (final spot in CosmicAbilityRuntime.letVineSpots(
+            center,
+            projectile.angle,
+          )) {
+            combatProjectiles.add(
+              CosmicAbilityRuntime.letVine(
+                projectile,
+                _clampToBounds(spot, currentRoom),
               ),
-              element: 'Plant',
-              tickEffect: AbilityEffectKind.zoneDamage,
-              radius: 64,
-              duration: 30.0,
-              power: projectile.damage * 0.22,
-              visualScale: 1.2,
             );
           }
         }
@@ -8619,6 +8644,7 @@ class PlanetDungeonGame extends FlameGame {
       case 'Blood':
         final drain = projectile.damage * 0.22;
         final radius = max(170.0, projectile.effectRadius);
+        var drawn = 0;
         for (final enemy in combatEnemies) {
           if (enemy.isDead) continue;
           if (primary != null && identical(enemy, primary)) continue;
@@ -8628,43 +8654,23 @@ class PlanetDungeonGame extends FlameGame {
             drain,
             sourceSlot: projectile.sourceSlotIndex,
           );
-          _kinBeams.add(
-            _KinBeamFx(
-              origin: enemy.position,
-              end: center,
-              color: elementColor('Blood'),
-            ),
-          );
+          if (drawn < 8) {
+            drawn++;
+            pushLetFx(_letFx, LetFx.drain(from: enemy.position, to: center));
+          }
         }
         _healAllCreatures(drain * 0.18);
         break;
-      case 'Light':
-        if (isMeteorCore) {
-          _spawnLetZone(
-            projectile,
-            center,
-            element: 'Light',
-            tickEffect: AbilityEffectKind.zoneHeal,
-            radius: 130,
-            duration: 5.5,
-            power: projectile.damage * 0.16,
-            visualScale: 1.7,
-          );
-        }
-        break;
       case 'Fire':
+        final reach = CosmicAbilityRuntime.letFireReach(projectile);
         _damageEnemiesNear(
           center,
-          max(555, projectile.effectRadius * 3.0),
+          reach,
           projectile.damage * 0.72,
           sourceSlot: projectile.sourceSlotIndex,
           exclude: primary,
         );
-        _spawnDetonationBurst(
-          center,
-          elementColor('Fire'),
-          max(240, projectile.effectRadius * 3.0),
-        );
+        pushLetFx(_letFx, LetFx.blast(position: center, radius: reach));
         break;
       case 'Dark':
         if (projectile.effectStacks == 0) {
@@ -8682,34 +8688,6 @@ class PlanetDungeonGame extends FlameGame {
           }
         }
         break;
-      case 'Steam':
-        if (isMeteorCore) {
-          _spawnLetZone(
-            projectile,
-            center,
-            element: 'Steam',
-            tickEffect: AbilityEffectKind.geyser,
-            radius: 115,
-            duration: 12.0,
-            power: projectile.damage * 0.12,
-            visualScale: 1.6,
-          );
-        }
-        break;
-      case 'Mud':
-        if (isMeteorCore) {
-          _spawnLetZone(
-            projectile,
-            center,
-            element: 'Mud',
-            tickEffect: AbilityEffectKind.stun,
-            radius: 130,
-            duration: 4.8,
-            power: projectile.damage * 0.08,
-            visualScale: 1.5,
-          );
-        }
-        break;
       default:
         break;
     }
@@ -8717,34 +8695,12 @@ class PlanetDungeonGame extends FlameGame {
 
   void _spawnLetZone(
     Projectile source,
-    Offset center, {
-    required String element,
-    required AbilityEffectKind tickEffect,
-    required double radius,
-    required double duration,
-    required double power,
-    double visualScale = 1.35,
-  }) {
+    Offset center,
+    String element,
+    LetZoneSpec spec,
+  ) {
     combatProjectiles.add(
-      Projectile(
-        position: center,
-        angle: 0,
-        element: element,
-        damage: 0,
-        life: duration,
-        speedMultiplier: 0,
-        stationary: true,
-        piercing: true,
-        radiusMultiplier: max(1.0, radius / 28.0),
-        visualScale: visualScale,
-        visualStyle: ProjectileVisualStyle.letShard,
-        sourceSlotIndex: source.sourceSlotIndex,
-        abilityFamily: 'let',
-        tickEffect: tickEffect,
-        effectPower: power,
-        effectRadius: radius,
-        effectDuration: duration,
-      ),
+      CosmicAbilityRuntime.letZone(source, center, element, spec),
     );
   }
 
@@ -15236,10 +15192,13 @@ class PlanetDungeonGame extends FlameGame {
         canvas: canvas,
         centre: impact.position,
         color: impact.color,
+        element: impact.element,
+        minor: impact.minor,
         radius: impact.radius,
         age: impact.t,
       );
     }
+    drawLetFx(canvas, _letFx);
   }
 
   void _renderCombatProjectiles(Canvas canvas) {

@@ -1151,19 +1151,22 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           height: 18,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: activeCol == null
-                                ? const Color(0xFF607D8B)
-                                : kElementColors[activeCol]!,
+                            color: homeColorSwatch(activeCol),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          (activeCol ?? 'Default Gray').toUpperCase(),
+                          (premiumHomeColor(activeCol)?.label ??
+                                  activeCol ??
+                                  'Default Gray')
+                              .toUpperCase(),
                           style: TextStyle(
                             fontFamily: appFontFamily(context),
                             color: activeCol == null
                                 ? CosmicScreenStyles.textSecondary
-                                : kElementColors[activeCol]!,
+                                : activeCol == 'Void'
+                                ? const Color(0xFFB08AF0)
+                                : homeColorSwatch(activeCol),
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.5,
@@ -1377,7 +1380,166 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               );
             },
           ),
+          const SizedBox(height: 14),
+          Text(
+            'PREMIUM',
+            style: TextStyle(
+              fontFamily: appFontFamily(context),
+              color: CosmicScreenStyles.amberBright,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final premium in kPremiumHomeColors)
+            _buildPremiumColorTile(premium, activeCol, unlocked),
         ],
+      ),
+    );
+  }
+
+  /// A premium colour: its own swatch (Void black ringed in violet, Radiant
+  /// glowing), and what it costs, element by element.
+  Widget _buildPremiumColorTile(
+    PremiumHomeColor premium,
+    String? activeCol,
+    Set<String> unlocked,
+  ) {
+    final isUnlocked = unlocked.contains(premium.id);
+    final isActive = activeCol == premium.id;
+    final canAfford = premium.cost.entries.every(
+      (e) => (widget.elementStorage.stored[e.key] ?? 0) >= e.value,
+    );
+    final isVoid = premium.id == 'Void';
+    return GestureDetector(
+      onTap: context.soundAction(
+        isUnlocked
+            ? () => widget.onSelectColor(premium.id)
+            : canAfford
+            ? () => widget.onUnlockColor(premium.id)
+            : null,
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive
+              ? CosmicScreenStyles.teal.withValues(alpha: 0.12)
+              : isUnlocked
+              ? CosmicScreenStyles.bg3
+              : CosmicScreenStyles.bg1,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isActive
+                ? CosmicScreenStyles.teal.withValues(alpha: 0.5)
+                : CosmicScreenStyles.amberBright.withValues(
+                    alpha: isUnlocked || canAfford ? 0.35 : 0.15,
+                  ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: isVoid
+                      ? const [Color(0xFF020006), Color(0xFF140630)]
+                      : const [Color(0xFFFFFFFF), Color(0xFFFFE2A0)],
+                ),
+                border: Border.all(
+                  color: isVoid
+                      ? const Color(0xFF9A6AE0)
+                      : const Color(0xFFFFF4D6),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        (isVoid
+                                ? const Color(0xFF7A3AD0)
+                                : const Color(0xFFFFF4D6))
+                            .withValues(alpha: 0.55),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: !isUnlocked
+                  ? Icon(
+                      AppIcons.lock,
+                      size: 12,
+                      color: isVoid ? Colors.white54 : Colors.black45,
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    premium.label.toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
+                      color: isUnlocked
+                          ? CosmicScreenStyles.textPrimary
+                          : CosmicScreenStyles.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.7,
+                    ),
+                  ),
+                  if (!isUnlocked) ...[
+                    const SizedBox(height: 3),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final e in premium.cost.entries)
+                          Text(
+                            '${e.value} ${e.key}',
+                            style: TextStyle(
+                              fontFamily: appFontFamily(context),
+                              color:
+                                  (widget.elementStorage.stored[e.key] ?? 0) >=
+                                      e.value
+                                  ? (kElementColors[e.key] ??
+                                        CosmicScreenStyles.textSecondary)
+                                  : CosmicScreenStyles.textMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Text(
+              isActive
+                  ? 'ACTIVE'
+                  : isUnlocked
+                  ? 'SELECT'
+                  : canAfford
+                  ? 'UNLOCK'
+                  : 'LOCKED',
+              style: TextStyle(
+                fontFamily: appFontFamily(context),
+                color: isActive
+                    ? CosmicScreenStyles.teal
+                    : canAfford || isUnlocked
+                    ? CosmicScreenStyles.amberBright
+                    : CosmicScreenStyles.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

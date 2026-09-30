@@ -44,6 +44,7 @@ part 'cosmic_game_home_visuals.dart';
 part 'cosmic_game_caches.dart';
 part 'cosmic_game_mask.dart';
 part 'cosmic_game_wild.dart';
+part 'cosmic_game_companion_motion.dart';
 
 /// Cached icon-glyph painters for item loot drops — same shop icon set
 /// resolved via [InventoryItemArtwork.offerFor], baked once per (icon, color)
@@ -580,6 +581,7 @@ class CosmicGame extends FlameGame with PanDetector {
   // Let meteor craters. Shared struct + shared painter, so open space draws
   // the identical landing survival and the dungeon do.
   final List<LetSkyfallImpact> _letSkyfallImpacts = [];
+  final List<LetFx> _letFx = [];
   final List<HornFx> _hornFx = [];
   final List<_BeamFx> _beamFx = [];
   double _openKinPrevShipHealth = -1;
@@ -611,11 +613,19 @@ class CosmicGame extends FlameGame with PanDetector {
     return nearest;
   }
 
+  // Open-space companion steering (cosmic_game_companion_motion.dart).
+  final Map<int, _CompanionEngagement> _companionEngagements = {};
+  final Map<int, Offset> _companionGoals = {};
+  final Map<int, int> _companionPlaceRanks = {};
+  Offset _shipVelocity = Offset.zero;
+  Offset? _lastShipPosForCompanions;
+  double _formationHeading = 0;
+  CosmicCompanion? _wildDuelTargetCompanion;
+
   bool _companionTethered = true;
   static const double _companionTetherAnchorFollowSpeed = 5.5;
   static const double _companionTetherReturnSpeed = 260.0;
-  static const double _companionTetherSoftRadius = 155.0;
-  static const double _companionTetherHardRadius = 220.0;
+  static const double _companionTetherHardRadius = 240.0;
   static const double _companionTetherEngageRange = 340.0;
 
   bool get companionTethered => _companionTethered;
@@ -650,6 +660,10 @@ class CosmicGame extends FlameGame with PanDetector {
   final ShipWallet shipWallet = ShipWallet();
   double _enemySpawnTimer = 0;
   int _nextPackId = 0; // unique pack ID counter
+
+  /// Each roaming wisp flock's centre and heading this frame, by pack. See
+  /// `_gatherFlocks`.
+  final Map<int, _FlockCentre> _flockCentres = {};
   static const int _maxEnemies = 220;
 
   /// Squared distance between two world points, respecting the world's
@@ -1455,7 +1469,19 @@ class CosmicGame extends FlameGame with PanDetector {
 
     if (comp.isCharging && comp.chargeTarget != null) {
       final chargeTargetDist = (comp.chargeTarget! - shipPos).distance;
-      if (chargeTargetDist > _companionTetherEngageRange) {
+      // A charge runs through its target and overshoots, so it may end past
+      // the engage range while its target sits inside it (targets are
+      // allowed by their surface; a boss is up to ~240 across).
+      final target = comp.combatTarget;
+      final targetRadius = target is CosmicBoss
+          ? target.radius
+          : target is CosmicEnemy
+          ? target.radius
+          : 0.0;
+      if (chargeTargetDist >
+          _companionTetherEngageRange +
+              targetRadius * 2 +
+              comp.chargeOvershootDistance) {
         _releaseCompanionChargeBurst(comp, slam: false);
         comp.chargeTimer = 0;
         comp.chargeTarget = null;
@@ -1468,9 +1494,10 @@ class CosmicGame extends FlameGame with PanDetector {
     }
   }
 
-  bool _companionTetherAllowsTarget(Offset targetPos) {
+  bool _companionTetherAllowsTarget(Offset targetPos, {double radius = 0}) {
     if (!companionTethered || wildDuelActive) return true;
-    return (targetPos - ship.pos).distance <= _companionTetherEngageRange;
+    return (targetPos - ship.pos).distance - radius <=
+        _companionTetherEngageRange;
   }
 
   void _spawnBeamFx(
@@ -3474,6 +3501,7 @@ class CosmicGame extends FlameGame with PanDetector {
     _updateOpenWingBeams(dt);
     updateMaskRuntime(dt);
     updateLetSkyfallImpacts(_letSkyfallImpacts, dt);
+    updateLetFx(_letFx, dt);
     updateHornFx(_hornFx, dt);
 
     // ── zoom animation ──
@@ -4423,6 +4451,11 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── update companion (summoned party alchemon) ──
+    // Keep the party in the ship's frame across the world's wrapped edge.
+    for (final comp in activeCompanions.values) {
+      comp.position = _nearestImage(comp.position, ship.pos);
+    }
+    _planCompanionMotion(dt);
     final companionsToRemove = <int>[];
     for (final entry in activeCompanions.entries.toList()) {
       final slot = entry.key;
@@ -4469,8 +4502,6 @@ class CosmicGame extends FlameGame with PanDetector {
           comp.returnTimer = 0.6;
           onCompanionAutoReturned?.call(comp.member);
         } else {
-          final ringDuelActive =
-              wildDuelActive && duelOpponent != null && duelOpponent!.isAlive;
           if (comp.basicHasteTimer > 0) {
             comp.basicHasteTimer = max(0.0, comp.basicHasteTimer - dt);
             if (comp.basicHasteTimer <= 0) {
@@ -4479,65 +4510,19 @@ class CosmicGame extends FlameGame with PanDetector {
           }
           _tickOpenCompanionIdentity(comp, dt);
           _tickOpenFamilyPassives(slot, comp, dt);
-          comp.wanderTimer -= dt;
-          if (!ringDuelActive && comp.wanderTimer <= 0) {
-            // Pick a new wander direction every 2-3s
-            comp.wanderAngle = _rng.nextDouble() * 2 * pi;
-            comp.wanderTimer = 2.0 + _rng.nextDouble();
-          }
-
-          // Drift gently toward the wander target (stays within radius)
-          if (!ringDuelActive && !comp.isCharging) {
-            // Magnet/tether mode is a command, not a suggestion: it keeps
-            // the companion's home anchor pinned near the ship.
-            _enforceCompanionTether(comp, dt: dt);
-
-            final fromAnchor = comp.position - comp.anchorPosition;
-            final anchorDist = fromAnchor.distance;
-
-            // Smooth sine-wave orbit around anchor
-            final phase = comp.life * 0.7 + comp.wanderAngle;
-            final orbitX = cos(phase) * CosmicCompanion.wanderRadius * 0.5;
-            final orbitY =
-                sin(phase * 1.3) * CosmicCompanion.wanderRadius * 0.35;
-            final wanderTarget = Offset(
-              comp.anchorPosition.dx + orbitX,
-              comp.anchorPosition.dy + orbitY,
-            );
-            final toWander = wanderTarget - comp.position;
-            if (toWander.distance > 1.0) {
-              final lerpFactor = (3.0 * dt).clamp(0.0, 1.0);
-              comp.position = Offset(
-                comp.position.dx + toWander.dx * lerpFactor,
-                comp.position.dy + toWander.dy * lerpFactor,
-              );
-            }
-
-            // Soft pull if drifting outside wander radius (no hard clamp)
-            final softRadius = companionTethered
-                ? _companionTetherSoftRadius
-                : CosmicCompanion.wanderRadius;
-            if (anchorDist > softRadius) {
-              final pullStrength = (4.0 * dt).clamp(0.0, 1.0);
-              final target =
-                  comp.anchorPosition + (fromAnchor / anchorDist) * softRadius;
-              comp.position = Offset(
-                comp.position.dx +
-                    (target.dx - comp.position.dx) * pullStrength,
-                comp.position.dy +
-                    (target.dy - comp.position.dy) * pullStrength,
-              );
-            }
-            _enforceCompanionTether(comp, dt: dt);
-          }
-
-          // Auto-attack nearest enemy
           comp.basicCooldown = (comp.basicCooldown - dt).clamp(0.0, 100.0);
           comp.specialCooldown = (comp.specialCooldown - dt).clamp(0.0, 100.0);
+
+          // Fly to its place in the follow formation, or its station in the
+          // fight (cosmic_game_companion_motion.dart).
+          if (!comp.isCharging) _steerCompanion(slot, comp, dt);
           _enforceCompanionTether(comp, dt: dt);
 
           // ── Horn charge: rush toward target, AoE on arrival ──
           if (comp.isCharging) {
+            // The charge owns its motion; steering picks up from rest after.
+            comp.velocity = Offset.zero;
+            comp.steerGoal = null;
             comp.chargeTimer -= dt;
             if (comp.chargeTarget != null) {
               final startPos = comp.position;
@@ -4600,106 +4585,21 @@ class CosmicGame extends FlameGame with PanDetector {
             );
           }
 
-          final family = comp.member.family.toLowerCase();
-          final acquireRange = _combatAcquireRange(
-            family: family,
-            attackRange: comp.attackRange,
-            specialRange: comp.specialAbilityRange,
-          );
-          final effectiveAcquireRange = _effectiveCombatAcquireRange(
-            acquireRange,
-          );
-          final targetAcquireRange = companionTethered && !ringDuelActive
-              ? min(effectiveAcquireRange, _companionTetherEngageRange)
-              : effectiveAcquireRange;
-          final holdDistance = _combatHoldDistance(
-            family: family,
-            attackRange: comp.attackRange,
-            specialRange: comp.specialAbilityRange,
-            basicCooldown: comp.basicCooldown,
-            specialCooldown: comp.specialCooldown,
-          );
-          CosmicEnemy? nearestEnemy;
-          double nearestDist = targetAcquireRange;
-
-          // Mid-duel, the wild Alchemon comes first
-          bool targetIsRingOpponent = false;
-          if (duelOpponent != null && duelOpponent!.isAlive && wildDuelActive) {
-            final rd = (duelOpponent!.position - comp.position).distance;
-            if (rd < nearestDist) {
-              nearestDist = rd;
-              targetIsRingOpponent = true;
-            }
-          }
-
-          if (!targetIsRingOpponent) {
-            for (final e in enemies) {
-              if (e.dead) continue;
-              if (!_companionTetherAllowsTarget(e.position)) continue;
-              final d = (e.position - comp.position).distance;
-              if (d < nearestDist) {
-                nearestDist = d;
-                nearestEnemy = e;
-              }
-            }
-          }
-
-          // Also check boss
-          if (!targetIsRingOpponent &&
-              activeBoss != null &&
-              _companionTetherAllowsTarget(activeBoss!.position)) {
-            final bd = (activeBoss!.position - comp.position).distance;
-            if (bd < nearestDist) {
-              nearestEnemy = null; // handled separately below
-              nearestDist = bd;
-            }
-          }
-
-          if (targetIsRingOpponent ||
-              nearestEnemy != null ||
-              (activeBoss != null && nearestDist < targetAcquireRange)) {
-            final targetPos = targetIsRingOpponent
-                ? duelOpponent!.position
-                : (nearestEnemy?.position ?? activeBoss!.position);
+          final engagement = _companionEngagements[slot];
+          if (engagement != null) {
+            final targetPos = engagement.position;
             // Face target (for sprite flipping & shooting direction)
             final toTarget = targetPos - comp.position;
             comp.angle = atan2(toTarget.dy, toTarget.dx);
-
-            var distToTarget = toTarget.distance;
-            if (ringDuelActive) {
-              comp.position = _updateDuelMovement(
-                actorPos: comp.position,
-                targetPos: targetPos,
-                dt: dt,
-                family: family,
-                idSeed: comp.member.instanceId,
-                speedStat: comp.member.statSpeed.toDouble(),
-                holdDistance: holdDistance,
-                attackRange: comp.attackRange,
-                specialRange: comp.specialAbilityRange,
-                life: comp.life,
-              );
-            } else if (distToTarget > holdDistance) {
-              final chaseSpeed = _combatChaseSpeed(
-                family,
-                comp.member.statSpeed.toDouble(),
-              );
-              final step = chaseSpeed * dt;
-              comp.position +=
-                  (toTarget / distToTarget) * min(step, distToTarget);
-              _enforceCompanionTether(comp, dt: dt);
-            }
-            // Advance anchor with companion while chasing so the wander
-            // soft-pull doesn't oppose combat movement.
-            if (!companionTethered && distToTarget > holdDistance) {
-              comp.anchorPosition = comp.position;
-            }
-            if (ringDuelActive || distToTarget > holdDistance) {
-              final refreshed = targetPos - comp.position;
-              distToTarget = refreshed.distance;
-              comp.angle = atan2(refreshed.dy, refreshed.dx);
-            }
-
+            // Reach is measured to the target's hitbox, not its centre. A
+            // boss is up to ~240 across: its centre can sit out of range
+            // while its edge is well inside it.
+            final distToTarget = max(
+              0.0,
+              toTarget.distance - engagement.hitRadius,
+            );
+            // Unlinked, it holds whatever ground the fight carries it to.
+            if (!companionTethered) comp.anchorPosition = comp.position;
             // Basic attack — family-specific pattern
             if (comp.basicCooldown <= 0 && distToTarget <= comp.attackRange) {
               final isDarkWing = _isDarkWingMember(comp.member);
@@ -4834,8 +4734,11 @@ class CosmicGame extends FlameGame with PanDetector {
               _spawnHitSpark(comp.position, elementColor(comp.member.element));
             }
           } else {
-            // No enemy — face wander direction
-            comp.angle = comp.wanderAngle;
+            // Nothing to fight: face the way it is flying, or the ship's way
+            // once it has settled into its place.
+            comp.angle = comp.velocity.distance > 30
+                ? atan2(comp.velocity.dy, comp.velocity.dx)
+                : _formationHeading;
           }
 
           // Companion takes damage from enemies that touch it
@@ -4879,8 +4782,9 @@ class CosmicGame extends FlameGame with PanDetector {
           _wildDisengageRange) {
         _endWildDuel(WildDuelEnd.disengaged);
       } else {
-        final duelTargetActive =
-            activeCompanion != null && activeCompanion!.isAlive;
+        // It fights the nearest companion out (the ship when none is).
+        final duelTarget = _pickWildDuelTarget(opp);
+        final duelTargetActive = duelTarget != null;
 
         // Wander near ring center only while the duel target is absent.
         opp.wanderTimer -= dt;
@@ -4932,10 +4836,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
         // Target the player's companion, or the ship when none is out.
         {
-          final liveComp = activeCompanion != null && activeCompanion!.isAlive
-              ? activeCompanion
-              : null;
-          final comp = _WildDuelTarget(this, liveComp);
+          final comp = _WildDuelTarget(this, duelTarget);
           final toComp = comp.position - opp.position;
           var distToComp = toComp.distance;
           opp.angle = atan2(toComp.dy, toComp.dx);
@@ -4957,7 +4858,11 @@ class CosmicGame extends FlameGame with PanDetector {
             if (dist > 10) {
               final step =
                   CosmicCompanion.chargeSpeed * opp.chargeSpeedMultiplier * dt;
+              final stepFrom = opp.position;
               opp.position += (toTarget / dist) * min(step, dist);
+              if (!comp.isShip) {
+                opp.position = _wildStepClearOfShip(stepFrom, opp.position);
+              }
               opp.angle = atan2(toTarget.dy, toTarget.dx);
             } else {
               final dmg = _duelDamageAfterDefense(
@@ -4989,6 +4894,7 @@ class CosmicGame extends FlameGame with PanDetector {
             );
             final toCompNow = comp.position - opp.position;
             distToComp = toCompNow.distance;
+            final stepFrom = opp.position;
             opp.position = _updateDuelMovement(
               actorPos: opp.position,
               targetPos: comp.position,
@@ -5001,6 +4907,9 @@ class CosmicGame extends FlameGame with PanDetector {
               specialRange: opp.specialAbilityRange,
               life: opp.life,
             );
+            if (!comp.isShip) {
+              opp.position = _wildStepClearOfShip(stepFrom, opp.position);
+            }
             final refreshedToComp = comp.position - opp.position;
             distToComp = refreshedToComp.distance;
             opp.angle = atan2(refreshedToComp.dy, refreshedToComp.dx);
@@ -5065,9 +4974,16 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── update the fought Alchemon's projectiles ──
-    // They are aimed at the companion when one is out, else at the ship.
-    final duelShotTarget = activeCompanion != null && activeCompanion!.isAlive
-        ? _WildDuelTarget(this, activeCompanion)
+    // They are aimed at the companion it is fighting, else at the ship, and
+    // land on whichever companion they meet.
+    final duelVictims = duelOpponentProjectiles.isEmpty
+        ? const <CosmicCompanion>[]
+        : _livingActiveCompanions.toList();
+    final aimedComp = _wildDuelTargetCompanion;
+    final duelShotTarget = aimedComp != null && aimedComp.isAlive
+        ? _WildDuelTarget(this, aimedComp)
+        : duelVictims.isNotEmpty
+        ? _WildDuelTarget(this, duelVictims.first)
         : (wildDuelActive && !_shipDead ? _WildDuelTarget(this, null) : null);
     for (var i = duelOpponentProjectiles.length - 1; i >= 0; i--) {
       final p = duelOpponentProjectiles[i];
@@ -5224,15 +5140,31 @@ class CosmicGame extends FlameGame with PanDetector {
         continue;
       }
 
-      // Hit the player's companion, or the ship
+      // Hit whichever companion it meets, or the ship when none is out
       if (duelShotTarget != null) {
-        final comp = duelShotTarget;
         final hitRadius = Projectile.radius * p.radiusMultiplier;
-        final dx = p.position.dx - comp.position.dx;
-        final dy = p.position.dy - comp.position.dy;
-        final bodyRadius = comp.isShip ? 20.0 : 15.0;
-        if (dx * dx + dy * dy <
-            (hitRadius + bodyRadius) * (hitRadius + bodyRadius)) {
+        _WildDuelTarget? struck;
+        if (duelVictims.isEmpty) {
+          if (duelShotTarget.isShip) {
+            final dx = p.position.dx - ship.pos.dx;
+            final dy = p.position.dy - ship.pos.dy;
+            final reach = hitRadius + 20.0;
+            if (dx * dx + dy * dy < reach * reach) struck = duelShotTarget;
+          }
+        } else {
+          final reach = hitRadius + 15.0;
+          for (final victim in duelVictims) {
+            if (!victim.isAlive) continue;
+            final dx = p.position.dx - victim.position.dx;
+            final dy = p.position.dy - victim.position.dy;
+            if (dx * dx + dy * dy < reach * reach) {
+              struck = _WildDuelTarget(this, victim);
+              break;
+            }
+          }
+        }
+        if (struck != null) {
+          final comp = struck;
           final pierceFalloff = p.piercing
               ? pow(0.7, p.pierceCount).toDouble()
               : 1.0;
@@ -5335,6 +5267,11 @@ class CosmicGame extends FlameGame with PanDetector {
             targetHp: enemy.health,
             targetHpFraction: enemy.health / enemy.maxHealth,
           );
+          // A geyser pushes as well as scalds — survival's knockback, as a
+          // step, since open space has no knockback velocity.
+          if (effect == AbilityEffectKind.geyser) {
+            enemy.position += const Offset(0, -14);
+          }
           break;
         case AbilityEffectKind.splash:
         case AbilityEffectKind.split:
@@ -5442,7 +5379,7 @@ class CosmicGame extends FlameGame with PanDetector {
             position: drop.position,
             angle: drop.angle,
             element: 'Dark',
-            damage: source.damage * 0.62,
+            damage: source.damage * 0.7,
             life: drop.duration + 0.4,
             speedMultiplier: 0,
             skyfallDuration: drop.duration,
@@ -5450,16 +5387,17 @@ class CosmicGame extends FlameGame with PanDetector {
             skyfallDistance: drop.distance,
             // Thrown at a place, not a body — see Projectile.skyfallTracks.
             skyfallTracks: false,
-            radiusMultiplier: max(2.8, source.radiusMultiplier * 1.45),
-            visualScale: max(2.8, source.visualScale * 1.35),
+            // "Twice as big" per design — the same as survival.
+            radiusMultiplier: max(3.5, source.radiusMultiplier * 2.0),
+            visualScale: max(3.5, source.visualScale * 2.0),
             visualStyle: ProjectileVisualStyle.meteor,
             homing: false,
             homingStrength: 2.4,
             sourceSlotIndex: source.sourceSlotIndex,
             abilityFamily: 'let',
             hitEffect: AbilityEffectKind.pull,
-            effectPower: source.effectPower * 0.75,
-            effectRadius: max(120.0, source.effectRadius),
+            effectPower: source.effectPower * 0.85,
+            effectRadius: max(140.0, source.effectRadius),
             effectDuration: source.effectDuration,
             effectStacks: 1,
           ),
@@ -5467,36 +5405,42 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
+    // A Let zone, from the shared table. It carries its effect as a
+    // TICK, so the aura pass applies it to everything inside its radius every
+    // 0.35s — the same as survival. It used to carry it as a hit effect with
+    // no family, which meant contact every frame with a ~14px centre under a
+    // 130px drawing: Lava burned only what touched its middle, and a stun
+    // piled 3s onto a body per frame.
     void spawnLetZone(
       Projectile source,
-      Offset center, {
-      required String element,
-      required AbilityEffectKind effect,
-      required double radius,
-      required double duration,
-      required double power,
-      double visualScale = 1.35,
-    }) {
+      Offset center,
+      String element,
+      LetZoneSpec spec,
+    ) {
       companionProjectiles.add(
-        Projectile(
-          position: center,
-          angle: 0,
-          element: element,
-          damage: 0,
-          life: duration,
-          speedMultiplier: 0,
-          stationary: true,
-          piercing: true,
-          radiusMultiplier: max(1.0, radius / 28.0),
-          visualScale: visualScale,
-          visualStyle: ProjectileVisualStyle.letShard,
-          sourceSlotIndex: source.sourceSlotIndex,
-          hitEffect: effect,
-          effectPower: power,
-          effectRadius: radius,
-          effectDuration: duration,
-        ),
+        CosmicAbilityRuntime.letZone(source, center, element, spec),
       );
+    }
+
+    /// One body taking [amount], dying the way the crater's bodies do.
+    void hurtEnemy(CosmicEnemy enemy, double amount) {
+      if (enemy.dead || enemy.health <= 0) return;
+      enemy.health -= amount;
+      if (enemy.health <= 0) {
+        enemy.dead = true;
+        _spawnKillVfx(
+          enemy.position,
+          elementColor(enemy.element),
+          enemy.radius,
+          false,
+        );
+        _spawnLootDrops(
+          enemy.position,
+          enemy.element,
+          enemy.shardDrop,
+          enemy.particleDrop,
+        );
+      }
     }
 
     void damageEnemiesNear(
@@ -5607,68 +5551,63 @@ class CosmicGame extends FlameGame with PanDetector {
     }) {
       if (!killed && projectile.element != 'Air') return;
       final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
+      final zone = CosmicAbilityRuntime.letKillZone(projectile.element);
+      if (zone != null && isMeteorCore) {
+        spawnLetZone(projectile, center, projectile.element!, zone);
+      }
       switch (projectile.element) {
         case 'Air':
+          // Open space has no knockback velocity, so the shove is a step —
+          // strongest at the crater, as far as survival's knockback carries.
+          final reach = CosmicAbilityRuntime.letAirReach(projectile);
           for (final other in enemies) {
-            if (other.dead || (other.position - center).distance > 190) {
-              continue;
-            }
+            if (other.dead) continue;
             final dir = other.position - center;
             final dist = dir.distance;
-            if (dist > 0.01) other.position += (dir / dist) * 40.0;
+            if (dist <= 0.01 || dist > reach) continue;
+            final shove = (130.0 + projectile.damage * 0.6).clamp(130.0, 200.0);
+            other.position += (dir / dist) * shove * (1.0 - 0.5 * dist / reach);
+          }
+          if (isMeteorCore) {
+            pushLetFx(_letFx, LetFx.gust(position: center, radius: reach));
           }
           break;
         case 'Plant':
           if (isMeteorCore) {
-            for (var vi = 0; vi < 4; vi++) {
-              final a = projectile.angle + (vi - 1.5) * 0.75;
-              spawnLetZone(
-                projectile,
-                center + Offset(cos(a), sin(a)) * (28 + vi * 8),
-                element: 'Plant',
-                effect: AbilityEffectKind.root,
-                radius: 64,
-                duration: 7.0,
-                power: projectile.damage * 0.18,
-                visualScale: 1.2,
+            for (final spot in CosmicAbilityRuntime.letVineSpots(
+              center,
+              projectile.angle,
+            )) {
+              companionProjectiles.add(
+                CosmicAbilityRuntime.letVine(projectile, spot),
               );
             }
           }
           break;
         case 'Blood':
           final drain = projectile.damage * 0.22;
-          damageEnemiesNear(center, 170, drain, exclude: primary);
+          final reach = max(170.0, projectile.effectRadius);
+          var drawn = 0;
+          for (final other in enemies) {
+            if (other.dead || identical(other, primary)) continue;
+            if ((other.position - center).distance > reach) continue;
+            if (drawn < 8) {
+              drawn++;
+              pushLetFx(_letFx, LetFx.drain(from: other.position, to: center));
+            }
+            hurtEnemy(other, drain);
+          }
           healAllCompanionsAndShip(drain * 0.18);
           break;
-        case 'Light':
-          if (isMeteorCore) {
-            spawnLetZone(
-              projectile,
-              center,
-              element: 'Light',
-              effect: AbilityEffectKind.zoneHeal,
-              radius: 130,
-              duration: 5.5,
-              power: projectile.damage * 0.16,
-              visualScale: 1.7,
-            );
-          }
-          break;
         case 'Fire':
+          final reach = CosmicAbilityRuntime.letFireReach(projectile);
           damageEnemiesNear(
             center,
-            555,
+            reach,
             projectile.damage * 0.72,
             exclude: primary,
           );
-          vfxRings.add(
-            VfxShockRing(
-              x: center.dx,
-              y: center.dy,
-              color: elementColor('Fire'),
-              maxRadius: 255,
-            ),
-          );
+          pushLetFx(_letFx, LetFx.blast(position: center, radius: reach));
           break;
         case 'Dark':
           if (projectile.effectStacks == 0) {
@@ -5679,42 +5618,47 @@ class CosmicGame extends FlameGame with PanDetector {
               final dir = center - other.position;
               final dist = dir.distance;
               if (dist > 0.01 && dist <= max(120.0, projectile.effectRadius)) {
-                other.position += (dir / dist) * min(18.0, 720.0 / dist);
+                other.position += (dir / dist) * min(28.0, 720.0 / dist);
                 other.driftTimer += 0.6;
               }
             }
           }
           break;
-        case 'Steam':
-          if (isMeteorCore) {
-            spawnLetZone(
-              projectile,
-              center,
-              element: 'Steam',
-              effect: AbilityEffectKind.geyser,
-              radius: 115,
-              duration: 8.0,
-              power: projectile.damage * 0.10,
-              visualScale: 1.6,
-            );
-          }
-          break;
-        case 'Mud':
-          if (isMeteorCore) {
-            spawnLetZone(
-              projectile,
-              center,
-              element: 'Mud',
-              effect: AbilityEffectKind.stun,
-              radius: 130,
-              duration: 4.8,
-              power: projectile.damage * 0.08,
-              visualScale: 1.5,
-            );
-          }
-          break;
         default:
           break;
+      }
+    }
+
+    /// Lightning's contact: a chain hopping from the struck body to its
+    /// nearest neighbours — survival's chain, not an area burst.
+    void chainLetLightning(Projectile projectile, CosmicEnemy from) {
+      final hops = max(2, projectile.effectCount);
+      final points = <Offset>[from.position];
+      final struck = <CosmicEnemy>{from};
+      var at = from;
+      for (var h = 0; h < hops; h++) {
+        CosmicEnemy? next;
+        var bestSq = 180.0 * 180.0;
+        for (final other in enemies) {
+          if (other.dead || other.health <= 0 || struck.contains(other)) {
+            continue;
+          }
+          final d = other.position - at.position;
+          final dSq = d.dx * d.dx + d.dy * d.dy;
+          if (dSq < bestSq) {
+            bestSq = dSq;
+            next = other;
+          }
+        }
+        final hop = next;
+        if (hop == null) break;
+        struck.add(hop);
+        points.add(hop.position);
+        hurtEnemy(hop, projectile.damage * 0.72);
+        at = hop;
+      }
+      if (points.length > 1) {
+        pushLetFx(_letFx, LetFx.chain(points: points));
       }
     }
 
@@ -5723,49 +5667,16 @@ class CosmicGame extends FlameGame with PanDetector {
       CosmicEnemy enemy, {
       required bool killed,
     }) {
+      final element = projectile.element;
       final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
-      switch (projectile.element) {
-        case 'Dust':
-          if (isMeteorCore) {
-            spawnLetZone(
-              projectile,
-              enemy.position,
-              element: 'Dust',
-              effect: AbilityEffectKind.slow,
-              radius: 130,
-              duration: 4.5,
-              power: projectile.effectPower * 0.25,
-            );
-          }
-          break;
-        case 'Lava':
-          if (isMeteorCore) {
-            spawnLetZone(
-              projectile,
-              enemy.position,
-              element: 'Lava',
-              effect: AbilityEffectKind.burn,
-              radius: 145,
-              duration: 4.2,
-              power: projectile.damage * 0.13,
-            );
-          }
-          break;
+      final zone = CosmicAbilityRuntime.letContactZone(element);
+      if (zone != null && isMeteorCore) {
+        spawnLetZone(projectile, enemy.position, element!, zone);
+      }
+      switch (element) {
         case 'Poison':
           enemy.driftTimer += 2.2;
           enemy.health -= projectile.damage * 0.20;
-          if (isMeteorCore) {
-            spawnLetZone(
-              projectile,
-              enemy.position,
-              element: 'Poison',
-              effect: AbilityEffectKind.poison,
-              radius: 116,
-              duration: 3.8,
-              power: projectile.damage * 0.08,
-              visualScale: 1.9,
-            );
-          }
           break;
         case 'Earth':
           healCompanionOrShip(projectile.damage * 0.26);
@@ -5775,31 +5686,25 @@ class CosmicGame extends FlameGame with PanDetector {
             projectile.damage * 0.38,
             exclude: enemy,
           );
-          if (isMeteorCore) {
-            spawnLetZone(
-              projectile,
-              enemy.position,
-              element: 'Earth',
-              effect: AbilityEffectKind.stun,
-              radius: 128,
-              duration: 3.2,
-              power: projectile.damage * 0.10,
-              visualScale: 1.55,
-            );
-          }
           break;
         case 'Spirit':
           if (enemy.health > 0 &&
               (enemy.health / enemy.maxHealth <= 0.35 ||
                   _rng.nextDouble() <= projectile.effectChance)) {
             enemy.health = 0;
+            if (isMeteorCore) {
+              pushLetFx(
+                _letFx,
+                LetFx.soul(position: enemy.position, bodyRadius: enemy.radius),
+              );
+            }
           } else {
             enemy.health -= projectile.damage * 0.35;
           }
           break;
         case 'Crystal':
           enemy.speed = max(10.0, enemy.speed * 0.10);
-          enemy.driftTimer += 3.5;
+          enemy.driftTimer += CosmicAbilityRuntime.kLetCrystalHold;
           enemy.health -= projectile.damage * 0.25;
           damageEnemiesNear(
             enemy.position,
@@ -5807,27 +5712,55 @@ class CosmicGame extends FlameGame with PanDetector {
             projectile.damage * 0.32,
             exclude: enemy,
           );
+          if (isMeteorCore && enemy.health > 0) {
+            final held = enemy;
+            pushLetFx(
+              _letFx,
+              LetFx.crystal(
+                position: held.position,
+                bodyRadius: held.radius,
+                duration: CosmicAbilityRuntime.kLetCrystalHold,
+                anchor: () =>
+                    held.dead || held.health <= 0 ? null : held.position,
+              ),
+            );
+          }
           break;
         case 'Lightning':
-          damageEnemiesNear(
-            enemy.position,
-            max(180, projectile.effectRadius),
-            projectile.damage * 0.72,
-            exclude: enemy,
-          );
+          chainLetLightning(projectile, enemy);
           enemy.health -= projectile.damage * 0.18;
           break;
         case 'Ice':
           enemy.speed = max(8.0, enemy.speed * 0.05);
-          enemy.driftTimer += 3.2;
+          enemy.driftTimer += CosmicAbilityRuntime.kLetIceHold;
+          if (isMeteorCore && enemy.health > 0) {
+            final held = enemy;
+            pushLetFx(
+              _letFx,
+              LetFx.frost(
+                position: held.position,
+                bodyRadius: held.radius,
+                duration: CosmicAbilityRuntime.kLetIceHold,
+                anchor: () =>
+                    held.dead || held.health <= 0 ? null : held.position,
+              ),
+            );
+          }
           break;
         case 'Water':
+          final reach = CosmicAbilityRuntime.letWaterReach(projectile);
           damageEnemiesNear(
             enemy.position,
-            125,
+            reach,
             projectile.damage * 0.42,
             exclude: enemy,
           );
+          if (isMeteorCore) {
+            pushLetFx(
+              _letFx,
+              LetFx.splash(position: enemy.position, radius: reach),
+            );
+          }
           break;
         default:
           break;
@@ -5993,6 +5926,7 @@ class CosmicGame extends FlameGame with PanDetector {
         LetSkyfallImpact(
           position: centre,
           color: elementColor(p.element ?? 'Fire'),
+          element: p.element,
           radius: blast,
         ),
       );
@@ -6408,29 +6342,31 @@ class CosmicGame extends FlameGame with PanDetector {
         continue;
       }
 
-      final isPlantTrap = p.element == 'Plant' && p.abilityFamily == 'let';
-      if (isPlantTrap &&
-          (p.snareRadius > 0 || p.tickEffect != AbilityEffectKind.none)) {
-        p.abilityGrowthTimer += dt;
-        if (p.abilityGrowthTimer >= 1.2) {
-          p.abilityGrowthTimer -= 1.2;
-          const snareCap = 220.0;
-          const effectCap = 160.0;
-          if (p.snareRadius > 0) {
-            p.snareRadius = min(p.snareRadius + 6, snareCap);
-            p.snareMoveMultiplier = max(p.snareMoveMultiplier - 0.05, 0.30);
-          }
-          if (p.effectRadius > 0) {
-            p.effectRadius = min(p.effectRadius + 4, effectCap);
-          }
-        }
-      }
       final hitRadius = Projectile.radius * p.radiusMultiplier;
       bool consumed = false;
 
       // Decoys/taunt traps resolve damage through the dedicated
       // enemy->decoy collision path so they persist as lures.
       if (p.decoy) {
+        continue;
+      }
+
+      // Let's ground never collides. Its zones act through their tick (the
+      // aura pass above), and a vine strikes the first body in its reach and
+      // is spent.
+      if (p.stationary && p.abilityFamily == 'let') {
+        if (CosmicAbilityRuntime.isLetVine(p)) {
+          for (final enemy in enemies) {
+            if (enemy.dead || enemy.health <= 0) continue;
+            final reach = p.effectRadius + enemy.radius;
+            final d = enemy.position - p.position;
+            if (d.dx * d.dx + d.dy * d.dy > reach * reach) continue;
+            pushLetFx(_letFx, LetFx.lash(from: p.position, to: enemy.position));
+            hurtEnemy(enemy, p.effectPower);
+            companionProjectiles.removeAt(i);
+            break;
+          }
+        }
         continue;
       }
 
@@ -6994,6 +6930,7 @@ class CosmicGame extends FlameGame with PanDetector {
     } // end !wildDuelActive guard
 
     // ── enemy AI update ──
+    _gatherFlocks();
     for (var i = enemies.length - 1; i >= 0; i--) {
       final e = enemies[i];
       if (e.dead) {
@@ -7012,11 +6949,13 @@ class CosmicGame extends FlameGame with PanDetector {
       // Anything anchored to a place is exempt: territorial patrols guard a
       // homePos, whirl guardians belong to a whirl, and pack members are
       // culled with their pack rather than piecemeal (dropping half a swarm
-      // looks worse than keeping it).
+      // looks worse than keeping it). A roaming wisp flock is small and
+      // flies as one, so it crosses the cull line together — it goes like a
+      // solo body.
       if (!e.provoked &&
           e.homePos == null &&
           e.whirlIndex < 0 &&
-          e.packId < 0 &&
+          (e.packId < 0 || e.flock) &&
           _wrappedDistanceSq(e.position, ship.pos) > _enemyCullDistSq) {
         enemies.removeAt(i);
         continue;
@@ -10400,10 +10339,13 @@ class CosmicGame extends FlameGame with PanDetector {
         canvas: canvas,
         centre: impact.position,
         color: impact.color,
+        element: impact.element,
+        minor: impact.minor,
         radius: impact.radius,
         age: impact.t,
       );
     }
+    drawLetFx(canvas, _letFx);
 
     drawHornFx(canvas, _hornFx);
 

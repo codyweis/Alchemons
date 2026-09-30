@@ -105,15 +105,24 @@ void main() {
       }) async {
         final game = await arena(snapshot: snapshot);
         final caster = game.activeCompanions[0]!;
+        // Loose, so it goes out and fights. Tethered, it waits at the ship
+        // for enemies to walk into range, and the whole comparison came down
+        // to whether one shot happened to land in the last second.
+        game.clearCompanionTether();
         game.ship.currentHp = game.ship.maxHp * 0.2;
         var gained = 0.0;
         for (var i = 0; i < 60 * 25; i++) {
           caster.specialCooldown = 99999;
-          // Stand the ship between the Kin and whatever it is shooting.
-          final target = game.enemies.firstWhere(
-            (e) => !e.isDead,
-            orElse: () => game.enemies.first,
-          );
+          // Stand the ship between the Kin and whatever it is shooting —
+          // its locked target when it has one, not just the first body in
+          // the list (which is only sometimes the same thing).
+          final locked = caster.stickyTarget;
+          final target = locked != null && !locked.isDead
+              ? locked
+              : game.enemies.firstWhere(
+                  (e) => !e.isDead,
+                  orElse: () => game.enemies.first,
+                );
           final dir = target.position - caster.position;
           final len = dir.distance;
           if (len > 1) game.ship.position = caster.position + dir / len * 60;

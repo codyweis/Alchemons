@@ -226,6 +226,11 @@ class FlightSteeringState {
   bool diving = false;
   Offset velocity = Offset.zero;
 
+  /// Backing away from the target on purpose — the rear-back before a dive,
+  /// the float-out after one — until the flight turns forward again. A dive
+  /// that overshoots is not backing off. See [flightHeading].
+  bool backingOff = false;
+
   /// Set once the first dive commits — the telegraph RING is a one-time
   /// teaching cue per enemy; later windups still rear back but stay quiet.
   bool telegraphShown = false;
@@ -290,6 +295,7 @@ FlightSteeringTick tickFlightSteering({
               (profile.swoopIntervalMax - profile.swoopIntervalMin);
       state.orbitAngle = atan2(-dir.dy, -dir.dx);
       state.velocity = -dir * speed * profile.retreatSpeedMul; // float out
+      state.backingOff = true;
     } else if (state.diveTimer <= 0) {
       state.diving = false; // target slipped away — back to hovering
       state.swoopTimer = 0.8 + rng.nextDouble();
@@ -309,6 +315,7 @@ FlightSteeringTick tickFlightSteering({
     if (state.swoopTimer <= 0 &&
         dist < profile.hoverRadius * profile.commitRangeMul) {
       state.windupTimer = profile.windupSeconds;
+      state.backingOff = true;
       desiredVel = Offset.zero;
     } else if (dist > profile.hoverRadius * profile.approachRangeMul) {
       // Far away: close in directly (still smoothed, so it arcs).
@@ -338,5 +345,42 @@ FlightSteeringTick tickFlightSteering({
   // Smooth steering → inertia → floaty.
   final blend = (1 - exp(-dt * steerRate)).clamp(0.0, 1.0).toDouble();
   state.velocity += (desiredVel - state.velocity) * blend;
+  if (state.backingOff &&
+      !state.telegraphing &&
+      state.velocity.dx * dir.dx + state.velocity.dy * dir.dy >= 0) {
+    state.backingOff = false; // flying forward again
+  }
   return FlightSteeringTick(velocity: state.velocity, impact: impact);
 }
+
+/// The heading a flight-steered body points along after a tick: its flight,
+/// except while it backs off (see [FlightSteeringState.backingOff]), when the
+/// backward part of its flight is mirrored forward — it backs away facing the
+/// target [toTarget] away and slides round as it goes. Following the raw
+/// flight turned it tail-first on the rear-back, round again on the dive and
+/// round once more on the float-out. The mirror ends where the flight turns
+/// forward, where mirrored and raw agree, so the heading never jumps.
+///
+/// A slow body also leans its face toward the target: near a standstill the
+/// flight's direction swings wildly (braking out of a missed dive, parking
+/// on the hover ring) and the body spun after it. At speed the lean is lost
+/// in the flight. [fallback] when it is barely moving.
+double flightHeading(
+  FlightSteeringState state,
+  Offset toTarget, {
+  required double fallback,
+}) {
+  var v = state.velocity;
+  final dist = toTarget.distance;
+  if (dist > 1e-3) {
+    final n = toTarget / dist;
+    final along = v.dx * n.dx + v.dy * n.dy;
+    if (state.backingOff && along < 0) v -= n * (2 * along);
+    v += n * _kSlowFaceLean;
+  }
+  if (v.distanceSquared <= 16) return fallback;
+  return atan2(v.dy, v.dx);
+}
+
+/// px/s: how hard a slow flight-steered body leans toward its target.
+const double _kSlowFaceLean = 30;

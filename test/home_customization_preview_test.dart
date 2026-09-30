@@ -39,6 +39,12 @@ void main() {
     // everything past about 1.8 radii.
     final world = Platform.environment['HOME_WORLD'] == '1';
     final shift = world ? const Offset(60, 30) : Offset.zero;
+    // HOME_OPTS="black_hole.density=Maximum,black_hole.color=Solar" sets
+    // the customizations' options.
+    final options = <String, String>{
+      for (final kv in (Platform.environment['HOME_OPTS'] ?? '').split(','))
+        if (kv.contains('=')) kv.split('=')[0]: kv.split('=')[1],
+    };
     final images = <(String, ui.Image)>[];
     for (final id in ids) {
       final game = CosmicGame(
@@ -61,6 +67,7 @@ void main() {
         ),
       );
       game.activeCustomizations = {id};
+      game.customizationOptions = {...options};
       if (world) {
         game.update(1 / 60);
       } else {

@@ -198,6 +198,141 @@ class HomeEffectsArt {
     if (active.contains('lightning_rod')) _lightningRod(c, p, r, t, o);
   }
 
+  // ── the premium colours ───────────────────────────────────────────────
+
+  /// The glow round a home planet in a premium colour ([colorId]); false
+  /// when the colour is not one, and the ordinary glow should be drawn.
+  bool paintPremiumAura(
+    Canvas c,
+    Offset p,
+    double r,
+    double t,
+    String? colorId,
+  ) {
+    switch (colorId) {
+      case 'Void':
+        // Nythralor's glow: violet, deep, and a little darkness close in.
+        _oldAura(c, p, r, const Color(0xFF4A148C));
+        _softCircle(
+          c,
+          p,
+          r * 1.6,
+          const Color(0xFF000000).withValues(alpha: 0.35),
+          r * 0.3,
+        );
+        return true;
+      case 'Radiant':
+        // Gold far out, so the haze reads as warm light rather than fog;
+        // white only close in, where it is brightest.
+        final swell = 0.5 + 0.5 * sin(t * 0.5);
+        _oldAura(c, p, r, const Color(0xFFFFE9A8));
+        _halo(
+          c,
+          p,
+          r,
+          const Color(0xFFFFD27A),
+          alpha: 0.2 + 0.06 * swell,
+          reach: 2.6,
+        );
+        _softCircle(
+          c,
+          p,
+          r * 1.3,
+          const Color(0xFFFFFBEA).withValues(alpha: 0.32 + 0.06 * swell),
+          r * 0.12,
+        );
+        return true;
+    }
+    return false;
+  }
+
+  /// The body of a home planet in a premium colour; false when [colorId]
+  /// is not one.
+  bool paintPremiumBody(
+    Canvas c,
+    Offset p,
+    double r,
+    double t,
+    String? colorId,
+  ) {
+    switch (colorId) {
+      case 'Void':
+        // Black, as Nythralor is: the faintest violet toward the edge, and
+        // light bent round the limb.
+        c.drawCircle(
+          p,
+          r,
+          Paint()
+            ..shader = ui.Gradient.radial(
+              p,
+              r,
+              const [Color(0xFF020006), Color(0xFF05010D), Color(0xFF140630)],
+              const [0.0, 0.8, 1.0],
+            ),
+        );
+        final breathe = 0.5 + 0.5 * sin(t * 0.7);
+        _limb(
+          c,
+          p,
+          r,
+          const Color(0xFF9A6AE0),
+          alpha: 0.4 + 0.1 * breathe,
+          inner: 0.9,
+          outer: 1.1,
+        );
+        c.drawCircle(
+          p,
+          r + 2,
+          Paint()
+            ..color = const Color(0xFF4A148C).withValues(alpha: 0.4)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
+        );
+        return true;
+      case 'Radiant':
+        // White-hot to the heart, warm only at the very edge, breathing.
+        final breathe = 0.5 + 0.5 * sin(t * 0.6);
+        c.drawCircle(
+          p,
+          r,
+          Paint()
+            ..shader = ui.Gradient.radial(
+              p,
+              r,
+              const [
+                Color(0xFFFFFFFF),
+                Color(0xFFFFFDF4),
+                Color(0xFFFFF2CC),
+                Color(0xFFFFE2A0),
+              ],
+              const [0.0, 0.45, 0.82, 1.0],
+            ),
+        );
+        c.save();
+        _clipDisc(c, p, r);
+        _softCircle(
+          c,
+          Offset(p.dx - r * 0.1, p.dy - r * 0.1),
+          r * 0.55,
+          const Color(0xFFFFFFFF).withValues(alpha: 0.35 + 0.2 * breathe),
+          r * 0.25,
+        );
+        _shade(c, p, r, strength: 0.08, night: const Color(0xFF8A6A20));
+        c.restore();
+        _limb(
+          c,
+          p,
+          r,
+          const Color(0xFFFFFFFF),
+          alpha: 0.55 + 0.1 * breathe,
+          inner: 0.92,
+          outer: 1.12,
+        );
+        return true;
+    }
+    return false;
+  }
+
   // ── shared ────────────────────────────────────────────────────────────
 
   /// A point on a circle of [rad] in [spin]'s equatorial plane, and whether
@@ -343,9 +478,11 @@ class HomeEffectsArt {
 
   /// PREMIUM. The planet becomes the eye of a feeding black hole: a disk of
   /// burning matter wheeling round it, streams spiralling in, sunk in
-  /// Nythralor's layered violet glow — and the far side of the disk seen
-  /// bent up over the top of the planet, the way light comes round a black
-  /// hole, so the planet sits inside a crown of its own disk.
+  /// Nythralor's layered glow — and the far side of the disk seen bent up
+  /// over the top of the planet, the way light comes round a black hole, so
+  /// the planet sits inside a crown of its own disk. Its density runs from
+  /// Nythralor's up to a storm thicker than the Singularity's, and it burns
+  /// in any of five colours or drifts through them all.
   void _blackHole(
     Canvas c,
     Offset p,
@@ -355,30 +492,52 @@ class HomeEffectsArt {
     Offset? wake,
     bool front,
   ) {
-    final wide = o('black_hole', 'disk', 'Wide') == 'Wide';
+    final (outer, area) = switch (o('black_hole', 'disk', 'Wide')) {
+      'Tight' => (2.3, 0.75),
+      'Vast' => (4.0, 1.5),
+      _ => (3.1, 1.0),
+    };
     final speed = switch (o('black_hole', 'spin', 'Normal')) {
       'Slow' => 0.3,
       'Fast' => 0.9,
       _ => 0.55,
     };
-    final outer = wide ? 3.1 : 2.3;
+    // More matter, and bigger grains of it, the denser it is.
+    final (motes, infall, grain) = switch (o(
+      'black_hole',
+      'density',
+      'Normal',
+    )) {
+      'Dense' => (1500, 130, 1.9),
+      'Very Dense' => (2200, 170, 2.2),
+      'Maximum' => (3000, 220, 2.5),
+      _ => (900, 90, 1.6),
+    };
+    final palette = switch (o('black_hole', 'color', 'Violet')) {
+      'Solar' => DiskPalette.solar,
+      'Crimson' => DiskPalette.crimson,
+      'Azure' => DiskPalette.azure,
+      'Emerald' => DiskPalette.emerald,
+      'Spectral' => DiskPalette.shifted(DiskPalette.violet, t * 18 % 360),
+      _ => DiskPalette.violet,
+    };
     final disk = _disks.putIfAbsent(
-      'bh:$wide:$speed',
+      'bh:$outer:$speed:$motes',
       () => _AccretionDisk(
         Random(9011),
-        motes: wide ? 900 : 700,
-        infall: 90,
+        motes: (motes * area).round(),
+        infall: infall,
         inner: 1.3,
         outer: outer,
         speed: speed,
         flat: 0.3,
-        grain: 1.6,
+        grain: grain,
         lensed: true,
       ),
     );
     if (front) {
-      disk.paintLensed(c, p, r, t, wake: wake);
-      disk.paintMatter(c, p, r, t, front: true, wake: wake);
+      disk.paintLensed(c, p, r, t, wake: wake, palette: palette);
+      disk.paintMatter(c, p, r, t, front: true, wake: wake, palette: palette);
       return;
     }
     // Space darkening round it.
@@ -389,12 +548,13 @@ class HomeEffectsArt {
       const Color(0xFF000000).withValues(alpha: 0.4),
       r * 0.6,
     );
-    // Nythralor's disk glow: layered violets, flattened into the plane.
+    // Nythralor's disk glow: layered bands, flattened into the plane.
     c.save();
     c.translate(p.dx, p.dy);
     c.scale(1.0, disk.flat);
     for (var i = 3; i >= 0; i--) {
       final rad = r * (1.5 + (outer - 1.5) * (0.35 + i * 0.2));
+      final band = Color.lerp(palette.bandA, palette.bandB, i / 3)!;
       c.drawCircle(
         Offset.zero,
         rad,
@@ -403,25 +563,17 @@ class HomeEffectsArt {
             Offset.zero,
             rad,
             [
-              Color.lerp(
-                const Color(0xFF7A3AD0),
-                const Color(0xFF4A148C),
-                i / 3,
-              )!.withValues(alpha: 0.13 + 0.04 * sin(t * 1.5 + i)),
-              Color.lerp(
-                const Color(0xFF7A3AD0),
-                const Color(0xFF4A148C),
-                i / 3,
-              )!.withValues(alpha: 0.08),
-              const Color(0xFF4A148C).withValues(alpha: 0),
+              band.withValues(alpha: 0.13 + 0.04 * sin(t * 1.5 + i)),
+              band.withValues(alpha: 0.08),
+              palette.bandB.withValues(alpha: 0),
             ],
             const [0.0, 0.7, 1.0],
           ),
       );
     }
     c.restore();
-    disk.paintGlow(c, p, r, t, alpha: 0.45);
-    disk.paintMatter(c, p, r, t, front: false, wake: wake);
+    disk.paintGlow(c, p, r, t, alpha: 0.45, palette: palette);
+    disk.paintMatter(c, p, r, t, front: false, wake: wake, palette: palette);
   }
 
   /// Dark matter drawn in from all round: layers of purple dark, and motes
@@ -626,11 +778,22 @@ class HomeEffectsArt {
   ) {
     final count = int.tryParse(o('planetary_rings', 'count', '2')) ?? 2;
     final style = o('planetary_rings', 'style', 'Icy');
-    final lanes = switch (count) {
-      1 => const [(1.75, 0.16, 0.22)],
-      3 => const [(1.5, 0.08, 0.22), (1.82, 0.12, 0.24), (2.15, 0.07, 0.16)],
-      _ => const [(1.55, 0.09, 0.22), (1.92, 0.14, 0.24)],
+    // Width spreads the lanes out from the planet and thickens each, up to
+    // a Vast system reaching past three and a half radii.
+    final spread = switch (o('planetary_rings', 'width', 'Normal')) {
+      'Narrow' => 0.7,
+      'Wide' => 1.8,
+      'Vast' => 2.8,
+      _ => 1.0,
     };
+    final lanes = [
+      for (final (c, w, a) in switch (count) {
+        1 => const [(1.75, 0.16, 0.22)],
+        3 => const [(1.5, 0.08, 0.22), (1.82, 0.12, 0.24), (2.15, 0.07, 0.16)],
+        _ => const [(1.55, 0.09, 0.22), (1.92, 0.14, 0.24)],
+      })
+        (1.3 + (c - 1.3) * spread, w * spread, a),
+    ];
     final (lane, dim, bright) = switch (style) {
       'Rocky' => (
         const Color(0xFFC8B090),
@@ -653,7 +816,7 @@ class HomeEffectsArt {
         ? HSVColor.fromAHSV(1, (t * 18) % 360, 0.35, 1).toColor()
         : null;
     _ring(
-      'rings:$count:$style',
+      'rings:$count:$style:$spread',
       spin: _spin,
       centre: 0,
       width: 0,
@@ -661,7 +824,8 @@ class HomeEffectsArt {
       lane: lane,
       dim: dim,
       bright: bright,
-      count: 380,
+      // As many grains per area of ring, however wide.
+      count: (380 * spread).round(),
       lanes: lanes,
     ).paint(c, p, r, t, front: front, wake: wake, laneTint: tint);
   }

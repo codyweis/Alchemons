@@ -292,6 +292,10 @@ VfxMaterial vfxMaterial(String? element) => switch (element) {
 };
 
 final ui.Paint _vfxFill = ui.Paint();
+final ui.Paint _vfxStroke = ui.Paint()
+  ..style = ui.PaintingStyle.stroke
+  ..strokeCap = ui.StrokeCap.round
+  ..strokeJoin = ui.StrokeJoin.round;
 
 void vfxFillPath(ui.Canvas canvas, ui.Path path, ui.Color color, double alpha) {
   if (alpha <= 0.004) return;
@@ -399,4 +403,64 @@ void vfxCrossLit(
     );
   canvas.drawPath(path, _vfxFill);
   _vfxFill.shader = null;
+}
+
+/// A faceted stone or ice chunk: dark body, one lit face, one glint.
+void vfxChunk(
+  ui.Canvas canvas,
+  ui.Offset c,
+  double r,
+  double seed,
+  VfxMaterial m, {
+  double alpha = 1,
+  double rot = 0,
+  int sides = 6,
+  double faceAlpha = 0.7,
+}) {
+  final pts = <ui.Offset>[];
+  for (var k = 0; k < sides; k++) {
+    final a = rot + k * pi * 2 / sides + (vfxHash(seed + k) - 0.5) * 0.5;
+    pts.add(c + vfxPolar(a, r * (0.72 + 0.4 * vfxHash(seed + k * 2.3))));
+  }
+  final body = ui.Path()..addPolygon(pts, true);
+  vfxFillPath(canvas, body, m.ink, 0.92 * alpha);
+  final face = ui.Path()
+    ..addPolygon([c + (pts[0] - c) * 0.2, pts[0], pts[1], pts[2]], true);
+  vfxFillPath(canvas, face, m.mid, faceAlpha * alpha);
+  final glint = ui.Path()
+    ..addPolygon([pts[0], pts[1], c + (pts[1] - c) * 0.55], true);
+  vfxFillPath(canvas, glint, m.glint, 0.30 * alpha);
+}
+
+/// A lightning bolt as a lit core over a faint glow — the one place a line is
+/// the right material.
+void vfxBolt(
+  ui.Canvas canvas,
+  ui.Offset from,
+  ui.Offset to,
+  double seed,
+  VfxMaterial m,
+  double alpha, {
+  double jag = 0.22,
+  int segs = 5,
+}) {
+  final d = to - from;
+  final len = d.distance;
+  if (len < 1) return;
+  final n = ui.Offset(-d.dy, d.dx) / len;
+  final path = ui.Path()..moveTo(from.dx, from.dy);
+  for (var k = 1; k <= segs; k++) {
+    final f = k / segs;
+    final off = k == segs ? 0.0 : (vfxHash(seed + k * 3.1) - 0.5) * len * jag;
+    final p = from + d * f + n * off;
+    path.lineTo(p.dx, p.dy);
+  }
+  _vfxStroke
+    ..color = m.mid.withValues(alpha: 0.22 * alpha)
+    ..strokeWidth = 4.2;
+  canvas.drawPath(path, _vfxStroke);
+  _vfxStroke
+    ..color = m.glint.withValues(alpha: 0.9 * alpha)
+    ..strokeWidth = 1.3;
+  canvas.drawPath(path, _vfxStroke);
 }

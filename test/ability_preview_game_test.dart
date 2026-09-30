@@ -46,7 +46,12 @@ void main() {
     // Waves keep trying; none of theirs stay. Ten posts plus at most ten
     // runners are ever on the field.
     expect(game.enemies.length, lessThanOrEqualTo(20));
-    expect(game.enemies.where((e) => e.speed == 0).length, 10);
+    // Ten posts: every one either standing or on its way back after a fall.
+    expect(
+      game.enemies.where((e) => e.speed == 0).length +
+          game.debugPostsAwaitingReturn,
+      10,
+    );
     expect(game.enemies.where((e) => e.speed > 0), isNotEmpty);
     expect(game.activeBoss, isNull);
     // Never interrupted, never lost.

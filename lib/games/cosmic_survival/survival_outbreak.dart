@@ -72,7 +72,7 @@ class SurvivalOutbreak {
           maxHp: hp,
           speed: 0,
           damage: 0,
-          radius: count == 1 ? 40 : 28,
+          radius: (count == 1 ? 40 : 28) * enemySizeScale(EnemyTier.brute),
           tier: EnemyTier.brute,
           element: element,
           conduct: EnemyConduct.drift,

@@ -5,7 +5,197 @@ import 'cosmic_data.dart';
 
 enum CosmicAbilityMode { openSpace, survival }
 
+/// One kind of ground a Let leaves behind: what it does, how wide, how long.
+///
+/// Survival's numbers, held in one place. Open space used to carry its own
+/// copies and they drifted — Steam's vent ran 8s instead of 12, Plant rooted
+/// instead of cutting — so all three games now spawn from this.
+class LetZoneSpec {
+  const LetZoneSpec({
+    required this.tick,
+    required this.radius,
+    required this.duration,
+    this.damageShare = 0,
+    this.effectShare = 0,
+    this.visualScale = 1.35,
+  });
+
+  final AbilityEffectKind tick;
+  final double radius;
+  final double duration;
+
+  /// Tick power as a share of the meteor's damage...
+  final double damageShare;
+
+  /// ...or, when [damageShare] is 0, of its effect power.
+  final double effectShare;
+  final double visualScale;
+
+  double power(Projectile meteor) => damageShare > 0
+      ? meteor.damage * damageShare
+      : meteor.effectPower * effectShare;
+}
+
 class CosmicAbilityRuntime {
+  /// The ground a Let leaves where it COLLIDES — the board's "if collides"
+  /// half. Null for elements whose contact effect leaves nothing behind.
+  static LetZoneSpec? letContactZone(String? element) => switch (element) {
+    'Dust' => const LetZoneSpec(
+      tick: AbilityEffectKind.slow,
+      radius: 130,
+      duration: 4.5,
+      effectShare: 0.25,
+    ),
+    'Lava' => const LetZoneSpec(
+      tick: AbilityEffectKind.burn,
+      radius: 145,
+      duration: 4.2,
+      damageShare: 0.13,
+    ),
+    'Poison' => const LetZoneSpec(
+      tick: AbilityEffectKind.poison,
+      radius: 116,
+      duration: 3.8,
+      damageShare: 0.08,
+      visualScale: 1.9,
+    ),
+    'Earth' => const LetZoneSpec(
+      tick: AbilityEffectKind.stun,
+      radius: 128,
+      duration: 3.2,
+      damageShare: 0.10,
+      visualScale: 1.55,
+    ),
+    _ => null,
+  };
+
+  /// The ground a Let leaves where it KILLS — the board's "if kills" half.
+  /// Plant is not here: its vines are traps, not a zone (see [letVineSpots]).
+  static LetZoneSpec? letKillZone(String? element) => switch (element) {
+    'Light' => const LetZoneSpec(
+      tick: AbilityEffectKind.zoneHeal,
+      radius: 130,
+      duration: 5.5,
+      damageShare: 0.16,
+      visualScale: 1.7,
+    ),
+    'Steam' => const LetZoneSpec(
+      tick: AbilityEffectKind.geyser,
+      radius: 115,
+      duration: 12.0,
+      damageShare: 0.12,
+      visualScale: 1.6,
+    ),
+    'Mud' => const LetZoneSpec(
+      tick: AbilityEffectKind.stun,
+      radius: 130,
+      duration: 4.8,
+      damageShare: 0.08,
+      visualScale: 1.5,
+    ),
+    _ => null,
+  };
+
+  /// Plant's kill: vines grow round the kill and wait. Per the board they
+  /// "remain until an enemy collides with them" and "do damage" — each one is
+  /// a trap that strikes the first body to come within [kLetVineReach] and is
+  /// spent doing it.
+  ///
+  /// This replaced four overlapping 30-second damage fields. They sat almost
+  /// on top of one another, so a body in the middle took four ticks every
+  /// 0.35s and the kill left what was really one very strong damage zone.
+  static const int kLetVineCount = 5;
+  static const double kLetVineReach = 34.0;
+
+  /// "Until an enemy collides" needs some ceiling so an unvisited corner of
+  /// the arena does not collect vines forever.
+  static const double kLetVineLife = 30.0;
+
+  /// What one vine strikes for, as a share of the meteor's damage.
+  static const double kLetVineDamageShare = 0.45;
+
+  /// Where the vines grow: a ring round the kill, far enough apart that no
+  /// two reaches overlap, turned by the cast so repeat kills do not stamp the
+  /// same pattern.
+  static List<Offset> letVineSpots(Offset centre, double angle) => [
+    for (var i = 0; i < kLetVineCount; i++)
+      centre +
+          Offset(
+                cos(angle + i * pi * 2 / kLetVineCount),
+                sin(angle + i * pi * 2 / kLetVineCount),
+              ) *
+              (82.0 + (i.isEven ? 10.0 : 0.0)),
+  ];
+
+  static bool isLetVine(Projectile p) =>
+      p.abilityFamily == 'let' &&
+      p.stationary &&
+      p.element == 'Plant' &&
+      p.visualStyle == ProjectileVisualStyle.letShard;
+
+  /// A vine, ready to be placed at [at]. Its strike is carried in
+  /// [Projectile.effectPower]; [Projectile.damage] stays 0 so the ordinary
+  /// contact pass never bills a body for touching it.
+  static Projectile letVine(Projectile meteor, Offset at) => Projectile(
+    position: at,
+    angle: 0,
+    element: 'Plant',
+    damage: 0,
+    life: kLetVineLife,
+    speedMultiplier: 0,
+    stationary: true,
+    piercing: true,
+    // Let ground never collides, so the only thing still reading this is
+    // survival's viewport cull — sized to the art so it does not pop out
+    // at the screen edge.
+    radiusMultiplier: 5.5,
+    visualScale: 1.2,
+    visualStyle: ProjectileVisualStyle.letShard,
+    sourceSlotIndex: meteor.sourceSlotIndex,
+    abilityFamily: 'let',
+    effectPower: meteor.damage * kLetVineDamageShare,
+    effectRadius: kLetVineReach,
+    effectDuration: kLetVineLife,
+  );
+
+  /// A zone from [spec], ready to be placed at [at].
+  static Projectile letZone(
+    Projectile meteor,
+    Offset at,
+    String element,
+    LetZoneSpec spec,
+  ) => Projectile(
+    position: at,
+    angle: 0,
+    element: element,
+    damage: 0,
+    life: spec.duration,
+    speedMultiplier: 0,
+    stationary: true,
+    piercing: true,
+    // Only survival's viewport cull reads this now (see [letVine]); sized so
+    // a zone whose centre is just off screen is still drawn.
+    radiusMultiplier: spec.radius / 7.0,
+    visualScale: spec.visualScale,
+    visualStyle: ProjectileVisualStyle.letShard,
+    sourceSlotIndex: meteor.sourceSlotIndex,
+    abilityFamily: 'let',
+    tickEffect: spec.tick,
+    effectPower: spec.power(meteor),
+    effectRadius: spec.radius,
+    effectDuration: spec.duration,
+  );
+
+  /// How far Air's knockback reaches, and Water's and Fire's second hits —
+  /// the radii the aftermath beats are drawn to.
+  static double letAirReach(Projectile p) => max(180.0, p.effectRadius);
+  static double letWaterReach(Projectile p) => max(125.0, p.effectRadius);
+  static double letFireReach(Projectile p) => max(555.0, p.effectRadius * 3.0);
+
+  /// How long Ice's freeze and Crystal's slow hold the body they struck.
+  static const double kLetIceHold = 3.2;
+  static const double kLetCrystalHold = 3.5;
+
   static bool isLetMeteorCore(Projectile projectile) =>
       projectile.visualStyle == ProjectileVisualStyle.meteor;
 

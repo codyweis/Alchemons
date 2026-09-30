@@ -144,6 +144,16 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
   /// as a gradient of the same shape (a blur pass per frame is the jank
   /// source in space; this looks the same and costs a plain fill).
   void _paintHomeAura(Canvas canvas, Offset pos, double vr, Color col) {
+    // The premium colours are drawn their own way.
+    if (HomeEffectsArt.instance.paintPremiumAura(
+      canvas,
+      pos,
+      vr,
+      _elapsed,
+      homePlanet?.activeColor,
+    )) {
+      return;
+    }
     final r = vr * 2.5 + 50;
     canvas.drawCircle(
       pos,
@@ -167,6 +177,15 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
   /// atmosphere, the far side falling into shadow, and a slow breath of
   /// light inside it.
   void _paintHomeSphere(Canvas canvas, Offset pos, double vr, Color col) {
+    if (HomeEffectsArt.instance.paintPremiumBody(
+      canvas,
+      pos,
+      vr,
+      _elapsed,
+      homePlanet?.activeColor,
+    )) {
+      return;
+    }
     final breathe = 0.5 + 0.5 * sin(_elapsed * 0.6);
     canvas.drawCircle(
       pos,

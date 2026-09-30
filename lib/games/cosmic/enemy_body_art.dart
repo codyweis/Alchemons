@@ -102,7 +102,7 @@ class EnemyPalette {
 
   late final ui.Shader wispTail = ui.Gradient.linear(
     const Offset(0.3, 0),
-    const Offset(-2.7, 0),
+    const Offset(-1.8, 0),
     [
       _a(Color.lerp(essence, hot, 0.35)!, 0.62),
       _a(essence, 0.24),
@@ -111,21 +111,26 @@ class EnemyPalette {
     const [0.0, 0.42, 1.0],
   );
 
-  /// Ridge-lit hull: brightest along the spine, dark at both flanks, so it
-  /// reads the same whichever way the body is turned.
-  late final ui.Shader ridge = ui.Gradient.linear(
-    const Offset(0, -0.8),
-    const Offset(0, 0.8),
-    [ink, face, Color.lerp(face, rim, 0.35)!, face, ink],
-    const [0.08, 0.40, 0.5, 0.60, 0.92],
+  /// A dart flank: a lit spine at y = 0, dark across the wing, its leading
+  /// edge catching the body's own light.
+  late final ui.Shader dartFlank = ui.Gradient.linear(
+    const Offset(0, 0),
+    const Offset(0, -0.86),
+    [
+      Color.lerp(face, rim, 0.55)!,
+      Color.lerp(ink, face, 0.35)!,
+      ink,
+      Color.lerp(ink, essence, 0.55)!,
+    ],
+    const [0.0, 0.12, 0.55, 1.0],
   );
 
-  /// A thin crack of light along the x axis.
-  late final ui.Shader seam = ui.Gradient.linear(
-    const Offset(0, -0.1),
-    const Offset(0, 0.1),
-    [_a(essence, 0), hot, _a(essence, 0)],
-    const [0.0, 0.5, 1.0],
+  /// Light across a dart flank as it banks up into view.
+  late final ui.Shader dartSheen = ui.Gradient.linear(
+    const Offset(0.6, 0),
+    const Offset(-0.4, -0.8),
+    [_a(hot, 0.35), _a(essence, 0.22), _a(essence, 0)],
+    const [0.0, 0.45, 1.0],
   );
 
   late final ui.Shader exhaust = ui.Gradient.linear(
@@ -298,13 +303,6 @@ void _path(Canvas c, Path p, ui.Shader s, [double alpha = 1]) {
   c.drawPath(p, _fill);
 }
 
-void _solid(Canvas c, Path p, Color col) {
-  _fill
-    ..shader = null
-    ..color = col;
-  c.drawPath(p, _fill);
-}
-
 /// A point of light at [at], [radius] across, in unit space.
 void _sparkAt(
   Canvas c,
@@ -338,16 +336,23 @@ double _frac(double x) => x - x.floorToDouble();
 
 // ── wisp ────────────────────────────────────────────────────────────────────
 //
-// Loose essence with no shell at all: a hot spark with a comet tail laid out
-// behind it. A horde of them streams in as light.
+// Loose essence with no shell at all: a hot spark with a short comet tail
+// laid out behind it. A horde of them streams in as light.
+//
+// The tail holds still and bends through a turn, as the drone's contrail
+// does; only the spark twinkles. It used to wag and breathe, and at horde
+// density its baked frames stepped between those poses — choppy steering.
 
-final Path _wispTail = Path()
+/// The tail, its tip bent [bend] toward the turn. Nose at +x.
+Path _wispTailPath(double bend) => Path()
   ..moveTo(0.3, 0)
   ..cubicTo(0.3, -0.52, -0.2, -0.6, -0.8, -0.34)
-  ..quadraticBezierTo(-1.8, -0.07, -2.7, 0)
-  ..quadraticBezierTo(-1.8, 0.07, -0.8, 0.34)
+  ..quadraticBezierTo(-1.3, -0.1 + bend * 0.35, -1.8, bend)
+  ..quadraticBezierTo(-1.3, 0.1 + bend * 0.35, -0.8, 0.34)
   ..cubicTo(-0.2, 0.6, 0.3, 0.52, 0.3, 0)
   ..close();
+
+final Path _wispTailStraight = _wispTailPath(0);
 
 void paintWispBody(
   Canvas c,
@@ -355,15 +360,20 @@ void paintWispBody(
   required double time,
   required double seed,
   required double heading,
+  double turn = 0,
   double flash = 0,
 }) {
   final flick =
       0.86 + 0.14 * sin(time * 9.0 + seed * 7) * sin(time * 5.3 + seed * 3);
   _circle(c, pal.glow, 2.1);
   c.save();
-  c.rotate(heading + 0.08 * sin(time * 3.7 + seed * 5));
-  c.scale(0.9 + 0.12 * flick, 0.88 + 0.12 * flick);
-  _path(c, _wispTail, pal.wispTail);
+  c.rotate(heading);
+  final bend = (turn * 0.24).clamp(-0.6, 0.6);
+  _path(
+    c,
+    bend.abs() < 0.02 ? _wispTailStraight : _wispTailPath(bend),
+    pal.wispTail,
+  );
   c.restore();
   _circle(c, pal.wispCore, 1.0 * flick);
   _hitFlash(c, flash, 0.9);
@@ -371,37 +381,21 @@ void paintWispBody(
 
 // ── drone ───────────────────────────────────────────────────────────────────
 //
-// One shard of the shell, split down its spine by a crack of light, with a
-// burning eye at the nose and the essence it runs on streaming out behind.
+// A swept dart of obsidian: two curved flanks meeting in a lit spine, their
+// leading edges catching its own light, a burning eye near the nose and a
+// contrail from the notch behind. It banks into its turns like a swift —
+// the body narrows as it rolls, the rising wing catches the light, the
+// contrail bends through the turn — and flying straight it rocks gently.
+// Coils on the wind-up; streaks on the dash.
+//
+// No twitch. The old body jittered on purpose, and at horde density its
+// baked frames stepped between poses; both read as choppy steering.
 
-final Path _droneHull = Path()
-  ..moveTo(1.25, 0)
-  ..lineTo(0.18, -0.74)
-  ..lineTo(-0.58, -0.6)
-  ..lineTo(-0.96, -0.24)
-  ..lineTo(-0.64, 0)
-  ..lineTo(-0.96, 0.24)
-  ..lineTo(-0.58, 0.6)
-  ..lineTo(0.18, 0.74)
-  ..close();
-
-/// The lit flank: a facet from nose to shoulder, so the shard has planes
-/// rather than a single gradient.
-final Path _droneFacet = Path()
-  ..moveTo(1.25, 0)
-  ..lineTo(0.18, -0.74)
-  ..lineTo(-0.2, -0.28)
-  ..lineTo(0.3, 0)
-  ..close();
-
-final Path _droneSeam = vfxLens(1.3, 0.22, 0.5, 0.55).shift(
-  const Offset(-0.5, 0),
-);
-
-final Path _droneExhaust = Path()
-  ..moveTo(-0.55, -0.2)
-  ..quadraticBezierTo(-1.3, -0.12, -2.3, 0)
-  ..quadraticBezierTo(-1.3, 0.12, -0.55, 0.2)
+/// The left flank (−y); the right is its mirror. Nose at +x.
+final Path _dartFlank = Path()
+  ..moveTo(1.32, 0)
+  ..quadraticBezierTo(0.42, -0.26, -0.56, -0.86)
+  ..quadraticBezierTo(-0.4, -0.4, -0.28, 0)
   ..close();
 
 void paintDroneBody(
@@ -410,25 +404,45 @@ void paintDroneBody(
   required double time,
   required double seed,
   required double heading,
+  double turn = 0,
   double charge = 0,
   double dash = 0,
   double flash = 0,
+  bool rock = true,
 }) {
-  final twitch = sin(time * (12 + 20 * charge) + seed * 7);
-  final pulse = 0.6 + 0.4 * sin(time * 8 + seed * 3);
+  final pulse = 0.6 + 0.4 * sin(time * 5 + seed * 3);
   _circle(c, pal.glow, 2.0 + 0.4 * dash);
   c.save();
-  c.rotate(heading + twitch * (0.05 + 0.06 * charge));
-  // Coiled on the wind-up, stretched on the dash.
-  c.scale(1 - 0.12 * charge + 0.1 * dash, 1 + 0.06 * charge);
-  c.save();
-  c.scale(0.8 + 0.25 * pulse + 1.4 * dash, 1 + 0.3 * dash);
-  _path(c, _droneExhaust, pal.exhaust, 0.8 + 0.2 * max(charge, dash));
-  c.restore();
-  _path(c, _droneHull, pal.ridge);
-  _solid(c, _droneFacet, const Color(0x14FFFFFF));
-  _path(c, _droneSeam, pal.seam, 0.35 + 0.35 * pulse + 0.3 * charge);
-  _sparkAt(c, pal, const Offset(0.76, 0), 0.42 + 0.1 * pulse + 0.2 * charge);
+  c.rotate(heading);
+
+  // The contrail, bent toward the turn (the path behind a turning body
+  // curves round the same centre it turns about).
+  final bend = (turn * 0.32).clamp(-0.9, 0.9);
+  final len = (2.1 + 1.8 * dash) * (0.9 + 0.12 * pulse);
+  final tail = Path()
+    ..moveTo(-0.26, -0.15)
+    ..quadraticBezierTo(-0.3 - len * 0.55, -0.09 + bend * 0.3, -0.3 - len, bend)
+    ..quadraticBezierTo(-0.3 - len * 0.55, 0.09 + bend * 0.3, -0.26, 0.15)
+    ..close();
+  _path(c, tail, pal.exhaust, 0.75 + 0.25 * max(charge, dash));
+
+  // Banked: the body narrows as it rolls, and the wing on the outside of
+  // the turn rises into the light.
+  final roll =
+      ((turn * 0.3).clamp(-1.0, 1.0) +
+              (rock ? 0.22 * sin(time * 1.7 + seed * 2) : 0.0))
+          .clamp(-1.0, 1.0);
+  c.scale(1 - 0.12 * charge + 0.08 * dash, 1 - 0.34 * roll.abs());
+  for (final side in const [-1.0, 1.0]) {
+    c.save();
+    c.scale(1, side);
+    _path(c, _dartFlank, pal.dartFlank);
+    // The −y wing rises in a clockwise (positive) roll.
+    final rise = side < 0 ? roll : -roll;
+    if (rise > 0.05) _path(c, _dartFlank, pal.dartSheen, rise);
+    c.restore();
+  }
+  _sparkAt(c, pal, const Offset(0.72, 0), 0.3 + 0.07 * pulse + 0.18 * charge);
   c.restore();
   _hitFlash(c, flash, 1.1);
 }

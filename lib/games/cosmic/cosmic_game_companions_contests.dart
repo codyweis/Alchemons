@@ -109,6 +109,11 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       speciesScale: specScale,
     );
     companion.primeSpecialCooldown(savedCooldown: initialSpecialCooldown);
+    // Its tear opens at its own place in the formation, not on the ship.
+    if (!sandboxMode) {
+      companion.position = _companionSummonPoint(companion);
+      companion.anchorPosition = companion.position;
+    }
     activeCompanions[slotIndex] = companion;
 
     // Attach a demo effect instance based on loaded prototypes (one per companion).

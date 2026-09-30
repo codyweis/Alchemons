@@ -1,5 +1,23 @@
 part of 'cosmic_game.dart';
 
+/// One flock's gathering for a frame: positions relative to the first member
+/// met (so a flock straddling the wrap seam has one centre) and the sum of
+/// its headings.
+class _FlockCentre {
+  _FlockCentre(this.anchor);
+  final Offset anchor;
+  double x = 0, y = 0, cosSum = 0, sinSum = 0;
+  int n = 0;
+
+  void add(double dx, double dy, double angle) {
+    x += dx;
+    y += dy;
+    cosSum += cos(angle);
+    sinSum += sin(angle);
+    n++;
+  }
+}
+
 extension CosmicGameWorldSystems on CosmicGame {
   void _revealAround(Offset center, double radius) {
     final cellR = (radius / CosmicGame.fogCellSize).ceil();
@@ -220,30 +238,145 @@ extension CosmicGameWorldSystems on CosmicGame {
       CosmicEnemyVariant.standard => 1.0,
     };
 
-    enemies.add(
-      CosmicEnemy(
-        position: pos,
-        element: element,
-        tier: tier,
-        radius: switch (tier) {
-          EnemyTier.drone => 6 + rng.nextDouble() * 3,
-          EnemyTier.wisp => 8 + rng.nextDouble() * 4,
-          EnemyTier.sentinel => 14 + rng.nextDouble() * 6,
-          EnemyTier.phantom => 12 + rng.nextDouble() * 5,
-          EnemyTier.brute => 20 + rng.nextDouble() * 8,
-          EnemyTier.colossus => 30 + rng.nextDouble() * 12,
-        },
-        health: baseHealth * healthMult,
-        speed: baseSpeed * speedMult,
-        angle: rng.nextDouble() * pi * 2,
-        driftTimer: rng.nextDouble() * 4,
-        behavior: behavior,
-        variant: variant,
-        homePos: homePos,
-        aggroRadius: aggroRadius,
-        stalkDistance: 400 + rng.nextDouble() * 300,
-      ),
-    );
+    // Wisps mostly arrive as a small flock rather than alone: a lone spark
+    // reads as a stray pixel, a knot of them as a creature. The flock shares
+    // one heading, speed and pack, turns together (see [_driftTurn]) and
+    // provokes together.
+    final flockSize = tier == EnemyTier.wisp
+        ? min(_wispFlockSize(rng), CosmicGame._maxEnemies - enemies.length)
+        : 1;
+    final packId = flockSize > 1 ? _nextPackId++ : -1;
+    final speed = baseSpeed * speedMult;
+    final angle = rng.nextDouble() * pi * 2;
+    final driftTimer = rng.nextDouble() * 4;
+    final stalkDistance = 400 + rng.nextDouble() * 300;
+    for (var m = 0; m < max(1, flockSize); m++) {
+      final at = m == 0
+          ? pos
+          : _wrap(
+              pos +
+                  Offset.fromDirection(
+                    rng.nextDouble() * 2 * pi,
+                    26 + rng.nextDouble() * 34,
+                  ),
+            );
+      enemies.add(
+        CosmicEnemy(
+          position: at,
+          element: element,
+          tier: tier,
+          radius: switch (tier) {
+            EnemyTier.drone => 9.5 + rng.nextDouble() * 2,
+            EnemyTier.wisp => 8 + rng.nextDouble() * 4,
+            EnemyTier.sentinel => 14 + rng.nextDouble() * 6,
+            EnemyTier.phantom => 12 + rng.nextDouble() * 5,
+            EnemyTier.brute => 20 + rng.nextDouble() * 8,
+            EnemyTier.colossus => 30 + rng.nextDouble() * 12,
+          },
+          health: baseHealth * healthMult,
+          speed: speed,
+          angle: angle,
+          driftTimer: driftTimer,
+          behavior: behavior,
+          variant: variant,
+          packId: packId,
+          flock: flockSize > 1,
+          homePos: homePos,
+          aggroRadius: aggroRadius,
+          stalkDistance: stalkDistance,
+        ),
+      );
+    }
+  }
+
+  /// Where each roaming flock is and which way it heads this frame, gathered
+  /// once so a member can steer by its flock without looking at the others.
+  void _gatherFlocks() {
+    _flockCentres.clear();
+    final ww = world_.worldSize.width;
+    final wh = world_.worldSize.height;
+    for (final e in enemies) {
+      if (!e.flock || e.dead) continue;
+      final f = _flockCentres[e.packId] ??= _FlockCentre(e.position);
+      var dx = e.position.dx - f.anchor.dx;
+      var dy = e.position.dy - f.anchor.dy;
+      if (dx > ww / 2) dx -= ww;
+      if (dx < -ww / 2) dx += ww;
+      if (dy > wh / 2) dy -= wh;
+      if (dy < -wh / 2) dy += wh;
+      f.add(dx, dy, e.angle);
+    }
+  }
+
+  /// A flock member keeps to its flock: a stray turns back toward the
+  /// others; the rest settle onto the flock's heading. Turns that pull them
+  /// apart — scattering from the ship, a dive — are undone after.
+  void _keepToFlock(CosmicEnemy e, double dt) {
+    final f = _flockCentres[e.packId];
+    if (f == null || f.n < 2) return;
+    final ww = world_.worldSize.width;
+    final wh = world_.worldSize.height;
+    var dx = f.anchor.dx + f.x / f.n - e.position.dx;
+    var dy = f.anchor.dy + f.y / f.n - e.position.dy;
+    if (dx > ww / 2) dx -= ww;
+    if (dx < -ww / 2) dx += ww;
+    if (dy > wh / 2) dy -= wh;
+    if (dy < -wh / 2) dy += wh;
+    final stray = dx * dx + dy * dy > 60 * 60;
+    final target = stray ? atan2(dy, dx) : atan2(f.sinSum, f.cosSum);
+    var diff = target - e.angle;
+    while (diff > pi) {
+      diff -= pi * 2;
+    }
+    while (diff < -pi) {
+      diff += pi * 2;
+    }
+    e.angle += diff * (stray ? 2.4 : 1.2) * dt;
+  }
+
+  /// How many wisps set out together: two to five more often than not.
+  int _wispFlockSize(Random rng) {
+    final r = rng.nextDouble();
+    if (r < 0.28) return 1;
+    if (r < 0.52) return 2;
+    if (r < 0.75) return 3;
+    if (r < 0.9) return 4;
+    return 5;
+  }
+
+  /// An idle drifter's random turn (−0.5 to 0.5). A flock's members all take
+  /// the same turn at the same moment — their drift timers started equal
+  /// and reset by the same amounts — so the flock keeps its shape.
+  double _driftTurn(CosmicEnemy e) {
+    if (!e.flock) return Random().nextDouble() - 0.5;
+    e.flockTurn++;
+    return _flockHash(e.packId, e.flockTurn) - 0.5;
+  }
+
+  /// How long an idle drifter holds its heading: [base] plus up to [spread],
+  /// shared across a flock like the turn.
+  double _driftPause(CosmicEnemy e, double base, double spread) =>
+      base +
+      spread *
+          (e.flock
+              ? _flockHash(e.packId, e.flockTurn + 7919)
+              : Random().nextDouble());
+
+  static double _flockHash(int pack, int turn) {
+    final s = sin(pack * 12.9898 + turn * 78.233) * 43758.5453;
+    return s - s.floorToDouble();
+  }
+
+  /// Turns [e] toward [target] at [rate] (per second, proportional).
+  void _steerToward(CosmicEnemy e, double target, double rate, double dt) {
+    var diff = target - e.angle;
+    while (diff > pi) {
+      diff -= pi * 2;
+    }
+    while (diff < -pi) {
+      diff += pi * 2;
+    }
+    e.angle += diff * rate * dt;
   }
 
   void setSandboxMode({
@@ -348,6 +481,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     duelOpponent = null;
     duelOpponentProjectiles.clear();
     _duelWildId = null;
+    _wildDuelTargetCompanion = null;
   }
 
   void resetSandboxCombatState() {
@@ -399,7 +533,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           element: resolvedElement,
           tier: tier,
           radius: switch (tier) {
-            EnemyTier.drone => 6 + sandboxRng.nextDouble() * 3,
+            EnemyTier.drone => 9.5 + sandboxRng.nextDouble() * 2,
             EnemyTier.wisp => 8 + sandboxRng.nextDouble() * 4,
             EnemyTier.sentinel => 14 + sandboxRng.nextDouble() * 6,
             EnemyTier.phantom => 12 + sandboxRng.nextDouble() * 5,
@@ -612,7 +746,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           element: element,
           tier: swarmTier,
           radius: swarmTier == EnemyTier.drone
-              ? 4 + rng.nextDouble() * 3
+              ? 7 + rng.nextDouble() * 1.5
               : 5 + rng.nextDouble() * 4,
           health: CosmicBalance.enemyBaseHealth(swarmTier),
           speed: swarmTier == EnemyTier.drone
@@ -854,7 +988,7 @@ extension CosmicGameWorldSystems on CosmicGame {
         element: whirl.element,
         tier: tier,
         radius: switch (tier) {
-          EnemyTier.drone => 6 + rng.nextDouble() * 3,
+          EnemyTier.drone => 9.5 + rng.nextDouble() * 2,
           EnemyTier.wisp => 8 + rng.nextDouble() * 4,
           EnemyTier.sentinel => 14 + rng.nextDouble() * 6,
           EnemyTier.phantom => 12 + rng.nextDouble() * 5,
@@ -1065,11 +1199,8 @@ extension CosmicGameWorldSystems on CosmicGame {
         rng: rng,
       );
       e.position = _wrap(e.position + tick.velocity * dt);
-      if (tick.velocity.distanceSquared > 16) {
-        e.angle = atan2(tick.velocity.dy, tick.velocity.dx);
-      } else {
-        e.angle = toShip;
-      }
+      e.angle = flightHeading(steering, Offset(dx, dy), fallback: toShip);
+      e.turnLeft = 0;
       final committedDespawn = e.whirlIndex >= 0
           ? 4000.0
           : (e.behavior == EnemyBehavior.feeding ||
@@ -1095,8 +1226,8 @@ extension CosmicGameWorldSystems on CosmicGame {
           }
           e.angle += diff * 3.0 * dt;
         } else if (e.driftTimer <= 0) {
-          e.angle += (Random().nextDouble() - 0.5) * 1.5;
-          e.driftTimer = 1.5 + Random().nextDouble() * 2;
+          e.turnLeft += _driftTurn(e) * 1.5;
+          e.driftTimer = _driftPause(e, 1.5, 2);
         }
         break;
 
@@ -1114,8 +1245,8 @@ extension CosmicGameWorldSystems on CosmicGame {
           }
           e.angle += diff * 3.5 * dt;
         } else if (e.driftTimer <= 0) {
-          e.angle += (Random().nextDouble() - 0.5) * 1.0;
-          e.driftTimer = 2 + Random().nextDouble() * 4;
+          e.turnLeft += _driftTurn(e) * 1.0;
+          e.driftTimer = _driftPause(e, 2, 4);
         }
         break;
 
@@ -1149,7 +1280,7 @@ extension CosmicGameWorldSystems on CosmicGame {
 
           // If player is close, flee briefly (not aggro, just skittish)
           if (distToShip < 240 && !e.provoked) {
-            e.angle = toShip + pi; // face away
+            _steerToward(e, toShip + pi, 5.0, dt); // wheel away
           }
         }
         break;
@@ -1209,7 +1340,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           e.speed = 120;
         } else if (distToShip < e.stalkDistance - 50) {
           // Too close — back off
-          e.angle = toShip + pi;
+          _steerToward(e, toShip + pi, 4.0, dt);
         } else if (distToShip > e.stalkDistance + 100) {
           // Too far — approach
           var diff = toShip - e.angle;
@@ -1278,6 +1409,8 @@ extension CosmicGameWorldSystems on CosmicGame {
         break;
     }
 
+    if (e.flock) _keepToFlock(e, dt);
+
     // Variant overlays add encounter diversity without introducing new tiers.
     if (e.variant == CosmicEnemyVariant.crusher) {
       var diff = toShip - e.angle;
@@ -1292,10 +1425,21 @@ extension CosmicGameWorldSystems on CosmicGame {
     } else if (e.variant == CosmicEnemyVariant.pouncer) {
       if (e.driftTimer <= 0) {
         final side = Random().nextBool() ? 1.0 : -1.0;
-        e.angle += side * (0.65 + Random().nextDouble() * 0.55);
+        e.turnLeft += side * (0.65 + Random().nextDouble() * 0.55);
         e.driftTimer = 0.35 + Random().nextDouble() * 0.55;
       }
       moveSpeedMult *= 1.2;
+    }
+
+    // Drift turns and jinks are flown through, not taken in one frame: a
+    // heading that jumps kinks the path and the body slides sideways.
+    if (e.turnLeft != 0) {
+      final rate = e.variant == CosmicEnemyVariant.pouncer ? 9.0 : 3.0;
+      final step = e.turnLeft.abs() < 0.002
+          ? e.turnLeft
+          : e.turnLeft * (1 - exp(-rate * dt));
+      e.angle += step;
+      e.turnLeft -= step;
     }
 
     // Move
@@ -1951,7 +2095,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           tier: tier,
           radius: isPhantom
               ? 14 + rng.nextDouble() * 4
-              : 7 + rng.nextDouble() * 2,
+              : 10 + rng.nextDouble() * 2,
           health: CosmicBalance.enemyBaseHealth(tier) * (isPhantom ? 1.1 : 0.9),
           speed: isPhantom
               ? 88 + rng.nextDouble() * 20
@@ -2072,7 +2216,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           ? EnemyBehavior.territorial
           : EnemyBehavior.aggressive;
       final radius = switch (tier) {
-        EnemyTier.drone => 8 + rng.nextDouble() * 2,
+        EnemyTier.drone => 10 + rng.nextDouble() * 2,
         EnemyTier.wisp => 9 + rng.nextDouble() * 3,
         EnemyTier.sentinel => 16 + rng.nextDouble() * 5,
         EnemyTier.phantom => 14 + rng.nextDouble() * 4,
@@ -2198,7 +2342,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           ? EnemyBehavior.territorial
           : EnemyBehavior.aggressive;
       final radius = switch (tier) {
-        EnemyTier.drone => 7 + rng.nextDouble() * 2,
+        EnemyTier.drone => 10 + rng.nextDouble() * 2,
         EnemyTier.wisp => 9 + rng.nextDouble() * 3,
         EnemyTier.sentinel => 15 + rng.nextDouble() * 5,
         EnemyTier.phantom => 14 + rng.nextDouble() * 4,

@@ -5749,6 +5749,8 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   Future<void> _handleUnlockColor(String element) async {
     if (_homePlanet == null) return;
+    final premium = premiumHomeColor(element);
+    if (premium != null) return _handleUnlockPremiumColor(premium);
     const cost = HomePlanet.colorUnlockCost;
     final have = (_elementStorage.stored[element] ?? 0);
     if (have < cost) {
@@ -5774,6 +5776,48 @@ class _CosmicScreenState extends State<CosmicScreen>
     _homePlanet!.activeColor = element;
     _saveHomePlanet();
     _showQuote('Unlocked $element color!');
+    _markHomeVisualChanged();
+    setState(() {});
+  }
+
+  /// A premium colour costs several elements at once; all or nothing.
+  Future<void> _handleUnlockPremiumColor(PremiumHomeColor premium) async {
+    String? short() {
+      for (final e in premium.cost.entries) {
+        final have = _elementStorage.stored[e.key] ?? 0;
+        if (have < e.value) {
+          return 'Need ${e.value} ${e.key} elements! (have ${have.floor()})';
+        }
+      }
+      return null;
+    }
+
+    final need = short();
+    if (need != null) {
+      _showQuote(need);
+      return;
+    }
+    final confirmed = await _showConfirmPurchase(
+      title: 'Unlock ${premium.label}?',
+      cost: premium.cost.entries.map((e) => '${e.value} ${e.key}').join(' · '),
+    );
+    if (!confirmed || !mounted) return;
+    // Re-check across the await: anything spent while the dialog was open
+    // must not be spent twice.
+    final stillNeed = short();
+    if (stillNeed != null) {
+      _showQuote(stillNeed);
+      return;
+    }
+    for (final e in premium.cost.entries) {
+      _elementStorage.stored[e.key] =
+          (_elementStorage.stored[e.key] ?? 0) - e.value;
+    }
+    _saveElementStorage();
+    _homePlanet!.unlockedColors.add(premium.id);
+    _homePlanet!.activeColor = premium.id;
+    _saveHomePlanet();
+    _showQuote('Unlocked ${premium.label}!');
     _markHomeVisualChanged();
     setState(() {});
   }

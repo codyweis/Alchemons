@@ -595,6 +595,7 @@ extension CosmicGameWild on CosmicGame {
   void _endWildDuel(WildDuelEnd how) {
     final id = _duelWildId;
     _duelWildId = null;
+    _wildDuelTargetCompanion = null;
     final opp = duelOpponent;
     final w = id == null ? null : wildById(id);
     final hpFraction = opp == null || opp.maxHp <= 0

@@ -24,74 +24,11 @@ import 'vfx_shapes.dart';
 // ─────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────
-// Shape helpers
+// Shape helpers (the chunk and the bolt live in vfx_shapes.dart — Let's
+// craters throw the same stone)
 // ─────────────────────────────────────────────────────────────────────────
 
 final ui.Paint _fill = ui.Paint();
-final ui.Paint _stroke = ui.Paint()
-  ..style = ui.PaintingStyle.stroke
-  ..strokeCap = ui.StrokeCap.round
-  ..strokeJoin = ui.StrokeJoin.round;
-
-/// A faceted stone or ice chunk: dark body, one lit face, one glint.
-void _chunk(
-  ui.Canvas canvas,
-  ui.Offset c,
-  double r,
-  double seed,
-  VfxMaterial m, {
-  double alpha = 1,
-  double rot = 0,
-  int sides = 6,
-  double faceAlpha = 0.7,
-}) {
-  final pts = <ui.Offset>[];
-  for (var k = 0; k < sides; k++) {
-    final a = rot + k * pi * 2 / sides + (vfxHash(seed + k) - 0.5) * 0.5;
-    pts.add(c + vfxPolar(a, r * (0.72 + 0.4 * vfxHash(seed + k * 2.3))));
-  }
-  final body = ui.Path()..addPolygon(pts, true);
-  vfxFillPath(canvas, body, m.ink, 0.92 * alpha);
-  final face = ui.Path()
-    ..addPolygon([c + (pts[0] - c) * 0.2, pts[0], pts[1], pts[2]], true);
-  vfxFillPath(canvas, face, m.mid, faceAlpha * alpha);
-  final glint = ui.Path()
-    ..addPolygon([pts[0], pts[1], c + (pts[1] - c) * 0.55], true);
-  vfxFillPath(canvas, glint, m.glint, 0.30 * alpha);
-}
-
-/// A lightning bolt as a lit core over a faint glow — the one place a line is
-/// the right material.
-void _bolt(
-  ui.Canvas canvas,
-  ui.Offset from,
-  ui.Offset to,
-  double seed,
-  VfxMaterial m,
-  double alpha, {
-  double jag = 0.22,
-  int segs = 5,
-}) {
-  final d = to - from;
-  final len = d.distance;
-  if (len < 1) return;
-  final n = ui.Offset(-d.dy, d.dx) / len;
-  final path = ui.Path()..moveTo(from.dx, from.dy);
-  for (var k = 1; k <= segs; k++) {
-    final f = k / segs;
-    final off = k == segs ? 0.0 : (vfxHash(seed + k * 3.1) - 0.5) * len * jag;
-    final p = from + d * f + n * off;
-    path.lineTo(p.dx, p.dy);
-  }
-  _stroke
-    ..color = m.mid.withValues(alpha: 0.22 * alpha)
-    ..strokeWidth = 4.2;
-  canvas.drawPath(path, _stroke);
-  _stroke
-    ..color = m.glint.withValues(alpha: 0.9 * alpha)
-    ..strokeWidth = 1.3;
-  canvas.drawPath(path, _stroke);
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // The wake
@@ -198,7 +135,7 @@ void _drawWakeDebris(
     final step = (time * 18.0).floorToDouble();
     for (var b = 0; b < 2; b++) {
       final side = b == 0 ? 1.0 : -1.0;
-      _bolt(
+      vfxBolt(
         canvas,
         perp * half * 0.5 * side,
         -dir * wakeLen * 0.8 + perp * half * 0.4 * side,
@@ -242,7 +179,7 @@ void _drawWakeDebris(
         vfxFillPath(canvas, vfxDrop(p, 2.6 * s, back), m.mid, 0.75 * fade);
         vfxFillPath(canvas, vfxDrop(p, 1.3 * s, back), m.glint, 0.85 * fade);
       case 'Lava':
-        _chunk(canvas, p, 3.6 * s, i * 5.0, m, alpha: fade, rot: time * 5);
+        vfxChunk(canvas, p, 3.6 * s, i * 5.0, m, alpha: fade, rot: time * 5);
         _fill.color = m.glint.withValues(alpha: 0.85 * fade);
         canvas.drawCircle(p, 1.2 * s, _fill);
       case 'Ice':
@@ -259,7 +196,7 @@ void _drawWakeDebris(
           0.6 * fade,
         );
       case 'Crystal':
-        _chunk(
+        vfxChunk(
           canvas,
           p,
           3.4 * s,
@@ -270,9 +207,9 @@ void _drawWakeDebris(
           sides: 4,
         );
       case 'Earth':
-        _chunk(canvas, p, 3.6 * s, i * 7.0, m, alpha: fade, rot: time * 6 + i);
+        vfxChunk(canvas, p, 3.6 * s, i * 7.0, m, alpha: fade, rot: time * 6 + i);
       case 'Dust' when i.isEven:
-        _chunk(canvas, p, 3.6 * s, i * 7.0, m, alpha: fade, rot: time * 6 + i);
+        vfxChunk(canvas, p, 3.6 * s, i * 7.0, m, alpha: fade, rot: time * 6 + i);
       case 'Steam' || 'Dust' || 'Spirit':
         vfxSpill(canvas, p, (4.0 + 9.0 * f) * scale, m.glint, 0.28 * fade);
       case 'Mud':
@@ -471,7 +408,7 @@ void drawHornSlam({
     final step = (fx.age * 16).floorToDouble();
     for (var i = 0; i < (reduceAmbient ? 2 : 4); i++) {
       final a = a0 + (i / 3 - 0.5) * 1.8;
-      _bolt(
+      vfxBolt(
         canvas,
         c + vfxPolar(a, r * 0.1),
         c + vfxPolar(a, r * (0.35 + 0.5 * ease)),
@@ -501,7 +438,7 @@ void drawHornSlam({
         vfxFillPath(canvas, vfxDrop(p, s * 0.8, a), m.mid, 0.8 * fade);
         vfxFillPath(canvas, vfxDrop(p, s * 0.4, a), m.glint, 0.9 * fade);
       case 'Lava' || 'Earth' || 'Mud' || 'Dust':
-        _chunk(
+        vfxChunk(
           canvas,
           p,
           s * (element == 'Dust' ? 0.7 : 1.1),
@@ -753,7 +690,7 @@ void _drawStormScar(
   final step = (time * 14).floorToDouble();
   for (var i = 0; i < 4; i++) {
     final a = seed + i * pi / 2 + vfxHash(step + i) * 0.8;
-    _bolt(
+    vfxBolt(
       canvas,
       c + vfxPolar(a, r * 0.12),
       c + vfxPolar(a, r * (0.6 + 0.4 * vfxHash(step + i * 3))),
@@ -814,7 +751,7 @@ void _drawIceBlock(
   double time,
 ) {
   vfxSpill(canvas, c, r * 1.7, m.light, 0.14);
-  _chunk(
+  vfxChunk(
     canvas,
     c,
     r,
@@ -825,7 +762,7 @@ void _drawIceBlock(
     faceAlpha: 0.55,
   );
   // A second, smaller spur so a run of segments reads as a jagged ridge.
-  _chunk(
+  vfxChunk(
     canvas,
     c + vfxPolar(vfxHash(seed + 9) * pi * 2, r * 0.55),
     r * 0.55,
@@ -890,9 +827,9 @@ void _drawCairn(
   for (var i = 0; i < 5; i++) {
     final a = seed + i * 2.399;
     final p = c + vfxPolar(a, r * 0.6 * (0.6 + 0.4 * vfxHash(seed + i)));
-    _chunk(canvas, p, r * 0.42, seed + i * 3, m, rot: a);
+    vfxChunk(canvas, p, r * 0.42, seed + i * 3, m, rot: a);
   }
-  _chunk(
+  vfxChunk(
     canvas,
     c + const ui.Offset(0, -4),
     r * 0.62,
@@ -989,7 +926,7 @@ void _drawCrystalWard(
 ) {
   final r = 7.0 * (vs / 1.5).clamp(0.8, 1.4);
   vfxSpill(canvas, c, r * 2.6, m.light, 0.2);
-  _chunk(
+  vfxChunk(
     canvas,
     c,
     r,
