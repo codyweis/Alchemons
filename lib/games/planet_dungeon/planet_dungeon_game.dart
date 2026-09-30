@@ -12886,11 +12886,7 @@ class PlanetDungeonGame extends FlameGame {
     }
     final g = room.guardian;
     if (g != null && guardianArriving) {
-      // Solarin does not fall onto a perch: it is already hanging there, its
-      // own star, and simply wakes.
-      if (!(_isArchive && !isRaid && room.hall != null)) {
-        _drawGuardianArrival(canvas, g);
-      }
+      _drawGuardianArrival(canvas, g);
       return;
     }
     if (g != null && (altarOpen || guardianAwake)) {
@@ -12899,9 +12895,7 @@ class PlanetDungeonGame extends FlameGame {
           ? const Color(0xFFE4C16A)
           : const Color(0xFFC0392B);
       final pulse = 0.5 + 0.5 * sin(_time * (guardianVulnerable ? 3 : 8));
-      // Solarin IS its star (the archive draws it); no second body on it.
-      final isStar = _isArchive && !isRaid && room.hall != null;
-      if (_fx.ready && !isStar) {
+      if (_fx.ready) {
         drawGlow(
           canvas,
           _fx.glow!,
@@ -12917,13 +12911,11 @@ class PlanetDungeonGame extends FlameGame {
       final bodyCol = flash > 0
           ? Color.lerp(col, Colors.white, (flash / 0.3).clamp(0, 1))!
           : col;
-      if (!isStar) {
-        _renderGuardianBody(canvas, pos, 40, bodyCol, guardianVulnerable);
-      }
+      _renderGuardianBody(canvas, pos, 40, bodyCol, guardianVulnerable);
       // Swoop telegraph ring while the Roc rears back.
       final ge = _guardianEnemy;
       final gm = ge?.flightSteering;
-      if (gm != null && gm.showTelegraphRing && !isStar) {
+      if (gm != null && gm.showTelegraphRing) {
         canvas.drawCircle(
           pos,
           52 + gm.windupTimer * 70,
