@@ -16,7 +16,8 @@
 //     arrivals, a step onto bare light refused with a bare line, the pin,
 //     the pipe, a pair of rooms banking a star, the spans, the maxim, and
 //     Solarin's fight: its glass all floor but burning in its light, its
-//     swing on its own rhythm, its flare, and blows only from its shadow.
+//     swing on its own rhythm, its bolts (stopped by whatever shades you),
+//     and blows only from its shadow.
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
@@ -336,8 +337,8 @@ PlanetDungeonGame _arena() {
   }
   g.archive
     ..swingNext = 99
-    ..flareNext = 99;
-  // Solarin's body shoots as well; these tests read only its light and flare.
+    ..boltNext = 99;
+  // Solarin's body shoots as well; these tests read only its light and bolts.
   for (final c in g.combatCompanions) {
     c.invincibleTimer = 999;
   }
@@ -725,7 +726,7 @@ void main() {
       expect(sun, isNotNull, reason: 'still swinging');
       final end = kRoomSolarin.orbit![(s0 + 1) % 3];
       expect((sun!.x - end.x).abs() + (sun.y - end.y).abs(), greaterThan(.3));
-      for (var i = 0; i < 60 * 3; i++) {
+      for (var i = 0; i < 60 * kSolarinSwing + 30; i++) {
         g.update(1 / 60);
       }
       expect(g.archive.state('solarin_orbit').sun, isNull, reason: 'settled');
@@ -780,28 +781,38 @@ void main() {
       expect(g.guardianHpFractionForTest, closeTo(1, .02));
     });
 
-    test('SOLARIN\'s flare lands on the square it marked', () {
+    test('SOLARIN\'s bolts hit in the open, and break on a pillar', () {
       final g = _arena();
       final light = g.creatures[0];
-      light.position = shadowCentre(3, 4);
-      g.archive.flareNext = 0;
+      // The vent island (7,2) is stone, so its light does not burn there,
+      // and nothing stands between it and Solarin at (9,4).
+      light.position = shadowCentre(7, 2);
+      g.archive.boltNext = 0;
       g.update(1 / 60);
-      expect(g.archive.flareSq, sq(3, 4));
+      expect(g.archive.bolts, isNotEmpty, reason: 'it fired');
       final hp = light.hp;
-      for (var i = 0; i < 80; i++) {
+      for (var i = 0; i < 120; i++) {
         g.update(1 / 60);
       }
-      expect(g.archive.flareSq, isNull);
-      expect(light.hp, lessThan(hp - 15), reason: 'stood on the mark');
-      // Step off the mark and it misses.
-      g.archive.flareNext = 0;
+      expect(light.hp, closeTo(hp - kSolarinBoltDamage, .5));
+      // Behind the east pillar the bolt breaks on the stone.
+      light.position = shadowCentre(7, 4);
       g.update(1 / 60);
-      light.position = shadowCentre(4, 4);
+      g.archive.boltNext = 0;
+      g.update(1 / 60);
       final hp2 = light.hp;
-      for (var i = 0; i < 80; i++) {
+      for (var i = 0; i < 120; i++) {
         g.update(1 / 60);
       }
       expect(light.hp, hp2);
+      expect(g.archive.bolts, isEmpty);
+    });
+
+    test('SOLARIN leaves the ledge by the door alone', () {
+      final g = _arena();
+      g.archive.boltNext = 0;
+      g.update(1 / 60);
+      expect(g.archive.bolts, isEmpty, reason: 'the party is all home');
     });
 
     test(

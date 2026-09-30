@@ -215,8 +215,8 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
       archive
         ..orbitFrom = -1
         ..swingNext = kSolarinHold
-        ..flareSq = null
-        ..flareNext = kSolarinFlareEvery;
+        ..boltNext = kSolarinBoltEvery;
+      archive.bolts.clear();
     }
   }
 
@@ -489,8 +489,8 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
 
   /// Every frame of the fight. Solarin holds, shows where it goes next, and
   /// swings on; the shadows sweep with it. Its light burns the active body
-  /// on bare glass, its flare lands on a marked square, and it can be struck
-  /// only from its shadow, two squares off.
+  /// on bare glass, it fires bolts at the party, and it can be struck only
+  /// from its shadow, two squares off.
   void _applySolarinOrbit(DungeonRoom room, double dt) {
     final def = _gridOf(room);
     if (def?.orbit == null) return;
@@ -534,35 +534,74 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
       }
     }
 
-    // ITS FLARE: gathers on the square the active body stands on, and lands
-    // there a moment later. The ledge by the door is out of its reach.
-    final here = s.pos[me]!;
-    final sq0 = archive.flareSq;
-    if (sq0 == null) {
-      archive.flareNext -= dt;
-      if (archive.flareNext <= 0) {
-        archive.flareNext = kSolarinFlareEvery;
-        if (here.x > 1) {
-          archive
-            ..flareSq = here
-            ..flareT = _time;
+    _solarinBolts(def, s, at, dt);
+  }
+
+  /// ITS BOLTS: slow light, at each of the party out on the glass in turn
+  /// (a fan of three once it is hurt). A bolt stops at the first pillar,
+  /// veil or body in its way — whatever shades you from Solarin also shields
+  /// you. The ledge by the door is out of its reach.
+  void _solarinBolts(ShadowRoomDef def, ShadowState s, Offset from, double dt) {
+    final hurt = _guardianHpFraction < 0.5;
+    archive.boltNext -= dt;
+    if (archive.boltNext <= 0) {
+      archive.boltNext = hurt ? kSolarinBoltEveryHurt : kSolarinBoltEvery;
+      final targets = [
+        for (final c in creatures)
+          if (c.alive && c.position.dx > 2 * kShadowCell) c,
+      ];
+      if (targets.isNotEmpty) {
+        final t = targets[archive.boltTurn++ % targets.length];
+        final d = t.position - from;
+        if (d.distance > 1) {
+          final base = atan2(d.dy, d.dx);
+          for (final da in hurt ? const [-0.26, 0.0, 0.26] : const [0.0]) {
+            archive.bolts.add(
+              SolarBolt(
+                from,
+                Offset(cos(base + da), sin(base + da)) * kSolarinBoltSpeed,
+              ),
+            );
+          }
           _cue(SoundCue.dungeonHazardTrigger);
         }
       }
-    } else if (_time - archive.flareT >= kSolarinFlareLand) {
-      archive
-        ..flareSq = null
-        ..flareHitSq = sq0
-        ..flareHitT = _time;
-      final at = shadowCentre(sq0.x, sq0.y);
-      _spawnAlchemyBurst(at, producedElement: 'Light', particleCount: 18);
-      for (final n in kShadowNames) {
-        final p = s.pos[n]!;
-        final c = _shadowBody(n);
-        if (c == null || !c.alive || p.x != sq0.x || p.y != sq0.y) continue;
-        c.hp = max(0, c.hp - kSolarinFlareDamage * progressDmgMul);
-      }
     }
+    if (archive.bolts.isEmpty) return;
+    final grid = Rect.fromLTWH(
+      0,
+      kShadowTop,
+      def.cols * kShadowCell,
+      def.rows * kShadowCell,
+    );
+    final shields = [
+      for (final c in def.fixedCasters)
+        (shadowCentre(c.x, c.y), c.r * kShadowCell),
+      if (s.veil != null)
+        (shadowCentre(s.veil!.x, s.veil!.y), kShadowVeilR * kShadowCell),
+    ];
+    archive.bolts.removeWhere((b) {
+      b
+        ..p += b.v * dt
+        ..age += dt;
+      if (!grid.contains(b.p) || b.age > 8) return true;
+      for (final (c, r) in shields) {
+        if ((b.p - c).distance < r + kSolarinBoltRadius) {
+          archive.boltBursts.add((b.p, _time));
+          return true;
+        }
+      }
+      for (final c in creatures) {
+        if (!c.alive) continue;
+        if ((b.p - c.position).distance > 20 + kSolarinBoltRadius) continue;
+        c.hp = max(0, c.hp - kSolarinBoltDamage * progressDmgMul);
+        archive.boltBursts.add((b.p, _time));
+        _spawnAlchemyBurst(b.p, producedElement: 'Light', particleCount: 12);
+        return true;
+      }
+      return false;
+    });
+    archive.boltBursts.removeWhere((e) => _time - e.$2 > .5);
   }
 
   /// Solarin swings to the next point of its orbit and holds again.
@@ -570,7 +609,10 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
     archive
       ..orbitFrom = s.orbit.toDouble()
       ..orbitT = _time
-      ..swingNext = _guardianHpFraction < 0.5 ? kSolarinHoldHurt : kSolarinHold;
+      // It holds once it has arrived, not from when it set off.
+      ..swingNext =
+          kSolarinSwing +
+          (_guardianHpFraction < 0.5 ? kSolarinHoldHurt : kSolarinHold);
     archive.rooms[def.id] = s.copyWith(
       orbit: (s.orbit + 1) % def.orbit!.length,
       still: true,
@@ -589,11 +631,14 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
         : 'Too far';
   }
 
-  /// A blow landed: Solarin swings on at once.
+  /// A blow landed: Solarin swings on at once (unless it already is).
   void _solarinStruck() {
     final room = currentRoom;
     final def = _gridOf(room);
     if (def?.orbit == null) return;
+    if (archive.orbitFrom >= 0 && _time - archive.orbitT < kSolarinSwing) {
+      return;
+    }
     _solarinSwing(def!, _liveState(room));
   }
 

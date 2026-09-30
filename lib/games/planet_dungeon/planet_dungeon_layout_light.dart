@@ -505,31 +505,43 @@ List<int>? shadowPinCells(ShadowRoomDef d, ShadowState s) {
 // Its glass is all floor — nothing falls — but wherever its light reaches
 // bare glass, it burns. Solarin holds, shows where it goes next, and swings
 // on round its orbit; the shadows sweep with it, so the safe ground moves
-// and each approach is a new one. Its flare marks a square and lands on it
-// a moment later. It is struck from its shadow, two squares off.
+// and each approach is a new one. It fires slow bolts of light at the
+// party, which stop at the first pillar, body or veil in their way — so the
+// shadow is cover as well as safe ground. It is struck from its shadow, two
+// squares off.
 
 /// Seconds Solarin holds before it swings on (shorter once it is hurt).
 /// Slow on purpose: the party's other two fight on their own while you
 /// read the light.
-const double kSolarinHold = 9.0;
-const double kSolarinHoldHurt = 7.0;
+const double kSolarinHold = 8.0;
+const double kSolarinHoldHurt = 6.0;
 
 /// Seconds before a swing that its next place, and the floor it will cast,
 /// are shown.
-const double kSolarinWarn = 2.5;
+const double kSolarinWarn = 3.0;
 
 /// Seconds a swing takes. Its light comes from where it is along the way,
-/// so the shadows sweep slowly enough to walk with.
-const double kSolarinSwing = 3.0;
+/// so the shadows creep across the floor, slow enough to walk with.
+const double kSolarinSwing = 8.0;
 
 /// Health per second its light burns from the active body (of 100).
 const double kSolarinBurnDps = 42;
 
-/// Its flare: gathers every few seconds on the active body's square, lands
-/// that long after, for that much.
-const double kSolarinFlareEvery = 3.6;
-const double kSolarinFlareLand = 1.2;
-const double kSolarinFlareDamage = 24;
+/// Its bolts: one every few seconds (a fan of three once it is hurt), at
+/// each of the party in turn; slow enough to step out of the way of.
+const double kSolarinBoltEvery = 2.6;
+const double kSolarinBoltEveryHurt = 2.0;
+const double kSolarinBoltSpeed = 150;
+const double kSolarinBoltDamage = 14;
+const double kSolarinBoltRadius = 10;
+
+/// A bolt of Solarin's light in flight (world units).
+class SolarBolt {
+  Offset p;
+  final Offset v;
+  double age = 0;
+  SolarBolt(this.p, this.v);
+}
 
 /// Does Solarin's light burn [who] where it stands? Only on bare glass it
 /// reaches with nothing but [who] in the way — stone, shadow Dark has set
@@ -969,13 +981,15 @@ class ShadowRun {
   final Map<int, double> heldSince = {};
   String? heldRoom;
 
-  /// SOLARIN'S FIGHT: seconds until it swings on by itself; its flare —
-  /// when it began gathering, the square it will land on, when it next
-  /// gathers, and when one last landed; and when its light last burned the
-  /// active body (visual), and whether the room has said so yet.
+  /// SOLARIN'S FIGHT: seconds until it swings on by itself; its bolts in
+  /// flight, when it next fires and at whom (it takes the party in turn),
+  /// and where bolts last broke (visual); and when its light last burned
+  /// the active body (visual), and whether the room has said so yet.
   double swingNext = kSolarinHold;
-  double flareT = -9, flareHitT = -9, flareNext = kSolarinFlareEvery;
-  Sq? flareSq, flareHitSq;
+  final List<SolarBolt> bolts = [];
+  double boltNext = kSolarinBoltEvery;
+  int boltTurn = 0;
+  final List<(Offset, double)> boltBursts = [];
   double burnT = -9;
   bool burnTold = false;
 
@@ -1016,8 +1030,9 @@ class ShadowRun {
     stoneRoom = null;
     fellT.clear();
     swingNext = kSolarinHold;
-    flareSq = null;
-    flareNext = kSolarinFlareEvery;
+    bolts.clear();
+    boltBursts.clear();
+    boltNext = kSolarinBoltEvery;
     burnTold = false;
   }
 

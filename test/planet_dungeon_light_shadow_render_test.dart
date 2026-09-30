@@ -158,21 +158,23 @@ void main() {
       g = await _game('solarin_orbit', stars: 3);
       _place(g, {0: sq(7, 4), 1: sq(1, 3), 2: sq(1, 5)});
       await shoot('solarin', g);
-      // …its flare gathering on the square the active body stands on, and
-      // Light burning on bare glass in its light.
+      // …its bolts in flight at Light out on the glass, burning in its light.
       g.guardianAwake = true;
       g.setActive(0);
-      g.creatures[0].position = shadowCentre(8, 1);
+      g.update(1 / 60); // the arrival begins
+      for (var i = 0; i < 900 && g.guardianArriving; i++) {
+        g.update(1 / 60);
+      }
+      g.creatures[0].position = shadowCentre(6, 1);
       g.archive
         ..swingNext = 99
-        ..flareNext = 0;
-      await shoot('solarin_flare', g, 40);
+        ..boltNext = 0;
+      await shoot('solarin_bolts', g, 50);
       // …and gathering to swing: its next place, and the shadow it will cast.
       g.creatures[0].position = shadowCentre(7, 4);
       g.archive
         ..swingNext = 0.5
-        ..flareSq = null
-        ..flareNext = 99;
+        ..boltNext = 99;
       await shoot('solarin_warn', g, 10);
       // …and halfway through its swing: the shadows mid-sweep.
       g.archive.swingNext = 0;
