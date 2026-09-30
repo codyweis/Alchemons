@@ -479,6 +479,49 @@ List<int>? shadowPinCells(ShadowRoomDef d, ShadowState s) {
   return (state: s.copyWith(pos: pos), fell: fell);
 }
 
+// ── SOLARIN'S FIGHT (a real fight on the shadow floor) ───
+//
+// Its glass is all floor — nothing falls — but wherever its light reaches
+// bare glass, it burns. Solarin holds, shows where it goes next, and swings
+// on round its orbit; the shadows sweep with it, so the safe ground moves
+// and each approach is a new one. Its flare marks a square and lands on it
+// a moment later. It is struck from its shadow, two squares off.
+
+/// Seconds Solarin holds before it swings on (shorter once it is hurt).
+const double kSolarinHold = 6.0;
+const double kSolarinHoldHurt = 4.4;
+
+/// Seconds before a swing that its next place, and the floor it will cast,
+/// are shown.
+const double kSolarinWarn = 1.8;
+
+/// Seconds a swing takes; its light does not burn while it moves.
+const double kSolarinSwing = 0.8;
+
+/// Health per second its light burns from the active body (of 100).
+const double kSolarinBurnDps = 42;
+
+/// Its flare: gathers every few seconds on the active body's square, lands
+/// that long after, for that much.
+const double kSolarinFlareEvery = 3.6;
+const double kSolarinFlareLand = 1.2;
+const double kSolarinFlareDamage = 24;
+
+/// Does Solarin's light burn [who] where it stands? Only on bare glass it
+/// reaches with nothing but [who] in the way — stone, shadow Dark has set
+/// into stone, and anything another caster shades are safe.
+bool shadowSolarinBurns(ShadowRoomDef d, ShadowState s, String who) {
+  if (d.orbit == null || s.hits >= 3) return false;
+  final q = s.pos[who]!;
+  if (!d.isGlass(q.x, q.y) || s.pinned.contains(sqKey(q.x, q.y))) {
+    return false;
+  }
+  final o = d.orbit![s.orbit];
+  final l = ShadowLamp(o.x.toDouble(), o.y.toDouble(), kind: 'solarin');
+  if (!shadowLights(d, l, q.x, q.y)) return false;
+  return _holders(d, s, l, q.x, q.y, except: who).isEmpty;
+}
+
 /// Can [who] strike Solarin from where it stands? Two squares, no further.
 bool shadowSolarinReach(ShadowRoomDef d, ShadowState s, String who) {
   if (d.orbit == null || s.hits >= 3) return false;
@@ -677,7 +720,7 @@ const ShadowRoomDef kRoomSolarin = ShadowRoomDef(
   map: [
     '~~~~~~~~~~~',
     '..~~~~~~~~~',
-    '..~~~P~~~~~',
+    '..~~~P~V~~~',
     '..~~~~~~~~~',
     '..~~~d~~P~~',
     '..~~~~~~~~~',
@@ -688,6 +731,7 @@ const ShadowRoomDef kRoomSolarin = ShadowRoomDef(
   orbit: [(x: 9, y: 4), (x: 5, y: 7), (x: 5, y: 1)],
   pillarR: 0.42,
   goal: 'hits',
+  pins: 1,
   start: {'Light': (x: 1, y: 3), 'Dark': (x: 1, y: 4), 'Steam': (x: 0, y: 5)},
 );
 
@@ -901,10 +945,15 @@ class ShadowRun {
   final Map<int, double> heldSince = {};
   String? heldRoom;
 
-  /// SOLARIN'S FLARE: when it began charging, and at whom; and the
-  /// last time one landed (visual).
-  double flareT = -9, flareHitT = -9, flareNext = 3;
-  String? flareAt;
+  /// SOLARIN'S FIGHT: seconds until it swings on by itself; its flare —
+  /// when it began gathering, the square it will land on, when it next
+  /// gathers, and when one last landed; and when its light last burned the
+  /// active body (visual), and whether the room has said so yet.
+  double swingNext = kSolarinHold;
+  double flareT = -9, flareHitT = -9, flareNext = kSolarinFlareEvery;
+  Sq? flareSq, flareHitSq;
+  double burnT = -9;
+  bool burnTold = false;
 
   /// What the floor will be once Solarin swings on (cached per floor).
   String? nextHeldKey;
@@ -942,6 +991,10 @@ class ShadowRun {
     stoneSet.clear();
     stoneRoom = null;
     fellT.clear();
+    swingNext = kSolarinHold;
+    flareSq = null;
+    flareNext = kSolarinFlareEvery;
+    burnTold = false;
   }
 
   bool get bridgeWhole => kBridgeRooms.every(solved.contains);

@@ -829,10 +829,13 @@ extension ShadowFloorArt on PlanetDungeonGame {
         );
       }
     }
-    // SOLARIN'S NEXT MOVE, shown: a faint gold outline wherever the floor
-    // will be once it swings on — so placing someone ahead of it is a plan,
-    // not a guess.
-    if (def.orbit != null) {
+    // SOLARIN'S NEXT MOVE, shown as it gathers to swing: a gold outline
+    // wherever the shadow will be once it moves — so getting there ahead of
+    // it is a plan, not a guess.
+    final warn = def.orbit == null || !guardianAwake
+        ? 0.0
+        : (1 - archive.swingNext / kSolarinWarn).clamp(0.0, 1.0);
+    if (warn > 0) {
       final next = s.copyWith(orbit: (s.orbit + 1) % def.orbit!.length);
       final key = '${def.id}|${next.encoded}';
       if (archive.nextHeldKey != key) {
@@ -845,9 +848,11 @@ extension ShadowFloorArt on PlanetDungeonGame {
                   sqKey(x, y),
           };
       }
-      final pulse = .5 + .5 * sin(_time * 2.4);
+      final pulse = .5 + .5 * sin(_time * 6);
       final rim = Paint()
-        ..color = const Color(0xFFF2D68A).withValues(alpha: .22 + .18 * pulse);
+        ..color = const Color(
+          0xFFF2D68A,
+        ).withValues(alpha: (.3 + .25 * pulse) * (.35 + .65 * warn));
       for (final k in archive.nextHeld) {
         final q = sqOf(k);
         final r = Rect.fromLTWH(
@@ -1020,64 +1025,89 @@ extension ShadowFloorArt on PlanetDungeonGame {
         bloom: flash,
       );
     }
-    // SOLARIN: a ghost of it where it swings next, and its flare gathering
-    // on whoever stands in its light.
+    // SOLARIN: a ghost of it where it swings next, brightening as it
+    // gathers to move; its flare gathering on a marked square; and the burn
+    // on whoever it catches on bare glass.
     if (def.orbit != null) {
-      final nx = def.orbit![(s.orbit + 1) % def.orbit!.length];
-      final ghost = shadowCentre(nx.x, nx.y);
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
+      if (warn > 0) {
+        final nx = def.orbit![(s.orbit + 1) % def.orbit!.length];
+        final ghost = shadowCentre(nx.x, nx.y);
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            ghost,
+            50 + 40 * warn,
+            const Color(0xFFFFE9A8).withValues(alpha: .12 + .3 * warn),
+          );
+        }
+        canvas.drawCircle(
           ghost,
-          70,
-          const Color(
-            0xFFFFE9A8,
-          ).withValues(alpha: .22 + .1 * sin(_time * 2.4)),
+          5 + 7 * warn,
+          Paint()..color = Colors.white.withValues(alpha: .2 + .35 * warn),
         );
       }
-      canvas.drawCircle(
-        ghost,
-        10,
-        Paint()..color = Colors.white.withValues(alpha: .35),
-      );
-      final at = archive.flareAt;
-      final body = at == null ? null : _shadowBody(at);
-      if (body != null) {
+      final fs = archive.flareSq;
+      if (fs != null) {
+        final to = shadowCentre(fs.x, fs.y);
         final from = _solarinDrawn(def);
-        final t = ((_time - archive.flareT) / 1.1).clamp(0.0, 1.0);
-        final dir = body.position - from;
+        final t = ((_time - archive.flareT) / kSolarinFlareLand).clamp(
+          0.0,
+          1.0,
+        );
+        // The square it will land on fills with gathering light.
+        final tile = Rect.fromCenter(
+          center: to,
+          width: kShadowCell,
+          height: kShadowCell,
+        ).deflate(4);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(tile, const Radius.circular(6)),
+          Paint()
+            ..shader = ui.Gradient.radial(to, kShadowCell * .6, [
+              const Color(0xFFFFFBEA).withValues(alpha: .25 + .55 * t),
+              const Color(0xFFFFD27A).withValues(alpha: .08 + .3 * t),
+            ]),
+        );
+        final dir = to - from;
         final len = dir.distance;
         if (len > 1) {
           final n = Offset(-dir.dy, dir.dx) / len;
-          final w = 4 + 16 * t;
+          final w = 2 + 10 * t;
           canvas.drawPath(
             Path()
               ..moveTo(from.dx + n.dx * w, from.dy + n.dy * w)
-              ..lineTo(body.position.dx, body.position.dy)
+              ..lineTo(to.dx, to.dy)
               ..lineTo(from.dx - n.dx * w, from.dy - n.dy * w)
               ..close(),
             Paint()
               ..color = const Color(
                 0xFFFFF4D0,
-              ).withValues(alpha: .15 + .45 * t),
+              ).withValues(alpha: .08 + .32 * t),
           );
         }
-        canvas.drawCircle(
-          body.position,
-          26 - 10 * t,
-          Paint()
-            ..color = const Color(0xFFFFE08C).withValues(alpha: .25 + .35 * t),
-        );
       }
-      final hit = 1 - ((_time - archive.flareHitT) / .5).clamp(0.0, 1.0);
-      if (hit > 0 && _fx.ready) {
+      final a1 = active;
+      final burn = 1 - ((_time - archive.burnT) / .25).clamp(0.0, 1.0);
+      if (a1 != null && burn > 0 && _fx.ready) {
         drawGlow(
           canvas,
           _fx.glow!,
-          _solarinDrawn(def),
-          260,
-          Colors.white.withValues(alpha: .5 * hit),
+          a1.position,
+          44 + 6 * sin(_time * 30),
+          const Color(0xFFFFB45A).withValues(alpha: .55 * burn),
+        );
+      }
+      // Where the flare just landed: a flash on its square.
+      final hit = 1 - ((_time - archive.flareHitT) / .5).clamp(0.0, 1.0);
+      final hs = archive.flareHitSq;
+      if (hit > 0 && hs != null && _fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          shadowCentre(hs.x, hs.y),
+          70 + 50 * (1 - hit),
+          Colors.white.withValues(alpha: .7 * hit),
         );
       }
     }

@@ -161,6 +161,11 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
     final here = s.pos[me]!;
     final t = shadowSquareAt(center, def.cols, def.rows);
     if (t.x == here.x && t.y == here.y) return false;
+    // Solarin's glass is all floor: its light does not drop you, it burns.
+    if (def.orbit != null) {
+      return shadowSolid(def, t.x, t.y, s) ||
+          shadowOccupant(s, t.x, t.y, me) != null;
+    }
     final why = shadowStepCheck(def, s, me, t.x, t.y);
     if (why == null) {
       _releaseBlockedExcept(_shadowBlockPrefix, const {});
@@ -206,7 +211,13 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
     }
     final s = archive.state(def.id);
     archive.rooms[def.id] = s.copyWith(pos: Map.of(def.start));
-    if (def.orbit != null) archive.orbitFrom = -1;
+    if (def.orbit != null) {
+      archive
+        ..orbitFrom = -1
+        ..swingNext = kSolarinHold
+        ..flareSq = null
+        ..flareNext = kSolarinFlareEvery;
+    }
   }
 
   // ── Verbs ────────────────────────────────────────────────
@@ -308,7 +319,6 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
   /// The grid verbs: Dark's pin, Steam's veil and pipe, Light's crank.
   bool _tryGridVerb(DungeonCreature a, DungeonRoom room) {
     final def = _gridOf(room)!;
-    if (def.orbit != null) return false; // the fight is the engine's
     if (archive.solved.contains(def.id)) return false;
     final me = _shadowName(a);
     final s = _liveState(room);
@@ -323,7 +333,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
             final p = s.pos[n]!;
             if (!s.pinned.contains(sqKey(p.x, p.y))) continue;
             if (def.at(p.x, p.y) == 'B' ||
-                !shadowHolds(def, bare, p.x, p.y, n)) {
+                (def.orbit == null && !shadowHolds(def, bare, p.x, p.y, n))) {
               _setBlockedHint('$n is standing on the stone');
               return true;
             }
@@ -477,105 +487,105 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
     return mid + Offset(cos(a), sin(a)) * rr;
   }
 
-  /// Every frame of the fight: Solarin stays where its orbit says, and the
-  /// lull is a PLACE — the active body two squares off it, on floor that
-  /// holds.
+  /// Every frame of the fight. Solarin holds, shows where it goes next, and
+  /// swings on; the shadows sweep with it. Its light burns the active body
+  /// on bare glass, its flare lands on a marked square, and it can be struck
+  /// only from its shadow, two squares off.
   void _applySolarinOrbit(DungeonRoom room, double dt) {
     final def = _gridOf(room);
     if (def?.orbit == null) return;
     final e = _guardianEnemy;
     if (e != null && !e.isDead) e.position = _solarinDrawn(def!);
+    var s = _liveState(room);
+    archive.rooms[def!.id] = s;
+
+    // ITS RHYTHM: hold, warn, swing. Faster once it is hurt.
+    archive.swingNext -= dt;
+    if (archive.swingNext <= 0) {
+      _solarinSwing(def, s);
+      s = archive.state(def.id);
+    }
+
     final a = active;
     if (a == null || !a.alive) {
       guardianVulnerable = false;
       return;
     }
-    final s = _liveState(room);
-    archive.rooms[def!.id] = s;
     final me = _shadowName(a);
-    final p = s.pos[me]!;
-    final held = !def.isGlass(p.x, p.y) || shadowHolds(def, s, p.x, p.y, me);
-    guardianVulnerable = held && shadowSolarinReach(def, s, me);
+    final swinging = _time - archive.orbitT < kSolarinSwing;
+    final burns = !swinging && shadowSolarinBurns(def, s, me);
+    guardianVulnerable = !burns && shadowSolarinReach(def, s, me);
 
-    // NO WAY TO BE STRANDED: with the whole party back on the ledge, Solarin
-    // turns back to watch the door, where the floor always runs out to it.
-    final allHome = kShadowNames.every((n) {
-      final q = s.pos[n]!;
-      return q.x <= 1 && !def.isGlass(q.x, q.y);
-    });
-    if (allHome && s.orbit != 0 && _time - archive.orbitT > 1.5) {
-      archive
-        ..orbitFrom = s.orbit.toDouble()
-        ..orbitT = _time;
-      archive.rooms[def.id] = s.copyWith(orbit: 0);
-      speakConsequence('Solarin turns back to watch the door');
-      return;
+    // ITS LIGHT BURNS: bare glass it reaches, with nothing between.
+    if (burns) {
+      a.hp = max(0, a.hp - kSolarinBurnDps * progressDmgMul * dt);
+      archive.burnT = _time;
+      if (!archive.burnTold) {
+        archive.burnTold = true;
+        _setHint('Its light burns', 2.4);
+      }
     }
 
-    // ITS LIGHT BURNS: every few seconds Solarin gathers a flare on whoever
-    // stands in its light. It lands a moment later — anyone who has stepped
-    // behind a pillar by then is not there to be hit. The shadows are
-    // shelter as well as floor.
-    final lamp = shadowLamps(def, s).firstWhere((l) => l.kind == 'solarin');
-    bool exposed(String n) {
-      final q = s.pos[n]!;
-      if (!shadowLights(def, lamp, q.x, q.y)) return false;
-      return !shadowCasters(def, s, except: n).any(
-        (c) =>
-            !(c.x == q.x && c.y == q.y) &&
-            shadowCast(lamp, c.cx, c.cy, c.r, q.x, q.y),
-      );
-    }
-
-    final target = archive.flareAt;
-    if (target == null) {
+    // ITS FLARE: gathers on the square the active body stands on, and lands
+    // there a moment later. The ledge by the door is out of its reach.
+    final here = s.pos[me]!;
+    final sq0 = archive.flareSq;
+    if (sq0 == null) {
       archive.flareNext -= dt;
       if (archive.flareNext <= 0) {
-        final open = kShadowNames.where(exposed).toList();
-        if (open.isNotEmpty) {
+        archive.flareNext = kSolarinFlareEvery;
+        if (here.x > 1) {
           archive
-            ..flareAt = open.contains(me) ? me : open.first
+            ..flareSq = here
             ..flareT = _time;
           _cue(SoundCue.dungeonHazardTrigger);
         }
-        archive.flareNext = 3.2;
       }
-    } else if (_time - archive.flareT >= 1.1) {
-      final c = _shadowBody(target);
-      if (c != null && c.alive && exposed(target)) {
-        c.hp = max(0, c.hp - 14);
-        archive.flareHitT = _time;
-        _spawnAlchemyBurst(
-          c.position,
-          producedElement: 'Light',
-          particleCount: 18,
-        );
-        spawnWispWave(
-          element: 'Light',
-          center: c.position,
-          count: 1,
-          unstable: true,
-          announce: false,
-        );
+    } else if (_time - archive.flareT >= kSolarinFlareLand) {
+      archive
+        ..flareSq = null
+        ..flareHitSq = sq0
+        ..flareHitT = _time;
+      final at = shadowCentre(sq0.x, sq0.y);
+      _spawnAlchemyBurst(at, producedElement: 'Light', particleCount: 18);
+      for (final n in kShadowNames) {
+        final p = s.pos[n]!;
+        final c = _shadowBody(n);
+        if (c == null || !c.alive || p.x != sq0.x || p.y != sq0.y) continue;
+        c.hp = max(0, c.hp - kSolarinFlareDamage * progressDmgMul);
       }
-      archive.flareAt = null;
     }
   }
 
-  /// A blow landed: Solarin swings to the next point of its orbit and the
-  /// floor re-forms under everyone.
+  /// Solarin swings to the next point of its orbit and holds again.
+  void _solarinSwing(ShadowRoomDef def, ShadowState s) {
+    archive
+      ..orbitFrom = s.orbit.toDouble()
+      ..orbitT = _time
+      ..swingNext = _guardianHpFraction < 0.5 ? kSolarinHoldHurt : kSolarinHold;
+    archive.rooms[def.id] = s.copyWith(
+      orbit: (s.orbit + 1) % def.orbit!.length,
+    );
+    _cue(SoundCue.dungeonSwitch);
+  }
+
+  /// Why a blow at Solarin did not land: bare, what is wrong.
+  String _solarinBlockedLine() {
+    final def = _gridOf(currentRoom);
+    final a = active;
+    if (def?.orbit == null || a == null) return 'Out of reach';
+    final s = _liveState(currentRoom);
+    return shadowSolarinBurns(def!, s, _shadowName(a))
+        ? 'Too bright. Its light blinds you'
+        : 'Too far';
+  }
+
+  /// A blow landed: Solarin swings on at once.
   void _solarinStruck() {
     final room = currentRoom;
     final def = _gridOf(room);
     if (def?.orbit == null) return;
-    final s = _liveState(room);
-    archive
-      ..orbitFrom = s.orbit.toDouble()
-      ..orbitT = _time;
-    _applyShadowFalls(
-      def!,
-      s.copyWith(orbit: (s.orbit + 1) % def.orbit!.length),
-    );
+    _solarinSwing(def!, _liveState(room));
   }
 
   // ── Per-frame ────────────────────────────────────────────
@@ -741,7 +751,14 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
           : 'The shadow does not fit the lock';
     }
     final def = bay.def!;
-    if (def.orbit != null) return 'Solarin hangs in its own light';
+    if (def.orbit != null) {
+      final a = active;
+      if (a != null &&
+          shadowSolarinBurns(def, archive.state(def.id), _shadowName(a))) {
+        return 'You are standing in its light';
+      }
+      return 'Solarin hangs in its own light';
+    }
     if (archive.solved.contains(def.id)) return 'This floor is set in stone';
     final s = archive.state(def.id);
     if (def.goal == 'any') return 'The relic is across the light';

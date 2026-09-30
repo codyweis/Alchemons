@@ -9,14 +9,14 @@
 //     solver) replays move by move as LEGAL moves here and ends solved.
 //  2. DEEP — the tool each room is about is necessary: rooms I, III and IV
 //     cannot be crossed without the pin, Room IV not without the veil, the
-//     Room I habit (pin the first gap) is a dead end in Room IV, and no
-//     single creature can bring Solarin down alone.
+//     Room I habit (pin the first gap) is a dead end in Room IV.
 //  3. THE KEY — exactly one of the twenty-one studs lays the key's shadow in
 //     the lock.
 //  4. PLAYED — the rules as the real game object runs them: the entry rite,
 //     arrivals, a step onto bare light refused with a bare line, the pin,
 //     the pipe, a pair of rooms banking a star, the spans, the maxim, and
-//     Solarin's lull as a place.
+//     Solarin's fight: its glass all floor but burning in its light, its
+//     swing on its own rhythm, its flare, and blows only from its shadow.
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
@@ -185,24 +185,6 @@ const Map<String, List<String>> _plans = {
     'Steam>7,6',
     'Steam>7,7',
   ],
-  'solarin_orbit': [
-    'Dark>2,4',
-    'Dark>3,4',
-    'Dark>4,4',
-    'Dark>5,4',
-    'Dark>6,4',
-    'Dark>7,4',
-    'Steam>1,5',
-    'Steam>2,5',
-    'Steam>3,5',
-    'Steam>4,5',
-    'Steam>5,5',
-    'strike(Dark)',
-    'strike(Steam)',
-    'Steam>5,4',
-    'Steam>5,3',
-    'strike(Steam)',
-  ],
   'sunless_reliquary': [
     'Dark>0,3',
     'Light>0,2',
@@ -340,6 +322,28 @@ void _enter(PlanetDungeonGame g, String from, String to) {
   );
 }
 
+/// The party in Solarin's arena, the fight begun and Solarin settled.
+PlanetDungeonGame _arena() {
+  final g = _game()..entryDoorRevealed = true;
+  g.starMask = 0x3;
+  g.conduitEnergy['A'] = double.infinity;
+  g.conduitEnergy['B'] = double.infinity;
+  _enter(g, 'eclipse_walk', 'solarin_orbit');
+  g.guardianAwake = true;
+  g.setActive(0);
+  for (var i = 0; i < 30 || (i < 900 && g.guardianArriving); i++) {
+    g.update(1 / 60);
+  }
+  g.archive
+    ..swingNext = 99
+    ..flareNext = 99;
+  // Solarin's body shoots as well; these tests read only its light and flare.
+  for (final c in g.combatCompanions) {
+    c.invincibleTimer = 999;
+  }
+  return g;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -465,16 +469,6 @@ void main() {
         isEmpty,
         reason: 'once only',
       );
-    });
-
-    test('no single creature can bring Solarin down', () {
-      for (final n in kShadowNames) {
-        expect(
-          solveShadowRoom(kRoomSolarin, actors: {n}).solvable,
-          isFalse,
-          reason: '$n alone',
-        );
-      }
     });
 
     test('the Door of Shadow opens only to the monolith\'s shadow', () {
@@ -713,24 +707,76 @@ void main() {
       expect(g.guardianHpFractionForTest, closeTo(2 / 3, .02));
     });
 
-    test('SOLARIN never strands you: the whole party home, it turns back', () {
-      final g = _game()..entryDoorRevealed = true;
-      g.starMask = 0x3;
-      g.conduitEnergy['A'] = double.infinity;
-      g.conduitEnergy['B'] = double.infinity;
-      _enter(g, 'eclipse_walk', 'solarin_orbit');
-      g.setActive(0);
-      for (var i = 0; i < 30 || (i < 900 && g.guardianArriving); i++) {
+    test('SOLARIN swings on by itself, and shows where first', () {
+      final g = _arena();
+      final s0 = g.archive.state('solarin_orbit').orbit;
+      g.archive.swingNext = kSolarinWarn + .05;
+      g.update(1 / 60);
+      g.update(0.1);
+      expect(g.archive.swingNext, lessThan(kSolarinWarn), reason: 'warning');
+      expect(g.archive.state('solarin_orbit').orbit, s0, reason: 'not yet');
+      for (var i = 0; i < 120; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.archive.state('solarin_orbit').orbit, (s0 + 1) % 3);
+    });
+
+    test('SOLARIN\'s glass is all floor: its light burns, it never drops', () {
+      final g = _arena();
+      final light = g.creatures[0];
+      // (8,1) is bare glass in its light: walkable, and it burns.
+      light.position = shadowCentre(8, 1);
+      final hp = light.hp;
+      for (var i = 0; i < 30; i++) {
         g.update(1 / 60);
       }
       final s = g.archive.state('solarin_orbit');
-      g.archive.rooms['solarin_orbit'] = s.copyWith(orbit: 1);
-      g.archive.orbitT = -99;
-      g.creatures[0].position = shadowCentre(1, 3);
-      g.creatures[1].position = shadowCentre(1, 4);
-      g.creatures[2].position = shadowCentre(0, 5);
+      expect(s.pos['Light'], sq(8, 1), reason: 'nothing fell');
+      expect(light.hp, lessThan(hp - 10), reason: 'massive: ${light.hp}');
+      // The east pillar's shadow down row 4 is safe; so is the ledge.
+      for (final at in [sq(3, 4), sq(1, 3)]) {
+        light.position = shadowCentre(at.x, at.y);
+        g.update(1 / 60);
+        final h = light.hp;
+        for (var i = 0; i < 30; i++) {
+          g.update(1 / 60);
+        }
+        expect(light.hp, h, reason: 'safe at $at');
+      }
+    });
+
+    test('SOLARIN is struck only from its shadow: near in its light, no', () {
+      final g = _arena();
+      // (8,3): one square off, but in its light.
+      g.creatures[0].position = shadowCentre(8, 3);
       g.update(1 / 60);
-      expect(g.archive.state('solarin_orbit').orbit, 0);
+      expect(g.guardianVulnerable, isFalse);
+      g.activateAbility();
+      expect(g.guardianHpFractionForTest, closeTo(1, .02));
+    });
+
+    test('SOLARIN\'s flare lands on the square it marked', () {
+      final g = _arena();
+      final light = g.creatures[0];
+      light.position = shadowCentre(3, 4);
+      g.archive.flareNext = 0;
+      g.update(1 / 60);
+      expect(g.archive.flareSq, sq(3, 4));
+      final hp = light.hp;
+      for (var i = 0; i < 80; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.archive.flareSq, isNull);
+      expect(light.hp, lessThan(hp - 15), reason: 'stood on the mark');
+      // Step off the mark and it misses.
+      g.archive.flareNext = 0;
+      g.update(1 / 60);
+      light.position = shadowCentre(4, 4);
+      final hp2 = light.hp;
+      for (var i = 0; i < 80; i++) {
+        g.update(1 / 60);
+      }
+      expect(light.hp, hp2);
     });
 
     test(

@@ -4229,8 +4229,9 @@ class PlanetDungeonGame extends FlameGame {
       // rods, Star 3's own vocabulary — forces a window the cycle never would.
       // Air-only, and raids have no rod field to rank.
       if (_isSpire) _applyRocDrag(room, dt);
-      // Solarin hangs where it hangs and swings round its orbit when struck;
-      // the lull is a PLACE — two squares off it, on floor that holds.
+      // Solarin swings round its orbit on its own rhythm and when struck; its
+      // light burns bare glass, and the lull is a PLACE — two squares off it,
+      // in its shadow.
       if (_isArchive && !isRaid) _applySolarinOrbit(room, dt);
       // Blightfang never opens a lull on a clock (§7): only the draught that
       // answers the strain it is WEARING forces the window, and it takes a
@@ -4268,8 +4269,11 @@ class PlanetDungeonGame extends FlameGame {
       }
       // GAMEPLAY (the hint audit, 2026-09-25): an out-of-phase Wraithord is
       // "harmless in BOTH directions" — its aura burned across the worlds.
+      // Solarin's harm is its light (its own hook burns bare glass), not a
+      // ring round its altar.
       if (!guardianVulnerable &&
           !_funeralHoldsGuardian &&
+          !(_isArchive && !isRaid) &&
           (a.position - stormCenter).distance < 90) {
         a.hp = max(0, a.hp - _guardianHazardDps * progressDmgMul * dt);
       }
@@ -9707,7 +9711,7 @@ class PlanetDungeonGame extends FlameGame {
         _isFuneral && !isRaid
             ? 'Its shadow shields it'
             : _isArchive && !isRaid
-            ? 'Out of reach. Two squares from Solarin, on floor that holds'
+            ? _solarinBlockedLine()
             : 'It can\'t be hit yet. Wait for the lull',
       );
       return true;
@@ -12880,7 +12884,11 @@ class PlanetDungeonGame extends FlameGame {
     }
     final g = room.guardian;
     if (g != null && guardianArriving) {
-      _drawGuardianArrival(canvas, g);
+      // Solarin does not fall onto a perch: it is already hanging there, its
+      // own star, and simply wakes.
+      if (!(_isArchive && !isRaid && room.hall != null)) {
+        _drawGuardianArrival(canvas, g);
+      }
       return;
     }
     if (g != null && (altarOpen || guardianAwake)) {
@@ -12889,7 +12897,9 @@ class PlanetDungeonGame extends FlameGame {
           ? const Color(0xFFE4C16A)
           : const Color(0xFFC0392B);
       final pulse = 0.5 + 0.5 * sin(_time * (guardianVulnerable ? 3 : 8));
-      if (_fx.ready) {
+      // Solarin IS its star (the archive draws it); no second body on it.
+      final isStar = _isArchive && !isRaid && room.hall != null;
+      if (_fx.ready && !isStar) {
         drawGlow(
           canvas,
           _fx.glow!,
@@ -12905,11 +12915,13 @@ class PlanetDungeonGame extends FlameGame {
       final bodyCol = flash > 0
           ? Color.lerp(col, Colors.white, (flash / 0.3).clamp(0, 1))!
           : col;
-      _renderGuardianBody(canvas, pos, 40, bodyCol, guardianVulnerable);
+      if (!isStar) {
+        _renderGuardianBody(canvas, pos, 40, bodyCol, guardianVulnerable);
+      }
       // Swoop telegraph ring while the Roc rears back.
       final ge = _guardianEnemy;
       final gm = ge?.flightSteering;
-      if (gm != null && gm.showTelegraphRing) {
+      if (gm != null && gm.showTelegraphRing && !isStar) {
         canvas.drawCircle(
           pos,
           52 + gm.windupTimer * 70,
