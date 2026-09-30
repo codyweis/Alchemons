@@ -715,10 +715,20 @@ void main() {
       g.update(0.1);
       expect(g.archive.swingNext, lessThan(kSolarinWarn), reason: 'warning');
       expect(g.archive.state('solarin_orbit').orbit, s0, reason: 'not yet');
-      for (var i = 0; i < 120; i++) {
+      for (var i = 0; i < 180; i++) {
         g.update(1 / 60);
       }
       expect(g.archive.state('solarin_orbit').orbit, (s0 + 1) % 3);
+      // Mid-swing its light is on the way, not at either end: the shadows
+      // sweep.
+      final sun = g.archive.state('solarin_orbit').sun;
+      expect(sun, isNotNull, reason: 'still swinging');
+      final end = kRoomSolarin.orbit![(s0 + 1) % 3];
+      expect((sun!.x - end.x).abs() + (sun.y - end.y).abs(), greaterThan(.3));
+      for (var i = 0; i < 60 * 3; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.archive.state('solarin_orbit').sun, isNull, reason: 'settled');
     });
 
     test('SOLARIN fights in a debug rematch, its star already banked', () {
@@ -730,7 +740,7 @@ void main() {
       }
       expect(g.guardianArriving, isFalse);
       final o = g.archive.state('solarin_orbit').orbit;
-      for (var i = 0; i < 60 * 7; i++) {
+      for (var i = 0; i < 60 * 11; i++) {
         g.update(1 / 60);
       }
       expect(g.archive.state('solarin_orbit').orbit, isNot(o), reason: 'moved');

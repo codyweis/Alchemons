@@ -472,7 +472,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
     final to = def.orbit![s.orbit];
     final end = shadowCentre(to.x, to.y);
     if (archive.orbitFrom < 0) return end;
-    final t = ((_time - archive.orbitT) / 0.8).clamp(0.0, 1.0);
+    final t = ((_time - archive.orbitT) / kSolarinSwing).clamp(0.0, 1.0);
     if (t >= 1) return end;
     final e = t * t * (3 - 2 * t);
     final fr = def.orbit![archive.orbitFrom.toInt()];
@@ -495,16 +495,25 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
     final def = _gridOf(room);
     if (def?.orbit == null) return;
     final e = _guardianEnemy;
-    if (e != null && !e.isDead) e.position = _solarinDrawn(def!);
-    var s = _liveState(room);
-    archive.rooms[def!.id] = s;
-
     // ITS RHYTHM: hold, warn, swing. Faster once it is hurt.
     archive.swingNext -= dt;
-    if (archive.swingNext <= 0) {
-      _solarinSwing(def, s);
-      s = archive.state(def.id);
-    }
+    if (archive.swingNext <= 0) _solarinSwing(def!, _liveState(room));
+    final at = _solarinDrawn(def!);
+    if (e != null && !e.isDead) e.position = at;
+    // Mid-swing its light comes from where it is along the arc, so the
+    // shadows sweep with it rather than jump.
+    final swinging =
+        archive.orbitFrom >= 0 && _time - archive.orbitT < kSolarinSwing;
+    final s = _liveState(room).copyWith(
+      sun: swinging
+          ? (
+              x: at.dx / kShadowCell - .5,
+              y: (at.dy - kShadowTop) / kShadowCell - .5,
+            )
+          : null,
+      still: !swinging,
+    );
+    archive.rooms[def.id] = s;
 
     final a = active;
     if (a == null || !a.alive) {
@@ -512,8 +521,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
       return;
     }
     final me = _shadowName(a);
-    final swinging = _time - archive.orbitT < kSolarinSwing;
-    final burns = !swinging && shadowSolarinBurns(def, s, me);
+    final burns = shadowSolarinBurns(def, s, me);
     guardianVulnerable = !burns && shadowSolarinReach(def, s, me);
 
     // ITS LIGHT BURNS: bare glass it reaches, with nothing between.
@@ -565,6 +573,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
       ..swingNext = _guardianHpFraction < 0.5 ? kSolarinHoldHurt : kSolarinHold;
     archive.rooms[def.id] = s.copyWith(
       orbit: (s.orbit + 1) % def.orbit!.length,
+      still: true,
     );
     _cue(SoundCue.dungeonSwitch);
   }

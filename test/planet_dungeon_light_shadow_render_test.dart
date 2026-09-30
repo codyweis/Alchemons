@@ -174,6 +174,9 @@ void main() {
         ..flareSq = null
         ..flareNext = 99;
       await shoot('solarin_warn', g, 10);
+      // …and halfway through its swing: the shadows mid-sweep.
+      g.archive.swingNext = 0;
+      await shoot('solarin_sweep', g, 90);
 
       // THE HALL — dark star, then the near spans set, then the whole bridge.
       g = await _game('light_hall');

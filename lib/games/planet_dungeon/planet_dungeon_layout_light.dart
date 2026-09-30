@@ -196,6 +196,11 @@ class ShadowState {
   final int hits;
   final bool piped;
 
+  /// Where Solarin's light is actually coming from while it swings between
+  /// points of its orbit (grid units, fractional); null when it hangs still
+  /// at `orbit`. The shadows sweep with it.
+  final ({double x, double y})? sun;
+
   const ShadowState({
     required this.pos,
     required this.pins,
@@ -205,6 +210,7 @@ class ShadowState {
     this.orbit = 0,
     this.hits = 0,
     this.piped = false,
+    this.sun,
   });
 
   factory ShadowState.start(ShadowRoomDef d) => ShadowState(
@@ -224,6 +230,8 @@ class ShadowState {
     int? orbit,
     int? hits,
     bool? piped,
+    ({double x, double y})? sun,
+    bool still = false,
   }) => ShadowState(
     pos: pos ?? this.pos,
     pins: pins ?? this.pins,
@@ -233,6 +241,7 @@ class ShadowState {
     orbit: orbit ?? this.orbit,
     hits: hits ?? this.hits,
     piped: piped ?? this.piped,
+    sun: still ? null : (sun ?? this.sun),
   );
 
   ShadowState moved(String who, Sq to) => copyWith(pos: {...pos, who: to});
@@ -245,7 +254,12 @@ class ShadowState {
     b
       ..write('$pins|')
       ..write(veil == null ? '-' : '${veil!.x}.${veil!.y}')
-      ..write('|${piped ? 1 : 0}|$rail|$orbit|$hits|');
+      ..write('|${piped ? 1 : 0}|$rail|$orbit|$hits|')
+      ..write(
+        sun == null
+            ? '-|'
+            : '${sun!.x.toStringAsFixed(2)},${sun!.y.toStringAsFixed(2)}|',
+      );
     final p = pinned.toList()..sort();
     b.write(p.join(';'));
     return b.toString();
@@ -263,11 +277,18 @@ List<ShadowLamp> shadowLamps(ShadowRoomDef d, ShadowState s) {
     final n = d.rail![s.rail];
     out.add(ShadowLamp(n.x.toDouble(), n.y.toDouble(), kind: 'rail'));
   }
-  if (d.orbit != null && s.hits < 3) {
-    final o = d.orbit![s.orbit];
-    out.add(ShadowLamp(o.x.toDouble(), o.y.toDouble(), kind: 'solarin'));
-  }
+  final sol = shadowSolarinLamp(d, s);
+  if (sol != null) out.add(sol);
   return out;
+}
+
+/// Solarin's own light: where it hangs, or where it is mid-swing.
+ShadowLamp? shadowSolarinLamp(ShadowRoomDef d, ShadowState s) {
+  if (d.orbit == null || s.hits >= 3) return null;
+  final sun = s.sun;
+  if (sun != null) return ShadowLamp(sun.x, sun.y, kind: 'solarin');
+  final o = d.orbit![s.orbit];
+  return ShadowLamp(o.x.toDouble(), o.y.toDouble(), kind: 'solarin');
 }
 
 bool shadowSolid(ShadowRoomDef d, int x, int y, ShadowState s) {
@@ -488,15 +509,18 @@ List<int>? shadowPinCells(ShadowRoomDef d, ShadowState s) {
 // a moment later. It is struck from its shadow, two squares off.
 
 /// Seconds Solarin holds before it swings on (shorter once it is hurt).
-const double kSolarinHold = 6.0;
-const double kSolarinHoldHurt = 4.4;
+/// Slow on purpose: the party's other two fight on their own while you
+/// read the light.
+const double kSolarinHold = 9.0;
+const double kSolarinHoldHurt = 7.0;
 
 /// Seconds before a swing that its next place, and the floor it will cast,
 /// are shown.
-const double kSolarinWarn = 1.8;
+const double kSolarinWarn = 2.5;
 
-/// Seconds a swing takes; its light does not burn while it moves.
-const double kSolarinSwing = 0.8;
+/// Seconds a swing takes. Its light comes from where it is along the way,
+/// so the shadows sweep slowly enough to walk with.
+const double kSolarinSwing = 3.0;
 
 /// Health per second its light burns from the active body (of 100).
 const double kSolarinBurnDps = 42;
@@ -511,22 +535,22 @@ const double kSolarinFlareDamage = 24;
 /// reaches with nothing but [who] in the way — stone, shadow Dark has set
 /// into stone, and anything another caster shades are safe.
 bool shadowSolarinBurns(ShadowRoomDef d, ShadowState s, String who) {
-  if (d.orbit == null || s.hits >= 3) return false;
+  final l = shadowSolarinLamp(d, s);
+  if (l == null) return false;
   final q = s.pos[who]!;
   if (!d.isGlass(q.x, q.y) || s.pinned.contains(sqKey(q.x, q.y))) {
     return false;
   }
-  final o = d.orbit![s.orbit];
-  final l = ShadowLamp(o.x.toDouble(), o.y.toDouble(), kind: 'solarin');
   if (!shadowLights(d, l, q.x, q.y)) return false;
   return _holders(d, s, l, q.x, q.y, except: who).isEmpty;
 }
 
 /// Can [who] strike Solarin from where it stands? Two squares, no further.
 bool shadowSolarinReach(ShadowRoomDef d, ShadowState s, String who) {
-  if (d.orbit == null || s.hits >= 3) return false;
-  final o = d.orbit![s.orbit], p = s.pos[who]!;
-  final dx = (p.x - o.x).toDouble(), dy = (p.y - o.y).toDouble();
+  final l = shadowSolarinLamp(d, s);
+  if (l == null) return false;
+  final p = s.pos[who]!;
+  final dx = p.x - l.x, dy = p.y - l.y;
   return sqrt(dx * dx + dy * dy) <= 2.01;
 }
 
