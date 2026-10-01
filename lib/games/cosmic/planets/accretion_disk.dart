@@ -437,3 +437,86 @@ class _AccretionDisk {
     }
   }
 }
+
+/// A small black hole for use outside the cosmic map — the Black Sun's
+/// portals in Nythralor's dungeon, and the black holes its enemies come out
+/// of. The SAME recipe as the Dark planet (the author: its particle black
+/// hole "looks way better and less cheesy"): a soft aura, flattened layered
+/// glow, the hot glow at the inner rim, and hundreds of motes on Keplerian
+/// orbits — the far half behind the core, the near half in front of it.
+/// Nothing drawn: no arms, no swept arcs, no rims.
+///
+/// Call [paintBack], fill the core yourself (black, or a window), then
+/// [paintFront]. [tilt] turns the whole thing (π/2 stands the disk on end,
+/// for a mouth in a wall that runs north–south).
+class BlackHoleArt {
+  BlackHoleArt({
+    int seed = 1,
+    int motes = 520,
+    int infall = 70,
+    double grain = 6.5,
+    this.flat = 0.35,
+    this.palette = DiskPalette.violet,
+  }) : _disk = _AccretionDisk(
+         Random(seed * 61 + 43),
+         motes: motes,
+         infall: infall,
+         grain: grain,
+         flat: flat,
+       );
+
+  final _AccretionDisk _disk;
+  final double flat;
+  final DiskPalette palette;
+
+  /// Behind the core: the aura, the layered disk, the inner glow and the far
+  /// half of the matter. [r] is the core's radius.
+  void paintBack(
+    Canvas c,
+    Offset p,
+    double r,
+    double t, {
+    double tilt = 0,
+    double alpha = 1,
+  }) {
+    if (r <= 0.5) return;
+    c.save();
+    c.translate(p.dx, p.dy);
+    if (tilt != 0) c.rotate(tilt);
+    _softCircle(
+      c,
+      Offset.zero,
+      r * 2.6,
+      palette.bandB.withValues(alpha: 0.16 * alpha),
+      r * 0.3,
+    );
+    c.save();
+    c.scale(1.0, flat);
+    for (var i = 3; i >= 0; i--) {
+      c.drawCircle(
+        Offset.zero,
+        r * (1.8 + i * 0.3),
+        Paint()
+          ..color = Color.lerp(
+            palette.bandB,
+            palette.bandA,
+            i * 0.2,
+          )!.withValues(alpha: (0.08 + 0.03 * sin(t * 1.5 + i)) * alpha),
+      );
+    }
+    c.restore();
+    _disk.paintGlow(c, Offset.zero, r, t, palette: palette, alpha: 0.3 * alpha);
+    _disk.paintMatter(c, Offset.zero, r, t, front: false, palette: palette);
+    c.restore();
+  }
+
+  /// In front of the core: the near half of the matter.
+  void paintFront(Canvas c, Offset p, double r, double t, {double tilt = 0}) {
+    if (r <= 0.5) return;
+    c.save();
+    c.translate(p.dx, p.dy);
+    if (tilt != 0) c.rotate(tilt);
+    _disk.paintMatter(c, Offset.zero, r, t, front: true, palette: palette);
+    c.restore();
+  }
+}

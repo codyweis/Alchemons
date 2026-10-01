@@ -19,6 +19,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 CosmicPartyMember _member(int slot, String element, String family) =>
@@ -193,6 +194,20 @@ void main() {
         game.creatures[2].position = at + const Offset(-300, 0);
         game.setActive(0);
         game.regroup();
+
+        // Nythralor gathers everyone who can WALK there to the one you are
+        // steering, each on a square beside it.
+        if (element == 'Dark') {
+          final me = game.creatures[0].position;
+          for (final c in game.creatures) {
+            expect(
+              (c.position - me).distance,
+              lessThanOrEqualTo(kSunCell + 0.5),
+              reason: 'Dark: gather',
+            );
+          }
+          return;
+        }
 
         for (var i = 1; i < game.creatures.length; i++) {
           expect(

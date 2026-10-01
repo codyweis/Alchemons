@@ -59,13 +59,11 @@ extension DungeonGlassArt on PlanetDungeonGame {
   /// Seconds a passage takes to split open or close back into wall.
   static const double _kWorldDoorSeconds = 0.55;
 
-  bool get _hasWorldDoors => _isVault || _isArchive;
+  bool get _hasWorldDoors => _isArchive;
 
   /// Shut by the world (or, at the entrance, by the entry rite not yet done).
   bool _worldDoorShut(DungeonRoom room, DungeonDoor d) =>
-      isDoorHidden(room, d) ||
-      (_isVault && _vaultDoorBlocked(room, d)) ||
-      (_isArchive && _archiveDoorBlocked(room, d));
+      isDoorHidden(room, d) || (_isArchive && _archiveDoorBlocked(room, d));
 
   /// A passage that becomes WALL when shut: Dark's shadow-ways and the
   /// entrance's ways out before the rite. Dark's light-walks stay doorways
@@ -73,9 +71,7 @@ extension DungeonGlassArt on PlanetDungeonGame {
   /// doors of its own: its reliquary door is simply locked.)
   bool _worldDoorWalls(DungeonRoom room, DungeonDoor d) {
     if (!_hasWorldDoors) return false;
-    if (room.id == layout.entranceRoomId) return true;
-    if (_isVault) return _vaultSpanFor(room, d)?.cut == SpanCut.shadowWay;
-    return false;
+    return room.id == layout.entranceRoomId;
   }
 
   void _easeWorldDoors(double dt) {

@@ -1,0 +1,6 @@
+hall2 (The Hall: the island) [guided search — a plan, not the shortest] solvable=true steps=48 states=214938 4164ms
+  without the purple portal: IMPOSSIBLE
+  without the orange portal: IMPOSSIBLE
+  replayed from a fresh start: solved
+  decisions (casts/shines): 5 · walks: 43
+  plan: light north · light east · light east · purple north · purple west · purple west · purple casts I south · purple east · purple east · orange west · purple east · orange west · orange west · orange west · orange casts I north · orange east · orange east · orange casts II east · orange north · purple casts II north · purple north · purple north · purple north · purple east · light west · orange east · orange north · light west · orange north · orange east · light north · light north · light north · purple casts II east · purple east · light east · purple east · purple north · light east · light east · orange north · orange east · purple north · light north · orange east · purple east · light north · orange north

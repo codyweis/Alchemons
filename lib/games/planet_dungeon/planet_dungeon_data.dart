@@ -1314,13 +1314,10 @@ class DungeonRoom {
   /// exactly as Ice's shaft and Dust's mounds are.
   final ConservatoryPlot? grove;
 
-  /// Dark (the Eclipse Vault): which QUARTER of the eclipse this room lies in,
-  /// its star, and the single objects (the pall, the analemma, the snuffer,
-  /// the abyss, the arena's shadow-vane). One field, because the vault's
-  /// spans, gnomons and anchors are authored whole in
-  /// planet_dungeon_layout_dark.dart rather than per room, exactly as Ice's
-  /// shaft and Plant's crypt are.
-  final EclipseHall? eclipse;
+  /// Dark (the Black Sun): which grid room this is (or the arena, which is
+  /// the engine's fight). The grids, portals and beams are authored whole in
+  /// planet_dungeon_layout_dark.dart, exactly as Light's shadow floor is.
+  final SunBay? sun;
 
   /// Light (the Shadow Floor): what kind of room this is — the hall, a grid
   /// room of glass and starlights, or the key room — and which grid. The
@@ -1443,7 +1440,7 @@ class DungeonRoom {
     this.prism,
     this.funeral,
     this.grove,
-    this.eclipse,
+    this.sun,
     this.hall,
     this.sanguine,
   });
@@ -1594,7 +1591,7 @@ extension DungeonRoomAffordances on DungeonRoom {
       rime != null ||
       fen != null ||
       grove != null ||
-      eclipse != null ||
+      sun != null ||
       hall != null ||
       sanguine != null ||
       ruins != null ||
@@ -1810,9 +1807,9 @@ class DungeonLayout {
       // Spirit carries its two non-guardian stars on the rooms that bank
       // them: the bell court and the bearers' court.
       if (room.funeral?.starIndex != null) seen.add(room.funeral!.starIndex!);
-      // Dark carries its two non-guardian stars on the quarter a room lies
-      // in: the analemma court in the pall, the ossuary ring in the bones.
-      if (room.eclipse?.starIndex != null) seen.add(room.eclipse!.starIndex!);
+      // Dark's two stars are banked by pairs of chambers (II and III, IV
+      // and V).
+      if (room.sun?.starIndex != null) seen.add(room.sun!.starIndex!);
       // Light's two stars are banked by pairs of rooms (I and II, III and IV).
       if (room.hall?.starIndex != null) seen.add(room.hall!.starIndex!);
       // Blood carries its two non-guardian stars on the chamber a room is:

@@ -1075,14 +1075,23 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                           },
                         ),
                       ),
-                      _iconButton(
-                        // It recalls the party to the door they came in by
-                        // rather than snapping them to whoever is active, so
-                        // the icon is a way back rather than a huddle.
-                        Icons.restore_rounded,
-                        _C.amber,
-                        () => game.regroup(),
-                        semantics: 'Recall the party to the way in',
+                      // It recalls the party to the door they came in by
+                      // rather than snapping them to whoever is active, so
+                      // the icon is a way back rather than a huddle — except
+                      // on the Black Sun, where it GATHERS everyone who can
+                      // walk there to the one you are steering.
+                      ValueListenableBuilder<int>(
+                        valueListenable: _tick,
+                        builder: (_, __, ___) => _iconButton(
+                          game.sunGathers
+                              ? Icons.groups_rounded
+                              : Icons.restore_rounded,
+                          _C.amber,
+                          () => game.regroup(),
+                          semantics: game.sunGathers
+                              ? 'Gather the party here'
+                              : 'Recall the party to the way in',
+                        ),
                       ),
                       // Pull back and read the whole room, and drag to look
                       // around while pulled back. Any movement snaps it home
@@ -1972,6 +1981,32 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
     const cell = _kPadCell, gap = _kPadGap, wide = cell * 2 + gap;
 
+    // THE BLACK SUN: a Dark in a grid room has two ends to cast, so the top
+    // row is two tiles — CAST I and CAST II, in its portal's colour — and
+    // Light's one tile says what it does (SHINE / PUT OUT).
+    Widget castTile(int end) {
+      final purple = game.sunActiveIsPurple;
+      final tint = purple ? const Color(0xFFA77BFF) : const Color(0xFFFF9A3D);
+      return _padTile(
+        width: cell,
+        height: cell,
+        color: tint,
+        spent: !enabled,
+        semantics: 'Cast portal end ${end == 0 ? 'one' : 'two'}',
+        onTap: enabled
+            ? context.soundTap(() {
+                _tapHaptic();
+                game.activateSunCast(end);
+              })
+            : null,
+        child: _padGlyph(
+          Icons.brightness_1_outlined,
+          end == 0 ? 'CAST I' : 'CAST II',
+          !enabled,
+        ),
+      );
+    }
+
     Widget utility() => _padTile(
       width: wide,
       height: cell,
@@ -1991,7 +2026,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         children: [
           Icon(elementIconFor(element), size: 24, color: _padInk(!enabled)),
           const SizedBox(width: 8),
-          _padLabel('UTILITY', !enabled),
+          _padLabel(game.sunUtilityLabel ?? 'UTILITY', !enabled),
         ],
       ),
     );
@@ -2053,7 +2088,26 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // are how it finds them on screen.
     final Widget top;
     final Widget bottom;
-    if (hasUtility) {
+    if (game.sunCastMode) {
+      top = KeyedSubtree(
+        key: _tutUtilityKey,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [castTile(0), const SizedBox(width: gap), castTile(1)],
+        ),
+      );
+      bottom = KeyedSubtree(
+        key: _tutCombatKey,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            attack(cell),
+            const SizedBox(width: gap),
+            special(cell),
+          ],
+        ),
+      );
+    } else if (hasUtility) {
       top = KeyedSubtree(key: _tutUtilityKey, child: utility());
       bottom = KeyedSubtree(
         key: _tutCombatKey,
@@ -2078,7 +2132,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         bottom,
       ],
     );
-    return hasUtility ? grid : KeyedSubtree(key: _tutCombatKey, child: grid);
+    return hasUtility || game.sunCastMode
+        ? grid
+        : KeyedSubtree(key: _tutCombatKey, child: grid);
   }
 
   Color _padInk(bool spent) =>

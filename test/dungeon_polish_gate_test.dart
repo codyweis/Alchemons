@@ -4,7 +4,7 @@
 // which is exactly the problem. Every fault that has mattered on a first
 // descent (arrivals that strand you, a door on the wrong wall, art that reads
 // as something it is not) came out of a device session, never out of a test
-// that already existed. So the unpolished ten keep their gate ritual and show
+// that already existed. So the unpolished ones keep their gate ritual and show
 // the coming-soon placard instead of DESCEND.
 //
 // docs/dungeons.md §7.9 is canonical. This pins the code against it.
@@ -14,7 +14,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 
 void main() {
-  test('the polished set is the fourteen that have had the pass', () {
+  test('the polished set is the fifteen that have had the pass', () {
     expect(kPolishedDungeons, {
       'Fire',
       'Air',
@@ -38,6 +38,8 @@ void main() {
       'Plant',
       // Spirit, 2026-09-28: the Unfinished Funeral, played.
       'Spirit',
+      // Light, 2026-09-30: the Shadow Floor, played.
+      'Light',
     });
   });
 

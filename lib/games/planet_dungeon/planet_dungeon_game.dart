@@ -16,6 +16,8 @@ import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
+import 'package:alchemons/games/cosmic/planets/planet_art.dart'
+    show BlackHoleArt, DiskPalette;
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic/vfx_shapes.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
@@ -1028,9 +1030,6 @@ class PlanetDungeonGame extends FlameGame {
   /// Spirit's dream window as SHOWN: 0 → 1 as its panes light.
   double _dreamShown = -1;
 
-  /// Dark's fourth finger as SHOWN: 0 → 1 as it rises at the rim.
-  double _fingerShown = -1;
-
   /// Dark's and Light's passages as SHOWN in the room you stand in, keyed by target room:
   /// 1 a way through, 0 stone. A turn eases them rather than swapping the
   /// wall in one frame; entering a room starts them where they are.
@@ -1240,7 +1239,47 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Zoom actually in force. The survey's pull-back and the pour cam's are the
   /// same mechanism; they must never both apply.
-  double get viewZoom => followingPour ? kPourFollowZoom : surveyZoom;
+  double get viewZoom =>
+      followingPour ? kPourFollowZoom : min(surveyZoom, _planetFitZoom);
+
+  /// A planet whose rooms are puzzles read WHOLE pulls the camera back until
+  /// the room fits the screen (Dark's grid rooms: every piece of a room's
+  /// puzzle — the lens, both ends of a portal, the seal — has to be in view
+  /// at once). 1.0 everywhere else.
+  double get _planetFitZoom {
+    if (!_isVault || !hasLayout) return 1.0;
+    if (currentRoom.sun?.grid == null) return 1.0;
+    return _fitFrame(currentRoom.bounds).$2.clamp(kMinFitZoom, 1.0);
+  }
+
+  /// The clear part of the view a whole room is framed in, and the zoom that
+  /// fits it there. The HUD owns two blocks at the top of the view (the
+  /// minimap top-left, the tool column top-right; the joystick and the pad
+  /// live in the tray below the view), so a room sits BETWEEN them, UNDER
+  /// the map beside the tools, or UNDER both — whichever lets it be largest.
+  (Rect, double) _fitFrame(Rect room) {
+    final w = size.x, h = size.y;
+    const mapW = 112.0, mapH = 112.0, toolW = 128.0, toolH = 280.0, m = 8.0;
+    final options = [
+      Rect.fromLTRB(mapW, m, w - toolW, h - m),
+      Rect.fromLTRB(m, mapH, w - toolW, h - m),
+      Rect.fromLTRB(m, toolH, w - m, h - m),
+    ];
+    var best = options.first;
+    var bestZ = 0.0;
+    for (final r in options) {
+      if (r.width <= 0 || r.height <= 0) continue;
+      final z = min(r.width / room.width, r.height / room.height);
+      if (z > bestZ) {
+        bestZ = z;
+        best = r;
+      }
+    }
+    return (best, min(1.0, bestZ));
+  }
+
+  /// How far a fitted room may pull back before creatures stop reading.
+  static const double kMinFitZoom = 0.45;
 
   /// CUT TO A PLACE and hold there, then give the camera back.
   ///
@@ -1933,14 +1972,15 @@ class PlanetDungeonGame extends FlameGame {
 
   bool get _isConservatory => layout.element == 'Plant';
 
-  // ── Dark · the Eclipse Vault (planet_dungeon_game_dark.dart) ──
-  /// The whole vault: where each gnomon's shadow lies, and what that has
-  /// opened. ONE field, because on this planet the shadow's position IS the
-  /// map (see planet_dungeon_layout_dark.dart).
-  final EclipseVault vault = EclipseVault();
+  // ── Dark · the Black Sun (planet_dungeon_game_dark.dart) ──
+  /// The whole run: every body (and which room it is in — the party does
+  /// not travel together here), Light's beam, both portals, and what that
+  /// has opened. ONE field (see planet_dungeon_layout_dark.dart).
+  final SunRun blackSun = SunRun();
 
-  /// The beat-edge Noctryos throws the Deep's shadow on.
-  bool _noctryosBitLastFrame = false;
+  /// How many creatures the Black Sun last put on their squares (a new
+  /// party, or a headless harness adding them, snaps them all).
+  int _sunSyncedCount = -1;
 
   bool get _isVault => layout.element == 'Dark';
 
@@ -2812,6 +2852,8 @@ class PlanetDungeonGame extends FlameGame {
     // The Conservatory has no entry rite: its doors stand open.
     entryDoorRevealed =
         (_isConservatory && !isRaid) ||
+        // Neither has the Black Sun: the porch is the way in.
+        (_isVault && !isRaid) ||
         discoveredClouds.contains(entryDoorDiscoveryId);
     _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
     _entryRevealPrev = _entryReveal;
@@ -2925,6 +2967,8 @@ class PlanetDungeonGame extends FlameGame {
     activeIndex = 0;
     _doorCooldown = 0.4;
     _camFocus = null; // snap the camera to the fresh spawn (no pan)
+    // Dark: each body on its own square of the porch.
+    if (_isVault) _sunPlaceParty();
   }
 
   void _spreadCreaturesAround(Offset anchor) {
@@ -2971,6 +3015,8 @@ class PlanetDungeonGame extends FlameGame {
     // The Conservatory has no entry rite: its doors stand open.
     entryDoorRevealed =
         (_isConservatory && !isRaid) ||
+        // Neither has the Black Sun: the porch is the way in.
+        (_isVault && !isRaid) ||
         discoveredClouds.contains(entryDoorDiscoveryId);
     _entryReveal = entryDoorRevealed ? 1.0 : 0.0;
     _entryRevealPrev = _entryReveal;
@@ -3049,6 +3095,8 @@ class PlanetDungeonGame extends FlameGame {
       return;
     }
     activeIndex = index;
+    // Dark: choosing a body in another room takes the view there.
+    if (_isVault) _sunFollowActive();
     onChanged();
   }
 
@@ -3080,6 +3128,8 @@ class PlanetDungeonGame extends FlameGame {
   /// but never leaving it, they then walked out the far side, through tide
   /// ledges, fossil ribs, powered barriers and straight into stars.)
   void regroup() {
+    // Dark: everyone in THIS room back to its door; the others stay put.
+    if (_isVault && _sunRegroup()) return;
     final anchor = _roomEntryAnchor ?? active?.position;
     if (anchor == null) return;
     _spreadCreaturesAround(anchor);
@@ -4152,7 +4202,10 @@ class PlanetDungeonGame extends FlameGame {
         !(_isFuneral && room.funeral?.rite == true) &&
         // Light's rite is the Door of Shadow: its pinned doorway latches A
         // and B from the module, and Solarin wakes as it opens.
-        !(_isArchive && room.hall?.grid == 'door_of_shadow')) {
+        !(_isArchive && room.hall?.grid == 'door_of_shadow') &&
+        // Dark's rite is the Heart: blood on the Great Seal latches A and B
+        // from the module, and Noctryos wakes as it burns.
+        !(_isVault && room.sun?.grid == 'sun_heart')) {
       return;
     }
     if (_roomCleared(room)) return;
@@ -4194,13 +4247,18 @@ class PlanetDungeonGame extends FlameGame {
         reagentElements: _isSpire ? const ['Air', 'Fire'] : [layout.element],
         unstable: true,
       );
-      spawnWispWave(
-        element: wakeEl,
-        center: room.bounds.center,
-        count: 4,
-        unstable: true,
-        announce: false, // "Both conduits sing…" stays on screen
-      );
+      // Not on the Black Sun: its party may be split across rooms when the
+      // seal burns, and Noctryos' enemies come out of the arena's black
+      // holes below.
+      if (!_isVault) {
+        spawnWispWave(
+          element: wakeEl,
+          center: room.bounds.center,
+          count: 4,
+          unstable: true,
+          announce: false, // "Both conduits sing…" stays on screen
+        );
+      }
       onChanged();
     }
     final g = room.guardian;
@@ -6149,6 +6207,9 @@ class PlanetDungeonGame extends FlameGame {
   /// 1300px and a wisp entering at the far wall of one would spend ten
   /// seconds crossing empty floor before it was anybody's problem.
   Offset offscreenSpawn(DungeonRoom room, Offset toward) {
+    // Dark: Noctryos' enemies come out of the black holes in its floor.
+    final hole = _isVault ? _sunArenaSpawn(room, toward) : null;
+    if (hole != null) return hole;
     final b = room.bounds;
     // Headless (every simulation test) there IS no viewport, and asking for
     // one throws. Fall back to the room's own edge, which is the same
@@ -9833,6 +9894,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isShaft && _shaftBlocksAt(center, room)) return true;
     // Light: glass holds only in shadow, and never under what casts it.
     if (_isArchive && _archiveBlocksAt(center, room)) return true;
+    // Dark: the grid's rules, and a step into a portal.
+    if (_isVault && _sunBlocksAt(center, room)) return true;
     // When walking, you can't leave solid ground (gaps / open sky block you).
     if (!flightActive && !_onSolidGround(center, room)) return true;
     return false;
@@ -9903,6 +9966,8 @@ class PlanetDungeonGame extends FlameGame {
   /// do ALL of this — the per-planet transit bookkeeping, the anchor the
   /// regroup button recalls to, the hint reset — so there is one copy of it.
   void passThroughDoor(DungeonDoor d) {
+    // Dark: a door takes only the body you are steering.
+    if (_isVault && _sunPassThroughDoor(d)) return;
     // Ice: the ride SCOURS the flue and the rimefall THAWS the shaft.
     if (_isShaft) _onShaftTransit(currentRoom, d);
     // Mud: climbing a risen wallow HEAVES the fen back to its opening state.
@@ -13810,6 +13875,15 @@ class PlanetDungeonGame extends FlameGame {
     // camera keeps framing for a viewport it no longer has.
     final vw = size.x / viewZoom, vh = size.y / viewZoom;
     final b = room.bounds;
+    // A room framed whole sits in the clear part of the view, centred there
+    // rather than in the middle of a screen the HUD half covers.
+    if (_isVault && room.sun?.grid != null && hasLayout) {
+      final z = viewZoom;
+      final (frame, _) = _fitFrame(b);
+      if (b.width * z <= frame.width + 1 && b.height * z <= frame.height + 1) {
+        return b.center - frame.center / z + surveyPan;
+      }
+    }
     double camX, camY;
     if (b.width <= vw) {
       camX = b.center.dx - vw / 2; // center small room
@@ -13827,6 +13901,9 @@ class PlanetDungeonGame extends FlameGame {
 
   void _renderIslandAndVoid(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
+    // Dark's grid rooms draw their own floor, and their void is a real hole
+    // down to the planet's black hole — a plain floor under it would fill it.
+    if (_isVault && room.sun?.grid != null) return;
 
     // Open-sky rooms (platforms): floating ledges over the drifting sky.
     if (room.platforms.isNotEmpty) {
@@ -15475,13 +15552,21 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _renderCreatures(Canvas canvas) {
+    // A room pulled back to fit the screen draws its creatures a little
+    // larger, so they still read at the distance (the author, 2026-09-30).
+    // The survey's own look further back is left as it is.
+    final fit = _planetFitZoom;
+    final boost = fit < 0.999 ? min(1.4, 1 / sqrt(fit)) : 1.0;
     for (var i = 0; i < creatures.length; i++) {
       final c = creatures[i];
+      // Dark: a body in another room is not here.
+      if (_isVault && !_sunHere(c)) continue;
       final isActive = i == activeIndex && c.alive;
       final ec = elementColor(c.member.element);
 
       canvas.save();
       canvas.translate(c.position.dx, c.position.dy);
+      if (boost != 1.0) canvas.scale(boost);
 
       // Downed: a dim, grounded ghost of the creature — no aura, no ring.
       if (!c.alive) {

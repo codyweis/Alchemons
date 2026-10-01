@@ -1857,14 +1857,12 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // ground took back: the gate drift, the sunken cut, the undug grave). No
   // recipe joins the three. Until 2026-09-28 this was Plant's exact trio.
   'Spirit': ['Spirit', 'Blood', 'Dust'],
-  // Eclipse Vault (Nythralor): Dark (draws the pall, turns every gnomon —
-  // the planet's whole verb — seats two of the analemma's stones, and its
-  // Mask reads the nave's black reredos) + Poison (seats the ossuary stone,
-  // and its Pip eats the rust out of the shadow-anchors) + Spirit (seats the
-  // gallery stone and reads where an anchor's far end comes out).
-  // Poison+Spirit→Dark is the braid that snuffs the nave's lamps when no
-  // Dark hand is free.
-  'Dark': ['Dark', 'Poison', 'Spirit'],
+  // The Black Sun (Nythralor, rebuilt 2026-09-30): TWO Darks and a Light.
+  // Each Dark carries one portal (purple and orange); Light shines through
+  // them, and light through both comes out as blood. The only planet whose
+  // party does not travel together. Until 2026-09-30 this was Dark · Poison
+  // · Spirit (the Eclipse Vault).
+  'Dark': ['Dark', 'Dark', 'Light'],
   // Beacon Archive (Solarin): Light (kindles, aims and pitches every beacon —
   // the planet's whole verb — reads the moth effigy, and turns the reading
   // floor's shutter-ring) + Dark (reads the scholar and the sun, opens the
@@ -1909,7 +1907,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Crystal': ['Mask', 'Horn', 'Pip'], // Crystalmask · Lightninghorn · Spiritpip
   'Plant': ['Mask', 'Kin', 'Mane'], // Crystalmask · Spiritkin · Watermane
   'Spirit': ['Mask', 'Pip', 'Wing'], // Spiritmask · Bloodpip · Dustwing
-  'Dark': ['Mask', 'Pip', 'Mane'], // Darkmask · Poisonpip · Spiritmane
+  'Dark': ['Mask', 'Wing', 'Horn'], // Darkmask · Darkwing · Lighthorn (no gates)
   'Light': ['Horn', 'Wing', 'Pip'], // Lighthorn · Darkwing · Steampip
   'Blood': ['Mane', 'Mask', 'Mask'], // Bloodmane · Darkmask · Lightmask
 };
@@ -1939,7 +1937,7 @@ bool isDungeonGatePlanet(String element) =>
 /// canonical record; this is that list, in code.
 ///
 /// BUILT is not POLISHED. All seventeen are built and proved by the suite,
-/// but the faults that matter on the unpolished ten — arrivals that strand
+/// but the faults that matter on the unpolished ones — arrivals that strand
 /// you, doors on the wrong wall, art that reads as something it is not — are
 /// exactly the class of thing a green suite cannot see. So the unpolished
 /// ones keep their gate ritual and show the coming-soon placard instead of
@@ -1976,6 +1974,10 @@ const Set<String> kPolishedDungeons = <String>{
   // linked-beam bearers' court, the coloured mourners and the Empty Urn
   // maxim, played on device.
   'Spirit',
+  // Light — promoted 2026-09-30 on the author's account, after the Shadow
+  // Floor rebuild (only shadow holds you; the hub hall that grows, the
+  // Eclipse, the reworked Solarin), played on device.
+  'Light',
 };
 
 /// True if [element]'s descent is ready for a player: built AND polished.

@@ -1,7 +1,6 @@
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_blood.dart';
-import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -84,24 +83,11 @@ void main() {
     }
   });
 
-  test('Dark forecasts overlapping shadows without changing the vault', () {
+  test('Dark raises no planning line: the aim is drawn on the wall', () {
+    // The Black Sun (2026-09-30) shows where a cast would land as a ghost
+    // mouth on the face the Dark is looking at; a line would say it twice.
     final g = game('Dark');
-    for (var bits = 0; bits < 8; bits++) {
-      for (final (i, gn) in kVaultGnomons.indexed) {
-        g.vault.shadow[gn.id] = bits & (1 << i) == 0 ? gn.upper : gn.lower;
-      }
-      for (final gn in kVaultGnomons) {
-        stand(g, gn.roomId, gn.shaft);
-        final before = Map.of(g.vault.shadow);
-        final inversions = g.vault.inversions;
-        final line = g.puzzlePreview!;
-        expect(line, startsWith('Dark · shadow toward'));
-        expect(g.vault.shadow, before);
-        expect(g.vault.inversions, inversions);
-        final next = g.vault.shadowOf(gn.id) == gn.upper ? gn.lower : gn.upper;
-        expect(line, contains(leafWord(next)));
-      }
-    }
+    expect(g.puzzlePreview, isNull);
   });
 
   test('Light raises no planning line: the shadow floor shows itself', () {

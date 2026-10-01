@@ -1,0 +1,1321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Black Sun</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --night: #0f0d15;
+    --night-2: #1b1724;
+    --line: #3a3348;
+    --ivory: #ece4d2;
+    --ivory-dim: #aba291;
+    --gold: #d6b25e;
+    --purple: #a77bff;
+    --orange: #ff9a3d;
+    --blood: #d8354b;
+    --ink: #17141e;
+  }
+  html, body { margin: 0; background: var(--night); }
+  body { color: var(--ivory); font: 16px/1.5 "Spectral", Georgia, serif; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 12px; }
+  header { display: grid; gap: 4px; }
+  .eyebrow { margin: 0; font: 12px/1 "Marcellus", Georgia, serif; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); }
+  h1 { margin: 0; font: 400 clamp(28px, 6vw, 40px)/1.1 "Marcellus", Georgia, serif; }
+  .rule { margin: 0; color: var(--ivory-dim); font-style: italic; max-width: 64ch; }
+  .rooms, .party, .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .party, .actions { justify-content: center; }
+  button {
+    font: 15px/1.2 "Spectral", Georgia, serif; color: var(--ivory); background: var(--night-2);
+    border: 1px solid var(--line); border-radius: 999px; padding: 8px 13px; cursor: pointer;
+  }
+  button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+  button:disabled { opacity: .35; cursor: default; }
+  button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .party button { display: flex; align-items: center; gap: 8px; }
+  .party button[aria-pressed="true"] { background: #2a2334; color: var(--ivory); }
+  .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px #0009; }
+  .verb { color: var(--ivory-dim); font-size: 13px; }
+  .group { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; }
+  .group b { font: 13px "Marcellus", serif; letter-spacing: .08em; color: var(--ivory-dim); min-width: 4.5em; text-align: right; }
+  .group button { padding: 6px 10px; min-width: 38px; }
+  .stage { position: relative; border-radius: 10px; overflow: hidden; background: #07060a; box-shadow: 0 0 0 1px #2a2436, 0 18px 40px -20px #000; }
+  canvas { display: block; width: 100%; height: auto; touch-action: manipulation; }
+  .status { min-height: 1.5em; margin: 0; text-align: center; font-style: italic; }
+  .note { margin: 4px 0 0; color: var(--ivory-dim); font-size: 14px; max-width: 68ch; }
+  .note strong { color: var(--ivory); font-weight: 600; }
+  details { color: var(--ivory-dim); font-size: 14px; }
+  summary { cursor: pointer; color: var(--ivory); }
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 4px 16px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Nythralor · Dark's descent · prototype</p>
+    <h1>The Black Sun</h1>
+    <p class="rule">Each Dark carries one portal. Light shines through them. Through one dark it stays light. Through both, it comes out as blood, and blood is solid.</p>
+  </header>
+
+  <nav class="rooms" id="nav" aria-label="Rooms"></nav>
+  <div class="stage"><canvas id="cv" aria-label="Puzzle room"></canvas></div>
+  <p class="status" id="status" role="status"></p>
+  <div class="party" id="party"></div>
+  <div class="actions" id="actions"></div>
+  <p class="note" id="note"></p>
+  <details>
+    <summary>How it works</summary>
+    <div class="legend">
+      <span><strong>Tap floor</strong> to walk the chosen creature there. Tap a creature to choose it. The others stay exactly where you left them.</span>
+      <span><strong>Dark:</strong> casts portal end I or II straight ahead. Only obsidian (black glass) takes it. Cast an end onto the face it already holds to close it.</span>
+      <span><strong>Dark's body drinks light.</strong> A beam stops dead at it.</span>
+      <span><strong>Light:</strong> shines only from the burning-glass in the floor. Its body lets light through.</span>
+      <span><strong>Walk into a portal</strong> to come out of the other end. Beams go through too.</span>
+      <span><strong>Blood:</strong> a beam through both Darks' portals turns red. White seals want white, red seals want blood. Blood over the void is a bridge.</span>
+    </div>
+  </details>
+</div>
+<script>// Nythralor — the Black Sun. Grid rules for Dark's portal level, shared by the
+// prototype page and the solver. Nothing here draws.
+//
+// THE PARTY is two Darks and a Light, and they do not travel together: every
+// body stays where you leave it.
+//   · LIGHT shines a beam in one direction and holds it until told to stop —
+//     but only from a BURNING-GLASS, a lens set in the floor. Step off it and
+//     the beam goes out. Its body lets light straight through.
+//   · Each DARK owns ONE PORTAL — two ends, I and II — the purple Dark's in
+//     black with purple motes, the orange Dark's in black with orange. A Dark
+//     casts an end straight ahead onto the first wall it sees; only OBSIDIAN
+//     takes it. Casting an end onto the face it already holds closes it.
+//     A Dark's body DRINKS light: a beam stops dead at it.
+//
+// WHAT GOES THROUGH A PORTAL: bodies (all three) and beams. Whatever enters
+// one end leaves the other end's face, heading straight out of it.
+//
+// DARK + LIGHT = BLOOD. A beam that has passed through ONE Dark's portal is
+// still white light, only moved. A beam that has passed through BOTH Darks'
+// portals, in either order, comes out as BLOOD-LIGHT. Blood-light is solid:
+// over the void it is a bridge. (Through the same portal twice is still one.)
+//
+// Map legend:
+//   .  floor              #  stone wall            O  obsidian (takes portals)
+//   *  a burning-glass (floor; Light shines only from one)
+//   ~  the void (you stand on it only where blood-light crosses it)
+//   p  a plate (held down by any body)            E  the exit (all three on it)
+//   |  a door: open while its circuit is live, or while a body stands in it
+//      (a LATCHING circuit — `latch: true` — keeps its doors open for good once
+//      it has been live)
+//   w  a white socket (lit by white light)        r  a red socket (blood-light)
+//   > < ^ v  a fixed emitter of white light, set in the wall
+//   V  the vault cache (floor)
+//
+// (Noctryos is not a puzzle: the author's call is ordinary combat, with the
+// enemies coming out of black holes.)
+
+(function (root) {
+  const DX = [0, 1, 0, -1];
+  const DY = [-1, 0, 1, 0];
+  const DNAME = ['north', 'east', 'south', 'west'];
+  const ARROW = ['▲', '▶', '▼', '◀'];
+  const OPP = (d) => (d + 2) % 4;
+  const BODIES = ['light', 'purple', 'orange'];
+  const DARKS = ['purple', 'orange'];
+  const BIT = { purple: 1, orange: 2 };
+  const WHITE = 1, BLOOD = 2;
+  const EMIT = { '^': 0, '>': 1, 'v': 2, '<': 3 };
+
+  // Cells a body can never enter (a closed door is decided at runtime).
+  const SOLID = '#Owr><^v';
+
+  function parseRoom(def) {
+    const rows = def.map.length, cols = def.map[0].length;
+    const cell = def.map.map((r) => r.split(''));
+    for (const r of cell) if (r.length !== cols) throw new Error(def.name + ': ragged map');
+    const at = (x, y) => (x < 0 || y < 0 || x >= cols || y >= rows ? '#' : cell[y][x]);
+    const faces = [], faceAt = new Map();
+    const emitters = [], plates = [], sockets = [], doors = [], exits = [];
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const c = cell[y][x];
+      if (c === 'O') {
+        for (let d = 0; d < 4; d++) {
+          const n = at(x + DX[d], y + DY[d]);
+          if (!SOLID.includes(n)) { faceAt.set(x + ',' + y + ',' + d, faces.length); faces.push({ x, y, d }); }
+        }
+      }
+      if (c in EMIT) emitters.push({ x, y, d: EMIT[c] });
+      if (c === 'p') plates.push({ x, y });
+      if (c === 'w' || c === 'r') sockets.push({ x, y, kind: c });
+      if (c === '|') doors.push({ x, y });
+      if (c === 'E') exits.push({ x, y });
+    }
+    // One circuit per room unless the room says otherwise: every plate and
+    // every socket together hold every door.
+    const circuits = def.circuits
+      ? def.circuits.map((c) => ({ triggers: c.triggers.map(([x, y]) => x + ',' + y), doors: c.doors.map(([x, y]) => x + ',' + y), latch: !!c.latch }))
+      : [{ triggers: [...plates, ...sockets].map((t) => t.x + ',' + t.y), doors: doors.map((t) => t.x + ',' + t.y), latch: !!def.latch }];
+    return {
+      ...def, rows, cols, cell, at, faces, faceAt, emitters, plates, sockets, doors, exits, circuits,
+      goal: def.goal || 'all', cast: def.cast || { purple: true, orange: true }, shine: def.shine !== false,
+    };
+  }
+
+  const key = (x, y) => x + ',' + y;
+
+  function start(R) {
+    const pos = {};
+    for (const b of BODIES) pos[b] = R.start[b].slice();
+    return { pos, shine: R.startShine ?? -1, ends: { purple: [-1, -1], orange: [-1, -1] }, latched: 0, facing: { light: 1, purple: 1, orange: 1 } };
+  }
+
+  function clone(S) {
+    return {
+      pos: { light: S.pos.light.slice(), purple: S.pos.purple.slice(), orange: S.pos.orange.slice() },
+      shine: S.shine,
+      ends: { purple: S.ends.purple.slice(), orange: S.ends.orange.slice() },
+      latched: S.latched,
+      facing: { ...S.facing },
+    };
+  }
+
+  function bodyAt(S, x, y, except) {
+    for (const b of BODIES) if (b !== except && S.pos[b][0] === x && S.pos[b][1] === y) return b;
+    return null;
+  }
+
+  // The mouth on face index f: { owner, end } or null.
+  function mouthOn(S, f) {
+    if (f < 0) return null;
+    for (const o of DARKS) for (let e = 0; e < 2; e++) if (S.ends[o][e] === f) return { owner: o, end: e };
+    return null;
+  }
+
+  // Where a portal end leads: the partner's face, or -1 when the pair is not whole.
+  function partnerOf(S, m) { return S.ends[m.owner][1 - m.end]; }
+
+  // ── The beams, and everything that hangs off them ──────────────────────
+  //
+  // Doors depend on sockets, sockets on beams and beams on doors. Opening a
+  // door only ever LENGTHENS a beam (nothing here is dimmed by more light),
+  // so starting with every door shut and opening what the circuits allow
+  // until nothing changes lands on one answer every time.
+  function evaluate(R, S) {
+    const occupied = new Set(BODIES.map((b) => key(S.pos[b][0], S.pos[b][1])));
+    let open = new Set(R.doors.map((d) => key(d.x, d.y)).filter((k) => occupied.has(k)));
+    R.circuits.forEach((c, i) => { if (S.latched & (1 << i)) for (const d of c.doors) open.add(d); });
+    let out;
+    for (let round = 0; round < 8; round++) {
+      out = traceAll(R, S, open);
+      const live = new Set();
+      for (const p of R.plates) if (occupied.has(key(p.x, p.y))) live.add(key(p.x, p.y));
+      for (const s of out.socketsLit) live.add(s);
+      const next = new Set(open);
+      out.nowLatched = 0;
+      R.circuits.forEach((c, i) => {
+        if (!c.triggers.every((t) => live.has(t))) return;
+        for (const d of c.doors) next.add(d);
+        if (c.latch) out.nowLatched |= 1 << i;
+      });
+      out.live = live;
+      if (next.size === open.size) break;
+      open = next;
+    }
+    out.open = open;
+    return out;
+  }
+
+  function isSolid(R, open, x, y) {
+    const c = R.at(x, y);
+    if (SOLID.includes(c)) return true;
+    if (c === '|') return !open.has(key(x, y));
+    return false;
+  }
+
+  function traceAll(R, S, open) {
+    const lit = new Map();       // "x,y" -> WHITE|BLOOD bits
+    const socketsLit = new Set();
+    const beams = [];            // for drawing: [{ pts:[[x,y,colour]...], from }]
+    const sources = [];
+    if (S.shine >= 0) sources.push({ x: S.pos.light[0], y: S.pos.light[1], d: S.shine, from: 'light' });
+    for (const e of R.emitters) sources.push({ x: e.x, y: e.y, d: e.d, from: 'emitter' });
+    for (const s of sources) beams.push(trace(R, S, open, s, lit, socketsLit));
+    return { lit, socketsLit, beams };
+  }
+
+  function trace(R, S, open, src, lit, socketsLit) {
+    let x = src.x, y = src.y, d = src.d, via = 0;
+    const path = [{ x, y, via, jump: false }];
+    const seen = new Set();
+    let end = 'wall';
+    for (let step = 0; step < 600; step++) {
+      const nx = x + DX[d], ny = y + DY[d];
+      const c = R.at(nx, ny);
+      if (isSolid(R, open, nx, ny)) {
+        if (c === 'O') {
+          const f = R.faceAt.get(nx + ',' + ny + ',' + OPP(d));
+          const m = f === undefined ? null : mouthOn(S, f);
+          const p = m ? partnerOf(S, m) : -1;
+          if (m && p >= 0) {
+            path.push({ x: x + DX[d] * .5, y: y + DY[d] * .5, via, jump: false, mouth: f });
+            via |= BIT[m.owner];
+            const pf = R.faces[p];
+            x = pf.x; y = pf.y; d = pf.d;
+            path.push({ x: x + DX[d] * .5, y: y + DY[d] * .5, via, jump: true, mouth: p });
+            const k = x + ',' + y + ',' + d + ',' + via;
+            if (seen.has(k)) { end = 'loop'; break; }
+            seen.add(k);
+            continue;
+          }
+          end = m ? 'lone mouth' : 'obsidian';
+        } else if (c === 'w' || c === 'r') {
+          const blood = via === 3;
+          if ((c === 'w' && !blood) || (c === 'r' && blood)) socketsLit.add(key(nx, ny));
+          end = 'socket';
+        }
+        path.push({ x: x + DX[d] * .5, y: y + DY[d] * .5, via, jump: false });
+        break;
+      }
+      x = nx; y = ny;
+      lit.set(key(x, y), (lit.get(key(x, y)) || 0) | (via === 3 ? BLOOD : WHITE));
+      const b = bodyAt(S, x, y);
+      if (b === 'purple' || b === 'orange') { path.push({ x, y, via, jump: false }); end = 'drunk:' + b; break; }
+      const k = x + ',' + y + ',' + d + ',' + via;
+      if (seen.has(k)) { path.push({ x, y, via, jump: false }); end = 'loop'; break; }
+      seen.add(k);
+      path.push({ x, y, via, jump: false });
+    }
+    return { path, end, from: src.from };
+  }
+
+  // Can a body stand on (x,y) with the world as [E] has it?
+  function holds(R, E, x, y) {
+    const c = R.at(x, y);
+    if (c === '.' || c === 'p' || c === 'E' || c === '*' || c === 'V') return true;
+    if (c === '|') return E.open.has(key(x, y));
+    if (c === '~') return ((E.lit.get(key(x, y)) || 0) & BLOOD) !== 0;
+    return false;
+  }
+
+  // Where [who] would land stepping [d] — through a portal if it walks into
+  // one — or a reason it can't.
+  function stepTarget(R, S, E, who, d) {
+    const [x, y] = S.pos[who];
+    const nx = x + DX[d], ny = y + DY[d];
+    const c = R.at(nx, ny);
+    if (c === 'O') {
+      const f = R.faceAt.get(nx + ',' + ny + ',' + OPP(d));
+      const m = f === undefined ? null : mouthOn(S, f);
+      if (!m) return { why: 'obsidian' };
+      const p = partnerOf(S, m);
+      if (p < 0) return { why: 'lone mouth' };
+      const pf = R.faces[p];
+      const tx = pf.x + DX[pf.d], ty = pf.y + DY[pf.d];
+      if (bodyAt(S, tx, ty, who)) return { why: 'blocked exit' };
+      if (!holds(R, E, tx, ty)) return { why: 'exit over void' };
+      return { x: tx, y: ty, face: pf.d, through: m };
+    }
+    if (isSolid(R, E.open, nx, ny)) return { why: c === '|' ? 'door' : 'wall' };
+    if (bodyAt(S, nx, ny, who)) return { why: 'body' };
+    if (!holds(R, E, nx, ny)) return { why: c === '~' ? 'void' : 'wall' };
+    return { x: nx, y: ny, face: d };
+  }
+
+  // Anyone left over the void falls back to where the room let them in (or
+  // the nearest free floor to it). Repeats, since a fall can move a beam.
+  function settle(R, S, E0) {
+    let E = E0 || evaluate(R, S);
+    S.latched |= E.nowLatched;
+    const fell = [];
+    for (let round = 0; round < 4; round++) {
+      const down = BODIES.filter((b) => !holds(R, E, S.pos[b][0], S.pos[b][1]));
+      if (!down.length) break;
+      for (const b of down) {
+        fell.push(b);
+        S.pos[b] = [-9, -9];
+      }
+      for (const b of down) S.pos[b] = landing(R, S, b);
+      E = evaluate(R, S);
+      S.latched |= E.nowLatched;
+    }
+    return { E, fell };
+  }
+
+  function landing(R, S, who) {
+    const [sx, sy] = R.start[who];
+    const q = [[sx, sy]], seen = new Set([key(sx, sy)]);
+    while (q.length) {
+      const [x, y] = q.shift();
+      const c = R.at(x, y);
+      if ((c === '.' || c === 'p' || c === 'E' || c === '*' || c === 'V') && !bodyAt(S, x, y, who)) return [x, y];
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (seen.has(key(nx, ny)) || '#Owr><^v'.includes(R.at(nx, ny))) continue;
+        seen.add(key(nx, ny)); q.push([nx, ny]);
+      }
+    }
+    return [sx, sy];
+  }
+
+  // ── Actions. Each returns { S, E, fell } or { why }. ─────────────────────
+
+  function move(R, S, who, d, E0) {
+    const E = E0 || evaluate(R, S);
+    const t = stepTarget(R, S, E, who, d);
+    if (t.why) return t;
+    const N = clone(S);
+    N.pos[who] = [t.x, t.y];
+    N.facing[who] = t.face;
+    // Off the burning-glass, the beam goes out.
+    if (who === 'light' && N.shine >= 0 && R.at(t.x, t.y) !== '*') N.shine = -1;
+    const after = evaluate(R, N);
+    if (!holds(R, after, t.x, t.y)) return { why: who === 'light' ? 'own light' : 'would fall' };
+    const r = settle(R, N, after);
+    return { S: N, E: r.E, fell: r.fell, through: t.through };
+  }
+
+  function shine(R, S, d) {
+    if (!R.shine) return { why: 'no shine' };
+    if (d >= 0 && R.at(S.pos.light[0], S.pos.light[1]) !== '*') return { why: 'no lens' };
+    const N = clone(S);
+    N.shine = S.shine === d || d < 0 ? -1 : d;
+    if (d >= 0) N.facing.light = d;
+    const r = settle(R, N);
+    return { S: N, E: r.E, fell: r.fell };
+  }
+
+  // The face a Dark would hit casting [d]: the first solid thing straight
+  // ahead, if it is obsidian. Bodies and shut doors stop the cast.
+  function castFace(R, S, E, who, d) {
+    let [x, y] = S.pos[who];
+    for (let i = 0; i < 64; i++) {
+      x += DX[d]; y += DY[d];
+      if (bodyAt(S, x, y)) return { why: 'body' };
+      if (isSolid(R, E.open, x, y)) {
+        if (R.at(x, y) !== 'O') return { why: 'stone' };
+        const f = R.faceAt.get(x + ',' + y + ',' + OPP(d));
+        return f === undefined ? { why: 'stone' } : { f };
+      }
+    }
+    return { why: 'stone' };
+  }
+
+  function cast(R, S, who, end, d, E0) {
+    if (!R.cast[who]) return { why: 'no cast' };
+    const E = E0 || evaluate(R, S);
+    const c = castFace(R, S, E, who, d);
+    if (c.why) return c;
+    const m = mouthOn(S, c.f);
+    const N = clone(S);
+    N.facing[who] = d;
+    if (m && m.owner === who && m.end === end) N.ends[who][end] = -1; // close it
+    else if (m) return { why: 'taken' };
+    else N.ends[who][end] = c.f;
+    const r = settle(R, N);
+    return { S: N, E: r.E, fell: r.fell };
+  }
+
+  function solved(R, S) {
+    if (R.goal === 'vault') return BODIES.some((b) => R.at(S.pos[b][0], S.pos[b][1]) === 'V');
+    const on = (b) => R.exits.some((e) => e.x === S.pos[b][0] && e.y === S.pos[b][1]);
+    if (R.goal === 'light') return on('light');
+    return BODIES.every(on);
+  }
+
+  // ── The solver: breadth first over every legal action ───────────────────
+  // Two states that differ only by swapping the Darks — bodies and portals
+  // together — are the same puzzle (blood wants both, white either), so the
+  // search keeps whichever code is smaller.
+  function enc1(R, S, order) {
+    let a = S.pos.light[1] * R.cols + S.pos.light[0];
+    for (const b of order) a = a * 256 + S.pos[b][1] * R.cols + S.pos[b][0];
+    a = a * 5 + (S.shine + 1);
+    a = a * 8 + S.latched;
+    let e = 0;
+    for (const o of order) {
+      let [i, j] = S.ends[o].map((v) => (v < 0 ? 31 : v));
+      if (i > j) [i, j] = [j, i]; // I and II are the same physics
+      e = e * 1024 + i * 32 + j;
+    }
+    return a * 1048576 + e;
+  }
+  function enc(R, S) {
+    const a = enc1(R, S, DARKS);
+    return R.asymmetric ? a : Math.min(a, enc1(R, S, [DARKS[1], DARKS[0]]));
+  }
+
+  function actions(R, S) {
+    const E = evaluate(R, S);
+    const out = [];
+    for (const b of BODIES) for (let d = 0; d < 4; d++) {
+      const r = move(R, S, b, d, E);
+      if (!r.why) out.push([b + ' ' + DNAME[d] + (r.through ? ' (through ' + r.through.owner + ')' : '') + (r.fell.length ? ' [' + r.fell.join('+') + ' fell]' : ''), r.S]);
+    }
+    if (R.shine && (S.shine >= 0 || R.at(S.pos.light[0], S.pos.light[1]) === '*')) for (let d = -1; d < 4; d++) {
+      if (d === S.shine || (d < 0 && S.shine < 0)) continue;
+      const r = shine(R, S, d);
+      if (!r.why) out.push([(d < 0 ? 'light dims' : 'light shines ' + DNAME[d]) + (r.fell.length ? ' [' + r.fell.join('+') + ' fell]' : ''), r.S]);
+    }
+    for (const o of DARKS) for (let d = 0; d < 4; d++) {
+      const c = castFace(R, S, E, o, d);
+      if (c.why) continue;
+      for (let end = 0; end < 2; end++) {
+        const r = cast(R, S, o, end, d, E);
+        if (!r.why) out.push([o + ' casts ' + (end ? 'II' : 'I') + ' ' + DNAME[d] + (r.fell.length ? ' [' + r.fell.join('+') + ' fell]' : ''), r.S]);
+      }
+    }
+    return out;
+  }
+
+  function solve(R, limit = 4e6) {
+    const S0 = start(R);
+    const k0 = enc(R, S0);
+    const prev = new Map([[k0, null]]);
+    let frontier = [S0], depth = 0;
+    while (frontier.length) {
+      const next = [];
+      for (const S of frontier) {
+        const k = enc(R, S);
+        if (solved(R, S)) {
+          const plan = [];
+          for (let c = k; prev.get(c); c = prev.get(c)[0]) plan.unshift(prev.get(c)[1]);
+          return { solvable: true, steps: depth, plan, states: prev.size };
+        }
+        for (const [label, N] of actions(R, S)) {
+          const nk = enc(R, N);
+          if (prev.has(nk)) continue;
+          prev.set(nk, [k, label]);
+          next.push(N);
+        }
+        if (prev.size > limit) return { solvable: null, steps: depth, states: prev.size };
+      }
+      frontier = next; depth++;
+    }
+    return { solvable: false, states: prev.size };
+  }
+
+  // Guided search for rooms too big to search exhaustively: best-first on
+  // decisions + walking + how far the goal still is. It FINDS a plan (which
+  // is replayed exactly); it proves nothing about shortness, and "impossible"
+  // claims stay with solve() on the smaller, restricted rooms.
+  function goalDistance(R, S, Ev) {
+    let h = 0;
+    for (const b of BODIES) {
+      const [x, y] = S.pos[b];
+      let best = 99;
+      for (const e of R.exits) best = Math.min(best, Math.abs(e.x - x) + Math.abs(e.y - y));
+      h += best;
+    }
+    for (const c of R.circuits) if (!c.triggers.every((t) => Ev.live.has(t))) h += 6;
+    return h;
+  }
+
+  function search(R, { limit = 3e6, weight = 2 } = {}) {
+    const S0 = start(R);
+    const k0 = enc(R, S0);
+    const prev = new Map([[k0, null]]);
+    const heap = [];
+    const push = (p, item) => { heap.push([p, item]); let i = heap.length - 1; while (i > 0) { const j = (i - 1) >> 1; if (heap[j][0] <= heap[i][0]) break; [heap[i], heap[j]] = [heap[j], heap[i]]; i = j; } };
+    const pop = () => { const top = heap[0]; const last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[i], heap[m]] = [heap[m], heap[i]]; i = m; } } return top[1]; };
+    const walk = /^(light|purple|orange) (north|south|east|west)/;
+    push(0, { S: S0, g: 0 });
+    while (heap.length) {
+      const { S, g } = pop();
+      const k = enc(R, S);
+      if (solved(R, S)) {
+        const plan = [];
+        for (let c = k; prev.get(c); c = prev.get(c)[0]) plan.unshift(prev.get(c)[1]);
+        return { solvable: true, steps: plan.length, plan, states: prev.size };
+      }
+      for (const [label, N] of actions(R, S)) {
+        const nk = enc(R, N);
+        if (prev.has(nk)) continue;
+        prev.set(nk, [k, label]);
+        const ng = g + (walk.test(label) ? 0.25 : 1);
+        push(ng + weight * goalDistance(R, N, evaluate(R, N)) * 0.25, { S: N, g: ng });
+      }
+      if (prev.size > limit) return { solvable: null, states: prev.size };
+    }
+    return { solvable: false, states: prev.size };
+  }
+
+  const api = { DX, DY, DNAME, ARROW, OPP, BODIES, DARKS, WHITE, BLOOD, parseRoom, start, clone, evaluate, holds, stepTarget, move, shine, cast, castFace, solved, solve, search, actions, enc, mouthOn, partnerOf, bodyAt, key };
+  if (typeof module !== 'undefined') module.exports = api;
+  else root.PortalEngine = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>// Room data for the Black Sun prototype. Every room here is proved by
+// solve.js before it is played. Coordinates are [x, y], y down.
+(function (root) {
+  const ROOMS = {
+    // I · ONE PORTAL. The void splits the room; the far wall is obsidian.
+    // One Dark casts both ends and everyone walks through.
+    one: {
+      label: 'I · The porch',
+      name: 'The porch',
+      teaches: 'A Dark casts both ends of its portal. Anyone can walk through. (The entry: it opens the Hall.)',
+      map: [
+        '###########',
+        '#...~~~..E#',
+        'O...~~~..EO',
+        '#...~~~..E#',
+        '###########',
+      ],
+      start: { light: [2, 1], purple: [1, 2], orange: [2, 3] },
+    },
+
+    // II · THE BURNING-GLASS. Light shines only from the lens. The white
+    // socket is round a corner the lens cannot see.
+    two: {
+      label: 'II · Through the dark',
+      name: 'Through the dark',
+      teaches: 'A beam goes through a portal and comes out still white.',
+      map: [
+        '#####w#######',
+        '#.........#E#',
+        '#.........#E#',
+        '#*........OE#',
+        '#.........|E#',
+        '#####O#######',
+      ],
+      start: { light: [2, 2], purple: [3, 4], orange: [4, 1] },
+      latch: true,
+    },
+
+    // III · BLOOD. The red socket wants light that has been through BOTH
+    // Darks' portals. The beam's road runs straight back through the lens —
+    // Light lets it pass.
+    three: {
+      label: 'III · Two darks make blood',
+      name: 'Two darks make blood',
+      teaches: 'Through both portals, the beam comes out as blood.',
+      map: [
+        '#O#r####',
+        '#......#',
+        '#*.....O',
+        '#......#',
+        '#O#O##|#',
+        '####EEE#',
+        '########',
+      ],
+      start: { light: [2, 3], purple: [4, 3], orange: [5, 1] },
+      latch: true,
+    },
+
+    // IV · BLOOD IS SOLID. A fixed star in the north wall. Blood-light over
+    // the void is a bridge, and a Dark drinks the light it stands in — so a
+    // Dark can only walk a bridge towards where it is coming from.
+    four: {
+      label: 'IV · Walk into the light',
+      name: 'Walk into the light',
+      teaches: 'Blood-light is a bridge. A Dark drinks light, so it walks towards the source.',
+      map: [
+        '##v##########',
+        '#...~~~~~EEE#',
+        '#...~~~~~...#',
+        '#...~~~~~~~~O',
+        'O...~~~~~~~~O',
+        '#...~~~~~~~~#',
+        '##O##########',
+      ],
+      start: { light: [1, 1], purple: [2, 3], orange: [3, 5] },
+    },
+
+    // V · HOLD THE LIGHT. The seal is LIVE: the door stands open only while
+    // blood burns on it, and Light has to be on the lens for that. So the
+    // one holding the light cannot walk out through the door. It leaves by
+    // the dark — and the only obsidian the vestibule has is the back of the
+    // block the lens is aimed at.
+    five: {
+      label: 'V · Hold the light',
+      name: 'Hold the light',
+      teaches: 'The door is open only while the seal burns. The last one out leaves by the dark.',
+      map: [
+        '#O##r#######',
+        '#.......#EE#',
+        '#*......O.E#',
+        '#.......#..#',
+        '#.......|..#',
+        '#O##O#######',
+      ],
+      start: { light: [3, 3], purple: [5, 4], orange: [6, 1] },
+    },
+
+    // THE HALL, once chambers II and III are solved: their two stars burn in
+    // the south ledge's walls. The far ledge (north-east) is two crossings
+    // away — out to the island, then across — and there is only ever one
+    // blood-light at a time, so the second crossing has to be cast from the
+    // island itself.
+    hall2: {
+      label: 'Hall · the island',
+      name: 'The Hall: the island',
+      teaches: 'Two crossings, one blood-light. The second is cast from the island.',
+      hub: true,
+      map: [
+        '##O##O#####',
+        '#~~~~~~#.E#',
+        '#~~~~~~#EE#',
+        '#~~~...~~~O',
+        '#~~~...~~~#',
+        '#~~~~~~~~~#',
+        'O.........<',
+        '>.........O',
+        '##O##.#####',
+      ],
+      start: { light: [5, 7], purple: [3, 7], orange: [7, 7] },
+    },
+
+    // THE RITE · THE HEART. Below the island. The stair door is held only
+    // while someone stands on the plate — and the plate lies in the star's
+    // beam, where a Dark would drink it. The Great Seal is in the Heart's
+    // floor-wall and wants blood; it opens the way down to Noctryos.
+    rite: {
+      label: 'Rite · the Great Work',
+      name: 'The Great Work',
+      teaches: 'The one who holds the door comes down last, through the dark.',
+      big: true,
+      map: [
+        '#########',
+        '>..p..~~O',
+        '#.....~~#',
+        '###O|####',
+        '#.......#',
+        'O.......O',
+        '#.......#',
+        '###r|####',
+        '###EEE###',
+      ].map((r) => r.padEnd(9, '#')),
+      circuits: [
+        { triggers: [[3, 1]], doors: [[4, 3]] },
+        { triggers: [[3, 7]], doors: [[4, 7]], latch: true },
+      ],
+      start: { light: [1, 2], purple: [2, 2], orange: [5, 2] },
+    },
+
+    // THE VAULT, in the Hall: a floor-alcove across the void on the west
+    // wall, with an obsidian back. Nothing you can stand on sees it — except
+    // the blood bridge out to the island. Cast from the bridge, and fall.
+    vault: {
+      label: 'Vault · leap of faith',
+      name: 'The vault (Hall)',
+      teaches: 'Cast from the bridge, even though you will fall — the portal stays.',
+      goal: 'vault',
+      map: [
+        '##O##O#####',
+        '#~~~~~~#.E#',
+        '#~~~~~~#EE#',
+        '#~~~...~~~O',
+        '#~~~...~~~#',
+        'OV~~~~~~~~#',
+        '##........<',
+        '>.........O',
+        '##O##.#####',
+      ],
+      start: { light: [5, 7], purple: [3, 7], orange: [7, 7] },
+    },
+  };
+
+  // Play order: the porch opens the Hall; II and III (Star 1) light two stars
+  // there, which is what gets you to the island and the far ledge; IV and V
+  // (Star 2) are off the far ledge; then the rite below the island, and
+  // Noctryos (combat). The vault is found in the Hall at any point after the
+  // island bridge exists.
+  const ORDER = ['one', 'two', 'three', 'hall2', 'four', 'five', 'rite', 'vault'];
+  const ordered = {};
+  for (const k of ORDER) ordered[k] = ROOMS[k];
+  for (const k of Object.keys(ROOMS)) if (!(k in ordered)) ordered[k] = ROOMS[k];
+
+  if (typeof module !== 'undefined') module.exports = { ROOMS: ordered };
+  else root.PortalRooms = { ROOMS: ordered };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+(() => {
+  const E = window.PortalEngine;
+  const { ROOMS } = window.PortalRooms;
+  const { DX, DY, DNAME, ARROW, BODIES } = E;
+  const ORDER = Object.keys(ROOMS);
+  const NUM = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+
+  const COL = {
+    light: { fill: '#f3e6bf', rim: '#fff7dc', glow: 'rgba(255,236,170,', name: 'Light', verb: 'shines' },
+    purple: { fill: '#7a4fe0', rim: '#c3a4ff', glow: 'rgba(167,123,255,', name: 'Purple Dark', verb: 'casts' },
+    orange: { fill: '#d86d1c', rim: '#ffc084', glow: 'rgba(255,154,61,', name: 'Orange Dark', verb: 'casts' },
+  };
+  const MOTE = { purple: [167, 123, 255], orange: [255, 154, 61] };
+
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const statusEl = document.getElementById('status');
+  const navEl = document.getElementById('nav');
+  const partyEl = document.getElementById('party');
+  const actionsEl = document.getElementById('actions');
+  const noteEl = document.getElementById('note');
+
+  let W = 0, H = 0, U = 40, dpr = 1, time = 0;
+  let mode = ORDER[0];
+  let sel = 'light';
+  const done = new Set();
+  const games = {};
+
+  const say = (m) => { statusEl.textContent = m || ''; };
+
+  function newGame(id) {
+    const R = E.parseRoom(ROOMS[id]);
+    const S = E.start(R);
+    const disp = {};
+    for (const b of BODIES) disp[b] = { x: S.pos[b][0], y: S.pos[b][1], path: [], warp: -9, fall: -9 };
+    return { id, R, S, Ev: E.evaluate(R, S), disp, solved: false, solvedT: 0, casts: new Map(), doorsShown: new Map(), sealT: new Map() };
+  }
+
+  // ── Walking ─────────────────────────────────────────────────
+  // Breadth first over single steps of the chosen body, with the whole world
+  // re-evaluated at every step (a Dark walking drinks different light), and
+  // through portals. A route that would drop anyone is not offered.
+  function route(g, who, tx, ty) {
+    const { R } = g;
+    const start = g.S;
+    const k0 = start.pos[who].join(',');
+    const prev = new Map([[k0, null]]);
+    const states = new Map([[k0, start]]);
+    const q = [k0];
+    while (q.length) {
+      const k = q.shift();
+      const S = states.get(k);
+      if (S.pos[who][0] === tx && S.pos[who][1] === ty) {
+        const path = [];
+        for (let c = k; prev.get(c); c = prev.get(c).k) path.unshift(prev.get(c));
+        return path;
+      }
+      const Ev = E.evaluate(R, S);
+      for (let d = 0; d < 4; d++) {
+        const r = E.move(R, S, who, d, Ev);
+        if (r.why || r.fell.length) continue;
+        const nk = r.S.pos[who].join(',');
+        if (prev.has(nk)) continue;
+        prev.set(nk, { k, d, through: r.through });
+        states.set(nk, r.S);
+        q.push(nk);
+      }
+    }
+    return null;
+  }
+
+  const busy = (g) => BODIES.some((b) => g.disp[b].path.length);
+
+  function tap(g, ux, uy) {
+    if (g.solved || busy(g)) return;
+    const x = Math.floor(ux), y = Math.floor(uy);
+    const { R, S } = g;
+    if (x < 0 || y < 0 || x >= R.cols || y >= R.rows) return;
+    const who = E.bodyAt(S, x, y);
+    if (who) { choose(who); return; }
+    const c = R.at(x, y);
+    // Tapping obsidian with a mouth on it: walk up to it and step in.
+    if (c === 'O') {
+      // A block can carry a mouth on more than one face: step into the one
+      // nearest the chosen creature.
+      let best = null, why = null;
+      for (let d = 0; d < 4; d++) {
+        const f = R.faceAt.get(x + ',' + y + ',' + d);
+        if (f === undefined || !E.mouthOn(S, f)) continue;
+        const fx = x + DX[d], fy = y + DY[d];
+        const here = S.pos[sel][0] === fx && S.pos[sel][1] === fy;
+        const path = here ? [] : route(g, sel, fx, fy);
+        if (!path) continue;
+        const step = E.move(R, simulate(g, sel, path), sel, E.OPP(d));
+        if (step.why) { why = why || step.why; continue; }
+        if (!best || path.length < best.length) best = [...path, { d: E.OPP(d), through: step.through }];
+      }
+      if (best) { say(''); walk(g, sel, best); return; }
+      say(why ? refusal(why, sel) : S.ends.purple.concat(S.ends.orange).some((f) => f >= 0 && R.faces[f].x === x && R.faces[f].y === y)
+        ? 'No way to that portal from here.' : 'Obsidian. A Dark can cast a portal onto it.');
+      return;
+    }
+    const why = { '#': 'Stone.', w: 'A white seal. It wants white light.', r: 'A red seal. It wants blood.', '>': 'A fixed star in the wall.', '<': 'A fixed star in the wall.', '^': 'A fixed star in the wall.', 'v': 'A fixed star in the wall.' }[c];
+    if (why) { say(why); return; }
+    const path = route(g, sel, x, y);
+    if (!path) {
+      if (c === '~' && !((g.Ev.lit.get(x + ',' + y) || 0) & E.BLOOD)) say('Nothing to stand on.');
+      else if (c === '|' && !g.Ev.open.has(x + ',' + y)) say('The door is shut.');
+      else say('No way there.');
+      return;
+    }
+    say('');
+    walk(g, sel, path);
+  }
+
+  function simulate(g, who, path) {
+    let S = g.S;
+    for (const p of path) { const r = E.move(g.R, S, who, p.d); if (r.why) break; S = r.S; }
+    return S;
+  }
+
+  function walk(g, who, path) { g.disp[who].path = path.slice(); g.disp[who].t = 0; }
+
+  const STEP_T = 0.13;
+  function stepGame(g, dt) {
+    for (const b of BODIES) {
+      const D = g.disp[b];
+      if (!D.path.length) {
+        D.x += (g.S.pos[b][0] - D.x) * Math.min(1, dt * 18);
+        D.y += (g.S.pos[b][1] - D.y) * Math.min(1, dt * 18);
+        continue;
+      }
+      D.t += dt;
+      if (D.t < STEP_T) continue;
+      D.t = 0;
+      const p = D.path.shift();
+      const r = E.move(g.R, g.S, b, p.d);
+      if (r.why) { D.path = []; say(refusal(r.why, b)); continue; }
+      commit(g, r, b);
+      if (r.through) { D.x = r.S.pos[b][0]; D.y = r.S.pos[b][1]; D.warp = time; }
+    }
+  }
+
+  function commit(g, r, who) {
+    const before = g.S;
+    g.S = r.S;
+    g.Ev = r.E;
+    for (const b of r.fell || []) { g.disp[b].fall = time; g.disp[b].x = g.S.pos[b][0]; g.disp[b].y = g.S.pos[b][1]; g.disp[b].path = []; }
+    if (r.fell && r.fell.length) say(r.fell.map((b) => COL[b].name).join(' and ') + (r.fell.length > 1 ? ' fall' : ' falls') + ' back to where the room let them in.');
+    for (const s of g.Ev.socketsLit) if (!g.sealT.has(s)) g.sealT.set(s, time);
+    for (const s of [...g.sealT.keys()]) if (!g.Ev.socketsLit.has(s)) g.sealT.delete(s);
+    if (!g.solved && E.solved(g.R, g.S)) {
+      g.solved = true; g.solvedT = time; done.add(g.id);
+      say(g.R.goal === 'vault' ? 'The vault is open.' : 'Solved.');
+    }
+    sync();
+  }
+
+  function refusal(why, who) {
+    return ({
+      'own light': 'That light is Light’s own. Nothing stands on its own light.',
+      'would fall': 'That would leave it standing on nothing.',
+      'void': 'Nothing to stand on.',
+      'door': 'The door is shut.',
+      'body': 'Someone is standing there.',
+      'obsidian': 'Obsidian. There is no portal on it.',
+      'lone mouth': 'That portal has no other end yet.',
+      'blocked exit': 'Someone is standing in front of the other end.',
+      'exit over void': 'The other end opens onto nothing.',
+      'wall': 'Stone.',
+      'stone': 'Only obsidian takes a portal.',
+      'taken': 'The other Dark’s portal is already there.',
+      'no lens': 'Light only shines from the burning-glass.',
+      'no cast': 'Not in this room.',
+    })[why] || why;
+  }
+
+  // ── Verbs ───────────────────────────────────────────────────
+  function doShine(d) {
+    const g = games[mode]; if (!g || g.solved || busy(g)) return;
+    const r = E.shine(g.R, g.S, d);
+    if (r.why) { say(refusal(r.why)); return; }
+    say(d < 0 || g.S.shine === d ? '' : '');
+    commit(g, r, 'light');
+  }
+  function doCast(who, end, d) {
+    const g = games[mode]; if (!g || g.solved || busy(g)) return;
+    const r = E.cast(g.R, g.S, who, end, d);
+    if (r.why) { say(refusal(r.why)); return; }
+    const f = r.S.ends[who][end];
+    if (f >= 0) g.casts.set(who + end, time);
+    say('');
+    commit(g, r, who);
+  }
+
+  // ── Drawing ─────────────────────────────────────────────────
+  const rnd = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+
+  function drawRoom(g) {
+    const { R, S, Ev } = g;
+    // The void: black with a slow drift of far stars.
+    for (let y = 0; y < R.rows; y++) for (let x = 0; x < R.cols; x++) {
+      const c = R.at(x, y), X = x * U, Y = y * U;
+      if (c === '~') {
+        ctx.fillStyle = '#040308'; ctx.fillRect(X, Y, U, U);
+        for (let i = 0; i < 3; i++) {
+          const sx = rnd(x * 31 + y * 7 + i) * U, sy = rnd(y * 17 + x * 3 + i * 5) * U;
+          const tw = .25 + .25 * Math.sin(time * 1.3 + i + x);
+          ctx.fillStyle = `rgba(200,190,255,${tw})`;
+          ctx.fillRect(X + sx, Y + sy, 1.2, 1.2);
+        }
+      }
+    }
+    // Floor: carved flags.
+    for (let y = 0; y < R.rows; y++) for (let x = 0; x < R.cols; x++) {
+      const c = R.at(x, y), X = x * U, Y = y * U;
+      if ('.pE*|V'.includes(c)) {
+        const v = 26 + rnd(x * 13 + y * 29) * 7;
+        ctx.fillStyle = `rgb(${v + 4},${v},${v + 10})`;
+        ctx.fillRect(X, Y, U, U);
+        ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1;
+        ctx.strokeRect(X + .5, Y + .5, U - 1, U - 1);
+        ctx.strokeStyle = 'rgba(255,255,255,.035)';
+        ctx.beginPath(); ctx.moveTo(X + 1.5, Y + U - 1.5); ctx.lineTo(X + 1.5, Y + 1.5); ctx.lineTo(X + U - 1.5, Y + 1.5); ctx.stroke();
+      }
+      if (c === 'E') drawExit(X, Y, g);
+      if (c === '*') drawLens(X, Y, S.pos.light[0] === x && S.pos.light[1] === y && S.shine >= 0);
+      if (c === 'p') drawPlate(X, Y, Ev.live && Ev.live.has(x + ',' + y));
+      if (c === 'V') drawCache(X, Y, g.solved);
+    }
+    // Walls.
+    for (let y = 0; y < R.rows; y++) for (let x = 0; x < R.cols; x++) {
+      const c = R.at(x, y), X = x * U, Y = y * U;
+      if (c === '#' || '><^v'.includes(c)) drawStone(X, Y, x, y);
+      if (c === 'O') drawObsidian(X, Y, x, y);
+      if (c === 'w' || c === 'r') drawSeal(X, Y, c, Ev.socketsLit.has(x + ',' + y), g.sealT.get(x + ',' + y));
+      if ('><^v'.includes(c)) drawStar(X, Y, { '^': 0, '>': 1, 'v': 2, '<': 3 }[c]);
+      if (c === '|') drawDoor(g, X, Y, x, y);
+    }
+  }
+
+  function drawStone(X, Y, x, y) {
+    const v = 14 + rnd(x * 7 + y * 11) * 6;
+    ctx.fillStyle = `rgb(${v + 3},${v + 1},${v + 8})`;
+    ctx.fillRect(X, Y, U, U);
+    ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1;
+    const h = U / 2, off = (y % 2) * U / 3;
+    ctx.beginPath();
+    ctx.moveTo(X, Y + h + .5); ctx.lineTo(X + U, Y + h + .5);
+    ctx.moveTo(X + off + U / 3 + .5, Y); ctx.lineTo(X + off + U / 3 + .5, Y + h);
+    ctx.moveTo(X + ((off + U * .66) % U) + .5, Y + h); ctx.lineTo(X + ((off + U * .66) % U) + .5, Y + U);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.03)'; ctx.fillRect(X, Y, U, 1.5);
+  }
+
+  function drawObsidian(X, Y, x, y) {
+    ctx.fillStyle = '#060509'; ctx.fillRect(X, Y, U, U);
+    const gr = ctx.createLinearGradient(X, Y, X + U, Y + U);
+    gr.addColorStop(0, 'rgba(120,100,170,.22)'); gr.addColorStop(.45, 'rgba(30,24,44,.05)'); gr.addColorStop(.55, 'rgba(160,140,210,.14)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gr; ctx.fillRect(X + 3, Y + 3, U - 6, U - 6);
+    // Leading: a dark bronze frame, the only glass in the wall.
+    ctx.strokeStyle = '#6b5530'; ctx.lineWidth = 2; ctx.strokeRect(X + 3, Y + 3, U - 6, U - 6);
+    ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 1; ctx.strokeRect(X + .5, Y + .5, U - 1, U - 1);
+  }
+
+  function drawSeal(X, Y, kind, lit, t0) {
+    drawStone(X, Y, 3, 5);
+    const cx = X + U / 2, cy = Y + U / 2, r = U * .32;
+    const base = kind === 'w' ? [236, 226, 196] : [216, 53, 75];
+    const a = lit ? .95 : .28;
+    if (lit) {
+      const k = t0 !== undefined ? Math.min(1, (time - t0) * 2) : 1;
+      const gl = ctx.createRadialGradient(cx, cy, r * .2, cx, cy, r * 2.4);
+      gl.addColorStop(0, `rgba(${base},${.55 * k})`); gl.addColorStop(1, `rgba(${base},0)`);
+      ctx.fillStyle = gl; ctx.fillRect(X - U, Y - U, U * 3, U * 3);
+    }
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7);
+    ctx.fillStyle = `rgba(${base},${a})`; ctx.fill();
+    ctx.strokeStyle = '#7b6233'; ctx.lineWidth = 2; ctx.stroke();
+    // Leaded cross, like a rondel.
+    ctx.strokeStyle = 'rgba(40,30,20,.8)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke();
+  }
+
+  function drawStar(X, Y, d) {
+    const cx = X + U / 2 + DX[d] * U * .3, cy = Y + U / 2 + DY[d] * U * .3;
+    const gl = ctx.createRadialGradient(cx, cy, 0, cx, cy, U * .45);
+    gl.addColorStop(0, 'rgba(255,250,230,1)'); gl.addColorStop(.35, 'rgba(255,230,160,.6)'); gl.addColorStop(1, 'rgba(255,230,160,0)');
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(cx, cy, U * .45, 0, 7); ctx.fill();
+  }
+
+  function drawDoor(g, X, Y, x, y) {
+    const open = g.Ev.open.has(x + ',' + y);
+    const k = x + ',' + y;
+    const shown = g.doorsShown.get(k) ?? (open ? 1 : 0);
+    const next = shown + ((open ? 1 : 0) - shown) * .18;
+    g.doorsShown.set(k, next);
+    // Two leaves of dark bronze that slide into the wall.
+    // In a wall running north-south the leaves part up and down; in one
+    // running east-west they part left and right.
+    const wallish = (c) => '#Owr><^v'.includes(c);
+    const horiz = !(wallish(g.R.at(x, y - 1)) && wallish(g.R.at(x, y + 1)));
+    ctx.fillStyle = '#2a2230';
+    const gap = next * U * .5;
+    if (!horiz) {
+      ctx.fillRect(X + 4, Y, U - 8, U / 2 - gap);
+      ctx.fillRect(X + 4, Y + U / 2 + gap, U - 8, U / 2 - gap);
+    } else {
+      ctx.fillRect(X, Y + 4, U / 2 - gap, U - 8);
+      ctx.fillRect(X + U / 2 + gap, Y + 4, U / 2 - gap, U - 8);
+    }
+    ctx.strokeStyle = '#8a6a36'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(X + 2.5, Y + 2.5, U - 5, U - 5);
+  }
+
+  function drawExit(X, Y, g) {
+    const cx = X + U / 2, cy = Y + U / 2;
+    ctx.strokeStyle = g.solved ? 'rgba(214,178,94,.95)' : 'rgba(214,178,94,.45)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, U * .34, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, U * .12, 0, 7); ctx.stroke();
+  }
+
+  function drawLens(X, Y, burning) {
+    const cx = X + U / 2, cy = Y + U / 2, r = U * .36;
+    const gr = ctx.createRadialGradient(cx - r * .3, cy - r * .3, 1, cx, cy, r);
+    gr.addColorStop(0, burning ? 'rgba(255,245,210,.9)' : 'rgba(210,200,170,.45)');
+    gr.addColorStop(1, burning ? 'rgba(214,178,94,.35)' : 'rgba(80,70,60,.25)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#8a6a36'; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  // The vault cache: a small bronze-bound reliquary.
+  function drawCache(X, Y, open) {
+    const x = X + U * .22, y = Y + U * .34, w = U * .56, h = U * .4;
+    ctx.fillStyle = '#3a2a1c'; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#c79a4a'; ctx.lineWidth = 1.5; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    ctx.beginPath(); ctx.moveTo(x, y + h * .35); ctx.lineTo(x + w, y + h * .35); ctx.stroke();
+    if (open) {
+      const gl = ctx.createRadialGradient(X + U / 2, y, 0, X + U / 2, y, U * .6);
+      gl.addColorStop(0, 'rgba(255,215,120,.7)'); gl.addColorStop(1, 'rgba(255,215,120,0)');
+      ctx.fillStyle = gl; ctx.fillRect(X - U * .2, Y - U * .3, U * 1.4, U);
+    }
+  }
+
+  function drawPlate(X, Y, down) {
+    ctx.fillStyle = down ? '#4a3c24' : '#2d2630';
+    ctx.fillRect(X + U * .16, Y + U * .16, U * .68, U * .68);
+    ctx.strokeStyle = '#8a6a36'; ctx.lineWidth = 1.5; ctx.strokeRect(X + U * .16, Y + U * .16, U * .68, U * .68);
+  }
+
+  // Beams: white-gold, carrying motes of each Dark it has passed through;
+  // blood once it has been through both.
+  function drawBeams(g) {
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (const b of g.Ev.beams) {
+      const pts = b.path;
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], c = pts[i];
+        if (c.jump) continue;
+        const blood = c.via === 3;
+        const ax = (a.x + .5) * U, ay = (a.y + .5) * U, cx2 = (c.x + .5) * U, cy2 = (c.y + .5) * U;
+        const col = blood ? '216,53,75' : '255,240,200';
+        ctx.strokeStyle = `rgba(${col},.18)`; ctx.lineWidth = U * .42; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(cx2, cy2); ctx.stroke();
+        ctx.strokeStyle = `rgba(${col},.45)`; ctx.lineWidth = U * .18; ctx.stroke();
+        ctx.strokeStyle = blood ? 'rgba(255,170,170,.95)' : 'rgba(255,255,245,.95)'; ctx.lineWidth = U * .06; ctx.stroke();
+        // Motes riding the beam: the colours of the portals it has been through.
+        const len = Math.hypot(cx2 - ax, cy2 - ay);
+        const n = Math.max(1, Math.floor(len / (U * .5)));
+        for (let k = 0; k < n; k++) {
+          const t = ((k + time * 1.6) / n) % 1;
+          const mx = ax + (cx2 - ax) * t, my = ay + (cy2 - ay) * t;
+          const tint = blood ? [255, 120, 120] : c.via === 1 ? MOTE.purple : c.via === 2 ? MOTE.orange : [255, 250, 230];
+          ctx.fillStyle = `rgba(${tint},.9)`;
+          ctx.beginPath(); ctx.arc(mx, my, U * .045, 0, 7); ctx.fill();
+        }
+      }
+    }
+    // Blood over the void: the bridge, drawn as a slab of red glass.
+    for (const [k, bits] of g.Ev.lit) {
+      if (!(bits & E.BLOOD)) continue;
+      const [x, y] = k.split(',').map(Number);
+      if (g.R.at(x, y) !== '~') continue;
+      ctx.fillStyle = 'rgba(150,20,40,.55)';
+      ctx.fillRect(x * U + 2, y * U + U * .2, U - 4, U * .6);
+      ctx.strokeStyle = 'rgba(255,120,130,.7)'; ctx.lineWidth = 1;
+      ctx.strokeRect(x * U + 2.5, y * U + U * .2 + .5, U - 5, U * .6 - 1);
+    }
+    ctx.restore();
+  }
+
+  // A portal end: a black sun set on the obsidian face, its Dark's motes
+  // circling it. I and II marked on the rim.
+  function drawMouths(g) {
+    const { R, S } = g;
+    for (const o of E.DARKS) for (let end = 0; end < 2; end++) {
+      const f = S.ends[o][end]; if (f < 0) continue;
+      const F = R.faces[f];
+      const cx = (F.x + .5 + DX[F.d] * .38) * U, cy = (F.y + .5 + DY[F.d] * .38) * U;
+      const along = DX[F.d] === 0; // face on a north/south side: long axis is horizontal
+      const rx = along ? U * .46 : U * .2, ry = along ? U * .2 : U * .46;
+      const paired = S.ends[o][1 - end] >= 0;
+      const born = g.casts.get(o + end) ?? -9, k = Math.min(1, (time - born) * 3);
+      const m = MOTE[o];
+      ctx.save();
+      ctx.translate(cx, cy); ctx.scale(k, k);
+      const gl = ctx.createRadialGradient(0, 0, 0, 0, 0, U * .62);
+      gl.addColorStop(0, `rgba(${m},${paired ? .45 : .2})`); gl.addColorStop(1, `rgba(${m},0)`);
+      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(0, 0, U * .62, 0, 7); ctx.fill();
+      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = `rgba(${m},.95)`; ctx.lineWidth = 1.6; ctx.stroke();
+      // Motes spiralling in.
+      for (let i = 0; i < 12; i++) {
+        const t = (time * (paired ? .6 : .25) + i / 12) % 1;
+        const ang = i * 2.39996 + time * (end ? -1.4 : 1.4);
+        const rr = 1.25 - t * .9;
+        ctx.fillStyle = `rgba(${m},${.9 * (1 - t)})`;
+        ctx.beginPath(); ctx.arc(Math.cos(ang) * rx * rr, Math.sin(ang) * ry * rr, U * .03 + (1 - t) * U * .02, 0, 7); ctx.fill();
+      }
+      ctx.fillStyle = `rgba(${m},.95)`;
+      ctx.font = `600 ${Math.round(U * .22)}px Marcellus, serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(end ? 'II' : 'I', 0, 0);
+      ctx.restore();
+    }
+  }
+
+  // Where the chosen Dark's casts would land: ghost ends on the faces it can
+  // see from where it stands.
+  function drawAim(g) {
+    if (!E.DARKS.includes(sel) || g.solved || busy(g)) return;
+    for (let d = 0; d < 4; d++) {
+      const c = E.castFace(g.R, g.S, g.Ev, sel, d);
+      if (c.why) continue;
+      const F = g.R.faces[c.f];
+      const cx = (F.x + .5 + DX[F.d] * .38) * U, cy = (F.y + .5 + DY[F.d] * .38) * U;
+      const along = DX[F.d] === 0;
+      ctx.strokeStyle = `rgba(${MOTE[sel]},${.35 + .2 * Math.sin(time * 4)})`;
+      ctx.setLineDash([3, 4]); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(cx, cy, along ? U * .44 : U * .18, along ? U * .18 : U * .44, 0, 0, 7); ctx.stroke();
+      ctx.setLineDash([]);
+      // The line of sight.
+      const [px, py] = g.S.pos[sel];
+      ctx.strokeStyle = `rgba(${MOTE[sel]},.12)`; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo((px + .5) * U, (py + .5) * U); ctx.lineTo(cx, cy); ctx.stroke();
+    }
+  }
+
+  function drawBodies(g) {
+    const order = BODIES.slice().sort((a, b) => g.disp[a].y - g.disp[b].y);
+    for (const b of order) {
+      const D = g.disp[b];
+      let x = (D.x + .5) * U, y = (D.y + .5) * U;
+      const fallK = Math.max(0, 1 - (time - D.fall) * 2);
+      const warpK = Math.max(0, 1 - (time - D.warp) * 3);
+      const r = U * .3 * (1 - warpK * .6);
+      if (b === sel) {
+        ctx.strokeStyle = 'rgba(214,178,94,.85)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, r + 5, 0, 7); ctx.stroke();
+      }
+      const gl = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
+      gl.addColorStop(0, COL[b].glow + (b === 'light' ? .5 : .35) + ')'); gl.addColorStop(1, COL[b].glow + '0)');
+      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 7); ctx.fill();
+      ctx.fillStyle = COL[b].fill; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+      ctx.strokeStyle = COL[b].rim; ctx.lineWidth = 1.5; ctx.stroke();
+      if (b !== 'light') {
+        // A Dark: a hollow at its heart, the thing that drinks light.
+        ctx.fillStyle = '#07050b'; ctx.beginPath(); ctx.arc(x, y, r * .45, 0, 7); ctx.fill();
+      } else {
+        ctx.fillStyle = '#fffaf0'; ctx.beginPath(); ctx.arc(x, y, r * .35, 0, 7); ctx.fill();
+      }
+      if (fallK > 0) {
+        ctx.strokeStyle = `rgba(255,255,255,${fallK * .6})`; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, r + (1 - fallK) * U * .6, 0, 7); ctx.stroke();
+      }
+    }
+  }
+
+  function draw(g) {
+    drawRoom(g);
+    drawBeams(g);
+    drawMouths(g);
+    drawAim(g);
+    drawBodies(g);
+    if (g.solved) {
+      const k = Math.min(1, (time - g.solvedT) * 1.5);
+      ctx.fillStyle = `rgba(214,178,94,${.1 * k})`; ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  function size() {
+    const g = games[mode];
+    const w = cv.parentElement.clientWidth;
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    U = w / g.R.cols; W = w; H = U * g.R.rows;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(.05, (now - last) / 1000); last = now; time += dt;
+    const g = games[mode];
+    stepGame(g, dt);
+    ctx.fillStyle = '#07060a'; ctx.fillRect(0, 0, W, H);
+    draw(g);
+    requestAnimationFrame(frame);
+  }
+
+  cv.addEventListener('pointerdown', (e) => {
+    const b = cv.getBoundingClientRect();
+    tap(games[mode], (e.clientX - b.left) / b.width * W / U, (e.clientY - b.top) / b.height * H / U);
+  });
+
+  function choose(n) { sel = n; say(''); sync(); }
+
+  // ── Chrome ──────────────────────────────────────────────────
+  function btn(label, onclick, opts = {}) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label; b.onclick = onclick;
+    if (opts.pressed !== undefined) b.setAttribute('aria-pressed', String(opts.pressed));
+    if (opts.disabled) b.disabled = true;
+    if (opts.title) b.title = opts.title;
+    return b;
+  }
+
+  function sync() {
+    const g = games[mode];
+    navEl.innerHTML = '';
+    ORDER.forEach((id) => navEl.appendChild(btn((done.has(id) ? '✓ ' : '') + (ROOMS[id].label || ROOMS[id].name), () => enter(id), { pressed: id === mode })));
+    partyEl.innerHTML = '';
+    for (const b of BODIES) {
+      const el = btn('', () => choose(b), { pressed: b === sel });
+      el.innerHTML = `<span class="dot" style="background:${COL[b].fill}"></span><span>${COL[b].name}</span><span class="verb">${COL[b].verb}</span>`;
+      partyEl.appendChild(el);
+    }
+    actionsEl.innerHTML = '';
+    const locked = g.solved;
+    if (sel === 'light') {
+      const onLens = g.R.at(g.S.pos.light[0], g.S.pos.light[1]) === '*';
+      const grp = document.createElement('div'); grp.className = 'group';
+      grp.innerHTML = '<b>Shine</b>';
+      for (let d = 0; d < 4; d++) grp.appendChild(btn(ARROW[d], () => doShine(d), { disabled: locked || !onLens || !g.R.shine, pressed: g.S.shine === d, title: 'Shine ' + DNAME[d] }));
+      grp.appendChild(btn('Out', () => doShine(-1), { disabled: locked || g.S.shine < 0 }));
+      actionsEl.appendChild(grp);
+    } else {
+      for (let end = 0; end < 2; end++) {
+        const grp = document.createElement('div'); grp.className = 'group';
+        grp.innerHTML = `<b style="color:var(--${sel})">Cast ${end ? 'II' : 'I'}</b>`;
+        for (let d = 0; d < 4; d++) {
+          const c = E.castFace(g.R, g.S, g.Ev, sel, d);
+          grp.appendChild(btn(ARROW[d], () => doCast(sel, end, d), { disabled: locked || !!c.why || !g.R.cast[sel], title: 'Cast ' + (end ? 'II' : 'I') + ' ' + DNAME[d] }));
+        }
+        actionsEl.appendChild(grp);
+      }
+    }
+    actionsEl.appendChild(btn('Reset room', () => { games[mode] = newGame(mode); say('The room is as it was.'); sync(); }));
+    if (g.solved) {
+      const i = ORDER.indexOf(mode);
+      if (i + 1 < ORDER.length) actionsEl.appendChild(btn('Next room →', () => enter(ORDER[i + 1])));
+    }
+    noteEl.innerHTML = g.solved ? '<strong>Solved.</strong> ' + (ORDER.indexOf(mode) + 1 < ORDER.length ? 'On to the next room.' : 'That is every room in the prototype.') : '<strong>Designer note:</strong> ' + ROOMS[mode].teaches;
+  }
+
+  function enter(id) {
+    mode = id;
+    if (!games[id]) games[id] = newGame(id);
+    say('');
+    size(); sync();
+  }
+
+  window.addEventListener('resize', size);
+  // Test hook: drive the page without waiting on animation frames.
+  window.__blackSun = {
+    enter, choose, doShine, doCast,
+    tap: (x, y) => tap(games[mode], x + .5, y + .5),
+    settle: () => { const g = games[mode]; for (let i = 0; i < 400 && busy(g); i++) { time += STEP_T; stepGame(g, STEP_T); } },
+    game: () => games[mode],
+  };
+  enter(ORDER[0]);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

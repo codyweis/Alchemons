@@ -179,16 +179,15 @@ const Map<String, String> kDungeonRoomLabels = {
   'quiet_alcove': 'ALCOVE',
   'vigil_chapel': 'CHAPEL',
   'wraithord_vigil': 'THE VIGIL',
-  // Dark — Eclipse Vault.
-  'pall_porch': 'PALL PORCH',
-  'analemma_court': 'ANALEMMA',
-  'shade_gallery': 'SHADE GALLERY',
-  'penumbral_walk': 'PENUMBRA',
-  'gnomon_stair': 'GNOMON STAIR',
-  'ossuary_ring': 'OSSUARY',
-  'abyssal_font': 'FONT',
-  'umbral_reliquary': 'UMBRAL VAULT',
-  'eclipse_nave': 'NAVE',
+  // Dark — the Black Sun.
+  'sun_porch': 'PORCH',
+  'sun_hall': 'BLACK SUN HALL',
+  'through_the_dark': 'THROUGH THE DARK',
+  'two_darks': 'TWO DARKS',
+  'into_the_light': 'INTO THE LIGHT',
+  'hold_the_light': 'HOLD THE LIGHT',
+  'sun_lantern': 'THE LANTERN',
+  'sun_heart': 'THE HEART',
   'noctryos_totality': 'TOTALITY',
   // Light — the Shadow Floor.
   'light_hall': 'GREAT HALL',
@@ -942,7 +941,7 @@ List<int> _roomStars(DungeonRoom room) => [
   ?room.fen?.altar?.sarsenStarIndex,
   ?room.fen?.altar?.moorStarIndex,
   ?room.grove?.starIndex,
-  ?room.eclipse?.starIndex,
+  ?room.sun?.starIndex,
   ?room.hall?.starIndex,
   ?room.sanguine?.starIndex,
   ?room.ruins?.starIndex,
@@ -1029,7 +1028,7 @@ class _DungeonFullMapPainter extends CustomPainter {
       final room = game.layout.rooms[e.key];
       if (room != null) _drawRoom(canvas, e.value, room);
     }
-    if (game.layout.element == 'Dark') _drawVaultPortals(canvas, chart, known);
+    if (game.layout.element == 'Dark') _drawSunPortals(canvas, chart, known);
     // Hatches sit INSIDE their rooms, so they go on after the room fills.
     _drawFenMarks(canvas, fenMarks);
     _drawRuinsMarks(canvas, ruinsMarks);
@@ -1506,8 +1505,9 @@ class _DungeonFullMapPainter extends CustomPainter {
       );
     }
 
-    final leaf = room.eclipse?.leaf;
-    if (leaf != null) _drawEclipseBadge(canvas, box, leaf);
+    if (room.sun != null && game.blackSun.solved.contains(room.id)) {
+      _drawSunBadge(canvas, box);
+    }
     if (room.hall != null && game.archive.solved.contains(room.id)) {
       _drawArchiveBadge(canvas, box);
     }
@@ -1550,25 +1550,25 @@ class _DungeonFullMapPainter extends CustomPainter {
     }
   }
 
-  /// NYTHRALOR: a portal a Spirit hand has read (or the party has walked)
-  /// stays on the chart between its two rooms, so where a ring comes out is
-  /// not something to remember across rooms. Dotted violet; brighter while
-  /// both its ends are in shadow and it would carry you now.
-  void _drawVaultPortals(Canvas canvas, DungeonChart chart, Set<String> known) {
-    final v = game.vault;
-    final leaves = vaultLeafOfRoom(game.layout);
-    for (final an in kVaultAnchors) {
-      if (!v.anchorsRead.contains(an.id) && !v.portalsWalked.contains(an.id)) {
-        continue;
-      }
-      final a = chart.rooms[an.near], b = chart.rooms[an.far];
-      if (a == null || b == null) continue;
-      if (!known.contains(an.near) || !known.contains(an.far)) continue;
-      final live = v.portalOpen(an, leaves);
-      final p0 = a.center, p1 = b.center;
+  /// NYTHRALOR: a portal whose two ends are in different rooms is drawn on
+  /// the chart between them, in its Dark's colour — so where a portal comes
+  /// out is never something to remember across rooms.
+  void _drawSunPortals(Canvas canvas, DungeonChart chart, Set<String> known) {
+    final s = game.blackSun.state;
+    for (final o in kSunDarks) {
+      final e = s.ends[o]!;
+      final a = e[0], b = e[1];
+      if (a == null || b == null || a.room == b.room) continue;
+      final ra = chart.rooms[a.room], rb = chart.rooms[b.room];
+      if (ra == null || rb == null) continue;
+      if (!known.contains(a.room) || !known.contains(b.room)) continue;
+      final col = o == 'purple'
+          ? const Color(0xFFA77BFF)
+          : const Color(0xFFFF9A3D);
+      final p0 = ra.center, p1 = rb.center;
       final mid = (p0 + p1) / 2;
       final n = Offset(-(p1 - p0).dy, (p1 - p0).dx) / (p1 - p0).distance;
-      final ctrl = mid + n * 28;
+      final ctrl = mid + n * (o == 'purple' ? 26 : -26);
       _drawDashed(
         canvas,
         Path()
@@ -1576,48 +1576,22 @@ class _DungeonFullMapPainter extends CustomPainter {
           ..quadraticBezierTo(ctrl.dx, ctrl.dy, p1.dx, p1.dy),
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = live ? 2.4 : 1.6
+          ..strokeWidth = 2.2
           ..strokeCap = StrokeCap.round
-          ..color = const Color(0xFFA884E0).withValues(alpha: live ? 0.9 : 0.4),
+          ..color = col.withValues(alpha: 0.85),
       );
-      for (final e in [p0, p1]) {
-        canvas.drawCircle(
-          e,
-          live ? 5 : 4,
-          Paint()..color = const Color(0xFF2A1E44),
-        );
-        canvas.drawCircle(
-          e,
-          live ? 5 : 4,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.8
-            ..color = const Color(0xFFA884E0).withValues(alpha: live ? 1 : 0.5),
-        );
+      for (final c in [p0, p1]) {
+        canvas.drawCircle(c, 4.5, Paint()..color = Colors.black);
+        canvas.drawCircle(c, 3, Paint()..color = col);
       }
     }
   }
 
-  /// NYTHRALOR: whether the room's quarter is in shadow NOW — an eclipsed
-  /// disc (dark, with its corona) or a full pale one — so the chart reads as
-  /// the vault in its current shape.
-  void _drawEclipseBadge(Canvas canvas, Rect box, EclipseLeaf leaf) {
-    final dark = game.vault.isDark(leaf);
+  /// NYTHRALOR: a solved chamber — its void set in blood.
+  void _drawSunBadge(Canvas canvas, Rect box) {
     final c = Offset(box.left + 13, box.top + 13);
-    if (dark) {
-      canvas.drawCircle(
-        c,
-        6.5,
-        Paint()..color = const Color(0xFFA884E0).withValues(alpha: 0.55),
-      );
-      canvas.drawCircle(c, 5.2, Paint()..color = const Color(0xFF120E1C));
-    } else {
-      canvas.drawCircle(
-        c,
-        6,
-        Paint()..color = const Color(0xFFD9D2BC).withValues(alpha: 0.9),
-      );
-    }
+    canvas.drawCircle(c, 6, Paint()..color = const Color(0xFF18151E));
+    canvas.drawCircle(c, 3.6, Paint()..color = const Color(0xFFD8354B));
   }
 
   /// THE SHADOW FLOOR: a room whose floor has set into stone — a black disc

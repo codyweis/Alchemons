@@ -565,11 +565,10 @@ void main() {
             if (room.funeral?.starIndex != null) {
               nonGuardianStars.add(room.funeral!.starIndex!);
             }
-            // Dark declares its two non-guardian stars on the hall a room
-            // is: the analemma court in the pall quarter, the ossuary ring
-            // in the bones.
-            if (room.eclipse?.starIndex != null) {
-              nonGuardianStars.add(room.eclipse!.starIndex!);
+            // Dark's two are banked by pairs of chambers, declared on the
+            // chambers (II and III, IV and V).
+            if (room.sun?.starIndex != null) {
+              nonGuardianStars.add(room.sun!.starIndex!);
             }
             // Light does the same with the sector a bay of the one great hall
             // lies in: the shadow court in the court bay, the dark stacks out

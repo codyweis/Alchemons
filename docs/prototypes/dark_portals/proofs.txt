@@ -1,0 +1,51 @@
+one (The porch) solvable=true steps=15 states=22731 149ms
+  without the purple portal: solvable in 17
+  without the orange portal: solvable in 15
+  replayed from a fresh start: solved
+  decisions (casts/shines): 2 · walks: 13
+  plan: light west · orange west · purple casts I east · purple casts II west · purple west (through purple) · light south · purple north · light west (through purple) · light west · light north · light west · purple west · orange north · orange west (through purple) · orange north
+two (Through the dark) solvable=true steps=33 states=1283910 11004ms
+  without the purple portal: solvable in 33
+  without the orange portal: solvable in 33
+  without Light shining: IMPOSSIBLE
+  replayed from a fresh start: solved
+  decisions (casts/shines): 4 · walks: 29
+  plan: light south · light south · light west · purple east · purple east · purple south · purple south · orange east · orange east · orange east · orange south · orange south · orange south · light shines east · purple casts I east · purple south · purple casts II south · purple south (through purple) · purple south · light east · light east · light east · light east · light south · purple east · purple east · purple north · purple casts I west · purple north · light south (through purple) · light south · orange east · orange south (through purple)
+three (Two darks make blood) solvable=true steps=35 states=587437 5525ms
+  without the purple portal: IMPOSSIBLE
+  without the orange portal: IMPOSSIBLE
+  without Light shining: IMPOSSIBLE
+  replayed from a fresh start: solved
+  decisions (casts/shines): 5 · walks: 30
+  plan: purple south · purple west · purple west · purple west · purple casts I east · light south · purple south · purple casts II south · purple south (through purple) · purple south · orange south · orange east (through purple) · light east · orange casts I north · orange east · light east (through purple) · light north · orange east · light shines east · orange casts II south · orange east · light south · light south (through purple) · purple south · light south · purple south · light south · purple west · light south · purple west · light west · orange east · orange east · orange south · orange south
+hall2 (The Hall: the island) [guided search — a plan, not the shortest] solvable=true steps=48 states=214938 4376ms
+  without the purple portal: IMPOSSIBLE
+  without the orange portal: IMPOSSIBLE
+  replayed from a fresh start: solved
+  decisions (casts/shines): 5 · walks: 43
+  plan: light north · light east · light east · purple north · purple west · purple west · purple casts I south · purple east · purple east · orange west · purple east · orange west · orange west · orange west · orange casts I north · orange east · orange east · orange casts II east · orange north · purple casts II north · purple north · purple north · purple north · purple east · light west · orange east · orange north · light west · orange north · orange east · light north · light north · light north · purple casts II east · purple east · light east · purple east · purple north · light east · light east · orange north · orange east · purple north · light north · orange east · purple east · light north · orange north
+four (Walk into the light) solvable=true steps=32 states=403683 6901ms
+  without the purple portal: IMPOSSIBLE
+  without the orange portal: IMPOSSIBLE
+  replayed from a fresh start: solved
+  decisions (casts/shines): 4 · walks: 28
+  plan: purple north · purple west · purple casts I east · purple casts II south · purple east · orange casts I west · orange north · light north · orange casts II east · purple north · light west (through orange) · light north · light north · purple east · purple east · purple east · purple east · purple east · purple east · purple north · purple north · purple east · orange east · orange east · orange east · orange east · orange east · orange east · orange east · orange east · orange north · orange north
+five (Hold the light) solvable=true steps=32 states=1632392 14968ms
+  without the purple portal: IMPOSSIBLE
+  without the orange portal: IMPOSSIBLE
+  without Light shining: IMPOSSIBLE
+  replayed from a fresh start: solved
+  decisions (casts/shines): 6 · walks: 26
+  plan: light west · orange north · orange casts I east · orange north · orange casts II south · purple west · orange east · purple casts I north · purple east · light east · light north · light north · purple east · purple east · light shines east · purple casts II south · purple east · purple east · purple east · purple east · light north · purple east · purple north · purple north · purple east · purple casts II west · light north (through purple) · light north · light east · orange west · orange north (through purple) · orange north
+rite (The Great Work) [guided search — a plan, not the shortest] solvable=true steps=41 states=1087122 14149ms
+  without the purple portal: IMPOSSIBLE
+  without the orange portal: IMPOSSIBLE
+  replayed from a fresh start: solved
+  decisions (casts/shines): 5 · walks: 36
+  plan: light east · orange east · purple east · orange east · purple east · orange north · orange casts I east · orange south · orange south · orange south · orange south · orange casts II east · orange south · purple casts I south · purple east · purple south · purple south · purple south · purple casts II west · purple west · purple south · light south · light south (through purple) · orange east · light east · light east · light east · light south · purple casts I north · purple west · light south · light south · purple east · purple east · purple south · light east · purple south · orange west · orange south · purple west · orange south
+vault (The vault (Hall)) solvable=true steps=21 states=383570 10164ms
+  without the purple portal: IMPOSSIBLE
+  without the orange portal: IMPOSSIBLE
+  replayed from a fresh start: solved
+  decisions (casts/shines): 5 · walks: 16
+  plan: purple west · purple west · purple casts I south · purple east · purple east · orange casts I east · orange north · orange west · orange west · orange west · purple north · purple east · orange west · purple casts II north · orange casts II north · orange east · purple north · purple casts II west · orange south [purple fell] · orange west · orange south (through purple)

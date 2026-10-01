@@ -2070,16 +2070,18 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
-**FOURTEEN of seventeen (2026-09-28): Fire · Air · Water · Earth · Lightning ·
-Steam · Lava · Poison · Mud · Ice · Dust · Crystal · Plant · Spirit.**
-**PLANT and SPIRIT were promoted 2026-09-28** on the author's account —
+**FIFTEEN of seventeen (2026-09-30): Fire · Air · Water · Earth · Lightning ·
+Steam · Lava · Poison · Mud · Ice · Dust · Crystal · Plant · Spirit · Light.**
+**LIGHT was promoted 2026-09-30** on the author's account, after THE SHADOW
+FLOOR rebuild (plus the Eclipse and the reworked Solarin) was played on
+device. Dark and Blood remain. **PLANT and SPIRIT were promoted 2026-09-28** on the author's account —
 Plant after the Conservatory redesign (§9.20), Spirit after THE UNFINISHED
 FUNERAL redesign — both played on device. Poison was promoted 2026-09-14;
 **MUD (pass 2026-09-13) and ICE (pass 2026-09-15) were promoted 2026-09-23**
 on the author's account that both have been played; **DUST was promoted
 2026-09-25** after its night-dig / sand-throw / observatory pass was played. **CRYSTAL was promoted 2026-09-26** on the author's account. This list is mirrored in code as `kPolishedDungeons`
 (`lib/games/cosmic/cosmic_data.dart`), and it is what decides whether a planet
-offers DESCEND or the coming-soon placard — the other three keep their gate
+offers DESCEND or the coming-soon placard — the other two keep their gate
 ritual and cannot be descended. Promoting a planet is one line there, pinned
 by `test/dungeon_polish_gate_test.dart`.
 
@@ -3888,7 +3890,7 @@ one real bug in the boss room. Rendered room by room first, then:
     sentence as Mud's, Ice's, Dust's and Dark's. `Light` stays out of
     `kPolishedDungeons` until it has been played.
 
-### LIGHT — THE SHADOW FLOOR (2026-09-28; BUILT, supersedes the Beacon Archive and its polish pass below; not yet played on device)
+### ✅ LIGHT — THE SHADOW FLOOR (2026-09-28; BUILT, supersedes the Beacon Archive and its polish pass below; PROMOTED 2026-09-30 after device play)
 
 The author, after playing the polished archive: *"this just seems like going
 around tapping things"* — and asked for Portal 2 / Gorogoa ahas. Prototyped
@@ -4140,7 +4142,193 @@ states the proof already enumerated; the douse order is the proof's own
 the whole chain through the real door rules and re-runs the proof at the
 end, still zero.
 
-### ◐ DARK — the pass, minus the device session (2026-09-19)
+### DARK — THE BLACK SUN (2026-09-30; designed, prototyped and BUILT; supersedes the Eclipse Vault below; not yet played on device)
+
+Reviewed straight after Light's promotion. The Eclipse Vault was the purest
+case yet of *"going around tapping things"*: a lever maze of three gnomons
+over four quarters, every turn changing rooms you could not see, the
+Analemma Star a walk-turn-walk-turn-walk loop, and seven of ten rooms the
+same empty box once the black-hole pass stripped the clutter. It also sat
+next to Light's new identity (a shadow has a position). The author chose a
+rebuild over a play-and-polish pass: *"a cool alchemical portal level … the
+only level that Alchemon stay in the room and don't go together … a cool
+alchemical portal 2 like puzzle."*
+
+**The author's calls:** party **Dark · Dark · Light**; **each Dark owns one
+portal** — two ends, I and II — the first Dark's black with PURPLE motes,
+the second's black with ORANGE; Light shoots its beam through the portals
+and a Dark absorbs it; **Dark + Light = Blood** runs through the level, as:
+*through one Dark's portal the beam is still light; through BOTH Darks'
+portals it comes out as BLOOD.* The party does not travel together — only
+the active body takes a door, the others stay exactly where they were left,
+so a Dark left in one room holds its portal open there while you work in
+the next (Portal 2 co-op, split across bodies and rooms).
+
+**The rules** (docs/prototypes/dark_portals/portal-engine.js, shared by the
+page and the solver):
+  · A Dark casts an end straight ahead onto the first wall it sees; only
+    OBSIDIAN (leaded black glass — glass only on puzzle things, §7.11) takes
+    it. Casting onto the face an end already holds closes it. Casting a new
+    I moves I.
+  · Anything that enters one end leaves the other end's face heading
+    straight out: bodies (all three, Darks included) and beams.
+  · A Dark's body DRINKS light — a beam stops dead at it. Light's body lets
+    light through.
+  · Light shines only from a BURNING-GLASS (a lens in the floor), in any of
+    four directions, and the beam goes out when it steps off. (Found while
+    authoring: a mouth fires along the same line a Dark had to stand on to
+    cast it, so a Light that shines anywhere could always stand there
+    instead and the portal would be pointless. Portal 2 fixes its lasers to
+    the walls for the same reason.) Fixed stars in the walls shine too.
+  · Blood-light is SOLID: over the void it is a bridge. Because a Dark
+    drinks the beam it stands in, a Dark can only walk a bridge TOWARDS its
+    source; Light walks it either way.
+  · Seals: white wants white, red wants blood. A seal's door is LIVE (open
+    only while it burns, or while someone stands in it) unless the room
+    marks it latching. Anyone left over the void when a beam moves falls
+    back to where the room let them in.
+
+**The prototype** (docs/prototypes/dark_portals/portals.html — one
+self-contained page; `node build.js` inlines engine + rooms; `node solve.js`
+proves every room by breadth-first search):
+  · **I · One portal** — cast both ends, walk through. 2 decisions.
+  · **II · Through the dark** — the lens can't see the white seal; the beam
+    goes round the corner by portal. Impossible without shining. 4.
+  · **III · Two darks make blood** — the red seal wants the beam through
+    both portals; its road runs straight back through the lens and Light
+    lets it pass. Impossible without either portal. 5.
+  · **IV · Walk into the light** — a fixed star, both portals, and the
+    blood bridge the Darks can only walk towards its source. Impossible
+    without either portal. 4. (The solver found Light stepping out of the
+    blood-emitting mouth straight onto the bridge — unplanned, and good.)
+  · **V · Hold the light** — the seal is LIVE, so whoever holds the lens
+    can't leave by the door; the Darks go in while it burns, one recasts an
+    end onto the back of the obsidian block inside, and Light leaves by the
+    dark. Impossible without either portal or the shine. 6.
+
+**The level (2026-09-30, the author approved rooms I–V; then built out in
+the prototype, play order):**
+  · **The porch** (room I) is the entry: it opens the Hall.
+  · **The Hall of the Black Sun — a hub that grows.** A void with an island
+    in it, the south ledge you arrive on and a far ledge in the north-east.
+    Every chamber you solve lights a FIXED STAR in the Hall's walls, and
+    crossing the Hall means routing those stars through both portals into
+    blood bridges. Chambers II and III (Star 1) open off the south ledge;
+    their two stars get you to the island and on to the far ledge, where
+    IV and V (Star 2) open. There is only ever ONE blood-light (it takes
+    all four ends), so the second crossing has to be CAST FROM THE ISLAND.
+    5 decisions; impossible without either portal.
+  · **The rite — the Great Work** (below the island). The stair door is
+    held only while someone stands on a plate, and the plate lies in the
+    star's beam, where a Dark would drink it: Light holds the door while
+    the Darks go down, and then has to come down through the dark. The
+    first panel the star reaches sits across a void gap, so the chain's own
+    portal is no way down. The solver's route: a portal THROUGH the
+    obsidian block for Light, then the same pair re-cast into the blood
+    chain for the Great Seal. 5 decisions (guided search — a plan, not
+    proved shortest); impossible without either portal.
+  · **Noctryos** — NOT a puzzle. The author's call: ordinary combat, with
+    the enemies coming out of black holes.
+  · **The vault — a leap of faith**, in the Hall. A floor alcove with an
+    obsidian back, across the void on the west wall, that nothing you can
+    stand on can see — except the blood bridge out to the island. Cast onto
+    it from the bridge: the chain breaks, the bridge goes and you fall back
+    to the ledge, but the portal end stays, and you walk in. 5 decisions;
+    the solver's plan is exactly that ("purple casts I west [purple fell]").
+
+`solve.js` now replays every plan from a fresh start and fails loudly if a
+step is refused or it does not end solved (proofs.txt holds the last run).
+Rooms too big to search exhaustively (`big: true`, the rite) use a guided
+best-first search that finds a plan; every "impossible without" claim is
+still exhaustive, on the restricted room.
+
+**BUILT IN THE GAME (2026-09-30, the author: "get this looking good on the
+phone and we can tweak later; I want awesome portal visuals").** The
+Eclipse Vault's code is gone; `DungeonRoom.eclipse` became `DungeonRoom.sun`
+(a `SunBay` naming the grid).
+  · `planet_dungeon_layout_dark.dart` — the prototype's rules, ported and
+    made MULTI-ROOM: every body is (room, x, y) and every portal end is
+    (room, face), so a beam or a body can go through a portal into another
+    room. The rooms are the prototype's maps exactly (a 'D' square on an edge
+    is the doorway; the island's stair 'S' is a door in the floor). Room ids
+    `sun_porch`, `sun_hall`, `through_the_dark`, `two_darks`,
+    `into_the_light`, `hold_the_light`, `sun_heart`, `noctryos_totality`.
+  · `planet_dungeon_game_dark.dart` — the play. The rules follow the active
+    body square by square (`_sunBlocksAt` in `_hitsWall`); a step into a
+    mouth is taken next frame and can change rooms; a door takes only the
+    body you steer (`_sunPassThroughDoor`) and choosing a body elsewhere
+    moves the view (`setActive`); regroup sends everyone in THIS room back to
+    its door. Casting aims with the stick (the last direction pushed). Two
+    chambers bank a star; blood on the Great Seal latches A and B (the rite)
+    and `_updateAltar` wakes Noctryos. Down to the arena the party goes
+    together, and its enemies come out of four black holes in the floor
+    (`offscreenSpawn`). No entry rite: the doors stand open from the start.
+  · THE LOST MAXIM — *a light that does not end*: any beam that goes round
+    through a portal and comes back to where it has already been
+    (`egg:dark_ouroboros`). The mark: a ring of gold turning over the Hall's
+    island, for good. Easiest found in chamber III, where the burning-glass's
+    own column has two obsidian faces looking at each other.
+  · THE PAD: a Dark in a grid room gets CAST I and CAST II (tinted its
+    portal's colour); Light's tile reads SHINE / PUT OUT.
+  · THE ART (`planet_dungeon_game_dark_art.dart`): near-black carved walls,
+    dark flags, and the void a real hole down to the black-hole sky (the
+    engine's plain floor is skipped for grid rooms). A portal is a black sun:
+    a pool of its colour on the floor, thick accretion arms turning into it,
+    a hot arc going round its rim (sweep gradient), motes falling in, one or
+    two bars for I or II — and, while its pair is whole, a WINDOW: the other
+    end's room drawn inside it (the other room's baked picture, clipped),
+    with its beams, bridges and bodies. Casting throws a comet at the wall
+    and the mouth tears open; coming through throws the body out in a
+    burst. Beams are layered glow with motes in the colour of the portals
+    they have been through; blood bridges are panes of red glass in lead.
+  · TESTS: `planet_dungeon_dark_black_sun_test.dart` replays every room's
+    proved plan against the Dart rules (plans generated into
+    `test/black_sun_plans.dart` from proofs.txt) and drives the game object
+    (doors, cross-room portals, stars, rite, maxim, arena, regroup);
+    `planet_dungeon_dark_black_sun_render_test.dart` writes DarkSun_*.png.
+
+**THE RITE, REBUILT ACROSS TWO ROOMS (2026-09-30; the author: "yes lets
+build an awesome one").** No puzzle needed a portal between rooms, though
+the rules allowed it, and the single-room rite was no harder than III.
+Down the island's stair now are THE LANTERN and below it THE HEART.
+  · The Lantern holds the rite's only light: a star in its west wall. The
+    Heart has none — no star, no burning-glass — so blood on the Great Seal
+    is upstairs light carried DOWN through a portal whose two ends are in
+    different rooms (a Dark casts one end upstairs, takes the door down, and
+    casts the other), then through the second Dark's portal in the Heart.
+  · The door down is held by a WHITE SEAL in the Lantern's floor-wall, and
+    only Light, shining from its burning-glass, can light it — so only Light
+    can hold the way down, and stepping off the glass shuts it: Light can
+    never take the stairs. It comes down last, through the dark.
+  · The chain and Light's way down cannot both stand: the star's only
+    obsidian is across a void (nobody walks into that portal), and Light's
+    only way into a portal upstairs is the west block — one Dark's portal
+    can hold one Lantern face. So the seal burns first (it latches), and
+    then someone goes back up the stairs, re-casts their end onto the west
+    block, comes down again while Light still holds the door, and Light
+    steps off the glass and follows through the dark.
+  · The rules are multi-room now in full: `kSunLinks` are the doors between
+    rooms as moves (a link may be held by a plate or seal), so a plan can
+    walk the whole descent. The rite's hand solution (6 casts, 1 shine,
+    5 doors, 61 steps) replays in the test; three STRUCTURAL tests pin why
+    it cannot be done in one room (no light in the Heart; only Light holds
+    the door; chain and way-down exclusive). The multi-room search tool is
+    `test/black_sun_solve_tool_test.dart` (`--dart-define=SOLVE=rite`): a
+    macro-move best-first, best effort — a 60-step two-room plan is beyond
+    what it finds unguided, which is why the rite is proved by hand plus
+    structure. The JS prototype's 'rite' room is the OLD single-room one.
+  · THE MARK: when blood first burns on the Great Seal a red black sun —
+    the Dark planet's recipe in crimson — rises from the seal to hang over
+    the Heart, for good (the rubedo, the Work finished). The engine's wake
+    wisps are skipped on Dark (the party may be split across rooms then).
+
+**Still open:** cast-through-a-portal (Portal allows it; left
+out for legibility); the real game's controls (aim with the joystick, one
+cast button per end); and how the Hall's stars and a Dark left in another
+room READ on a phone, where each room is its own screen — a mouth should
+show a window of the far side, so nothing has to be remembered.
+
+### ◐ DARK — the pass, minus the device session (2026-09-19) — ⛔ SUPERSEDED by THE BLACK SUN above
 
 Dark arrived with the strongest proofs in the set (0 strandable of 392 with
 no valve, the algebra measured) and the best-argued ground — and every

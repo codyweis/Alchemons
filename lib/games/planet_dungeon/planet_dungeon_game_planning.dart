@@ -25,24 +25,9 @@ extension DungeonPlanning on PlanetDungeonGame {
   String _planRoom(String id) =>
       _roomIdentityLine(id) ?? id.replaceAll('_', ' ');
 
-  String? _vaultPreview(DungeonCreature a) {
-    final g = vaultGnomonIn(currentRoomId);
-    if (g == null || !_planningNear(a, g.shaft)) return null;
-    final next = EclipseVault()
-      ..shadow.clear()
-      ..shadow.addAll(vault.shadow);
-    final entered = next.turn(g.id)!;
-    final changes = <String>[];
-    for (final leaf in EclipseLeaf.values) {
-      if (next.isDark(leaf) == vault.isDark(leaf)) continue;
-      changes.add(
-        '${leafWord(leaf)} becomes ${next.isDark(leaf) ? 'dark' : 'lit'}',
-      );
-    }
-    return 'Dark · shadow toward ${leafWord(entered)}\n'
-        '${changes.isEmpty ? 'Other shadows keep the same quarters dark' : changes.join('; ')}. '
-        'Dark opens crossings; light joins rooms within a quarter.';
-  }
+  /// The Black Sun shows its aim on the floor itself (a ghost mouth on the
+  /// face a Dark is looking at); a line in the capsule would say it twice.
+  String? _vaultPreview(DungeonCreature a) => null;
 
   String? _heartPreview(DungeonCreature a) {
     for (final o in ostiaIn(currentRoomId)) {

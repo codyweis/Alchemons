@@ -1,156 +1,48 @@
 // lib/games/planet_dungeon/planet_dungeon_layout_dark.dart
 //
-// NYTHRALOR — the Eclipse Vault. Dark's authored layout, its pure rules, and
-// the puzzle DATA its `part of planet_dungeon_game.dart` module reasons about.
+// NYTHRALOR — THE BLACK SUN (the rebuild of 2026-09-30; it replaces the
+// Eclipse Vault whole). Dark's layout, its pure rules, and the room grids.
 //
-// TOPOLOGY (docs/dungeons.md §5.5, structural assignment table): **AN
-// INVERTING MAZE — light/dark flips swap walls and doors.** There is no hub,
-// no wings, and no room that keeps the same doors for a whole run. The vault
-// is one geometry cut into four QUARTERS, and each quarter is either in
-// UMBRA (shadow) or in CORONA (light). Which it is decides, for every
-// passage in it, whether that passage is a door or a wall:
+// THE PARTY is two Darks and a Light, and — alone of every planet — they do
+// not travel together. Every body stays exactly where it was left; a door
+// takes only the one you are steering. So a Dark left in one room holds its
+// portal open there while you work in the next.
 //
-//     ── the vault, ONE geometry, four quarters ─────────────
-//      I   THE PALL     pall_porch ·gnomon· ~~ analemma_court
-//                          ╵pall arch(s.II)     ╵lych-way(s.II)
-//      II  THE GALLERY  shade_gallery ────── penumbral_walk ·gnomon·
-//                          ╵shaft(s.III)        ╵stair head(s.III)
-//      III THE OSSUARY  ossuary_ring ─────── gnomon_stair ·gnomon·
-//                          ╵causeway(s.IV)      ╵gulf(s.IV)
-//      IV  THE DEEP     eclipse_nave ─────── abyssal_font ~~ umbral_reliquary
-//                          ╵rood (unmoved)                     (THE VAULT)
-//                       noctryos_totality
+//   · LIGHT shines a beam in one direction and holds it until told to stop,
+//     but only from a BURNING-GLASS set in the floor; step off it and the
+//     beam goes out. Its body lets light straight through.
+//   · Each DARK owns ONE PORTAL — two ends, I and II. The first Dark's are
+//     black with PURPLE motes, the second's black with ORANGE. A Dark casts
+//     an end straight ahead onto the first wall it sees; only OBSIDIAN takes
+//     it. Casting an end onto the face it already holds closes it. A Dark's
+//     body DRINKS light: a beam stops dead at it.
 //
-//     (──  a LIGHT-WALK inside a quarter: it exists only while that quarter
-//          stands in the light, so a lit quarter is whole and a dark one is
-//          split from itself.
-//      ╵   a SHADOW-WAY down to the next quarter: it exists only while the
-//          quarter BELOW lies in shadow. You only ever go DOWN through dark.
-//      ~~  the two shadow-ways that are not crossings — the pall's own creep,
-//          and the slot into the vault.)
+// WHAT GOES THROUGH A PORTAL: bodies (all three) and beams — whatever enters
+// one end leaves the other end's face heading straight out of it, and the
+// two ends may be in different rooms.
 //
-// WORLD RULE — *a lamp here does not light the room; it turns it inside out.*
+// DARK + LIGHT = BLOOD. A beam through ONE Dark's portal is still white
+// light, only moved. Through BOTH Darks' portals, in either order, it comes
+// out as BLOOD-LIGHT, and blood-light is SOLID: over the void it is a bridge.
+// A Dark drinks the beam it stands in, so it can only walk a bridge towards
+// its source.
 //
-// THE INVARIANT (§5.5, Dark's claimed mechanic): **STATE-FLIP MAZE
-// INVERSION, and it is ZERO-SUM BY GEOMETRY.** The player never sets a
-// quarter's state directly. Nythralor's shadow is thrown by three GNOMONS —
-// stone fingers standing at the quarter-lines — and *a shadow is a physical
-// thing that can only be in one place*. Each gnomon's shadow lies in ONE of
-// the two quarters it stands between. Turn it and the shadow crosses over:
-// the quarter it leaves comes up into the light, the quarter it enters goes
-// dark. One turn rewrites both quarters at once — half the vault — and it
-// gives you nothing it does not also take.
+// Every room was proved in the prototype before it was built — the same maps,
+// by breadth-first search (docs/prototypes/dark_portals: portal-engine.js is
+// these rules in JavaScript, solve.js the proofs, proofs.txt the last run).
+// The tests replay the prototype's plans against THESE rules.
 //
-// THE STRATEGIC QUESTION (§5.5): *every flip you make for a door closes one
-// elsewhere — a gnomon's shadow has to be in one of its two quarters, so the
-// road you open downward is usually the road you came in by.* The sharpest
-// instance is authored on purpose at the deep line: the gulf into the abyssal
-// font wants the DEEP in shadow, and the vault's own slot wants the same
-// shadow one room further in — but the way DOWN to the stair wants the
-// OSSUARY in shadow, and one gnomon cannot hold both. You must have brought
-// the ossuary's shadow off the OTHER gnomon before you ever came down.
-//
-// This is deliberately NOT Spirit's seat. Spirit's two worlds COEXIST and the
-// player picks which one to be in at each junction; here there is one world
-// and one act — a global inversion that rewrites the whole maze at once, with
-// nothing to opt out of. It is not Lightning's zero-sum either: Lightning's
-// is electrical (power here is dark there, along a circuit); Nythralor's is
-// purely spatial — a shadow has a POSITION, and it has only one. Nor is it
-// Dust's Z-layer (there is no second deck and no ledger), Plant's observer
-// scale (the vault changes, not you), Crystal's permuting map (nothing here
-// moves), Air's ordering (a turn is freely reversible, so order is nothing —
-// ARRANGEMENT is everything), Mud's shape-authoring, or Steam's budget. No
-// quantity is counted anywhere on this planet; the zero-sum is the geometry.
-//
-// ── THE ECLIPSE ALGEBRA (all of it, and all provable) ─────
-// Three gnomons over four quarters, chained: the porch gnomon holds PALL or
-// GALLERY, the walk gnomon GALLERY or OSSUARY, the stair gnomon OSSUARY or
-// DEEP. A quarter is dark iff some gnomon's shadow lies in it. That gives
-// eight arrangements, and these facts fall straight out of them (pinned by
-// test/planet_dungeon_dark_vault_test.dart):
-//
-//   • **Never fewer than two quarters in shadow, and never more than two in
-//     the light.** Three shadows, and every one of them is somewhere.
-//   • **No two NEIGHBOURING quarters are ever lit together** — the gnomon
-//     between them has to put its shadow in one of them. Only {PALL,
-//     OSSUARY}, {PALL, DEEP} and {GALLERY, DEEP} can ever share the light.
-//   • **All four quarters are never dark at once.** This is what makes Star 0
-//     a journey instead of a button.
-//   • **THE GNOMON'S PROMISE:** for each gnomon, at least one of its two
-//     quarters is in shadow, always. Every safe road in the vault is built on
-//     this one sentence.
-//
-// THE VAULT TRICK (§5.5): *the vault room only EXISTS in the dark state.* The
-// umbral reliquary is not a room you have not found — while the DEEP stands
-// in light it is not there at all, and the slot in the font's wall is a
-// blank face of stone with nothing to see. No prior planet's trick is this:
-// Plant's is visible-but-too-small, Ice's a mirror plus an unrepeatable
-// slide, Dust's a house you bury HARDER, Poison's the ward you abandoned,
-// Steam's spending the whole budget, Lightning's a dead trunk walked dark,
-// Crystal's a cell that only joins the grid in one configuration.
-//
-// ── WHY THERE IS NO RESET VALVE ───────────────────────────
-// Ice, Mud, Dust and Plant all shipped a costly full-reset valve. Nythralor
-// does not need one, and the reason is structural rather than measured (the
-// measurement is in `solveEclipseVault`, and it agrees: **0 strandable of the
-// 392 states the world can put the party in, with no valve**):
-//
-//   1. **A turn is its own undo.** You turn a gnomon by standing at it, and
-//      you are still standing at it afterwards — so every turn can be turned
-//      straight back. The walk/turn relation is symmetric, so reachability
-//      over it is an equivalence: whatever the vault can put you in, it can
-//      take you out of.
-//   2. **A room with no gnomon can never be shut on you.** Nothing but a
-//      gnomon changes a quarter's state, so while you stand in a gnomon-less
-//      room the doors you walked in by are still the doors you have. The
-//      umbral reliquary and the analemma court are exactly this, and it is
-//      why the vault trick is not a trap (Ice's shelf rule).
-//   3. **A gnomon room is rescued by its own gnomon** — every gnomon stands
-//      in the UPPER of the two quarters it commands, never behind the door it
-//      opens. This is the one placement the geometry actually depends on: put
-//      the stair's gnomon down in the deep instead, where it would be behind
-//      the very gulf it opens, and the whole lower half of the vault becomes
-//      a one-way trip — 124 states strand, and the test pins the number.
-//   4. **The one thing that can flip the vault while you are not at a gnomon
-//      is Noctryos**, and the arena is proofed against it twice: the rood
-//      door is the vault's only phase-free passage, and the arena floor
-//      carries a VANE that turns the stair gnomon from where you stand. Pull
-//      the vane and phase-cut the rood door and 22 states strand — which is
-//      the number that says the arena's two belts are load-bearing.
-//
-// **THE PROMISE RULES — what every room's ways out are actually built on.**
-// Reasons 1–3 are only true because no room can ever have all its passages
-// shut at once, and that is authored one room at a time:
-//
-//   • Seven of the ten rooms carry a **TWINNED crossing** — a shadow-way and
-//     a light-walk cut through the SAME quarter. A quarter is either in
-//     shadow or in light, so exactly one of the pair is always there.
-//   • The pall's two rooms instead carry the **GNOMON'S PROMISE** — both
-//     their ways out are cut through the two quarters of the porch gnomon,
-//     whose shadow is always in one of them. The pall can afford this because
-//     it is the one quarter with its gnomon standing inside it.
-//   • The reliquary is a POCKET (one door, and only the deep's state can
-//     close it, which nothing inside can change), and the arena's rood door
-//     is phase-free.
-//
-// So the anchors (below) are the only irreversible edits on the planet, and
-// they are purely ADDITIVE — a portal opens and never closes. An additive
-// edit cannot shrink reachability, so it cannot strand either.
-//
-// Mechanic-ledger note (§5.5): Dark claims **state-flip maze inversion** and,
-// under it, **the shadow as a positional zero-sum** — one shadow, two
-// quarters, and the act of taking it out of one IS the act of putting it in
-// the other. Nothing is counted, nothing is spent, and nothing is ordered.
-//
-// VISUAL GRAMMAR (§5.5): nothing here is drawn like Lightning's jagged bolts
-// or Water's tide line. A quarter in UMBRA is rendered as an absence — its
-// architecture is drawn as negative space, edges only, and its shadow-ways
-// read as gaps in the wall with no threshold. A quarter in CORONA is drawn in
-// full: a cold pewter light, hard-edged, and its light-walks are pale
-// causeways with a visible floor. The inversion animates as a WIPE across the
-// room, never a fade, so the player reads it as the world turning over rather
-// than a lamp going out. No blur filters anywhere (the game's known jank
-// source).
+// Map legend:
+//   .  floor          #  stone wall          O  obsidian (takes portals)
+//   ~  the void (you stand on it only where blood-light crosses it)
+//   *  a burning-glass (floor; Light shines only from one)
+//   p  a plate (held down by any body)     E  a goal pad (all three: solved)
+//   |  a door in the room: open while its circuit is live, or while a body
+//      stands in it (a LATCHING circuit keeps it open once it has been live)
+//   w  a white seal (lit by white light)  r  a red seal (lit by blood-light)
+//   > < ^ v  a star set in the wall, shining that way
+//   V  the vault cache (floor)
+//   D  a doorway to another room (floor)  S  the island's stair (floor)
 
 import 'dart:ui';
 
@@ -158,1097 +50,1328 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 
 // ─────────────────────────────────────────────────────────
-// THE QUARTERS
+// THE GRID
 // ─────────────────────────────────────────────────────────
 
-/// The four leaves of the eclipse. Nythralor is cut into these and nothing
-/// else: every room lies in exactly one, and every passage is cut through
-/// exactly one. There is no fifth state and no in-between, so the player can
-/// read the whole map off four words.
-enum EclipseLeaf {
-  /// I — the threshold quarter. The porch and the analemma court.
-  pall,
+/// One square of floor, in world units. A room's bounds are exactly its grid.
+const double kSunCell = 64;
 
-  /// II — the long gallery quarter. The shade gallery and the penumbral walk.
-  gallery,
+/// The three bodies, in the order a Dark·Dark·Light party lists them.
+const List<String> kSunBodies = ['light', 'purple', 'orange'];
+const List<String> kSunDarks = ['purple', 'orange'];
 
-  /// III — the bone quarter. The gnomon stair and the ossuary ring.
-  ossuary,
+/// The four directions: north, east, south, west.
+const List<int> kSunDx = [0, 1, 0, -1];
+const List<int> kSunDy = [-1, 0, 1, 0];
+const List<String> kSunDirWord = ['north', 'east', 'south', 'west'];
+int sunOpp(int d) => (d + 2) % 4;
 
-  /// IV — everything under the vault: the abyssal font, the reliquary, the
-  /// nave, and Noctryos.
-  deep,
+/// Beam colour bits.
+const int kSunWhite = 1, kSunBlood = 2;
+
+typedef SunCell = ({int x, int y});
+
+/// Where a body is: which room, which square.
+typedef SunAt = ({String room, int x, int y});
+
+/// Where a portal end is: which room, which obsidian face.
+typedef SunEnd = ({String room, int face});
+
+/// World centre of square (x, y).
+Offset sunCentre(int x, int y) =>
+    Offset((x + .5) * kSunCell, (y + .5) * kSunCell);
+
+/// The square a world point stands in (clamped onto the grid).
+SunCell sunSquareAt(Offset p, int cols, int rows) => (
+  x: (p.dx / kSunCell).floor().clamp(0, cols - 1),
+  y: (p.dy / kSunCell).floor().clamp(0, rows - 1),
+);
+
+/// One face of an obsidian block: the block's square and the side it looks
+/// out of. A portal end sits on a face; what comes out of it comes out of
+/// that side.
+class SunFace {
+  final int x, y, d;
+  const SunFace(this.x, this.y, this.d);
+
+  /// The square in front of the face.
+  SunCell get front => (x: x + kSunDx[d], y: y + kSunDy[d]);
 }
 
-/// The vault's own name for each quarter, for hints and the readout.
-String leafWord(EclipseLeaf l) => switch (l) {
-  EclipseLeaf.pall => 'the Pall',
-  EclipseLeaf.gallery => 'the Gallery',
-  EclipseLeaf.ossuary => 'the Ossuary',
-  EclipseLeaf.deep => 'the Deep',
-};
-
-/// Short all-caps form for the progress readout (§5.6 — state leaves the
-/// capsule).
-String leafTag(EclipseLeaf l) => switch (l) {
-  EclipseLeaf.pall => 'PALL',
-  EclipseLeaf.gallery => 'GALL',
-  EclipseLeaf.ossuary => 'OSS',
-  EclipseLeaf.deep => 'DEEP',
-};
-
-// ─────────────────────────────────────────────────────────
-// THE GNOMONS
-// ─────────────────────────────────────────────────────────
-
-/// A stone finger standing at a quarter-line, throwing one shadow.
-///
-/// AUTHORING RULE, and the whole no-strand proof rests on it: a gnomon stands
-/// in the UPPER of its two quarters — never behind the door it commands. A
-/// gnomon you can only reach through the passage it controls is a one-way
-/// trip, and the test pins what happens if anyone moves one (see the header).
-class Gnomon {
-  final String id;
-
-  /// The room the finger stands in. Always a room of [upper].
-  final String roomId;
-
-  /// Where in [roomId] the shaft is (the turn verb's reach).
-  final Offset shaft;
-
-  /// The quarter this gnomon stands in, and the quarter below it. The shadow
-  /// is in one of these two, always, and never in both.
-  final EclipseLeaf upper;
-  final EclipseLeaf lower;
-
-  /// One clause of scenery, for the reading and the render.
-  final String look;
-
-  const Gnomon({
-    required this.id,
-    required this.roomId,
-    required this.shaft,
-    required this.upper,
-    required this.lower,
-    required this.look,
-  });
-
-  /// True when this gnomon can put its shadow into [leaf].
-  bool serves(EclipseLeaf leaf) => leaf == upper || leaf == lower;
+/// A star set in a wall, shining one way. [star] is the dungeon star whose
+/// winning lights it; null burns from the start.
+class SunEmitter {
+  final int x, y, d;
+  final int? star;
+  const SunEmitter(this.x, this.y, this.d, this.star);
 }
 
-/// Nythralor's three gnomons, chained down the vault. Three shadows over four
-/// quarters is what makes the whole thing zero-sum: there are never enough
-/// shadows to darken everything and never few enough to light it.
-const List<Gnomon> kVaultGnomons = [
-  // THE PORCH GNOMON. Stands in the entrance, and the planet teaches itself
-  // here in one object: the porch's two ways out are the two quarters this
-  // finger stands between, so it can never give you both at once by itself.
-  Gnomon(
-    id: 'gn_porch',
-    roomId: 'pall_porch',
-    shaft: Offset(360, 250),
-    upper: EclipseLeaf.pall,
-    lower: EclipseLeaf.gallery,
-    look: 'the porch gnomon, black glass on a bronze collar',
-  ),
-  // THE WALK GNOMON. It commands the gallery/ossuary line from ABOVE it —
-  // which is what keeps the lower half of the vault from being a one-way
-  // trip, since nothing down there can reach back up to set the ossuary's
-  // shadow.
-  Gnomon(
-    id: 'gn_walk',
-    roomId: 'penumbral_walk',
-    shaft: Offset(420, 270),
-    upper: EclipseLeaf.gallery,
-    lower: EclipseLeaf.ossuary,
-    look: 'the walk gnomon, leaning where the colonnade breaks',
-  ),
-  // THE STAIR GNOMON. The deep quarter's only control, and it deliberately
-  // does NOT stand in the deep. Noctryos is the one thing that can turn it
-  // from below, through the arena's vane.
-  Gnomon(
-    id: 'gn_stair',
-    roomId: 'gnomon_stair',
-    shaft: Offset(380, 250),
-    upper: EclipseLeaf.ossuary,
-    lower: EclipseLeaf.deep,
-    look: 'the stair gnomon, taller than the stair it stands on',
-  ),
-];
-
-Gnomon? vaultGnomonById(String id) {
-  for (final g in kVaultGnomons) {
-    if (g.id == id) return g;
-  }
-  return null;
-}
-
-Gnomon? vaultGnomonIn(String roomId) {
-  for (final g in kVaultGnomons) {
-    if (g.roomId == roomId) return g;
-  }
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────
-// SPANS — the map, in both states at once
-// ─────────────────────────────────────────────────────────
-
-/// How the eclipse cut a passage.
-enum SpanCut {
-  /// A shadow-way. There is no threshold and no door — it is a hole in the
-  /// dark, and where there is light there is no hole. Every crossing between
-  /// two quarters is one of these, cut through the LOWER quarter, which is
-  /// why you only ever go DOWN into Nythralor through shadow.
-  shadowWay,
-
-  /// A light-walk. A pale causeway with a floor you can see. Every passage
-  /// INSIDE a quarter is one of these, so a quarter in shadow is split from
-  /// itself and a quarter in light is whole.
-  lightWalk,
-
-  /// The one passage the eclipse does not reach: the rood door. It is
-  /// phase-free on purpose — see the header, reason 4.
-  unmoved,
-}
-
-/// One passage of the vault, authored once and read from both ends.
-///
-/// The layout test enforces that EVERY door has a reciprocal door, statically
-/// (§5.5 keeps that invariant for the whole game). A map whose connectivity
-/// changes at runtime lives inside that rule the only honest way, the one
-/// Crystal established and Plant reused: **the doors are constant and
-/// reciprocal, and what varies is whether the passage exists in the state the
-/// vault is currently in.**
-class VaultSpan {
-  final String id;
-  final String from;
-  final String to;
-  final SpanCut cut;
-
-  /// The quarter this passage is cut through — the one whose state decides
-  /// it. Null exactly when [cut] is [SpanCut.unmoved].
-  final EclipseLeaf? leaf;
-
-  /// One clause naming the passage, used by the blocked line and the render.
-  final String look;
-
-  const VaultSpan({
-    required this.id,
-    required this.from,
-    required this.to,
-    required this.cut,
-    required this.look,
-    this.leaf,
-  });
-
-  bool joins(String a, String b) =>
-      (from == a && to == b) || (from == b && to == a);
-}
-
-/// The whole vault as passages. Twelve, and every room pair appears exactly
-/// once — so a door and a span are one-to-one and the no-strand proof cannot
-/// drift from the doors the player actually meets.
-const List<VaultSpan> kVaultSpans = [
-  // ── QUARTER I · THE PALL ─────────────────────────────
-  // The pall quarter is the only one whose gnomon stands INSIDE it, so it is
-  // the only one that can afford both its ways out to be shadow-ways: the
-  // creep and the pall arch are the two leaves of the porch gnomon, and its
-  // shadow is always in one of them. Every other quarter is held open by a
-  // TWINNED crossing instead (see the header's promise rules).
-  VaultSpan(
-    id: 'sp_creep',
-    from: 'pall_porch',
-    to: 'analemma_court',
-    cut: SpanCut.shadowWay,
-    leaf: EclipseLeaf.pall,
-    look: 'the creep along the porch wall',
-  ),
-  // The entrance's other way out, and the vault's first lesson: one of these
-  // two is always shut, and the finger that decides stands between them.
-  VaultSpan(
-    id: 'sp_pall',
-    from: 'pall_porch',
-    to: 'shade_gallery',
-    cut: SpanCut.shadowWay,
-    leaf: EclipseLeaf.gallery,
-    look: 'the pall arch',
-  ),
-  VaultSpan(
-    id: 'sp_lychway',
-    from: 'analemma_court',
-    to: 'penumbral_walk',
-    cut: SpanCut.shadowWay,
-    leaf: EclipseLeaf.gallery,
-    look: 'the lych-way',
-  ),
-
-  // ── QUARTER II · THE GALLERY ─────────────────────────
-  VaultSpan(
-    id: 'sp_colonnade',
-    from: 'shade_gallery',
-    to: 'penumbral_walk',
-    cut: SpanCut.lightWalk,
-    leaf: EclipseLeaf.gallery,
-    look: 'the colonnade',
-  ),
-  VaultSpan(
-    id: 'sp_shaft',
-    from: 'shade_gallery',
-    to: 'ossuary_ring',
-    cut: SpanCut.shadowWay,
-    leaf: EclipseLeaf.ossuary,
-    look: 'the dry well shaft',
-  ),
-  VaultSpan(
-    id: 'sp_stairhead',
-    from: 'penumbral_walk',
-    to: 'gnomon_stair',
-    cut: SpanCut.shadowWay,
-    leaf: EclipseLeaf.ossuary,
-    look: 'the stair head',
-  ),
-
-  // ── QUARTER III · THE OSSUARY ────────────────────────
-  VaultSpan(
-    id: 'sp_ambulatory',
-    from: 'gnomon_stair',
-    to: 'ossuary_ring',
-    cut: SpanCut.lightWalk,
-    leaf: EclipseLeaf.ossuary,
-    look: 'the ambulatory',
-  ),
-  VaultSpan(
-    id: 'sp_gulf',
-    from: 'gnomon_stair',
-    to: 'abyssal_font',
-    cut: SpanCut.shadowWay,
-    leaf: EclipseLeaf.deep,
-    look: 'the gulf under the last step',
-  ),
-  VaultSpan(
-    id: 'sp_causeway',
-    from: 'ossuary_ring',
-    to: 'eclipse_nave',
-    cut: SpanCut.shadowWay,
-    leaf: EclipseLeaf.deep,
-    look: 'the causeway',
-  ),
-
-  // ── QUARTER IV · THE DEEP ────────────────────────────
-  VaultSpan(
-    id: 'sp_undercroft',
-    from: 'abyssal_font',
-    to: 'eclipse_nave',
-    cut: SpanCut.lightWalk,
-    leaf: EclipseLeaf.deep,
-    look: 'the undercroft',
-  ),
-  // THE VAULT (§5.5): while the deep stands in light there is no slot and no
-  // room — not a door you have not opened, a room that is not there. The
-  // party can only ever be inside it while the deep lies in shadow, and
-  // nothing in the reliquary can change that, which is what keeps the trick
-  // from being a trap (Ice's shelf rule; see the header, reason 2).
-  VaultSpan(
-    id: 'sp_slot',
-    from: 'abyssal_font',
-    to: 'umbral_reliquary',
-    cut: SpanCut.shadowWay,
-    leaf: EclipseLeaf.deep,
-    look: 'the slot in the font\'s west wall',
-  ),
-  // The one passage the eclipse never touches.
-  VaultSpan(
-    id: 'sp_rood',
-    from: 'eclipse_nave',
-    to: 'noctryos_totality',
-    cut: SpanCut.unmoved,
-    look: 'the rood door',
-  ),
-];
-
-/// The span joining these two rooms, or null. One pair, one span — pinned by
-/// the tests.
-VaultSpan? vaultSpanBetween(String a, String b) {
-  for (final s in kVaultSpans) {
-    if (s.joins(a, b)) return s;
-  }
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────
-// STAR 0 — THE ANALEMMA
-// ─────────────────────────────────────────────────────────
-
-/// One of the four shadow-stones standing on the analemma court's floor dial.
-///
-/// Star 0 is the planet's FIRST-DESCENT star (§4): it is earnable by ANY trio
-/// of Dark/Poison/Spirit, uses all three elements at full power, and needs no
-/// anchor unlocked and no portal walked. It teaches the whole planet in one
-/// errand — a stone can only be seated while its OWN quarter lies in shadow,
-/// and the eclipse never leaves all four quarters in shadow at once, so the
-/// dial cannot be finished in one shape of the vault. It is not four verbs;
-/// it is at least two arrangements, and a walk to a gnomon and back between
-/// them.
-///
-/// §6 put a Darkmask gate on this planet's FIRST star (flipping room states).
-/// §4's first-descent guarantee wins: the flipping verb is element-only Dark
-/// and the Darkmask gate has moved onto the rite's reredos, exactly as Plant
-/// moved its Plantmane gate off Star 0 and onto the rood screen.
-class ShadowStone {
-  final String id;
-
-  /// The quarter this stone reads. It seats only while that quarter is dark.
-  final EclipseLeaf leaf;
-
-  /// The element that seats it. Element-only (§4) — any family, full power.
-  /// All three of the planet's entry elements appear, so the ideal trio is
-  /// not required and any correct-element party finishes the dial.
-  final String element;
-
-  /// Where on the dial it stands.
-  final Offset position;
-
-  const ShadowStone({
-    required this.id,
-    required this.leaf,
-    required this.element,
-    required this.position,
+/// One circuit: every trigger (plate or seal) live at once holds every door.
+class SunCircuit {
+  final List<SunCell> triggers;
+  final List<SunCell> doors;
+  final bool latch;
+  const SunCircuit({
+    required this.triggers,
+    required this.doors,
+    this.latch = false,
   });
 }
 
-/// The four stones, in the order the dial reads them (they may be seated in
-/// any order — nothing here is a sequence; Fire owns that seat).
-const List<ShadowStone> kShadowStones = [
-  ShadowStone(
-    id: 'stone_pall',
-    leaf: EclipseLeaf.pall,
-    element: 'Dark',
-    position: Offset(250, 200),
-  ),
-  ShadowStone(
-    id: 'stone_gallery',
-    leaf: EclipseLeaf.gallery,
-    element: 'Spirit',
-    position: Offset(350, 150),
-  ),
-  ShadowStone(
-    id: 'stone_ossuary',
-    leaf: EclipseLeaf.ossuary,
-    element: 'Poison',
-    position: Offset(450, 200),
-  ),
-  ShadowStone(
-    id: 'stone_deep',
-    leaf: EclipseLeaf.deep,
-    element: 'Dark',
-    position: Offset(350, 260),
-  ),
-];
+/// Squares nothing walks through (a shut door is decided at runtime).
+const String kSunSolid = '#Owr><^v';
 
-ShadowStone? shadowStoneById(String id) {
-  for (final s in kShadowStones) {
-    if (s.id == id) return s;
-  }
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────
-// STAR 1 — THE SHADOW-PORTALS
-// ─────────────────────────────────────────────────────────
-
-/// A shadow-anchor: an iron ring driven into the dark, one at each end of a
-/// portal (§6's "shadow-portal maze — Spirit reveals destinations, Poisonpip
-/// unlocks anchors").
-///
-/// The ring is rusted into its socket. A **Poison PIP** — the planet's one
-/// star-level family gate (§4: max one per star) — is small enough to work
-/// inside the ring and its venom is what eats the rust. Once unlocked the
-/// portal is permanent for the run.
-///
-/// A portal is a hole in the dark, so it carries you only while **BOTH its
-/// ends lie in shadow** — which is the mechanic folded back into the eclipse
-/// rather than bolted beside it. Note what this does NOT do: it never removes
-/// a passage. Anchors are the only irreversible edits on the planet and they
-/// are purely additive, which is why they cannot strand (see the header).
-class ShadowAnchor {
+/// One room of the Black Sun, as authored.
+class SunRoomDef {
   final String id;
+  final List<String> map;
 
-  /// The two rooms the portal joins, and where each ring hangs. Either end
-  /// unlocks the pair — a rusted ring is a rusted ring from both sides.
-  final String near;
-  final String far;
-  final Offset nearRing;
-  final Offset farRing;
+  /// Where bodies come in by the room's door, in order: the first free one.
+  /// Also where a body falls back to.
+  final List<SunCell> arrivals;
 
-  /// One clause of scenery for the render and the blocked line.
-  final String look;
+  /// Explicit circuits; null means one circuit — every plate and seal in the
+  /// room together hold every door.
+  final List<SunCircuit>? circuits;
 
-  const ShadowAnchor({
-    required this.id,
-    required this.near,
-    required this.far,
-    required this.nearRing,
-    required this.farRing,
-    required this.look,
-  });
+  /// Whether the default circuit latches.
+  final bool latch;
 
-  bool touches(String roomId) => roomId == near || roomId == far;
+  /// Stars in the wall that burn only once a dungeon star is won
+  /// ((x, y) → star index).
+  final Map<SunCell, int> starGated;
 
-  String? other(String roomId) => roomId == near
-      ? far
-      : roomId == far
-      ? near
-      : null;
-
-  Offset? ringIn(String roomId) => roomId == near
-      ? nearRing
-      : roomId == far
-      ? farRing
-      : null;
-}
-
-/// The three anchors. Each joins two quarters that are NOT neighbours, so a
-/// portal is always a real short-cut and never a duplicate of a span — and
-/// each wants a different pair of quarters in shadow, so no single
-/// arrangement of the gnomons walks all three. Star 1 is therefore a
-/// planning problem over the eclipse, not an errand.
-const List<ShadowAnchor> kVaultAnchors = [
-  // PALL ↔ OSSUARY. Wants the pall and the ossuary both dark.
-  ShadowAnchor(
-    id: 'an_court',
-    near: 'analemma_court',
-    far: 'ossuary_ring',
-    nearRing: Offset(120, 380),
-    farRing: Offset(140, 420),
-    look: 'the ring under the dial\'s north stone',
-  ),
-  // GALLERY ↔ DEEP. Its far ring hangs inside the reliquary, so once this one
-  // is open the vault has a second mouth — never the only one, though: the
-  // slot is open in every arrangement this portal is.
-  ShadowAnchor(
-    id: 'an_walk',
-    near: 'penumbral_walk',
-    far: 'umbral_reliquary',
-    nearRing: Offset(660, 430),
-    farRing: Offset(120, 250),
-    look: 'the ring in the walk\'s broken pier',
-  ),
-  // DEEP ↔ PALL. The long one, and the way back up out of the nave.
-  ShadowAnchor(
-    id: 'an_nave',
-    near: 'eclipse_nave',
-    far: 'pall_porch',
-    nearRing: Offset(660, 440),
-    farRing: Offset(140, 380),
-    look: 'the ring behind the nave\'s cold stoup',
-  ),
-];
-
-ShadowAnchor? vaultAnchorById(String id) {
-  for (final a in kVaultAnchors) {
-    if (a.id == id) return a;
-  }
-  return null;
-}
-
-List<ShadowAnchor> vaultAnchorsIn(String roomId) => [
-  for (final a in kVaultAnchors)
-    if (a.touches(roomId)) a,
-];
-
-// ─────────────────────────────────────────────────────────
-// THE LIVE STATE — pure rules, no Flutter, no engine
-// ─────────────────────────────────────────────────────────
-
-/// Everything Nythralor tracks for one run.
-///
-/// Kept deliberately small: this planet's whole difficulty is a REACHABILITY
-/// question, so the state is the one thing reachability depends on — where
-/// each gnomon's shadow lies — plus the per-star tallies.
-class EclipseVault {
-  EclipseVault() {
-    reset();
-  }
-
-  /// Which of its two quarters each gnomon's shadow lies in, keyed by
-  /// [Gnomon.id]. This IS the map: everything else is derived.
-  final Map<String, EclipseLeaf> shadow = {};
-
-  /// Shadow-stones seated on the analemma (Star 0).
-  final Set<String> stonesSeated = {};
-
-  /// Anchors whose rust a Poison pip has eaten (Star 1's prerequisite).
-  final Set<String> anchorsOpen = {};
-
-  /// Anchors whose far end a Spirit hand has read. Purely informational —
-  /// walking an unread portal works, you just do not know where it goes.
-  final Set<String> anchorsRead = {};
-
-  /// Portals actually WALKED (Star 1's success). Unlocking is not enough;
-  /// the star is the transit, which is what makes it an eclipse problem.
-  final Set<String> portalsWalked = {};
-
-  /// THE ABYSS (the Lost Maxim). The font's hole has a bottom after all, and
-  /// on it lies the vault's FOURTH FINGER, fallen an age ago, chained to a
-  /// rusted ring at the rim. It shows only while the Deep stands in LIGHT —
-  /// the one arrangement the whole lower vault punishes — and it comes up in
-  /// three beats: a Spirit hand reads how much chain there is, a Poison pip
-  /// eats the rust off the ring, and a Dark hand hauls, one length a press.
-  bool abyssRead = false;
-  bool abyssChainFree = false;
-  int abyssHauls = 0;
-
-  /// Lengths of chain between the rim and the fallen finger.
-  static const int abyssChainLengths = 3;
-
-  /// The finger stands: every length hauled in.
-  bool get abyssRaised => abyssHauls >= abyssChainLengths;
-
-  /// Seconds left on the inversion wipe. Purely visual, and named here so the
-  /// render has nowhere else to keep it.
-  double wipe = 0;
-
-  /// The quarters that were in shadow before the last turn — what the wipe
-  /// shows ahead of its edge while it crosses the room. Visual only.
-  Set<EclipseLeaf> wipeFrom = {};
-
-  /// How many times the vault has been turned inside out — the readout's
-  /// second line, and the closest thing this planet has to a price tag.
-  int inversions = 0;
-
-  /// Nythralor as the eclipse left it: the pall, the gallery and the ossuary
-  /// in shadow, and only the deep in light. The porch's one open road is the
-  /// pall arch, so the run begins with a single choice of direction and the
-  /// court shut behind the porch's own gnomon — the planet, in one room.
-  void reset() {
-    shadow
-      ..clear()
-      ..['gn_porch'] = EclipseLeaf.pall
-      ..['gn_walk'] = EclipseLeaf.gallery
-      ..['gn_stair'] = EclipseLeaf.ossuary;
-    stonesSeated.clear();
-    anchorsOpen.clear();
-    anchorsRead.clear();
-    portalsWalked.clear();
-    abyssRead = false;
-    abyssChainFree = false;
-    abyssHauls = 0;
-    wipe = 0;
-    wipeFrom = {};
-    inversions = 0;
-  }
-
-  // ── The eclipse ───────────────────────────────────────
-
-  /// Where [gnomonId]'s shadow lies right now.
-  EclipseLeaf shadowOf(String gnomonId) =>
-      shadow[gnomonId] ?? vaultGnomonById(gnomonId)!.upper;
-
-  /// A quarter is dark iff SOME gnomon's shadow lies in it. Two gnomons can
-  /// both point at the same quarter — which is the deeper lesson of the
-  /// planet: a quarter's shadow can come off either finger that touches it,
-  /// so "which shadow do I spend here" is a real question.
-  bool isDark(EclipseLeaf leaf) => shadow.values.contains(leaf);
-
-  bool isLit(EclipseLeaf leaf) => !isDark(leaf);
-
-  /// The quarters standing in light. Never more than two, and never two that
-  /// share a gnomon (see the header's algebra).
-  List<EclipseLeaf> get litLeaves => [
-    for (final l in EclipseLeaf.values)
-      if (isLit(l)) l,
-  ];
-
-  /// Turn a gnomon: its shadow crosses to the other quarter it serves. The
-  /// leaf it leaves comes up, the leaf it enters goes down. Always legal,
-  /// always reversible — reason 1 of the no-strand proof.
-  ///
-  /// Returns the quarter the shadow moved INTO, or null if there is no such
-  /// gnomon.
-  EclipseLeaf? turn(String gnomonId) {
-    final g = vaultGnomonById(gnomonId);
-    if (g == null) return null;
-    final next = shadowOf(gnomonId) == g.upper ? g.lower : g.upper;
-    wipeFrom = {
-      for (final l in EclipseLeaf.values)
-        if (isDark(l)) l,
-    };
-    shadow[gnomonId] = next;
-    inversions++;
-    return next;
-  }
-
-  // ── The map, in the state the vault is in ─────────────
-
-  /// Whether [span] EXISTS right now. A shadow-way is there while its quarter
-  /// lies in shadow; a light-walk while its quarter stands in light; the rood
-  /// door always.
-  bool spanOpen(VaultSpan span) => switch (span.cut) {
-    SpanCut.unmoved => true,
-    SpanCut.shadowWay => isDark(span.leaf!),
-    SpanCut.lightWalk => isLit(span.leaf!),
-  };
-
-  /// Whether a portal carries right now: unlocked, and BOTH ends in shadow.
-  bool portalOpen(ShadowAnchor a, Map<String, EclipseLeaf> leafOfRoom) {
-    if (!anchorsOpen.contains(a.id)) return false;
-    final n = leafOfRoom[a.near];
-    final f = leafOfRoom[a.far];
-    if (n == null || f == null) return false;
-    return isDark(n) && isDark(f);
-  }
-
-  // ── Star 0 ────────────────────────────────────────────
-
-  bool get analemmaWoken => stonesSeated.length >= kShadowStones.length;
-
-  /// Whether [stone] can be seated in the arrangement the vault is in.
-  bool canSeat(ShadowStone stone) =>
-      !stonesSeated.contains(stone.id) && isDark(stone.leaf);
-
-  // ── Star 1 ────────────────────────────────────────────
-
-  bool get everyPortalWalked => portalsWalked.length >= kVaultAnchors.length;
-}
-
-// ─────────────────────────────────────────────────────────
-// PER-ROOM VAULT CONTENT
-// ─────────────────────────────────────────────────────────
-
-/// Everything the Eclipse Vault put in one room. Carried on
-/// `DungeonRoom.eclipse` so exactly one field had to be added to the shared
-/// room model, and so a room's star index and its QUARTER are visible to the
-/// layout invariants and to the proof.
-class EclipseHall {
-  /// The quarter this room lies in. Required — the whole planet is this.
-  final EclipseLeaf leaf;
-
-  /// The star this room banks (null = a connective walk).
+  /// The dungeon star this chamber counts towards (null: not a chamber).
   final int? starIndex;
 
-  /// The entry rite: the pall itself, a curtain of shadow-cloth knotted
-  /// across the arch. Element-only Dark (§4).
-  final Offset? pallCurtain;
-
-  /// Star 0: the analemma dial, and the four stones standing on it.
-  final Offset? analemma;
-
-  /// The rite's black-glass reredos — the planet's Dark+MASK gate, authored
-  /// as conduit 'A' in the nave.
-  ///
-  /// The nave's other half is [snuffer]: an element-only Dark object the
-  /// module owns and which latches `conduitEnergy['B']` itself. Authoring it
-  /// as a family-less Conduit would let the engine's channel verb step over
-  /// it — the same reason Ice left its cold font out, Dust its great glass,
-  /// and Plant its sepulchre.
-  final Offset? snuffer;
-
-  /// The Lost Maxim: the abyss in the font's floor — the well the vault's
-  /// fourth finger fell down, which only shows its bottom in the light (see
-  /// [EclipseVault.abyssRead] and the module).
-  final Offset? abyss;
-
-  /// Noctryos's arena floor-vane: it turns the stair gnomon from down here.
-  /// The deep quarter has no gnomon of its own on purpose (see the header),
-  /// so this is the fight's verb AND the arena's safety belt.
-  final Offset? shadowVane;
-
-  const EclipseHall({
-    required this.leaf,
+  const SunRoomDef({
+    required this.id,
+    required this.map,
+    required this.arrivals,
+    this.circuits,
+    this.latch = false,
+    this.starGated = const {},
     this.starIndex,
-    this.pallCurtain,
-    this.analemma,
-    this.snuffer,
-    this.abyss,
-    this.shadowVane,
+  });
+
+  int get rows => map.length;
+  int get cols => map.first.length;
+  bool inside(int x, int y) => x >= 0 && y >= 0 && x < cols && y < rows;
+  String at(int x, int y) => inside(x, y) ? map[y][x] : '#';
+
+  /// Is there a goal pad in this room (a chamber)?
+  bool get isChamber => exits.isNotEmpty;
+
+  List<SunFace> get faces => _sunParsed(this).faces;
+  int? faceAt(int x, int y, int d) => _sunParsed(this).faceAt['$x,$y,$d'];
+  List<SunEmitter> get emitters => _sunParsed(this).emitters;
+  List<SunCell> get plates => _sunParsed(this).plates;
+  List<SunCell> get seals => _sunParsed(this).seals;
+  List<SunCell> get doors => _sunParsed(this).doors;
+  List<SunCell> get exits => _sunParsed(this).exits;
+  List<SunCircuit> get allCircuits => _sunParsed(this).circuits;
+}
+
+class _SunParse {
+  final List<SunFace> faces = [];
+  final Map<String, int> faceAt = {};
+  final List<SunEmitter> emitters = [];
+  final List<SunCell> plates = [], seals = [], doors = [], exits = [];
+  late final List<SunCircuit> circuits;
+}
+
+final Map<String, _SunParse> _sunParseCache = {};
+
+_SunParse _sunParsed(SunRoomDef d) => _sunParseCache.putIfAbsent(d.id, () {
+  final p = _SunParse();
+  for (var y = 0; y < d.rows; y++) {
+    for (var x = 0; x < d.cols; x++) {
+      final c = d.map[y][x];
+      if (c == 'O') {
+        for (var k = 0; k < 4; k++) {
+          final nx = x + kSunDx[k], ny = y + kSunDy[k];
+          if (!d.inside(nx, ny)) continue;
+          if (kSunSolid.contains(d.map[ny][nx])) continue;
+          p.faceAt['$x,$y,$k'] = p.faces.length;
+          p.faces.add(SunFace(x, y, k));
+        }
+      }
+      final ed = switch (c) {
+        '^' => 0,
+        '>' => 1,
+        'v' => 2,
+        '<' => 3,
+        _ => -1,
+      };
+      if (ed >= 0) {
+        p.emitters.add(SunEmitter(x, y, ed, d.starGated[(x: x, y: y)]));
+      }
+      if (c == 'p') p.plates.add((x: x, y: y));
+      if (c == 'w' || c == 'r') p.seals.add((x: x, y: y));
+      if (c == '|') p.doors.add((x: x, y: y));
+      if (c == 'E') p.exits.add((x: x, y: y));
+    }
+  }
+  p.circuits =
+      d.circuits ??
+      [
+        SunCircuit(
+          triggers: [...p.plates, ...p.seals],
+          doors: p.doors,
+          latch: d.latch,
+        ),
+      ];
+  return p;
+});
+
+// ─────────────────────────────────────────────────────────
+// THE STATE — one per descent
+// ─────────────────────────────────────────────────────────
+
+/// Everything the rules read that the player can change. Immutable: every
+/// action returns a new one, so the solver and the game share one set of
+/// sentences.
+class SunState {
+  /// Where each body is.
+  final Map<String, SunAt> pos;
+
+  /// Light's beam: the direction it shines, or -1.
+  final int shine;
+
+  /// Each Dark's two ends, I and II (null: not cast).
+  final Map<String, List<SunEnd?>> ends;
+
+  /// Latched circuits, as 'room#index'.
+  final Set<String> latched;
+
+  const SunState({
+    required this.pos,
+    this.shine = -1,
+    this.ends = const {
+      'purple': [null, null],
+      'orange': [null, null],
+    },
+    this.latched = const {},
+  });
+
+  SunState copyWith({
+    Map<String, SunAt>? pos,
+    int? shine,
+    Map<String, List<SunEnd?>>? ends,
+    Set<String>? latched,
+  }) => SunState(
+    pos: pos ?? this.pos,
+    shine: shine ?? this.shine,
+    ends: ends ?? this.ends,
+    latched: latched ?? this.latched,
+  );
+
+  SunState moved(String who, SunAt to) => copyWith(pos: {...pos, who: to});
+
+  SunState withEnd(String who, int end, SunEnd? at) {
+    final both = List<SunEnd?>.of(ends[who]!);
+    both[end] = at;
+    return copyWith(ends: {...ends, who: both});
+  }
+
+  /// A key for the search: the Darks' two ends are the same physics either
+  /// way round, so each Dark's pair is sorted.
+  String get encoded {
+    final b = StringBuffer();
+    for (final n in kSunBodies) {
+      final p = pos[n]!;
+      b.write('${p.room}.${p.x}.${p.y}|');
+    }
+    b.write('$shine|');
+    for (final o in kSunDarks) {
+      final e = [
+        for (final v in ends[o]!) v == null ? '-' : '${v.room}.${v.face}',
+      ]..sort();
+      b.write('${e.join(',')}|');
+    }
+    b.write((latched.toList()..sort()).join(','));
+    return b.toString();
+  }
+}
+
+/// The world the state lives in: the rooms, which dungeon stars are won,
+/// and which chambers are solved (a solved chamber's void is set solid and
+/// its doors stand open for good).
+class SunWorld {
+  final Map<String, SunRoomDef> rooms;
+  final Set<int> stars;
+  final Set<String> solved;
+
+  /// The doors between rooms, as the rules see them (the game's own doors
+  /// are `DungeonDoor`s; these mirror them so the solver can walk the whole
+  /// descent).
+  final List<SunLink> links;
+  const SunWorld({
+    this.rooms = kSunRooms,
+    this.stars = const {},
+    this.solved = const {},
+    this.links = kSunLinks,
   });
 }
 
-/// Every room's quarter, derived from the layout so the module, the render
-/// and the proof can never disagree about which quarter a room is in.
-Map<String, EclipseLeaf> vaultLeafOfRoom(DungeonLayout layout) => {
-  for (final e in layout.rooms.entries)
-    if (e.value.eclipse != null) e.key: e.value.eclipse!.leaf,
+/// A door between rooms: standing on its square in [room], a body can go
+/// through to [to]'s square (tx, ty). [heldBy] is a plate or seal in [room]
+/// that must be live for it to open (null: always open).
+class SunLink {
+  final String room;
+  final int x, y;
+  final String to;
+  final int tx, ty;
+  final SunCell? heldBy;
+  const SunLink(
+    this.room,
+    this.x,
+    this.y,
+    this.to,
+    this.tx,
+    this.ty, {
+    this.heldBy,
+  });
+}
+
+/// Is [l] open with the world as [e] has it?
+bool sunLinkOpen(SunLink l, SunEval e) =>
+    l.heldBy == null || e.live.contains(sunKey(l.room, l.heldBy!.x, l.heldBy!.y));
+
+/// [who], standing on [l]'s square, goes through it.
+SunResult sunTakeLink(SunWorld w, SunState s, String who, SunLink l, {SunEval? eval}) {
+  final p = s.pos[who]!;
+  if (p.room != l.room || p.x != l.x || p.y != l.y) {
+    return const SunResult.no('not at the door');
+  }
+  if (!w.rooms.containsKey(l.to)) return const SunResult.no('no room');
+  final e = eval ?? sunEvaluate(w, s);
+  if (!sunLinkOpen(l, e)) return const SunResult.no('door');
+  if (sunBodyAt(s, l.to, l.tx, l.ty, who) != null) {
+    return const SunResult.no('body');
+  }
+  return sunPlace(w, s, who, (room: l.to, x: l.tx, y: l.ty));
+}
+
+// ─────────────────────────────────────────────────────────
+// THE RULES (pure — the same sentences as the prototype's engine)
+// ─────────────────────────────────────────────────────────
+
+/// One beam, as drawn: its points and what it had been through at each.
+class SunBeamPoint {
+  final String room;
+  final double x, y; // grid units (square centres; mouths at the face)
+  final int via; // 1 purple, 2 orange, 3 both (blood)
+  final bool jump; // arrived through a portal (no line to it)
+  const SunBeamPoint(this.room, this.x, this.y, this.via, {this.jump = false});
+}
+
+class SunBeam {
+  final String from; // 'light' or 'star'
+  final List<SunBeamPoint> path;
+  final String end; // 'wall', 'seal', 'drunk', 'loop', 'lone mouth', …
+  const SunBeam(this.from, this.path, this.end);
+
+  /// A light that does not end: it went round through a portal and came back
+  /// to where it had already been.
+  bool get loopsThroughPortal => end == 'loop' && path.any((p) => p.jump);
+}
+
+/// What the world looks like in [s]: which squares are lit (and how), which
+/// seals burn, which doors stand open, and every beam's road.
+class SunEval {
+  final Map<String, Map<int, int>> lit; // room → square key → colour bits
+  final Set<String> sealsLit; // 'room:x,y'
+  final Set<String> live; // triggers live, 'room:x,y'
+  final Set<String> open; // doors open, 'room:x,y'
+  final Set<String> nowLatched; // circuits that latch now, 'room#i'
+  final List<SunBeam> beams;
+  const SunEval({
+    required this.lit,
+    required this.sealsLit,
+    required this.live,
+    required this.open,
+    required this.nowLatched,
+    required this.beams,
+  });
+
+  int litAt(String room, int x, int y) => lit[room]?[y * 64 + x] ?? 0;
+}
+
+String sunKey(String room, int x, int y) => '$room:$x,$y';
+
+/// Which body stands at (room, x, y), other than [except].
+String? sunBodyAt(SunState s, String room, int x, int y, [String? except]) {
+  for (final n in kSunBodies) {
+    if (n == except) continue;
+    final p = s.pos[n]!;
+    if (p.room == room && p.x == x && p.y == y) return n;
+  }
+  return null;
+}
+
+/// The portal end sitting on face [f] of [room], as (owner, end).
+(String, int)? sunMouthOn(SunState s, String room, int f) {
+  for (final o in kSunDarks) {
+    final e = s.ends[o]!;
+    for (var i = 0; i < 2; i++) {
+      final v = e[i];
+      if (v != null && v.room == room && v.face == f) return (o, i);
+    }
+  }
+  return null;
+}
+
+/// Where [mouth]'s pair leads, or null while the pair is not whole.
+SunEnd? sunPartner(SunState s, (String, int) mouth) =>
+    s.ends[mouth.$1]![1 - mouth.$2];
+
+bool _sunSolidAt(
+  SunWorld w,
+  SunRoomDef d,
+  Set<String> open,
+  int x,
+  int y,
+) {
+  final c = d.at(x, y);
+  if (kSunSolid.contains(c)) return true;
+  if (c == '|') return !open.contains(sunKey(d.id, x, y));
+  return false;
+}
+
+/// Doors hang off seals, seals off beams, beams off doors. Opening a door
+/// only ever LENGTHENS a beam, so starting with every door shut and opening
+/// what the circuits allow until nothing changes lands on one answer.
+SunEval sunEvaluate(SunWorld w, SunState s) {
+  final occupied = {
+    for (final n in kSunBodies) sunKey(s.pos[n]!.room, s.pos[n]!.x, s.pos[n]!.y),
+  };
+  var open = <String>{};
+  for (final d in w.rooms.values) {
+    for (final c in d.doors) {
+      final k = sunKey(d.id, c.x, c.y);
+      if (occupied.contains(k) || w.solved.contains(d.id)) open.add(k);
+    }
+    final cs = d.allCircuits;
+    for (var i = 0; i < cs.length; i++) {
+      if (!s.latched.contains('${d.id}#$i')) continue;
+      for (final c in cs[i].doors) {
+        open.add(sunKey(d.id, c.x, c.y));
+      }
+    }
+  }
+  late _SunTrace t;
+  var live = <String>{};
+  var nowLatched = <String>{};
+  for (var round = 0; round < 8; round++) {
+    t = _sunTraceAll(w, s, open);
+    live = {
+      for (final d in w.rooms.values)
+        for (final p in d.plates)
+          if (occupied.contains(sunKey(d.id, p.x, p.y))) sunKey(d.id, p.x, p.y),
+      ...t.sealsLit,
+    };
+    final next = {...open};
+    nowLatched = {};
+    for (final d in w.rooms.values) {
+      final cs = d.allCircuits;
+      for (var i = 0; i < cs.length; i++) {
+        final c = cs[i];
+        if (c.triggers.isEmpty) continue;
+        if (!c.triggers.every((q) => live.contains(sunKey(d.id, q.x, q.y)))) {
+          continue;
+        }
+        for (final q in c.doors) {
+          next.add(sunKey(d.id, q.x, q.y));
+        }
+        if (c.latch) nowLatched.add('${d.id}#$i');
+      }
+    }
+    if (next.length == open.length) break;
+    open = next;
+  }
+  return SunEval(
+    lit: t.lit,
+    sealsLit: t.sealsLit,
+    live: live,
+    open: open,
+    nowLatched: nowLatched,
+    beams: t.beams,
+  );
+}
+
+class _SunTrace {
+  final Map<String, Map<int, int>> lit = {};
+  final Set<String> sealsLit = {};
+  final List<SunBeam> beams = [];
+}
+
+_SunTrace _sunTraceAll(SunWorld w, SunState s, Set<String> open) {
+  final t = _SunTrace();
+  final lp = s.pos['light']!;
+  if (s.shine >= 0) _sunTrace(w, s, open, lp.room, lp.x, lp.y, s.shine, 'light', t);
+  for (final d in w.rooms.values) {
+    for (final e in d.emitters) {
+      if (e.star != null && !w.stars.contains(e.star)) continue;
+      _sunTrace(w, s, open, d.id, e.x, e.y, e.d, 'star', t);
+    }
+  }
+  return t;
+}
+
+void _sunTrace(
+  SunWorld w,
+  SunState s,
+  Set<String> open,
+  String room0,
+  int x0,
+  int y0,
+  int d0,
+  String from,
+  _SunTrace t,
+) {
+  var room = room0;
+  var x = x0, y = y0, d = d0, via = 0;
+  final path = <SunBeamPoint>[SunBeamPoint(room, x.toDouble(), y.toDouble(), 0)];
+  final seen = <String>{};
+  var end = 'wall';
+  for (var step = 0; step < 600; step++) {
+    final def = w.rooms[room]!;
+    final nx = x + kSunDx[d], ny = y + kSunDy[d];
+    final c = def.at(nx, ny);
+    if (!def.inside(nx, ny) || _sunSolidAt(w, def, open, nx, ny)) {
+      final hx = x + kSunDx[d] * .5, hy = y + kSunDy[d] * .5;
+      if (c == 'O') {
+        final f = def.faceAt(nx, ny, sunOpp(d));
+        final m = f == null ? null : sunMouthOn(s, room, f);
+        final p = m == null ? null : sunPartner(s, m);
+        if (m != null && p != null) {
+          path.add(SunBeamPoint(room, hx, hy, via));
+          via |= m.$1 == 'purple' ? 1 : 2;
+          final pd = w.rooms[p.room]!;
+          final pf = pd.faces[p.face];
+          room = p.room;
+          x = pf.x;
+          y = pf.y;
+          d = pf.d;
+          path.add(
+            SunBeamPoint(
+              room,
+              x + kSunDx[d] * .5,
+              y + kSunDy[d] * .5,
+              via,
+              jump: true,
+            ),
+          );
+          final k = '$room,$x,$y,$d,$via';
+          if (!seen.add(k)) {
+            end = 'loop';
+            break;
+          }
+          continue;
+        }
+        end = m != null ? 'lone mouth' : 'obsidian';
+      } else if (c == 'w' || c == 'r') {
+        final blood = via == 3;
+        if ((c == 'w' && !blood) || (c == 'r' && blood)) {
+          t.sealsLit.add(sunKey(room, nx, ny));
+        }
+        end = 'seal';
+      }
+      path.add(SunBeamPoint(room, hx, hy, via));
+      break;
+    }
+    x = nx;
+    y = ny;
+    final bits = via == 3 ? kSunBlood : kSunWhite;
+    final roomLit = t.lit.putIfAbsent(room, () => {});
+    roomLit[y * 64 + x] = (roomLit[y * 64 + x] ?? 0) | bits;
+    final b = sunBodyAt(s, room, x, y);
+    if (b == 'purple' || b == 'orange') {
+      path.add(SunBeamPoint(room, x.toDouble(), y.toDouble(), via));
+      end = 'drunk';
+      break;
+    }
+    final k = '$room,$x,$y,$d,$via';
+    if (!seen.add(k)) {
+      path.add(SunBeamPoint(room, x.toDouble(), y.toDouble(), via));
+      end = 'loop';
+      break;
+    }
+    path.add(SunBeamPoint(room, x.toDouble(), y.toDouble(), via));
+  }
+  t.beams.add(SunBeam(from, path, end));
+}
+
+/// Can a body stand on (room, x, y) with the world as [e] has it?
+bool sunHolds(SunWorld w, SunEval e, String room, int x, int y) {
+  final d = w.rooms[room]!;
+  final c = d.at(x, y);
+  if ('.pE*VDS'.contains(c)) return true;
+  if (c == '|') return e.open.contains(sunKey(room, x, y));
+  if (c == '~') {
+    return w.solved.contains(room) || (e.litAt(room, x, y) & kSunBlood) != 0;
+  }
+  return false;
+}
+
+/// The result of an action: the new state, who fell, and whether a body
+/// went through a portal. Or a reason it was refused.
+class SunResult {
+  final SunState? state;
+  final SunEval? eval;
+  final List<String> fell;
+  final (String, int)? through;
+  final String? why;
+  const SunResult.ok(
+    SunState this.state,
+    SunEval this.eval, {
+    this.fell = const [],
+    this.through,
+  }) : why = null;
+  const SunResult.no(String this.why)
+    : state = null,
+      eval = null,
+      fell = const [],
+      through = null;
+  bool get ok => why == null;
+}
+
+/// Anyone left over the void falls back to where their room lets them in.
+/// Repeats, since a fall can move a beam. Latches what has latched.
+({SunState state, SunEval eval, List<String> fell}) sunSettle(
+  SunWorld w,
+  SunState s0, [
+  SunEval? e0,
+]) {
+  var s = s0;
+  var e = e0 ?? sunEvaluate(w, s);
+  if (e.nowLatched.any((c) => !s.latched.contains(c))) {
+    s = s.copyWith(latched: {...s.latched, ...e.nowLatched});
+    e = sunEvaluate(w, s);
+  }
+  final fell = <String>[];
+  for (var round = 0; round < 4; round++) {
+    final down = [
+      for (final n in kSunBodies)
+        if (!sunHolds(w, e, s.pos[n]!.room, s.pos[n]!.x, s.pos[n]!.y)) n,
+    ];
+    if (down.isEmpty) break;
+    fell.addAll(down);
+    var pos = {...s.pos};
+    for (final n in down) {
+      pos[n] = (room: '-', x: -9, y: -9);
+    }
+    for (final n in down) {
+      final room = s.pos[n]!.room;
+      final l = sunLanding(w, s.copyWith(pos: pos), room, n);
+      pos = {...pos, n: l};
+    }
+    s = s.copyWith(pos: pos);
+    e = sunEvaluate(w, s);
+    if (e.nowLatched.any((c) => !s.latched.contains(c))) {
+      s = s.copyWith(latched: {...s.latched, ...e.nowLatched});
+      e = sunEvaluate(w, s);
+    }
+  }
+  return (state: s, eval: e, fell: fell);
+}
+
+/// Where a body lands in [room]: the room's first free arrival square, or
+/// the nearest free floor to it.
+SunAt sunLanding(SunWorld w, SunState s, String room, String who) {
+  final d = w.rooms[room]!;
+  for (final a in d.arrivals) {
+    if (sunBodyAt(s, room, a.x, a.y, who) == null) {
+      return (room: room, x: a.x, y: a.y);
+    }
+  }
+  final a0 = d.arrivals.first;
+  final q = [a0];
+  final seen = {'${a0.x},${a0.y}'};
+  for (var i = 0; i < q.length; i++) {
+    final c = q[i];
+    final ch = d.at(c.x, c.y);
+    if ('.pE*VDS'.contains(ch) && sunBodyAt(s, room, c.x, c.y, who) == null) {
+      return (room: room, x: c.x, y: c.y);
+    }
+    for (var k = 0; k < 4; k++) {
+      final n = (x: c.x + kSunDx[k], y: c.y + kSunDy[k]);
+      if (!d.inside(n.x, n.y) || kSunSolid.contains(d.at(n.x, n.y))) continue;
+      if (seen.add('${n.x},${n.y}')) q.add(n);
+    }
+  }
+  return (room: room, x: a0.x, y: a0.y);
+}
+
+/// Where [who] would land stepping [dir] — through a portal if it walks into
+/// one — or why it can't.
+({SunAt? to, (String, int)? through, String? why}) sunStepTarget(
+  SunWorld w,
+  SunState s,
+  SunEval e,
+  String who,
+  int dir,
+) {
+  final p = s.pos[who]!;
+  final d = w.rooms[p.room]!;
+  final nx = p.x + kSunDx[dir], ny = p.y + kSunDy[dir];
+  final c = d.at(nx, ny);
+  if (c == 'O') {
+    final f = d.faceAt(nx, ny, sunOpp(dir));
+    final m = f == null ? null : sunMouthOn(s, p.room, f);
+    if (m == null) return (to: null, through: null, why: 'obsidian');
+    final q = sunPartner(s, m);
+    if (q == null) return (to: null, through: null, why: 'lone mouth');
+    final qd = w.rooms[q.room]!;
+    final front = qd.faces[q.face].front;
+    if (sunBodyAt(s, q.room, front.x, front.y, who) != null) {
+      return (to: null, through: null, why: 'blocked exit');
+    }
+    if (!sunHolds(w, e, q.room, front.x, front.y)) {
+      return (to: null, through: null, why: 'exit over void');
+    }
+    return (to: (room: q.room, x: front.x, y: front.y), through: m, why: null);
+  }
+  if (!d.inside(nx, ny) || _sunSolidAt(w, d, e.open, nx, ny)) {
+    return (to: null, through: null, why: c == '|' ? 'door' : 'wall');
+  }
+  if (sunBodyAt(s, p.room, nx, ny, who) != null) {
+    return (to: null, through: null, why: 'body');
+  }
+  if (!sunHolds(w, e, p.room, nx, ny)) {
+    return (to: null, through: null, why: c == '~' ? 'void' : 'wall');
+  }
+  return (to: (room: p.room, x: nx, y: ny), through: null, why: null);
+}
+
+/// [who] steps [dir] (or is placed at [to], for a door or the game's own
+/// walking). Refused if it would leave the mover standing on nothing; anyone
+/// else it leaves on nothing falls back.
+SunResult sunMove(
+  SunWorld w,
+  SunState s,
+  String who,
+  int dir, {
+  SunEval? eval,
+}) {
+  final e = eval ?? sunEvaluate(w, s);
+  final t = sunStepTarget(w, s, e, who, dir);
+  if (t.why != null) return SunResult.no(t.why!);
+  return sunPlace(w, s, who, t.to!, through: t.through);
+}
+
+SunResult sunPlace(
+  SunWorld w,
+  SunState s,
+  String who,
+  SunAt to, {
+  (String, int)? through,
+}) {
+  var n = s.moved(who, to);
+  // Off the burning-glass, the beam goes out.
+  if (who == 'light' &&
+      n.shine >= 0 &&
+      w.rooms[to.room]!.at(to.x, to.y) != '*') {
+    n = n.copyWith(shine: -1);
+  }
+  final after = sunEvaluate(w, n);
+  if (!sunHolds(w, after, to.room, to.x, to.y)) {
+    return SunResult.no(who == 'light' ? 'own light' : 'would fall');
+  }
+  final r = sunSettle(w, n, after);
+  return SunResult.ok(r.state, r.eval, fell: r.fell, through: through);
+}
+
+/// Light shines [dir] (or goes out, [dir] < 0). Only from a burning-glass.
+SunResult sunShine(SunWorld w, SunState s, int dir) {
+  final p = s.pos['light']!;
+  if (dir >= 0 && w.rooms[p.room]!.at(p.x, p.y) != '*') {
+    return const SunResult.no('no lens');
+  }
+  final n = s.copyWith(shine: dir < 0 || s.shine == dir ? -1 : dir);
+  final r = sunSettle(w, n);
+  return SunResult.ok(r.state, r.eval, fell: r.fell);
+}
+
+/// The face a Dark would hit casting [dir]: the first solid thing straight
+/// ahead, if it is obsidian. Bodies and shut doors stop the cast.
+({int? face, String? why}) sunCastFace(
+  SunWorld w,
+  SunState s,
+  SunEval e,
+  String who,
+  int dir,
+) {
+  final p = s.pos[who]!;
+  final d = w.rooms[p.room]!;
+  var x = p.x, y = p.y;
+  for (var i = 0; i < 64; i++) {
+    x += kSunDx[dir];
+    y += kSunDy[dir];
+    if (!d.inside(x, y)) return (face: null, why: 'stone');
+    if (sunBodyAt(s, p.room, x, y) != null) return (face: null, why: 'body');
+    if (_sunSolidAt(w, d, e.open, x, y)) {
+      if (d.at(x, y) != 'O') return (face: null, why: 'stone');
+      final f = d.faceAt(x, y, sunOpp(dir));
+      return f == null ? (face: null, why: 'stone') : (face: f, why: null);
+    }
+  }
+  return (face: null, why: 'stone');
+}
+
+/// [who] casts end [end] (0 = I, 1 = II) [dir]. Casting onto the face the
+/// end already holds closes it.
+SunResult sunCast(
+  SunWorld w,
+  SunState s,
+  String who,
+  int end,
+  int dir, {
+  SunEval? eval,
+}) {
+  final e = eval ?? sunEvaluate(w, s);
+  final c = sunCastFace(w, s, e, who, dir);
+  if (c.why != null) return SunResult.no(c.why!);
+  final room = s.pos[who]!.room;
+  final m = sunMouthOn(s, room, c.face!);
+  final SunState n;
+  if (m != null && m.$1 == who && m.$2 == end) {
+    n = s.withEnd(who, end, null);
+  } else if (m != null) {
+    return const SunResult.no('taken');
+  } else {
+    n = s.withEnd(who, end, (room: room, face: c.face!));
+  }
+  final r = sunSettle(w, n);
+  return SunResult.ok(r.state, r.eval, fell: r.fell);
+}
+
+/// A chamber is solved with all three on its goal pads.
+bool sunChamberSolved(SunRoomDef d, SunState s) =>
+    d.isChamber &&
+    kSunBodies.every((n) {
+      final p = s.pos[n]!;
+      return p.room == d.id && d.at(p.x, p.y) == 'E';
+    });
+
+/// Every legal action from [s], labelled as the prototype labels them.
+List<(String, SunState)> sunActions(SunWorld w, SunState s) {
+  final e = sunEvaluate(w, s);
+  final out = <(String, SunState)>[];
+  for (final b in kSunBodies) {
+    for (var d = 0; d < 4; d++) {
+      final r = sunMove(w, s, b, d, eval: e);
+      if (r.ok) out.add(('$b ${kSunDirWord[d]}', r.state!));
+    }
+  }
+  final lp = s.pos['light']!;
+  if (s.shine >= 0 || w.rooms[lp.room]!.at(lp.x, lp.y) == '*') {
+    for (var d = -1; d < 4; d++) {
+      if (d == s.shine || (d < 0 && s.shine < 0)) continue;
+      final r = sunShine(w, s, d);
+      if (r.ok) {
+        out.add((d < 0 ? 'light dims' : 'light shines ${kSunDirWord[d]}', r.state!));
+      }
+    }
+  }
+  for (final b in kSunBodies) {
+    for (final l in w.links) {
+      final p = s.pos[b]!;
+      if (p.room != l.room || p.x != l.x || p.y != l.y) continue;
+      final r = sunTakeLink(w, s, b, l, eval: e);
+      if (r.ok) out.add(('$b takes the door to ${l.to}', r.state!));
+    }
+  }
+  for (final o in kSunDarks) {
+    for (var d = 0; d < 4; d++) {
+      if (sunCastFace(w, s, e, o, d).why != null) continue;
+      for (var end = 0; end < 2; end++) {
+        final r = sunCast(w, s, o, end, d, eval: e);
+        if (r.ok) {
+          out.add(('$o casts ${end == 0 ? 'I' : 'II'} ${kSunDirWord[d]}', r.state!));
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/// Replay a plan written the prototype's way ('purple casts I east',
+/// 'light south (through purple)', 'light shines east', 'light dims').
+/// Returns the end state, or the step that was refused.
+({SunState? state, String? failed}) sunReplay(
+  SunWorld w,
+  SunState s0,
+  List<String> plan,
+) {
+  var s = s0;
+  const dirs = {'north': 0, 'east': 1, 'south': 2, 'west': 3};
+  for (final step in plan) {
+    final words = step.replaceAll(RegExp(r' \(.*$| \[.*$'), '').split(' ');
+    final SunResult r;
+    if (words[1] == 'takes') {
+      final to = words.last;
+      final p = s.pos[words[0]]!;
+      final l = w.links.firstWhere(
+        (l) => l.room == p.room && l.x == p.x && l.y == p.y && l.to == to,
+        orElse: () => const SunLink('-', -1, -1, '-', -1, -1),
+      );
+      r = sunTakeLink(w, s, words[0], l);
+    } else if (words[1] == 'casts') {
+      r = sunCast(w, s, words[0], words[2] == 'II' ? 1 : 0, dirs[words[3]]!);
+    } else if (words[1] == 'shines') {
+      r = sunShine(w, s, dirs[words[2]]!);
+    } else if (words[1] == 'dims') {
+      r = sunShine(w, s, -1);
+    } else {
+      r = sunMove(w, s, words[0], dirs[words[1]]!);
+    }
+    if (!r.ok) return (state: null, failed: '$step: ${r.why}');
+    s = r.state!;
+  }
+  return (state: s, failed: null);
+}
+
+// ─────────────────────────────────────────────────────────
+// THE ROOMS — the prototype's maps, doorways and all
+// ─────────────────────────────────────────────────────────
+
+/// I · THE PORCH (the entry). The void splits it; a Dark casts both ends of
+/// its portal and everyone walks through to the Hall door.
+const SunRoomDef kSunPorch = SunRoomDef(
+  id: 'sun_porch',
+  map: [
+    '#######D###',
+    '#...~~~...#',
+    'O...~~~...O',
+    '#...~~~...#',
+    '###########',
+  ],
+  arrivals: [(x: 2, y: 1), (x: 1, y: 2), (x: 2, y: 3)],
+);
+
+/// THE HALL OF THE BLACK SUN — the hub that grows. A void with an island,
+/// the south ledge you arrive on, a far ledge in the north-east. Its two
+/// stars burn once the Nigredo Star is won, and crossing means routing them
+/// through both portals into blood bridges — one at a time, so the second
+/// crossing is cast from the island. The vault is the alcove on the west
+/// wall that only a bridge can see.
+const SunRoomDef kSunHall = SunRoomDef(
+  id: 'sun_hall',
+  map: [
+    '##O##O##D##',
+    '#~~~~~~#..#',
+    '#~~~~~~#..D',
+    '#~~~...~~~O',
+    '#~~~.S.~~~#',
+    'OV~~~~~~~~#',
+    '##........<',
+    '>.........O',
+    '#DO##D##D##',
+  ],
+  arrivals: [(x: 5, y: 7), (x: 4, y: 7), (x: 6, y: 7)],
+  starGated: {(x: 0, y: 7): 0, (x: 10, y: 6): 0},
+);
+
+/// II · THROUGH THE DARK. The burning-glass cannot see the white seal; the
+/// beam goes round the corner by portal.
+const SunRoomDef kSunChamberII = SunRoomDef(
+  id: 'through_the_dark',
+  map: [
+    '##D##w#######',
+    '#.........#E#',
+    '#.........#E#',
+    '#*........OE#',
+    '#.........|E#',
+    '#####O#######',
+  ],
+  arrivals: [(x: 2, y: 1), (x: 3, y: 1), (x: 1, y: 1)],
+  latch: true,
+  starIndex: 0,
+);
+
+/// III · TWO DARKS MAKE BLOOD. The red seal wants the beam through both
+/// portals; its road runs straight back through the burning-glass.
+const SunRoomDef kSunChamberIII = SunRoomDef(
+  id: 'two_darks',
+  map: [
+    '#O#r#D##',
+    '#......#',
+    '#*.....O',
+    '#......#',
+    '#O#O##|#',
+    '####EEE#',
+    '########',
+  ],
+  arrivals: [(x: 5, y: 1), (x: 4, y: 1), (x: 6, y: 1)],
+  latch: true,
+  starIndex: 0,
+);
+
+/// IV · WALK INTO THE LIGHT. A fixed star, both portals, and the blood
+/// bridge a Dark can only walk towards its source.
+const SunRoomDef kSunChamberIV = SunRoomDef(
+  id: 'into_the_light',
+  map: [
+    '##v##########',
+    '#...~~~~~EEE#',
+    '#...~~~~~...#',
+    '#...~~~~~~~~O',
+    'O...~~~~~~~~O',
+    '#...~~~~~~~~#',
+    '#DO##########',
+  ],
+  arrivals: [(x: 1, y: 5), (x: 3, y: 5), (x: 1, y: 4)],
+  starIndex: 1,
+);
+
+/// V · HOLD THE LIGHT. The seal is LIVE: whoever holds the burning-glass
+/// cannot leave by the door, and leaves by the dark.
+const SunRoomDef kSunChamberV = SunRoomDef(
+  id: 'hold_the_light',
+  map: [
+    '#O##r#######',
+    '#.......#EE#',
+    '#*......O.E#',
+    '#.......#..#',
+    'D.......|..#',
+    '#O##O#######',
+  ],
+  arrivals: [(x: 1, y: 4), (x: 2, y: 4), (x: 1, y: 3)],
+  starIndex: 1,
+);
+
+/// THE LANTERN — the rite's upper room, down the island's stair. Two
+/// lights: the star in its west wall, and Light's own burning-glass. The
+/// door down to the Heart stands open only while the WHITE SEAL by it burns
+/// — and only Light, shining from the glass, can light it. So only Light can
+/// hold the way down, and the moment it steps off the glass the door shuts:
+/// Light can never take the stairs. It comes down last, through the dark.
+const SunRoomDef kSunLantern = SunRoomDef(
+  id: 'sun_lantern',
+  map: [
+    '#####D####',
+    '#........#',
+    '>.......~O',
+    '#.*......#',
+    'O........#',
+    '##w##D####',
+  ],
+  arrivals: [(x: 5, y: 1), (x: 4, y: 1), (x: 6, y: 1)],
+);
+
+/// THE HEART — the rite. No light of its own: the Great Seal wants blood,
+/// and the only light is upstairs. Burning, it latches, opens the way down
+/// and wakes Noctryos.
+const SunRoomDef kSunHeart = SunRoomDef(
+  id: 'sun_heart',
+  map: [
+    '###OD#####',
+    '#........#',
+    'O........O',
+    '#........#',
+    '#........#',
+    '###r|#####',
+    '###...####',
+    '####D#####',
+  ],
+  arrivals: [(x: 4, y: 1), (x: 5, y: 1), (x: 3, y: 1)],
+  circuits: [
+    SunCircuit(
+      triggers: [(x: 3, y: 5)],
+      doors: [(x: 4, y: 5)],
+      latch: true,
+    ),
+  ],
+);
+
+/// The Great Seal's latch: blood has burned on it (the rite).
+const String kSunRiteLatch = 'sun_heart#0';
+
+/// The doors between rooms, as the rules see them.
+const List<SunLink> kSunLinks = [
+  SunLink('sun_porch', 7, 0, 'sun_hall', 5, 7),
+  SunLink('sun_hall', 5, 8, 'sun_porch', 7, 1),
+  SunLink('sun_hall', 1, 8, 'through_the_dark', 2, 1),
+  SunLink('through_the_dark', 2, 0, 'sun_hall', 1, 7),
+  SunLink('sun_hall', 8, 8, 'two_darks', 5, 1),
+  SunLink('two_darks', 5, 0, 'sun_hall', 8, 7),
+  SunLink('sun_hall', 8, 0, 'into_the_light', 1, 5),
+  SunLink('into_the_light', 1, 6, 'sun_hall', 8, 1),
+  SunLink('sun_hall', 10, 2, 'hold_the_light', 1, 4),
+  SunLink('hold_the_light', 0, 4, 'sun_hall', 9, 2),
+  SunLink('sun_hall', 5, 4, 'sun_lantern', 5, 1),
+  SunLink('sun_lantern', 5, 0, 'sun_hall', 4, 4),
+  // Down to the Heart: held by the white seal Light lights.
+  SunLink('sun_lantern', 5, 5, 'sun_heart', 4, 1, heldBy: (x: 2, y: 5)),
+  SunLink('sun_heart', 4, 0, 'sun_lantern', 5, 4),
+];
+
+/// Every grid room, by the id [SunBay.grid] names.
+const Map<String, SunRoomDef> kSunRooms = {
+  'sun_porch': kSunPorch,
+  'sun_hall': kSunHall,
+  'through_the_dark': kSunChamberII,
+  'two_darks': kSunChamberIII,
+  'into_the_light': kSunChamberIV,
+  'hold_the_light': kSunChamberV,
+  'sun_lantern': kSunLantern,
+  'sun_heart': kSunHeart,
 };
+
+/// The chambers each star needs solved.
+const Map<int, List<String>> kSunStarChambers = {
+  0: ['through_the_dark', 'two_darks'],
+  1: ['into_the_light', 'hold_the_light'],
+};
+
+/// The Great Seal in the Heart.
+const SunCell kSunGreatSeal = (x: 3, y: 5);
+
+/// The vault cache: the Hall's alcove.
+const SunCell kSunVault = (x: 1, y: 5);
+
+// ─────────────────────────────────────────────────────────
+// PER-ROOM CONTENT
+// ─────────────────────────────────────────────────────────
+
+/// What the Black Sun puts in one room: which grid it is (null for the
+/// arena, which is the engine's fight). Carried on `DungeonRoom.sun`.
+class SunBay {
+  final String? grid;
+  const SunBay.grid(String this.grid);
+  const SunBay.arena() : grid = null;
+
+  SunRoomDef? get def => grid == null ? null : kSunRooms[grid];
+
+  /// The star a chamber's solving counts towards (the pairs bank together).
+  int? get starIndex => def?.starIndex;
+}
 
 // ─────────────────────────────────────────────────────────
 // THE LAYOUT
 // ─────────────────────────────────────────────────────────
+//
+// A room's bounds are exactly its grid (64px squares). A 'D' square on a
+// room's edge is the doorway: its outer 24px is the door rect, and you
+// arrive through it on the square just inside. The island's stair is a door
+// in the floor. (Numbers, because the layout is const: see the grids.)
 
-/// Nythralor — the Eclipse Vault.
+/// Nythralor — the Black Sun.
 const DungeonLayout darkLayout = DungeonLayout(
   element: 'Dark',
-  entranceRoomId: 'pall_porch',
-  entranceSpawn: Offset(120, 240),
-  title: 'THE ECLIPSE VAULT',
+  entranceRoomId: 'sun_porch',
+  entranceSpawn: Offset(160, 160),
+  title: 'THE BLACK SUN',
   descentTitle: 'Nythralor Vault',
   stars: [
     DungeonStarSpec(
-      name: 'Analemma Star',
+      name: 'Nigredo Star',
       earnAnnouncement:
-          'The Analemma Star is yours. All four stones are seated',
+          'The Nigredo Star is yours. Two stars wake in the Hall',
     ),
     DungeonStarSpec(
-      name: 'Anchor Star',
+      name: 'Albedo Star',
       earnAnnouncement:
-          'The Anchor Star is yours. You\'ve travelled all three portals',
+          'The Albedo Star is yours. The stair on the island is open',
     ),
-    DungeonStarSpec(name: 'Totality Star'),
+    DungeonStarSpec(name: 'Rubedo Star'),
   ],
-  // The pall is knotted across the arch until a Dark hand draws it.
-  entranceRevealDoor: DungeonDoorRef('pall_porch', 'shade_gallery'),
-  finaleDoor: DungeonDoorRef('eclipse_nave', 'noctryos_totality'),
+  finaleDoor: DungeonDoorRef('sun_hall', 'sun_lantern'),
   riteAnnouncement:
-      'Analemma and Anchor are won. The lamps in the nave can be put out '
-      'now',
-  riteWakeLine:
-      'The reredos is read and the lamps are out. Noctryos is awake under '
-      'the rood',
+      'Nigredo and Albedo are won. The stair on the island is open',
+  riteWakeLine: 'Blood burns on the Great Seal. Noctryos wakes below',
   finaleSealedHint:
-      'The rood door stays shut until you have the Analemma and Anchor '
-      'stars',
+      'The stair stays shut until you have the Nigredo and Albedo stars',
   guardianSealedHint:
-      'Noctryos won\'t wake until the reredos is read and every lamp in the '
-      'nave is out',
-  mercyShrineRoomId: 'shade_gallery',
-  // Ideal: Darkmask · Poisonpip · Spiritmane — hinted by VERB, never body
-  // part (§4): the sight that pierces the hidden, what my smallest doors
-  // admit, and the road a walker leaves behind it.
+      'Noctryos won\'t wake until blood burns on the Great Seal',
+  mercyShrineRoomId: 'sun_hall',
   riddle: [
-    'Send me a Dark Mask: nothing in me is where the light says it is;',
-    'Poison, and any Pip, for every ring in me is rusted shut and my ways are holes;',
-    'and Spirit, because I keep no lamp to find you by.',
+    'Send me Dark, to open a black sun wherever it looks;',
+    'Dark again, for light must pass through both suns to bleed;',
+    'and Light, for I keep no light of my own.',
   ],
   primer: [
-    'Turning a gnomon moves a shadow and flips which paths are open.',
-    'Every path it opens closes another somewhere else.',
-  ],
-  // §4 budget: TWO hard gates, on two different objects and two different
-  // entry slots, and never two on one star. Star 0 (the analemma) is
-  // deliberately UNGATED and uses all three elements at full power, so any
-  // trio of Dark/Poison/Spirit progresses on a first descent — §6 put a
-  // Darkmask gate on this planet's FIRST star (flipping room states), and
-  // §4's first-descent guarantee wins, so that gate moved onto the rite's
-  // reredos. The gnomons themselves — the planet's whole verb — are
-  // element-only Dark and always available: a maze you cannot re-shape is a
-  // softlock, so the inversion verb is never gated and never one-way.
-  familyGates: [
-    DungeonFamilyGate(
-      objectId: 'anchor_ring',
-      element: kAnyElement,
-      family: 'Pip',
-      hintLine: 'Only a Pip is small enough to clear this ring',
-    ),
-    DungeonFamilyGate(
-      objectId: 'A',
-      element: 'Dark',
-      family: 'Mask',
-      hintLine: 'Only a Dark Mask can read this reredos',
-    ),
+    'Each Dark carries one portal. Light shines through them.',
+    'Through one Dark it stays light. Through both, it bleeds.',
   ],
   rooms: {
-    // ── THE PALL PORCH (entrance · quarter I) ─────────────
-    // The vault's threshold, and its whole grammar in one room: two ways out,
-    // and they are the two quarters the porch gnomon stands between. The
-    // glimmer runs west to the court while the PALL stands in light; the pall
-    // arch runs east to the gallery while the GALLERY lies in shadow. Turning
-    // the finger here always buys one and sells the other — unless the walk
-    // gnomon downstairs has already paid for the gallery's shadow, which is
-    // the lesson the planet spends the rest of the run on.
-    'pall_porch': DungeonRoom(
-      id: 'pall_porch',
-      bounds: Rect.fromLTWH(0, 0, 720, 460),
-      walls: [
-        Rect.fromLTWH(250, 90, 180, 26), // the fallen tympanum
-      ],
+    // ── I · THE PORCH (entrance) ── 11×5 ──────────────────
+    'sun_porch': DungeonRoom(
+      id: 'sun_porch',
+      bounds: Rect.fromLTWH(0, 0, 704, 320),
       doors: [
-        // The pall arch, east into the gallery (shadow-way, quarter II).
+        // (7,0) north → the Hall's south ledge, above its (5,8).
         DungeonDoor(
-          rect: Rect.fromLTWH(696, 175, 24, 110),
-          targetRoomId: 'shade_gallery',
-          targetSpawn: Offset(60, 260),
-        ),
-        // The glimmer, up into the court (light-walk, quarter I).
-        DungeonDoor(
-          rect: Rect.fromLTWH(300, 0, 110, 24),
-          targetRoomId: 'analemma_court',
-          targetSpawn: Offset(355, 330),
+          rect: Rect.fromLTWH(448, 0, 64, 24),
+          targetRoomId: 'sun_hall',
+          targetSpawn: Offset(352, 480),
         ),
       ],
-      eclipse: EclipseHall(
-        leaf: EclipseLeaf.pall,
-        pallCurtain: Offset(620, 220),
-      ),
+      sun: SunBay.grid('sun_porch'),
     ),
 
-    // ── THE ANALEMMA COURT (Star 0 · quarter I) ───────────
-    // The dial, and the four stones. The court carries NO gnomon on purpose:
-    // every seating is a separate arrival in a separate arrangement, and the
-    // walk out to a finger and back is the star. It is also the clearest case
-    // of the header's reason 2 — nothing can shut this room on you, because
-    // nothing in it can change the vault.
-    'analemma_court': DungeonRoom(
-      id: 'analemma_court',
-      bounds: Rect.fromLTWH(0, 0, 700, 480),
+    // ── THE HALL OF THE BLACK SUN (hub) ── 11×9 ───────────
+    'sun_hall': DungeonRoom(
+      id: 'sun_hall',
+      bounds: Rect.fromLTWH(0, 0, 704, 576),
       doors: [
-        // Back down the glimmer (light-walk, quarter I).
+        // (5,8) south → the porch.
         DungeonDoor(
-          rect: Rect.fromLTWH(300, 456, 110, 24),
-          targetRoomId: 'pall_porch',
-          targetSpawn: Offset(355, 140),
+          rect: Rect.fromLTWH(320, 552, 64, 24),
+          targetRoomId: 'sun_porch',
+          targetSpawn: Offset(480, 96),
         ),
-        // The lych-way, east to the penumbral walk (shadow-way, quarter II).
+        // (1,8) south → II.
         DungeonDoor(
-          rect: Rect.fromLTWH(676, 185, 24, 110),
-          targetRoomId: 'penumbral_walk',
-          targetSpawn: Offset(60, 400),
+          rect: Rect.fromLTWH(64, 552, 64, 24),
+          targetRoomId: 'through_the_dark',
+          targetSpawn: Offset(160, 96),
+        ),
+        // (8,8) south → III.
+        DungeonDoor(
+          rect: Rect.fromLTWH(512, 552, 64, 24),
+          targetRoomId: 'two_darks',
+          targetSpawn: Offset(352, 96),
+        ),
+        // (8,0) north, off the far ledge → IV.
+        DungeonDoor(
+          rect: Rect.fromLTWH(512, 0, 64, 24),
+          targetRoomId: 'into_the_light',
+          targetSpawn: Offset(96, 352),
+        ),
+        // (10,2) east, off the far ledge → V.
+        DungeonDoor(
+          rect: Rect.fromLTWH(680, 128, 24, 64),
+          targetRoomId: 'hold_the_light',
+          targetSpawn: Offset(96, 288),
+        ),
+        // The island's stair (5,4), down to the Lantern: a door in the floor.
+        DungeonDoor(
+          rect: Rect.fromLTWH(332, 268, 40, 40),
+          targetRoomId: 'sun_lantern',
+          targetSpawn: Offset(352, 96),
+          chromeless: true,
         ),
       ],
-      eclipse: EclipseHall(
-        leaf: EclipseLeaf.pall,
-        starIndex: 0,
-        analemma: Offset(350, 205),
-      ),
+      vaultCache: Offset(96, 352),
+      sun: SunBay.grid('sun_hall'),
     ),
 
-    // ── THE SHADE GALLERY (mercy shrine · quarter II) ─────
-    'shade_gallery': DungeonRoom(
-      id: 'shade_gallery',
-      bounds: Rect.fromLTWH(0, 0, 860, 520),
-      walls: [
-        Rect.fromLTWH(300, 240, 240, 30), // a toppled bier
-      ],
+    // ── II · THROUGH THE DARK ── 13×6 ─────────────────────
+    'through_the_dark': DungeonRoom(
+      id: 'through_the_dark',
+      bounds: Rect.fromLTWH(0, 0, 832, 384),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 205, 24, 110),
-          targetRoomId: 'pall_porch',
-          targetSpawn: Offset(640, 230),
-        ),
-        // The colonnade (light-walk, quarter II).
-        DungeonDoor(
-          rect: Rect.fromLTWH(836, 205, 24, 110),
-          targetRoomId: 'penumbral_walk',
-          targetSpawn: Offset(60, 170),
-        ),
-        // The dry well shaft, down into the ossuary (shadow-way, quarter III).
-        DungeonDoor(
-          rect: Rect.fromLTWH(380, 496, 110, 24),
-          targetRoomId: 'ossuary_ring',
-          targetSpawn: Offset(395, 120),
+          rect: Rect.fromLTWH(128, 0, 64, 24),
+          targetRoomId: 'sun_hall',
+          targetSpawn: Offset(96, 480),
         ),
       ],
-      eclipse: EclipseHall(leaf: EclipseLeaf.gallery),
+      teach: 'Light shines from the burning-glass',
+      sun: SunBay.grid('through_the_dark'),
     ),
 
-    // ── THE PENUMBRAL WALK (quarter II) ───────────────────
-    // The walk gnomon stands here, one quarter ABOVE the line it commands —
-    // the placement the whole lower half of the vault depends on. Nothing
-    // down in the ossuary or the deep can reach back up to set the ossuary's
-    // shadow, so if this finger stood down there the descent would be a
-    // one-way trip (the test pins exactly that).
-    'penumbral_walk': DungeonRoom(
-      id: 'penumbral_walk',
-      bounds: Rect.fromLTWH(0, 0, 820, 540),
+    // ── III · TWO DARKS MAKE BLOOD ── 8×7 ─────────────────
+    'two_darks': DungeonRoom(
+      id: 'two_darks',
+      bounds: Rect.fromLTWH(0, 0, 512, 448),
       doors: [
-        // Back along the colonnade (light-walk, quarter II).
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 120, 24, 110),
-          targetRoomId: 'shade_gallery',
-          targetSpawn: Offset(800, 260),
-        ),
-        // The lych-way back to the court (shadow-way, quarter II).
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 340, 24, 110),
-          targetRoomId: 'analemma_court',
-          targetSpawn: Offset(640, 245),
-        ),
-        // The stair head, down (shadow-way, quarter III).
-        DungeonDoor(
-          rect: Rect.fromLTWH(355, 516, 110, 24),
-          targetRoomId: 'gnomon_stair',
-          targetSpawn: Offset(380, 120),
+          rect: Rect.fromLTWH(320, 0, 64, 24),
+          targetRoomId: 'sun_hall',
+          targetSpawn: Offset(544, 480),
         ),
       ],
-      eclipse: EclipseHall(leaf: EclipseLeaf.gallery),
+      sun: SunBay.grid('two_darks'),
     ),
 
-    // ── THE GNOMON STAIR (quarter III) ────────────────────
-    // The stair gnomon: the deep quarter's only control, standing one quarter
-    // above it. Turning it down opens the gulf and, one room further in, the
-    // reliquary's slot — and takes the ossuary's shadow away with it, which
-    // is the run's sharpest single trade: the stair head you came down by
-    // shuts the moment the deep opens, unless the walk gnomon is already
-    // holding the ossuary dark for you.
-    'gnomon_stair': DungeonRoom(
-      id: 'gnomon_stair',
-      bounds: Rect.fromLTWH(0, 0, 760, 500),
+    // ── IV · WALK INTO THE LIGHT ── 13×7 ──────────────────
+    'into_the_light': DungeonRoom(
+      id: 'into_the_light',
+      bounds: Rect.fromLTWH(0, 0, 832, 448),
       doors: [
-        // Back up the stair head (shadow-way, quarter III).
         DungeonDoor(
-          rect: Rect.fromLTWH(325, 0, 110, 24),
-          targetRoomId: 'penumbral_walk',
-          targetSpawn: Offset(410, 440),
-        ),
-        // The ambulatory, round to the ring (light-walk, quarter III).
-        DungeonDoor(
-          rect: Rect.fromLTWH(736, 195, 24, 110),
-          targetRoomId: 'ossuary_ring',
-          targetSpawn: Offset(60, 270),
-        ),
-        // The gulf, down into the deep (shadow-way, quarter IV).
-        DungeonDoor(
-          rect: Rect.fromLTWH(200, 476, 110, 24),
-          targetRoomId: 'abyssal_font',
-          targetSpawn: Offset(255, 110),
+          rect: Rect.fromLTWH(64, 424, 64, 24),
+          targetRoomId: 'sun_hall',
+          targetSpawn: Offset(544, 96),
         ),
       ],
-      eclipse: EclipseHall(leaf: EclipseLeaf.ossuary),
+      sun: SunBay.grid('into_the_light'),
     ),
 
-    // ── THE OSSUARY RING (Star 1 · quarter III) ───────────
-    // The ring of shadow-anchors. No gnomon here either — the ring is a place
-    // you arrive at in an arrangement you chose somewhere else.
-    'ossuary_ring': DungeonRoom(
-      id: 'ossuary_ring',
-      bounds: Rect.fromLTWH(0, 0, 800, 540),
-      walls: [
-        Rect.fromLTWH(330, 230, 150, 32), // a stack of long bones
-      ],
+    // ── V · HOLD THE LIGHT ── 12×6 ────────────────────────
+    'hold_the_light': DungeonRoom(
+      id: 'hold_the_light',
+      bounds: Rect.fromLTWH(0, 0, 768, 384),
       doors: [
-        // Back up the dry well shaft (shadow-way, quarter III).
         DungeonDoor(
-          rect: Rect.fromLTWH(340, 0, 110, 24),
-          targetRoomId: 'shade_gallery',
-          targetSpawn: Offset(435, 430),
-        ),
-        // The ambulatory (light-walk, quarter III).
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 215, 24, 110),
-          targetRoomId: 'gnomon_stair',
-          targetSpawn: Offset(700, 250),
-        ),
-        // The causeway, down into the nave (shadow-way, quarter IV).
-        DungeonDoor(
-          rect: Rect.fromLTWH(350, 516, 110, 24),
-          targetRoomId: 'eclipse_nave',
-          targetSpawn: Offset(405, 120),
+          rect: Rect.fromLTWH(0, 256, 24, 64),
+          targetRoomId: 'sun_hall',
+          targetSpawn: Offset(608, 160),
         ),
       ],
-      eclipse: EclipseHall(leaf: EclipseLeaf.ossuary, starIndex: 1),
+      sun: SunBay.grid('hold_the_light'),
     ),
 
-    // ── THE ABYSSAL FONT (quarter IV) ─────────────────────
-    // The Lost Maxim's room (§6, "The Abyss"). The font's floor is a hole
-    // with no bottom, and it only answers a party that does nothing at all.
-    'abyssal_font': DungeonRoom(
-      id: 'abyssal_font',
-      bounds: Rect.fromLTWH(0, 0, 700, 480),
+    // ── THE LANTERN (the rite, above) ── 10×6 ─────────────
+    'sun_lantern': DungeonRoom(
+      id: 'sun_lantern',
+      bounds: Rect.fromLTWH(0, 0, 640, 384),
       doors: [
-        // Back up the gulf (shadow-way, quarter IV).
+        // (5,0) north → up the stair to the island.
         DungeonDoor(
-          rect: Rect.fromLTWH(250, 0, 110, 24),
-          targetRoomId: 'gnomon_stair',
-          targetSpawn: Offset(255, 400),
+          rect: Rect.fromLTWH(320, 0, 64, 24),
+          targetRoomId: 'sun_hall',
+          targetSpawn: Offset(288, 288),
         ),
-        // The undercroft, across to the nave (light-walk, quarter IV).
+        // (5,5) south → down to the Heart, while the white seal burns.
         DungeonDoor(
-          rect: Rect.fromLTWH(676, 185, 24, 110),
-          targetRoomId: 'eclipse_nave',
-          targetSpawn: Offset(60, 280),
-        ),
-        // The slot — the vault (shadow-way, quarter IV). While the deep
-        // stands in light this wall has nothing on it.
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 185, 24, 110),
-          targetRoomId: 'umbral_reliquary',
-          targetSpawn: Offset(350, 160),
+          rect: Rect.fromLTWH(320, 360, 64, 24),
+          targetRoomId: 'sun_heart',
+          targetSpawn: Offset(288, 96),
         ),
       ],
-      eclipse: EclipseHall(leaf: EclipseLeaf.deep, abyss: Offset(350, 250)),
+      sun: SunBay.grid('sun_lantern'),
     ),
 
-    // ── THE UMBRAL RELIQUARY (the vault · quarter IV) ─────
-    // §5.5's trick: the room only EXISTS in the dark state. You can only ever
-    // be standing in it while the deep lies in shadow, and nothing in here
-    // can change that — so the slot you came through is the slot you leave
-    // by, whatever happens outside (Ice's shelf rule). That is what keeps the
-    // trick from being a trap; see the no-strand proof.
-    'umbral_reliquary': DungeonRoom(
-      id: 'umbral_reliquary',
-      bounds: Rect.fromLTWH(0, 0, 420, 320),
+    // ── THE HEART (the rite, below) ── 10×8 ───────────────
+    'sun_heart': DungeonRoom(
+      id: 'sun_heart',
+      bounds: Rect.fromLTWH(0, 0, 640, 512),
       doors: [
+        // (4,0) north → back up to the Lantern.
         DungeonDoor(
-          rect: Rect.fromLTWH(396, 105, 24, 110),
-          targetRoomId: 'abyssal_font',
-          targetSpawn: Offset(60, 240),
+          rect: Rect.fromLTWH(256, 0, 64, 24),
+          targetRoomId: 'sun_lantern',
+          targetSpawn: Offset(352, 288),
         ),
-      ],
-      vaultCache: Offset(250, 160),
-      eclipse: EclipseHall(leaf: EclipseLeaf.deep),
-    ),
-
-    // ── THE ECLIPSE NAVE (the rite · quarter IV) ──────────
-    // Conduit A is the planet's Dark+MASK gate — the reredos of black glass,
-    // which shows nothing to a sight that only sees what is lit. The nave's
-    // own half is the SNUFFER: §6's S3, "extinguish every light", element-only
-    // Dark with **Poison+Spirit→Dark** authored as the braid for a party whose
-    // Dark hand is down. The module latches `conduitEnergy['B']` itself.
-    'eclipse_nave': DungeonRoom(
-      id: 'eclipse_nave',
-      bounds: Rect.fromLTWH(0, 0, 820, 560),
-      doors: [
-        // Back up the causeway (shadow-way, quarter IV).
+        // (4,7) south → down to Noctryos.
         DungeonDoor(
-          rect: Rect.fromLTWH(355, 0, 110, 24),
-          targetRoomId: 'ossuary_ring',
-          targetSpawn: Offset(405, 440),
-        ),
-        // The undercroft (light-walk, quarter IV).
-        DungeonDoor(
-          rect: Rect.fromLTWH(0, 225, 24, 110),
-          targetRoomId: 'abyssal_font',
-          targetSpawn: Offset(640, 240),
-        ),
-        // The rood door — the one passage the eclipse never touches.
-        DungeonDoor(
-          rect: Rect.fromLTWH(355, 536, 110, 24),
+          rect: Rect.fromLTWH(256, 488, 64, 24),
           targetRoomId: 'noctryos_totality',
-          targetSpawn: Offset(450, 140),
+          targetSpawn: Offset(450, 120),
         ),
       ],
-      conduits: [
-        Conduit(
-          id: 'A',
-          position: Offset(250, 270),
-          requireElement: 'Dark',
-          requiredFamily: DungeonAbility.insight,
-        ),
-      ],
-      eclipse: EclipseHall(leaf: EclipseLeaf.deep, snuffer: Offset(560, 270)),
+      sun: SunBay.grid('sun_heart'),
     ),
 
-    // ── NOCTRYOS' TOTALITY (Star 2 · quarter IV) ──────────
-    // §7 guardian principle — the mystic fights WITH the planet's rule.
-    // Noctryos does not darken the arena; it THROWS THE VAULT'S SHADOW. Every
-    // strike beat it turns the stair gnomon from where it stands, so the maze
-    // outside inverts while you fight, and its lull exists only while the
-    // DEEP lies in shadow — the one arrangement its own beat keeps taking
-    // away. The arena's floor-vane is your hand on the same finger, and the
-    // rood door is phase-free, so nothing here can ever shut you in.
+    // ── NOCTRYOS (Star 3) — the engine's fight; the enemies come out of
+    // black holes (the author's call: the boss is not a puzzle).
     'noctryos_totality': DungeonRoom(
       id: 'noctryos_totality',
       bounds: Rect.fromLTWH(0, 0, 900, 640),
       doors: [
         DungeonDoor(
           rect: Rect.fromLTWH(395, 0, 110, 24),
-          targetRoomId: 'eclipse_nave',
-          targetSpawn: Offset(410, 450),
+          targetRoomId: 'sun_heart',
+          targetSpawn: Offset(288, 416),
         ),
       ],
       guardian: GuardianNode(
-        position: Offset(450, 300),
+        position: Offset(450, 330),
         starIndex: 2,
         encounter: GuardianEncounterRequirement(
           element: 'Dark',
@@ -1257,10 +1380,15 @@ const DungeonLayout darkLayout = DungeonLayout(
           canDefeat: true,
         ),
       ),
-      eclipse: EclipseHall(
-        leaf: EclipseLeaf.deep,
-        shadowVane: Offset(450, 500),
-      ),
+      sun: SunBay.arena(),
     ),
   },
 );
+
+/// Black holes in the arena floor, where Noctryos' enemies come out.
+const List<Offset> kSunArenaHoles = [
+  Offset(170, 170),
+  Offset(730, 170),
+  Offset(170, 500),
+  Offset(730, 500),
+];
