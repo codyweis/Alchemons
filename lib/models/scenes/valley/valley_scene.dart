@@ -1,119 +1,101 @@
 import 'dart:ui';
+import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:flame/components.dart';
 
-// Updated _nextTo function with better clamping
-double _clampN(double x, {double min = 0.05, double max = 0.95}) =>
-    x < min ? min : (x > max ? max : x);
-
-const double kBattleOffsetX = 0.30;
-
-Offset _nextTo(Offset p) {
-  // Ensure we don't exceed normalized bounds
-  final shiftedX = p.dx <= 0.5 ? p.dx + kBattleOffsetX : p.dx - kBattleOffsetX;
-  return Offset(_clampN(shiftedX, max: 1.0), _clampN(p.dy, max: 1.0));
-}
-
 final valleySceneCorrected = SceneDefinition(
-  worldWidth: 1000,
+  // The Valley wraps round: pan either way for ever. A world width of 1400
+  // makes the meadow (which scrolls at twice the camera) about 3.7 screens
+  // round before it repeats.
+  worldWidth: 1400,
   worldHeight: 1000,
-  layers: [
-    LayerDefinition(
-      id: SceneLayer.layer1,
-      imagePath: 'backgrounds/scenes/valley/sky.png',
-      parallaxFactor: 0.0,
-      widthMul: 1.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer2,
-      imagePath: 'backgrounds/scenes/valley/clouds.png',
-      parallaxFactor: 0.1,
-      widthMul: 1.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer3,
-      imagePath: 'backgrounds/scenes/valley/backhills.png',
-      parallaxFactor: 0.35,
-      widthMul: 1.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer4,
-      imagePath: 'backgrounds/scenes/valley/hills.png',
-      parallaxFactor: 1.0,
-      widthMul: 1.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer5,
-      imagePath: 'backgrounds/scenes/valley/foreground.png',
-      parallaxFactor: 0.3,
-      widthMul: 1.0,
-    ),
+  loop: true,
+  // Drawn in code (lib/games/wilderness/field/valley_field.dart). The sky is
+  // the camera's backdrop, so it has no layer; nearest moves fastest.
+  art: ValleyField.new,
+  layers: const [
+    LayerDefinition(id: SceneLayer.layer2, imagePath: '', parallaxFactor: 0.1),
+    LayerDefinition(id: SceneLayer.layer3, imagePath: '', parallaxFactor: 0.35),
+    LayerDefinition(id: SceneLayer.layer4, imagePath: '', parallaxFactor: 1.0),
+    LayerDefinition(id: SceneLayer.layer5, imagePath: '', parallaxFactor: 1.6),
   ],
+  // Every point says what holds its creature up. The sky points only take
+  // creatures that can float; the field builds something under each of the
+  // others (the hill lifts under the hillside point, a boulder stands under
+  // the high meadow point). Sky points sit on the hill layer, so a partner
+  // that cannot float has ground beneath it.
+  //
+  // In a looping field x is a share of the point's own layer's loop, spread
+  // round it; a battle position only says which side the partner stands
+  // and at what height.
   spawnPoints: [
-    // left top in sky
+    // high over the hills, first thing in view
     SpawnPoint(
       id: 'SP_valley_01',
-      normalizedPos: const Offset(0.35, 0.3), // Wild left-center
+      normalizedPos: const Offset(0.18, 0.30),
       anchor: SceneLayer.layer3,
       size: Vector2(60, 60),
-      battlePos: const Offset(0.65, 0.3), // ✅ Already correct!
+      battlePos: const Offset(0.28, 0.30),
+      perch: SpawnPerch.air,
     ),
-    //front middle
+    // in the meadow, first thing in view (the tutorial's)
     SpawnPoint(
       id: 'SP_valley_02',
-      normalizedPos: const Offset(0.58, 0.80),
+      normalizedPos: const Offset(0.12, 0.80),
       anchor: SceneLayer.layer4,
       size: Vector2(100, 100),
-      battlePos: _nextTo(const Offset(0.58, 0.80)), // -> (0.28, 0.80)
+      battlePos: const Offset(0.22, 0.80),
     ),
-    //front middle right
+    // in the meadow, before the middle great tree
     SpawnPoint(
       id: 'SP_valley_03',
-      normalizedPos: const Offset(0.75, 0.8), // Wild on right
+      normalizedPos: const Offset(0.37, 0.80),
       anchor: SceneLayer.layer4,
       size: Vector2(100, 100),
-      battlePos: const Offset(0.45, 0.8), // ✅ Already correct!
+      battlePos: const Offset(0.27, 0.80),
     ),
-    // front infront of tree up
+    // on the boulder in the meadow
     SpawnPoint(
       id: 'SP_valley_04',
-      normalizedPos: const Offset(0.8, 0.50), // Wild on right
+      normalizedPos: const Offset(0.86, 0.50),
       anchor: SceneLayer.layer4,
       size: Vector2(100, 100),
-      battlePos: const Offset(0.50, 0.50), // ✅ Party to the LEFT
+      battlePos: const Offset(0.76, 0.50),
     ),
-    //right in sky
+    // over the hills, midway round
     SpawnPoint(
       id: 'SP_valley_05',
-      normalizedPos: const Offset(0.85, 0.4), // Wild on far right
-      anchor: SceneLayer.layer2,
-      size: Vector2(70, 70),
-      battlePos: const Offset(0.55, 0.4), // ✅ Party to the LEFT (toward center)
-    ),
-    // far left front of tree
-    SpawnPoint(
-      id: 'SP_valley_06',
-      normalizedPos: const Offset(0.2, 0.78), // Wild on left
-      anchor: SceneLayer.layer4,
-      size: Vector2(95, 95),
-      battlePos: const Offset(0.50, 0.78), // ✅ Already correct!
-    ),
-    // middle in hills
-    SpawnPoint(
-      id: 'SP_valley_07',
-      normalizedPos: const Offset(0.45, 0.65),
+      normalizedPos: const Offset(0.46, 0.40),
       anchor: SceneLayer.layer3,
       size: Vector2(70, 70),
-      battlePos: _nextTo(const Offset(0.45, 0.65)), // -> (0.75, 0.65)
+      battlePos: const Offset(0.36, 0.40),
+      perch: SpawnPerch.air,
     ),
-    // center cloud shelf for aerial/floating creatures
+    // in the meadow, before the far great tree
+    SpawnPoint(
+      id: 'SP_valley_06',
+      normalizedPos: const Offset(0.62, 0.78),
+      anchor: SceneLayer.layer4,
+      size: Vector2(95, 95),
+      battlePos: const Offset(0.72, 0.78),
+    ),
+    // on the near hill
+    SpawnPoint(
+      id: 'SP_valley_07',
+      normalizedPos: const Offset(0.72, 0.65),
+      anchor: SceneLayer.layer3,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.62, 0.65),
+    ),
+    // high over the hills, late in the loop
     SpawnPoint(
       id: 'SP_valley_08',
-      normalizedPos: const Offset(0.62, 0.34),
-      anchor: SceneLayer.layer2,
+      normalizedPos: const Offset(0.80, 0.34),
+      anchor: SceneLayer.layer3,
       size: Vector2(60, 60),
-      battlePos: const Offset(0.34, 0.34),
+      battlePos: const Offset(0.70, 0.34),
+      perch: SpawnPerch.air,
     ),
   ],
 );

@@ -10,6 +10,7 @@ import 'package:alchemons/games/cosmic/portal_tear_paint.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/screens/cosmic/wild_space_encounter_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -271,11 +272,9 @@ void main() {
     final ally = catalog.creatures.firstWhere(
       (c) => c.types.contains('Lightning') && c.mutationFamily == 'Let',
     );
-    final mergeFrames = <ui.Image>[];
-    for (final t in const [0.0, 0.3, 0.6, 0.8, 0.95]) {
-      final key = GlobalKey();
-      final merge = AnimationController(vsync: const TestVSync(), value: t);
-      await tester.pumpWidget(
+    // In particles: read the pair as the screen does, then scrub the merge.
+    final allyKey = GlobalKey(), wildKey = GlobalKey();
+    Widget fusing(GlobalKey key, AnimationController merge, [field]) =>
         MaterialApp(
           debugShowCheckedModeBanner: false,
           home: RepaintBoundary(
@@ -286,10 +285,50 @@ void main() {
               partyCreature: ally,
               merge: merge,
               mergeColors: (elementColor('Lightning'), color),
+              fusionField: field,
+              allyCaptureKey: allyKey,
+              wildCaptureKey: wildKey,
             ),
           ),
-        ),
+        );
+    final still = AnimationController(vsync: const TestVSync());
+    final readKey = GlobalKey();
+    await tester.pumpWidget(fusing(readKey, still));
+    await grab(tester, readKey);
+    final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+    final stage = WildSpaceStage.forPair(
+      screen,
+      creature: creature,
+      ally: ally,
+    );
+    final grains = await tester.runAsync(
+      () => Future.wait([
+        for (final k in [allyKey, wildKey])
+          SpecimenGrains.capture(
+            k.currentContext!.findRenderObject()! as RenderRepaintBoundary,
+            pixelRatio: 2,
+          ),
+      ]),
+    );
+    final field = FusionParticleField(
+      specimens: [grains![0]!, grains[1]!],
+      centres: [stage.ally, stage.wild],
+      scales: const [1, 1],
+      core: stage.meeting,
+      coreRadius:
+          0.32 *
+          (stage.allySize > stage.wildSize ? stage.allySize : stage.wildSize),
+      colors: [elementColor('Lightning'), color],
+    );
+    still.dispose();
+    final mergeFrames = <ui.Image>[];
+    for (final t in const [0.0, 0.3, 0.62, 1.0, 1.3, 1.6, 1.95, 2.3, 2.45]) {
+      final key = GlobalKey();
+      final merge = AnimationController(
+        vsync: const TestVSync(),
+        value: t / FusionParticleField.duration,
       );
+      await tester.pumpWidget(fusing(key, merge, field));
       mergeFrames.add(await grab(tester, key));
       merge.dispose();
     }

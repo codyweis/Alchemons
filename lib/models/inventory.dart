@@ -565,6 +565,28 @@ class InvKeys {
   static const alchemyIntelligenceHalo = 'alchemy.intelligence_halo';
   static const alchemyBloodAura = 'alchemy.blood_aura';
   static const alchemyWavebreakerCrown = 'alchemy.wavebreaker_crown';
+  static const alchemyWillOWisps = 'alchemy.will_o_wisps';
+  static const alchemyDustRing = 'alchemy.dust_ring';
+
+  /// The effect each alchemy item puts on a creature: the key it is saved
+  /// as (see AlchemyEffectPaint.keys). Null for anything else.
+  static String? alchemyEffectFor(String itemKey) => switch (itemKey) {
+    alchemyGlow => 'alchemy_glow',
+    alchemyElementalAura => 'elemental_aura',
+    alchemyVolcanicAura => 'volcanic_aura',
+    alchemyVoidRift => 'void_rift',
+    alchemyPrismaticCascade => 'prismatic_cascade',
+    alchemyRitualGold => 'ritual_gold',
+    alchemyBeautyRadiance => 'beauty_radiance',
+    alchemySpeedFlux => 'speed_flux',
+    alchemyStrengthForge => 'strength_forge',
+    alchemyIntelligenceHalo => 'intelligence_halo',
+    alchemyBloodAura => 'blood_aura',
+    alchemyWavebreakerCrown => 'wavebreaker_crown',
+    alchemyWillOWisps => 'will_o_wisps',
+    alchemyDustRing => 'dust_ring',
+    _ => null,
+  };
   static const staminaPotion = 'item.stamina_potion';
   static const wildFusion = 'item.wild_fusion';
   // Historic key string kept so existing player stacks convert for free.
@@ -775,6 +797,20 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       description:
           'A fractured cosmic crown earned by breaking wave 50 in Survival.',
       icon: AppIcons.workspace_premium_rounded,
+    ),
+    InvKeys.alchemyWillOWisps: InventoryItemDef(
+      key: InvKeys.alchemyWillOWisps,
+      name: "Will-o'-Wisps",
+      description:
+          'Four soft marsh lights that wander lazily about one of your Alchemons, lighting the ground as they pass.',
+      icon: AppIcons.nights_stay_rounded,
+    ),
+    InvKeys.alchemyDustRing: InventoryItemDef(
+      key: InvKeys.alchemyDustRing,
+      name: 'Elemental Dust Ring',
+      description:
+          "A tipped ring of orbiting dust in the colours of an Alchemon's element, like a ringed world's.",
+      icon: AppIcons.scatter_plot_outlined,
     ),
     InvKeys.staminaPotion: InventoryItemDef(
       key: InvKeys.staminaPotion,

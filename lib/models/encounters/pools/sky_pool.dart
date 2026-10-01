@@ -1,4 +1,5 @@
 import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 
 /// Returns a scene-wide pool plus per-location overrides (by SpawnPoint.id).
@@ -89,3 +90,29 @@ skyEncounterPools(SceneDefinition scene) {
 
   return (sceneWide: sceneWide, perSpawn: {});
 }
+
+/// A lightning storm over Skyward Reach. One Sky batch in four comes
+/// with one, day or night, and brings Lightning Alchemons with it: at least
+/// one, and each other creature of the batch half the time. They all float
+/// (Lightning is of the air), so any point can take them. The storm is the
+/// only place the pip, mane and horn are found in the wild.
+const skyStorm = WildWeather(
+  kind: WeatherKind.storm,
+  label: 'STORM',
+  chance: 0.25,
+  guaranteed: 1,
+  extra: 0.5,
+  pool: EncounterPool(
+    entries: [
+      EncounterEntry(speciesId: 'LET07', rarity: EncounterRarity.common),
+      EncounterEntry(speciesId: 'PIP07', rarity: EncounterRarity.uncommon),
+      EncounterEntry(speciesId: 'MAN07', rarity: EncounterRarity.uncommon),
+      EncounterEntry(speciesId: 'HOR07', rarity: EncounterRarity.rare),
+      EncounterEntry(
+        speciesId: 'WNG07',
+        rarity: EncounterRarity.legendary,
+        weightMul: 1.5,
+      ),
+    ],
+  ),
+);

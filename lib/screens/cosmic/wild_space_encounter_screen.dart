@@ -26,9 +26,11 @@ import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 enum WildSpaceEncounterResult {
@@ -88,14 +90,24 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
   );
   bool _hudReady = false;
 
-  /// The fusion, played on the two creatures standing here: they come apart,
-  /// cross to each other and are consumed. Same beats and length as the
-  /// wilderness fusion field.
+  /// The fusion, played on the two creatures standing here, in particles:
+  /// each turns to grains of itself, they pour together into one cloud, and
+  /// it falls in on itself. The timeline is [FusionParticleField]'s, the
+  /// same as the breed chamber's; this runs it.
   late final AnimationController _merge = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1350),
+    duration: Duration(
+      milliseconds: (FusionParticleField.duration * 1000).round(),
+    ),
   );
   (Color, Color) _mergeColors = (Colors.white, Colors.white);
+
+  /// The pair, read into grains as the catalyst is spent. Null outside a
+  /// fusion, and again after one that failed, so a retry reads afresh.
+  FusionParticleField? _fusionField;
+  Future<FusionParticleField?>? _fieldReading;
+  final GlobalKey _allyCaptureKey = GlobalKey();
+  final GlobalKey _wildCaptureKey = GlobalKey();
 
   /// A fusion that failed: the pair recoil apart with a flash between them.
   late final AnimationController _reject = AnimationController(
@@ -165,8 +177,8 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
     partyLargest: widget.partyLargestScale,
   );
 
-  /// Through the calibration wait the pair already start coming apart and
-  /// leaning in, so the verdict lands on something in motion.
+  /// Through the calibration wait both turn to grains where they stand and
+  /// hold there, so the verdict lands on something already changing.
   void _fusionCalibrating() {
     final ally = _partyCreature;
     if (ally == null) return;
@@ -176,22 +188,81 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
         specimenAccent(widget.creature),
       ),
     );
-    _merge.animateTo(
-      0.3,
-      duration: const Duration(milliseconds: 650),
-      curve: Curves.easeInOut,
+    final reading = _readField();
+    _fieldReading = reading;
+    reading.then((field) {
+      if (!mounted || field == null || _fieldReading != reading) return;
+      setState(() => _fusionField = field);
+      // The wait is 650ms; the reading takes a frame or two of it.
+      _merge.animateTo(
+        FusionParticleField.standTime / FusionParticleField.duration,
+        duration: const Duration(milliseconds: 600),
+      );
+    });
+  }
+
+  /// Reads the ally and the specimen into grains as they are showing.
+  Future<FusionParticleField?> _readField() async {
+    final ally = _partyCreature;
+    if (ally == null) return null;
+    final stage = _stage();
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    // Between frames, so nothing in either box is waiting to be repainted.
+    await WidgetsBinding.instance.endOfFrame;
+    Future<SpecimenGrains?> read(GlobalKey key, double box) async {
+      final boundary = key.currentContext?.findRenderObject();
+      if (boundary is! RenderRepaintBoundary || !boundary.attached) return null;
+      try {
+        // Never more than ~600 pixels across: grains are a pixel or two
+        // apart, so a finer read buys nothing.
+        return await SpecimenGrains.capture(
+          boundary,
+          pixelRatio: min(dpr, 600 / box),
+        );
+      } catch (e) {
+        debugPrint('fusion: could not read a specimen into grains: $e');
+        return null;
+      }
+    }
+
+    final grains = await Future.wait([
+      read(_allyCaptureKey, stage.allySize * 1.8),
+      read(_wildCaptureKey, stage.wildSize * 1.8),
+    ]);
+    if (!mounted) return null;
+    final party = specimenAccent(ally), wild = specimenAccent(widget.creature);
+    return FusionParticleField(
+      specimens: [
+        grains[0] ?? SpecimenGrains.disc(party, radius: stage.allySize * 0.3),
+        grains[1] ?? SpecimenGrains.disc(wild, radius: stage.wildSize * 0.3),
+      ],
+      // Each box is placed centred on its creature's spot, unscaled.
+      centres: [stage.ally, stage.wild],
+      scales: const [1, 1],
+      core: stage.meeting,
+      coreRadius: 0.32 * max(stage.allySize, stage.wildSize),
+      colors: [party, wild],
     );
   }
 
-  Future<Rect?> _fuseInScene(Color party, Color wild) async {
+  Future<FusionMergeHandoff?> _fuseInScene(Color party, Color wild) async {
     if (_partyCreature == null || !mounted) return null;
-    final stage = _stage();
-    setState(() => _mergeColors = (party, wild));
+    final field = _fusionField ?? await (_fieldReading ?? _readField());
+    if (field == null || !mounted) return null;
+    setState(() {
+      _fusionField = field;
+      _mergeColors = (party, wild);
+    });
     await _merge.forward();
-    return Rect.fromCenter(center: stage.meeting, width: 1, height: 1);
+    return FusionMergeHandoff(
+      at: Rect.fromCenter(center: field.core, width: 1, height: 1),
+      grains: field.specimens,
+    );
   }
 
+  /// The grains run back into the two of them as they are thrown apart.
   Future<void> _fusionFailed(Color party, Color wild) async {
+    _fieldReading = null;
     await Future.wait([
       _reject.forward(from: 0),
       _merge.animateBack(
@@ -200,7 +271,13 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
         curve: Curves.easeOutCubic,
       ),
     ]);
+    if (mounted) setState(() => _fusionField = null);
   }
+
+  /// The harvest's crest on the specimen (see [HarvestTarget]), and whether
+  /// it went all the way — the specimen then went as grains.
+  double? _harvestCut;
+  bool _harvestGone = false;
 
   Future<bool> _harvestInScene(
     Color accent,
@@ -208,6 +285,7 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
     HarvesterProfile profile,
   ) async {
     if (!mounted) return false;
+    _harvestGone = false;
     final held = await showHarvestCinematic(
       context: context,
       targetSprite: null,
@@ -219,11 +297,39 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
       focusScale:
           (_stage().wildSize * WildSpaceStage.sizeGene(widget.creature) / 208)
               .clamp(0.45, 1.5),
+      // The specimen standing here is what is taken: read into grains and
+      // cut away behind the crest, on this screen.
+      liveTarget: HarvestTarget(
+        read: () async {
+          final box = _wildCaptureKey.currentContext?.findRenderObject();
+          if (box is! RenderRepaintBoundary || !box.attached) return null;
+          final stage = _stage();
+          final grains = await SpecimenGrains.capture(
+            box,
+            pixelRatio: min(
+              MediaQuery.devicePixelRatioOf(context),
+              600 / (stage.wildSize * 1.8),
+            ),
+          );
+          return grains == null ? null : (grains, stage.wild, 1.0);
+        },
+        onCut: (cut) {
+          if (!mounted) return;
+          if (cut == double.infinity) _harvestGone = true;
+          setState(() => _harvestCut = cut);
+        },
+      ),
       task: task,
     );
     if (!mounted) return held;
     if (held) {
-      unawaited(_taken.forward(from: 0));
+      if (_harvestGone) {
+        // Already gone, as grains.
+        _taken.value = 1;
+        setState(() => _harvestCut = null);
+      } else {
+        unawaited(_taken.forward(from: 0));
+      }
     } else {
       await _breakFree.forward(from: 0);
     }
@@ -268,6 +374,10 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
               allySummon: _allySummon,
               partyLargestScale: widget.partyLargestScale,
               mergeColors: _mergeColors,
+              fusionField: _fusionField,
+              allyCaptureKey: _allyCaptureKey,
+              wildCaptureKey: _wildCaptureKey,
+              harvestCut: _harvestCut,
             ),
 
             if (_hudReady)
@@ -364,10 +474,24 @@ class WildSpaceBackdrop extends StatefulWidget {
     this.allySummon = kAlwaysCompleteAnimation,
     this.partyLargestScale = 1,
     this.behindSpecimen,
+    this.fusionField,
+    this.allyCaptureKey,
+    this.wildCaptureKey,
+    this.harvestCut,
   });
+
+  /// A harvest's crest on the specimen, while one is taking it.
+  final double? harvestCut;
 
   final Creature creature;
   final CosmicEncounterBackdrop backdrop;
+
+  /// The fusion in particles, while one is running (see [merge]).
+  final FusionParticleField? fusionField;
+
+  /// What the ally and the specimen are read into grains from.
+  final GlobalKey? allyCaptureKey;
+  final GlobalKey? wildCaptureKey;
   final bool exhausted;
   final Creature? partyCreature;
 
@@ -477,6 +601,10 @@ class _WildSpaceBackdropState extends State<WildSpaceBackdrop>
             breakFree: widget.breakFree,
             taken: widget.taken,
             allySummon: widget.allySummon,
+            field: widget.fusionField,
+            allyCaptureKey: widget.allyCaptureKey,
+            wildCaptureKey: widget.wildCaptureKey,
+            harvestCut: widget.harvestCut,
           ),
         ),
       ],
@@ -539,16 +667,6 @@ class WildSpaceStage {
   static double sizeGene(Creature c) => visualsFromInstance(c, null).scale;
 }
 
-// The fusion's beats, matching the wilderness fusion field exactly: come
-// apart, then come together, then be consumed.
-double _mergeWindow(double t, double from, double to) =>
-    ((t - from) / (to - from)).clamp(0.0, 1.0);
-double _breakUp(double t) =>
-    Curves.easeOutCubic.transform(_mergeWindow(t, 0.04, 0.46));
-double _travel(double t) =>
-    Curves.easeInCubic.transform(_mergeWindow(t, 0.46, 0.90));
-double _consume(double t) => _mergeWindow(t, 0.74, 0.98);
-
 class _Stage extends StatelessWidget {
   const _Stage({
     required this.stage,
@@ -564,7 +682,16 @@ class _Stage extends StatelessWidget {
     required this.breakFree,
     required this.taken,
     required this.allySummon,
+    this.field,
+    this.allyCaptureKey,
+    this.wildCaptureKey,
+    this.harvestCut,
   });
+
+  final double? harvestCut;
+  final FusionParticleField? field;
+  final GlobalKey? allyCaptureKey;
+  final GlobalKey? wildCaptureKey;
 
   final Animation<double> reject;
   final Animation<double> breakFree;
@@ -585,6 +712,7 @@ class _Stage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ally = party;
+    final field = this.field;
     return AnimatedBuilder(
       animation: Listenable.merge([
         merge,
@@ -594,7 +722,8 @@ class _Stage extends StatelessWidget {
         allySummon,
       ]),
       builder: (context, _) {
-        final t = merge.value;
+        // Seconds into the merge (see [FusionParticleField]).
+        final t = merge.value * FusionParticleField.duration;
         // A failed fusion throws the pair apart; a failed harvest shakes the
         // specimen loose; a held one draws it in.
         final r = reject.value;
@@ -611,29 +740,19 @@ class _Stage extends StatelessWidget {
             ? Curves.easeOutBack.transform(((st - 0.18) / 0.55).clamp(0.0, 1.0))
             : 1.0;
         final allyIn = summoning ? ((st - 0.15) / 0.3).clamp(0.0, 1.0) : 1.0;
-        final breakUp = _breakUp(t);
-        final travel = _travel(t);
-        final consume = _consume(t);
-        // Swells as it comes apart; only the remnant is carried across.
-        final grow =
-            1 + 0.34 * breakUp - 0.92 * Curves.easeIn.transform(consume);
-        final solidity = (1.0 - 0.78 * breakUp) * (1.0 - consume);
-        final shudder = breakUp * (1 - breakUp) * 4.0;
-        final jitter = sin(t * 60) * 4.0 * shudder;
-        final fusing = ally != null && t > 0;
 
-        final wildAt =
-            (fusing
-                ? Offset.lerp(stage.wild, stage.meeting, travel)! -
-                      Offset(jitter, 0)
-                : stage.wild) +
-            Offset(48 * knock + shake, 0);
-        final allyAt =
-            (fusing
-                ? Offset.lerp(stage.ally, stage.meeting, travel)! +
-                      Offset(jitter, 0)
-                : stage.ally) -
-            Offset(48 * knock, 0);
+        final allyShift = Offset(-48 * knock, 0);
+        final wildShift = Offset(48 * knock + shake, 0);
+        final wildAt = stage.wild + wildShift;
+        final allyAt = stage.ally + allyShift;
+        // The grains still standing are knocked back with their bodies.
+        if (field != null) {
+          field.shift[0] = allyShift;
+          field.shift[1] = wildShift;
+        }
+        final allyCut = field?.cutY(0, t) ?? double.negativeInfinity;
+        final wildCut =
+            harvestCut ?? field?.cutY(1, t) ?? double.negativeInfinity;
 
         Widget place(Offset at, double box, Widget child) => Positioned(
           left: at.dx - box / 2,
@@ -643,24 +762,32 @@ class _Stage extends StatelessWidget {
           child: child,
         );
 
+        // Each is read into grains from here, as it stands.
+        Widget readable(GlobalKey? key, Widget child) =>
+            RepaintBoundary(key: key, child: child);
+        final emptied = field == null ? 0.0 : field.chamberEmpty(0, t);
+
+        Widget particles({required bool back}) => IgnorePointer(
+          child: CustomPaint(
+            size: Size.infinite,
+            painter: field == null
+                ? null
+                : FusionParticlePainter(
+                    field,
+                    () => t,
+                    back: back,
+                    // Alive while it is held waiting on the verdict.
+                    clock: () => clock.value * 60,
+                    repaint: Listenable.merge([merge, clock]),
+                  ),
+          ),
+        );
+
         return Stack(
           fit: StackFit.expand,
           children: [
-            // The seam and the two mote clouds, under the bodies.
-            if (fusing)
-              CustomPaint(
-                size: Size.infinite,
-                painter: _FusionPainter(
-                  a: allyAt,
-                  b: wildAt,
-                  colorA: mergeColors.$1,
-                  colorB: mergeColors.$2,
-                  unit: max(24.0, stage.wildSize * 0.24),
-                  breakUp: breakUp,
-                  travel: travel,
-                  consume: consume,
-                ),
-              ),
+            // The far side of the cloud, behind everything.
+            particles(back: true),
 
             // The flash between a pair that would not fuse, and the light a
             // specimen sheds as it breaks out of the field.
@@ -692,64 +819,74 @@ class _Stage extends StatelessWidget {
                 ),
               ),
 
-            if (ally != null && solidity > 0.01 && allyIn > 0)
+            if (ally != null && allyIn > 0)
               place(
                 allyAt,
                 stage.allySize * 1.8,
-                _Fading(
-                  opacity: (fusing ? solidity : 1) * allyIn,
-                  child: Transform.scale(
-                    scale: (fusing ? grow : 1) * (0.25 + 0.75 * allyEmerge),
-                    child: Transform.flip(
-                      flipX: true,
-                      child: _FloatingSpecimen(
-                        creature: ally,
-                        accent: mergeColors.$1 == Colors.white
-                            ? specimenAccent(ally)
-                            : mergeColors.$1,
-                        clock: clock,
-                        size: stage.allySize,
-                        exhausted: false,
+                readable(
+                  allyCaptureKey,
+                  _Fading(
+                    opacity: allyIn,
+                    child: Transform.scale(
+                      scale: 0.25 + 0.75 * allyEmerge,
+                      child: Transform.flip(
+                        flipX: true,
+                        child: _FloatingSpecimen(
+                          creature: ally,
+                          accent: mergeColors.$1 == Colors.white
+                              ? specimenAccent(ally)
+                              : mergeColors.$1,
+                          clock: clock,
+                          size: stage.allySize,
+                          exhausted: false,
+                          cutY: allyCut,
+                          emptied: emptied,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
 
-            if ((solidity > 0.01 || !fusing) && k < 1)
+            if (k < 1)
               place(
                 wildAt,
                 stage.wildSize * 1.8,
-                // Steps out of the tear on arrival.
-                AnimatedBuilder(
-                  animation: entrance,
-                  builder: (context, child) {
-                    final raw = ((entrance.value - 0.15) / 0.55).clamp(
-                      0.0,
-                      1.0,
-                    );
-                    final step = Curves.easeOutBack.transform(raw);
-                    final arrive = 0.45 + 0.55 * step;
-                    return _Fading(
-                      opacity:
-                          Curves.easeOut.transform(raw) *
-                          (fusing ? solidity : 1) *
-                          (1 - k),
-                      child: Transform.scale(
-                        scale: arrive * (fusing ? grow : 1) * pop * (1 - k),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: _FloatingSpecimen(
-                    creature: creature,
-                    accent: accent,
-                    clock: clock,
-                    size: stage.wildSize,
-                    exhausted: exhausted,
+                readable(
+                  wildCaptureKey,
+                  // Steps out of the tear on arrival.
+                  AnimatedBuilder(
+                    animation: entrance,
+                    builder: (context, child) {
+                      final raw = ((entrance.value - 0.15) / 0.55).clamp(
+                        0.0,
+                        1.0,
+                      );
+                      final step = Curves.easeOutBack.transform(raw);
+                      final arrive = 0.45 + 0.55 * step;
+                      return _Fading(
+                        opacity: Curves.easeOut.transform(raw) * (1 - k),
+                        child: Transform.scale(
+                          scale: arrive * pop * (1 - k),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: _FloatingSpecimen(
+                      creature: creature,
+                      accent: accent,
+                      clock: clock,
+                      size: stage.wildSize,
+                      exhausted: exhausted,
+                      cutY: wildCut,
+                      emptied: emptied,
+                    ),
                   ),
                 ),
               ),
+
+            // Everything else of the cloud, over both of them.
+            particles(back: false),
           ],
         );
       },
@@ -844,67 +981,6 @@ class _BurstPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BurstPainter old) => true;
-}
-
-class _FusionPainter extends CustomPainter {
-  _FusionPainter({
-    required this.a,
-    required this.b,
-    required this.colorA,
-    required this.colorB,
-    required this.unit,
-    required this.breakUp,
-    required this.travel,
-    required this.consume,
-  });
-
-  final Offset a;
-  final Offset b;
-  final Color colorA;
-  final Color colorB;
-  final double unit;
-  final double breakUp;
-  final double travel;
-  final double consume;
-
-  static const _amber = Color(0xFFE4C16A);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Each comes apart over its own body, wherever that body is now.
-    Disintegration.paint(
-      canvas,
-      centre: a,
-      unit: unit,
-      breakUp: breakUp,
-      gather: travel,
-      color: colorA,
-    );
-    Disintegration.paint(
-      canvas,
-      centre: b,
-      unit: unit,
-      breakUp: breakUp,
-      gather: travel,
-      color: colorB,
-    );
-    // The seam between them, brightening as they close.
-    final c = Offset.lerp(a, b, 0.5)!;
-    final r = ((a - b).distance / 2 + 40) * (1 - 0.5 * travel);
-    final mix = Color.lerp(Color.lerp(colorA, colorB, 0.5)!, _amber, 0.4)!;
-    final fill = Paint();
-    for (var i = 4; i >= 1; i--) {
-      canvas.drawCircle(
-        c,
-        r * (0.35 + i * 0.22) * (1 - 0.5 * consume),
-        fill
-          ..color = mix.withValues(alpha: (0.12 * (0.25 + 0.75 * travel)) / i),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_FusionPainter old) => true;
 }
 
 // ── background ────────────────────────────────────────────────────────────
@@ -1119,6 +1195,8 @@ class _FloatingSpecimen extends StatelessWidget {
     required this.clock,
     required this.exhausted,
     this.size = 170,
+    this.cutY = double.negativeInfinity,
+    this.emptied = 0,
   });
 
   final Creature creature;
@@ -1126,6 +1204,12 @@ class _FloatingSpecimen extends StatelessWidget {
   final Animation<double> clock;
   final bool exhausted;
   final double size;
+
+  /// A fusion's crest, from the box's centre: above it the body is grains
+  /// and the sprite is cut away. Only the body — its light fades instead
+  /// ([emptied]), or the cut would leave a hard edge across the glow.
+  final double cutY;
+  final double emptied;
 
   @override
   Widget build(BuildContext context) {
@@ -1141,29 +1225,37 @@ class _FloatingSpecimen extends StatelessWidget {
               shape: BoxShape.circle,
               gradient: RadialGradient(
                 colors: [
-                  accent.withValues(alpha: exhausted ? 0.12 : 0.24),
+                  accent.withValues(
+                    alpha: (exhausted ? 0.12 : 0.24) * (1 - emptied),
+                  ),
                   accent.withValues(alpha: 0),
                 ],
               ),
             ),
             child: const SizedBox.expand(),
           ),
-          RepaintBoundary(
-            child: AnimatedBuilder(
-              animation: clock,
-              builder: (context, child) {
-                final t = clock.value * 2 * pi * 20;
-                return Transform.translate(
-                  offset: Offset(0, sin(t * 0.4) * 5),
-                  child: Transform.rotate(
-                    angle: exhausted ? 0.4 + sin(t * 0.18) * 0.05 : 0,
-                    child: child,
-                  ),
-                );
-              },
-              child: Opacity(
-                opacity: exhausted ? 0.72 : 1.0,
-                child: _SpecimenSprite(creature: creature, size: size),
+          ClipRect(
+            clipper: SpriteCrestClipper(cutY),
+            clipBehavior: cutY == double.negativeInfinity
+                ? Clip.none
+                : Clip.hardEdge,
+            child: RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: clock,
+                builder: (context, child) {
+                  final t = clock.value * 2 * pi * 20;
+                  return Transform.translate(
+                    offset: Offset(0, sin(t * 0.4) * 5),
+                    child: Transform.rotate(
+                      angle: exhausted ? 0.4 + sin(t * 0.18) * 0.05 : 0,
+                      child: child,
+                    ),
+                  );
+                },
+                child: Opacity(
+                  opacity: exhausted ? 0.72 : 1.0,
+                  child: _SpecimenSprite(creature: creature, size: size),
+                ),
               ),
             ),
           ),
@@ -1203,6 +1295,7 @@ class _SpecimenSprite extends StatelessWidget {
         tint: visuals.tint,
         alchemyEffect: visuals.alchemyEffect,
         variantFaction: visuals.variantFaction,
+        elementType: visuals.elementType,
       ),
     );
   }

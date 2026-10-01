@@ -1,21 +1,12 @@
 import 'dart:ui';
 import 'dart:math' as math;
 
-import 'package:alchemons/games/sprite_effects/sprite_beauty_radiance_component.dart';
-import 'package:alchemons/games/sprite_effects/sprite_blood_aura_component.dart';
-import 'package:alchemons/games/sprite_effects/sprite_elemental_aura_component.dart';
-import 'package:alchemons/games/sprite_effects/sprite_glow_component.dart';
-import 'package:alchemons/games/sprite_effects/sprite_intelligence_halo_component.dart';
-import 'package:alchemons/games/sprite_effects/sprite_prismatic_cascade_component.dart';
-import 'package:alchemons/games/sprite_effects/sprite_ritual_gold_component.dart';
-import 'package:alchemons/games/sprite_effects/sprite_speed_flux_component.dart';
-import 'package:alchemons/games/sprite_effects/sprite_strength_forge_component.dart';
-import 'package:alchemons/games/sprite_effects/sprite_void_rift_component.dart';
-import 'package:alchemons/games/sprite_effects/sprite_volcanic_aura.dart';
-import 'package:alchemons/games/sprite_effects/sprite_wavebreaker_crown_component.dart';
+import 'package:alchemons/games/sprite_effects/alchemy_effect_component.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 
@@ -41,6 +32,71 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
 
   bool get _isAlbino => visuals.brightness == 1.45;
 
+  /// Everything above this line (from the centre, in local units) is cut
+  /// away: a fusion's crest, behind which the creature is grains instead.
+  double? cutY;
+
+  @override
+  void render(Canvas canvas) {
+    final cut = cutY;
+    // Clipped here, before the children draw, so the sprite and any aura
+    // behind it are cut together.
+    if (cut != null) {
+      canvas.clipRect(
+        Rect.fromLTRB(
+          -size.x,
+          size.y / 2 + cut.clamp(-1e4, 1e4),
+          size.x * 2,
+          size.y * 2,
+        ),
+      );
+    }
+    super.render(canvas);
+  }
+
+  /// This frame of the creature, exactly as it is being drawn — its genetics
+  /// colouring and size included — read into grains centred on this
+  /// component's centre, in its local units. Null if it has not loaded.
+  Future<SpecimenGrains?> readGrains({required double pixelRatio}) async {
+    if (!isLoaded || !_anim.isMounted) return null;
+    final sprite = _anim.animationTicker?.getSprite();
+    if (sprite == null) return null;
+    // Room for a size gene over 1, which draws past this component's box.
+    final box = size * 1.4;
+    final w = (box.x * pixelRatio).ceil(), h = (box.y * pixelRatio).ceil();
+    if (w <= 0 || h <= 0) return null;
+    final rec = PictureRecorder();
+    final c = Canvas(rec)
+      ..scale(pixelRatio)
+      ..translate(box.x / 2, box.y / 2)
+      ..scale(_anim.scale.x, _anim.scale.y);
+    sprite.render(
+      c,
+      size: sheet.frameSize,
+      anchor: Anchor.center,
+      overridePaint: Paint()
+        ..colorFilter = _anim.paint.colorFilter
+        ..color = const Color(0xFFFFFFFF)
+        ..filterQuality = FilterQuality.medium,
+    );
+    final image = rec.endRecording().toImageSync(w, h);
+    try {
+      final data = await image.toByteData(
+        format: ImageByteFormat.rawStraightRgba,
+      );
+      if (data == null) return null;
+      final grains = SpecimenGrains.fromRgba(
+        data.buffer.asUint8List(),
+        w,
+        h,
+        pixelRatio: pixelRatio,
+      );
+      return grains.length < 60 ? null : grains;
+    } finally {
+      image.dispose();
+    }
+  }
+
   CreatureSpriteComponent({
     required this.sheet,
     required this.visuals,
@@ -61,6 +117,20 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
         effectComponent.position = size / 2;
         effectComponent.priority = -1; // Behind sprite
         add(effectComponent);
+        // An effect with a near side also draws over the sprite, in step.
+        if (AlchemyEffectPaint.hasFront(alchemyEffect)) {
+          add(
+            AlchemyEffectComponent(
+                effectKey: effectComponent.effectKey,
+                radius: effectComponent.radius,
+                element: effectComponent.element,
+                front: true,
+                seed: effectComponent.seed,
+              )
+              ..position = size / 2
+              ..priority = 1,
+          );
+        }
       }
     }
 
@@ -108,52 +178,17 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
     return await game.images.load('backgrounds/scenes/swamp/sky.png');
   }
 
-  PositionComponent? _buildEffectComponent(String effect) {
+  AlchemyEffectComponent? _buildEffectComponent(String effect) {
+    if (!AlchemyEffectPaint.has(effect)) return null;
     final displayBase = displayBaseFromVisuals(
       baseBox: desiredSize.x,
       visualsScale: visuals.scale,
     );
-    final baseSize = effectSizeFromDisplayBase(
-      displayBase,
-      multiplier: effectScale,
-      minSize: 28.0,
-      maxSize: 132.0,
+    return AlchemyEffectComponent(
+      effectKey: effect,
+      radius: (displayBase * effectScale / 2).clamp(12.0, 80.0),
+      element: variantFaction ?? visuals.auraElement,
     );
-    final prismaticSize = prismaticCascadeSizeFromDisplayBase(displayBase);
-
-    switch (effect) {
-      case 'alchemy_glow':
-        return AlchemyGlowComponent(baseSize: baseSize);
-      case 'elemental_aura':
-        return ElementalAuraComponent(
-          baseSize: baseSize,
-          element: variantFaction,
-        );
-      case 'volcanic_aura':
-        return VolcanicAuraComponent(baseSize: baseSize);
-      case 'void_rift':
-        return VoidRiftComponent(baseSize: baseSize * 0.8);
-      case 'prismatic_cascade':
-        return PrismaticCascadeComponent(
-          baseSize: prismaticSize.clamp(30.0, 128.0),
-        );
-      case 'ritual_gold':
-        return RitualGoldComponent(baseSize: baseSize);
-      case 'beauty_radiance':
-        return BeautyRadianceComponent(baseSize: baseSize);
-      case 'speed_flux':
-        return SpeedFluxComponent(baseSize: baseSize);
-      case 'strength_forge':
-        return StrengthForgeComponent(baseSize: baseSize);
-      case 'intelligence_halo':
-        return IntelligenceHaloComponent(baseSize: baseSize);
-      case 'blood_aura':
-        return BloodAuraComponent(baseSize: baseSize);
-      case 'wavebreaker_crown':
-        return WavebreakerCrownComponent(baseSize: baseSize);
-      default:
-        return null;
-    }
   }
 
   double _fitScale(Vector2 frame, Vector2 box) {

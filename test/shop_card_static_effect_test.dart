@@ -15,7 +15,7 @@ import 'package:alchemons/screens/shop/shop_widgets.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/static_effect_snapshot.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
+import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,6 +48,9 @@ const _allEffectKeys = <String>[
   InvKeys.alchemyStrengthForge,
   InvKeys.alchemyIntelligenceHalo,
   InvKeys.alchemyBloodAura,
+  InvKeys.alchemyWavebreakerCrown,
+  InvKeys.alchemyWillOWisps,
+  InvKeys.alchemyDustRing,
 ];
 
 Widget _cardFor(
@@ -92,14 +95,14 @@ void main() {
 
     // The real artwork is mounted for the bake — this is a photograph of the
     // effect, not a reimplementation of it — but with its tickers muted.
-    expect(find.byType(VolcanicAura), findsOneWidget);
+    expect(find.byType(AlchemyEffectView), findsOneWidget);
     expect(tester.binding.transientCallbackCount, 0);
 
     // Let the post-frame capture land and the raster take over.
     await tester.pump();
     await tester.pump();
 
-    expect(find.byType(VolcanicAura), findsNothing);
+    expect(find.byType(AlchemyEffectView), findsNothing);
     expect(find.byType(RawImage), findsOneWidget);
     expect(tester.binding.transientCallbackCount, 0);
 
@@ -123,7 +126,7 @@ void main() {
     // built, so there is no second bake.
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpWidget(_card(theme));
-    expect(find.byType(VolcanicAura), findsNothing);
+    expect(find.byType(AlchemyEffectView), findsNothing);
     expect(find.byType(RawImage), findsOneWidget);
     expect(EffectSnapshotCache.instance.length, 1);
     expect(EffectSnapshotCache.instance.retainedBytes, bytes);
@@ -160,7 +163,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.byType(VolcanicAura), findsOneWidget);
+    expect(find.byType(AlchemyEffectView), findsOneWidget);
     expect(find.byType(StaticEffectSnapshot), findsNothing);
     // Live artwork means live tickers.
     expect(tester.binding.transientCallbackCount, greaterThan(0));

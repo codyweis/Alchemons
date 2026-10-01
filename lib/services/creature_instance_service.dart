@@ -114,6 +114,7 @@ class CreatureInstanceService {
     Map<String, String>? genetics, // track -> variantId
     Map<String, dynamic>? parentage, // Parentage.toJson()
     bool isPrismaticSkin = false,
+    String? mutation,
     String? nickname,
     int level = 1,
     String? likelihoodAnalysisJson,
@@ -158,6 +159,7 @@ class CreatureInstanceService {
           locked: false,
           nickname: nickname,
           isPrismaticSkin: isPrismaticSkin,
+          mutation: mutation,
           natureId: natureId,
           natureId2: natureId2,
           source: source,

@@ -3,7 +3,6 @@ import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'dart:async' show unawaited;
 import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
@@ -21,6 +20,11 @@ import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
+import 'package:alchemons/widgets/fx/power_orb.dart';
+import 'package:alchemons/widgets/fx/infusion_particles.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -68,7 +72,6 @@ class _AlchemicalPowerupFeedingScreenState
   String? _lastRollLabel;
   double _glowBoost = 1.0;
   bool _jackpotAnimation = false;
-  double _orbitTurns = 2.2;
   double _orbitEndProgress = 0.72;
   int? _potentialSoulRoll;
   bool _powerupTutorialChecked = false;
@@ -105,6 +108,11 @@ class _AlchemicalPowerupFeedingScreenState
   Offset? _hintTo;
   final GlobalKey _chamberKey = GlobalKey();
   final GlobalKey _spriteKey = GlobalKey();
+
+  /// The specimen's own sprite, read into grains when an infusion lands so
+  /// the power-up can take it apart and put it back.
+  final GlobalKey _bodyKey = GlobalKey();
+  InfusionBody? _infusionBody;
   final GlobalKey _trayKey = GlobalKey();
 
   late final AnimationController _orbController;
@@ -675,45 +683,62 @@ class _AlchemicalPowerupFeedingScreenState
                               key: _spriteKey,
                               alignment: Alignment.center,
                               children: [
-                                if (hovering || refusing || armed)
-                                  Positioned.fill(
-                                    child: IgnorePointer(
-                                      child: AnimatedContainer(
-                                        duration: const Duration(
-                                          milliseconds: 140,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: ringColor.withValues(
-                                              alpha: ringAlpha,
-                                            ),
-                                            width: 2,
-                                          ),
-                                          boxShadow: hovering
-                                              ? [
-                                                  BoxShadow(
-                                                    color: ringColor.withValues(
-                                                      alpha: 0.45,
-                                                    ),
-                                                    blurRadius: 26,
-                                                    spreadRadius: 2,
-                                                  ),
-                                                ]
-                                              : null,
+                                // The destination announces itself as
+                                // light pooling at the specimen's feet —
+                                // brighter when the orb is over it, red when
+                                // it cannot land. (It was a circle round
+                                // the specimen.)
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  bottom: -10,
+                                  height: 54,
+                                  child: IgnorePointer(
+                                    child: AnimatedOpacity(
+                                      duration: const Duration(
+                                        milliseconds: 160,
+                                      ),
+                                      opacity: hovering || refusing || armed
+                                          ? 1
+                                          : 0,
+                                      child: CustomPaint(
+                                        painter: _FloorLightPainter(
+                                          color: ringColor,
+                                          strength: ringAlpha,
                                         ),
                                       ),
                                     ),
                                   ),
+                                ),
                                 Positioned(
                                   bottom: 0,
-                                  child: AnimatedScale(
-                                    duration: const Duration(milliseconds: 140),
-                                    scale: hovering ? 1.06 : 1.0,
-                                    child: InstanceSprite(
-                                      creature: creature,
-                                      instance: instance,
-                                      size: spriteSize,
+                                  // While the power-up has it in grains, the
+                                  // sprite steps aside for them.
+                                  child: AnimatedBuilder(
+                                    animation: _flashController,
+                                    builder: (context, child) => Opacity(
+                                      opacity:
+                                          _infusionBody != null &&
+                                              _animatingType != null
+                                          ? InfusionPainter.spriteOpacity(
+                                              _flashController.value,
+                                            )
+                                          : 1,
+                                      child: child,
+                                    ),
+                                    child: AnimatedScale(
+                                      duration: const Duration(
+                                        milliseconds: 140,
+                                      ),
+                                      scale: hovering ? 1.06 : 1.0,
+                                      child: RepaintBoundary(
+                                        key: _bodyKey,
+                                        child: InstanceSprite(
+                                          creature: creature,
+                                          instance: instance,
+                                          size: spriteSize,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -726,16 +751,14 @@ class _AlchemicalPowerupFeedingScreenState
                                           _flashController,
                                         ]),
                                         builder: (context, _) => CustomPaint(
-                                          painter: _PowerOrbPainter(
+                                          painter: InfusionPainter(
                                             progress: _orbController.value,
                                             flash: _flashController.value,
-                                            color: _animatingType!.color,
-                                            glowColor:
-                                                _animatingType!.glowColor,
+                                            type: _animatingType!,
+                                            body: _infusionBody,
                                             rollLabel: _lastRollLabel,
                                             glowBoost: _glowBoost,
                                             isJackpot: _jackpotAnimation,
-                                            orbitTurns: _orbitTurns,
                                             orbitEndProgress: _orbitEndProgress,
                                             soulRoll: _potentialSoulRoll,
                                             deltaLabel: _lastDelta == null
@@ -1163,17 +1186,7 @@ class _AlchemicalPowerupFeedingScreenState
             dimension: orbSize,
             child: Stack(
               alignment: Alignment.center,
-              children: [
-                if (v > 0 && v < 1)
-                  CustomPaint(
-                    size: const Size.square(orbSize),
-                    painter: _SoulShockRingPainter(
-                      progress: v,
-                      color: lerped ?? tint,
-                    ),
-                  ),
-                Transform.scale(scale: squeeze, child: child),
-              ],
+              children: [Transform.scale(scale: squeeze, child: child)],
             ),
           );
         },
@@ -1587,6 +1600,52 @@ class _AlchemicalPowerupFeedingScreenState
     if (mounted) setState(() {});
   }
 
+  /// Reads the specimen, as it stands, into grains for the power-up. Fewer
+  /// and coarser than a fusion's: it plays for half a second, and it is read
+  /// on the frame an orb is dropped. If it fails the infusion plays round
+  /// the sprite instead.
+  Future<void> _captureInfusionBody() async {
+    _infusionBody = null;
+    final boundary = _bodyKey.currentContext?.findRenderObject();
+    final stage = _spriteKey.currentContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary ||
+        stage is! RenderBox ||
+        !boundary.attached) {
+      return;
+    }
+    final ratio = math.min(MediaQuery.devicePixelRatioOf(context), 2.0);
+    try {
+      final image = await boundary.toImage(pixelRatio: ratio);
+      try {
+        final data = await image.toByteData(
+          format: ui.ImageByteFormat.rawStraightRgba,
+        );
+        if (data == null || !mounted) return;
+        final grains = SpecimenGrains.fromRgba(
+          data.buffer.asUint8List(),
+          image.width,
+          image.height,
+          pixelRatio: ratio,
+          maxGrains: 2600,
+          tones: 14,
+        );
+        if (grains.length < 60 || !boundary.attached || !stage.attached) {
+          return;
+        }
+        final centre = stage.globalToLocal(
+          boundary.localToGlobal(boundary.size.center(Offset.zero)),
+        );
+        if (mounted) {
+          setState(() => _infusionBody = InfusionBody(grains, centre));
+        }
+      } finally {
+        image.dispose();
+      }
+    } catch (_) {
+      // The infusion plays round the sprite.
+    }
+  }
+
   Future<void> _applyPowerup(
     CreatureInstance instance,
     AlchemicalPowerupType type,
@@ -1597,8 +1656,10 @@ class _AlchemicalPowerupFeedingScreenState
     await CampaignJournalService.mark(db.settingsDao, 'orbUse');
     if (!mounted) return;
     final repo = context.read<CreatureCatalog>();
-    const animationDuration = Duration(milliseconds: 750);
-    const flashDuration = Duration(milliseconds: 250);
+    // Quick: orbs are dropped one after another. The power-up has the
+    // longer half, since that is where the specimen comes apart.
+    const animationDuration = Duration(milliseconds: 520);
+    const flashDuration = Duration(milliseconds: 560);
 
     _orbController.reset();
     _flashController.reset();
@@ -1613,7 +1674,6 @@ class _AlchemicalPowerupFeedingScreenState
       _lastRollLabel = null;
       _glowBoost = 1.0;
       _jackpotAnimation = false;
-      _orbitTurns = 2.2;
       _orbitEndProgress = 0.72;
       _potentialSoulRoll = null;
       _frozenStatValues = frozenStats;
@@ -1624,6 +1684,8 @@ class _AlchemicalPowerupFeedingScreenState
     // Let the orb button animate out first
     await Future<void>.delayed(const Duration(milliseconds: 190));
     if (!mounted) return;
+    // Read the specimen while the orb is in flight.
+    unawaited(_captureInfusionBody());
 
     _orbController.duration = animationDuration;
     _flashController.duration = flashDuration;
@@ -1635,7 +1697,6 @@ class _AlchemicalPowerupFeedingScreenState
       _lastRollLabel = 'ENHANCING';
       _glowBoost = 1.0;
       _jackpotAnimation = false;
-      _orbitTurns = 2.2;
       _orbitEndProgress = 0.72;
     });
     await _orbController.forward(from: 0);
@@ -1661,7 +1722,6 @@ class _AlchemicalPowerupFeedingScreenState
         _frozenStatValues = null;
         _frozenPotentialValues = null;
         _potentialSoulRoll = null;
-        _orbitTurns = 2.2;
         _orbitEndProgress = 0.72;
         _message = result.error ?? 'Infusion failed.';
       });
@@ -1677,11 +1737,11 @@ class _AlchemicalPowerupFeedingScreenState
       _lastRollLabel = null;
       _glowBoost = 1.0;
       _jackpotAnimation = false;
-      _orbitTurns = 2.2;
       _orbitEndProgress = 0.72;
       _potentialSoulRoll = null;
       _frozenStatValues = null;
       _frozenPotentialValues = null;
+      _infusionBody = null;
       // No success banner: the infusion animation already calls the roll and
       // the stat plate updates in place, so a box restating it was noise.
       // Errors still surface through _message below.
@@ -1741,6 +1801,7 @@ class _AlchemicalPowerupFeedingScreenState
       return;
     }
 
+    unawaited(_captureInfusionBody());
     final reveal = _soulRevealProfile(result.rolledGain);
     _orbController.duration = reveal.orbDuration;
     _flashController.duration = reveal.flashDuration;
@@ -1750,7 +1811,6 @@ class _AlchemicalPowerupFeedingScreenState
       _lastRollLabel = reveal.label;
       _glowBoost = reveal.glowBoost;
       _jackpotAnimation = reveal.isJackpot;
-      _orbitTurns = reveal.orbitTurns;
       _orbitEndProgress = reveal.orbitEndProgress;
       _potentialSoulRoll = result.rolledGain;
       _message = 'SOUL RESONANCE: revealing ${type.statKey} Potential...';
@@ -1780,10 +1840,10 @@ class _AlchemicalPowerupFeedingScreenState
       _lastDelta = null;
       _glowBoost = 1.0;
       _jackpotAnimation = false;
-      _orbitTurns = 2.2;
       _orbitEndProgress = 0.72;
       _potentialSoulRoll = null;
       _soulArmed = false;
+      _infusionBody = null;
       _message =
           'SOUL AWAKENED: +${result.appliedGain} ${type.statKey} Potential$cappedNote • ${result.newPotential}/100 • -${_formatSilver(result.silverCost)} Silver';
     });
@@ -2229,36 +2289,10 @@ class _AnimatedOrbButtonState extends State<_AnimatedOrbButton>
     super.dispose();
   }
 
-  /// The glow sphere, shared by the tile and the drag feedback so the thing
-  /// under your finger is visibly the same object you picked up.
-  Widget _orb(double size, {required bool lit}) {
-    final type = widget.type;
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            Colors.white.withValues(alpha: 0.94),
-            type.color.withValues(alpha: 0.88),
-            type.glowColor.withValues(alpha: 0.36),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.30, 0.66, 1.0],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: type.glowColor.withValues(
-              alpha: lit ? 0.50 + _pulse.value * 0.08 : 0.18,
-            ),
-            blurRadius: lit ? 24 : 10,
-            spreadRadius: lit ? 1 : -6,
-          ),
-        ],
-      ),
-    );
-  }
+  /// The orb, shared by the tile and the drag feedback so the thing under
+  /// your finger is visibly the same object you picked up.
+  Widget _orb(double size, {required bool lit}) =>
+      PowerOrb(type: widget.type, size: size, lit: lit);
 
   Widget _caption(ForgeTokens t, {required bool ghost}) {
     final type = widget.type;
@@ -2614,6 +2648,42 @@ class _StatPlate extends StatelessWidget {
   }
 }
 
+/// Light pooled on the floor under the specimen: an ellipse of gradient, not
+/// a ring.
+class _FloorLightPainter extends CustomPainter {
+  const _FloorLightPainter({required this.color, required this.strength});
+
+  final Color color;
+  final double strength;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width * 0.36;
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.scale(1, size.height / (r * 2) * 1.6);
+    canvas.drawCircle(
+      Offset.zero,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: 0.5 * strength),
+            color.withValues(alpha: 0.18 * strength),
+            color.withValues(alpha: 0),
+          ],
+          stops: const [0.0, 0.45, 1.0],
+        ).createShader(Rect.fromCircle(center: Offset.zero, radius: r)),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_FloorLightPainter old) =>
+      old.color != color || old.strength != strength;
+}
+
 class _HorizontalOnlyClipper extends CustomClipper<Rect> {
   const _HorizontalOnlyClipper();
 
@@ -2625,33 +2695,6 @@ class _HorizontalOnlyClipper extends CustomClipper<Rect> {
 
   @override
   bool shouldReclip(covariant CustomClipper<Rect> oldClipper) => false;
-}
-
-class _SoulShockRingPainter extends CustomPainter {
-  const _SoulShockRingPainter({required this.progress, required this.color});
-
-  final double progress;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide;
-    final c = Offset(size.width / 2, size.height / 2);
-    final eased = Curves.easeOutCubic.transform(progress);
-    final fade = (1.0 - progress).clamp(0.0, 1.0);
-    canvas.drawCircle(
-      c,
-      s * (0.24 + 0.30 * eased),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = s * 0.03 * fade
-        ..color = color.withValues(alpha: 0.75 * fade),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SoulShockRingPainter old) =>
-      old.progress != progress || old.color != color;
 }
 
 class _DragHintOverlay extends StatefulWidget {
@@ -2904,369 +2947,5 @@ class _PotentialPill extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _PowerOrbPainter extends CustomPainter {
-  final double progress;
-  final double flash;
-  final Color color;
-  final Color glowColor;
-  final String? rollLabel;
-  final double glowBoost;
-  final bool isJackpot;
-  final double orbitTurns;
-  final double orbitEndProgress;
-  final String? deltaLabel;
-  final int? soulRoll;
-
-  const _PowerOrbPainter({
-    required this.progress,
-    required this.flash,
-    required this.color,
-    required this.glowColor,
-    required this.rollLabel,
-    required this.glowBoost,
-    required this.isJackpot,
-    required this.orbitTurns,
-    required this.orbitEndProgress,
-    this.deltaLabel,
-    this.soulRoll,
-  });
-
-  /// Souls get layers an Orb never does. Gated on the payload rather than the
-  /// roll, so even the weakest awakening outclasses a routine Enhancement.
-  bool get _isSoul => soulRoll != null;
-
-  /// Graduated ring echoing the containment ring on the soul artwork, drawn
-  /// closing in on the specimen as the infusion gathers.
-  void _paintSigil(Canvas canvas, Offset center) {
-    if (progress < 0.14) return;
-    final local = ((progress - 0.14) / (orbitEndProgress - 0.14)).clamp(
-      0.0,
-      1.0,
-    );
-    final radius = lerpDouble(150.0 * glowBoost, 54.0, local)!;
-    final alpha = (local < 0.15 ? local / 0.15 : 1.0 - local) * 0.85;
-    if (alpha <= 0) return;
-
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..color = glowColor.withValues(alpha: alpha * 0.7);
-    canvas.drawCircle(center, radius, ring);
-
-    final tick = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFFFE9A8).withValues(alpha: alpha);
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.rotate(progress * math.pi * 1.6);
-    const ticks = 16;
-    for (var i = 0; i < ticks; i++) {
-      final a = (math.pi * 2 * i) / ticks;
-      final dir = Offset(math.cos(a), math.sin(a));
-      canvas.drawLine(dir * radius, dir * (radius + 9), tick);
-    }
-    canvas.restore();
-  }
-
-  /// Motes dragged out of the ether and pulled into the specimen.
-  void _paintMotes(Canvas canvas, Offset center) {
-    if (progress < 0.10 || progress > orbitEndProgress) return;
-    final local = ((progress - 0.10) / (orbitEndProgress - 0.10)).clamp(
-      0.0,
-      1.0,
-    );
-    final eased = Curves.easeInCubic.transform(local);
-    final count = 6 + (soulRoll ?? 1) * 2;
-    final fade = 1.0 - Curves.easeIn.transform(local);
-    for (var i = 0; i < count; i++) {
-      final phase = i / count;
-      final angle =
-          phase * math.pi * 2 + progress * math.pi * 2.4 * (i.isEven ? 1 : -1);
-      final radius = lerpDouble(165.0 * glowBoost, 10.0, eased)!;
-      final p =
-          center + Offset(math.cos(angle) * radius, math.sin(angle) * radius);
-      canvas.drawCircle(
-        p,
-        3.4,
-        Paint()
-          ..color = glowColor.withValues(alpha: 0.55 * fade)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-      );
-      canvas.drawCircle(
-        p,
-        1.7,
-        Paint()..color = Colors.white.withValues(alpha: 0.85 * fade),
-      );
-    }
-  }
-
-  /// Staggered shockwaves plus a light column, so the payoff lands as an event
-  /// rather than a brighter version of the Orb flash.
-  void _paintSoulBurst(Canvas canvas, Offset center, Size size) {
-    for (var k = 0; k < 3; k++) {
-      final local = (flash - k * 0.16).clamp(0.0, 1.0);
-      if (local <= 0) continue;
-      final eased = Curves.easeOutCubic.transform(local);
-      canvas.drawCircle(
-        center,
-        (46 + 210 * eased) * glowBoost,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = (3.4 - k) * (1 - local) * 2.4
-          ..color = (k.isEven ? glowColor : Colors.white).withValues(
-            alpha: (1 - local) * 0.5,
-          ),
-      );
-    }
-
-    final columnWidth = (36 + 70 * flash) * glowBoost;
-    final column = Rect.fromCenter(
-      center: Offset(center.dx, size.height / 2),
-      width: columnWidth,
-      height: size.height * 1.4,
-    );
-    canvas.drawRect(
-      column,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.transparent,
-            glowColor.withValues(alpha: 0.30 * flash),
-            Colors.white.withValues(alpha: 0.20 * flash),
-            glowColor.withValues(alpha: 0.30 * flash),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.28, 0.5, 0.72, 1.0],
-        ).createShader(column),
-    );
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height * 0.47);
-    final orbOffset = _orbCenter(center, size);
-
-    if (_isSoul) {
-      _paintSigil(canvas, center);
-      _paintMotes(canvas, center);
-    }
-
-    final double orbRadius;
-    if (progress < 0.22) {
-      orbRadius = lerpDouble(4, 16, Curves.easeOut.transform(progress / 0.22))!;
-    } else {
-      final remapped = (progress - 0.22) / 0.78;
-      orbRadius = lerpDouble(16, 28, math.min(remapped / 0.6, 1.0))!;
-    }
-
-    final trail = Paint()
-      ..shader = RadialGradient(colors: [glowColor, Colors.transparent])
-          .createShader(
-            Rect.fromCircle(
-              center: orbOffset,
-              radius: orbRadius * (3.6 * glowBoost),
-            ),
-          );
-    canvas.drawCircle(orbOffset, orbRadius * (3.4 * glowBoost), trail);
-
-    final orbPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [Colors.white, color, glowColor],
-        stops: const [0.0, 0.45, 1.0],
-      ).createShader(Rect.fromCircle(center: orbOffset, radius: orbRadius));
-    canvas.drawCircle(orbOffset, orbRadius, orbPaint);
-
-    // Orbit ring — tracks the orb's actual radial distance so it never looks mismatched
-    if (progress >= 0.22 && progress < orbitEndProgress) {
-      final orbitSpan = (orbitEndProgress - 0.22).clamp(0.01, 0.75);
-      final orbitLocal = ((progress - 0.22) / orbitSpan).clamp(0.0, 1.0);
-      final easedLocal = Curves.easeInOutSine.transform(orbitLocal);
-      final ringRadius = lerpDouble(
-        110.0 + ((orbitTurns - 2.2) * 8),
-        isJackpot ? 80.0 : 90.0,
-        easedLocal,
-      )!;
-      final orbitRing = Paint()
-        ..color = glowColor.withValues(alpha: (1 - orbitLocal) * 0.22)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-      canvas.drawCircle(center, ringRadius, orbitRing);
-    }
-
-    if (flash > 0) {
-      if (_isSoul) _paintSoulBurst(canvas, center, size);
-      final flashPaint = Paint()
-        ..shader =
-            RadialGradient(
-              colors: [
-                Colors.white.withValues(alpha: flash * 0.75),
-                glowColor.withValues(alpha: flash * (0.42 * glowBoost)),
-                Colors.transparent,
-              ],
-            ).createShader(
-              Rect.fromCircle(
-                center: center,
-                radius: (130 * flash + 40) * glowBoost,
-              ),
-            );
-      canvas.drawCircle(center, (130 * flash + 40) * glowBoost, flashPaint);
-
-      final revealRoll = soulRoll ?? 0;
-      if (_isSoul) {
-        final rayCount = 8 + (revealRoll * 4);
-        final rayPaint = Paint()
-          ..color = Colors.white.withValues(
-            alpha: (0.12 + revealRoll * 0.045) * flash,
-          )
-          ..strokeWidth = revealRoll >= 5 ? 2.2 : 1.4
-          ..strokeCap = StrokeCap.round;
-        final innerRadius = 42.0 + (revealRoll * 3.0);
-        final outerRadius = innerRadius + (30.0 + revealRoll * 10.0) * flash;
-        canvas.save();
-        canvas.translate(center.dx, center.dy);
-        canvas.rotate(progress * math.pi * (revealRoll >= 5 ? 3.0 : 1.5));
-        for (var i = 0; i < rayCount; i++) {
-          final angle = (math.pi * 2 * i) / rayCount;
-          canvas.drawLine(
-            Offset(
-              math.cos(angle) * innerRadius,
-              math.sin(angle) * innerRadius,
-            ),
-            Offset(
-              math.cos(angle) * outerRadius,
-              math.sin(angle) * outerRadius,
-            ),
-            rayPaint,
-          );
-        }
-        canvas.restore();
-
-        if (revealRoll >= 2) {
-          final resonancePaint = Paint()
-            ..color = glowColor.withValues(alpha: 0.55 * flash)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = revealRoll >= 5 ? 3.0 : 2.0;
-          canvas.drawCircle(
-            center,
-            (76.0 + revealRoll * 9.0) * flash,
-            resonancePaint,
-          );
-          if (revealRoll >= 5) {
-            canvas.drawCircle(
-              center,
-              (112.0 + revealRoll * 8.0) * flash,
-              resonancePaint
-                ..color = Colors.white.withValues(alpha: 0.35 * flash),
-            );
-          }
-        }
-      }
-
-      if (rollLabel != null) {
-        final rollPainter = TextPainter(
-          text: TextSpan(
-            text: rollLabel!,
-            style: TextStyle(
-              color: glowColor.withValues(alpha: 0.95),
-              fontSize: isJackpot ? 16 : 13,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.4,
-              shadows: [Shadow(color: glowColor, blurRadius: 16 * glowBoost)],
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        rollPainter.paint(
-          canvas,
-          Offset(center.dx - rollPainter.width / 2, center.dy - 150),
-        );
-      }
-
-      if (deltaLabel != null) {
-        final painter = TextPainter(
-          text: TextSpan(
-            text: deltaLabel!,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.92),
-              fontSize: isJackpot ? 28 : 22,
-              fontWeight: FontWeight.w900,
-              shadows: [Shadow(color: glowColor, blurRadius: 14 * glowBoost)],
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        painter.paint(
-          canvas,
-          Offset(center.dx - painter.width / 2, center.dy - 110 - flash * 24),
-        );
-      }
-    }
-  }
-
-  Offset _orbCenter(Offset center, Size size) {
-    final orbitStartRadius = 110.0 + ((orbitTurns - 2.2) * 8);
-
-    // Phase 1: fly in from below stage (0.0 → 0.22)
-    // Ends at the exact top of the orbit circle so Phase 2 starts seamlessly.
-    if (progress < 0.22) {
-      final local = Curves.easeOut.transform(progress / 0.22);
-      return Offset(
-        lerpDouble(center.dx + 22, center.dx, local)!,
-        lerpDouble(size.height + 10, center.dy - orbitStartRadius, local)!,
-      );
-    }
-
-    // Phase 2: orbit arc (the final rank gets the strongest celebration)
-    if (progress < orbitEndProgress) {
-      final orbitSpan = (orbitEndProgress - 0.22).clamp(0.01, 0.75);
-      final local = ((progress - 0.22) / orbitSpan).clamp(0.0, 1.0);
-      // easeInOutSine gives a gentler S-curve than Cubic — more natural orbit speed
-      final easedLocal = Curves.easeInOutSine.transform(local);
-      final angle = easedLocal * math.pi * orbitTurns - math.pi / 2;
-      final radius = lerpDouble(
-        orbitStartRadius,
-        isJackpot ? 80.0 : 90.0,
-        easedLocal,
-      )!;
-      return center +
-          Offset(math.cos(angle) * radius, math.sin(angle) * radius);
-    }
-
-    // Phase 3: dive to center from the precise orbit endpoint.
-    // Computing this dynamically prevents the position jump that made the orb
-    // look like it "went past" the circle.
-    final endAngle = math.pi * orbitTurns - math.pi / 2;
-    final endRadius = isJackpot ? 80.0 : 90.0;
-    final start =
-        center +
-        Offset(math.cos(endAngle) * endRadius, math.sin(endAngle) * endRadius);
-    final diveSpan = (1.0 - orbitEndProgress).clamp(0.01, 0.78);
-    final local = ((progress - orbitEndProgress) / diveSpan).clamp(0.0, 1.0);
-    final easedLocal = Curves.easeInCubic.transform(local);
-    return Offset(
-      lerpDouble(start.dx, center.dx, easedLocal)!,
-      lerpDouble(start.dy, center.dy, easedLocal)!,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _PowerOrbPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-        oldDelegate.flash != flash ||
-        oldDelegate.color != color ||
-        oldDelegate.deltaLabel != deltaLabel ||
-        oldDelegate.soulRoll != soulRoll ||
-        oldDelegate.rollLabel != rollLabel ||
-        oldDelegate.glowBoost != glowBoost ||
-        oldDelegate.isJackpot != isJackpot ||
-        oldDelegate.orbitTurns != orbitTurns ||
-        oldDelegate.orbitEndProgress != orbitEndProgress;
   }
 }

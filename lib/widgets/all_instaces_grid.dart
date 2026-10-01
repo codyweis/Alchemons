@@ -994,6 +994,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                                   theme: widget.theme,
                                   creature: creature,
                                   instance: inst,
+                                  siblings: instances,
                                 );
                               }
                             },
@@ -1006,6 +1007,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                                   theme: widget.theme,
                                   creature: creature,
                                   instance: inst,
+                                  siblings: instances,
                                 );
                               } else {
                                 CreatureDetailsDialog.show(

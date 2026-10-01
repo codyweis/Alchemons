@@ -2,7 +2,10 @@
 
 import 'dart:async' as async;
 import 'dart:math';
+import 'package:alchemons/models/encounters/pools/sky_pool.dart';
+import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
+import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/services/opening_wilderness_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
@@ -37,6 +40,105 @@ class WildernessSpawnService extends ChangeNotifier {
 
   // Track which scenes are currently being visited (should not auto-spawn)
   final Set<String> _activeScenes = {};
+
+  /// The weathers a scene's batch can come with, rolled in this order
+  /// (see [WildWeather]).
+  static const Map<String, List<WildWeather>> weathers = {
+    'sky': [skyStorm],
+    'valley': [valleyRain, valleySnow],
+    'swamp': [swampDry],
+  };
+
+  /// The weather over each scene whose current batch came with one.
+  /// Persisted beside the batch (as the weather's kind), so the weather
+  /// survives a restart and ends with its batch.
+  final Map<String, WildWeather> _withWeather = {};
+  static String _weatherKey(String sceneId) => 'wild_weather_$sceneId';
+
+  /// Set (to the weather's kind) once a scene has been visited in a weather
+  /// that leaves something behind; the first clear visit after takes it
+  /// (see [WildWeather.aftermath]).
+  static String _afterKey(String sceneId) => 'wild_after_$sceneId';
+
+  /// The next batch in a scene comes with this weather for certain — for
+  /// debugging.
+  final Map<String, WeatherKind> debugForceWeather = {};
+
+  static WildWeather? _weatherOf(String sceneId, String? kind) {
+    for (final w in weathers[sceneId] ?? const <WildWeather>[]) {
+      if (w.kind.name == kind) return w;
+    }
+    return null;
+  }
+
+  /// Replaces [sceneId]'s batch with one that comes with [kind] (its first
+  /// weather if null), now — for the debug tools. Answers whether it came.
+  Future<bool> debugBringWeather(String sceneId, [WeatherKind? kind]) async {
+    final list = weathers[sceneId];
+    if (list == null || list.isEmpty) return false;
+    final want = kind ?? list.first.kind;
+    debugForceWeather[sceneId] = want;
+    await clearSceneSpawns(sceneId);
+    await ensureSpawnsForScene(sceneId);
+    debugForceWeather.remove(sceneId);
+    return weatherIn(sceneId)?.kind == want;
+  }
+
+  /// Makes the next clear visit to [sceneId] bring the aftermath of its
+  /// first weather that has one — for the debug tools.
+  Future<void> debugSetAftermath(String sceneId) async {
+    for (final w in weathers[sceneId] ?? const <WildWeather>[]) {
+      if (!w.aftermath) continue;
+      await _db.settingsDao.setSetting(_afterKey(sceneId), w.kind.name);
+      return;
+    }
+  }
+
+  /// Whether [sceneId]'s current batch came with weather.
+  bool hasWeather(String sceneId) => _withWeather.containsKey(sceneId);
+
+  /// The weather over [sceneId]'s current batch, if it came with one.
+  WildWeather? weatherIn(String sceneId) => _withWeather[sceneId];
+
+  /// A visit in [sceneId]'s weather has begun: the next clear one is owed
+  /// its aftermath, if the weather has one.
+  Future<void> noteWeatherVisit(String sceneId) async {
+    final w = weatherIn(sceneId);
+    if (w == null || !w.aftermath) return;
+    await _db.settingsDao.setSetting(_afterKey(sceneId), w.kind.name);
+  }
+
+  /// On a clear visit to [sceneId]: the weather whose aftermath it is owed,
+  /// or null. Taking it spends it.
+  Future<WildWeather?> takeAftermath(String sceneId) async {
+    if (hasWeather(sceneId)) return null;
+    final stored = await _db.settingsDao.getSetting(_afterKey(sceneId));
+    if (stored == null) return null;
+    // An earlier build stored '1' for the scene's one weather with an
+    // aftermath.
+    final w =
+        _weatherOf(sceneId, stored) ??
+        (weathers[sceneId] ?? const <WildWeather>[])
+            .where((w) => w.aftermath)
+            .firstOrNull;
+    await _db.settingsDao.deleteSetting(_afterKey(sceneId));
+    return w != null && w.aftermath ? w : null;
+  }
+
+  Future<void> _setWeather(String sceneId, WildWeather? w) async {
+    final was = _withWeather[sceneId];
+    if (w == null) {
+      _withWeather.remove(sceneId);
+    } else {
+      _withWeather[sceneId] = w;
+    }
+    if (identical(was, w)) return;
+    if (w == null) {
+      await _db.settingsDao.deleteSetting(_weatherKey(sceneId));
+    } else {
+      await _db.settingsDao.setSetting(_weatherKey(sceneId), w.kind.name);
+    }
+  }
 
   // Stored scenes config for on-demand spawn generation
   Map<
@@ -345,6 +447,22 @@ class WildernessSpawnService extends ChangeNotifier {
 
     // 3b) Drop stale data left from removed/locked scenes (e.g. poison).
     await _purgeIneligibleSceneData(eligibleSceneIds);
+
+    // 3c) Weather is only ever over a batch that is still there.
+    for (final sceneId in weathers.keys) {
+      // An earlier build kept the storm under its own key.
+      await _db.settingsDao.deleteSetting('wild_storm_$sceneId');
+      final stored = await _db.settingsDao.getSetting(_weatherKey(sceneId));
+      // An earlier build stored '1' for the scene's one weather.
+      final w = stored == '1'
+          ? weathers[sceneId]!.first
+          : _weatherOf(sceneId, stored);
+      if (w != null && hasAnySpawnsInScene(sceneId)) {
+        _withWeather[sceneId] = w;
+      } else if (stored != null) {
+        await _db.settingsDao.deleteSetting(_weatherKey(sceneId));
+      }
+    }
     await _clearLegacyScheduledNotifications();
 
     // 4) Ensure every known scene has either:
@@ -565,8 +683,23 @@ class WildernessSpawnService extends ChangeNotifier {
       return false;
     }
 
+    // A point in the open air only takes creatures that can float; one
+    // whose pool has none of those stays empty.
+    EncounterPool poolAt(SpawnPoint point) {
+      final pool = poolForSpawn(
+        spawnId: point.id,
+        sceneWide: sceneWide,
+        perSpawn: perSpawn,
+        unique: true,
+      );
+      return point.aloft
+          ? pool.where((e) => speciesCanFloat(e.speciesId))
+          : pool;
+    }
+
     final freePoints = scene.spawnPoints
         .where((sp) => sp.enabled && !hasSpawnAt(sceneId, sp.id))
+        .where((sp) => !poolAt(sp).isEmpty)
         .toList();
 
     if (freePoints.isEmpty) {
@@ -589,25 +722,67 @@ class WildernessSpawnService extends ChangeNotifier {
     // Shuffle to sample distinct points without repetition
     candidatePoints.shuffle(_rng);
 
+    // Some batches come with weather, which brings creatures of its own:
+    // at least as many as it guarantees, on the points that can take them —
+    // those points are chosen first.
+    final forced = debugForceWeather.remove(sceneId);
+    final roll = _rng.nextDouble();
+    WildWeather? weather;
+    var below = 0.0;
+    for (final w in weathers[sceneId] ?? const <WildWeather>[]) {
+      if (forced != null ? w.kind == forced : roll < below + w.chance) {
+        weather = w;
+        break;
+      }
+      below += w.chance;
+    }
+    final withWeather = weather != null;
+    EncounterPool? weatherPoolAt(SpawnPoint point) {
+      if (weather == null) return null;
+      final pool = point.aloft
+          ? weather.pool.where((e) => speciesCanFloat(e.speciesId))
+          : weather.pool;
+      return pool.isEmpty ? null : pool;
+    }
+
+    final ordered = withWeather
+        ? [
+            for (final p in candidatePoints)
+              if (weatherPoolAt(p) != null) p,
+            for (final p in candidatePoints)
+              if (weatherPoolAt(p) == null) p,
+          ]
+        : candidatePoints;
+    final wanted = weather != null
+        ? max(spawnCount, min(weather.guaranteed, ordered.length))
+        : spawnCount;
+
     // Enforce spacing so active encounters don't overlap each other.
     final selected = <SpawnPoint>[];
-    for (final point in candidatePoints) {
+    for (final point in ordered) {
       if (!_hasSafeDistanceFromAll(point, selected, scene)) {
         continue;
       }
       selected.add(point);
-      if (selected.length >= spawnCount) break;
+      if (selected.length >= wanted) break;
     }
 
+    final takers = [
+      for (final p in selected)
+        if (weatherPoolAt(p) != null) p,
+    ];
+    final picks = weather != null
+        ? weather.pick(takers.length, _rng.nextDouble)
+        : const <bool>[];
+    final fromWeather = {
+      for (var k = 0; k < takers.length; k++)
+        if (picks[k]) takers[k].id,
+    };
     for (final point in selected) {
-      final finalPool = poolForSpawn(
-        spawnId: point.id,
-        sceneWide: sceneWide,
-        perSpawn: perSpawn,
-        unique: true,
-      );
-
-      final encounter = _rollEncounter(finalPool, point.id);
+      final own = fromWeather.contains(point.id) ? weatherPoolAt(point) : null;
+      final encounter = own != null
+          ? _rollEncounter(own, point.id)
+          : _rollEncounter(poolAt(point), point.id);
 
       _activeSpawns.putIfAbsent(sceneId, () => {})[point.id] = encounter;
 
@@ -632,6 +807,12 @@ class WildernessSpawnService extends ChangeNotifier {
     if (selected.isEmpty) {
       debugPrint('⚠️ No valid spawn points selected in $sceneId');
       return false;
+    }
+    if (weathers.containsKey(sceneId)) {
+      await _setWeather(sceneId, weather);
+      if (weather != null) {
+        debugPrint('🌦️ ${weather.label} comes with the $sceneId batch');
+      }
     }
 
     // After spawning, show consolidated notification of active wilderness state.
@@ -771,6 +952,7 @@ class WildernessSpawnService extends ChangeNotifier {
     await (_db.delete(_db.activeSpawns)..where((t) => t.id.equals(id))).go();
     debugPrint('❌ Removed spawn: $sceneId/$spawnPointId');
 
+    if (!hasAnySpawnsInScene(sceneId)) await _setWeather(sceneId, null);
     if (!hasAnySpawnsInScene(sceneId) && !isSceneActive(sceneId)) {
       await scheduleNextSpawnTime(sceneId);
     }
@@ -801,6 +983,7 @@ class WildernessSpawnService extends ChangeNotifier {
     )..where((t) => t.sceneId.equals(sceneId))).go();
 
     debugPrint('🧹 Cleared spawns from $sceneId');
+    await _setWeather(sceneId, null);
 
     // Only schedule next spawn if scene is active in the current wilderness set.
     if (!isSceneActive(sceneId) && await _isSceneEligible(sceneId)) {

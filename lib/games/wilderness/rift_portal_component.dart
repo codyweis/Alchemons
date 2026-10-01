@@ -2,6 +2,7 @@
 import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
+import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:flutter/material.dart';
 
 // ── Faction definitions ───────────────────────────────────────────────────────
@@ -79,26 +80,13 @@ extension RiftFactionExt on RiftFaction {
   }
 }
 
-// ── Orbiting particle data ─────────────────────────────────────────────────────
-
-class _Particle {
-  double angle;
-  double radius;
-  final double speed; // radians/sec
-  final double size;
-  final double opacity;
-
-  _Particle({
-    required this.angle,
-    required this.radius,
-    required this.speed,
-    required this.size,
-    required this.opacity,
-  });
-}
-
 // ── Flame component ───────────────────────────────────────────────────────────
 
+/// A rift out in the wilderness: the same grain vortex its threshold opens
+/// on ([RiftVortexField]), small, over a dark tear in the sky.
+///
+/// It used to be blurred glows, blurred sparks and stroked spiral arms —
+/// some 27 blur passes a frame for as long as a rift was on screen.
 class RiftPortalComponent extends PositionComponent with TapCallbacks {
   final RiftFaction faction;
   final VoidCallback onTap;
@@ -109,12 +97,16 @@ class RiftPortalComponent extends PositionComponent with TapCallbacks {
   /// If null, the portal remains at its spawn world position.
   final Vector2 Function()? positionProvider;
 
-  double _time = 0;
-  late final List<_Particle> _particles;
-  final Random _rng = Random();
   final double _coreRadius;
 
-  static const int _particleCount = 24;
+  /// Fewer grains than the threshold's: it is a corner of a busy scene.
+  final RiftVortexField _field = RiftVortexField(
+    grains: 460,
+    ringGrains: 110,
+    motes: 26,
+    core: 0.27,
+  );
+  late final RiftPalette _palette = RiftPalette(faction.primaryColor);
 
   RiftPortalComponent({
     required Vector2 position,
@@ -128,25 +120,13 @@ class RiftPortalComponent extends PositionComponent with TapCallbacks {
          size: Vector2.all(radius * 5.0),
          anchor: Anchor.center,
          priority: 200,
-       ) {
-    _particles = List.generate(_particleCount, (i) {
-      final baseR = (_coreRadius * 0.9) + _rng.nextDouble() * _coreRadius * 0.8;
-      return _Particle(
-        angle: (i / _particleCount) * pi * 2,
-        radius: baseR,
-        speed: 0.3 + _rng.nextDouble() * 0.9,
-        size: 1.2 + _rng.nextDouble() * 2.8,
-        opacity: 0.45 + _rng.nextDouble() * 0.55,
-      );
-    });
-  }
+       );
 
   @override
   void update(double dt) {
-    _time += dt;
-    for (final p in _particles) {
-      p.angle += p.speed * dt;
-    }
+    // Tears open when it appears, as the threshold does.
+    _field.open = min(1.0, _field.open + dt / 1.4);
+    _field.step(dt);
     // Only follow an external provider when explicitly configured.
     final provider = positionProvider;
     if (provider != null) {
@@ -156,116 +136,13 @@ class RiftPortalComponent extends PositionComponent with TapCallbacks {
 
   @override
   void render(Canvas canvas) {
-    final cx = size.x / 2;
-    final cy = size.y / 2;
-    final r = _coreRadius;
-    final pulse = 0.88 + 0.12 * sin(_time * 2.5);
-    final color = faction.primaryColor;
-
-    // ── Outer ambient glow ───────────────────────────────────────────────────
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r * 2.6,
-      Paint()
-        ..color = color.withValues(alpha: 0.07 * pulse)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 32),
-    );
-
-    // ── Mid glow ────────────────────────────────────────────────────────────
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r * 1.7,
-      Paint()
-        ..color = color.withValues(alpha: 0.14 * pulse)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
-    );
-
-    // ── Accretion disk (flat ellipse, save/restore for squash)  ─────────────
-    canvas.save();
-    canvas.translate(cx, cy);
-    canvas.scale(1.0, 0.28);
-    final diskRect = Rect.fromCenter(
-      center: Offset.zero,
-      width: r * 3.0,
-      height: r * 3.0,
-    );
-    canvas.drawOval(
-      diskRect,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            color.withValues(alpha: 0),
-            color.withValues(alpha: 0.55 * pulse),
-            color.withValues(alpha: 0),
-          ],
-          stops: const [0.45, 0.68, 1.0],
-        ).createShader(diskRect),
-    );
-    canvas.restore();
-
-    // ── Event horizon ────────────────────────────────────────────────────────
-    final coreRect = Rect.fromCenter(
-      center: Offset(cx, cy),
-      width: r * 2,
-      height: r * 2,
-    );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r * pulse,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [faction.coreColor, faction.coreColor, Colors.black],
-          stops: const [0.0, 0.55, 1.0],
-        ).createShader(coreRect),
-    );
-
-    // ── Orbiting spark particles ─────────────────────────────────────────────
-    for (final p in _particles) {
-      final px = cx + cos(p.angle) * p.radius;
-      final py = cy + sin(p.angle) * p.radius * 0.42;
-      canvas.drawCircle(
-        Offset(px, py),
-        p.size * pulse,
-        Paint()
-          ..color = color.withValues(alpha: p.opacity * pulse)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8),
-      );
-    }
-
-    // ── Inward spiral arms ────────────────────────────────────────────────────
-    final spiralPaint = Paint()
-      ..color = color.withValues(alpha: 0.28 * pulse)
-      ..strokeWidth = 0.7
-      ..style = PaintingStyle.stroke;
-
-    for (int arm = 0; arm < 3; arm++) {
-      final startA = _time * 1.6 + (arm * pi * 2 / 3);
-      final path = Path();
-      bool first = true;
-      for (double t = 0.05; t <= 1.0; t += 0.04) {
-        final sr = r * t * 0.95;
-        final sa = startA - t * pi * 3.0;
-        final px = cx + cos(sa) * sr;
-        final py = cy + sin(sa) * sr * 0.42;
-        if (first) {
-          path.moveTo(px, py);
-          first = false;
-        } else {
-          path.lineTo(px, py);
-        }
-      }
-      canvas.drawPath(path, spiralPaint);
-    }
-
-    // ── Rim highlight arc ─────────────────────────────────────────────────────
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r * pulse,
-      Paint()
-        ..color = color.withValues(alpha: 0.22 * pulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+    _field.paint(
+      canvas,
+      Size(size.x, size.y),
+      Offset(size.x / 2, size.y / 2),
+      _coreRadius * 2.4,
+      _palette,
+      backdrop: false,
     );
   }
 

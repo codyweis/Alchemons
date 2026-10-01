@@ -7,6 +7,8 @@
 // caller always gets its answer.
 
 import 'package:alchemons/games/wilderness/harvest_field.dart';
+import 'package:alchemons/games/wilderness/particle_fusion_effect.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -134,7 +136,7 @@ void main() {
   });
 
   group('the fusion merges the two that are standing there', () {
-    Future<(FlameGame, _Target, _Target, FusionFieldEffect)> rig() async {
+    Future<(FlameGame, _Target, _Target, ParticleFusionEffect)> rig() async {
       final game = FlameGame();
       // ignore: invalid_use_of_internal_member
       game.onGameResize(Vector2(400, 800));
@@ -143,55 +145,59 @@ void main() {
       final b = _Target()..position = Vector2(300, 300);
       await game.addAll([a, b]);
       await game.ready();
-      final fx = FusionFieldEffect(
+      final fx = ParticleFusionEffect(
         a: a,
         b: b,
         accentA: const Color(0xFF6FBF73),
         accentB: const Color(0xFF7AA7E8),
-        seconds: 0.5,
       );
       await game.add(fx);
       await game.ready();
       return (game, a, b, fx);
     }
 
-    test('both live components travel to meet', () async {
-      final (game, a, b, _) = await rig();
-      final gap = (a.position - b.position).length;
-      for (var i = 0; i < 20; i++) {
+    void run(FlameGame game, double seconds) {
+      for (var i = 0; i < seconds * 60; i++) {
         game.update(1 / 60);
       }
-      expect(
-        (a.position - b.position).length,
-        lessThan(gap),
-        reason: 'the pair have to actually close on each other',
-      );
-    });
+    }
 
-    test('and both are consumed, so nothing is left to duplicate', () async {
+    test(
+      'both are consumed when it lands, so nothing is left to duplicate',
+      () async {
+        final (game, a, b, fx) = await rig();
+        final done = fx.fuse();
+        run(game, FusionParticleField.duration + 0.2);
+        await done;
+        await game.ready();
+        expect(_inWorld(a), isFalse);
+        expect(_inWorld(b), isFalse);
+        expect(fx.specimens, hasLength(2), reason: 'what the cinematic erupts');
+      },
+    );
+
+    test('a failed roll runs the grains back into both', () async {
       final (game, a, b, fx) = await rig();
-      for (var i = 0; i < 120; i++) {
-        game.update(1 / 60);
-      }
-      await fx.finished;
-      expect(_inWorld(a), isFalse);
-      expect(_inWorld(b), isFalse);
+      unawaited(fx.calibrate());
+      run(game, 0.8);
+      final back = fx.recoil();
+      run(game, 0.7);
+      await back;
+      await game.ready();
+      expect(_inWorld(a), isTrue);
+      expect(_inWorld(b), isTrue);
+      expect(_inWorld(fx), isFalse);
     });
 
     test('a teardown mid-merge hands both back intact', () async {
       final (game, a, b, fx) = await rig();
-      final ha = a.position.clone();
-      final hb = b.position.clone();
-      for (var i = 0; i < 10; i++) {
-        game.update(1 / 60);
-      }
-      fx.onRemove();
-      await fx.finished;
+      unawaited(fx.fuse());
+      run(game, 1.0);
+      fx.removeFromParent();
+      await game.ready();
+      run(game, 0.1);
       expect(_inWorld(a), isTrue);
       expect(_inWorld(b), isTrue);
-      expect(a.position, ha);
-      expect(b.position, hb);
-      expect(a.scale, Vector2.all(1));
     });
   });
 
@@ -219,27 +225,22 @@ void main() {
     await game.ready();
     expect(a.position, b.position, reason: 'the trap this test exists for');
 
-    final fx = FusionFieldEffect(
+    final fx = ParticleFusionEffect(
       a: a,
       b: b,
       accentA: const Color(0xFF6FBF73),
       accentB: const Color(0xFF7AA7E8),
-      seconds: 0.5,
     );
     await rightAnchor.add(fx);
     await game.ready();
 
-    final startGap = (a.absoluteCenter - b.absoluteCenter).length;
-    for (var i = 0; i < 25; i++) {
-      game.update(1 / 60);
-    }
-    final gap = (a.absoluteCenter - b.absoluteCenter).length;
+    final mid = (a.absoluteCenter + b.absoluteCenter) / 2;
+    final met = fx.meetingPoint!;
     expect(
-      gap,
-      lessThan(startGap * 0.7),
+      (met - mid).length,
+      lessThan(1),
       reason:
-          'they have to close in SCREEN space, not local space: '
-          '$startGap -> $gap',
+          'they have to meet in SCREEN space, not local space: $met vs $mid',
     );
   });
 }

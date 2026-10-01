@@ -2,12 +2,38 @@ import 'dart:ui';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:flame/components.dart';
 
+/// What a spawn point's creature is held up by.
+enum SpawnPerch {
+  /// Standing on something: ground, a slope, a rock. Anything may spawn.
+  ground,
+
+  /// In the open air. Only a creature that can fly or float may spawn here
+  /// (see [speciesCanFloat]).
+  air,
+}
+
+/// Whether a species may be shown in the air rather than standing on
+/// something: anything with wings, and the elements of the air — Air, Steam
+/// and Lightning (wind, vapour and the storm). Species ids are a family
+/// code and an element number, `WNG04`.
+bool speciesCanFloat(String speciesId) {
+  if (speciesId.startsWith('WNG')) return true;
+  final m = RegExp(r'^[A-Z]{3}(\d{2})').firstMatch(speciesId);
+  if (m == null) return false;
+  final element = int.parse(m.group(1)!);
+  return element == 4 || element == 5 || element == 7;
+}
+
 class SpawnPoint {
   final String id;
   final Offset normalizedPos;
   final SceneLayer anchor;
   final Vector2 size;
   final bool enabled;
+
+  /// What holds the creature up; an [SpawnPerch.air] point only ever rolls
+  /// creatures that can float.
+  final SpawnPerch perch;
 
   /// Normalized position for the player's creature during battle/breeding
   /// If null, defaults to mirrored position (1.0 - normalizedPos.dx)
@@ -20,7 +46,14 @@ class SpawnPoint {
     required this.size,
     this.enabled = true,
     this.battlePos,
+    this.perch = SpawnPerch.ground,
   });
+
+  bool get aloft => perch == SpawnPerch.air;
+
+  /// Which side of the wild creature its encounter partner stands in a
+  /// field that loops: 1 to the right, -1 to the left.
+  double get partnerSide => getBattlePos().dx >= normalizedPos.dx ? 1.0 : -1.0;
 
   /// Get the battle position, either explicit or auto-mirrored
   // In SpawnPoint class, update getBattlePos():

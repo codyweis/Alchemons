@@ -18,7 +18,6 @@ import 'mane_runtime.dart';
 import 'mane_alchemical_vfx.dart' show maneLavaPoolCrowd;
 import 'cosmic_enemy_vfx.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
-import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/constants/element_resources.dart';
@@ -40,6 +39,10 @@ import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/systems/effects/effect.dart';
 import 'package:alchemons/systems/effects/effect_loader.dart';
 import 'package:alchemons/systems/effects/effect_registry.dart';
+import 'package:alchemons/widgets/fx/rift_vortex.dart';
+import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
+import 'package:alchemons/widgets/fx/grain_assembly.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 
 part 'cosmic_game_helpers.dart';
 part 'cosmic_game_components.dart';
@@ -308,6 +311,9 @@ class CosmicGame extends FlameGame with PanDetector {
 
   // Rift portals (5 permanent, one per faction)
   double _riftPulse = 0;
+  final Map<String, RiftVortexField> _riftFields = {};
+  final Map<String, RiftPalette> _riftPalettes = {};
+  final Map<String, double> _riftFieldTimes = {};
   RiftPortal? _nearestRift; // closest rift within interact range
   bool _wasNearRift = false;
 
@@ -607,6 +613,10 @@ class CosmicGame extends FlameGame with PanDetector {
   final Map<int, SpriteAnimationTicker> _companionTickers = {};
   final Map<int, SpriteVisuals?> _companionVisualsBySlot = {};
   final Map<int, double> _companionSpriteScales = {};
+
+  /// Each companion read into grains of itself (with the instance they were
+  /// read from), for its summoning and its recall.
+  final Map<int, (String, GrainAssembly)> _companionGrains = {};
   Iterable<CosmicCompanion> get _livingActiveCompanions =>
       activeCompanions.values.where((comp) => comp.isAlive && !comp.returning);
 
@@ -1867,7 +1877,6 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       }
     }
-
   }
 
   void _openSpiritMaskBurst(
@@ -3186,6 +3195,7 @@ class CosmicGame extends FlameGame with PanDetector {
           _companionTickers.remove(slot);
           _companionVisualsBySlot.remove(slot);
           _companionSpriteScales.remove(slot);
+          _companionGrains.remove(slot);
         }
       } else if (comp.currentHp <= 0) {
         // Companion died — auto return
@@ -3200,6 +3210,7 @@ class CosmicGame extends FlameGame with PanDetector {
         _companionTickers.remove(slot);
         _companionVisualsBySlot.remove(slot);
         _companionSpriteScales.remove(slot);
+        _companionGrains.remove(slot);
         onCompanionDied?.call(diedMember);
       } else {
         // Auto-return if companion is far off screen (skip mid-duel)
@@ -6062,40 +6073,39 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    // ── rift portal ──
     // ── rift portals (all 5) ──
+    // The same grain vortex the wilderness rifts and their threshold use,
+    // so the rift you fly up to is the one that opens. Each steps only while
+    // it is near enough to see.
     for (final rift in world_.riftPortals) {
       final rp = rift.position;
       if ((rp.dx - cx - screenW / 2).abs() < screenW * 1.5 &&
           (rp.dy - cy - screenH / 2).abs() < screenH * 1.5) {
-        final col = rift.color;
-        final core = rift.coreColor;
-        // Outer glow
-        paintSoftCircle(canvas, rp, 48, col.withValues(alpha: 0.08), 18);
-        // Dark void core
-        canvas.drawCircle(rp, 28, Paint()..color = core);
-        // Pulsing rings (faction-colored)
-        for (var i = 0; i < 3; i++) {
-          final ringR = 30.0 + i * 12 + 4 * sin(_riftPulse * 2 + i);
-          canvas.drawCircle(
-            rp,
-            ringR,
-            Paint()
-              ..color = col.withValues(alpha: 0.3 - i * 0.08)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2,
-          );
-        }
-        // Orbiting sparks
-        for (var j = 0; j < 6; j++) {
-          final a = _riftPulse * 1.2 + j * pi / 3;
-          final sr = 36.0 + 8 * sin(_riftPulse * 3 + j);
-          canvas.drawCircle(
-            Offset(rp.dx + cos(a) * sr, rp.dy + sin(a) * sr),
-            2.5,
-            Paint()..color = col.withValues(alpha: 0.6),
-          );
-        }
+        final field = _riftFields.putIfAbsent(
+          rift.faction,
+          () => RiftVortexField(
+            grains: 520,
+            ringGrains: 120,
+            motes: 30,
+            core: 0.27,
+            grainSize: 2.4,
+          )..open = 1,
+        );
+        final last = _riftFieldTimes[rift.faction] ?? _riftPulse;
+        _riftFieldTimes[rift.faction] = _riftPulse;
+        field.step((_riftPulse - last).clamp(0.0, 0.05));
+        field.paint(
+          canvas,
+          Size.zero,
+          rp,
+          // The core as wide as the old dark disc.
+          28 / field.core,
+          _riftPalettes.putIfAbsent(
+            rift.faction,
+            () => RiftPalette(rift.color),
+          ),
+          backdrop: false,
+        );
       }
     }
 
@@ -6421,7 +6431,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 effect: g.visuals!.alchemyEffect!,
                 spriteScale: g.spriteScale,
                 baseSpriteSize: 40.0,
-                variantFaction: g.visuals?.variantFaction,
+                auraElement: g.visuals?.auraElement,
                 elapsed: _elapsed,
                 opacity: 0.95,
               );
@@ -6437,6 +6447,18 @@ class CosmicGame extends FlameGame with PanDetector {
             }
             sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
             canvas.restore();
+            if (g.visuals?.alchemyEffect != null) {
+              _drawAlchemyEffectCanvas(
+                canvas: canvas,
+                effect: g.visuals!.alchemyEffect!,
+                spriteScale: g.spriteScale,
+                baseSpriteSize: 40.0,
+                auraElement: g.visuals?.auraElement,
+                elapsed: _elapsed,
+                opacity: 0.95,
+                front: true,
+              );
+            }
           } else {
             // Fallback: colored circle
             canvas.drawCircle(
@@ -6525,15 +6547,19 @@ class CosmicGame extends FlameGame with PanDetector {
       );
 
       if (chamberVisuals?.alchemyEffect != null) {
+        // Round the chamber: this pass draws in world space.
+        canvas.save();
+        canvas.translate(cp.dx, cp.dy);
         _drawAlchemyEffectCanvas(
           canvas: canvas,
           effect: chamberVisuals!.alchemyEffect!,
           spriteScale: (r * 1.7) / 40.0,
           baseSpriteSize: 40.0,
-          variantFaction: chamberVisuals.variantFaction,
+          auraElement: chamberVisuals.auraElement,
           elapsed: _elapsed + chamber.seed,
           opacity: 0.9,
         );
+        canvas.restore();
       }
 
       // 2. Glass orb body — radial gradient sphere
@@ -6582,6 +6608,21 @@ class CosmicGame extends FlameGame with PanDetector {
           height: imgSize,
         );
         canvas.drawImageRect(img, srcRect, dstRect, paint);
+        canvas.restore();
+      }
+      if (chamberVisuals?.alchemyEffect != null) {
+        canvas.save();
+        canvas.translate(cp.dx, cp.dy);
+        _drawAlchemyEffectCanvas(
+          canvas: canvas,
+          effect: chamberVisuals!.alchemyEffect!,
+          spriteScale: (r * 1.7) / 40.0,
+          baseSpriteSize: 40.0,
+          auraElement: chamberVisuals.auraElement,
+          elapsed: _elapsed + chamber.seed,
+          opacity: 0.9,
+          front: true,
+        );
         canvas.restore();
       }
 
@@ -7208,30 +7249,58 @@ class CosmicGame extends FlameGame with PanDetector {
           ? (comp.returnTimer / retreatDur).clamp(0.0, 1.0)
           : 1.0;
 
-      // It steps out of a tear of its own element, and back into one when
-      // recalled — the same portal the ship tears to reach wild ones.
-      final emerge = isSummoning
+      // It gathers out of grains of itself where it will stand, and comes
+      // apart into them and streams back into the ship when recalled —
+      // the particle language of the fusion and the harvest. Until its
+      // grains have been read it steps out of a tear of its element, as it
+      // used to.
+      final grainEntry = _companionGrains[slotIndex];
+      final assembly =
+          grainEntry != null && grainEntry.$1 == comp.member.instanceId
+          ? grainEntry.$2
+          : null;
+      final emerge = isSummoning && assembly == null
           ? Curves.easeOutBack.transform(
               ((summonT - 0.18) / 0.55).clamp(0.0, 1.0),
             )
           : 1.0;
       final summonScale =
           (0.25 + 0.75 * emerge) * _beautyContestCompVisualScale;
-      final retreatScale = comp.returning
+      final retreatScale = comp.returning && assembly == null
           ? Curves.easeInBack.transform(retreatT)
           : 1.0;
       final animScale = summonScale * retreatScale;
       final opacity = comp.returning
-          ? retreatT
+          ? (assembly != null
+                ? GrainAssembly.spriteOpacityScattering(1 - retreatT)
+                : retreatT)
           : isSummoning
-          ? ((summonT - 0.15) / 0.3).clamp(0.0, 1.0)
+          ? (assembly != null
+                ? GrainAssembly.spriteOpacityGathering(summonT)
+                : ((summonT - 0.15) / 0.3).clamp(0.0, 1.0))
           : 1.0;
 
       canvas.save();
       canvas.translate(compPos.dx, compPos.dy);
 
       final tearHeight = 74.88 * comp.speciesScale * 1.35;
-      if (isSummoning) {
+      if (assembly != null) {
+        // Its element's light, where it gathers or comes apart.
+        final k = isSummoning
+            ? sin(pi * summonT)
+            : comp.returning
+            ? sin(pi * (1 - retreatT))
+            : 0.0;
+        if (k > 0) {
+          paintSoftCircle(
+            canvas,
+            Offset.zero,
+            assembly.reach * 1.6,
+            eColor.withValues(alpha: 0.28 * k),
+            14,
+          );
+        }
+      } else if (isSummoning) {
         paintSummonTear(
           canvas,
           centre: Offset.zero,
@@ -7309,7 +7378,7 @@ class CosmicGame extends FlameGame with PanDetector {
             effect: companionVisuals!.alchemyEffect!,
             spriteScale: companionScale,
             baseSpriteSize: 48.0,
-            variantFaction: companionVisuals.variantFaction,
+            auraElement: companionVisuals.auraElement,
             elapsed: _elapsed,
             opacity: opacity,
           );
@@ -7327,6 +7396,36 @@ class CosmicGame extends FlameGame with PanDetector {
         }
         sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
         canvas.restore();
+        if (companionVisuals?.alchemyEffect != null) {
+          _drawAlchemyEffectCanvas(
+            canvas: canvas,
+            effect: companionVisuals!.alchemyEffect!,
+            spriteScale: companionSpriteScale * animScale,
+            baseSpriteSize: 48.0,
+            auraElement: companionVisuals.auraElement,
+            elapsed: _elapsed,
+            opacity: opacity,
+            front: true,
+          );
+        }
+        if (assembly != null && isSummoning) {
+          assembly.paintGather(
+            canvas,
+            Offset.zero,
+            summonT,
+            mirror: facingRight,
+            scale: _beautyContestCompVisualScale,
+          );
+        } else if (assembly != null && comp.returning) {
+          assembly.paintScatter(
+            canvas,
+            Offset.zero,
+            1 - retreatT,
+            to: ship.pos - compPos,
+            mirror: facingRight,
+            scale: _beautyContestCompVisualScale,
+          );
+        }
       } else {
         // Fallback: colored circle
         canvas.drawCircle(
@@ -7474,7 +7573,7 @@ class CosmicGame extends FlameGame with PanDetector {
             effect: _duelOpponentVisuals!.alchemyEffect!,
             spriteScale: opponentScale,
             baseSpriteSize: 48.0,
-            variantFaction: _duelOpponentVisuals?.variantFaction,
+            auraElement: _duelOpponentVisuals?.auraElement,
             elapsed: _elapsed,
             opacity: 0.95,
           );
@@ -7490,6 +7589,18 @@ class CosmicGame extends FlameGame with PanDetector {
         }
         sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
         canvas.restore();
+        if (_duelOpponentVisuals?.alchemyEffect != null) {
+          _drawAlchemyEffectCanvas(
+            canvas: canvas,
+            effect: _duelOpponentVisuals!.alchemyEffect!,
+            spriteScale: _duelOpponentSpriteScale * summonScale,
+            baseSpriteSize: 48.0,
+            auraElement: _duelOpponentVisuals?.auraElement,
+            elapsed: _elapsed,
+            opacity: 0.95,
+            front: true,
+          );
+        }
       } else if (_duelOpponentFallbackSprite != null) {
         final paint = Paint()
           ..color = Colors.white
@@ -7656,10 +7767,7 @@ class CosmicGame extends FlameGame with PanDetector {
     }
     // A Blood pact's threads and the Kin lasers, over the world.
     _renderKinWorld(canvas);
-    _renderMaskSpiritNukeFlash(
-      canvas,
-      Rect.fromLTWH(cx, cy, screenW, screenH),
-    );
+    _renderMaskSpiritNukeFlash(canvas, Rect.fromLTWH(cx, cy, screenW, screenH));
 
     // ── VFX particles ──
     _abilityVfx.render(canvas);

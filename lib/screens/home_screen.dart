@@ -43,6 +43,7 @@ import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 
 import 'package:alchemons/widgets/creature_showcase_widget.dart';
+import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart';
@@ -740,6 +741,10 @@ class _HomeScreenState extends State<HomeScreen>
   // FEATURED HERO STATE
   PresentationData? _featuredData;
   String? _featuredInstanceId;
+
+  /// Set when a new featured specimen is chosen: it gathers out of its
+  /// element. Not on the home screen's own loads.
+  EssenceReveal? _featuredReveal;
   bool _animationsEnabled = false;
 
   void _updateAnimationState() {
@@ -1852,6 +1857,7 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       _featuredInstanceId = pickedInstance.instanceId;
       _featuredData = newPresentation;
+      _featuredReveal = EssenceReveal.once();
     });
 
     HapticFeedback.lightImpact();
@@ -1990,6 +1996,7 @@ class _HomeScreenState extends State<HomeScreen>
                                             _handleOpenFeaturedDetails,
                                         instance: _featuredData!.instance,
                                         creature: _featuredData!.creature,
+                                        reveal: _featuredReveal,
                                       ),
                                     ),
                                   ),

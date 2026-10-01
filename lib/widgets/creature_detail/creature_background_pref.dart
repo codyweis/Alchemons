@@ -1,6 +1,7 @@
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/background/starfield_background.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 
 enum CreatureBgKind { color, checker, space }
@@ -147,45 +148,89 @@ class _CheckerPainter extends CustomPainter {
   bool shouldRepaint(_CheckerPainter old) => false;
 }
 
-/// Tiny round swatch used in pickers.
-class CreatureBgSwatch extends StatelessWidget {
+/// A backdrop in a picker: the backdrop itself, its name under it, and the
+/// accent's bracket frame round the chosen one.
+class CreatureBgTile extends StatelessWidget {
   final CreatureBgOption option;
   final bool selected;
   final VoidCallback onTap;
+  final Color accent;
+
+  /// The chosen tile's name, and everyone else's.
+  final Color labelColor;
+  final Color mutedColor;
+
+  /// The tile's border when it is not chosen.
+  final Color lineColor;
   final double size;
 
-  const CreatureBgSwatch({
+  const CreatureBgTile({
     super.key,
     required this.option,
     required this.selected,
     required this.onTap,
-    this.size = 44,
+    required this.accent,
+    required this.labelColor,
+    required this.mutedColor,
+    required this.lineColor,
+    this.size = 50,
   });
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = selected
-        ? Colors.white
-        : Colors.white.withValues(alpha: 0.25);
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(onTap),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: borderColor, width: selected ? 2.2 : 1.2),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    blurRadius: 10,
+      child: SizedBox(
+        width: size + 12,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CustomPaint(
+              foregroundPainter: selected
+                  ? BracketFramePainter(
+                      color: accent,
+                      bracketSize: 9,
+                      strokeWidth: 1.4,
+                    )
+                  : null,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(2),
+                    border: Border.all(
+                      color: selected
+                          ? accent.withValues(alpha: 0.55)
+                          : lineColor.withValues(alpha: 0.6),
+                      width: 0.8,
+                    ),
                   ),
-                ]
-              : null,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(1.5),
+                    child: _inner(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              option.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: selected ? labelColor : mutedColor,
+                fontSize: 10,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ],
         ),
-        child: ClipOval(child: _inner()),
       ),
     );
   }

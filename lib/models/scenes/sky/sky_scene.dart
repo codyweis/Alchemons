@@ -1,84 +1,102 @@
 import 'dart:ui';
+import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:flame/components.dart';
 
-// Helper function and constant from your valley scene
-// to calculate battle positions
-double _clampN(double x, {double min = 0.05, double max = 0.95}) =>
-    x < min ? min : (x > max ? max : x);
-
-const double kBattleOffsetX = 0.30;
-
-Offset _nextTo(Offset p) {
-  // Ensure we don't exceed normalized bounds
-  final shiftedX = p.dx <= 0.5 ? p.dx + kBattleOffsetX : p.dx - kBattleOffsetX;
-  return Offset(_clampN(shiftedX, max: 1.0), _clampN(p.dy, max: 1.0));
-}
-
 final skyScene = SceneDefinition(
+  // Skyward Reach wraps round like the Valley: the near isles (which scroll
+  // at twice the camera) come round again every 3200 units, about four
+  // screens.
   worldWidth: 1600,
   worldHeight: 850,
-  layers: [
-    LayerDefinition(
-      id: SceneLayer.layer1,
-      imagePath: 'backgrounds/scenes/sky/sky.png',
-      parallaxFactor: 0.0,
-      widthMul: 1.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer2,
-      imagePath: 'backgrounds/scenes/sky/midground.png',
-      parallaxFactor: 0.1,
-      widthMul: 1.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer3,
-      imagePath: 'backgrounds/scenes/sky/foreground.png',
-      parallaxFactor: 0.7,
-      widthMul: 1.0,
-    ),
+  loop: true,
+  // Drawn in code (lib/games/wilderness/field/sky_field.dart). The sky is
+  // the camera's backdrop, so it has no layer; nearest moves fastest.
+  art: SkyField.new,
+  layers: const [
+    LayerDefinition(id: SceneLayer.layer2, imagePath: '', parallaxFactor: 0.1),
+    LayerDefinition(id: SceneLayer.layer3, imagePath: '', parallaxFactor: 0.35),
+    LayerDefinition(id: SceneLayer.layer4, imagePath: '', parallaxFactor: 1.0),
+    LayerDefinition(id: SceneLayer.layer5, imagePath: '', parallaxFactor: 1.6),
   ],
+  // Every point says what holds its creature up. The open-air points only
+  // take creatures that can float; each of the others stands on an isle the
+  // field builds under it. The field also builds an isle where each point's
+  // encounter partner stands (a pace to the side its battle position
+  // names), so a partner that cannot float has ground too. A battle
+  // position's height is where a floating partner hangs, just over that
+  // isle.
+  //
+  // x is a share of the point's own layer's loop.
   spawnPoints: [
-    // User's original spawn point, now with battlePos
+    // on the first isle, first thing in view (the tutorial's)
     SpawnPoint(
-      id: 'SP_sky_01', // Renamed from 'SP_volcano_01' for consistency
-      normalizedPos: const Offset(0.40, 0.65), // Wild left-center
-      anchor: SceneLayer.layer3,
-      size: Vector2(80, 80),
-      battlePos: _nextTo(const Offset(0.40, 0.65)), // -> (0.70, 0.65)
+      id: 'SP_sky_01',
+      normalizedPos: const Offset(0.09, 0.58),
+      anchor: SceneLayer.layer4,
+      size: Vector2(90, 90),
+      battlePos: const Offset(0.19, 0.60),
     ),
-    // New spawn point: Right side, mid-ground
+    // high over the far sea, first thing in view
     SpawnPoint(
       id: 'SP_sky_02',
-      normalizedPos: const Offset(0.75, 0.5), // Wild right
-      anchor: SceneLayer.layer2,
-      size: Vector2(70, 70),
-      battlePos: _nextTo(const Offset(0.75, 0.5)), // -> (0.45, 0.5)
+      normalizedPos: const Offset(0.20, 0.24),
+      anchor: SceneLayer.layer3,
+      size: Vector2(60, 60),
+      battlePos: const Offset(0.30, 0.46),
+      perch: SpawnPerch.air,
     ),
-    // New spawn point: Left side, foreground
+    // in the open air between the near isles
     SpawnPoint(
       id: 'SP_sky_03',
-      normalizedPos: const Offset(0.25, 0.7), // Wild left
-      anchor: SceneLayer.layer3,
-      size: Vector2(90, 90),
-      battlePos: _nextTo(const Offset(0.25, 0.7)), // -> (0.55, 0.7)
+      normalizedPos: const Offset(0.30, 0.30),
+      anchor: SceneLayer.layer4,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.40, 0.55),
+      perch: SpawnPerch.air,
     ),
-    // New spawn point: Center, high
+    // on a far isle
     SpawnPoint(
       id: 'SP_sky_04',
-      normalizedPos: const Offset(0.5, 0.3), // Wild center-high
-      anchor: SceneLayer.layer2,
-      size: Vector2(60, 60),
-      battlePos: _nextTo(const Offset(0.5, 0.3)), // -> (0.80, 0.3)
+      normalizedPos: const Offset(0.47, 0.42),
+      anchor: SceneLayer.layer3,
+      size: Vector2(65, 65),
+      battlePos: const Offset(0.57, 0.44),
     ),
-    // New spawn point: Far right, foreground
+    // on a near isle, midway round
     SpawnPoint(
       id: 'SP_sky_05',
-      normalizedPos: const Offset(0.85, 0.75), // Wild far-right
+      normalizedPos: const Offset(0.55, 0.62),
+      anchor: SceneLayer.layer4,
+      size: Vector2(90, 90),
+      battlePos: const Offset(0.45, 0.56),
+    ),
+    // high over the far sea, midway round
+    SpawnPoint(
+      id: 'SP_sky_06',
+      normalizedPos: const Offset(0.68, 0.22),
       anchor: SceneLayer.layer3,
-      size: Vector2(80, 80),
-      battlePos: _nextTo(const Offset(0.85, 0.75)), // -> (0.55, 0.75)
+      size: Vector2(60, 60),
+      battlePos: const Offset(0.78, 0.47),
+      perch: SpawnPerch.air,
+    ),
+    // in the open air, late in the loop
+    SpawnPoint(
+      id: 'SP_sky_07',
+      normalizedPos: const Offset(0.80, 0.34),
+      anchor: SceneLayer.layer4,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.90, 0.60),
+      perch: SpawnPerch.air,
+    ),
+    // on a far isle, late in the loop
+    SpawnPoint(
+      id: 'SP_sky_08',
+      normalizedPos: const Offset(0.90, 0.45),
+      anchor: SceneLayer.layer3,
+      size: Vector2(65, 65),
+      battlePos: const Offset(0.96, 0.47),
     ),
   ],
 );

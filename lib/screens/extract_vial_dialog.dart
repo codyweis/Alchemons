@@ -17,7 +17,6 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/audio/audio.dart';
 
@@ -172,20 +171,8 @@ class ExtractVialDialog extends StatelessWidget {
         children: [
           Row(
             children: [
-              SizedBox(
-                width: 54,
-                height: 54,
-                child: CustomPaint(
-                  painter: _VialSigilPainter(accent: accent, fill: skin.fill),
-                  child: Center(
-                    child: Icon(
-                      AppIcons.biotech_rounded,
-                      size: 22,
-                      color: accent,
-                    ),
-                  ),
-                ),
-              ),
+              // The vial itself, as it is shown everywhere else.
+              ExtractionVialOrb(vial: vial, size: 64),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -365,36 +352,6 @@ class _Button extends StatelessWidget {
 }
 
 /// A flask outline, echoing the vial card's frame colours.
-class _VialSigilPainter extends CustomPainter {
-  const _VialSigilPainter({required this.accent, required this.fill});
-  final Color accent;
-  final Color fill;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = Rect.fromLTWH(1, 1, size.width - 2, size.height - 2);
-    canvas.drawRect(r.deflate(6), Paint()..color = fill);
-    canvas.drawRect(
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = accent.withValues(alpha: 0.85),
-    );
-    canvas.drawRect(
-      r.deflate(6),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = accent.withValues(alpha: 0.35),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_VialSigilPainter old) =>
-      old.accent != accent || old.fill != fill;
-}
-
 class _RulePainter extends CustomPainter {
   const _RulePainter({required this.accent});
   final Color accent;

@@ -35,8 +35,13 @@ class SpriteVisuals {
   final Color? tint; // optional lineage-based tint
   final bool isAlbino; // computed flag for special rendering
   final String? alchemyEffect; // 'alchemy_glow', 'volcanic_aura', etc.
-  final String? variantFaction; // 'Pyro', 'Aqua', etc. for elemental aura color
+  final String? variantFaction; // off-faction pigment ('Volcanic'…), if any
+  final String? elementType; // the creature's own first type ('Fire'…)
   final double prismaticHueDeg; // Hue for prismatic visuals
+
+  /// What the Elemental Aura shows: the pigment's faction when it has an
+  /// off-faction one, so the aura matches its tint, else its own element.
+  String? get auraElement => variantFaction ?? elementType;
 
   const SpriteVisuals({
     this.scale = 1.0,
@@ -48,6 +53,7 @@ class SpriteVisuals {
     this.isAlbino = false,
     this.alchemyEffect,
     this.variantFaction,
+    this.elementType,
     this.prismaticHueDeg = 0.0, // Default value
   });
 }
@@ -100,5 +106,8 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
     isAlbino: isAlbino,
     alchemyEffect: alchemyEffect,
     variantFaction: variantFaction,
+    elementType: creature?.types.isNotEmpty == true
+        ? creature!.types.first
+        : null,
   );
 }

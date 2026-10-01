@@ -2,16 +2,22 @@ import 'dart:math' as math;
 import 'dart:math';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/games/cosmic/cosmic_data.dart'
+    show kCompanionSpeciesScale;
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
+import 'package:alchemons/widgets/fx/elemental_essence.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:provider/provider.dart';
 
@@ -54,23 +60,21 @@ class _BreedingTabState extends State<BreedingTab>
 
   late AnimationController _emptyFuseController;
 
-  // fade controllers for pre-cinematic dissolve
+  /// Runs the merge in the chamber, before the cinematic opens.
   late AnimationController _preCinematicFadeController;
-  late Animation<double> _spriteFadeAnim;
 
-  /// 0..1 as the specimens are hauled from their chambers into the orb.
-  late Animation<double> _mergeTravelAnim;
+  /// The merge, in particles: both specimens read into grains at the tap,
+  /// then poured into the orb. Null when no merge is running.
+  FusionParticleField? _fusionField;
 
-  /// 0..1 as each specimen comes apart in its own chamber, before anything
-  /// crosses the gap.
-  late Animation<double> _disintegrateAnim;
-
-  /// How far each chamber has to travel to meet at the core, measured from
-  /// the live slot and orb rects the moment the fusion starts.
-  Offset _slot1Merge = Offset.zero;
-  Offset _slot2Merge = Offset.zero;
+  /// Seconds into the merge.
+  double get _mergeTime =>
+      _preCinematicFadeController.value * FusionParticleField.duration;
 
   late Animation<double> _orbScaleAnim;
+
+  /// The orb and the line through it, going as the grains pour in.
+  late Animation<double> _orbFadeAnim;
   late Animation<double> _orbSpinSpeedAnim;
 
   // Keys to capture on-screen chamber positions so the fusion cinematic can
@@ -78,6 +82,39 @@ class _BreedingTabState extends State<BreedingTab>
   final GlobalKey _slot1AvatarKey = GlobalKey();
   final GlobalKey _slot2AvatarKey = GlobalKey();
   final GlobalKey _orbKey = GlobalKey();
+
+  // What each specimen is read into grains from, and the stack the grains
+  // are painted in.
+  /// A specimen put into a chamber gathers there out of its element. Each
+  /// pick gets its own ticket, so the chambers coming back into view later
+  /// just show what is in them.
+  EssenceReveal? _slot1Reveal, _slot2Reveal;
+
+  final GlobalKey _slot1CaptureKey = GlobalKey();
+  final GlobalKey _slot2CaptureKey = GlobalKey();
+  final GlobalKey _slotsStackKey = GlobalKey();
+
+  /// How tall the specimen's part of a chamber is, filled or empty, so
+  /// choosing a specimen never moves its name.
+  static const double _avatarZone = 170;
+
+  /// A sprite frame this wide per unit of family scale: a let (1.1) stands
+  /// 115 across, a wing (2.0) 209, a mystic (2.4) 251.
+  static const double _framePerFamilyScale = 104.5;
+
+  /// How big a specimen stands in its chamber, as its sprite frame before
+  /// its size gene: the size its family is drawn at in cosmic space and
+  /// survival ([kCompanionSpeciesScale]), so a wing is as much bigger than a
+  /// let here as it is out there.
+  static double _chamberFrame(Creature c) {
+    final family = (c.mutationFamily ?? '').toLowerCase();
+    return _framePerFamilyScale *
+        (_chamberFamilyScale[family] ?? kCompanionSpeciesScale[family] ?? 1.0);
+  }
+
+  /// Where the chamber departs from that table: a mask at its full 1.5 stood
+  /// too big beside its partner here.
+  static const Map<String, double> _chamberFamilyScale = {'mask': 1.3};
 
   String _familyKeyForCreature(Creature c) {
     if (c.mutationFamily != null && c.mutationFamily!.isNotEmpty) {
@@ -179,43 +216,40 @@ class _BreedingTabState extends State<BreedingTab>
       duration: const Duration(milliseconds: 2000),
     );
 
-    // THE MERGE, performed on the REAL chamber sprites.
+    // THE MERGE, performed in the chamber itself, so the route that follows
+    // never has to draw a copy of anything.
     //
-    // This used to be a 500ms fade-to-nothing whose only job was to get the
-    // live sprites off the screen before a full-screen route opened holding
-    // freshly built COPIES of them. The specimens now do the fusing
-    // themselves: they are hauled out of their chambers into the orb, they
-    // overlap, and only then do they go — so the route never has to draw a
-    // duplicate of anything.
+    // Each specimen is read into grains where it stands and swapped for
+    // them under a line of sparkle — the same shape, the same markings, made
+    // of particles — and the grains are poured into the orb, the two
+    // winding through each other, until it takes them in. The timeline is
+    // the field's; this controller just runs it.
     _preCinematicFadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1300),
-    );
-    // TWO BEATS, IN THIS ORDER: come apart, then come together.
-    //
-    // These used to overlap the wrong way round -- travel ran 0.12..0.88 and
-    // the fade only started at 0.78 -- so the pair crossed the screen intact
-    // and winked out on arrival. That reads as a collision, not a fusion.
-    // Now each specimen breaks up where it stands, and only the remnant is
-    // carried to the orb.
-    _disintegrateAnim = CurvedAnimation(
-      parent: _preCinematicFadeController,
-      curve: const Interval(0.04, 0.46, curve: Curves.easeOutCubic),
-    );
-    _mergeTravelAnim = CurvedAnimation(
-      parent: _preCinematicFadeController,
-      curve: const Interval(0.46, 0.90, curve: Curves.easeInCubic),
-    );
-    // The remnant is spent by the time it reaches the orb.
-    _spriteFadeAnim = CurvedAnimation(
-      parent: _preCinematicFadeController,
-      curve: const Interval(0.74, 0.98, curve: Curves.easeIn),
+      duration: Duration(
+        milliseconds: (FusionParticleField.duration * 1000).round(),
+      ),
     );
 
-    _orbScaleAnim = Tween<double>(begin: 1.0, end: 2.0).animate(
+    // The orb is fed a little as the grains start to arrive, and is gone by
+    // the time they have: the cloud of the two of them is the fusion, as it
+    // is in the wild where there is no orb at all. Left standing, it sat at
+    // double size under the cloud with the grains falling into a gradient.
+    _orbScaleAnim = TweenSequence<double>([
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 34),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: 1.2,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 30,
+      ),
+      TweenSequenceItem(tween: ConstantTween(1.2), weight: 36),
+    ]).animate(_preCinematicFadeController);
+    _orbFadeAnim = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _preCinematicFadeController,
-        curve: Curves.easeOutCubic,
+        curve: const Interval(0.42, 0.72, curve: Curves.easeIn),
       ),
     );
 
@@ -435,11 +469,17 @@ class _BreedingTabState extends State<BreedingTab>
         ? BreedConstants.getTypeColor(baseB.types.first)
         : null;
 
+    final field = _fusionField;
     return Stack(
+      key: _slotsStackKey,
       clipBehavior: Clip.none,
       children: [
         // animated DNA line
-        if (hasParents) _buildDNAConnection(theme),
+        if (hasParents)
+          FadeTransition(
+            opacity: _orbFadeAnim,
+            child: _buildDNAConnection(theme),
+          ),
 
         // the two slots
         Row(
@@ -454,6 +494,7 @@ class _BreedingTabState extends State<BreedingTab>
                 theme: theme,
                 controller: _slot1Controller,
                 avatarKey: _slot1AvatarKey,
+                captureKey: _slot1CaptureKey,
               ),
             ),
             const SizedBox(width: 16),
@@ -466,9 +507,28 @@ class _BreedingTabState extends State<BreedingTab>
                 theme: theme,
                 controller: _slot2Controller,
                 avatarKey: _slot2AvatarKey,
+                captureKey: _slot2CaptureKey,
               ),
             ),
           ],
+        ),
+
+        // The merge's grains on the far side of the orb, under it. Always
+        // in the tree (painting nothing between merges) so adding it never
+        // shuffles the orb's place in this stack.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: field == null
+                  ? null
+                  : FusionParticlePainter(
+                      field,
+                      () => _mergeTime,
+                      back: true,
+                      repaint: _preCinematicFadeController,
+                    ),
+            ),
+          ),
         ),
 
         // floating fusion orb, centered between slots visually
@@ -487,6 +547,22 @@ class _BreedingTabState extends State<BreedingTab>
             ),
           ),
         ),
+
+        // ...and everything else of it, over the orb and the chambers.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: field == null
+                  ? null
+                  : FusionParticlePainter(
+                      field,
+                      () => _mergeTime,
+                      back: false,
+                      repaint: _preCinematicFadeController,
+                    ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -499,6 +575,7 @@ class _BreedingTabState extends State<BreedingTab>
     required FactionTheme theme,
     required AnimationController controller,
     GlobalKey? avatarKey,
+    GlobalKey? captureKey,
   }) {
     final repo = context.read<CreatureCatalog>();
     final base = inst != null ? repo.getCreatureById(inst.baseId) : null;
@@ -513,163 +590,172 @@ class _BreedingTabState extends State<BreedingTab>
     return AnimatedBuilder(
       animation: Listenable.merge([controller, _preCinematicFadeController]),
       builder: (context, child) {
-        // THE MERGE happens to this widget — the one with the live sprite in
-        // it — not to a copy of it on a route laid over the top.
-        final travel = _mergeTravelAnim.value;
-        final breakUp = _disintegrateAnim.value;
-        final merge = slotIndex == 1 ? _slot1Merge : _slot2Merge;
-
-        // The shake belongs to the break-up now, not the crossing: it is
-        // hardest as the specimen comes apart and eases off once there is
-        // only a remnant left to carry.
-        final shudder = breakUp * (1 - breakUp) * 4.0;
-        final jitter =
-            math.sin(_preCinematicFadeController.value * math.pi * 46) *
-            4.0 *
-            shudder;
+        // THE MERGE happens to this widget's own sprite: it is cut away
+        // behind the crest as its grains take its place, and the chamber
+        // empties as they are poured into the orb.
+        final field = _fusionField;
+        final side = slotIndex - 1;
+        final t = _mergeTime;
+        final cutY = field?.cutY(side, t);
+        // With no field (the chamber could not be measured) the sprite just
+        // fades, as it used to.
+        final emptied =
+            field?.chamberEmpty(side, t) ??
+            Curves.easeIn.transform(_preCinematicFadeController.value);
 
         // The CARD only breathes; the merge belongs to the sprite alone.
         final scale = isEmpty ? 1.0 : 1.0 + (controller.value * 0.03);
 
-        // Thins out hard as it comes apart, so what you are watching by the
-        // end of the break-up is the mote cloud rather than the sprite with
-        // some sparkle over it. The last of the ghost goes at the orb.
-        final spriteOpacity =
-            (1.0 - 0.78 * breakUp) * (1.0 - _spriteFadeAnim.value);
-
         return Transform.scale(
           scale: scale,
           child: GestureDetector(
+            // Mid-merge the specimen is already grains; swapping it out
+            // from under them would leave the merge pouring a creature that
+            // is no longer there.
             onTap: context.soundAction(
-              () => _showBreedingPicker(targetSlot: slotIndex),
+              _isBreeding
+                  ? null
+                  : () => _showBreedingPicker(targetSlot: slotIndex),
             ),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOut,
-              height: 220,
+              height: 270,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // CONTENT COLUMN
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // SPRITE ZONE
-                      //
-                      // The merge moves THIS and nothing else. Wrapping the
-                      // whole slot in the travel dragged the card with it —
-                      // name, element chip and all — so two labelled panels
-                      // slid into the core instead of two creatures.
-                      Center(
-                        key: avatarKey,
-                        child: isEmpty
-                            ? _buildEmptyAvatar(theme)
-                            : _buildCreatureAvatar(
-                                base,
-                                inst!,
-                                genetics,
-                                travel: travel,
-                                breakUp: breakUp,
-                                merge: merge,
-                                jitter: jitter,
-                                spriteOpacity: spriteOpacity.clamp(0, 1),
-                              ),
-                      ),
-
-                      const SizedBox(height: 18),
-
-                      // NAME + TYPE — they belong to the chamber, not to the
-                      // specimen, so they stay put and dim as it is drawn out.
-                      if (!isEmpty) ...[
-                        Opacity(
-                          opacity: (1.0 - travel).clamp(0.0, 1.0),
-                          child: Column(
-                            children: [
-                              Text(
-                                base.name.toUpperCase(),
-                                style: TextStyle(
-                                  color: theme.text,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: .5,
+              child: LayoutBuilder(
+                builder: (context, box) => Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // CONTENT COLUMN
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // SPRITE ZONE
+                        //
+                        // The merge belongs to the sprite and nothing else:
+                        // the name and element chip stay with the chamber.
+                        Center(
+                          key: avatarKey,
+                          child: isEmpty
+                              ? _buildEmptyAvatar(theme)
+                              : _buildCreatureAvatar(
+                                  base,
+                                  inst!,
+                                  genetics,
+                                  captureKey: captureKey,
+                                  // Never so big it spills out of its chamber
+                                  // (a giant mystic on a narrow phone): the
+                                  // body is about 60% of its frame.
+                                  maxFrame: box.maxWidth * 1.5,
+                                  cutY: cutY,
+                                  emptied: emptied,
+                                  spriteOpacity: field == null
+                                      ? 1.0 - emptied
+                                      : 1.0,
+                                  reveal: slotIndex == 1
+                                      ? _slot1Reveal
+                                      : _slot2Reveal,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 6),
-                              _buildTypeChip(base.types.first, typeColor),
-                            ],
-                          ),
                         ),
-                      ] else ...[
-                        Text(
-                          'Tap to select',
-                          style: TextStyle(
-                            color: theme.textMuted.withValues(alpha: .6),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
 
-                  // CLOSE BUTTON (ONLY WHEN FILLED)
-                  if (!isEmpty)
-                    Positioned(
-                      right: -8,
-                      top: -18,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: context.soundAction(() {
-                          setState(() {
-                            if (slotIndex == 1) {
-                              selectedParent1 = null;
-                            } else {
-                              selectedParent2 = null;
-                            }
-                            _updateAnimations();
-                          });
-                        }),
-                        child: SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Center(
-                            child: Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: .78),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.red.withValues(alpha: .68),
-                                  width: 1.5,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.red.withValues(alpha: .38),
-                                    blurRadius: 10,
-                                    spreadRadius: 1,
+                        const SizedBox(height: 18),
+
+                        // NAME + TYPE — they belong to the chamber, not to the
+                        // specimen, so they stay put and dim as it is drawn out.
+                        if (!isEmpty) ...[
+                          Opacity(
+                            opacity: (1.0 - emptied).clamp(0.0, 1.0),
+                            child: Column(
+                              children: [
+                                Text(
+                                  base.name.toUpperCase(),
+                                  style: TextStyle(
+                                    color: theme.text,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: .5,
                                   ),
-                                ],
-                              ),
-                              child: const Icon(
-                                AppIcons.close,
-                                color: Colors.red,
-                                size: 14,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 6),
+                                _buildTypeChip(base.types.first, typeColor),
+                              ],
+                            ),
+                          ),
+                        ] else ...[
+                          Text(
+                            'Tap to select',
+                            style: TextStyle(
+                              color: theme.textMuted.withValues(alpha: .6),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+
+                    // CLOSE BUTTON (ONLY WHEN FILLED)
+                    if (!isEmpty)
+                      Positioned(
+                        right: -8,
+                        top: -18,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: context.soundAction(
+                            _isBreeding
+                                ? null
+                                : () {
+                                    setState(() {
+                                      if (slotIndex == 1) {
+                                        selectedParent1 = null;
+                                      } else {
+                                        selectedParent2 = null;
+                                      }
+                                      _updateAnimations();
+                                    });
+                                  },
+                          ),
+                          child: SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Center(
+                              child: Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: .78),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.red.withValues(alpha: .68),
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withValues(alpha: .38),
+                                      blurRadius: 10,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  AppIcons.close,
+                                  color: Colors.red,
+                                  size: 14,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -683,28 +769,33 @@ class _BreedingTabState extends State<BreedingTab>
     final primary = Theme.of(context).colorScheme.primary;
 
     return SizedBox(
-      width: 104,
-      height: 104,
-      child: AnimatedBuilder(
-        animation: _emptyFuseController,
-        builder: (context, _) {
-          return CustomPaint(
-            painter: _SummoningCirclePainter(
-              color: theme.border.withValues(alpha: .45),
-              accentColor: primary,
-              glowColor: primary.withValues(alpha: .06),
-              progress: _emptyFuseController.value,
-              showOrbit: true,
-            ),
-            child: Center(
-              child: Icon(
-                AppIcons.help_center_rounded,
-                color: theme.textMuted.withValues(alpha: .25),
-                size: 28,
-              ),
-            ),
-          );
-        },
+      height: _avatarZone,
+      child: Center(
+        child: SizedBox(
+          width: 104,
+          height: 104,
+          child: AnimatedBuilder(
+            animation: _emptyFuseController,
+            builder: (context, _) {
+              return CustomPaint(
+                painter: _SummoningCirclePainter(
+                  color: theme.border.withValues(alpha: .45),
+                  accentColor: primary,
+                  glowColor: primary.withValues(alpha: .06),
+                  progress: _emptyFuseController.value,
+                  showOrbit: true,
+                ),
+                child: Center(
+                  child: Icon(
+                    AppIcons.help_center_rounded,
+                    color: theme.textMuted.withValues(alpha: .25),
+                    size: 28,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -712,25 +803,37 @@ class _BreedingTabState extends State<BreedingTab>
   // live animated sprite inside summoning circle frame
   /// The specimen and the circle it stands in.
   ///
-  /// They come apart during a merge: the SUMMONING CIRCLE belongs to the
-  /// chamber and stays where it is, dimming as the chamber empties, while the
-  /// sprite is the only thing hauled to the core. Drawn as one widget they
-  /// travelled together, and a star-ring sliding across the card behind the
-  /// creature is the sort of thing that reads as a bug.
+  /// It stands at its family's size ([_chamberFrame]) times its size gene,
+  /// up to [maxFrame], and the circle under it grows with it.
+  ///
+  /// They part during a merge: the SUMMONING CIRCLE belongs to the chamber
+  /// and stays, dimming as the chamber empties ([emptied]), while the sprite
+  /// is cut away from the top down ([cutY], from the capture box's centre)
+  /// as its grains take its place.
+  ///
+  /// The sprite sits in a repaint boundary ([captureKey]) a little bigger
+  /// than it, so it can be read into grains exactly as it is showing. The
+  /// tree here is the same whether or not a merge is running, so starting
+  /// one never rebuilds the sprite underneath it.
   Widget _buildCreatureAvatar(
     Creature base,
     CreatureInstance inst,
     Genetics? genetics, {
-    double travel = 0,
-    double breakUp = 0,
-    Offset merge = Offset.zero,
-    double jitter = 0,
+    GlobalKey? captureKey,
+    double maxFrame = double.infinity,
+    double? cutY,
+    double emptied = 0,
     double spriteOpacity = 1,
+    EssenceReveal? reveal,
   }) {
     final typeColor = BreedConstants.getTypeColor(base.types.first);
+    // The sprite's own widget draws its frame 69 across and then applies the
+    // size gene, so the family size goes on as a scale around it.
+    final gene = scaleFromGenes(genetics);
+    final frame = math.min(_chamberFrame(base) * gene, maxFrame);
     final sprite = base.spriteData != null
         ? Transform.scale(
-            scale: 1.4,
+            scale: frame / gene / 69,
             child: InstanceSprite(creature: base, instance: inst, size: 64),
           )
         : Icon(
@@ -738,61 +841,74 @@ class _BreedingTabState extends State<BreedingTab>
             color: Colors.white.withValues(alpha: .4),
             size: 32,
           );
+    final captureBox = (frame * 1.12).ceilToDouble();
+    final circle = (frame * 0.62).clamp(104.0, 150.0);
+    final cut = cutY ?? double.negativeInfinity;
+    // Gone once the crest has passed; nothing left to draw.
+    final opacity = cut == double.infinity ? 0.0 : spriteOpacity;
 
     return SizedBox(
       width: 104,
-      height: 104,
+      height: _avatarZone,
       child: Stack(
-        // The sprite leaves this box on its way to the core.
         clipBehavior: Clip.none,
         alignment: Alignment.center,
         children: [
           Opacity(
-            // The circle dims as the chamber empties, which now begins with
-            // the break-up rather than waiting for the crossing.
-            opacity: (1.0 - math.max(travel, breakUp * 0.85)).clamp(0.0, 1.0),
-            child: SizedBox.expand(
-              child: CustomPaint(
-                painter: _SummoningCirclePainter(
-                  color: typeColor.withValues(alpha: .5),
-                  accentColor: typeColor,
-                  glowColor: typeColor.withValues(alpha: .08),
-                  progress: 0,
-                  showOrbit: false,
+            opacity: (1.0 - emptied * 0.9).clamp(0.0, 1.0),
+            child: OverflowBox(
+              maxWidth: circle,
+              maxHeight: circle,
+              child: SizedBox.square(
+                dimension: circle,
+                child: CustomPaint(
+                  painter: _SummoningCirclePainter(
+                    color: typeColor.withValues(alpha: .5),
+                    accentColor: typeColor,
+                    glowColor: typeColor.withValues(alpha: .08),
+                    progress: 0,
+                    showOrbit: false,
+                  ),
                 ),
               ),
             ),
           ),
-          Transform.translate(
-            offset: Offset(merge.dx * travel + jitter, merge.dy * travel),
-            child: Transform.scale(
-              // Swells as it comes apart — a body losing its shape reads as
-              // expansion, where shrinking just reads as being switched off.
-              scale: 1.0 + 0.20 * travel + 0.34 * breakUp,
-              // The motes live inside the same transform as the sprite, so
-              // they are carried to the orb with it rather than being left
-              // behind in an empty chamber.
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  Opacity(
-                    opacity: spriteOpacity.clamp(0.0, 1.0),
-                    child: SizedBox(width: 68, height: 68, child: sprite),
-                  ),
-                  if (breakUp > 0)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: CustomPaint(
-                          painter: _DisintegrationPainter(
-                            breakUp: breakUp,
-                            travel: travel,
-                            color: typeColor,
-                          ),
-                        ),
+          OverflowBox(
+            maxWidth: captureBox,
+            maxHeight: captureBox,
+            child: ClipRect(
+              clipper: SpriteCrestClipper(cut),
+              clipBehavior: cut == double.negativeInfinity
+                  ? Clip.none
+                  : Clip.hardEdge,
+              child: RepaintBoundary(
+                key: captureKey,
+                child: SizedBox.square(
+                  dimension: captureBox,
+                  child: Center(
+                    child: Opacity(
+                      opacity: opacity.clamp(0.0, 1.0),
+                      child: SizedBox(
+                        width: 68,
+                        height: 68,
+                        child: base.spriteData == null
+                            ? sprite
+                            : ElementalEssence(
+                                key: ValueKey(inst.instanceId),
+                                element: base.types.first,
+                                dark: context.read<FactionTheme>().isDark,
+                                reveal: reveal,
+                                // A tap on the chamber picks its specimen.
+                                tappable: false,
+                                // The sprite is scaled up past this box to
+                                // its family size; read all of it.
+                                captureScale: captureBox / 68,
+                                child: sprite,
+                              ),
                       ),
                     ),
-                ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -917,32 +1033,35 @@ class _BreedingTabState extends State<BreedingTab>
           fallbackColor: theme.surfaceAlt,
         );
 
-        return Transform.scale(
-          scale: chargedScale,
-          child: Transform.rotate(
-            angle: rotation,
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: (leftColor != null || rightColor != null)
-                      ? ringColor
-                      : theme.border.withValues(alpha: .3),
-                  width: 1.5,
+        return Opacity(
+          opacity: _orbFadeAnim.value,
+          child: Transform.scale(
+            scale: chargedScale,
+            child: Transform.rotate(
+              angle: rotation,
+              child: Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: (leftColor != null || rightColor != null)
+                        ? ringColor
+                        : theme.border.withValues(alpha: .3),
+                    width: 1.5,
+                  ),
+                  boxShadow: (leftColor != null || rightColor != null)
+                      ? [
+                          BoxShadow(
+                            color: ringColor.withValues(alpha: .3),
+                            blurRadius: 24,
+                            spreadRadius: 4,
+                          ),
+                        ]
+                      : [],
                 ),
-                boxShadow: (leftColor != null || rightColor != null)
-                    ? [
-                        BoxShadow(
-                          color: ringColor.withValues(alpha: .3),
-                          blurRadius: 24,
-                          spreadRadius: 4,
-                        ),
-                      ]
-                    : [],
+                child: ClipOval(child: innerOrb),
               ),
-              child: ClipOval(child: innerOrb),
             ),
           ),
         );
@@ -1130,6 +1249,7 @@ class _BreedingTabState extends State<BreedingTab>
     }
 
     setState(() {
+      _revealNewPicks(inst1, inst2);
       selectedParent1 = inst1;
       selectedParent2 = inst2;
       _updateAnimations();
@@ -1173,6 +1293,9 @@ class _BreedingTabState extends State<BreedingTab>
     if (_isBreeding) return;
 
     setState(() => _isBreeding = true);
+    // Read the specimens into grains now, while the refusals below are
+    // checked, so the merge does not wait on it. Thrown away if one says no.
+    final grains = _captureSpecimens();
     try {
       // --- Cross-species check runs BEFORE any cinematic / fade ---
       final repo = context.read<CreatureCatalog>();
@@ -1246,28 +1369,19 @@ class _BreedingTabState extends State<BreedingTab>
       }
       // -------------------------------------------------------------
 
-      // Measure what each chamber has to cross to meet at the core, from the
-      // rects as they actually are right now — the layout is responsive, so
-      // this cannot be a constant.
-      final l = _globalRectOf(_slot1AvatarKey);
-      final r = _globalRectOf(_slot2AvatarKey);
-      final core = _globalRectOf(_orbKey);
-      if (l != null && r != null && core != null) {
-        _slot1Merge = core.center - l.center;
-        _slot2Merge = core.center - r.center;
-      } else {
-        // No keys laid out yet (an unusual first frame): meet in the middle
-        // of the pair rather than not moving at all.
-        _slot1Merge = const Offset(70, 0);
-        _slot2Merge = const Offset(-70, 0);
-      }
-
-      // The specimens are hauled together and merge — on the real widgets.
-      if (mounted) context.sound(SoundCue.breedingStart, owner: this);
+      // The specimens turn to grains and are poured into the orb, on the
+      // real chamber. Measured from the layout as it is right now: it is
+      // responsive, so none of this can be a constant.
+      final read = await grains;
+      if (!mounted) return;
+      setState(
+        () => _fusionField = _buildFusionField(read, speciesA, speciesB),
+      );
+      context.sound(SoundCue.breedingStart, owner: this);
       await _preCinematicFadeController.forward();
 
       // let that max-charged orb hang briefly
-      await Future.delayed(const Duration(milliseconds: 240));
+      await Future.delayed(const Duration(milliseconds: 140));
 
       // now jump to cinematic + actual breeding
       if (!mounted) return;
@@ -1275,9 +1389,77 @@ class _BreedingTabState extends State<BreedingTab>
     } finally {
       if (mounted) {
         _preCinematicFadeController.reset();
-        setState(() => _isBreeding = false);
+        setState(() {
+          _isBreeding = false;
+          _fusionField = null;
+        });
       }
     }
+  }
+
+  /// Reads both chamber sprites into grains, exactly as they are showing.
+  /// A specimen that cannot be read comes back null.
+  Future<List<SpecimenGrains?>> _captureSpecimens() async {
+    final ratio = MediaQuery.devicePixelRatioOf(context).clamp(1.0, 3.0);
+    // Between frames, so nothing in the box is waiting to be repainted.
+    await WidgetsBinding.instance.endOfFrame;
+    Future<SpecimenGrains?> read(GlobalKey key) async {
+      final box = key.currentContext?.findRenderObject();
+      if (box is! RenderRepaintBoundary || !box.attached) return null;
+      try {
+        return await SpecimenGrains.capture(box, pixelRatio: ratio);
+      } catch (e) {
+        debugPrint('fusion: could not read a specimen into grains: $e');
+        return null;
+      }
+    }
+
+    return Future.wait([read(_slot1CaptureKey), read(_slot2CaptureKey)]);
+  }
+
+  /// The merge, laid out on the chamber as it is right now. Null if the
+  /// chamber is not laid out, in which case the sprites simply fade.
+  FusionParticleField? _buildFusionField(
+    List<SpecimenGrains?> grains,
+    Creature speciesA,
+    Creature speciesB,
+  ) {
+    RenderBox? boxOf(GlobalKey key) {
+      final box = key.currentContext?.findRenderObject();
+      return box is RenderBox && box.attached && box.hasSize ? box : null;
+    }
+
+    final stack = boxOf(_slotsStackKey);
+    final orb = boxOf(_orbKey);
+    if (stack == null || orb == null) return null;
+    final centres = <Offset>[];
+    final scales = <double>[];
+    for (final key in [_slot1CaptureKey, _slot2CaptureKey]) {
+      final box = boxOf(key);
+      if (box == null) return null;
+      // Through any transform above it (the slot breathes at 1.03).
+      final tl = box.localToGlobal(Offset.zero);
+      final br = box.localToGlobal(box.size.bottomRight(Offset.zero));
+      centres.add(stack.globalToLocal((tl + br) / 2));
+      scales.add((br.dx - tl.dx) / box.size.width);
+    }
+    final colorA = BreedConstants.getTypeColor(speciesA.types.first);
+    final colorB = BreedConstants.getTypeColor(speciesB.types.first);
+    return FusionParticleField(
+      specimens: [
+        grains[0] ?? SpecimenGrains.disc(colorA),
+        grains[1] ?? SpecimenGrains.disc(colorB),
+      ],
+      centres: centres,
+      scales: scales,
+      core: stack.globalToLocal(
+        orb.localToGlobal(orb.size.center(Offset.zero)),
+      ),
+      // A cloud a little wider than the orb, so it shows through the gaps.
+      coreRadius: orb.size.width / 2 * 1.7,
+      colors: [colorA, colorB],
+      darkBackdrop: context.read<FactionTheme>().isDark,
+    );
   }
 
   // Resolve a keyed widget's bounds in global screen coordinates, so the
@@ -1414,6 +1596,8 @@ class _BreedingTabState extends State<BreedingTab>
         rightSlotRect: _globalRectOf(_slot2AvatarKey),
         coreRect: _globalRectOf(_orbKey),
         outcome: outcomeNotifier,
+        // The eruption is made of what the pair were just poured as.
+        grains: _fusionField?.specimens,
         // Shorter than the old 4350: the intake, the charge and the haul
         // together now happen for real in the chamber before this opens, so
         // the route only has the eruption and the reveal left to play.
@@ -1534,12 +1718,23 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
+  /// New tickets for whichever chambers are getting a different specimen.
+  void _revealNewPicks(CreatureInstance? parent1, CreatureInstance? parent2) {
+    if (parent1 != null && parent1.instanceId != selectedParent1?.instanceId) {
+      _slot1Reveal = EssenceReveal.once();
+    }
+    if (parent2 != null && parent2.instanceId != selectedParent2?.instanceId) {
+      _slot2Reveal = EssenceReveal.once();
+    }
+  }
+
   void _applyBreedingPicks(
     CreatureInstance? parent1,
     CreatureInstance? parent2,
   ) {
     if (!mounted) return;
     setState(() {
+      _revealNewPicks(parent1, parent2);
       selectedParent1 = parent1;
       selectedParent2 = parent2;
       _updateAnimations();
@@ -1802,94 +1997,6 @@ class _ParticlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ParticlePainter oldDelegate) => true;
-}
-
-/// A specimen coming apart into motes.
-///
-/// Seeded off the mote index rather than a random source, so the cloud holds
-/// still frame to frame instead of boiling — the particles must look like
-/// pieces of one body, not static.
-class _DisintegrationPainter extends CustomPainter {
-  const _DisintegrationPainter({
-    required this.breakUp,
-    required this.travel,
-    required this.color,
-  });
-
-  /// 0..1 as the body comes apart.
-  final double breakUp;
-
-  /// 0..1 as the remnant is carried to the orb; the cloud tightens on the way.
-  final double travel;
-
-  final Color color;
-
-  static const _count = 46;
-  // Golden angle: spreads the motes without them landing on spokes.
-  static const _goldenAngle = 2.39996;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (breakUp <= 0) return;
-
-    final center = Offset(size.width / 2, size.height / 2);
-    final unit = math.min(size.width, size.height);
-
-    for (int i = 0; i < _count; i++) {
-      // Staggered release, so the body flakes apart progressively rather than
-      // detonating all at once on a single frame.
-      final stagger = (i % 9) / 9.0 * 0.42;
-      final p = ((breakUp - stagger) / (1.0 - stagger)).clamp(0.0, 1.0);
-      if (p <= 0) continue;
-
-      final ang = (i * _goldenAngle) % (math.pi * 2);
-      final dir = Offset(math.cos(ang), math.sin(ang));
-
-      // Start inside the silhouette, not all from a single point.
-      final inner = unit * (0.04 + ((i * 17) % 10) / 10.0 * 0.20);
-      // Thrown outward, easing out so the first frames carry the most motion.
-      final reach = unit * (0.14 + ((i * 29) % 10) / 10.0 * 0.34);
-      final out = Curves.easeOutCubic.transform(p);
-
-      // The cloud is gathered back in as it is carried, so it arrives at the
-      // orb as one thing instead of a scattering that never resolves.
-      final gather = 1.0 - 0.55 * Curves.easeInCubic.transform(travel);
-
-      var pos = center + dir * ((inner + reach * out) * gather);
-      // A slight lift, so it reads as matter coming off rather than debris.
-      pos += Offset(0, -unit * 0.14 * out);
-
-      // Fade in fast on release, then thin out as the mote spends itself.
-      final appear = (p / 0.18).clamp(0.0, 1.0);
-      final spend = 1.0 - 0.75 * p;
-      final alpha = (appear * spend).clamp(0.0, 1.0);
-      if (alpha <= 0.01) continue;
-
-      // A few larger fragments among the dust reads as a body, not a spray.
-      final chunk = (i % 11 == 0) ? 2.1 : 1.0;
-      final rad = (0.9 + 1.9 * (1.0 - out)) * chunk;
-
-      canvas.drawCircle(
-        pos,
-        rad * 2.0,
-        Paint()..color = color.withValues(alpha: alpha * 0.20),
-      );
-      canvas.drawCircle(
-        pos,
-        rad,
-        Paint()
-          ..color = Color.lerp(
-            color,
-            Colors.white,
-            0.45,
-          )!.withValues(alpha: alpha),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DisintegrationPainter old) =>
-      old.breakUp != breakUp || old.travel != travel || old.color != color;
 }
 
 class _SummoningCirclePainter extends CustomPainter {

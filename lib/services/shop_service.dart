@@ -11,20 +11,10 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/faction_service.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/blood_aura.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/beauty_radiance.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/intelligence_halo.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/ritual_gold.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/speed_flux.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/strength_forge.dart';
-import 'package:alchemons/utils/effect_size.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/void_rift.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/wavebreaker_crown.dart';
+import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
+import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -108,10 +98,33 @@ class ShopService extends ChangeNotifier {
   bool _elementalCreatorAutoUnlocked = false;
 
   ShopService(this._db, this._constellations, this._factions, this._boosts) {
+    // The debug FREE SHOP switch reprices everything the moment it flips.
+    DebugSettingsService.enabledNotifier.addListener(notifyListeners);
+    DebugSettingsService.freeShopNotifier.addListener(notifyListeners);
+    _hydrateDebugPrices();
     _loadPurchaseHistory();
     _loadInventoryCache();
     _loadContestEffectUnlocks();
     _loadElementalCreatorAutoUnlock();
+  }
+
+  /// Reads the persisted debug switches, so a FREE SHOP left on is honoured
+  /// before the profile screen has ever been opened.
+  Future<void> _hydrateDebugPrices() async {
+    try {
+      final settings = DebugSettingsService();
+      await settings.isEnabled();
+      await settings.isFreeShop();
+    } catch (_) {
+      // No preferences store (a test without one): real prices.
+    }
+  }
+
+  @override
+  void dispose() {
+    DebugSettingsService.enabledNotifier.removeListener(notifyListeners);
+    DebugSettingsService.freeShopNotifier.removeListener(notifyListeners);
+    super.dispose();
   }
 
   Future<void> _loadElementalCreatorAutoUnlock() async {
@@ -180,81 +193,29 @@ class ShopService extends ChangeNotifier {
     return _factions.airBubbleSlotCostMultiplier;
   }
 
+  /// An alchemy item's effect, drawn on its own for the shop and inventory
+  /// cards — a little inside the card so the light rising off it stays on
+  /// it. Null for anything that is not an alchemy effect.
   static Widget? getAlchemyEffectPreview(
     String inventoryKey, {
     double size = 32.0,
   }) {
-    switch (inventoryKey) {
-      case InvKeys.alchemyGlow:
-        return AlchemyGlow(size: effectSizeFromWidgetSize(size));
-
-      case InvKeys.alchemyElementalAura:
-        final widgetEff = effectSizeFromWidgetSize(size);
-        return SizedBox.square(
-          dimension: size,
-          child: ElementalAura(
-            size: widgetEff,
-            element: 'Volcanic', // or whatever element you want as default
-          ),
-        );
-
-      case InvKeys.alchemyVolcanicAura:
-        return SizedBox.square(
-          dimension: size,
-          child: VolcanicAura(size: effectSizeFromWidgetSize(size)),
-        );
-
-      case InvKeys.alchemyVoidRift:
-        final widgetEff = effectSizeFromWidgetSize(size);
-        return SizedBox.square(
-          dimension: size,
-          child: VoidRift(size: widgetEff * 0.8),
-        );
-
-      case InvKeys.alchemyPrismaticCascade:
-        return SizedBox.square(
-          dimension: size,
-          child: PrismaticCascade(size: effectSizeFromWidgetSize(size)),
-        );
-      case InvKeys.alchemyRitualGold:
-        return SizedBox.square(
-          dimension: size,
-          child: RitualGold(size: effectSizeFromWidgetSize(size)),
-        );
-      case InvKeys.alchemyBeautyRadiance:
-        return SizedBox.square(
-          dimension: size,
-          child: BeautyRadiance(size: effectSizeFromWidgetSize(size)),
-        );
-      case InvKeys.alchemySpeedFlux:
-        return SizedBox.square(
-          dimension: size,
-          child: SpeedFlux(size: effectSizeFromWidgetSize(size)),
-        );
-      case InvKeys.alchemyStrengthForge:
-        return SizedBox.square(
-          dimension: size,
-          child: StrengthForge(size: effectSizeFromWidgetSize(size)),
-        );
-      case InvKeys.alchemyIntelligenceHalo:
-        return SizedBox.square(
-          dimension: size,
-          child: IntelligenceHalo(size: effectSizeFromWidgetSize(size)),
-        );
-      case InvKeys.alchemyBloodAura:
-        return SizedBox.square(
-          dimension: size,
-          child: BloodAura(size: effectSizeFromWidgetSize(size)),
-        );
-      case InvKeys.alchemyWavebreakerCrown:
-        return SizedBox.square(
-          dimension: size,
-          child: WavebreakerCrown(size: effectSizeFromWidgetSize(size)),
-        );
-
-      default:
-        return null;
-    }
+    final effect = InvKeys.alchemyEffectFor(inventoryKey);
+    if (effect == null) return null;
+    return SizedBox.square(
+      dimension: size,
+      child: AlchemyEffectView(
+        effectKey: effect,
+        // With no creature to wear it, an element effect shows one: the
+        // aura in fire, the ring in dust, like Cindrath's.
+        element: switch (effect) {
+          AlchemyEffectPaint.elementalAura => 'Fire',
+          AlchemyEffectPaint.dustRing => 'Dust',
+          _ => null,
+        },
+        scale: 0.8,
+      ),
+    );
   }
 
   Future<void> _loadContestEffectUnlocks() async {
@@ -886,6 +847,32 @@ class ShopService extends ChangeNotifier {
       limit: PurchaseLimit.unlimited,
       inventoryKey: InvKeys.alchemyIntelligenceHalo,
     ),
+    ShopOffer(
+      id: 'effects.will_o_wisps',
+      name: "Will-o'-Wisps",
+      description:
+          'Four soft marsh lights wander lazily about your Alchemon, drifting in front of it and behind, lighting the ground as they pass.',
+      icon: AppIcons.nights_stay_rounded,
+      iconColor: const Color(0xFFA8F0FF),
+      cost: const {'gold': 20},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyWillOWisps,
+    ),
+    ShopOffer(
+      id: 'effects.dust_ring',
+      name: 'Elemental Dust Ring',
+      description:
+          "A tipped ring of orbiting dust round your Alchemon, like a ringed world's, in the colours of its element.",
+      icon: AppIcons.scatter_plot_outlined,
+      iconColor: const Color(0xFFE8C08A),
+      cost: const {'gold': 35},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyDustRing,
+    ),
 
     // ── Portal Keys ──────────────────────────────────────────────────────────
     ShopOffer(
@@ -1253,6 +1240,11 @@ class ShopService extends ChangeNotifier {
       (_purchaseCounts[wildFusionOfferId] ?? 0) == 0;
 
   Map<String, int> getEffectiveCost(ShopOffer offer) {
+    // Debug FREE SHOP: every price is zero — explicit zeros, so the cards
+    // still say what it would have cost in, and nothing is deducted.
+    if (DebugSettingsService.freeShop) {
+      return {for (final k in offer.cost.keys) k: 0};
+    }
     if (offer.id == wildFusionOfferId && isFirstWildFusionFree()) {
       // Explicit zero rather than an empty map: every cost renderer iterates
       // the entries, so an empty map prints a blank COST section instead of
@@ -1487,6 +1479,12 @@ class ShopService extends ChangeNotifier {
       case wavebreakerCrownEffectOfferId:
         await _db.inventoryDao.addItemQty(InvKeys.alchemyWavebreakerCrown, qty);
         return true;
+      case 'effects.will_o_wisps':
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyWillOWisps, qty);
+        return true;
+      case 'effects.dust_ring':
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyDustRing, qty);
+        return true;
 
       case 'unlock.fusion_slot.1':
       case 'unlock.fusion_slot.2':
@@ -1627,35 +1625,6 @@ class ShopService extends ChangeNotifier {
       instanceId: instanceId,
       effect: effect,
     );
-  }
-
-  /// After purchasing an alchemy effect (which adds it to inventory), apply
-  /// the purchased effect to a creature instance and consume one item.
-  Future<bool> applyEffectToInstance(String offerId, String instanceId) async {
-    final offer = _resolveOfferById(offerId);
-    if (offer == null) return false;
-
-    // Map offer id -> effect key (e.g. 'effects.alchemy_glow' -> 'alchemy_glow')
-    String? effectType;
-    if (offer.id.startsWith('effects.')) {
-      final parts = offer.id.split('.');
-      effectType = parts.isNotEmpty ? parts.last : null;
-    }
-
-    if (effectType == null) return false;
-
-    try {
-      await applyAlchemyEffect(instanceId, effectType);
-
-      // Consume one inventory item if this offer had an inventory key
-      if (offer.inventoryKey != null) {
-        await _db.inventoryDao.decrementItem(offer.inventoryKey!, by: 1);
-        await refreshInventoryForOffer(offerId);
-      }
-      return true;
-    } catch (_) {
-      return false;
-    }
   }
 
   // Track current inventory for inventory-able offers

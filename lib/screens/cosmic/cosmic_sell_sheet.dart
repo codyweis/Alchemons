@@ -856,6 +856,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                       tint: visuals.tint,
                       alchemyEffect: visuals.alchemyEffect,
                       variantFaction: visuals.variantFaction,
+                      elementType: visuals.elementType,
                       effectSlotSize: 48,
                     )
                   : ClipOval(

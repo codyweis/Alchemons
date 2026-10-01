@@ -43,7 +43,7 @@ import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
-import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
+import 'package:alchemons/screens/scenes/rift_threshold.dart';
 import 'package:alchemons/screens/cosmic/wild_space_encounter_screen.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
@@ -2141,41 +2141,36 @@ class _CosmicScreenState extends State<CosmicScreen>
       orElse: () => RiftFaction.arcane,
     );
 
-    // Require a portal key for this faction
-    final db = context.read<AlchemonsDatabase>();
-    final keyInvKey = InvKeys.portalKeyForFaction(faction.name);
-    final keyQty = await db.inventoryDao.getItemQty(keyInvKey);
-    if (keyQty <= 0) {
-      _showQuote(
-        'You need a ${faction.displayName} Portal Key to enter this rift!',
-      );
-      HapticFeedback.lightImpact();
-      return;
-    }
-
-    // Consume one portal key
-    await db.inventoryDao.consumeItem(keyInvKey);
-
-    if (!mounted) return;
-    _playCosmicSfx(SoundCue.cosmicPortalOpen);
-    unawaited(context.read<AudioController>().playPortalMusic());
-    final success = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => RiftPortalScreen(faction: faction, party: const []),
-      ),
+    // The same threshold as a wilderness rift: the key is shown, turned
+    // (or bought) there, and the glyph portal takes it in. Space has no
+    // party to bring, and its rifts never close.
+    await showRiftThreshold(
+      context,
+      faction: faction,
+      partyEnters: false,
+      onEnter: (threshold) async {
+        _playCosmicSfx(SoundCue.cosmicPortalOpen);
+        unawaited(context.read<AudioController>().playPortalMusic());
+        final success = await enterRift(
+          threshold,
+          faction: faction,
+          returnTo: const [
+            DeviceOrientation.portraitUp,
+            DeviceOrientation.portraitDown,
+          ],
+        );
+        if (!mounted) return;
+        unawaited(
+          context.read<AudioController>().playCosmicExplorationMusic(
+            cycle: false,
+          ),
+        );
+        if (success == true) {
+          _game?.relocateRift(rift);
+          setState(() => _isNearRift = false);
+        }
+      },
     );
-    if (mounted) {
-      unawaited(
-        context.read<AudioController>().playCosmicExplorationMusic(
-          cycle: false,
-        ),
-      );
-    }
-
-    if (success == true && mounted) {
-      _game?.relocateRift(rift);
-      setState(() => _isNearRift = false);
-    }
   }
 
   // ── Elemental Nexus handlers ──
@@ -3052,6 +3047,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         isAlbino: base.isAlbino,
         alchemyEffect: base.alchemyEffect ?? 'alchemy_glow',
         variantFaction: base.variantFaction,
+        elementType: base.elementType,
         prismaticHueDeg: base.prismaticHueDeg,
       ),
       CosmicContestVisualTheme.thermal => SpriteVisuals(
@@ -3064,6 +3060,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         isAlbino: base.isAlbino,
         alchemyEffect: 'elemental_aura',
         variantFaction: base.variantFaction ?? 'Pyro',
+        elementType: base.elementType,
         prismaticHueDeg: base.prismaticHueDeg,
       ),
       CosmicContestVisualTheme.cryogenic => SpriteVisuals(
@@ -3076,6 +3073,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         isAlbino: base.isAlbino,
         alchemyEffect: 'alchemy_glow',
         variantFaction: base.variantFaction ?? 'Aqua',
+        elementType: base.elementType,
         prismaticHueDeg: base.prismaticHueDeg,
       ),
       CosmicContestVisualTheme.prismatic => SpriteVisuals(
@@ -3088,6 +3086,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         isAlbino: false,
         alchemyEffect: 'prismatic_cascade',
         variantFaction: base.variantFaction,
+        elementType: base.elementType,
         prismaticHueDeg: base.prismaticHueDeg,
       ),
     };

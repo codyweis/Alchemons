@@ -33,6 +33,7 @@ import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:alchemons/games/wilderness/encounter_top_hud.dart';
@@ -80,10 +81,11 @@ class EncounterOverlay extends StatefulWidget {
   onHarvestInScene;
 
   /// Merges the party creature and the wild one where they stand, answering
-  /// the SCREEN rect they met in — so what plays next can play there — or
-  /// null if there was no pair to play on. Null hosts fall back to the route
-  /// drawing the pair itself.
-  final Future<Rect?> Function(Color party, Color wild)? onFusionInScene;
+  /// where on SCREEN they met and what they were made of — so the cinematic
+  /// erupts there, in the same grains — or null if there was no pair to play
+  /// on. Null hosts fall back to the route drawing the pair itself.
+  final Future<FusionMergeHandoff?> Function(Color party, Color wild)?
+  onFusionInScene;
   final Creature hydratedWildCreature;
   final bool highlightPartyHUD; // 🆕 Tutorial highlighting
   final bool isTutorial; // 🆕 Tutorial mode flag
@@ -196,7 +198,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         ? 'Harvester calibrated. Secure the specimen.'
         : _supportsFusion
         ? 'Select a party ally to begin fusion.'
-        : 'Choose an encounter protocol.';
+        // Nothing to ask for: the buttons say what can be done, and the
+        // status slate stays away until there is something to report.
+        : '';
     // Auto-show on mount
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _show();
@@ -432,28 +436,28 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) {
-        const danger = Color(0xFFC0392B);
+        const danger = Color(0xFFE0785A);
         return Dialog(
           backgroundColor: Colors.transparent,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 440),
-            child: CustomPaint(
-              painter: BracketFramePainter(
-                color: danger.withValues(alpha: 0.85),
-                bracketSize: 12,
-                strokeWidth: 1.3,
-              ),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
                 color: _kPalette.surfaceFill(),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: danger.withValues(alpha: 0.45),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Container(width: 3, height: 24, color: danger),
-                        const SizedBox(width: AppSpace.md),
                         Expanded(
                           child: Text(
                             widget.runWarningTitle ?? 'Leave the void?',
@@ -683,6 +687,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           tint: visuals.tint,
           alchemyEffect: visuals.alchemyEffect,
           variantFaction: visuals.variantFaction,
+          elementType: visuals.elementType,
         ),
       );
     }
@@ -721,7 +726,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final p = _computeWildBreedChance(instRow, wilderness, constellation);
 
     setState(() {
-      _status = '${hydrated.name} locked in. Choose a protocol.';
+      _status = '${hydrated.name} locked in.';
       _chosenInstanceId = instanceId;
       _breedChance = p;
     });
@@ -867,10 +872,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           await Future<void>.delayed(const Duration(milliseconds: 260));
           if (!mounted) return;
         }
-        final mergedAt = mergeInScene == null
+        final handoff = mergeInScene == null
             ? null
             : await mergeInScene(colorA, colorB);
-        final merged = mergedAt != null;
+        final merged = handoff != null;
 
         if (!ctx.mounted) return;
         final didBreed = await showAlchemyFusionCinematic<bool>(
@@ -881,7 +886,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           // Put the core where the two actually came together. Left to its
           // default it lands in the middle of the display, so the alchemy
           // played somewhere the fusion had not happened.
-          coreRect: mergedAt,
+          coreRect: handoff?.at,
+          // And make the eruption of what they were made of.
+          grains: handoff?.grains,
           leftColor: colorA,
           rightColor: colorB,
           minDuration: Duration(milliseconds: merged ? 2600 : 4350),
@@ -1368,6 +1375,9 @@ class _PartyMemberCard extends StatelessWidget {
 // ==========================================
 // ACTION PANEL (Bottom) - Horizontal row
 // ==========================================
+/// Button and dialog text: parchment, tinted by the action's colour.
+const Color _parchment = Color(0xFFE8DCC8);
+
 class _ActionPanel extends StatelessWidget {
   final bool canAct;
   final VoidCallback? onBreed;
@@ -1403,9 +1413,11 @@ class _ActionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const success = Color(0xFF22C55E);
-    const danger = Color(0xFFC0392B);
-    const teal = Color(0xFF5BC8E8);
+    // The same meanings as before — fuse, harvest, map — in the game's own
+    // muted materials rather than signal green, red and cyan.
+    const success = Color(0xFF8CC9A8); // verdigris
+    const danger = Color(0xFFE0785A); // ember
+    const teal = Color(0xFF7FB6C6); // tarnished silver-blue
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1448,8 +1460,8 @@ class _ActionPanel extends StatelessWidget {
             ],
             if (!isCaptureTutorial && showMapAction)
               _ActionButton(
-                label: 'Map',
-                icon: AppIcons.explore_rounded,
+                label: 'Back',
+                icon: AppIcons.arrow_back_rounded,
                 accentColor: teal,
                 onPressed: context.soundAction(onRun),
               ),
@@ -1484,50 +1496,65 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDisabled = onPressed == null || disabled;
-    final accent = isDisabled ? _kPalette.muted : accentColor;
+    final accent = isDisabled ? const Color(0xFF4A443D) : accentColor;
+    final ink = isDisabled
+        ? const Color(0xFF7A7166)
+        : Color.lerp(accentColor, _parchment, 0.5)!;
 
-    return Opacity(
-      opacity: isDisabled ? 0.55 : 1,
-      child: GestureDetector(
-        onTap: context.soundAction(isDisabled ? null : onPressed),
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          height: 46,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            // Solid opaque fill so the button stays readable on any
-            // scene backdrop — no translucent neon wash.
-            color: const Color(0xFF12161D),
-            border: Border.all(color: accent, width: 1.4),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (glyphBiome != null)
-                HarvesterGlyph(
-                  biomeId: glyphBiome!,
-                  size: 22,
-                  // Greyed out it is not a device you can use, so it stops
-                  // beating and stops asking for frames.
-                  color: isDisabled ? _kPalette.muted : null,
-                  animate: !isDisabled,
-                )
-              else
-                Icon(icon, color: accent, size: 17),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: bracketText(
-                  context,
-                  13.5,
-                  isDisabled ? _kPalette.muted : Colors.white,
-                  weight: FontWeight.w800,
-                  letterSpacing: 0.4,
-                ),
-              ),
+    return GestureDetector(
+      onTap: context.soundAction(isDisabled ? null : onPressed),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          // Opaque, so it reads on any backdrop, with the action's colour
+          // rising from its foot like light from below — not a neon rim.
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF0B0A0E),
+              Color.lerp(
+                const Color(0xFF0B0A0E),
+                accent,
+                isDisabled ? 0.03 : 0.16,
+              )!,
             ],
           ),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(
+            color: accent.withValues(alpha: isDisabled ? 0.7 : 0.62),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (glyphBiome != null)
+              HarvesterGlyph(
+                biomeId: glyphBiome!,
+                size: 22,
+                // Greyed out it is not a device you can use, so it stops
+                // beating and stops asking for frames.
+                color: isDisabled ? _kPalette.muted : null,
+                animate: !isDisabled,
+              )
+            else
+              Icon(icon, color: ink, size: 16),
+            const SizedBox(width: 9),
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: ink,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.4,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1552,25 +1579,27 @@ class _DialogChoice extends StatelessWidget {
     return GestureDetector(
       onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: filled ? color : color.withValues(alpha: 0.6),
-          bracketSize: 8,
-          strokeWidth: filled ? 1.3 : 1.1,
+      child: Container(
+        height: 42,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: filled
+              ? Color.lerp(const Color(0xFF0B0A0E), color, 0.22)
+              : const Color(0xFF0B0A0E),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(
+            color: color.withValues(alpha: filled ? 0.75 : 0.45),
+            width: 1,
+          ),
         ),
-        child: Container(
-          height: 42,
-          alignment: Alignment.center,
-          color: filled ? color : color.withValues(alpha: 0.10),
-          child: Text(
-            label,
-            style: bracketText(
-              context,
-              13,
-              filled ? Colors.white : color,
-              weight: FontWeight.w700,
-              letterSpacing: 0.4,
-            ),
+        child: Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: filled ? Color.lerp(color, _parchment, 0.55) : color,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.4,
           ),
         ),
       ),

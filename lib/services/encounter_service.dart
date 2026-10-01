@@ -5,6 +5,7 @@ import 'package:alchemons/models/encounters/wild_spawn.dart';
 import 'package:alchemons/models/wilderness.dart'
     show PartyMember, WildEncounter;
 import 'package:alchemons/models/scenes/scene_definition.dart';
+import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/utils/wilderness/weighted_picker.dart';
 import 'package:flutter/foundation.dart';
 
@@ -60,8 +61,14 @@ class EncounterService extends ChangeNotifier {
   /// Roll an encounter for a specific spawn id (optional). If spawnId is null, use scene-wide table.
   EncounterRoll roll({String? spawnId}) {
     final tables = _tableBuilder(scene);
-    final table =
+    var table =
         (spawnId != null ? tables.perSpawn[spawnId] : null) ?? tables.sceneWide;
+    // A point in the open air only takes creatures that can float.
+    final point = scene.spawnPoints.where((p) => p.id == spawnId).firstOrNull;
+    if (point != null && point.aloft) {
+      final floaters = table.where((e) => speciesCanFloat(e.speciesId));
+      if (!floaters.isEmpty) table = floaters;
+    }
 
     final now = DateTime.now();
     final choices = <WeightedChoice<EncounterEntry>>[];

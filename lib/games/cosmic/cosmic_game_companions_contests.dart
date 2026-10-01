@@ -119,6 +119,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       companion.anchorPosition = companion.position;
     }
     activeCompanions[slotIndex] = companion;
+    // Whatever stood in this slot before is not what gathers now.
+    _companionGrains.remove(slotIndex);
 
     // Attach a demo effect instance based on loaded prototypes (one per companion).
     try {
@@ -177,11 +179,73 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       final specScale = activeCompanions[slotIndex]?.speciesScale ?? 1.3;
       _companionSpriteScales[slotIndex] =
           min(sx, sy) * (visuals?.scale ?? 1.0) * specScale;
+      _readCompanionGrains(
+        slotIndex,
+        member,
+        anim.frames.first.sprite,
+      ).ignore();
     } catch (e) {
       debugPrint('Failed to load companion sprite: ${sheet.path} - $e');
       _companionTickers.remove(slotIndex);
       _companionVisualsBySlot.remove(slotIndex);
       _companionSpriteScales.remove(slotIndex);
+    }
+  }
+
+  /// Reads a companion — its first frame, coloured by its genetics, at the
+  /// size it is drawn — into grains for its summoning and its recall. Small:
+  /// a summoning lasts under a second and up to three can play at once.
+  Future<void> _readCompanionGrains(
+    int slotIndex,
+    CosmicPartyMember member,
+    Sprite sprite,
+  ) async {
+    final scale = _companionSpriteScales[slotIndex];
+    if (scale == null) return;
+    const ratio = 2.0;
+    final w = (sprite.srcSize.x * scale * ratio).ceil();
+    final h = (sprite.srcSize.y * scale * ratio).ceil();
+    if (w <= 0 || h <= 0 || w > 1024 || h > 1024) return;
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    c.translate(w / 2, h / 2);
+    c.scale(scale * ratio);
+    final paint = Paint()..filterQuality = ui.FilterQuality.high;
+    final v = _companionVisualsBySlot[slotIndex];
+    if (v != null) {
+      final isAlbino = v.brightness == 1.45 && !v.isPrismatic;
+      paint.colorFilter = isAlbino
+          ? _albinoColorFilter(v.brightness)
+          : _geneticsColorFilter(v);
+    }
+    sprite.render(c, anchor: Anchor.center, overridePaint: paint);
+    final image = rec.endRecording().toImageSync(w, h);
+    try {
+      final data = await image.toByteData(
+        format: ui.ImageByteFormat.rawStraightRgba,
+      );
+      if (data == null) return;
+      final grains = SpecimenGrains.fromRgba(
+        data.buffer.asUint8List(),
+        w,
+        h,
+        pixelRatio: ratio,
+        maxGrains: 1100,
+        tones: 12,
+      );
+      if (grains.length < 40) return;
+      final current = activeCompanions[slotIndex];
+      if (current == null || current.member.instanceId != member.instanceId) {
+        return;
+      }
+      _companionGrains[slotIndex] = (
+        member.instanceId,
+        GrainAssembly(grains, accent: elementColor(member.element)),
+      );
+    } catch (_) {
+      // It steps out of its tear instead.
+    } finally {
+      image.dispose();
     }
   }
 

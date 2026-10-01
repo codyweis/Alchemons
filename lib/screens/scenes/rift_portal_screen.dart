@@ -1,3 +1,4 @@
+import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'dart:async';
@@ -13,11 +14,12 @@ import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/services/wilderness_service.dart';
-import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
-import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
+import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -29,10 +31,18 @@ class RiftPortalScreen extends StatefulWidget {
   /// by [_RiftVoidPage] before navigating here).
   final List<PartyMember> party;
 
+  /// The orientation to hand back on the way out. Portrait for space;
+  /// a wilderness rift passes landscape, since the scene behind it is.
+  final List<DeviceOrientation> returnOrientation;
+
   const RiftPortalScreen({
     super.key,
     required this.faction,
     this.party = const [],
+    this.returnOrientation = const [
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ],
   });
 
   @override
@@ -41,12 +51,30 @@ class RiftPortalScreen extends StatefulWidget {
 
 class _RiftPortalScreenState extends State<RiftPortalScreen>
     with TickerProviderStateMixin {
-  late AnimationController _controller;
   late AnimationController _bannerCtrl;
-  late AnimationController _entryCtrl;
-  bool _entryDone = false;
+
+  /// The inside of the rift: the same vortex its threshold showed, seen
+  /// huge now, with the waiting Alchemon in its black eye. Slower than the
+  /// threshold's, since its rim is wider than the screen.
+  final RiftVortexField _vortex = RiftVortexField(
+    grains: 2200,
+    ringGrains: 300,
+    motes: 90,
+    core: 0.2,
+    speed: 0.4,
+    grainSize: 1.7,
+  );
+  late final RiftPalette _palette = RiftPalette(widget.faction.primaryColor);
+  late final Ticker _vortexTicker;
+  final ValueNotifier<double> _vortexClock = ValueNotifier(0);
+  Duration _vortexLast = Duration.zero;
 
   Creature? _voidCreature;
+
+  /// The void creature is read into grains from here when a harvest takes
+  /// it, and cut away behind the take's crest ([_harvestCut]).
+  final GlobalKey _voidCaptureKey = GlobalKey();
+  double? _harvestCut;
   EncounterRarity _voidRarity = EncounterRarity.common;
   bool _spawned = false;
   bool _spawnScheduled = false;
@@ -69,22 +97,21 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat();
     _bannerCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-    _entryCtrl =
-        AnimationController(
-            vsync: this,
-            duration: const Duration(milliseconds: 850),
-          )
-          ..forward().whenComplete(() {
-            if (mounted) setState(() => _entryDone = true);
-          });
+    _vortexTicker = createTicker((elapsed) {
+      final dt = ((elapsed - _vortexLast).inMicroseconds / 1e6).clamp(
+        0.0,
+        0.05,
+      );
+      _vortexLast = elapsed;
+      // Tears open round the Alchemon as the glyph portal fades away.
+      _vortex.open = min(1.0, _vortex.open + dt / 1.6);
+      _vortex.step(dt);
+      _vortexClock.value = _vortex.time;
+    })..start();
   }
 
   @override
@@ -172,16 +199,14 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
   @override
   void dispose() {
     _routeAnimation?.removeStatusListener(_handleRouteAnimationStatus);
-    // Portrait when leaving the rift, matching every other landscape
-    // screen. "All four" left the phone sideways on the way back to a map
-    // that is portrait, because that is how it was being held.
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
-    _controller.dispose();
+    // Back to whatever is behind: portrait for space, matching every other
+    // landscape screen ("all four" left the phone sideways on the way back
+    // to a map that is portrait, because that is how it was being held) —
+    // but landscape for the wilderness scene a rift was found in.
+    SystemChrome.setPreferredOrientations(widget.returnOrientation);
+    _vortexTicker.dispose();
+    _vortexClock.dispose();
     _bannerCtrl.dispose();
-    _entryCtrl.dispose();
     super.dispose();
   }
 
@@ -210,8 +235,8 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
           ),
         ),
         content: const Text(
-          'Your Portal Key is already spent. Leaving now returns you to space '
-          'with nothing from this rift.',
+          'Your Portal Key is already spent. Leaving now takes you back with '
+          'nothing from this rift.',
           style: TextStyle(color: Color(0xFF8A7B6A), fontSize: 12, height: 1.4),
         ),
         actions: [
@@ -247,7 +272,6 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
 
   @override
   Widget build(BuildContext context) {
-    const palette = BracketPalette.dark;
     final color = widget.faction.primaryColor;
     final factionName = widget.faction.displayName.toUpperCase();
 
@@ -256,78 +280,69 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // ── Particle background ───────────────────────────────────────────
-          IgnorePointer(
-            child: RepaintBoundary(
-              child: AlchemicalParticleBackground(
-                opacity: 0.55,
-                backgroundColor: Colors.transparent,
-                densityMultiplier: 0.45,
+          // ── The rift, from inside ─────────────────────────────────────────
+          Positioned.fill(
+            child: IgnorePointer(
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _RiftInteriorPainter(
+                    _vortex,
+                    _palette,
+                    repaint: _vortexClock,
+                  ),
+                ),
               ),
             ),
           ),
 
-          // ── Animated portal ───────────────────────────────────────────────
-          Center(
-            child: RepaintBoundary(
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, _) {
-                  return CustomPaint(
-                    size: const Size(280, 280),
-                    painter: _PortalPainter(
-                      faction: widget.faction,
-                      time: _controller.value * pi * 2 * 4,
+          // ── Header: the rift's name top-left, the way out top-right ──────
+          Align(
+            alignment: Alignment.topCenter,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'RIFT',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: color.withValues(alpha: 0.85),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 2.4,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$factionName RIFT',
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            color: Color(0xFFE8DCC8),
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                      ],
                     ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // ── Header ────────────────────────────────────────────────────────
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(width: 3, height: 3, color: color),
-                      const SizedBox(height: 4),
-                      Text(
-                        'RIFT PORTAL',
-                        style: bracketText(
-                          context,
-                          11,
-                          color,
-                          weight: FontWeight.w700,
-                          letterSpacing: 1.6,
-                        ),
-                      ),
-                      Text(
-                        factionName,
-                        style: bracketText(
-                          context,
-                          19,
-                          palette.ink,
-                          weight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  // Without this the only exits are through the encounter
-                  // overlay, so a portal with no live encounter traps you.
-                  _ExitPortalButton(
-                    color: color,
-                    onExit: () => _confirmExit(context),
-                  ),
-                ],
+                    const Spacer(),
+                    // Without this the only exits are through the encounter
+                    // overlay, so a portal with no live encounter traps you.
+                    _ExitPortalButton(
+                      color: color,
+                      onExit: () => _confirmExit(context),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -341,11 +356,26 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                   final t2 = Curves.easeOutCubic.transform(_bannerCtrl.value);
                   return Opacity(opacity: t2.clamp(0.0, 1.0), child: child);
                 },
-                child: _VoidSprite(
-                  creature: _voidCreature!,
-                  size: 170,
-                  isPrismatic: true,
-                  flipHorizontal: false,
+                child: ClipRect(
+                  clipper: SpriteCrestClipper(
+                    _harvestCut ?? double.negativeInfinity,
+                  ),
+                  clipBehavior: _harvestCut == null ? Clip.none : Clip.hardEdge,
+                  child: RepaintBoundary(
+                    key: _voidCaptureKey,
+                    // Room for a size gene over 1, which draws past 170.
+                    child: SizedBox.square(
+                      dimension: 240,
+                      child: Center(
+                        child: _VoidSprite(
+                          creature: _voidCreature!,
+                          size: 170,
+                          isPrismatic: true,
+                          flipHorizontal: false,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -398,6 +428,30 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                   targetColor: accent,
                   deviceLabel: profile.biomeId.toUpperCase(),
                   profile: profile,
+                  // And on a take, the void creature itself goes as grains.
+                  liveTarget: HarvestTarget(
+                    read: () async {
+                      final box = _voidCaptureKey.currentContext
+                          ?.findRenderObject();
+                      if (box is! RenderRepaintBoundary || !box.attached) {
+                        return null;
+                      }
+                      final centre = box.localToGlobal(
+                        box.size.center(Offset.zero),
+                      );
+                      final grains = await SpecimenGrains.capture(
+                        box,
+                        pixelRatio: min(
+                          MediaQuery.devicePixelRatioOf(context),
+                          2.5,
+                        ),
+                      );
+                      return grains == null ? null : (grains, centre, 1.0);
+                    },
+                    onCut: (cut) {
+                      if (mounted) setState(() => _harvestCut = cut);
+                    },
+                  ),
                   task: task,
                 );
               },
@@ -415,20 +469,6 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                   Navigator.of(context).pop(false);
                 }
               },
-            ),
-
-          // ── Portal entry flash (plays once on first load) ─────────────────
-          if (!_entryDone)
-            IgnorePointer(
-              child: RepaintBoundary(
-                child: AnimatedBuilder(
-                  animation: _entryCtrl,
-                  builder: (context, _) => _PortalEntryFlash(
-                    faction: widget.faction,
-                    progress: _entryCtrl.value,
-                  ),
-                ),
-              ),
             ),
         ],
       ),
@@ -490,273 +530,32 @@ class _VoidSprite extends StatelessWidget {
   }
 }
 
-// ── CustomPainter — mirrors the Flame component logic ─────────────────────────
+/// The rift from inside: the vortex huge, its black core round the waiting
+/// Alchemon, so the light bent round the core haloes it.
+class _RiftInteriorPainter extends CustomPainter {
+  _RiftInteriorPainter(this.field, this.palette, {required super.repaint});
 
-class _PortalPainter extends CustomPainter {
-  final RiftFaction faction;
-  final double time;
-
-  // Stable particle data generated once
-  static final List<_PData> _particles = _buildParticles();
-
-  static List<_PData> _buildParticles() {
-    final rng = Random(42);
-    const particleCount = 18;
-    return List.generate(particleCount, (i) {
-      return _PData(
-        angle: (i / particleCount) * pi * 2,
-        radius: 0.46 + rng.nextDouble() * 0.38,
-        speed: 0.30 + rng.nextDouble() * 0.80,
-        size: 1.4 + rng.nextDouble() * 2.6,
-        opacity: 0.45 + rng.nextDouble() * 0.55,
-      );
-    });
-  }
-
-  const _PortalPainter({required this.faction, required this.time});
+  final RiftVortexField field;
+  final RiftPalette palette;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r = size.width * 0.22; // core radius relative to canvas
-    final pulse = 0.88 + 0.12 * sin(time * 0.63);
-    final color = faction.primaryColor;
-
-    // Outer glow
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r * 2.6,
-      Paint()..color = color.withValues(alpha: 0.08 * pulse),
-    );
-
-    // Mid glow
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r * 1.8,
-      Paint()..color = color.withValues(alpha: 0.16 * pulse),
-    );
-
-    // Accretion disk
-    canvas.save();
-    canvas.translate(cx, cy);
-    canvas.scale(1.0, 0.28);
-    final diskR = r * 3.0;
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset.zero, width: diskR * 2, height: diskR * 2),
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            color.withValues(alpha: 0),
-            color.withValues(alpha: 0.55 * pulse),
-            color.withValues(alpha: 0),
-          ],
-          stops: const [0.42, 0.65, 1.0],
-        ).createShader(Rect.fromCircle(center: Offset.zero, radius: diskR)),
-    );
-    canvas.restore();
-
-    // Event horizon
-    final coreRect = Rect.fromCenter(
-      center: Offset(cx, cy),
-      width: r * 2,
-      height: r * 2,
-    );
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r * pulse,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [faction.coreColor, faction.coreColor, Colors.black],
-          stops: const [0.0, 0.55, 1.0],
-        ).createShader(coreRect),
-    );
-
-    // Orbiting particles
-    for (final p in _particles) {
-      final angle = p.angle + time * p.speed;
-      final pr = r * (p.radius + 0.15);
-      final px = cx + cos(angle) * pr;
-      final py = cy + sin(angle) * pr * 0.42;
-      canvas.drawCircle(
-        Offset(px, py),
-        p.size * pulse,
-        Paint()..color = color.withValues(alpha: p.opacity * pulse),
-      );
-    }
-
-    // Spiral arms
-    final spiralPaint = Paint()
-      ..color = color.withValues(alpha: 0.30 * pulse)
-      ..strokeWidth = 0.9
-      ..style = PaintingStyle.stroke;
-
-    for (int arm = 0; arm < 3; arm++) {
-      final startA = time * 0.40 + (arm * pi * 2 / 3);
-      final path = Path();
-      bool first = true;
-      for (double t = 0.05; t <= 1.0; t += 0.035) {
-        final sr = r * t * 0.95;
-        final sa = startA - t * pi * 3.2;
-        final px = cx + cos(sa) * sr;
-        final py = cy + sin(sa) * sr * 0.42;
-        if (first) {
-          path.moveTo(px, py);
-          first = false;
-        } else {
-          path.lineTo(px, py);
-        }
-      }
-      canvas.drawPath(path, spiralPaint);
-    }
-
-    // Rim
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r * pulse,
-      Paint()
-        ..color = color.withValues(alpha: 0.22 * pulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4,
+    // The core just wider than the sprite standing in it, so the light
+    // bent round the core haloes it; any bigger and the Alchemon is lost in
+    // the black.
+    final coreR = min(100.0, size.shortestSide * 0.27);
+    field.paint(
+      canvas,
+      size,
+      size.center(Offset.zero),
+      coreR / field.core,
+      palette,
     );
   }
 
   @override
-  bool shouldRepaint(_PortalPainter old) =>
-      old.time != time || old.faction != faction;
-}
-
-class _PData {
-  final double angle;
-  final double radius;
-  final double speed;
-  final double size;
-  final double opacity;
-  const _PData({
-    required this.angle,
-    required this.radius,
-    required this.speed,
-    required this.size,
-    required this.opacity,
-  });
-}
-
-// ── Portal entry flash overlay ────────────────────────────────────────────────
-// Plays once when the screen loads to simulate stepping through the portal.
-// progress: 0.0 → 1.0 (driven by _entryCtrl)
-//
-//  0.00 – 0.15  black → faction radial burst (fade in)
-//  0.15 – 0.40  white flash peak
-//  0.40 – 0.65  rings expand outward
-//  0.65 – 1.00  entire overlay fades out to transparent
-
-class _PortalEntryFlash extends StatelessWidget {
-  final RiftFaction faction;
-  final double progress; // 0.0 – 1.0
-
-  const _PortalEntryFlash({required this.faction, required this.progress});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _EntryFlashPainter(faction: faction, progress: progress),
-      size: Size.infinite,
-    );
-  }
-}
-
-class _EntryFlashPainter extends CustomPainter {
-  final RiftFaction faction;
-  final double progress;
-
-  const _EntryFlashPainter({required this.faction, required this.progress});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final color = faction.primaryColor;
-    final maxR = size.longestSide * 1.2;
-
-    // ── Overall overlay opacity (0→1 fast, then 1→0 at end) ─────────────────
-    double overlayAlpha;
-    if (progress < 0.12) {
-      overlayAlpha = (progress / 0.12).clamp(0.0, 1.0);
-    } else if (progress < 0.60) {
-      overlayAlpha = 1.0;
-    } else {
-      overlayAlpha = 1.0 - ((progress - 0.60) / 0.40).clamp(0.0, 1.0);
-    }
-    if (overlayAlpha <= 0) return;
-
-    // ── Dark radial base ─────────────────────────────────────────────────────
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..shader = RadialGradient(
-          center: Alignment.center,
-          radius: 0.8,
-          colors: [
-            Color.lerp(
-              color,
-              Colors.black,
-              0.3,
-            )!.withValues(alpha: 0.85 * overlayAlpha),
-            Colors.black.withValues(alpha: 0.95 * overlayAlpha),
-          ],
-        ).createShader(Offset.zero & size),
-    );
-
-    // ── White flash at progress 0.15–0.45 ───────────────────────────────────
-    double flashAlpha = 0.0;
-    if (progress >= 0.12 && progress <= 0.45) {
-      final t = (progress - 0.12) / 0.33;
-      // Triangle: peak at 0.35 of this sub-range
-      flashAlpha = t < 0.35 ? (t / 0.35) : (1.0 - (t - 0.35) / 0.65);
-      flashAlpha = flashAlpha.clamp(0.0, 1.0) * 0.92;
-    }
-    if (flashAlpha > 0) {
-      canvas.drawRect(
-        Offset.zero & size,
-        Paint()
-          ..color = Colors.white.withValues(alpha: flashAlpha * overlayAlpha),
-      );
-    }
-
-    // ── Expanding rings ───────────────────────────────────────────────────────
-    // 5 rings with staggered starts; each ring lifespan = 0.25 of progress
-    // appearing from progress 0.25 to 0.75
-    for (int i = 0; i < 3; i++) {
-      final start = 0.25 + i * 0.10;
-      final end = start + 0.35;
-      if (progress < start || progress > end) continue;
-      final t = ((progress - start) / (end - start)).clamp(0.0, 1.0);
-      final ringR = maxR * 0.15 + maxR * 0.85 * t;
-      final ringAlpha = (1.0 - t).clamp(0.0, 1.0) * 0.5;
-      final ringWidth = 3.0 + 5.0 * (1 - t);
-      canvas.drawCircle(
-        center,
-        ringR,
-        Paint()
-          ..color = color.withValues(alpha: ringAlpha * overlayAlpha)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = ringWidth,
-      );
-    }
-
-    // ── Faction glow core ─────────────────────────────────────────────────────
-    if (progress < 0.55) {
-      final glowAlpha = (1.0 - (progress / 0.55)).clamp(0.0, 1.0) * 0.6;
-      canvas.drawCircle(
-        center,
-        maxR * 0.25,
-        Paint()..color = color.withValues(alpha: glowAlpha * overlayAlpha),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_EntryFlashPainter old) =>
-      old.progress != progress || old.faction != faction;
+  bool shouldRepaint(_RiftInteriorPainter old) =>
+      old.field != field || old.palette != palette;
 }
 
 class _ExitPortalButton extends StatelessWidget {
@@ -772,10 +571,12 @@ class _ExitPortalButton extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.all(8),
+        // Matches the encounter's buttons: dark, rounded, the rift's colour
+        // as a quiet rim.
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: color.withValues(alpha: 0.55)),
+          color: const Color(0xFF0B0A0E).withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: color.withValues(alpha: 0.5)),
         ),
         child: Icon(AppIcons.close_rounded, color: color, size: 20),
       ),

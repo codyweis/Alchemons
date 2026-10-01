@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 import 'package:flutter/material.dart';
 
 /// Helical streamline shell for the extraction hatching cinematic.
@@ -561,6 +562,21 @@ class HatchShellTuning {
   // draw itself is two drawRawPoints calls whatever the count.
   static const int ambientCount = 132;
   static const int ambientCountReduced = 68;
+
+  /// THE SHELL AS STREAM TUBES — the look of the CFD stream-tube reference
+  /// the shell was always modelled on: hundreds of thin, glossy tubes (a
+  /// dark edge, the strand's colour, a bright highlight down the middle)
+  /// packed close enough to read as one smooth shape. The flat ribbons were
+  /// too few and too wide for that, and read soft; this is the same strands,
+  /// shapes and motion, only more of them and drawn as tubes.
+  static const double tubeDensity = 2.1;
+  static const double tubeDensityReduced = 1.4;
+  static const int tubeSamples = 30;
+  static const int tubeSamplesReduced = 22;
+  static const double tubeWidthMin = 0.5;
+  static const double tubeWidthMax = 1.6;
+  static const double tubeAlphaBack = 0.26;
+  static const double tubeAlphaFront = 0.97;
 }
 
 // ===========================================================================
@@ -632,25 +648,44 @@ class HatchShellModel {
 
   static const int _depthBuckets = 14;
 
-  HatchShellModel({required this.species, required bool reduced})
-    : strandCount = reduced
-          ? (_kSpecies[species]!.strands * 0.78).round()
-          : _kSpecies[species]!.strands,
-      sampleCount = reduced
-          ? HatchShellTuning.samplesReduced
-          : HatchShellTuning.samples,
-      _strands = List<_Strand>.generate(
-        reduced
-            ? (_kSpecies[species]!.strands * 0.78).round()
-            : _kSpecies[species]!.strands,
-        (k) => _Strand(k),
-        growable: false,
-      ) {
-    final verts = strandCount * sampleCount * 6;
+  /// Stream tubes (see [HatchShellTuning.tubeDensity]) rather than the
+  /// flat ribbons: more strands, fewer samples each, three rails a sample.
+  final bool tubes;
+  late final int rails = tubes ? 3 : 6;
+
+  /// Each strand's ROOT — the end its line grows from — as of the last
+  /// paint, and how strongly it shows. Written even while the shell is not
+  /// yet showing, so whatever feeds the roots (the cultivation's grains,
+  /// carried in) can aim at them before they appear.
+  late final Float32List rootX = Float32List(strandCount);
+  late final Float32List rootY = Float32List(strandCount);
+  late final Float32List rootAlpha = Float32List(strandCount);
+
+  /// Which parent's cluster strand [k] belongs to (0 or 1).
+  int groupOf(int k) => _strands[k].grp;
+
+  HatchShellModel({
+    required this.species,
+    required bool reduced,
+    this.tubes = true,
+  }) : strandCount = _strandsFor(species, reduced, tubes),
+       sampleCount = tubes
+           ? (reduced
+                 ? HatchShellTuning.tubeSamplesReduced
+                 : HatchShellTuning.tubeSamples)
+           : (reduced
+                 ? HatchShellTuning.samplesReduced
+                 : HatchShellTuning.samples),
+       _strands = List<_Strand>.generate(
+         _strandsFor(species, reduced, tubes),
+         (k) => _Strand(k),
+         growable: false,
+       ) {
+    final verts = strandCount * sampleCount * rails;
     final segs = strandCount * (sampleCount - 1);
     positions = Float32List(verts * 2);
     colors = Int32List(verts);
-    indices = Uint16List(segs * 18);
+    indices = Uint16List(segs * (rails - 1) * 6);
     _px = Float32List(sampleCount);
     _py = Float32List(sampleCount);
     _pd = Float32List(sampleCount);
@@ -664,6 +699,18 @@ class HatchShellModel {
       'Vertex index overflows Uint16: $verts verts for $species. '
       'Lower the strand or sample count for this species.',
     );
+  }
+
+  static int _strandsFor(HatchShellSpecies species, bool reduced, bool tubes) {
+    final base = _kSpecies[species]!.strands;
+    if (tubes) {
+      return (base *
+              (reduced
+                  ? HatchShellTuning.tubeDensityReduced
+                  : HatchShellTuning.tubeDensity))
+          .round();
+    }
+    return reduced ? (base * 0.78).round() : base;
   }
 }
 
@@ -715,6 +762,20 @@ class HatchShellPainter extends CustomPainter {
     this.opacity = 1.0,
   });
 
+  /// Where the two parents' clusters stand on a screen of [size] — the
+  /// motes each parent's strands are born from — without their drift. For
+  /// whatever is to feed them (the cultivation's grains, carried in).
+  static (Offset, Offset) clusterCentres(Size size) {
+    final span = size.shortestSide;
+    final cx = size.width / 2, cy = size.height * 0.47;
+    final sep = HatchShellTuning.split * span;
+    const axis = -0.34;
+    return (
+      Offset(cx + cos(axis) * sep, cy + sin(axis) * sep * 0.75),
+      Offset(cx + cos(axis + pi) * sep, cy + sin(axis + pi) * sep * 0.75),
+    );
+  }
+
   static double _clamp01(double v) => v < 0 ? 0 : (v > 1 ? 1 : v);
   static double _lerp(double a, double b, double t) => a + (b - a) * t;
   static double _easeOutCubic(double x) => 1 - pow(1 - x, 3).toDouble();
@@ -722,9 +783,15 @@ class HatchShellPainter extends CustomPainter {
   static double _easeInOutCubic(double x) =>
       x < 0.5 ? 4 * x * x * x : 1 - pow(-2 * x + 2, 3) / 2;
 
+  /// The roots' nodes: a bright particle at each strand's root while its
+  /// line grows out of it, fading as it converges into the shell.
+  static final GrainBatch _nodes = GrainBatch(8);
+
   @override
   void paint(Canvas canvas, Size size) {
-    if (opacity <= 0.01) return;
+    // Not showing: only the roots are worked out, for what is aiming at
+    // them. They cost a fraction of a strand each.
+    final rootsOnly = opacity <= 0.01;
 
     final sp = _kSpecies[model.species]!;
     final f = sp.f;
@@ -829,39 +896,35 @@ class HatchShellPainter extends CustomPainter {
       // unravel was paying full rasterisation cost for nothing visible.
       if (unrav >= 0.88) {
         // Still has to consume its vertex range or the buffers desync.
-        vertCursor += M * 6;
+        vertCursor += M * m.rails;
         segCursor += M - 1;
+        m.rootAlpha[k] = 0;
         continue;
       }
 
       final flowAmp = HatchShellTuning.flow * grow * (1 - form);
+      if (rootsOnly) {
+        _scatter(st, 0, ox, oy, span, grow, clock, flowAmp, spin);
+        m.rootX[k] = _ox;
+        m.rootY[k] = _oy;
+        m.rootAlpha[k] = 0;
+        continue;
+      }
 
       // ---- build the polyline --------------------------------------------
       for (int j = 0; j < M; j++) {
         final s = M == 1 ? 0.0 : j / (M - 1);
-        final hp = _helix(
-          st,
-          s,
-          yaw,
-          b,
-          cx,
-          cy,
-          span,
-          clock,
-          braid,
-          f,
-          sp,
-          mo,
-          br,
-          wob,
-        );
+        // Written into _ox/_oy/_od rather than returned: a ShellPoint per
+        // sample was ten thousand allocations a frame at tube density.
+        _helix(st, s, yaw, b, cx, cy, span, clock, braid, f, sp, mo, br, wob);
+        final hpx = _ox, hpy = _oy, hpd = _od;
         double x, y, d;
         if (form < 1) {
-          final sc = _scatter(st, s, ox, oy, span, grow, clock, flowAmp, spin);
+          _scatter(st, s, ox, oy, span, grow, clock, flowAmp, spin);
           // Converge in POLAR space about the shell centre. A Cartesian lerp
           // is a straight line, so strands read as sliding to their slots.
-          final sx = sc.dx - cx, sy = sc.dy - cy;
-          final hx = hp.dx - cx, hy = hp.dy - cy;
+          final sx = _ox - cx, sy = _oy - cy;
+          final hx = hpx - cx, hy = hpy - cy;
           final rS = sqrt(sx * sx + sy * sy);
           final rH = sqrt(hx * hx + hy * hy);
           final aS = atan2(sy, sx);
@@ -884,11 +947,11 @@ class HatchShellPainter extends CustomPainter {
           );
           x = cx + cos(a) * r;
           y = cy + sin(a) * r;
-          d = _lerp(0.5, hp.depth, form);
+          d = _lerp(0.5, hpd, form);
         } else {
-          x = hp.dx;
-          y = hp.dy;
-          d = hp.depth;
+          x = hpx;
+          y = hpy;
+          d = hpd;
         }
 
         if (cinch != 0) {
@@ -908,6 +971,10 @@ class HatchShellPainter extends CustomPainter {
         m._py[j] = y;
         m._pd[j] = d;
       }
+      m.rootX[k] = m._px[0];
+      m.rootY[k] = m._py[0];
+      // Bright while its line grows out of it; gone once it has converged.
+      m.rootAlpha[k] = (1 - form) * (1 - unrav) * opacity * b.aMul;
 
       // ---- colour ---------------------------------------------------------
       final isAcc = st.accent < accMix;
@@ -941,6 +1008,75 @@ class HatchShellPainter extends CustomPainter {
       final litR = coreR + ((255 - coreR) * (isAcc ? 0.18 : 0.34)).round();
       final litG = coreG + ((255 - coreG) * (isAcc ? 0.18 : 0.34)).round();
       final litB = coreB + ((255 - coreB) * (isAcc ? 0.18 : 0.34)).round();
+
+      if (m.tubes) {
+        // ---- emit tube rails --------------------------------------------
+        // Three rails, the colour interpolated across them: a dark edge
+        // either side running into a bright core — a lit tube, where the
+        // ribbons were a flat band with hard-stepped edges. The strand's own
+        // colour is the middle of that run. Three rails and not five: the
+        // body rails bought nothing the gradient does not already give, and
+        // cost two fifths of the vertices and half the index writes.
+        final hiR = coreR + ((255 - coreR) * 0.5).round();
+        final hiG = coreG + ((255 - coreG) * 0.5).round();
+        final hiB = coreB + ((255 - coreB) * 0.5).round();
+        final dkR = (coreR * 0.38).round();
+        final dkG = (coreG * 0.38).round();
+        final dkB = (coreB * 0.38).round();
+        for (int j = 0; j < M; j++) {
+          final jp = j > 0 ? j - 1 : 0;
+          final jn = j < M - 1 ? j + 1 : M - 1;
+          double tx = m._px[jn] - m._px[jp];
+          double ty = m._py[jn] - m._py[jp];
+          final tl = sqrt(tx * tx + ty * ty);
+          if (tl > 1e-5) {
+            tx /= tl;
+            ty /= tl;
+          } else {
+            tx = 1;
+            ty = 0;
+          }
+          final d = m._pd[j];
+          final w =
+              _lerp(
+                HatchShellTuning.tubeWidthMin,
+                HatchShellTuning.tubeWidthMax,
+                d,
+              ) *
+              min(widthMul, 1.8);
+          final nx = -ty * w, ny = tx * w;
+          final alpha =
+              (_lerp(
+                        HatchShellTuning.tubeAlphaBack,
+                        HatchShellTuning.tubeAlphaFront,
+                        d,
+                      ) *
+                      fade *
+                      255)
+                  .clamp(0, 255)
+                  .toInt();
+          final edge =
+              (alpha * 0.85).toInt() << 24 | dkR << 16 | dkG << 8 | dkB;
+          final hi = alpha << 24 | hiR << 16 | hiG << 8 | hiB;
+          final px = m._px[j], py = m._py[j];
+          final v0 = vertCursor;
+          void put(int i, double o, int c) {
+            m.positions[(v0 + i) * 2] = px + nx * o;
+            m.positions[(v0 + i) * 2 + 1] = py + ny * o;
+            m.colors[v0 + i] = c;
+          }
+
+          put(0, -1.0, edge);
+          put(1, 0.0, hi);
+          put(2, 1.0, edge);
+          vertCursor += 3;
+          if (j < M - 1) {
+            m._segDepth[segCursor] = (m._pd[j] + m._pd[j + 1]) * 0.5;
+            segCursor++;
+          }
+        }
+        continue;
+      }
 
       // ---- emit ribbon rails ---------------------------------------------
       for (int j = 0; j < M; j++) {
@@ -1003,7 +1139,7 @@ class HatchShellPainter extends CustomPainter {
       }
     }
 
-    if (segCursor == 0) return;
+    if (rootsOnly || segCursor == 0) return;
 
     // ---- depth sort, back to front ---------------------------------------
     // Bucket sort rather than a comparison sort: O(n) with no allocation, and
@@ -1016,11 +1152,13 @@ class HatchShellPainter extends CustomPainter {
       final seg = m._segOrder[o];
       final strand = seg ~/ (M - 1);
       final j = seg % (M - 1);
-      final base = (strand * M + j) * 6;
-      final nextB = base + 6;
-      // Only the three REAL bands are spanned (0-1 dark, 2-3 lit, 4-5 dark);
-      // the 1-2 and 3-4 pairs share an offset and would be degenerate.
-      for (final q in const [0, 2, 4]) {
+      final rails = m.rails;
+      final base = (strand * M + j) * rails;
+      final nextB = base + rails;
+      // Ribbons span only their three REAL bands (0-1 dark, 2-3 lit, 4-5
+      // dark; the 1-2 and 3-4 pairs share an offset and would be
+      // degenerate). Tubes span both of theirs.
+      for (final q in m.tubes ? const [0, 1] : const [0, 2, 4]) {
         m.indices[ic++] = base + q;
         m.indices[ic++] = base + q + 1;
         m.indices[ic++] = nextB + q;
@@ -1042,6 +1180,36 @@ class HatchShellPainter extends CustomPainter {
     // that per-vertex alpha blends rather than rendering opaque.
     canvas.drawVertices(verts, BlendMode.srcOver, Paint());
     verts.dispose();
+
+    if (m.tubes) {
+      _paintRoots(
+        canvas,
+        span,
+        Color.lerp(Color.lerp(pA0, pA1, 0.5)!, Colors.white, 0.45)!,
+        Color.lerp(Color.lerp(pB0, pB1, 0.5)!, Colors.white, 0.45)!,
+      );
+    }
+  }
+
+  void _paintRoots(Canvas canvas, double span, Color a, Color b) {
+    final m = model;
+    final n = _nodes..clear();
+    for (var k = 0; k < m.strandCount; k++) {
+      final al = m.rootAlpha[k];
+      if (al < 0.04) continue;
+      final g = m.groupOf(k);
+      final level = al > 0.66 ? 2 : (al > 0.33 ? 1 : 0);
+      n.add(g * 3 + level, m.rootX[k], m.rootY[k]);
+      if (al > 0.33) n.add(6 + g, m.rootX[k], m.rootY[k]);
+    }
+    final d = max(1.8, span * 0.0052);
+    for (var g = 0; g < 2; g++) {
+      final c = g == 0 ? a : b;
+      n.draw(canvas, 6 + g, d * 3.0, c.withValues(alpha: 0.14));
+      for (var l = 0; l < 3; l++) {
+        n.draw(canvas, g * 3 + l, d, c.withValues(alpha: 0.35 + 0.3 * l));
+      }
+    }
   }
 
   static void _bucketSortSegments(HatchShellModel m, int count) {
@@ -1078,7 +1246,7 @@ class HatchShellPainter extends CustomPainter {
 
   /// `grow` is the mote->string draw: at 0 every sample collapses onto the
   /// head, so the strand renders as a single dot with no special case.
-  ShellPoint _scatter(
+  void _scatter(
     _Strand st,
     double s,
     double ox,
@@ -1107,14 +1275,24 @@ class HatchShellPainter extends CustomPainter {
     // Spread along the strand's own burst direction, so a mote already points
     // the way its string will be drawn.
     final along = (s - 0.5) * moteSpread;
-    return ShellPoint(
-      ox + cos(a) * rad * span + wx - sin(a) * fa + cos(st.bAng) * along,
-      oy + sin(a) * rad * span + wy + cos(a) * fa + sin(st.bAng) * along,
-      0.5,
-    );
+    _ox = ox + cos(a) * rad * span + wx - sin(a) * fa + cos(st.bAng) * along;
+    _oy = oy + sin(a) * rad * span + wy + cos(a) * fa + sin(st.bAng) * along;
+    _od = 0.5;
   }
 
-  ShellPoint _helix(
+  /// Scratch output of [_helix] and [_scatter].
+  double _ox = 0, _oy = 0, _od = 0;
+
+  void _out(double x, double y, double d) {
+    _ox = x;
+    _oy = y;
+    _od = d;
+  }
+
+  static double _twist(_Motion mo, double clock, double x) =>
+      mo.twAmp * sin(pi * 2 * (x * mo.twFreq - clock * mo.twSpd));
+
+  void _helix(
     _Strand st,
     double s,
     double yaw,
@@ -1130,24 +1308,22 @@ class HatchShellPainter extends CustomPainter {
     double br,
     double wob,
   ) {
-    double twist(double x) =>
-        mo.twAmp * sin(pi * 2 * (x * mo.twFreq - clock * mo.twSpd));
-
     final R = sp.radius, H = sp.height;
 
     // HALO (mystic): a tilted orbital band. Its own parameterisation — it does
     // not live on the shell surface, it orbits it.
     if (f.haloFrac > 0 && st.role < f.haloFrac) {
-      final a = st.th0 + s * pi * 2 + yaw + twist(s) * 0.5;
+      final a = st.th0 + s * pi * 2 + yaw + _twist(mo, clock, s) * 0.5;
       final rr =
           R * f.haloR * (1 + f.haloWob * sin(s * pi * 4 + clock * 0.8)) / br;
       final px = cos(a) * rr, pz = sin(a) * rr;
       final y2 = -pz * sin(f.haloTilt), z2 = pz * cos(f.haloTilt);
-      return ShellPoint(
+      _out(
         cx + px * span,
         cy + y2 * span,
         _clamp01(z2 / (rr == 0 ? 1 : rr) * 0.5 + 0.5),
       );
+      return;
     }
     // PARALLEL (mystic): a latitude ring rather than a pole-to-pole meridian.
     if (f.ringFrac > 0 && st.role < f.haloFrac + f.ringFrac) {
@@ -1158,25 +1334,29 @@ class HatchShellPainter extends CustomPainter {
           R *
           (1 + sp.shellThick * st.rOff * 0.5) /
           br;
-      final a = st.th0 + s * pi * 2 + yaw + braid + twist(vR);
-      return ShellPoint(
+      final a = st.th0 + s * pi * 2 + yaw + braid + _twist(mo, clock, vR);
+      _out(
         cx + cos(a) * rr * span,
         cy + (vR - 0.5) * H * br * span,
         (sin(a) + 1) * 0.5,
       );
+      return;
     }
     // HOLE (mask): a torus facing the camera, so the aperture is visible.
     if (f.hole > 0) {
       final rt = R * (1 - f.hole);
       final rm = R * f.hole;
-      final ang = st.th0 + s * pi * 2 * f.wrap + yaw + braid + twist(s);
-      final tub = st.th0 * 2.7 + s * pi * 2 * f.coil + twist(s * 1.6) * 0.8;
+      final ang =
+          st.th0 + s * pi * 2 * f.wrap + yaw + braid + _twist(mo, clock, s);
+      final tub =
+          st.th0 * 2.7 + s * pi * 2 * f.coil + _twist(mo, clock, s * 1.6) * 0.8;
       final rr = (rm + rt * cos(tub) * (1 + sp.shellThick * st.rOff)) / br;
-      return ShellPoint(
+      _out(
         cx + cos(ang) * rr * span,
         cy + sin(ang) * rr * f.aspect * br * span,
         _clamp01(sin(tub) * 0.5 + 0.5),
       );
+      return;
     }
 
     final vA = sp.coverage * st.vJitA, vB = 1 - sp.coverage * st.vJitB;
@@ -1221,7 +1401,7 @@ class HatchShellPainter extends CustomPainter {
     th += braid;
     // Travelling torsional wave: the band direction reverses as it passes,
     // which is what makes the shell look like it is spinning through itself.
-    th += twist(v);
+    th += _twist(mo, clock, v);
 
     if (f.ribDepth > 0) r *= 1 + f.ribDepth * sin(v * pi * 2 * f.rib);
     if (f.spire > 0) r *= 1 - f.spire * pow(1 - v, 3).toDouble();
@@ -1258,18 +1438,16 @@ class HatchShellPainter extends CustomPainter {
       final bx = cos(th) * r * f.wingW;
       final by = y * f.wingH;
       final a = side * f.wingTilt, ca = cos(a), sa = sin(a);
-      return ShellPoint(
+      _out(
         cx + (bx * ca - by * sa + side * f.wingOut * R) * span,
         cy + (bx * sa + by * ca + f.wingY * H) * span,
         (sin(th) + 1) * 0.5,
       );
+      return;
     }
 
-    return ShellPoint(
-      cx + cos(th) * r * span,
-      cy + y * span,
-      (sin(th) + 1) * 0.5,
-    );
+    _out(cx + cos(th) * r * span, cy + y * span, (sin(th) + 1) * 0.5);
+    return;
   }
 
   static Color _hueRotate(Color c, double turn) {

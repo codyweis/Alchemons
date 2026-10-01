@@ -6,19 +6,8 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/blood_aura.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/beauty_radiance.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/intelligence_halo.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/ritual_gold.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/speed_flux.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/strength_forge.dart';
-import 'package:alchemons/utils/effect_size.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/void_rift.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/wavebreaker_crown.dart';
+import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
+import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flame/flame.dart' show Flame;
 import 'package:flame/sprite.dart';
@@ -69,6 +58,13 @@ class _SpriteLoadingIndicator extends StatelessWidget {
   }
 }
 
+/// Sent up the tree once a [CreatureSprite] has loaded and drawn its first
+/// frame — so something wrapping it (the elemental essence's reveal) can read
+/// what it shows, rather than the loading spinner.
+class SpriteReadyNotification extends Notification {
+  const SpriteReadyNotification();
+}
+
 class CreatureSprite extends StatefulWidget {
   final String spritePath;
   final int totalFrames;
@@ -89,6 +85,10 @@ class CreatureSprite extends StatefulWidget {
 
   // New: Variant faction
   final String? variantFaction;
+
+  /// The creature's own first type, for the Elemental Aura when it has no
+  /// off-faction pigment.
+  final String? elementType;
   // Optional: UI slot size to normalize effect rendering in compact contexts
   // (e.g. party pickers) so effects don't overpower the sprite.
   final double? effectSlotSize;
@@ -108,6 +108,7 @@ class CreatureSprite extends StatefulWidget {
     this.tint,
     this.alchemyEffect,
     this.variantFaction,
+    this.elementType,
     this.effectSlotSize,
   });
 
@@ -260,20 +261,20 @@ class _CreatureSpriteState extends State<CreatureSprite>
       ),
     );
 
-    // If an alchemy/visual effect is present, render the effect layer behind
-    // the sprite (match the behavior used by `InstanceSprite`).
-    if (widget.alchemyEffect != null) {
+    // An alchemy effect wraps the sprite: behind it and, for an effect with a
+    // near side, over it.
+    if (AlchemyEffectPaint.has(widget.alchemyEffect)) {
       final effectPadding = widget.effectSlotSize != null
           ? (widget.effectSlotSize! <= 56 ? 2.0 : 6.0)
           : 8.0;
-      return Stack(
-        alignment: Alignment.center,
-        clipBehavior: Clip.none,
-        children: [
-          // effect may overflow bounds intentionally
-          _buildEffectLayer(widget.alchemyEffect!),
-          Padding(padding: EdgeInsets.all(effectPadding), child: scaled),
-        ],
+      // Round the sprite's own box; it paints past the box but never sizes
+      // it.
+      return AlchemyEffectView(
+        effectKey: widget.alchemyEffect!,
+        element: widget.variantFaction ?? widget.elementType,
+        scale: widget.scale,
+        inset: effectPadding,
+        child: Padding(padding: EdgeInsets.all(effectPadding), child: scaled),
       );
     }
 
@@ -287,61 +288,11 @@ class _CreatureSpriteState extends State<CreatureSprite>
     return FactionColors.of(faction);
   }
 
-  Widget _buildEffectLayer(String effect) {
-    final slotSize = widget.effectSlotSize;
-    final widgetEff = slotSize != null
-        ? effectSizeFromWidgetSize(slotSize)
-        : null;
-    // Use the canonical display base (69px box * genetics scale) for sizing
-    // when no slot override is provided.
-    final displayBase = displayBaseFromVisuals(visualsScale: widget.scale);
-    final displayEff = effectSizeFromDisplayBase(
-      displayBase,
-      multiplier: 1.0,
-      minSize: 32.0,
-      maxSize: 116.0,
-    );
-    switch (effect) {
-      case 'alchemy_glow':
-        return AlchemyGlow(size: widgetEff ?? displayEff);
-      case 'elemental_aura':
-        return ElementalAura(
-          size: widgetEff ?? displayEff,
-          element: widget.variantFaction,
-        );
-      case 'volcanic_aura':
-        return VolcanicAura(size: widgetEff ?? displayEff);
-      case 'void_rift':
-        return VoidRift(size: (widgetEff ?? displayEff) * 0.8);
-      case 'prismatic_cascade':
-        final eff = slotSize != null
-            ? (slotSize <= 56
-                  ? prismaticCascadeSizeFromWidgetSize(
-                      slotSize,
-                    ).clamp(16.0, 22.0)
-                  : prismaticCascadeSizeFromWidgetSize(slotSize))
-            : prismaticCascadeSizeFromDisplayBase(displayBase);
-        return PrismaticCascade(size: eff);
-      case 'ritual_gold':
-        return RitualGold(size: widgetEff ?? displayEff);
-      case 'beauty_radiance':
-        final eff = slotSize != null
-            ? effectSizeFromWidgetSize(slotSize)
-            : displayEff;
-        return BeautyRadiance(size: eff);
-      case 'speed_flux':
-        return SpeedFlux(size: widgetEff ?? displayEff);
-      case 'strength_forge':
-        return StrengthForge(size: widgetEff ?? displayEff);
-      case 'intelligence_halo':
-        return IntelligenceHalo(size: widgetEff ?? displayEff);
-      case 'blood_aura':
-        return BloodAura(size: widgetEff ?? displayEff);
-      case 'wavebreaker_crown':
-        return WavebreakerCrown(size: widgetEff ?? displayEff);
-      default:
-        return const SizedBox.shrink();
-    }
+  /// After the frame that first draws the loaded sprite.
+  void _announceReady() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) const SpriteReadyNotification().dispatch(context);
+    });
   }
 
   Future<void> _loadAnimation() async {
@@ -373,6 +324,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
             _loadError = null;
             _retryCount = 0;
           });
+          _announceReady();
         }
         return;
       }
@@ -400,6 +352,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
         _loadError = null;
         _retryCount = 0;
       });
+      _announceReady();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -427,18 +380,12 @@ class InstanceSprite extends StatelessWidget {
   final double size;
   final bool flipX;
 
-  /// Alchemy effects are animated particle fields; a scrolling grid of them
-  /// is dozens of tickers and blurred paints per frame. Lists turn this off
-  /// and let the detail surfaces show the effect.
-  final bool showAlchemyEffect;
-
   const InstanceSprite({
     super.key,
     required this.creature,
     required this.instance,
     required this.size,
     this.flipX = false,
-    this.showAlchemyEffect = true,
   });
 
   @override
@@ -464,22 +411,16 @@ class InstanceSprite extends StatelessWidget {
       ),
     );
 
-    if (showAlchemyEffect && instance.alchemyEffect != null) {
-      // Use a simple Stack. The effect layer and the padded sprite are centered.
-      sprite = Stack(
-        alignment: Alignment.center,
-        children: [
-          // Background glow/particles - this child will overflow its bounds
-          _buildEffectLayer(instance.alchemyEffect!, visuals),
-          // Creature sprite on top (keep the padding to ensure the sprite
-          // image itself isn't pushed to the edge and clipped by its own BoxShadow)
-          Padding(
-            padding: const EdgeInsets.all(
-              8.0,
-            ), // Keep this for internal glow space
-            child: sprite,
-          ),
-        ],
+    // Blur-free on one shared clock, so even a scrolling grid of them is
+    // cheap: every list shows its specimens' effects.
+    if (AlchemyEffectPaint.has(instance.alchemyEffect)) {
+      // Keep the padding so the sprite is not pushed to the edge of its box.
+      sprite = AlchemyEffectView(
+        effectKey: instance.alchemyEffect!,
+        element: visuals.auraElement,
+        scale: visuals.scale,
+        inset: 8,
+        child: Padding(padding: const EdgeInsets.all(8.0), child: sprite),
       );
     }
     return SizedBox(
@@ -500,41 +441,6 @@ class InstanceSprite extends StatelessWidget {
             : sprite,
       ),
     );
-  }
-
-  Widget _buildEffectLayer(String effect, SpriteVisuals visuals) {
-    // For InstanceSprite (small UI slot), derive effect sizes from the
-    // widget slot `size` rather than the canonical 69px display base so
-    // previews remain visually balanced.
-    final widgetEff = effectSizeFromWidgetSize(size);
-    switch (effect) {
-      case 'alchemy_glow':
-        return AlchemyGlow(size: widgetEff);
-      case 'elemental_aura':
-        return ElementalAura(size: widgetEff, element: instance.variantFaction);
-      case 'volcanic_aura':
-        return VolcanicAura(size: widgetEff);
-      case 'void_rift':
-        return VoidRift(size: widgetEff * 0.8);
-      case 'prismatic_cascade':
-        return PrismaticCascade(size: prismaticCascadeSizeFromWidgetSize(size));
-      case 'ritual_gold':
-        return RitualGold(size: widgetEff);
-      case 'beauty_radiance':
-        return BeautyRadiance(size: widgetEff);
-      case 'speed_flux':
-        return SpeedFlux(size: widgetEff);
-      case 'strength_forge':
-        return StrengthForge(size: widgetEff);
-      case 'intelligence_halo':
-        return IntelligenceHalo(size: widgetEff);
-      case 'blood_aura':
-        return BloodAura(size: widgetEff);
-      case 'wavebreaker_crown':
-        return WavebreakerCrown(size: widgetEff);
-      default:
-        return const SizedBox.shrink();
-    }
   }
 }
 

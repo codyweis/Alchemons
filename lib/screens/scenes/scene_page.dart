@@ -1,4 +1,3 @@
-import 'package:alchemons/audio/audio.dart';
 // lib/screens/scenes/scene_page.dart
 import 'dart:async';
 import 'dart:math';
@@ -15,7 +14,7 @@ import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
-import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
+import 'package:alchemons/screens/scenes/rift_threshold.dart';
 import 'package:alchemons/services/opening_wilderness_service.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
@@ -228,6 +227,13 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
         _spawnService.markSceneActive(widget.sceneId);
         _spawnService.addListener(_onSpawnServiceChanged);
 
+        // A state the land is in (the Swamp gone dry) has to be there from
+        // the first frame, not appear once the batch is taken in below.
+        final land = _spawnService.weatherIn(widget.sceneId)?.kind;
+        if (!widget.isTutorial && (land?.settled ?? false)) {
+          _game.fieldWeather = land;
+        }
+
         WidgetsBinding.instance.addPostFrameCallback((_) async {
           await _db
               .into(_db.activeSceneEntry)
@@ -271,6 +277,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
           // Keep tutorial scenes pinned to the matching main Let.
           if (widget.isTutorial || _isCaptureTutorialScene) {
+            _game.fieldWeather = null;
             if (widget.isTutorial) {
               await _ensureTutorialWildFusion();
             }
@@ -591,6 +598,19 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       }
     }
 
+    // Weather belongs to the batch it came with: it is over this visit, and
+    // gone with the batch once the visit is over. The first clear visit
+    // after a rainy one finds what the rain left (the Valley's rainbow).
+    // Nothing announces either; the field shows it.
+    final weather = _spawnService.weatherIn(widget.sceneId);
+    _game.fieldWeather = weather?.kind;
+    if (weather != null) {
+      await _spawnService.noteWeatherVisit(widget.sceneId);
+    } else {
+      _game.fieldAftermath =
+          await _spawnService.takeAftermath(widget.sceneId) != null;
+    }
+
     // Scene uses local transient batch after entry. Persisted batch is consumed.
     _usingSessionSceneSpawns = true;
     _syncSpawnsFromService();
@@ -663,6 +683,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       for (final sp in chosenPoints) {
         final creature = _pickCosmicCreatureByRarity(byRarity, rng);
         if (creature == null) continue;
+        // Only a creature that can float is put in the open air.
+        if (sp.aloft && !speciesCanFloat(creature.id)) continue;
         final rarity = _encounterRarityForCreature(creature.rarity);
         _encounters.forceSpawnAt(
           sp.id,
@@ -1078,60 +1100,56 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
   // ── Rift portal ─────────────────────────────────────────────────────────────
 
-  void _onRiftTapped(RiftFaction faction) {
+  Future<void> _onRiftTapped(RiftFaction faction) async {
     if (!mounted) return;
     HapticFeedback.heavyImpact();
-    Navigator.of(context).push(
-      PageRouteBuilder<void>(
-        opaque: true,
-        barrierDismissible: false,
-        transitionDuration: const Duration(milliseconds: 320),
-        reverseTransitionDuration: const Duration(milliseconds: 180),
-        pageBuilder: (ctx, animation, secondary) => _RiftVoidPage(
-          faction: faction,
-          party: widget.party,
-          onEnter: () async {
-            Navigator.of(ctx).pop();
-            unawaited(context.read<AudioController>().playPortalMusic());
-            // Don't clear the rift yet — only clear it if the player
-            // successfully breeds or catches inside the void.
-            final success = await Navigator.of(context).push<bool>(
-              MaterialPageRoute(
-                builder: (_) =>
-                    RiftPortalScreen(faction: faction, party: widget.party),
-              ),
-            );
-            if (success == true) {
-              await _consumeRift();
-            }
-            if (!mounted) return;
-            if (_isCosmicPlanetMode) {
-              unawaited(context.read<AudioController>().playPlanetMusic());
-            } else {
-              unawaited(
-                context.read<AudioController>().playWildMusicForScene(
-                  widget.sceneId,
-                ),
-              );
-            }
-          },
-        ),
-        transitionsBuilder: (ctx, animation, secondary, child) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
-          );
-          return FadeTransition(
-            opacity: curved,
-            child: ScaleTransition(
-              scale: Tween<double>(begin: 1.18, end: 1.0).animate(curved),
-              child: child,
-            ),
-          );
-        },
-      ),
+    final pending = await _loadPendingRift();
+    if (!mounted) return;
+    // The rift waits for a key to be fetched; say for how long.
+    final closesIn =
+        pending != null &&
+            pending.factionName == faction.name &&
+            pending.sceneId == widget.sceneId
+        ? pending.remainingLabel(DateTime.now().toUtc())
+        : null;
+    await showRiftThreshold(
+      context,
+      faction: faction,
+      closesIn: closesIn,
+      onEnter: (threshold) => _enterRift(threshold, faction),
     );
+  }
+
+  /// The key has turned and the threshold has fallen to black: the glyph
+  /// portal takes it into the rift, and leaving comes straight back here.
+  Future<void> _enterRift(
+    BuildContext thresholdContext,
+    RiftFaction faction,
+  ) async {
+    unawaited(context.read<AudioController>().playPortalMusic());
+    // Don't clear the rift yet — only clear it if the player successfully
+    // breeds or catches inside the void.
+    final success = await enterRift(
+      thresholdContext,
+      faction: faction,
+      party: widget.party,
+      // The scene behind is landscape.
+      returnTo: const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ],
+    );
+    if (success == true) {
+      await _consumeRift();
+    }
+    if (!mounted) return;
+    if (_isCosmicPlanetMode) {
+      unawaited(context.read<AudioController>().playPlanetMusic());
+    } else {
+      unawaited(
+        context.read<AudioController>().playWildMusicForScene(widget.sceneId),
+      );
+    }
   }
 
   bool isNight(DateTime now) => now.hour >= 20 || now.hour < 5;
@@ -1354,6 +1372,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                       child: GameWidget(game: _game),
                     );
 
+                    // A field drawn in code lights its own night, and the
+                    // filter costs two offscreen passes even when idle.
+                    if (widget.scene.art != null) return game;
                     return DayNightFilter(
                       intensity: night ? 1.0 : 0.0,
                       tint: const Color(0xFF081028),
@@ -1362,7 +1383,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                     );
                   },
                 ),
-                if (!(widget.sceneId == 'arcane' && _inEncounter))
+                // A field drawn in code has its own motes.
+                if (!(widget.sceneId == 'arcane' && _inEncounter) &&
+                    widget.scene.art == null)
                   IgnorePointer(
                     child: AlchemicalParticleBackground(
                       opacity: switch (widget.sceneId) {
@@ -1417,10 +1440,12 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                           profile: profile,
                         ),
                     onFusionInScene: (party, wild) =>
-                        _game.playFusionOnEncounter(
-                          accentParty: party,
-                          accentWild: wild,
-                        ),
+                        _game.playFusionOnEncounter(),
+                    // Both turn to grains through the wait for the verdict,
+                    // and run back into themselves if it goes against them.
+                    onFusionCalibrating: _game.startFusionCalibration,
+                    onFusionFailedInScene: (party, wild) =>
+                        _game.recoilFusion(),
                     onPartyCreatureSelected: _onPartyCreatureSelected,
                     onClosedWithResult: (success) async {
                       final id = _usedSpawnPointId;
@@ -2017,608 +2042,4 @@ class _CosmicElementBiomePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CosmicElementBiomePainter oldDelegate) =>
       oldDelegate.phase != phase || oldDelegate.element != element;
-}
-// ── Rift Void Page (full-screen mystical overlay) ────────────────────────────
-
-class _RiftVoidPage extends StatefulWidget {
-  final RiftFaction faction;
-  final List<PartyMember> party;
-  final VoidCallback onEnter;
-
-  const _RiftVoidPage({
-    required this.faction,
-    required this.party,
-    required this.onEnter,
-  });
-
-  @override
-  State<_RiftVoidPage> createState() => _RiftVoidPageState();
-}
-
-class _RiftVoidPageState extends State<_RiftVoidPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseCtrl;
-  String? _feedback;
-  bool _feedbackIsWarning = false;
-  bool _confirming = false;
-
-  // Current portal key quantity for this faction.
-  Future<int>? _keyFuture;
-
-  String get _portalKeyInvKey =>
-      InvKeys.portalKeyForFaction(widget.faction.name);
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2600),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _keyFuture ??= _loadKeyQty();
-  }
-
-  Future<int> _loadKeyQty() async {
-    final db = context.read<AlchemonsDatabase>();
-    return db.inventoryDao.getItemQty(_portalKeyInvKey);
-  }
-
-  Future<void> _refreshKeyQty() async {
-    final db = context.read<AlchemonsDatabase>();
-    final qty = await db.inventoryDao.getItemQty(_portalKeyInvKey);
-    if (mounted) setState(() => _keyFuture = Future.value(qty));
-  }
-
-  @override
-  void dispose() {
-    _pulseCtrl.dispose();
-    super.dispose();
-  }
-
-  String get _essenceLabel => switch (widget.faction) {
-    RiftFaction.volcanic => 'IGNEOUS RESONANCE',
-    RiftFaction.oceanic => 'ABYSSAL RESONANCE',
-    RiftFaction.verdant => 'SYLVAN RESONANCE',
-    RiftFaction.earthen => 'LITHIC RESONANCE',
-    RiftFaction.arcane => 'VOID RESONANCE',
-  };
-
-  String get _crypticHint => switch (widget.faction) {
-    RiftFaction.volcanic =>
-      'Those born of flame, ruin, or ancient blood may approach.',
-    RiftFaction.oceanic => 'Those shaped by tide and the deep cold may answer.',
-    RiftFaction.verdant =>
-      'Those of wind, bloom, and radiance know the passage.',
-    RiftFaction.earthen =>
-      'Those carved from stone, clay, crystal, and dust may enter.',
-    RiftFaction.arcane =>
-      'Those steeped in shadow, spirit, storm, or venom are expected.',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final color = widget.faction.primaryColor;
-    final coreColor = widget.faction.coreColor;
-
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: AnimatedBuilder(
-        animation: _pulseCtrl,
-        builder: (context, child) {
-          final pulse = 0.85 + 0.15 * _pulseCtrl.value;
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _VoidPainter(
-                    color: color,
-                    coreColor: coreColor,
-                    pulse: pulse,
-                    time: _pulseCtrl.value,
-                  ),
-                ),
-              ),
-              SafeArea(child: child!),
-            ],
-          );
-        },
-        child: _buildContent(color),
-      ),
-    );
-  }
-
-  Widget _buildContent(Color color) {
-    return SizedBox.expand(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // ── Left panel: lore ─────────────────────────────────────────
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'THE RIFT STIRS',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 4,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    '${widget.faction.displayName.toUpperCase()} THRESHOLD',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: color.withValues(alpha: 0.4)),
-                      borderRadius: BorderRadius.circular(2),
-                      color: color.withValues(alpha: 0.07),
-                    ),
-                    child: Text(
-                      _essenceLabel,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: color,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 2.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _crypticHint,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: color.withValues(alpha: 0.65),
-                      fontSize: 12,
-                      height: 1.55,
-                      letterSpacing: 0.4,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Vertical divider ─────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: SizedBox(
-                height: 160,
-                child: VerticalDivider(
-                  color: color.withValues(alpha: 0.25),
-                  thickness: 1,
-                  width: 1,
-                ),
-              ),
-            ),
-
-            // ── Right panel: key check → vessel selection ─────────────────
-            Expanded(child: _buildRightPanel(color)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Gated right panel ────────────────────────────────────────────────────
-
-  Widget _buildRightPanel(Color color) {
-    return FutureBuilder<int>(
-      future: _keyFuture,
-      builder: (ctx, keySnap) {
-        if (keySnap.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 70,
-            child: Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 1.5,
-                color: Colors.white24,
-              ),
-            ),
-          );
-        }
-        final keyQty = keySnap.data ?? 0;
-        return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // ── Key status chip ────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: keyQty > 0
-                      ? color.withValues(alpha: 0.6)
-                      : Colors.white24,
-                ),
-                borderRadius: BorderRadius.circular(2),
-                color: keyQty > 0
-                    ? color.withValues(alpha: 0.10)
-                    : Colors.white.withValues(alpha: 0.04),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    AppIcons.vpn_key_rounded,
-                    color: keyQty > 0 ? color : Colors.white30,
-                    size: 11,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    keyQty > 0
-                        ? '${widget.faction.displayName.toUpperCase()} KEY  ×$keyQty'
-                        : 'NO PORTAL KEY',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: keyQty > 0 ? color : Colors.white30,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            if (keyQty <= 0) ...[
-              // ── No key: prompt to buy ────────────────────────────────
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white12),
-                  borderRadius: BorderRadius.circular(3),
-                  color: Colors.white.withValues(alpha: 0.03),
-                ),
-                child: Text(
-                  'You need a\n${widget.faction.displayName.toUpperCase()} PORTAL KEY\nto enter this rift.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    color: Colors.white38,
-                    fontSize: 12,
-                    height: 1.6,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ] else if (!_confirming) ...[
-              // ── Has key: enter prompt ────────────────────────────────
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: color.withValues(alpha: 0.25)),
-                  borderRadius: BorderRadius.circular(3),
-                  color: color.withValues(alpha: 0.05),
-                ),
-                child: const Text(
-                  'YOUR ENTIRE PARTY\nWILL ENTER THE VOID',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: Colors.white54,
-                    fontSize: 12,
-                    height: 1.7,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              GestureDetector(
-                onTap: context.soundAction(_handleEnterTap),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: color, width: 1.5),
-                    borderRadius: BorderRadius.circular(3),
-                    color: color.withValues(alpha: 0.18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withValues(alpha: 0.35),
-                        blurRadius: 14,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    'ENTER THE RIFT',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: color,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 3,
-                    ),
-                  ),
-                ),
-              ),
-            ] else ...[
-              // ── Confirmation ─────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: color.withValues(alpha: 0.5)),
-                  borderRadius: BorderRadius.circular(3),
-                  color: color.withValues(alpha: 0.08),
-                ),
-                child: Text(
-                  'USE 1 ${widget.faction.displayName.toUpperCase()}\nPORTAL KEY?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: color,
-                    fontSize: 12,
-                    height: 1.7,
-                    letterSpacing: 1.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  GestureDetector(
-                    onTap: context.soundAction(
-                      () => setState(() => _confirming = false),
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white24),
-                        borderRadius: BorderRadius.circular(2),
-                        color: Colors.white.withValues(alpha: 0.05),
-                      ),
-                      child: const Text(
-                        'BACK',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: Colors.white54,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: context.soundAction(_handleConfirmEnter),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: color, width: 1.5),
-                        borderRadius: BorderRadius.circular(2),
-                        color: color.withValues(alpha: 0.2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withValues(alpha: 0.3),
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        'ENTER',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: color,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-
-            const SizedBox(height: 10),
-            if (_feedback != null)
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: _feedbackIsWarning
-                        ? const Color(0xFFE06060)
-                        : const Color(0xFF88EE88),
-                    width: 1,
-                  ),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                  child: Text(
-                    _feedback!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: _feedbackIsWarning
-                          ? const Color(0xFFE06060)
-                          : const Color(0xFF88EE88),
-                      fontSize: 12,
-                      height: 1.5,
-                      letterSpacing: 0.4,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-              ),
-            const SizedBox(height: 10),
-            GestureDetector(
-              onTap: context.soundAction(() => Navigator.of(context).pop()),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFFD4AF37), width: 1),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: const Text(
-                  'STEP BACK FROM THE THRESHOLD',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: Color.fromARGB(151, 255, 255, 255),
-                    fontSize: 14,
-                    letterSpacing: 2,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _handleEnterTap() {
-    setState(() {
-      _confirming = true;
-      _feedback = null;
-    });
-  }
-
-  Future<void> _handleConfirmEnter() async {
-    if (!mounted) return;
-    final db = context.read<AlchemonsDatabase>();
-    // Race-condition guard: re-check key quantity.
-    final keyQty = await db.inventoryDao.getItemQty(_portalKeyInvKey);
-    if (keyQty <= 0) {
-      setState(() {
-        _feedback = 'Your portal key has gone. Visit the Shop.';
-        _feedbackIsWarning = true;
-        _confirming = false;
-      });
-      await _refreshKeyQty();
-      return;
-    }
-    // Consume one key and enter.
-    await db.inventoryDao.addItemQty(_portalKeyInvKey, -1);
-    if (!mounted) return;
-    widget.onEnter();
-  }
-}
-
-// ── Void background painter ───────────────────────────────────────────────────
-
-class _VoidPainter extends CustomPainter {
-  final Color color;
-  final Color coreColor;
-  final double pulse;
-  final double time;
-
-  const _VoidPainter({
-    required this.color,
-    required this.coreColor,
-    required this.pulse,
-    required this.time,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height * 0.28);
-
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(0, -0.4),
-          radius: 1.3,
-          colors: [
-            Color.lerp(coreColor, Colors.black, 0.2)!,
-            const Color(0xFF04040F),
-            Colors.black,
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ).createShader(Offset.zero & size),
-    );
-
-    for (int i = 4; i >= 0; i--) {
-      final r = 55.0 + i * 52.0 + 18 * (1 - pulse);
-      canvas.drawCircle(
-        center,
-        r * pulse,
-        Paint()
-          ..color = color.withValues(alpha: (0.13 - i * 0.02) * pulse)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.8
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
-      );
-    }
-
-    const spokeCount = 8;
-    final spokePaint = Paint()
-      ..color = color.withValues(alpha: 0.05 * pulse)
-      ..strokeWidth = 0.5
-      ..style = PaintingStyle.stroke;
-    for (int i = 0; i < spokeCount; i++) {
-      final angle = (i / spokeCount) * pi * 2 + time * 0.4;
-      canvas.drawLine(
-        center,
-        Offset(center.dx + 320 * cos(angle), center.dy + 320 * sin(angle)),
-        spokePaint,
-      );
-    }
-
-    canvas.drawCircle(
-      center,
-      38 * pulse,
-      Paint()
-        ..color = color.withValues(alpha: 0.15 * pulse)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_VoidPainter old) => true;
 }

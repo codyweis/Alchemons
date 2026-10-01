@@ -6,6 +6,7 @@ import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/nursery/cultivation_stage.dart';
+import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -84,6 +85,27 @@ class ExtractionDialogState extends State<ExtractionDialog>
     super.dispose();
   }
 
+  /// The sphere on the stage, handed on to the hatching ceremony so it opens
+  /// on this cultivation instead of on black.
+  final GlobalKey _sphereKey = GlobalKey();
+
+  void _extract() {
+    HapticFeedback.heavyImpact();
+    CultivationHandoff.stage(CultivationSphere.handoffFrom(_sphereKey));
+    widget.onExtract();
+  }
+
+  /// The cultivation's saved data, for its sphere.
+  Map<String, dynamic> _payload() {
+    try {
+      final raw = widget.slot.payloadJson;
+      if (raw == null || raw.isEmpty) return const {};
+      return jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      return const {};
+    }
+  }
+
   List<String>? _extractParentTypes() {
     try {
       final raw = widget.slot.payloadJson;
@@ -150,23 +172,19 @@ class ExtractionDialogState extends State<ExtractionDialog>
               CultivationVialStage(
                 theme: theme,
                 parentTypes: parentTypes,
+                payload: _payload(),
+                progress: 1,
+                sphereKey: _sphereKey,
+                // A pure line's sigil is its element's, as in the reveal.
+                pureElementTypeId: pureElementFromPayload(_payload()),
                 accentColor: rarityColor,
                 chamberLabel: 'CHAMBER ${widget.slot.id + 1}',
                 particleCount: _readyParticleCount(context),
                 speedMultiplier: 0.22,
                 // The finished look, as on the chamber card.
                 fusion: true,
-                onStageTap: () {
-                  HapticFeedback.heavyImpact();
-                  widget.onExtract();
-                },
-                action: VialActionButton(
-                  label: 'EXTRACT',
-                  onTap: () {
-                    HapticFeedback.heavyImpact();
-                    widget.onExtract();
-                  },
-                ),
+                onStageTap: _extract,
+                action: VialActionButton(label: 'EXTRACT', onTap: _extract),
                 leading: widget.isTutorial
                     ? const SizedBox(width: 40)
                     : StageIconButton(

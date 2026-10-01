@@ -45,4 +45,39 @@ class DebugSettingsService {
   /// developer affordances leaked into normal play with the toggle off. The
   /// switch is now the only thing that decides.
   static bool get toolsVisible => enabledNotifier.value;
+
+  // ── free shop ──────────────────────────────────────────────────────────
+
+  static const String _freeShopKey = 'debug.free_shop';
+  static bool _freeShopHydrated = false;
+
+  /// The FREE SHOP switch under the developer tools, persisted like them.
+  static final ValueNotifier<bool> freeShopNotifier = ValueNotifier<bool>(
+    false,
+  );
+
+  Future<bool> isFreeShop() async {
+    if (_freeShopHydrated) return freeShopNotifier.value;
+    final prefs = await SharedPreferences.getInstance();
+    _freeShopHydrated = true;
+    freeShopNotifier.value = prefs.getBool(_freeShopKey) ?? false;
+    return freeShopNotifier.value;
+  }
+
+  Future<void> setFreeShop(bool free) async {
+    _freeShopHydrated = true;
+    freeShopNotifier.value = free;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_freeShopKey, free);
+  }
+
+  /// Whether every shop purchase costs nothing: the switch is on and so are
+  /// the developer tools, so turning the tools off restores real prices
+  /// without having to remember this one too.
+  static bool get freeShop => toolsVisible && freeShopNotifier.value;
+
+  /// [cost], or the same currencies at zero while [freeShop] is on — for
+  /// the shop's purchases that do not go through ShopService.
+  static Map<String, int> priced(Map<String, int> cost) =>
+      freeShop ? {for (final k in cost.keys) k: 0} : cost;
 }

@@ -42,6 +42,8 @@ import 'package:alchemons/widgets/theme_switch_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:alchemons/models/encounters/wild_weather.dart';
+import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -219,6 +221,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final DebugSettingsService _debugSettings = DebugSettingsService();
   bool _debugToolsEnabled = false;
   bool _debugToolsLoaded = false;
+  bool _freeShop = false;
   bool _saveTransferBusy = false;
   int _cosmicHintPage = 0;
 
@@ -285,6 +288,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ? 'Faction unchanged — ${selected.name}'
           : 'Faction set to ${selected.name}',
       icon: AppIcons.science_rounded,
+    );
+  }
+
+  Future<void> _bringWeather(
+    String sceneId,
+    WeatherKind kind,
+    String what,
+  ) async {
+    HapticFeedback.mediumImpact();
+    final came = await context.read<WildernessSpawnService>().debugBringWeather(
+      sceneId,
+      kind,
+    );
+    if (!mounted) return;
+    showGameSnack(
+      context,
+      came ? '$what has come' : 'No $what — that region is not open yet',
+      icon: AppIcons.bolt_rounded,
+    );
+  }
+
+  Future<void> _owedValleyRainbow() async {
+    HapticFeedback.mediumImpact();
+    await context.read<WildernessSpawnService>().debugSetAftermath('valley');
+    if (!mounted) return;
+    showGameSnack(
+      context,
+      'The next clear visit to the Valley has a rainbow',
+      icon: AppIcons.wb_sunny_rounded,
     );
   }
 
@@ -357,9 +389,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadDebugTools() async {
     final enabled = await _debugSettings.isEnabled();
+    final freeShop = await _debugSettings.isFreeShop();
     if (!mounted) return;
     setState(() {
       _debugToolsEnabled = enabled;
+      _freeShop = freeShop;
       _debugToolsLoaded = true;
     });
   }
@@ -367,6 +401,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _setDebugTools(bool value) async {
     setState(() => _debugToolsEnabled = value);
     await _debugSettings.setEnabled(value);
+  }
+
+  Future<void> _setFreeShop(bool value) async {
+    setState(() => _freeShop = value);
+    await _debugSettings.setFreeShop(value);
   }
 
   Future<void> _reloadProfileState() async {
@@ -1875,6 +1914,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 10),
                     _ForgePanel(
                       accentBar: t.teal,
+                      child: _NotificationToggleRow(
+                        icon: AppIcons.storefront_rounded,
+                        title: 'FREE SHOP',
+                        subtitle:
+                            'Every shop purchase costs nothing while the '
+                            'debug tools are on',
+                        value: _freeShop,
+                        enabled: _debugToolsLoaded,
+                        onChanged: _setFreeShop,
+                        accent: t.teal,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
                       child: Row(
                         children: [
                           Expanded(
@@ -1897,6 +1951,170 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             label: 'OPEN',
                             icon: AppIcons.south_rounded,
                             onTap: context.soundAction(_openDungeonDebug),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('SKY STORM', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Replace the Sky\'s spawns with a batch '
+                                  'that comes with a lightning storm',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'BRING',
+                            icon: AppIcons.bolt_rounded,
+                            onTap: context.soundAction(
+                              () => _bringWeather(
+                                'sky',
+                                WeatherKind.storm,
+                                'The storm',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('VALLEY RAIN', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Replace the Valley\'s spawns with a batch '
+                                  'that comes with rain',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'BRING',
+                            icon: AppIcons.water_drop_rounded,
+                            onTap: context.soundAction(
+                              () => _bringWeather(
+                                'valley',
+                                WeatherKind.rain,
+                                'The rain',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('VALLEY SNOW', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Replace the Valley\'s spawns with a batch '
+                                  'that comes with snow',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'BRING',
+                            icon: AppIcons.ac_unit_rounded,
+                            onTap: context.soundAction(
+                              () => _bringWeather(
+                                'valley',
+                                WeatherKind.snow,
+                                'The snow',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('VALLEY RAINBOW', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Make the next clear visit to the Valley '
+                                  'find a rainbow',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'SET',
+                            icon: AppIcons.wb_sunny_rounded,
+                            onTap: context.soundAction(_owedValleyRainbow),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('SWAMP DRY', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Replace the Swamp\'s spawns with a batch '
+                                  'that finds it dried out',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'BRING',
+                            icon: AppIcons.grain_rounded,
+                            onTap: context.soundAction(
+                              () => _bringWeather(
+                                'swamp',
+                                WeatherKind.dry,
+                                'The dry spell',
+                              ),
+                            ),
                           ),
                         ],
                       ),

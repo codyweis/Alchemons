@@ -221,6 +221,60 @@ class VoidPortal {
     return routeResult.future;
   }
 
+  /// Replaces the current route with [page] while the screen is already
+  /// black — the last frame of a transition the current screen drew itself
+  /// (a rift's threshold falling into its core) — so nothing else plays.
+  ///
+  /// With [orientation], the phone is turned first, on that black frame,
+  /// with the system's rotation animation off: a rotation hitches, and must
+  /// never land on anything moving. [returnOrientation] is restored when
+  /// [page] is popped. Completes with [page]'s result.
+  static Future<T?> replaceInBlack<T>(
+    BuildContext context, {
+    required Widget page,
+    List<DeviceOrientation>? orientation,
+    List<DeviceOrientation>? returnOrientation,
+  }) async {
+    final navigator = Navigator.of(context);
+    final turn = orientation != null && orientation.isNotEmpty;
+    if (turn) {
+      await _setSeamlessRotation(true);
+      await SystemChrome.setPreferredOrientations([orientation.first]);
+      final wide =
+          orientation.first == DeviceOrientation.landscapeLeft ||
+          orientation.first == DeviceOrientation.landscapeRight;
+      final view = WidgetsBinding.instance.platformDispatcher.views.first;
+      final began = DateTime.now();
+      while ((view.physicalSize.width > view.physicalSize.height) != wide &&
+          DateTime.now().difference(began) < const Duration(seconds: 1)) {
+        await SchedulerBinding.instance.endOfFrame;
+      }
+    }
+    final result = navigator.pushReplacement<T, Object?>(
+      PageRouteBuilder<T>(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => page,
+      ),
+    );
+    if (turn) {
+      // A few frames for the re-layout before the rotation animation and
+      // the other orientations come back.
+      for (var i = 0; i < 3; i++) {
+        await SchedulerBinding.instance.endOfFrame;
+      }
+      if (orientation.length > 1) {
+        unawaited(SystemChrome.setPreferredOrientations(orientation));
+      }
+      unawaited(_setSeamlessRotation(false));
+    }
+    final value = await result;
+    if (returnOrientation != null) {
+      await SystemChrome.setPreferredOrientations(returnOrientation);
+    }
+    return value;
+  }
+
   /// Play the glyph portal over the current screen without navigating — for
   /// a change that happens IN a screen (starting a survival run).
   ///

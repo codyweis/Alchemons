@@ -60,7 +60,7 @@ void main() {
     for (final species in HatchShellSpecies.values) {
       for (final reduced in [false, true]) {
         final m = HatchShellModel(species: species, reduced: reduced);
-        final verts = m.strandCount * m.sampleCount * 3;
+        final verts = m.strandCount * m.sampleCount * m.rails;
         expect(
           verts,
           lessThanOrEqualTo(65535),

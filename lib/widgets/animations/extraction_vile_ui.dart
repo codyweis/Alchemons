@@ -12,8 +12,7 @@ import 'package:flutter/material.dart';
 
 // canonical models/helpers (no duplicates)
 import 'package:alchemons/models/elemental_group.dart';
-import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
-import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 
 /// ─────────────────────────────────────────────────────────
 /// UI-only extensions & types (safe to live here)
@@ -103,6 +102,77 @@ class ExtractionVial {
   });
 }
 
+/// Smoked glass: what every vial is shown against — the black market's
+/// lots, the inventory, cold storage. Dark whatever the theme, as a cabinet
+/// is, so the grains glow.
+const Color kVialGlass = Color(0xE60B0A10);
+
+/// The light a vial gives off: a soft pool of its colour, never a ring or a
+/// disc. [strength] scales it (a ready cultivation glows a little more).
+class VialLightPool extends StatelessWidget {
+  const VialLightPool({super.key, required this.color, this.strength = 1});
+
+  final Color color;
+  final double strength;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color.withValues(alpha: (0.34 * strength).clamp(0.0, 1.0)),
+              color.withValues(alpha: (0.1 * strength).clamp(0.0, 1.0)),
+              color.withValues(alpha: 0),
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A vial held up to the light: what it holds — a sphere of its elements'
+/// grains, turning as a cultivation does — over a soft pool of its colour.
+/// No card or disc round it: a flat ball of colour read as a button rather
+/// than a thing.
+class ExtractionVialOrb extends StatelessWidget {
+  const ExtractionVialOrb({super.key, required this.vial, required this.size});
+
+  final ExtractionVial vial;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final (a, b) = vial.group.particleTypes;
+    final fx = vial.rarity.fx;
+    return SizedBox.square(
+      dimension: size,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          VialLightPool(color: vial.group.color),
+          IgnorePointer(
+            child: CultivationSphere(
+              payload: const {},
+              types: [a, ?b],
+              // Fewer for a small one: at a thumbnail they would only mat.
+              grains: (size * 3.4 * fx.particleMult).round().clamp(60, 640),
+              interactive: false,
+              spinScale: 0.6 + fx.speedMult,
+              twinkle: fx.twinkle ? 2.5 : 1,
+              radiusFactor: 0.34,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Public widget: a tappable card with rarity/element-driven animation.
 class ExtractionVialCard extends StatelessWidget {
   final ExtractionVial vial;
@@ -129,166 +199,170 @@ class ExtractionVialCard extends StatelessWidget {
     this.circular = false,
   });
 
-  int _baseParticles(ElementalGroup g) {
-    // You can vary baseline per element if you want different vibes
-    switch (g) {
-      case ElementalGroup.volcanic:
-        return 90;
-      case ElementalGroup.oceanic:
-        return 80;
-      case ElementalGroup.earthen:
-        return 70;
-      case ElementalGroup.verdant:
-        return 80;
-      case ElementalGroup.arcane:
-        return 85;
-    }
-  }
-
   Color _scorchedAccent(Color base) {
     return Color.lerp(base, const Color(0xFFF59E0B), 0.45) ?? base;
   }
 
   @override
   Widget build(BuildContext context) {
-    final skin = vial.group.skin;
+    final color = vial.group.color;
     final fx = vial.rarity.fx;
-    final (aType, bType) = vial.group.particleTypes;
+
+    // Shown as a specimen (the faction picker): the orb, in a lens of
+    // smoked glass that fades out at its edge — the grains need the dark to
+    // glow against, on the light theme too, and a hard disc read as a
+    // button.
+    if (circular) {
+      return GestureDetector(
+        onTap: context.soundAction(onTap),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final side = math.min(box.maxWidth, box.maxHeight);
+            return Center(
+              child: SizedBox.square(
+                dimension: side,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            kVialGlass,
+                            Color(0xCC0B0A10),
+                            Color(0x000B0A10),
+                          ],
+                          stops: [0.0, 0.62, 1.0],
+                        ),
+                      ),
+                    ),
+                    ExtractionVialOrb(vial: vial, size: side),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
     final nameTag = vial.group.displayName.trim();
     final hasNameTag = showTags && nameTag.isNotEmpty;
+    final hasFooter = vial.price != null;
 
-    // particle dial — rarity scales both count and speed.
-    final particleCount = (_baseParticles(vial.group) * fx.particleMult)
-        .round();
-    // A radius bigger than the box is clamped to a circle, so this stays
-    // correct whatever size the caller gives it.
-    final borderRadius = circular
-        ? BorderRadius.circular(9999)
-        : BorderRadius.circular(compact ? 12 : 16);
-
+    // A case of smoked glass, its corners in the vial's colour — brighter
+    // the rarer — and the vial held up in it. It used to be a card of
+    // saturated colour, which read as a button rather than a thing.
     return GestureDetector(
       onTap: context.soundAction(onTap),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          borderRadius: borderRadius,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [skin.frameStart, skin.frameEnd],
+      child: CustomPaint(
+        foregroundPainter: _CaseBracketsPainter(
+          color: color.withValues(
+            alpha: (0.55 + 0.4 * fx.frameGlow).clamp(0.0, 1.0),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: skin.frameEnd.withValues(alpha: 0.35 * fx.frameGlow),
-              blurRadius: 24,
-              spreadRadius: 2,
-            ),
-          ],
+          size: compact ? 8 : 10,
         ),
-        child: ClipRRect(
-          borderRadius: circular
-              ? borderRadius
-              : borderRadius.subtract(
-                  const BorderRadius.all(Radius.circular(2)),
-                ),
-          child: Stack(
-            children: [
-              // Animated backdrop tied to element & rarity
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.center,
-                      radius: 1.0,
-                      colors: [
-                        skin.fill,
-                        Colors.black.withValues(alpha: 0.08),
-                        Colors.black.withValues(alpha: 0.18),
-                      ],
-                      stops: const [0.2, 0.7, 1.0],
+        child: Container(
+          color: kVialGlass,
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final side = math.min(box.maxWidth, box.maxHeight);
+              // Room for the tag and the price, when there are any.
+              final crowded = hasNameTag || hasFooter;
+              return Stack(
+                children: [
+                  Center(
+                    child: ExtractionVialOrb(
+                      vial: vial,
+                      size: side * (crowded ? 0.78 : 0.92),
                     ),
                   ),
-                ),
-              ),
-
-              // Particle field — reusing your brewing system
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: AlchemyBrewingParticleSystem(
-                    parentATypeId: aType,
-                    parentBTypeId: bType,
-                    particleCount: particleCount,
-                    speedMultiplier: fx.speedMult,
-                    fusion: false,
-                    useSimpleFusion: true,
-                  ),
-                ),
-              ),
-
-              // (Optional) Sparkle / pulse overlays for high rarity
-              if (fx.pulse)
-                Positioned.fill(child: _PulseOverlay(color: skin.badge)),
-              if (fx.twinkle) const Positioned.fill(child: _TwinkleOverlay()),
-
-              // Content
-              Positioned.fill(
-                child: Container(
-                  padding: EdgeInsets.all(compact ? 10 : 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // The element, and nothing else. The grade tag under it
-                      // read "WORN" / "RUNED" — flavour words that told the
-                      // player nothing they could act on, stacked on the one
-                      // label that does. Two empty Texts sat below it holding
-                      // a line of height each, which is what pushed this card
-                      // past its box in the shop.
-                      if (hasNameTag) ...[
-                        _ScorchedVialTag(
-                          text: nameTag,
-                          compact: compact,
-                          accent: _scorchedAccent(skin.badge),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                      const Spacer(),
-                      Row(
+                  Positioned.fill(
+                    child: Padding(
+                      padding: EdgeInsets.all(compact ? 10 : 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (vial.price != null) ...[
-                            Text(
-                              '${vial.price}',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.95),
-                                fontWeight: FontWeight.w700,
-                                fontSize: compact ? 14 : 16,
-                              ),
+                          // The element, and nothing else. The grade tag
+                          // under it read "WORN" / "RUNED": flavour words
+                          // that told the player nothing they could act on.
+                          if (hasNameTag)
+                            _ScorchedVialTag(
+                              text: nameTag,
+                              compact: compact,
+                              accent: _scorchedAccent(color),
                             ),
-                            const Spacer(),
-                            if (onAddToInventory != null)
-                              _AddButton(
-                                onPressed: onAddToInventory!,
-                                compact: compact,
-                              ),
-                          ],
+                          const Spacer(),
+                          if (hasFooter)
+                            Row(
+                              children: [
+                                Text(
+                                  '${vial.price}',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: const Color(0xFFE8DCC8),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: compact ? 13 : 15,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (onAddToInventory != null)
+                                  _AddButton(
+                                    onPressed: onAddToInventory!,
+                                    compact: compact,
+                                  ),
+                              ],
+                            ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-
-              // Subtle moving shimmer on the frame for RARE+
-              if (vial.rarity.fx.shimmer)
-                Positioned.fill(
-                  child: _FrameShimmer(intensity: vial.rarity.fx.frameGlow),
-                ),
-            ],
+                ],
+              );
+            },
           ),
         ),
       ),
     );
   }
+}
+
+/// The case's corners, in the bracket-frame language.
+class _CaseBracketsPainter extends CustomPainter {
+  const _CaseBracketsPainter({required this.color, required this.size});
+
+  final Color color;
+  final double size;
+
+  @override
+  void paint(Canvas canvas, Size box) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final s = size, w = box.width, h = box.height;
+    canvas.drawPath(
+      Path()
+        ..moveTo(0, s)
+        ..lineTo(0, 0)
+        ..lineTo(s, 0)
+        ..moveTo(w - s, 0)
+        ..lineTo(w, 0)
+        ..lineTo(w, s)
+        ..moveTo(0, h - s)
+        ..lineTo(0, h)
+        ..lineTo(s, h)
+        ..moveTo(w - s, h)
+        ..lineTo(w, h)
+        ..lineTo(w, h - s),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CaseBracketsPainter old) =>
+      old.color != color || old.size != size;
 }
 
 class _ScorchedVialTag extends StatelessWidget {
@@ -388,201 +462,36 @@ class _AddButtonState extends State<_AddButton>
         begin: 1.0,
         end: 1.08,
       ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack)),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.1),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          padding: EdgeInsets.symmetric(
-            horizontal: widget.compact ? 10 : 12,
-            vertical: widget.compact ? 6 : 8,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        onPressed: context.soundAction(() {
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: context.soundAction(() {
           _ctrl.forward(from: 0);
           widget.onPressed();
         }),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(AppIcons.add, size: 16),
-            const SizedBox(width: 6),
-            Text(
-              'Buy',
+        child: CustomPaint(
+          foregroundPainter: _CaseBracketsPainter(
+            color: const Color(0xFFFFB74D),
+            size: widget.compact ? 5 : 6,
+          ),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: widget.compact ? 9 : 11,
+              vertical: widget.compact ? 5 : 7,
+            ),
+            color: const Color(0xFFFFB74D).withValues(alpha: 0.14),
+            child: Text(
+              'BUY',
               style: TextStyle(
-                fontSize: widget.compact ? 12 : 13,
-                fontWeight: FontWeight.w700,
+                fontFamily: 'monospace',
+                color: const Color(0xFFE8DCC8),
+                fontSize: widget.compact ? 11 : 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.4,
               ),
             ),
-          ],
+          ),
         ),
       ),
-    );
-  }
-}
-
-/// Subtle shimmer sweeping over the frame for rare+ items
-class _FrameShimmer extends StatefulWidget {
-  final double intensity; // 0..1
-  const _FrameShimmer({required this.intensity});
-  @override
-  State<_FrameShimmer> createState() => _FrameShimmerState();
-}
-
-class _FrameShimmerState extends State<_FrameShimmer>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 3),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, _) {
-        final t = _ctrl.value;
-        return IgnorePointer(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment(-1 + 2 * t, -1),
-                end: Alignment(1 + 2 * t, 1),
-                colors: [
-                  Colors.white.withValues(alpha: 0.0),
-                  Colors.white.withValues(alpha: 0.15 * widget.intensity),
-                  Colors.white.withValues(alpha: 0.0),
-                ],
-                stops: const [0.35, 0.5, 0.65],
-              ),
-              backgroundBlendMode: BlendMode.softLight,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Twinkle overlay: tiny white dots with slow flicker (legendary+)
-class _TwinkleOverlay extends StatefulWidget {
-  const _TwinkleOverlay();
-  @override
-  State<_TwinkleOverlay> createState() => _TwinkleOverlayState();
-}
-
-class _TwinkleOverlayState extends State<_TwinkleOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 6),
-  )..repeat();
-  final math.Random _rng = math.Random();
-  final List<Offset> _stars = [];
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _ensureStars(MediaQuery.of(context).size);
-  }
-
-  void _ensureStars(Size size) {
-    if (_stars.isNotEmpty) return;
-    const count = 18;
-    for (int i = 0; i < count; i++) {
-      _stars.add(
-        Offset(_rng.nextDouble() * size.width, _rng.nextDouble() * size.height),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: CustomPaint(painter: _TwinklePainter(_ctrl, _stars)),
-    );
-  }
-}
-
-class _TwinklePainter extends CustomPainter {
-  final Animation<double> anim;
-  final List<Offset> stars;
-  _TwinklePainter(this.anim, this.stars) : super(repaint: anim);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final t = anim.value;
-    final paint = Paint()..style = PaintingStyle.fill;
-    for (int i = 0; i < stars.length; i++) {
-      final phase = (i * 0.17) % 1.0;
-      final alpha =
-          0.25 + 0.75 * (0.5 + 0.5 * math.sin(2 * math.pi * (t + phase)));
-      paint.color = Colors.white.withValues(alpha: alpha * 0.3);
-      canvas.drawCircle(stars[i], 0.8 + 1.5 * alpha, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _TwinklePainter oldDelegate) => true;
-}
-
-/// Soft pulsing radial glow (mythic)
-class _PulseOverlay extends StatefulWidget {
-  final Color color;
-  const _PulseOverlay({required this.color});
-  @override
-  State<_PulseOverlay> createState() => _PulseOverlayState();
-}
-
-class _PulseOverlayState extends State<_PulseOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 4),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, _) {
-        final breathe = 0.5 + 0.5 * math.sin(_ctrl.value * 2 * math.pi);
-        return IgnorePointer(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.center,
-                radius: 0.85 + 0.1 * breathe,
-                colors: [
-                  widget.color.withValues(alpha: 0.10 + 0.05 * breathe),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

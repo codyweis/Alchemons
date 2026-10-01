@@ -1384,7 +1384,8 @@ class MarketplaceGrid extends StatelessWidget {
           final currencies = allCurrencies;
 
           final canPurchase = shopService.canPurchase(offer.id);
-          final canAffordUnit = offer.cost.entries.every(
+          final effectiveCost = shopService.getEffectiveCost(offer);
+          final canAffordUnit = effectiveCost.entries.every(
             (e) => (allCurrencies[e.key] ?? 0) >= e.value,
           );
 
@@ -1396,7 +1397,7 @@ class MarketplaceGrid extends StatelessWidget {
 
           // Build cost chips
           final costWidgets = <Widget>[
-            for (final entry in offer.cost.entries)
+            for (final entry in effectiveCost.entries)
               CostChip(
                 currencyType: entry.key,
                 amount: entry.value,

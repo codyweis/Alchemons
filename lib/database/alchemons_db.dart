@@ -72,7 +72,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 41;
+  int get schemaVersion => 42;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -310,6 +310,9 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
           )
           WHERE selected_path_id IS NULL
         ''');
+      }
+      if (from < 42) {
+        await m.addColumn(creatureInstances, creatureInstances.mutation);
       }
     },
   );

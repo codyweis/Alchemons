@@ -47,6 +47,7 @@ import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/utils/nature_effect_formatter.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/elemental_essence.dart';
 
 import '../../models/creature.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -432,6 +433,10 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   bool _favoriteBusy = false;
   bool _nicknameBusy = false;
   CreatureBgOption? _bgOption;
+
+  /// The creature gathers out of its element once per opening: not again
+  /// when the Overview tab comes back.
+  final EssenceReveal _heroReveal = EssenceReveal.once();
 
   int _initialTabIndex() {
     if (!widget.isDiscovered) return 0;
@@ -945,7 +950,13 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                                 onPageChanged: (i) =>
                                     setState(() => _currentImageIndex = i),
                                 bgOption: _bgOption,
-                                onSpriteTap: _openDisplayView,
+                                onSpriteLongPress: _openDisplayView,
+                                reveal: _heroReveal,
+                                // The specimen is still being read: no
+                                // sprite yet, or the species' would show
+                                // and then be swapped for it.
+                                spriteLoading:
+                                    hydrating && widget.instanceId != null,
                               ),
                             ),
                             // ANALYSIS
@@ -1410,7 +1421,11 @@ class _OverviewTab extends StatelessWidget {
   final int currentImageIndex;
   final ValueChanged<int> onPageChanged;
   final CreatureBgOption? bgOption;
-  final VoidCallback? onSpriteTap;
+
+  /// Opens the background picker. A tap plays the elemental essence.
+  final VoidCallback? onSpriteLongPress;
+  final EssenceReveal? reveal;
+  final bool spriteLoading;
 
   const _OverviewTab({
     super.key,
@@ -1421,7 +1436,9 @@ class _OverviewTab extends StatelessWidget {
     required this.currentImageIndex,
     required this.onPageChanged,
     required this.bgOption,
-    required this.onSpriteTap,
+    required this.onSpriteLongPress,
+    this.reveal,
+    this.spriteLoading = false,
   });
 
   @override
@@ -1661,43 +1678,59 @@ class _OverviewTab extends StatelessWidget {
                     child: SizedBox(
                       width: 175,
                       height: 175,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: context.soundAction(
-                          onSpriteTap == null
-                              ? null
-                              : () {
-                                  HapticFeedback.selectionClick();
-                                  onSpriteTap!();
-                                },
-                        ),
-                        child: Center(
-                          child: instance == null
-                              ? CreatureSprite(
-                                  spritePath:
-                                      creature.spriteData!.spriteSheetPath,
-                                  totalFrames: creature.spriteData!.totalFrames,
-                                  rows: creature.spriteData!.rows,
-                                  frameSize: Vector2(
-                                    creature.spriteData!.frameWidth.toDouble(),
-                                    creature.spriteData!.frameHeight.toDouble(),
-                                  ),
-                                  stepTime:
-                                      creature.spriteData!.frameDurationMs /
-                                      1000.0,
-                                  scale: scaleFromGenes(creature.genetics),
-                                  saturation: satFromGenes(creature.genetics),
-                                  brightness: briFromGenes(creature.genetics),
-                                  hueShift: hueFromGenes(creature.genetics),
-                                  isPrismatic: creature.isPrismaticSkin,
-                                )
-                              : InstanceSprite(
-                                  creature: creature,
-                                  instance: instance!,
-                                  size: 162,
-                                ),
-                        ),
-                      ),
+                      child: spriteLoading
+                          ? null
+                          : ElementalEssence(
+                              key: ValueKey(
+                                instance?.instanceId ?? creature.id,
+                              ),
+                              element: creature.types.isEmpty
+                                  ? null
+                                  : creature.types.first,
+                              dark: theme.isDark,
+                              onLongPress: onSpriteLongPress,
+                              reveal: reveal,
+                              child: Center(
+                                child: instance == null
+                                    ? CreatureSprite(
+                                        spritePath: creature
+                                            .spriteData!
+                                            .spriteSheetPath,
+                                        totalFrames:
+                                            creature.spriteData!.totalFrames,
+                                        rows: creature.spriteData!.rows,
+                                        frameSize: Vector2(
+                                          creature.spriteData!.frameWidth
+                                              .toDouble(),
+                                          creature.spriteData!.frameHeight
+                                              .toDouble(),
+                                        ),
+                                        stepTime:
+                                            creature
+                                                .spriteData!
+                                                .frameDurationMs /
+                                            1000.0,
+                                        scale: scaleFromGenes(
+                                          creature.genetics,
+                                        ),
+                                        saturation: satFromGenes(
+                                          creature.genetics,
+                                        ),
+                                        brightness: briFromGenes(
+                                          creature.genetics,
+                                        ),
+                                        hueShift: hueFromGenes(
+                                          creature.genetics,
+                                        ),
+                                        isPrismatic: creature.isPrismaticSkin,
+                                      )
+                                    : InstanceSprite(
+                                        creature: creature,
+                                        instance: instance!,
+                                        size: 162,
+                                      ),
+                              ),
+                            ),
                     ),
                   ),
                 ],

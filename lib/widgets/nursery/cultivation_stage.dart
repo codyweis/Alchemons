@@ -1,6 +1,7 @@
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
+import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -116,7 +117,21 @@ class CultivationVialStage extends StatelessWidget {
     this.fusion = false,
     this.pureElementTypeId,
     this.onStageTap,
+    this.payload,
+    this.progress,
+    this.sphereKey,
   });
+
+  /// On the sphere, so it can be handed on (see [CultivationHandoff]).
+  final GlobalKey? sphereKey;
+
+  /// The cultivation's saved data. With it, the stage shows the cultivation
+  /// as its chamber does — its parents' grains in one turning sphere, which
+  /// a held finger can part — only bigger.
+  final Map<String, dynamic>? payload;
+
+  /// 0..1 to extraction, for how fast that sphere turns.
+  final double? progress;
 
   final List<String>? parentTypes;
   final Color accentColor;
@@ -190,7 +205,23 @@ class CultivationVialStage extends StatelessWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          if (showParticles)
+                          if (payload != null &&
+                              TickerMode.valuesOf(context).enabled &&
+                              !media.disableAnimations)
+                            ColoredBox(
+                              color: kCultivationStage,
+                              child: CultivationSphere(
+                                key: sphereKey,
+                                payload: payload!,
+                                types: parentTypes ?? const [],
+                                progress: progress,
+                                isReady: fusion,
+                                grains: 1100,
+                                radiusFactor: 0.36,
+                                pureElement: pureElementTypeId,
+                              ),
+                            )
+                          else if (showParticles)
                             RepaintBoundary(
                               child: AlchemyBrewingParticleSystem(
                                 parentATypeId: parentTypes![0],

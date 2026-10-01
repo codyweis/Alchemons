@@ -1,4 +1,5 @@
 // lib/models/scenes/scene_definition.dart
+import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 
 enum SceneLayer { layer1, layer2, layer3, layer4, layer5 }
@@ -13,6 +14,15 @@ class SceneDefinition {
   final double encounterMinZoom;
   final double encounterMaxZoom;
 
+  /// Draws the field in code instead of from [LayerDefinition.imagePath]s.
+  /// A factory, because a field keeps what it has prepared for its screen.
+  final FieldArt Function()? art;
+
+  /// The field wraps round: panning never meets an edge. Each layer repeats
+  /// every `worldWidth × (1 + parallaxFactor)` of its own units, and a spawn's
+  /// x is `normalizedPos.dx` of its layer's loop. Needs [art].
+  final bool loop;
+
   const SceneDefinition({
     required this.worldWidth,
     required this.worldHeight,
@@ -22,6 +32,8 @@ class SceneDefinition {
     this.encounterGroundBias = 60.0,
     this.encounterMinZoom = 0.9,
     this.encounterMaxZoom = 1.55,
+    this.art,
+    this.loop = false,
   });
 
   SceneDefinition copyWith({
@@ -33,6 +45,8 @@ class SceneDefinition {
     double? encounterGroundBias,
     double? encounterMinZoom,
     double? encounterMaxZoom,
+    FieldArt Function()? art,
+    bool? loop,
   }) {
     return SceneDefinition(
       worldWidth: worldWidth ?? this.worldWidth,
@@ -43,6 +57,8 @@ class SceneDefinition {
       encounterGroundBias: encounterGroundBias ?? this.encounterGroundBias,
       encounterMinZoom: encounterMinZoom ?? this.encounterMinZoom,
       encounterMaxZoom: encounterMaxZoom ?? this.encounterMaxZoom,
+      art: art ?? this.art,
+      loop: loop ?? this.loop,
     );
   }
 }

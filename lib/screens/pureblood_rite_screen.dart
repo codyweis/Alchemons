@@ -3751,6 +3751,9 @@ class _HkCreatureFrame extends StatelessWidget {
                   isPrismatic: species.isPrismaticSkin,
                   alchemyEffect: species.alchemyEffect,
                   variantFaction: species.variantFaction,
+                  elementType: species.types.isEmpty
+                      ? null
+                      : species.types.first,
                   effectSlotSize: size,
                 ),
               )

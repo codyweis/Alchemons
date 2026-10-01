@@ -2,7 +2,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/enhance_orbs_icon.dart';
+import 'package:alchemons/widgets/dock_emblems.dart';
 
 class SideDockFloating extends StatelessWidget {
   final FactionTheme theme;
@@ -59,7 +59,8 @@ class SideDockFloating extends StatelessWidget {
         _FloatingSideButton(
           theme: theme,
           label: 'Field',
-          assetPath: 'assets/images/ui/fieldicon.png',
+          iconBuilder: (size) =>
+              DockEmblem(kind: DockEmblemKind.field, size: size),
           onTap: context.soundTap(onField),
           size: 70,
           highlight: highlightField,
@@ -75,7 +76,8 @@ class SideDockFloating extends StatelessWidget {
               theme: theme,
               size: 80,
               label: 'Survival',
-              assetPath: 'assets/images/ui/trialsicon.png',
+              iconBuilder: (size) =>
+                  DockEmblem(kind: DockEmblemKind.survival, size: size),
               onTap: context.soundTap(onBattle),
             ),
           ),
@@ -92,7 +94,11 @@ class SideDockFloating extends StatelessWidget {
                 size: 70,
                 theme: theme,
                 label: 'Enhance',
-                iconBuilder: (size) => EnhanceOrbsIcon(size: size),
+                iconBuilder: (size) => DockEmblem(
+                  kind: DockEmblemKind.enhance,
+                  size: size,
+                  dark: theme.isDark,
+                ),
                 onTap: context.soundTap(onEnhance),
                 highlight: highlightEnhance,
               ),
@@ -107,7 +113,8 @@ class SideDockFloating extends StatelessWidget {
             theme: theme,
             size: 70,
             label: 'Harvest',
-            assetPath: 'assets/images/ui/extracticon.png',
+            iconBuilder: (size) =>
+                DockEmblem(kind: DockEmblemKind.harvest, size: size),
             onTap: context.soundTap(onHarvest),
             showDot: showHarvestDot,
           ),

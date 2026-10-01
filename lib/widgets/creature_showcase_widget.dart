@@ -6,6 +6,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fast_long_press_detector.dart';
+import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:flutter/material.dart';
 
 class FeaturedCreaturePresentation extends StatelessWidget {
@@ -17,6 +18,9 @@ class FeaturedCreaturePresentation extends StatelessWidget {
   final String subtitle; // e.g. "Specimen #12" or element/faction
   final CreatureInstance instance;
   final Creature creature;
+
+  /// Set when it has just been chosen: it gathers out of its element.
+  final EssenceReveal? reveal;
   const FeaturedCreaturePresentation({
     super.key,
     required this.breathing,
@@ -25,6 +29,7 @@ class FeaturedCreaturePresentation extends StatelessWidget {
     required this.subtitle,
     required this.instance,
     required this.creature,
+    this.reveal,
   });
 
   @override
@@ -65,10 +70,24 @@ class FeaturedCreaturePresentation extends StatelessWidget {
                 // the animated sprite
                 Transform.scale(
                   scale: 2.5,
-                  child: InstanceSprite(
-                    creature: creature,
-                    instance: instance,
-                    size: 72,
+                  child: SizedBox.square(
+                    dimension: 72,
+                    child: ElementalEssence(
+                      key: ValueKey(instance.instanceId),
+                      element: creature.types.isEmpty
+                          ? null
+                          : creature.types.first,
+                      dark: theme.isDark,
+                      reveal: reveal,
+                      tappable: false,
+                      // The size gene can draw it a little past its box.
+                      captureScale: 1.4,
+                      child: InstanceSprite(
+                        creature: creature,
+                        instance: instance,
+                        size: 72,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -93,6 +112,7 @@ class FeaturedHeroInteractive extends StatelessWidget {
   final VoidCallback onTapDetails;
   final CreatureInstance instance;
   final Creature creature;
+  final EssenceReveal? reveal;
 
   const FeaturedHeroInteractive({
     super.key,
@@ -103,6 +123,7 @@ class FeaturedHeroInteractive extends StatelessWidget {
     required this.onTapDetails,
     required this.instance,
     required this.creature,
+    this.reveal,
   });
 
   @override
@@ -119,6 +140,7 @@ class FeaturedHeroInteractive extends StatelessWidget {
           creature: creature,
           displayName: data.displayName,
           subtitle: data.subtitle,
+          reveal: reveal,
         ),
       ),
     );

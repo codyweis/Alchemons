@@ -14,16 +14,35 @@
 // the field collapses INWARD and takes it, or it shatters OUTWARD and the
 // specimen is gone.
 //
-// No MaskFilter anywhere: glow is layered translucent strokes, which is this
-// codebase's standing replacement (see the constellation screen, and the
-// damage numbers that were paying a gaussian per shadow per frame).
+// The apparatus is particles ([HarvestParticleField]), the same as the Flame
+// field in the scenes: streams of motes on tipped orbits, and on a take the
+// specimen turned to grains of itself and drawn down into the harvester.
+//
+// No MaskFilter anywhere: light is radial-gradient pools.
 
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:alchemons/widgets/fx/fusion_particles.dart';
+import 'package:alchemons/widgets/fx/harvest_particles.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+
+/// A live specimen standing on the host's own screen, under the overlay, for
+/// the take to turn to grains: how to read it, and how to cut it away.
+class HarvestTarget {
+  const HarvestTarget({required this.read, required this.onCut});
+
+  /// Reads it as it is showing: its grains, where its centre is on screen,
+  /// and how many logical pixels one grain unit is. Null if it cannot be.
+  final Future<(SpecimenGrains, Offset, double)?> Function() read;
+
+  /// The take's crest, in grain units from its centre (see
+  /// [SpriteCrestClipper]); null hands it back whole.
+  final ValueChanged<double?> onCut;
+}
 
 /// Show the full-screen harvest cinematic and run [task] while it plays.
 ///
@@ -47,6 +66,7 @@ Future<bool> showHarvestCinematic({
   Duration minDuration = const Duration(milliseconds: 1600),
   Offset? focus,
   double focusScale = 1,
+  HarvestTarget? liveTarget,
   required Future<bool> Function() task,
 }) {
   return Navigator.of(context)
@@ -62,6 +82,7 @@ Future<bool> showHarvestCinematic({
             minDuration: minDuration,
             focus: focus,
             focusScale: focusScale,
+            liveTarget: liveTarget,
             task: task,
           ),
           transitionsBuilder: (_, a, __, child) =>
@@ -85,7 +106,12 @@ class _HarvestCinematicPage extends StatefulWidget {
     required this.task,
     this.focus,
     this.focusScale = 1,
+    this.liveTarget,
   });
+
+  /// The specimen on the host's screen, when [targetSprite] is null and the
+  /// host can hand it over for the take.
+  final HarvestTarget? liveTarget;
 
   /// How large the field is drawn, for a live specimen smaller or larger
   /// than the stage it was designed around.
@@ -124,6 +150,23 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
   bool? _success;
   bool _taskDone = false;
   bool _resolving = false;
+
+  /// The apparatus, and on a take the specimen, in particles.
+  late final HarvestParticleField _field = HarvestParticleField(
+    profile: widget.profile,
+    cage: 420 * 0.30,
+    specimenColor: widget.targetColor,
+  );
+
+  /// The sprite this page draws itself, read into grains for a take.
+  final GlobalKey _spriteKey = GlobalKey();
+
+  /// Seconds since the field engaged, for its turning.
+  double get _time =>
+      _seize.value * widget.minDuration.inMicroseconds / 1e6 +
+      (_resolving
+          ? _resolve.value * _resolve.duration!.inMicroseconds / 1e6
+          : 0);
 
   @override
   void initState() {
@@ -171,10 +214,51 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
 
     HapticFeedback.heavyImpact();
     _strain.stop();
+    if (_success ?? false) {
+      // Read the specimen before the take, so the crest has grains to
+      // leave behind it. Never held up for long: without them the field
+      // still takes, it just takes nothing you can see go.
+      try {
+        await _readSpecimen().timeout(const Duration(milliseconds: 400));
+      } catch (_) {}
+      _resolve.duration = Duration(
+        milliseconds: (HarvestParticleField.takeSeconds * 1000).round(),
+      );
+    }
     await _resolve.forward(from: 0);
+    // A specimen that broke free is handed back whole. One that was taken is
+    // left cut away: the host hides it, or it would flash back as this goes.
+    if (!(_success ?? false)) widget.liveTarget?.onCut(null);
     // A beat on the aftermath before the world comes back.
     await Future<void>.delayed(const Duration(milliseconds: 260));
     if (mounted) Navigator.of(context).pop<bool>(_success ?? false);
+  }
+
+  /// Where on screen the stage's centre is, and how much it is scaled.
+  Offset _stageCentre(Size screen) =>
+      widget.focus ?? Offset(screen.width / 2, screen.height / 2);
+
+  Future<void> _readSpecimen() async {
+    if (widget.targetSprite != null) {
+      final box = _spriteKey.currentContext?.findRenderObject();
+      if (box is! RenderRepaintBoundary || !box.attached) return;
+      await WidgetsBinding.instance.endOfFrame;
+      final grains = await SpecimenGrains.capture(box, pixelRatio: 2);
+      if (grains != null) _field.setSpecimen(grains, at: Offset.zero);
+      return;
+    }
+    final live = widget.liveTarget;
+    if (live == null || !mounted) return;
+    final read = await live.read();
+    if (read == null || !mounted) return;
+    final (grains, at, scale) = read;
+    final centre = _stageCentre(MediaQuery.sizeOf(context));
+    // Into the stage's own units, through the scale it is drawn at.
+    _field.setSpecimen(
+      grains,
+      at: (at - centre) / widget.focusScale,
+      scale: scale / widget.focusScale,
+    );
   }
 
   @override
@@ -199,28 +283,39 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
             success: _success ?? false,
             resolving: _resolving,
           );
+          final cut = _field.cutY(beat.collapse);
+          // A live specimen on the host's screen is cut there.
+          if (widget.liveTarget != null && _field.hasSpecimen) {
+            widget.liveTarget!.onCut(cut);
+          }
+          Widget field({required bool back}) => Positioned.fill(
+            child: CustomPaint(
+              painter: _FieldPainter(
+                field: _field,
+                beat: beat,
+                time: _time,
+                back: back,
+              ),
+            ),
+          );
           final stage = SizedBox(
             width: 420,
             height: 420,
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // The apparatus, behind the specimen where it belongs.
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _ContainmentFieldPainter(
-                      beat: beat,
-                      color: widget.targetColor,
-                      profile: widget.profile,
-                    ),
-                  ),
-                ),
+                // The far side of the field, behind the specimen.
+                field(back: true),
                 if (widget.targetSprite != null)
                   _Specimen(
                     beat: beat,
                     sprite: widget.targetSprite!,
                     color: widget.targetColor,
+                    captureKey: _spriteKey,
+                    cutY: _field.hasSpecimen ? cut : null,
                   ),
+                // ...and the near side, over it.
+                field(back: false),
               ],
             ),
           );
@@ -294,7 +389,8 @@ class _HarvestBeat {
   /// 0..1 push cycle: 1 = shoving hardest. Freezes at the shove when the
   /// resolution takes over, so nothing snaps.
   double get push {
-    if (resolving) return 1.0 - _interval(resolve, 0.0, 0.22);
+    // A take holds it still at once, so it stands where its grains are read.
+    if (resolving) return 1.0 - _interval(resolve, 0.0, success ? 0.08 : 0.22);
     return pressure * (0.5 - 0.5 * math.cos(strain * math.pi * 2));
   }
 
@@ -308,11 +404,19 @@ class _Specimen extends StatelessWidget {
     required this.beat,
     required this.sprite,
     required this.color,
+    required this.captureKey,
+    this.cutY,
   });
 
   final _HarvestBeat beat;
   final Widget sprite;
   final Color color;
+
+  /// Read into grains from here for a take.
+  final GlobalKey captureKey;
+
+  /// The take's crest, once it has grains to leave behind; null before.
+  final double? cutY;
 
   @override
   Widget build(BuildContext context) {
@@ -324,10 +428,10 @@ class _Specimen extends StatelessWidget {
     scale -= 0.09 * flinch;
     scale += 0.07 * beat.push;
 
-    // Squashed and drawn down into the harvester. Quadratic, not cubic: a
-    // cubic ease put the whole take in the last three hundred milliseconds,
-    // so the specimen sat there and then blinked out.
-    final c = Curves.easeIn.transform(beat.collapse);
+    // A take is the field's now: the specimen holds still and is cut away
+    // behind the crest as its grains are drawn down. Without grains (it
+    // could not be read) it fades as the field takes it.
+    final c = cutY == null ? Curves.easeIn.transform(beat.collapse) : 0.0;
     // ...or a hard recoil and gone.
     final sh = Curves.easeOutCubic.transform(beat.shatter);
 
@@ -335,23 +439,31 @@ class _Specimen extends StatelessWidget {
     final sy = scale * (1.0 - 0.94 * c) * (1.0 + 0.10 * sh);
 
     // Fighting: a fast tremble while the field holds it.
-    final tremble = (beat.lock + beat.pressure) * (1 - beat.resolve);
+    final tremble = (beat.lock + beat.pressure) * (beat.resolving ? 0 : 1);
     final jx = math.sin(beat.strain * math.pi * 14) * 3.4 * tremble;
     final jy = math.cos(beat.strain * math.pi * 11) * 2.0 * tremble;
 
     final opacity = (appear * (1.0 - c) * (1.0 - sh)).clamp(0.0, 1.0);
 
-    return Transform.translate(
-      offset: Offset(jx, jy + 62 * c),
-      child: Opacity(
-        opacity: opacity,
-        child: Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.diagonal3Values(sx, sy, 1),
-          child: SizedBox(
-            width: _kSpecimenBox,
-            height: _kSpecimenBox,
-            child: Center(child: sprite),
+    final cut = cutY ?? double.negativeInfinity;
+    return ClipRect(
+      clipper: SpriteCrestClipper(cut),
+      clipBehavior: cut == double.negativeInfinity ? Clip.none : Clip.hardEdge,
+      child: Transform.translate(
+        offset: Offset(jx, jy + 62 * c),
+        child: Opacity(
+          opacity: opacity,
+          child: Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.diagonal3Values(sx, sy, 1),
+            child: RepaintBoundary(
+              key: captureKey,
+              child: SizedBox(
+                width: _kSpecimenBox,
+                height: _kSpecimenBox,
+                child: Center(child: sprite),
+              ),
+            ),
           ),
         ),
       ),
@@ -359,216 +471,36 @@ class _Specimen extends StatelessWidget {
   }
 }
 
-/// The apparatus: rings that close, flex where the specimen pushes, and then
-/// either fall inward or blow apart.
-class _ContainmentFieldPainter extends CustomPainter {
-  _ContainmentFieldPainter({
+/// One side of the particle field (see [HarvestParticleField]) at this beat.
+class _FieldPainter extends CustomPainter {
+  _FieldPainter({
+    required this.field,
     required this.beat,
-    required this.color,
-    required this.profile,
+    required this.time,
+    required this.back,
   });
 
+  final HarvestParticleField field;
   final _HarvestBeat beat;
-  final Color color;
-
-  /// Which harvester is closing. See [HarvesterProfile] — this is the same
-  /// choreography the in-scene Flame field runs.
-  final HarvesterProfile profile;
-
-  static const _ember = Color(0xFFD07A4A);
-  static const _amber = Color(0xFFE4C16A);
+  final double time;
+  final bool back;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    final cage = math.min(size.width, size.height) * 0.30;
-    final collapse = Curves.easeInOutCubic.transform(beat.collapse);
-    final shatter = Curves.easeOutCubic.transform(beat.shatter);
-
-    // The pool of light the field stands the specimen in — layered discs, not
-    // a blur.
-    final lit = (beat.closing * 0.5 + beat.push * 0.5) * (1 - collapse);
-    for (var i = 3; i >= 1; i--) {
-      canvas.drawCircle(
-        c,
-        cage * (0.55 + i * 0.28),
-        Paint()..color = color.withValues(alpha: 0.035 * lit / i),
-      );
-    }
-
-    final shaped = profile.closingCurve(beat.closing);
-    for (var ring = 0; ring < profile.ringCount; ring++) {
-      // Sweeps in from well outside the frame, settles just off the specimen.
-      final rest = cage * (1.0 + ring * 0.19);
-      final start = rest * (3.4 - ring * 0.4);
-      var radius = start + (rest - start) * shaped;
-      radius *= 1.0 - 0.92 * collapse;
-      radius *= 1.0 + 1.6 * shatter;
-      if (radius <= 1) continue;
-
-      final spin =
-          beat.seize *
-          (ring.isEven ? 1.0 : -1.0) *
-          profile.spinRate *
-          (1.1 + ring * 0.5);
-      final segs = profile.segsBase + ring * profile.segsPerRing;
-      final alpha =
-          (0.20 + 0.55 * shaped) * (1 - collapse * 0.35) * (1 - shatter);
-      if (alpha <= 0.01) continue;
-
-      final paint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth =
-            (ring == 0 ? profile.strokeBase : profile.strokeBase * 0.6) +
-            1.4 * beat.push
-        ..color = profile.ringColor(ring).withValues(alpha: alpha);
-
-      for (var s = 0; s < segs; s++) {
-        final a0 = spin + s * math.pi * 2 / segs;
-        final a1 = a0 + math.pi * 2 / segs * 0.62;
-        // Shards fly apart on a failure instead of holding their arc.
-        final fly =
-            shatter * cage * profile.shatterSpread * (0.6 + 0.4 * (s % 3));
-        final off = shatter == 0
-            ? Offset.zero
-            : Offset(math.cos(a0), math.sin(a0)) * fly;
-        final path = Path();
-        const steps = 10;
-        for (var k = 0; k <= steps; k++) {
-          final a = a0 + (a1 - a0) * k / steps;
-          // THE FLEX: how this device answers being leaned on.
-          final rr =
-              radius +
-              profile.radialFlex(a, beat.strain, beat.push, cage) *
-                  (1 - collapse);
-          final p = c + Offset(math.cos(a), math.sin(a)) * rr + off;
-          if (k == 0) {
-            path.moveTo(p.dx, p.dy);
-          } else {
-            path.lineTo(p.dx, p.dy);
-          }
-        }
-        canvas.drawPath(path, paint);
-      }
-    }
-
-    // The bound sigil, for units that write a specimen into place.
-    if (profile.sigil && shaped > 0.2 && shatter < 0.9) {
-      final r = cage * 1.05 * (1 - 0.92 * collapse);
-      final spin = -beat.seize * profile.spinRate * 0.5;
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = profile.accent.withValues(
-          alpha: 0.42 * shaped * (1 - shatter) * (1 - collapse),
-        );
-      final path = Path();
-      for (var i = 0; i <= 6; i++) {
-        final a = spin + (i * 2 % 6) * math.pi / 3;
-        final pt = c + Offset(math.cos(a), math.sin(a)) * r;
-        if (i == 0) {
-          path.moveTo(pt.dx, pt.dy);
-        } else {
-          path.lineTo(pt.dx, pt.dy);
-        }
-      }
-      canvas.drawPath(path, p);
-    }
-
-    // Anchors: four brackets that bite in as the field locks.
-    final bite = Curves.easeOutBack.transform(
-      _interval(beat.seize, 0.36, 0.58),
-    );
-    if (bite > 0.01 && collapse < 0.9 && shatter < 0.9) {
-      final r = cage * (1.42 - 0.1 * bite) * (1 - 0.92 * collapse);
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..strokeCap = StrokeCap.round
-        ..color = profile.accent.withValues(
-          alpha: 0.5 * bite * (1 - shatter) * (1 - collapse),
-        );
-      for (var i = 0; i < 4; i++) {
-        final a = i * math.pi / 2 + math.pi / 4;
-        final u = Offset(math.cos(a), math.sin(a));
-        final across = Offset(-u.dy, u.dx);
-        canvas.drawLine(c + u * r, c + u * (r + 16), p);
-        canvas.drawLine(
-          c + u * (r + 16) - across * 9,
-          c + u * (r + 16) + across * 9,
-          p,
-        );
-      }
-    }
-
-    // SUCCESS: the field falls in on itself and what it held goes down with
-    // it — a warm implosion, not a white frame.
-    if (collapse > 0.01) {
-      final ring = cage * (1.0 - collapse) + 6;
-      canvas.drawCircle(
-        c,
-        ring,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2 + 10 * collapse
-          ..color = _amber.withValues(alpha: 0.75 * (1 - collapse)),
-      );
-      final spark = math.sin(collapse * math.pi);
-      for (var i = 3; i >= 1; i--) {
-        canvas.drawCircle(
-          c,
-          10.0 * i * spark,
-          Paint()..color = _amber.withValues(alpha: 0.30 * spark / i),
-        );
-      }
-      // What is left of the specimen, streaming down the field into the
-      // harvester. Streaks, not particles — the pool is a per-frame cost this
-      // cinematic does not need to carry.
-      final draw = Paint()
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 1.8;
-      for (var i = 0; i < 14; i++) {
-        final a = i * math.pi * 2 / 14 + collapse * 1.4;
-        final u = Offset(math.cos(a), math.sin(a));
-        // Each mote starts further out and is pulled in on its own schedule.
-        final lead = ((collapse * 1.6) - (i % 5) * 0.12).clamp(0.0, 1.0);
-        if (lead <= 0) continue;
-        final outer = cage * (1.25 - 0.95 * lead);
-        canvas.drawLine(
-          c + u * outer,
-          c + u * (outer - cage * 0.22 * (1 - lead)),
-          draw
-            ..color = Color.lerp(
-              color,
-              _amber,
-              0.6,
-            )!.withValues(alpha: 0.75 * (1 - lead)),
-        );
-      }
-    }
-
-    // FAILURE: the wall cracks outward and the specimen is simply not there.
-    if (shatter > 0.01) {
-      final crack = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 2.4 * (1 - shatter)
-        ..color = _ember.withValues(alpha: 0.7 * (1 - shatter));
-      for (var i = 0; i < 9; i++) {
-        final a = i * math.pi * 2 / 9 + 0.3;
-        final u = Offset(math.cos(a), math.sin(a));
-        canvas.drawLine(
-          c + u * (cage * (0.9 + 0.7 * shatter)),
-          c + u * (cage * (1.1 + 2.0 * shatter)),
-          crack,
-        );
-      }
-    }
-  }
+  void paint(Canvas canvas, Size size) => field.paint(
+    canvas,
+    Offset(size.width / 2, size.height / 2),
+    closing: beat.closing,
+    lock: beat.lock,
+    push: beat.push,
+    strain: beat.strain,
+    time: time,
+    take: beat.collapse,
+    shatter: beat.shatter,
+    back: back,
+  );
 
   @override
-  bool shouldRepaint(covariant _ContainmentFieldPainter old) => true;
+  bool shouldRepaint(covariant _FieldPainter old) => true;
 }
 
 class _Caption extends StatelessWidget {

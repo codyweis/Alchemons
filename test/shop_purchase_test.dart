@@ -3,6 +3,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:drift/native.dart';
@@ -60,6 +61,35 @@ void main() {
       expect((await db.currencyDao.getAllCurrencies())['silver'], 700);
     },
   );
+
+  test('debug FREE SHOP charges nothing, and only while the tools are on', () async {
+    addTearDown(() {
+      DebugSettingsService.enabledNotifier.value = false;
+      DebugSettingsService.freeShopNotifier.value = false;
+    });
+    final offer = ShopService.allOffers.firstWhere(
+      (o) => o.id == 'effects.prismatic_cascade',
+    );
+    // The switch alone does nothing with the developer tools off.
+    DebugSettingsService.freeShopNotifier.value = true;
+    expect(shop.getEffectiveCost(offer), offer.cost);
+
+    DebugSettingsService.enabledNotifier.value = true;
+    expect(shop.getEffectiveCost(offer), {'gold': 0});
+    expect(await shop.purchase(offer.id), isTrue);
+    expect(
+      await db.inventoryDao.getItemQty(InvKeys.alchemyPrismaticCascade),
+      1,
+    );
+    expect((await db.currencyDao.getAllCurrencies())['gold'], 100);
+    expect(DebugSettingsService.priced(const {'gold': 25}), {'gold': 0});
+
+    // Tools off again: real prices, and they are charged.
+    DebugSettingsService.enabledNotifier.value = false;
+    expect(DebugSettingsService.priced(const {'gold': 25}), {'gold': 25});
+    expect(await shop.purchase(offer.id), isTrue);
+    expect((await db.currencyDao.getAllCurrencies())['gold'], 0);
+  });
 
   test('overlapping free purchases cannot grant two free catalysts', () async {
     final results = await Future.wait([

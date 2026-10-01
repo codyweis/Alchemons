@@ -1,5 +1,9 @@
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/widgets/fx/fusion_burst.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,6 +51,11 @@ class FusionRevealData {
 /// screen, so the effect reads as a continuation of the real chambers rather
 /// than a detached overlay.
 ///
+/// From the core on it is all particles ([FusionBurstField]): [grains] — what
+/// the two specimens were read into, when the host merged them itself — are
+/// held as one hot knot, erupt, and gather back into the cultivation with its
+/// sigil drawn in grains. Without them it uses balls of the two colours.
+///
 /// The route closes only after BOTH the animation AND the task complete (the
 /// task usually finishes far sooner than the ~5.5s timeline). A skip control
 /// fast-forwards the timeline to the reveal. Returns the value from [task].
@@ -63,6 +72,7 @@ Future<T?> showAlchemyFusionCinematic<T>({
   Rect? rightSlotRect,
   Rect? coreRect,
   ValueListenable<FusionRevealData?>? outcome,
+  List<SpecimenGrains>? grains,
   required Future<T> Function() task,
 }) {
   return Navigator.of(context).push<T>(
@@ -81,6 +91,7 @@ Future<T?> showAlchemyFusionCinematic<T>({
         rightSlotRect: rightSlotRect,
         coreRect: coreRect,
         outcome: outcome,
+        grains: grains,
         task: task,
       ),
       transitionsBuilder: (_, a, __, child) {
@@ -97,20 +108,18 @@ Future<T?> showAlchemyFusionCinematic<T>({
 //   charge : 0.11 .. 0.29  chambers energise, conduits light, arcs crackle
 //   scatter: 0.24 .. 0.44  specimens come apart where they stand
 //   stream : 0.44 .. 0.72  only then does the essence cross to the core
-//   core   : 0.49 .. 0.77  intake rings pull inward, screen shake builds
-//   burst  : 0.75 .. 0.85  eruption + shockwave ring (heavy haptic)
-//   reveal : 0.75 .. 1.00  cultivation blooms straight out of the eruption
-// The opening (intake + charge) is intentionally brief — about half the time
-// of the back half — so the fusion gets going quickly.
+//   core   : 0.49 ..       the particles take over: from here the timeline
+//                          is [FusionBurstField]'s, in seconds since the core
+//                          (the knot, the eruption — heavy haptic — and the
+//                          cultivation gathering out of it)
+// Hosts that merge the pair themselves join at the core. The opening (intake
+// + charge) is only for the ones that cannot, and is brief.
 class _Phase {
   static const intakeStart = 0.00, intakeEnd = 0.13;
   static const chargeStart = 0.11, chargeEnd = 0.29;
   static const streamStart = 0.44, streamEnd = 0.72;
-  static const coreStart = 0.49, coreEnd = 0.77;
-  static const burstStart = 0.75, burstEnd = 0.85;
-  // Reveal starts with the burst so the cultivation grows continuously out of
-  // the eruption — the specimens are never gone with nothing on screen.
-  static const revealStart = 0.75, revealEnd = 1.00;
+  // Where the particles take over (see [FusionBurstField]).
+  static const coreStart = 0.49;
 
   // THE MERGE, in two beats rather than one. The specimens used to hold their
   // shape all the way into the core and only come apart once they were on top
@@ -142,6 +151,7 @@ class _AlchemyFusionCinematicPage<T> extends StatefulWidget {
     required this.rightSlotRect,
     required this.coreRect,
     required this.outcome,
+    required this.grains,
     required this.task,
   });
 
@@ -158,6 +168,7 @@ class _AlchemyFusionCinematicPage<T> extends StatefulWidget {
   final Rect? rightSlotRect;
   final Rect? coreRect;
   final ValueListenable<FusionRevealData?>? outcome;
+  final List<SpecimenGrains>? grains;
   final Future<T> Function() task;
 
   @override
@@ -184,6 +195,30 @@ class _AlchemyFusionCinematicPageState<T>
   bool _taskDone = false;
   bool _skipped = false;
   bool _heavyFired = false; // burst haptic guard
+
+  /// Keeps the settled cultivation turning while the route waits on the task.
+  final Stopwatch _clock = Stopwatch()..start();
+
+  /// The particles, made once the cultivation's size is known.
+  FusionBurstField? _burst;
+
+  /// Seconds since the core: the particles' own time.
+  double get _u =>
+      (_ctrl.value - _Phase.coreStart) * _ctrl.duration!.inMicroseconds / 1e6;
+
+  FusionBurstField _burstFor(double radius) {
+    final existing = _burst;
+    if (existing != null && existing.radius == radius) return existing;
+    return _burst = FusionBurstField(
+      grains:
+          widget.grains ??
+          [
+            SpecimenGrains.disc(widget.leftColor, radius: radius * 0.45),
+            SpecimenGrains.disc(widget.rightColor, radius: radius * 0.45),
+          ],
+      radius: radius,
+    );
+  }
 
   @override
   void initState() {
@@ -248,7 +283,7 @@ class _AlchemyFusionCinematicPageState<T>
 
   // Fire a heavy impact exactly once as the core erupts.
   void _pulseHaptics() {
-    if (!_heavyFired && _ctrl.value >= _Phase.burstStart) {
+    if (!_heavyFired && _u >= FusionBurstField.burstAt) {
       _heavyFired = true;
       HapticFeedback.heavyImpact();
     }
@@ -327,6 +362,7 @@ class _AlchemyFusionCinematicPageState<T>
             _settleCtrl,
             if (widget.outcome != null) widget.outcome!,
           ]);
+          final burst = _burstFor(math.min(size.width, size.height) * 0.165);
 
           return AnimatedBuilder(
             animation: driver,
@@ -342,11 +378,11 @@ class _AlchemyFusionCinematicPageState<T>
                   ? _interval(t, 0.14, 0.34)
                   : _interval(t, 0.0, 0.10);
 
-              // Screen shake: ramps through core, peaks at burst.
-              final shake = math.max(
-                _interval(t, _Phase.coreStart, _Phase.burstStart) * 0.55,
-                _interval(t, _Phase.burstStart, _Phase.burstEnd),
-              );
+              // Screen shake: ramps through the knot, peaks at the eruption.
+              final u = _u;
+              final shake = u < FusionBurstField.burstAt
+                  ? _interval(u, 0, FusionBurstField.burstAt) * 0.55
+                  : 1 - _interval(u, FusionBurstField.burstAt, 0.85);
               final amp = shake * 12.0;
               final dx = math.sin(t * math.pi * 30) * amp;
               final dy = math.cos(t * math.pi * 24) * amp * .6;
@@ -397,11 +433,14 @@ class _AlchemyFusionCinematicPageState<T>
                               child: CustomPaint(
                                 painter: _ChamberPainter(
                                   t: t,
+                                  u: u,
                                   a: widget.leftColor,
                                   b: widget.rightColor,
                                   layout: layout,
                                   outcome: outcome,
                                   drawChambers: widget.drawSpecimens,
+                                  burst: burst,
+                                  clock: _clock.elapsedMicroseconds / 1e6,
                                 ),
                               ),
                             ),
@@ -456,7 +495,7 @@ class _AlchemyFusionCinematicPageState<T>
                         left: 0,
                         right: 0,
                         child: Center(
-                          child: _PhaseLabel(t: t, outcome: outcome),
+                          child: _PhaseLabel(t: t, u: u, outcome: outcome),
                         ),
                       ),
 
@@ -626,17 +665,25 @@ class _Glow extends StatelessWidget {
 class _ChamberPainter extends CustomPainter {
   _ChamberPainter({
     required this.t,
+    required this.u,
     required this.a,
     required this.b,
     required this.layout,
     required this.outcome,
     required this.drawChambers,
+    required this.burst,
+    required this.clock,
   });
 
   final double t;
+
+  /// Seconds since the core (negative before it).
+  final double u;
   final Color a, b;
   final _FusionLayout layout;
   final FusionRevealData? outcome;
+  final FusionBurstField burst;
+  final double clock;
 
   /// False once the caller has already merged the real specimens where they
   /// stood. Drawing the apparatus then leaves two lit chambers with nothing
@@ -649,10 +696,6 @@ class _ChamberPainter extends CustomPainter {
     final rightCh = layout.rightC;
     final core = layout.coreC;
     final chR = layout.chR;
-    final unit = math.min(size.width, size.height);
-    final coreR = unit * 0.14;
-
-    final mix = Color.lerp(a, b, .5)!;
 
     final charge = _interval(t, _Phase.chargeStart, _Phase.chargeEnd);
     final stream = _interval(t, _Phase.streamStart, _Phase.streamEnd);
@@ -661,9 +704,6 @@ class _ChamberPainter extends CustomPainter {
       _Phase.disintegrateStart,
       _Phase.disintegrateEnd,
     );
-    final coreP = _interval(t, _Phase.coreStart, _Phase.coreEnd);
-    final burst = _interval(t, _Phase.burstStart, _Phase.burstEnd);
-    final reveal = _interval(t, _Phase.revealStart, _Phase.revealEnd);
 
     if (drawChambers) {
       _drawConduit(canvas, leftCh, core, a, charge, stream);
@@ -681,24 +721,153 @@ class _ChamberPainter extends CustomPainter {
       _drawEssence(canvas, leftCh, core, a, stream);
       _drawEssence(canvas, rightCh, core, b, stream);
 
-      if (charge > 0 && reveal < 0.6) {
-        _drawArcs(canvas, leftCh, core, a, charge * (1 - reveal));
-        _drawArcs(canvas, rightCh, core, b, charge * (1 - reveal));
+      final arcs = charge * (1 - _interval(u, 0, FusionBurstField.burstAt));
+      if (arcs > 0) {
+        _drawArcs(canvas, leftCh, core, a, arcs);
+        _drawArcs(canvas, rightCh, core, b, arcs);
       }
     }
+    if (u < 0) return;
 
-    // Core fades out as the cultivation blooms over it.
-    if (reveal < 1) {
-      _drawCore(canvas, core, coreR, a, b, mix, charge, coreP, burst, reveal);
+    // FROM THE CORE ON, IT IS ALL PARTICLES. This used to be dashed rings
+    // turning round the core, a hoop of a shockwave and an outlined vial
+    // with a line-drawn star in it — UI pulses, next to a merge made of the
+    // creatures' own grains. Now those grains are the core, the eruption and
+    // the cultivation, and light is only ever a soft pool.
+    final kind = outcome?.kind ?? FusionRevealKind.standard;
+    final pure = kind != FusionRevealKind.standard;
+    final accent = outcome?.accent;
+    final mix = Color.lerp(a, b, 0.5)!;
+    final glow = accent ?? mix;
+    final r = burst.radius;
+    final burstT = u - FusionBurstField.burstAt;
+
+    // The heat of the knot, swelling until it goes.
+    final heat = _interval(u, 0, FusionBurstField.burstAt);
+    final heart = burstT < 0 ? 1.0 : 1 - _interval(burstT, 0, 0.18);
+    if (heart > 0) {
+      _softPool(
+        canvas,
+        core,
+        r * (0.35 + 0.45 * heat),
+        Colors.white,
+        mix,
+        (0.25 + 0.6 * heat) * heart,
+      );
+    }
+    // The eruption's light: wide, faint, and gone fast.
+    if (burstT >= 0 && burstT < 0.45) {
+      final e = burstT / 0.45;
+      _softPool(
+        canvas,
+        core,
+        r * (0.8 + 2.6 * Curves.easeOut.transform(e)),
+        Colors.white,
+        glow,
+        0.55 * (1 - e) * (1 - e),
+      );
+    }
+    // The cultivation's own light, coming up as it forms.
+    final formed = _interval(u, 0.7, FusionBurstField.settledAt);
+    if (formed > 0) {
+      _softPool(
+        canvas,
+        core,
+        r * 1.7,
+        glow,
+        glow,
+        (pure ? 0.42 : 0.3) * formed,
+        inner: 0.0,
+      );
     }
 
-    // The eruption + reveal take on the outcome's colour when it's a pure line.
-    final revealAccent = outcome?.accent ?? mix;
-    if (burst > 0) _drawShockwave(canvas, core, unit, revealAccent, burst);
+    burst.paint(
+      canvas,
+      core,
+      u,
+      colors: [a, b],
+      accent: accent,
+      pure: pure,
+      sigil: switch (kind) {
+        FusionRevealKind.pureElement => FusionSigil.element,
+        FusionRevealKind.pureBoth => FusionSigil.starAndElement,
+        _ => FusionSigil.star,
+      },
+      element: outcome?.element,
+      clock: clock,
+    );
 
-    if (reveal > 0) {
-      _drawCultivation(canvas, core, unit, a, b, mix, reveal);
+    // A line newly founded gets a slow corona: grains streaming off the
+    // cultivation in rays, instead of the ruled lines it used to have.
+    if (pure || (outcome?.foundedNewLine ?? false)) {
+      _drawCorona(canvas, core, r, accent ?? mix, formed, kind);
     }
+  }
+
+  /// A radial pool of light: [hot] at the centre running out to [edge].
+  void _softPool(
+    Canvas canvas,
+    Offset c,
+    double radius,
+    Color hot,
+    Color edge,
+    double alpha, {
+    double inner = 0.45,
+  }) {
+    if (alpha <= 0 || radius <= 0) return;
+    canvas.drawCircle(
+      c,
+      radius,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            hot.withValues(alpha: alpha.clamp(0.0, 1.0)),
+            edge.withValues(alpha: (alpha * 0.55).clamp(0.0, 1.0)),
+            edge.withValues(alpha: 0),
+          ],
+          stops: [0.0, inner == 0 ? 0.35 : inner, 1.0],
+        ).createShader(Rect.fromCircle(center: c, radius: radius)),
+    );
+  }
+
+  final _corona = Paint()
+    ..strokeCap = StrokeCap.round
+    ..style = PaintingStyle.stroke;
+
+  void _drawCorona(
+    Canvas canvas,
+    Offset c,
+    double r,
+    Color accent,
+    double formed,
+    FusionRevealKind kind,
+  ) {
+    if (formed <= 0) return;
+    final rays = kind == FusionRevealKind.pureBoth ? 16 : 12;
+    const perRay = 7;
+    final pts = Float32List(rays * perRay * 2);
+    var n = 0;
+    final turn = clock * 0.08;
+    for (var i = 0; i < rays; i++) {
+      final ang = i / rays * 2 * math.pi + turn;
+      final dir = Offset(math.cos(ang), math.sin(ang));
+      final reach = i.isEven ? 1.0 : 0.7;
+      for (var k = 0; k < perRay; k++) {
+        // Each grain runs out along its ray and starts again.
+        final f = (clock * 0.35 + k / perRay + i * 0.13) % 1.0;
+        final p = c + dir * r * (1.15 + 0.9 * reach * f);
+        pts[n++] = p.dx;
+        pts[n++] = p.dy;
+      }
+    }
+    _corona
+      ..strokeWidth = 2.2
+      ..color = Color.lerp(
+        accent,
+        Colors.white,
+        0.35,
+      )!.withValues(alpha: 0.55 * formed);
+    canvas.drawRawPoints(ui.PointMode.points, pts, _corona);
   }
 
   Offset _ctrlFor(Offset from, Offset to) =>
@@ -935,378 +1104,11 @@ class _ChamberPainter extends CustomPainter {
     }
   }
 
-  void _drawCore(
-    Canvas canvas,
-    Offset c,
-    double r,
-    Color a,
-    Color b,
-    Color mix,
-    double charge,
-    double coreP,
-    double burst,
-    double reveal,
-  ) {
-    final fade = (1 - reveal).clamp(0.0, 1.0);
-    canvas.drawCircle(
-      c,
-      r * 1.35,
-      Paint()
-        ..color = Colors.white.withValues(alpha: .14 * fade)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-
-    void ring(double radius, double rot, Color color, double alpha) {
-      const seg = 20;
-      final paint = Paint()
-        ..color = color.withValues(alpha: alpha.clamp(0.0, 1.0))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..strokeCap = StrokeCap.round;
-      for (int i = 0; i < seg; i++) {
-        final a0 = (i / seg) * 2 * math.pi + rot;
-        canvas.drawArc(
-          Rect.fromCircle(center: c, radius: radius),
-          a0,
-          (2 * math.pi / seg) * .5,
-          false,
-          paint,
-        );
-      }
-    }
-
-    final ringAlpha = (.25 + charge * .4 + coreP * .4) * (1 - burst) * fade;
-    ring(r * 0.95, t * 2 * math.pi * 0.9, a, ringAlpha);
-    ring(r * 1.12, -t * 2 * math.pi * 1.1, b, ringAlpha);
-
-    // Energy drawn inward: thin rings that spawn at the rim and contract into
-    // the core, fading as they shrink. Reads as intake rather than a vortex.
-    if (coreP > 0 && burst < 1) {
-      final intake = coreP * (1 - burst) * fade;
-      for (int k = 0; k < 2; k++) {
-        final pull = ((t * 0.9) + k * 0.5) % 1.0;
-        final ir = r * (1.2 - 0.95 * pull);
-        canvas.drawCircle(
-          c,
-          ir,
-          Paint()
-            ..color = Color.lerp(
-              mix,
-              Colors.white,
-              .2,
-            )!.withValues(alpha: (.55 * intake * (1 - pull)).clamp(0.0, 1.0))
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4,
-        );
-      }
-    }
-
-    final heat = (charge * .4 + coreP * .6).clamp(0.0, 1.0);
-    final pulse = math.sin(t * math.pi * 6) * .5 + .5;
-    final heartR =
-        r * (0.22 + heat * 0.32 + burst * 0.9) * (1 + pulse * 0.05 * heat);
-    canvas.drawCircle(
-      c,
-      heartR,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            Colors.white.withValues(
-              alpha: ((.7 * heat + burst) * fade).clamp(0.0, 1.0),
-            ),
-            mix.withValues(alpha: (.6 * heat * fade).clamp(0.0, 1.0)),
-            mix.withValues(alpha: 0),
-          ],
-          stops: const [0.0, 0.45, 1.0],
-        ).createShader(Rect.fromCircle(center: c, radius: heartR)),
-    );
-  }
-
-  void _drawShockwave(
-    Canvas canvas,
-    Offset c,
-    double unit,
-    Color mix,
-    double burst,
-  ) {
-    final e = Curves.easeOut.transform(burst);
-    final r = unit * (0.1 + 0.6 * e);
-    canvas.drawCircle(
-      c,
-      r,
-      Paint()
-        ..color = Colors.white.withValues(alpha: (.6 * (1 - e)).clamp(0.0, 1.0))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 6 * (1 - e) + 1,
-    );
-    canvas.drawCircle(
-      c,
-      r * 0.82,
-      Paint()
-        ..color = mix.withValues(alpha: (.4 * (1 - e)).clamp(0.0, 1.0))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5 * (1 - e) + 1,
-    );
-  }
-
-  // The synthesised cultivation: swirling particles bound inside an alchemical
-  // containment sigil. The glyph + accent vary with the fusion outcome
-  // (standard fusion, pure element, pure lineage, or both).
-  void _drawCultivation(
-    Canvas canvas,
-    Offset c,
-    double unit,
-    Color a,
-    Color b,
-    Color mix,
-    double reveal,
-  ) {
-    final kind = outcome?.kind ?? FusionRevealKind.standard;
-    final accent = outcome?.accent ?? mix;
-    final isPure = kind != FusionRevealKind.standard;
-    final showRays = isPure || (outcome?.foundedNewLine ?? false);
-
-    final e = Curves.easeOutBack.transform(reveal.clamp(0.0, 1.0));
-    final R = unit * 0.165 * e;
-    if (R <= 0) return;
-    final spin = t * 2 * math.pi;
-
-    // Radiant rays for pure / newly-founded lines (drawn behind the sigil).
-    if (showRays) {
-      final rayCount = kind == FusionRevealKind.pureBoth ? 16 : 12;
-      final ray = Paint()
-        ..color = accent.withValues(alpha: .28 * reveal)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
-        ..strokeCap = StrokeCap.round;
-      for (int i = 0; i < rayCount; i++) {
-        final ang = (i / rayCount) * 2 * math.pi + spin * 0.15;
-        final dir = Offset(math.cos(ang), math.sin(ang));
-        final len = R * (1.7 + ((i.isEven) ? 0.5 : 0.0));
-        canvas.drawLine(c + dir * R * 1.15, c + dir * len, ray);
-      }
-    }
-
-    // Outer halo bloom.
-    canvas.drawCircle(
-      c,
-      R * 1.6,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            accent.withValues(alpha: .45 * reveal),
-            accent.withValues(alpha: 0),
-          ],
-        ).createShader(Rect.fromCircle(center: c, radius: R * 1.6)),
-    );
-
-    // Particle cultivation, clipped to the containment circle. Crisp motes
-    // (no blur) for a cleaner read; pure reveals are single-accent themed.
-    canvas.save();
-    canvas.clipPath(Path()..addOval(Rect.fromCircle(center: c, radius: R)));
-    canvas.drawCircle(
-      c,
-      R,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            Color.lerp(
-              accent,
-              Colors.white,
-              .4,
-            )!.withValues(alpha: .55 * reveal),
-            accent.withValues(alpha: .18 * reveal),
-            Colors.black.withValues(alpha: .22 * reveal),
-          ],
-          stops: const [0.0, 0.6, 1.0],
-        ).createShader(Rect.fromCircle(center: c, radius: R)),
-    );
-    final rnd = math.Random(7);
-    const motes = 20;
-    for (int i = 0; i < motes; i++) {
-      final seed = rnd.nextDouble();
-      final ang = seed * 2 * math.pi + t * (2.4 + seed * 2.0);
-      final orbit = (0.15 + seed * 0.7) * R;
-      final p = c + Offset(math.cos(ang), math.sin(ang * 1.2)) * orbit;
-      final col = isPure
-          ? Color.lerp(accent, Colors.white, seed * .5)!
-          : (i.isEven ? a : b);
-      canvas.drawCircle(
-        p,
-        (1.3 + seed * 2.0) * reveal,
-        Paint()..color = col.withValues(alpha: (.9 * reveal).clamp(0.0, 1.0)),
-      );
-    }
-    canvas.restore();
-
-    // Containment ring + faint accent outer ring.
-    canvas.drawCircle(
-      c,
-      R,
-      Paint()
-        ..color = Colors.white.withValues(alpha: .8 * reveal)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.8,
-    );
-    canvas.drawCircle(
-      c,
-      R * 1.28,
-      Paint()
-        ..color = accent.withValues(alpha: .4 * reveal)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2,
-    );
-
-    // Rotating dashed ring between the two circles.
-    final dash = Paint()
-      ..color = accent.withValues(alpha: .75 * reveal)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round;
-    const seg = 24;
-    for (int i = 0; i < seg; i++) {
-      final a0 = (i / seg) * 2 * math.pi + spin * 0.6;
-      canvas.drawArc(
-        Rect.fromCircle(center: c, radius: R * 1.14),
-        a0,
-        (2 * math.pi / seg) * .45,
-        false,
-        dash,
-      );
-    }
-
-    // Outcome-specific central glyph. The triangles/star spin in as they form
-    // and then lock into perfect alignment as the reveal settles — `swirl`
-    // unwinds to 0, and `lock` flashes them brighter the instant they align.
-    final settle = Curves.easeOutCubic.transform(reveal.clamp(0.0, 1.0));
-    final swirl = (1 - settle) * (math.pi * 1.25);
-    final lock = Curves.easeInOut.transform(_interval(reveal, 0.7, 1.0));
-    final glyph = Paint()
-      ..color = Colors.white.withValues(
-        alpha: ((.6 + .4 * lock) * reveal).clamp(0.0, 1.0),
-      )
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6 + 1.0 * lock
-      ..strokeJoin = StrokeJoin.round;
-    switch (kind) {
-      case FusionRevealKind.standard:
-        _interlockedTriangles(canvas, c, R * 0.78, swirl, glyph);
-        break;
-      case FusionRevealKind.pureElement:
-        _elementGlyph(
-          canvas,
-          c,
-          R * 0.72,
-          outcome?.element,
-          swirl,
-          settle,
-          glyph,
-        );
-        break;
-      case FusionRevealKind.pureSpecies:
-        _interlockedTriangles(canvas, c, R * 0.82, swirl, glyph);
-        break;
-      case FusionRevealKind.pureBoth:
-        _interlockedTriangles(canvas, c, R * 0.82, swirl, glyph);
-        _elementGlyph(
-          canvas,
-          c,
-          R * 0.46,
-          outcome?.element,
-          swirl,
-          settle,
-          glyph,
-        );
-        break;
-    }
-
-    // A clean bloom of light at the moment of alignment.
-    if (lock > 0) {
-      canvas.drawCircle(
-        c,
-        R * (0.9 + 0.3 * lock),
-        Paint()
-          ..shader = RadialGradient(
-            colors: [
-              Colors.white.withValues(alpha: .0),
-              Colors.white.withValues(alpha: .22 * lock),
-              Colors.white.withValues(alpha: .0),
-            ],
-            stops: const [0.55, 0.8, 1.0],
-          ).createShader(Rect.fromCircle(center: c, radius: R * 1.2)),
-      );
-    }
-
-    // Bright core spark.
-    canvas.drawCircle(
-      c,
-      R * 0.14,
-      Paint()..color = Colors.white.withValues(alpha: .9 * reveal),
-    );
-  }
-
-  // Two counter-rotating triangles that converge into an aligned six-pointed
-  // star as [swirl] unwinds to 0.
-  void _interlockedTriangles(
-    Canvas canvas,
-    Offset c,
-    double rad,
-    double swirl,
-    Paint p,
-  ) {
-    _triangle(canvas, c, rad, -math.pi / 2 + swirl, p);
-    _triangle(canvas, c, rad, math.pi / 2 - swirl, p);
-  }
-
-  void _triangle(Canvas canvas, Offset c, double rad, double rot, Paint p) {
-    final path = Path();
-    for (int i = 0; i < 3; i++) {
-      final ang = rot + i * (2 * math.pi / 3);
-      final v = c + Offset(math.cos(ang), math.sin(ang)) * rad;
-      i == 0 ? path.moveTo(v.dx, v.dy) : path.lineTo(v.dx, v.dy);
-    }
-    path.close();
-    canvas.drawPath(path, p);
-  }
-
-  // Classic alchemical element symbols for pure-element reveals. The triangle
-  // spins in via [swirl]; the elemental bar fades in once it has settled.
-  void _elementGlyph(
-    Canvas canvas,
-    Offset c,
-    double rad,
-    String? element,
-    double swirl,
-    double settle,
-    Paint p,
-  ) {
-    final el = (element ?? '').toLowerCase();
-    final pointsUp = el == 'fire' || el == 'air' || el == 'lava';
-    final withBar = el == 'air' || el == 'earth';
-    final base = pointsUp ? -math.pi / 2 : math.pi / 2;
-    _triangle(canvas, c, rad, base + swirl * 0.6, p);
-    if (withBar && settle > 0.6) {
-      final barAlpha = _interval(settle, 0.6, 1.0);
-      final y = c.dy + (pointsUp ? 1 : -1) * rad * 0.18;
-      final half = rad * 0.42;
-      canvas.drawLine(
-        Offset(c.dx - half, y),
-        Offset(c.dx + half, y),
-        Paint()
-          ..color = (p.color).withValues(
-            alpha: (p.color.a * barAlpha).clamp(0.0, 1.0),
-          )
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = p.strokeWidth
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-  }
-
   @override
   bool shouldRepaint(covariant _ChamberPainter old) =>
       old.t != t ||
+      old.u != u ||
+      old.clock != clock ||
       old.a != a ||
       old.b != b ||
       old.layout != layout ||
@@ -1317,14 +1119,19 @@ class _ChamberPainter extends CustomPainter {
 // Chrome.
 // ---------------------------------------------------------------------------
 class _PhaseLabel extends StatelessWidget {
-  const _PhaseLabel({required this.t, required this.outcome});
+  const _PhaseLabel({required this.t, required this.u, required this.outcome});
   final double t;
+
+  /// Seconds since the core.
+  final double u;
   final FusionRevealData? outcome;
+
+  bool get _isReveal => u >= FusionBurstField.burstAt + 0.45;
 
   @override
   Widget build(BuildContext context) {
     final (text, vis) = _labelFor(t);
-    final isReveal = t >= _Phase.revealStart;
+    final isReveal = _isReveal;
     // Pure-line reveals get the accent colour for their headline.
     final color =
         (isReveal &&
@@ -1352,10 +1159,11 @@ class _PhaseLabel extends StatelessWidget {
       return ('PRIMING CHAMBERS', _interval(t, 0.02, 0.10));
     }
     if (t < _Phase.streamStart) return ('CHANNELING ESSENCE', 1.0);
-    if (t < _Phase.coreStart) return ('GENETIC FUSION', 1.0);
-    if (t < _Phase.revealStart) return ('STABILIZING REACTION', 1.0);
+    if (u < 0) return ('GENETIC FUSION', 1.0);
+    if (!_isReveal) return ('STABILIZING REACTION', 1.0);
     final caption = outcome?.caption ?? 'CULTIVATION SYNTHESIZED';
-    return (caption, _interval(t, _Phase.revealStart, 0.95));
+    final from = FusionBurstField.burstAt + 0.45;
+    return (caption, _interval(u, from, from + 0.5));
   }
 }
 

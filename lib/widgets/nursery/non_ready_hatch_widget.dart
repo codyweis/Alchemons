@@ -199,6 +199,8 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                 return CultivationVialStage(
                   theme: theme,
                   parentTypes: parentTypes,
+                  payload: payload,
+                  progress: _brewProgress(slot),
                   accentColor: rarityColor,
                   chamberLabel: 'CHAMBER ${slot.id + 1}',
                   particleCount: 62,

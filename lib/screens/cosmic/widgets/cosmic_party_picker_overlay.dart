@@ -694,6 +694,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
           tint: member.spriteVisuals?.tint,
           alchemyEffect: member.spriteVisuals?.alchemyEffect,
           variantFaction: member.spriteVisuals?.variantFaction,
+          elementType: member.spriteVisuals?.elementType,
           effectSlotSize: size,
         ),
       );
@@ -996,6 +997,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                           tint: visuals?.tint,
                           alchemyEffect: visuals?.alchemyEffect,
                           variantFaction: visuals?.variantFaction,
+                          elementType: visuals?.elementType,
                           effectSlotSize: spriteSize,
                         )
                       : Icon(
@@ -1240,6 +1242,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                             tint: spriteVisuals?.tint,
                             alchemyEffect: spriteVisuals?.alchemyEffect,
                             variantFaction: spriteVisuals?.variantFaction,
+                            elementType: spriteVisuals?.elementType,
                             effectSlotSize: 56,
                           ),
                         ),

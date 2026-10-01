@@ -1,12 +1,15 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:alchemons/constants/element_resources.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// A rift key, drawn as the element condensing into the shape that opens the
-/// way in.
+/// way in: a lit key in its element's light, the element's essence in its
+/// bow, and a small rift of grains turning behind it.
 ///
 /// The five keys were five painted PNGs — 8MB between them, for something that
 /// renders at 56px in a market row next to painted harvesters. Here the key is
@@ -162,9 +165,53 @@ class _PortalKeyPainter extends CustomPainter {
     _t,
   );
 
+  // Shaders cut once per size and colour, at the origin, and drawn through a
+  // translate: a market row of five keys was cutting five gradients a frame.
+  static final Map<(int, int), Shader> _poolShaders = {};
+  static final Map<(int, int), Shader> _bodyShaders = {};
+  static final Map<(int, int), Shader> _beadShaders = {};
+
+  static Shader _cached(
+    Map<(int, int), Shader> cache,
+    double s,
+    Color c,
+    Shader Function() make,
+  ) => cache.putIfAbsent((s.round(), c.toARGB32()), make);
+
+  // The little rift's grains, laid out once: a disk, not a hoop — spread
+  // wide and thickest at its inner edge, with angles of their own so they
+  // do not line up into spiral arms, and Kepler's pace (the inner edge
+  // runs) so only a cos and a sin are left per grain per frame.
+  static const int _diskN = 76;
+  static final List<double> _diskRho = [
+    for (var i = 0; i < _diskN; i++)
+      0.27 + 0.25 * math.pow((i * 0.6180339) % 1.0, 1.6).toDouble(),
+  ];
+  static final List<double> _diskA0 = [
+    for (var i = 0; i < _diskN; i++)
+      ((i * 0.7548776 + (i * i) * 0.0131) % 1.0) * math.pi * 2,
+  ];
+  static final List<double> _diskW = [
+    for (final rho in _diskRho) 0.9 / math.pow(rho / 0.3, 1.5).toDouble(),
+  ];
+  static final double _diskCos = math.cos(-0.42), _diskSin = math.sin(-0.42);
+
+  /// Grains: the little rift's far half, its near half, its near half lit,
+  /// and the motes drawn in to the bow.
+  static final GrainBatch _grains = GrainBatch(4);
+
+  /// The paint's alpha scales its shader: how [fade] reaches the gradients.
+  static Color _alpha(double f) => Color.fromRGBO(0, 0, 0, f);
+
   /// Paints the key glyph directly onto an arbitrary canvas at [center] —
   /// for contexts with no widget tree, e.g. an in-world loot-drop pickup.
   /// [fade] multiplies every alpha, for a drop that's fading out.
+  ///
+  /// The key stands in its element's light, in front of a small rift of
+  /// grains turning on a tipped disk — the rift it opens, as every rift in
+  /// the game is drawn — with the element's essence glowing in its bow and,
+  /// now and then, a glint running down it. Material, not outline: the old
+  /// key was a flat shape with a white rim inside a dashed hoop.
   static void paintGlyph(
     Canvas canvas,
     Offset center,
@@ -174,109 +221,157 @@ class _PortalKeyPainter extends CustomPainter {
     double fade = 1.0,
   }) {
     if (s <= 0) return;
-    _aperture(canvas, center, s, color, t, fade);
-    _motes(canvas, center, s, color, t, fade);
-
-    final key = _key(s);
-    final bounds = Rect.fromLTWH(0, 0, s, s);
+    final f = fade.clamp(0.0, 1.0);
+    if (f <= 0) return;
     final bright = Color.lerp(color, Colors.white, 0.55)!;
+    final deep = Color.lerp(color, Colors.black, 0.6)!;
+    final g = _grains..clear();
 
     canvas.save();
-    canvas.translate(center.dx - s / 2, center.dy - s / 2);
-    canvas.drawPath(
-      key,
-      _p
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [bright, color, Color.lerp(color, Colors.black, 0.45)!],
-          stops: const [0.0, 0.42, 1.0],
-        ).createShader(bounds),
-    );
+    canvas.translate(center.dx, center.dy);
+
+    // ── the light it stands in ──
+    final poolR = s * 0.5;
+    _p
+      ..shader = _cached(
+        _poolShaders,
+        s,
+        color,
+        () => ui.Gradient.radial(
+          Offset.zero,
+          poolR,
+          [
+            color.withValues(alpha: 0.24),
+            color.withValues(alpha: 0.07),
+            color.withValues(alpha: 0),
+          ],
+          const [0.0, 0.5, 1.0],
+        ),
+      )
+      ..color = _alpha(f);
+    canvas.drawCircle(Offset.zero, poolR, _p);
     _p.shader = null;
 
-    canvas.drawPath(
-      key,
-      _p
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = s * 0.016
-        ..strokeJoin = StrokeJoin.round
-        ..color = Color.lerp(
-          bright,
-          Colors.white,
-          0.5,
-        )!.withValues(alpha: 0.9 * fade),
-    );
-    _p.style = PaintingStyle.fill;
-    canvas.restore();
-  }
-
-  /// The rift the key is for: a broken ring, turning.
-  static void _aperture(
-    Canvas canvas,
-    Offset c,
-    double s,
-    Color color,
-    double t,
-    double fade,
-  ) {
-    final r = s * 0.415;
-    final spin = t * 0.42;
-    // Breathes, so a still row of five is not five identical frozen rings.
-    final pulse = 0.72 + 0.14 * math.sin(t * 1.3);
-
-    canvas.drawCircle(
-      c,
-      r * 0.86,
-      _p..color = color.withValues(alpha: 0.07 * fade),
-    );
-
-    final rect = Rect.fromCircle(center: c, radius: r);
-    _p
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = s * 0.030
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 5; i++) {
-      final start = spin + i * math.pi * 2 / 5;
-      canvas.drawArc(
-        rect,
-        start,
-        0.62,
-        false,
-        _p..color = color.withValues(alpha: (0.28 * pulse + 0.10) * fade),
-      );
+    // ── the rift behind it, in grains ── (too small to read below ~30px)
+    if (s >= 30) {
+      const flat = 0.32;
+      for (var i = 0; i < _diskN; i++) {
+        final a = _diskA0[i] + t * _diskW[i];
+        final sn = math.sin(a);
+        final rho = _diskRho[i];
+        final x0 = math.cos(a) * rho * s, y0 = sn * rho * s * flat;
+        final lit = math.sin(t * 2.3 + i * 1.7) > 0.72;
+        g.add(
+          sn > 0 ? (lit ? 2 : 1) : 0,
+          x0 * _diskCos - y0 * _diskSin,
+          x0 * _diskSin + y0 * _diskCos,
+        );
+      }
     }
-    _p
-      ..style = PaintingStyle.fill
-      ..strokeCap = StrokeCap.butt;
-  }
 
-  /// Element being drawn out of the rift and into the key.
-  static void _motes(
-    Canvas canvas,
-    Offset c,
-    double s,
-    Color color,
-    double t,
-    double fade,
-  ) {
-    final bright = Color.lerp(color, Colors.white, 0.45)!;
-    for (var i = 0; i < 8; i++) {
-      final phase = (t * 0.30 + _seed(i, 1)) % 1.0;
-      // Rim inward, so the key looks like it is being charged by the rift.
+    // ── the element, drawn in to the bow ──
+    final bow = Offset(0, s * (0.295 - 0.5));
+    for (var i = 0; i < 9; i++) {
+      final phase = (t * 0.32 + _seed(i, 1)) % 1.0;
+      if (phase < 0.08 || phase > 0.9) continue;
       final pull = Curves.easeInCubic.transform(phase);
-      final dist = s * (0.44 - 0.30 * pull);
-      final a = _seed(i, 2) * math.pi * 2 + phase * 1.4;
-      final moteFade =
-          (phase < 0.15 ? phase / 0.15 : 1.0) *
-          (phase > 0.82 ? (1 - phase) / 0.18 : 1.0);
-      if (moteFade <= 0.02) continue;
-      canvas.drawCircle(
-        c + Offset(math.cos(a) * dist, math.sin(a) * dist),
-        s * (0.020 - 0.008 * pull),
-        _p..color = bright.withValues(alpha: 0.75 * moteFade * fade),
-      );
+      final dist = s * (0.46 - 0.36 * pull);
+      final a = _seed(i, 2) * math.pi * 2 + phase * 1.6;
+      g.add(3, bow.dx + math.cos(a) * dist, bow.dy + math.sin(a) * dist * 0.8);
     }
+
+    final d = (s * 0.028).clamp(1.0, 2.2);
+    g.draw(canvas, 0, d * 0.85, color.withValues(alpha: 0.42 * f));
+
+    // ── the key ──
+    canvas.save();
+    canvas.translate(-s / 2, -s / 2);
+    final key = _key(s);
+    // Its edge, a shade under the body and off down-right: a key with some
+    // thickness to it, instead of a white outline.
+    canvas.save();
+    canvas.translate(s * 0.013, s * 0.018);
+    _p.color = deep.withValues(alpha: 0.92 * f);
+    canvas.drawPath(key, _p);
+    canvas.restore();
+    _p
+      ..shader = _cached(
+        _bodyShaders,
+        s,
+        color,
+        () => LinearGradient(
+          begin: const Alignment(-0.45, -1),
+          end: const Alignment(0.45, 1),
+          colors: [bright, color, Color.lerp(color, Colors.black, 0.32)!],
+          stops: const [0.0, 0.46, 1.0],
+        ).createShader(Rect.fromLTWH(0, 0, s, s)),
+      )
+      ..color = _alpha(f);
+    canvas.drawPath(key, _p);
+    _p.shader = null;
+
+    // The essence in the bow, breathing.
+    final beadR = s * 0.056 * (0.88 + 0.12 * math.sin(t * 2.1));
+    canvas.save();
+    canvas.translate(s * 0.5, s * 0.295);
+    _p
+      ..shader = _cached(
+        _beadShaders,
+        s,
+        color,
+        () => ui.Gradient.radial(
+          Offset.zero,
+          s * 0.062,
+          [
+            const Color(0xFFFFFFFF),
+            Color.lerp(color, Colors.white, 0.4)!,
+            color.withValues(alpha: 0.85),
+          ],
+          const [0.0, 0.45, 1.0],
+        ),
+      )
+      ..color = _alpha(f);
+    canvas.drawCircle(Offset.zero, beadR, _p);
+    _p.shader = null;
+    canvas.restore();
+
+    // Now and then a glint runs down it. Each colour keeps its own time, so
+    // a row of five does not flash together.
+    final cycle = ((t + (color.toARGB32() % 7) * 0.53) % 3.6) / 3.6;
+    if (cycle < 0.16 && s >= 20) {
+      final u = cycle / 0.16;
+      final y = s * (0.1 + 0.82 * u);
+      final band = s * 0.09;
+      canvas.save();
+      canvas.clipPath(key);
+      _p
+        ..shader = ui.Gradient.linear(
+          Offset(0, y - band),
+          Offset(0, y + band),
+          [
+            const Color(0x00FFFFFF),
+            Colors.white.withValues(alpha: 0.55 * math.sin(math.pi * u) * f),
+            const Color(0x00FFFFFF),
+          ],
+          const [0.0, 0.5, 1.0],
+        )
+        ..color = const Color(0xFF000000);
+      canvas.drawRect(Rect.fromLTWH(0, y - band, s, band * 2), _p);
+      _p.shader = null;
+      canvas.restore();
+    }
+    canvas.restore();
+
+    // ── the rift's near half, in front of the key, and the motes ──
+    g.draw(
+      canvas,
+      1,
+      d,
+      Color.lerp(color, Colors.white, 0.2)!.withValues(alpha: 0.8 * f),
+    );
+    g.draw(canvas, 2, d * 1.15, bright.withValues(alpha: f));
+    g.draw(canvas, 3, d * 1.1, bright.withValues(alpha: 0.85 * f));
+    canvas.restore();
   }
 
   @override

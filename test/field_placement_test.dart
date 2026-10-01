@@ -1,0 +1,405 @@
+// Creatures in a field must make sense where they are: only those that can
+// fly or float are ever put in the open air, and anything standing has
+// something under its feet. These pin that for each field drawn in code —
+// the Valley, the Sky and the Swamp — and the rule every redesigned field
+// follows.
+
+import 'dart:ui';
+
+import 'package:alchemons/games/wilderness/field/grain_field.dart';
+import 'package:alchemons/games/wilderness/field/field_art.dart';
+import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/pools/sky_pool.dart';
+import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
+import 'package:alchemons/models/encounters/pools/valley_pool.dart';
+import 'package:alchemons/models/scenes/scene_definition.dart';
+import 'package:alchemons/models/scenes/spawn_point.dart';
+import 'package:alchemons/models/scenes/sky/sky_scene.dart';
+import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
+import 'package:alchemons/models/scenes/valley/valley_scene.dart';
+import 'package:alchemons/services/encounter_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('only wings, Air, Steam and Lightning may float', () {
+    for (final id in [
+      'WNG01',
+      'WNG03',
+      'WNG12',
+      'LET04',
+      'KIN04',
+      'LET05',
+      'PIP07',
+      'LET07',
+    ]) {
+      expect(speciesCanFloat(id), isTrue, reason: id);
+    }
+    for (final id in ['HOR03', 'LET03', 'MAN12', 'KIN01', 'LET16', 'MYS15']) {
+      expect(speciesCanFloat(id), isFalse, reason: id);
+    }
+  });
+
+  void onlyFloatersAloft(
+    String name,
+    SceneDefinition scene,
+    ({EncounterPool sceneWide, Map<String, EncounterPool> perSpawn}) Function(
+      SceneDefinition,
+    )
+    pools,
+  ) {
+    test('every $name open-air point can only roll creatures that float', () {
+      final tables = pools(scene);
+      final sky = scene.spawnPoints.where((p) => p.aloft);
+      expect(sky, isNotEmpty);
+      for (final p in sky) {
+        final pool = poolForSpawn(
+          spawnId: p.id,
+          sceneWide: tables.sceneWide,
+          perSpawn: tables.perSpawn,
+        ).where((e) => speciesCanFloat(e.speciesId));
+        expect(pool.isEmpty, isFalse, reason: '${p.id} has nothing to roll');
+
+        final service = EncounterService(
+          scene: scene,
+          party: const [],
+          tableBuilder: pools,
+          seed: 7,
+        );
+        for (var i = 0; i < 200; i++) {
+          final roll = service.roll(spawnId: p.id);
+          expect(speciesCanFloat(roll.speciesId), isTrue, reason: p.id);
+        }
+      }
+    });
+  }
+
+  onlyFloatersAloft('Valley', valleySceneCorrected, valleyEncounterPools);
+  onlyFloatersAloft('Sky', skyScene, skyEncounterPools);
+  onlyFloatersAloft('Swamp', swampScene, swampEncounterPools);
+
+  test('sky points sit on a layer with ground, for a partner who cannot '
+      'float', () {
+    for (final p in valleySceneCorrected.spawnPoints.where((p) => p.aloft)) {
+      expect(
+        p.anchor,
+        anyOf(SceneLayer.layer3, SceneLayer.layer4),
+        reason: p.id,
+      );
+    }
+  });
+
+  // The Valley loops: each layer is built one loop wide, worldWidth × (1 +
+  // its parallax factor), and a spawn's x is a share of that.
+  double period(SceneLayer layer) =>
+      valleySceneCorrected.worldWidth *
+      (1 +
+          valleySceneCorrected.layers
+              .firstWhere((l) => l.id == layer)
+              .parallaxFactor);
+
+  ValleyField builtValley(double h) {
+    final field = ValleyField()
+      ..layout(
+        valleySceneCorrected.spawnPoints,
+        valleySceneCorrected.worldWidth,
+        loop: valleySceneCorrected.loop,
+      );
+    final screen = Size(h * 1.6, h);
+    for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+      field.build(layer, Size(period(layer), h), screen);
+    }
+    return field;
+  }
+
+  for (final h in const [412.0, 475.0, 700.0]) {
+    test('every Valley ground point has something under its feet at $h', () {
+      final field = builtValley(h);
+      for (final p in valleySceneCorrected.spawnPoints.where((p) => !p.aloft)) {
+        final x = p.normalizedPos.dx * period(p.anchor);
+        final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
+        final perch = field.perchFor(p.id);
+        if (perch != null) {
+          expect(perch, closeTo(feet, 1), reason: '${p.id} perch');
+          continue;
+        }
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} has no ground');
+        expect(
+          ground!.top,
+          lessThanOrEqualTo(feet),
+          reason: '${p.id}: feet at $feet, ground starts at ${ground.top}',
+        );
+      }
+    });
+  }
+
+  test('the Valley joins round its loop without a seam', () {
+    final field = builtValley(475);
+    for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+      final p = period(layer);
+      for (var x = 0.0; x < p; x += p / 37) {
+        expect(
+          field.groundAt(layer, x + p)!.top,
+          closeTo(field.groundAt(layer, x)!.top, 1e-6),
+          reason: '$layer at $x',
+        );
+      }
+    }
+  });
+
+  // ── The Sky: isles in the open air ───────────────────────────────────────
+
+  double skyPeriod(SceneLayer layer) =>
+      skyScene.worldWidth *
+      (1 + skyScene.layers.firstWhere((l) => l.id == layer).parallaxFactor);
+
+  SkyField builtSky(double h) {
+    final field = SkyField()
+      ..layout(skyScene.spawnPoints, skyScene.worldWidth, loop: skyScene.loop);
+    final screen = Size(h * 1.6, h);
+    for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+      field.build(layer, Size(skyPeriod(layer), h), screen);
+    }
+    return field;
+  }
+
+  test('every Sky point is on the near or far isles\' layer', () {
+    for (final p in skyScene.spawnPoints) {
+      expect(
+        p.anchor,
+        anyOf(SceneLayer.layer3, SceneLayer.layer4),
+        reason: p.id,
+      );
+    }
+  });
+
+  for (final h in const [412.0, 475.0, 700.0]) {
+    test('every Sky standing point stands on its own isle at $h', () {
+      final field = builtSky(h);
+      for (final p in skyScene.spawnPoints.where((p) => !p.aloft)) {
+        final x = p.normalizedPos.dx * skyPeriod(p.anchor);
+        final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
+        expect(field.perchFor(p.id), closeTo(feet, 1e-6), reason: p.id);
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} has no isle');
+        expect(ground!.rest, closeTo(feet, 2 * h / 475), reason: p.id);
+      }
+    });
+
+    test('every Sky encounter partner has an isle to stand on at $h', () {
+      final field = builtSky(h);
+      for (final p in skyScene.spawnPoints) {
+        final x =
+            p.normalizedPos.dx * skyPeriod(p.anchor) +
+            p.partnerSide * kFieldPairGap;
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} partner has no isle');
+        // A partner that cannot float is stood on it, whatever its height;
+        // one that can hangs at its battle position, just over it.
+        expect(ground!.top, double.infinity, reason: p.id);
+        final hang = p.getBattlePos().dy * h + p.size.y * 0.42;
+        expect(ground.rest, greaterThan(hang), reason: '${p.id} hangs in it');
+        expect(
+          ground.rest - hang,
+          lessThan(p.size.y * 0.2),
+          reason: '${p.id} hangs too high over it',
+        );
+      }
+    });
+
+    test('no Sky isle overlaps another or an open-air point at $h', () {
+      final field = builtSky(h);
+      for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+        final period = skyPeriod(layer);
+        final isles = field.debugIsles(layer);
+        double gap(Rect a, Rect b) {
+          var d = (a.center.dx - b.center.dx) % period;
+          if (d > period / 2) d -= period;
+          return d.abs() - (a.width + b.width) / 2;
+        }
+
+        for (var i = 0; i < isles.length; i++) {
+          for (var j = i + 1; j < isles.length; j++) {
+            expect(
+              gap(isles[i], isles[j]),
+              greaterThan(8),
+              reason: '$layer isles $i and $j',
+            );
+          }
+        }
+        for (final p in skyScene.spawnPoints.where(
+          (p) => p.aloft && p.anchor == layer,
+        )) {
+          final body = Rect.fromCenter(
+            center: Offset(p.normalizedPos.dx * period, p.normalizedPos.dy * h),
+            width: p.size.x,
+            height: p.size.y,
+          );
+          for (final isle in isles) {
+            final overlapsX = gap(body, isle) < 0;
+            expect(
+              overlapsX && body.bottom > isle.top && body.top < isle.bottom,
+              isFalse,
+              reason: '${p.id} hangs inside an isle',
+            );
+          }
+        }
+      }
+    });
+  }
+
+  test('the Sky joins round its loop without a seam', () {
+    final field = builtSky(475);
+    for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+      final p = skyPeriod(layer);
+      var isles = 0;
+      for (var x = 0.0; x < p; x += p / 211) {
+        final here = field.groundAt(layer, x);
+        final round = field.groundAt(layer, x + p);
+        expect(round?.rest, here == null ? isNull : closeTo(here.rest, 1e-6));
+        if (here != null) isles++;
+      }
+      expect(isles, greaterThan(0), reason: '$layer has no isles');
+    }
+  });
+
+  // ── The Swamp: banks and stones standing in the water ────────────────────
+
+  double swampPeriod(SceneLayer layer) =>
+      swampScene.worldWidth *
+      (1 + swampScene.layers.firstWhere((l) => l.id == layer).parallaxFactor);
+
+  SwampField builtSwamp(double h) {
+    final field = SwampField()
+      ..layout(
+        swampScene.spawnPoints,
+        swampScene.worldWidth,
+        loop: swampScene.loop,
+      );
+    final screen = Size(h * 1.6, h);
+    for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+      field.build(layer, Size(swampPeriod(layer), h), screen);
+    }
+    return field;
+  }
+
+  test('every Swamp point is on the near or back banks\' layer', () {
+    for (final p in swampScene.spawnPoints) {
+      expect(
+        p.anchor,
+        anyOf(SceneLayer.layer3, SceneLayer.layer4),
+        reason: p.id,
+      );
+    }
+  });
+
+  for (final h in const [412.0, 475.0, 700.0]) {
+    test('every Swamp standing point stands on its own bank at $h', () {
+      final field = builtSwamp(h);
+      for (final p in swampScene.spawnPoints.where((p) => !p.aloft)) {
+        final x = p.normalizedPos.dx * swampPeriod(p.anchor);
+        final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
+        expect(field.perchFor(p.id), closeTo(feet, 1e-6), reason: p.id);
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} has no bank');
+        expect(ground!.rest, closeTo(feet, 2 * h / 475), reason: p.id);
+      }
+    });
+
+    test('every Swamp encounter partner has a bank to stand on at $h', () {
+      final field = builtSwamp(h);
+      for (final p in swampScene.spawnPoints) {
+        final x =
+            p.normalizedPos.dx * swampPeriod(p.anchor) +
+            p.partnerSide * kFieldPairGap;
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} partner has no bank');
+        // A partner that cannot float is stood on it, whatever its height;
+        // one that can hangs at its battle position, just over it.
+        expect(ground!.top, double.infinity, reason: p.id);
+        final hang = p.getBattlePos().dy * h + p.size.y * 0.42;
+        expect(ground.rest, greaterThan(hang), reason: '${p.id} hangs in it');
+        expect(
+          ground.rest - hang,
+          lessThan(p.size.y * 0.2),
+          reason: '${p.id} hangs too high over it',
+        );
+      }
+    });
+
+    test('the Swamp\'s water is not ground at $h', () {
+      final field = builtSwamp(h);
+      for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+        final banks = field.debugBanks(layer);
+        final period = swampPeriod(layer);
+        var water = 0;
+        for (var x = 0.0; x < period; x += period / 401) {
+          final onBank = banks.any((b) {
+            var d = (x - b.center.dx) % period;
+            if (d > period / 2) d -= period;
+            return d.abs() < b.width / 2;
+          });
+          if (onBank) continue;
+          expect(field.groundAt(layer, x), isNull, reason: '$layer at $x');
+          water++;
+        }
+        expect(water, greaterThan(100), reason: '$layer is all bank');
+      }
+    });
+
+    test('no Swamp bank overlaps another or an open-air point at $h', () {
+      final field = builtSwamp(h);
+      for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+        final period = swampPeriod(layer);
+        final banks = field.debugBanks(layer);
+        double gap(Rect a, Rect b) {
+          var d = (a.center.dx - b.center.dx) % period;
+          if (d > period / 2) d -= period;
+          return d.abs() - (a.width + b.width) / 2;
+        }
+
+        for (var i = 0; i < banks.length; i++) {
+          for (var j = i + 1; j < banks.length; j++) {
+            expect(
+              gap(banks[i], banks[j]),
+              greaterThan(8),
+              reason: '$layer banks $i and $j',
+            );
+          }
+        }
+        for (final p in swampScene.spawnPoints.where(
+          (p) => p.aloft && p.anchor == layer,
+        )) {
+          final body = Rect.fromCenter(
+            center: Offset(p.normalizedPos.dx * period, p.normalizedPos.dy * h),
+            width: p.size.x,
+            height: p.size.y,
+          );
+          for (final bank in banks) {
+            final overlapsX = gap(body, bank) < 0;
+            expect(
+              overlapsX && body.bottom > bank.top && body.top < bank.bottom,
+              isFalse,
+              reason: '${p.id} hangs inside a bank',
+            );
+          }
+        }
+      }
+    });
+  }
+
+  test('the Swamp joins round its loop without a seam', () {
+    final field = builtSwamp(475);
+    for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+      final p = swampPeriod(layer);
+      var banks = 0;
+      for (var x = 0.0; x < p; x += p / 211) {
+        final here = field.groundAt(layer, x);
+        final round = field.groundAt(layer, x + p);
+        expect(round?.rest, here == null ? isNull : closeTo(here.rest, 1e-6));
+        if (here != null) banks++;
+      }
+      expect(banks, greaterThan(0), reason: '$layer has no banks');
+    }
+  });
+}

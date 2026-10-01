@@ -24,6 +24,9 @@ class EggPayload {
   final bool isPrismaticSkin;
   final Map<String, String> genetics;
 
+  /// A wild-fusion mutation id ([AlchemonMutation.id]), or null.
+  final String? mutation;
+
   // Stats (current values)
   final CreatureStats stats;
 
@@ -46,6 +49,7 @@ class EggPayload {
     this.natureId2,
     this.isPrismaticSkin = false,
     required this.genetics,
+    this.mutation,
     required this.stats,
     required this.potentials,
     required this.lineage,
@@ -63,6 +67,7 @@ class EggPayload {
       'natureId2': natureId2,
       'isPrismaticSkin': isPrismaticSkin,
       'genetics': genetics,
+      if (mutation != null) 'mutation': mutation,
       'stats': stats.toJson(),
       'statPotentials': potentials.toJson(),
       'lineage': lineage.toJson(),
@@ -84,6 +89,7 @@ class EggPayload {
       natureId2: json['natureId2'] as String?,
       isPrismaticSkin: json['isPrismaticSkin'] as bool? ?? false,
       genetics: Map<String, String>.from(json['genetics'] as Map? ?? {}),
+      mutation: json['mutation'] as String?,
       stats: CreatureStats.fromJson(
         json['stats'] as Map<String, dynamic>? ?? {},
       ),
@@ -438,6 +444,7 @@ class EggPayloadFactory {
     Creature wildParent, {
     String? likelihoodAnalysisJson,
     String? sourceOverride,
+    String? mutation,
   }) {
     // Wild creatures get randomized attributes
 
@@ -454,6 +461,7 @@ class EggPayloadFactory {
       natureId2: offspring.nature2?.id,
       isPrismaticSkin: offspring.isPrismaticSkin,
       genetics: offspring.genetics?.variants ?? {},
+      mutation: mutation,
       stats: CreatureStats(
         speed: offspring.stats?.speed ?? 0.0,
         intelligence: offspring.stats?.intelligence ?? 0.0,

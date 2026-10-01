@@ -1,4 +1,5 @@
 import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 
 /// Returns a scene-wide pool plus per-location overrides (by SpawnPoint.id).
@@ -144,3 +145,96 @@ swampEncounterPools(SceneDefinition scene) {
 
   return (sceneWide: sceneWide, perSpawn: perSpawn);
 }
+
+/// The Swamp gone dry. Half of all Swamp batches find it so, day or night:
+/// the water drawn down to its last pools, the bog floor cracked and dusty.
+/// Every creature of a dry batch comes from here — a mix, not one element:
+/// Dust most of all (about two in five, and the only wild Dustpip, Dustmane,
+/// Dusthorn, Dustmask and Dustwing), with Mud and Earth on the cracked
+/// floor, a little Poison, and Waterlets hanging on by the last pools. Over
+/// the marsh pocket's open air only the floaters can come: Airlets on the
+/// dusty wind, now and then a Dustwing or a Mudwing.
+const swampDry = WildWeather(
+  kind: WeatherKind.dry,
+  label: 'DRY',
+  chance: 0.5,
+  guaranteed: 0,
+  extra: 1,
+  pool: EncounterPool(
+    entries: [
+      // Common
+      EncounterEntry(speciesId: 'LET10', rarity: EncounterRarity.common),
+      EncounterEntry(
+        speciesId: 'LET08',
+        rarity: EncounterRarity.common,
+        weightMul: 0.7,
+      ),
+      EncounterEntry(
+        speciesId: 'LET03',
+        rarity: EncounterRarity.common,
+        weightMul: 0.7,
+      ),
+      EncounterEntry(
+        speciesId: 'LET04',
+        rarity: EncounterRarity.common,
+        weightMul: 0.4,
+      ),
+      // Uncommon
+      EncounterEntry(speciesId: 'PIP10', rarity: EncounterRarity.uncommon),
+      EncounterEntry(speciesId: 'MAN10', rarity: EncounterRarity.uncommon),
+      EncounterEntry(
+        speciesId: 'MAN03',
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.8,
+      ),
+      EncounterEntry(
+        speciesId: 'LET02',
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.8,
+      ),
+      EncounterEntry(
+        speciesId: 'PIP08',
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.7,
+      ),
+      EncounterEntry(
+        speciesId: 'MAN08',
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.6,
+      ),
+      EncounterEntry(
+        speciesId: 'PIP13',
+        rarity: EncounterRarity.uncommon,
+        weightMul: 0.5,
+      ),
+      // Rare
+      EncounterEntry(speciesId: 'HOR10', rarity: EncounterRarity.rare),
+      EncounterEntry(
+        speciesId: 'MSK10',
+        rarity: EncounterRarity.rare,
+        weightMul: 0.6,
+      ),
+      EncounterEntry(
+        speciesId: 'HOR08',
+        rarity: EncounterRarity.rare,
+        weightMul: 0.6,
+      ),
+      EncounterEntry(
+        speciesId: 'HOR13',
+        rarity: EncounterRarity.rare,
+        weightMul: 0.5,
+      ),
+      // Legendary
+      EncounterEntry(
+        speciesId: 'WNG10',
+        rarity: EncounterRarity.legendary,
+        weightMul: 0.3,
+      ),
+      EncounterEntry(
+        speciesId: 'WNG08',
+        rarity: EncounterRarity.legendary,
+        weightMul: 0.15,
+      ),
+    ],
+  ),
+);

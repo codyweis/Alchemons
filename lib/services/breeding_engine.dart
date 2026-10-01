@@ -34,6 +34,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/creature_stats.dart';
 import 'package:alchemons/models/potential_genetics.dart';
 import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/models/genetics.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/models/offspring_lineage.dart';
@@ -202,6 +203,7 @@ class BreedingEngine {
     required ParentSnapshot parentA,
     required ParentSnapshot parentB,
     bool forcePrismatic = false,
+    ({StatKind stat, double value})? guaranteedPotential,
   }) {
     final fam1 = _familyOf(p1);
     final fam2 = _familyOf(p2);
@@ -226,6 +228,7 @@ class BreedingEngine {
           parentA: parentA,
           parentB: parentB,
           forcePrismatic: forcePrismatic,
+          guaranteedPotential: guaranteedPotential,
         );
         _log('[Breeding] RESULT (mutated): ${mutatedFinal.id}');
         _log('[Breeding] === BREED END ===');
@@ -247,6 +250,7 @@ class BreedingEngine {
         parentA: parentA,
         parentB: parentB,
         forcePrismatic: forcePrismatic,
+        guaranteedPotential: guaranteedPotential,
       );
       _log('[Breeding] RESULT (pure): ${pure.id}');
       _log('[Breeding] === BREED END ===');
@@ -313,6 +317,7 @@ class BreedingEngine {
         parentA: parentA,
         parentB: parentB,
         forcePrismatic: forcePrismatic,
+        guaranteedPotential: guaranteedPotential,
       );
 
       _log(
@@ -335,6 +340,7 @@ class BreedingEngine {
       parentA: parentA,
       parentB: parentB,
       forcePrismatic: forcePrismatic,
+      guaranteedPotential: guaranteedPotential,
     );
 
     _log(
@@ -354,6 +360,7 @@ class BreedingEngine {
     required ParentSnapshot parentA,
     required ParentSnapshot parentB,
     bool forcePrismatic = false,
+    ({StatKind stat, double value})? guaranteedPotential,
   }) {
     var child = base;
 
@@ -397,6 +404,7 @@ class BreedingEngine {
       child.nature2,
       child.genetics,
       recipeHit: recipeHit,
+      guaranteedPotential: guaranteedPotential,
     );
     child = child.copyWith(stats: childStats);
     // figure out factions/elements/families at this point
@@ -1211,6 +1219,7 @@ class BreedingEngine {
     NatureDef? childNature2,
     Genetics? childGenetics, {
     bool recipeHit = false,
+    ({StatKind stat, double value})? guaranteedPotential,
   }) {
     final statsA = parentA.stats;
     final statsB = parentB.stats;
@@ -1246,6 +1255,30 @@ class BreedingEngine {
     } else {
       childStats = CreatureStats.generate(_random);
       _log('[Breeding] Stats fresh roll');
+    }
+
+    // A wild fusion always passes on the wild parent's best Potential. A floor,
+    // not a copy: a child that already inherited more keeps what it has.
+    final g = guaranteedPotential;
+    if (g != null) {
+      double floor(double v) => v < g.value ? g.value : v;
+      childStats = switch (g.stat) {
+        StatKind.speed => childStats.copyWith(
+          speedPotential: floor(childStats.speedPotential),
+        ),
+        StatKind.intelligence => childStats.copyWith(
+          intelligencePotential: floor(childStats.intelligencePotential),
+        ),
+        StatKind.strength => childStats.copyWith(
+          strengthPotential: floor(childStats.strengthPotential),
+        ),
+        StatKind.beauty => childStats.copyWith(
+          beautyPotential: floor(childStats.beautyPotential),
+        ),
+      };
+      _log(
+        '[Breeding] wild ${g.stat.id} Potential ${g.value.toStringAsFixed(0)} guaranteed',
+      );
     }
 
     // The offspring species supplies fixed base stats. Only the four Potential
@@ -1968,6 +2001,7 @@ extension WildBreed on BreedingEngine {
       parentA: snapA,
       parentB: snapB,
       forcePrismatic: forcePrismatic,
+      guaranteedPotential: wildTopPotential(wild.stats),
     );
   }
 }

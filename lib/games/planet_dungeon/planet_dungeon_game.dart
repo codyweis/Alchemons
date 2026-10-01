@@ -30,6 +30,7 @@ import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/planet_dungeon/burn_field.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_glass.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
+import 'package:alchemons/games/planet_dungeon/guardian_grain_death.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
@@ -252,46 +253,52 @@ class _KinBeamFx {
 /// The guardian relic's victory ceremony: it drops from the fallen guardian,
 /// hovers glinting for a breath, then expands and dissolves into the player's
 /// keeping (the End Run popup re-presents it formally).
-/// The raid guardian's death throes, played before the reward screen.
+/// A guardian's death throes, in grains of its own body.
 ///
 /// A raid is the longest fight in the game; ending it with a UI panel
-/// appearing over a still-standing body gave the kill no weight. Four beats:
-/// the body seizes and cracks, everything implodes to the core, it detonates,
-/// then the light settles. Only then do rewards appear.
-class _RaidDeathFx {
-  _RaidDeathFx({
+/// appearing over a still-standing body gave the kill no weight. The body is
+/// read into grains of itself the moment it falls, and they play the death
+/// ([GuardianGrainDeath]): it seizes and cracks, implodes to the core,
+/// detonates in a spray of its own colours, and settles. In a raid the
+/// rewards wait for it; in a dungeon the relic rises out of what is left.
+class _GuardianDeathFx {
+  _GuardianDeathFx({
+    required this.roomId,
     required this.position,
-    required this.radius,
-    required this.color,
+    required this.body,
   });
 
+  final String roomId;
   final Offset position;
-  final double radius;
-  final Color color;
+  final GuardianGrainDeath body;
   double t = 0;
 
-  static const double seize = 1.25;
-  static const double implode = 0.75;
-  static const double burst = 0.45;
-  static const double settle = 1.15;
-  static const double duration = seize + implode + burst + settle;
+  /// The body's read, while it is running (null once begun without one).
+  Future<void>? reading;
+
+  static const double duration = GuardianGrainDeath.duration;
+  static const double detonateAt = GuardianGrainDeath.burstAt;
 
   bool get done => t >= duration;
 
-  /// 0→1 within each beat; 0 before it starts, 1 after it ends.
-  double _beat(double start, double len) => ((t - start) / len).clamp(0.0, 1.0);
-
-  double get seizeT => _beat(0, seize);
-  double get implodeT => _beat(seize, implode);
-  double get burstT => _beat(seize + implode, burst);
-  double get settleT => _beat(seize + implode + burst, settle);
+  void paint(Canvas canvas) => body.paint(canvas, position, t);
 }
 
 class _RelicDropFx {
-  _RelicDropFx({required this.roomId, required this.position});
+  _RelicDropFx({
+    required this.roomId,
+    required this.position,
+    double delay = 0,
+    this.fromGrains = false,
+  }) : t = -delay;
   final String roomId;
   final Offset position;
-  double t = 0;
+
+  /// Below zero while it waits (for the guardian's death to thin out).
+  double t;
+
+  /// Rises out of the guardian's last grains instead of falling in.
+  final bool fromGrains;
   static const double duration = 3.6;
   bool get done => t >= duration;
 }
@@ -518,7 +525,12 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Non-null while the raid guardian is dying. Combat is suspended and the
   /// reward screen is withheld until it finishes.
-  _RaidDeathFx? _raidDeath;
+  _GuardianDeathFx? _raidDeath;
+
+  /// Non-null while a dungeon's own guardian is dying (outside a raid). Only
+  /// a picture: the star is already banked, and the relic waits to rise out
+  /// of what is left of it.
+  _GuardianDeathFx? _guardianFall;
 
   /// True while the death cinematic owns the screen.
   bool get isRaidDeathPlaying => _raidDeath != null;
@@ -2865,6 +2877,14 @@ class PlanetDungeonGame extends FlameGame {
       creatures.add(c);
       combatCompanions.add(_createCombatCompanion(m, Offset.zero));
     }
+    await _loadGuardianArt();
+    _placeAtEntrance();
+    _setHint('Three Alchemons enter. Three stars to collect', 5.5);
+  }
+
+  /// The planet guardian's Mystic sprite (fallback: procedural body) and its
+  /// relic artwork (fallback: the star glyph).
+  Future<void> _loadGuardianArt() async {
     // Load the planet guardian's Mystic sprite (fallback: procedural body).
     for (final room in layout.rooms.values) {
       final mysticId = room.guardian?.encounter?.mysticId;
@@ -2900,9 +2920,13 @@ class PlanetDungeonGame extends FlameGame {
     } catch (_) {
       _relicImage = null; // missing art → procedural star-glyph fallback
     }
-    _placeAtEntrance();
-    _setHint('Three Alchemons enter. Three stars to collect', 5.5);
   }
+
+  /// TEST-ONLY: load the guardian's sprite and relic art, as `onLoad` does,
+  /// so a headless render shows the real Mystic (and its death in grains of
+  /// it) rather than the procedural stand-in.
+  @visibleForTesting
+  Future<void> debugLoadGuardianArt() => _loadGuardianArt();
 
   Future<void> _loadSprite(DungeonCreature c) async {
     final sheet = c.member.spriteSheet;
@@ -3052,6 +3076,8 @@ class PlanetDungeonGame extends FlameGame {
     combatProjectiles.clear();
     _activeWingBeams.clear();
     _relicFx = null;
+    _guardianFall?.body.dispose();
+    _guardianFall = null;
     _resetSpireState();
     _resetCathedralState();
     _resetTempleState();
@@ -3197,6 +3223,16 @@ class PlanetDungeonGame extends FlameGame {
       if (relicFx.done) {
         _cue(SoundCue.dungeonRelicCollect);
         _relicFx = null;
+      }
+    }
+    // A dungeon guardian's death plays wherever the party is standing, so
+    // the relic it hands over to is never left waiting on a frozen clock.
+    final fall = _guardianFall;
+    if (fall != null) {
+      _advanceGuardianDeath(fall, dt);
+      if (fall.done) {
+        fall.body.dispose();
+        _guardianFall = null;
       }
     }
     _ambient.update(dt);
@@ -4547,6 +4583,11 @@ class PlanetDungeonGame extends FlameGame {
     }
     for (final e in combatEnemies) {
       if (!e.isDead && e.hp > 0) continue;
+      // A guardian dying in grains of itself carries its own burst.
+      if (identical(e, _guardianEnemy) &&
+          (_raidDeath != null || _guardianFall != null)) {
+        continue;
+      }
       final big = identical(e, _guardianEnemy) || e.isElite;
       _spawnAlchemyBurst(
         e.position,
@@ -7750,12 +7791,14 @@ class PlanetDungeonGame extends FlameGame {
   void _beginRaidDeath() {
     if (_raidDeath != null) return;
     final g = _guardianEnemy;
-    final at = g?.position ?? lastStarEarnPosition;
-    _raidDeath = _RaidDeathFx(
-      position: at,
-      radius: g?.radius ?? 60,
-      color: g != null ? elementColor(g.element) : elementColor(layout.element),
-    );
+    _raidDeath = g != null
+        ? _newGuardianDeath(g)
+        : _GuardianDeathFx(
+            roomId: currentRoomId,
+            position: lastStarEarnPosition,
+            body: GuardianGrainDeath(color: elementColor(layout.element))
+              ..useFallback(),
+          );
     // The arena goes quiet: surviving adds are consumed by the collapse so
     // nothing shoots the party during the cinematic.
     for (final e in combatEnemies) {
@@ -7771,155 +7814,109 @@ class PlanetDungeonGame extends FlameGame {
     damageNumbers.clear();
   }
 
+  /// The guardian's death, begun from the body it was showing the frame it
+  /// fell: that frame is painted into an image (the body still standing
+  /// below the crest) and read into grains of itself (everything after).
+  _GuardianDeathFx _newGuardianDeath(CosmicSurvivalEnemy g) {
+    final at = g.position;
+    final death = GuardianGrainDeath(color: elementColor(g.element));
+    final fx = _GuardianDeathFx(
+      roomId: currentRoomId,
+      position: at,
+      body: death,
+    );
+    try {
+      fx.reading = death.read(_snapshotGuardianFigure(at));
+    } catch (_) {
+      death.useFallback();
+    }
+    return fx;
+  }
+
+  /// The guardian as it stands right now — the figure only, without its
+  /// glow, lull halo or hit bloom — in a [GuardianGrainDeath.box]-unit
+  /// square centred on [c], at [GuardianGrainDeath.pixelRatio] px per unit.
+  ui.Image _snapshotGuardianFigure(Offset c) {
+    const box = GuardianGrainDeath.box;
+    const ratio = GuardianGrainDeath.pixelRatio;
+    final px = (box * ratio).ceil();
+    final rec = ui.PictureRecorder();
+    final canvas = Canvas(rec)
+      ..scale(ratio)
+      ..translate(box / 2 - c.dx, box / 2 - c.dy);
+    final col = guardianVulnerable
+        ? const Color(0xFFE4C16A)
+        : const Color(0xFFC0392B);
+    _paintGuardianFigure(canvas, c, 40, col, guardianVulnerable);
+    return rec.endRecording().toImageSync(px, px);
+  }
+
+  /// One tick of a guardian death, raid or not.
+  void _advanceGuardianDeath(_GuardianDeathFx fx, double dt) {
+    final before = fx.t;
+    fx.t += dt;
+    final body = fx.body;
+    if (body.hasGrains) {
+      body.readyAt ??= before;
+    } else if (body.readFailed || fx.t > 0.5) {
+      // A body that could not be read (or not in time) dies as a ball of
+      // its colour rather than standing whole into the implosion.
+      body.useFallback();
+      body.readyAt ??= before;
+    }
+    // The detonation is felt, not only seen.
+    if (before < _GuardianDeathFx.detonateAt &&
+        fx.t >= _GuardianDeathFx.detonateAt &&
+        fx.roomId == currentRoomId) {
+      _shake = max(_shake, 7.0);
+    }
+  }
+
   void _updateRaidDeath(double dt) {
     final fx = _raidDeath;
     if (fx == null) return;
-    final before = fx.t;
-    fx.t += dt;
-
-    // One burst at the detonation frame, not every frame of it.
-    const detonateAt = _RaidDeathFx.seize + _RaidDeathFx.implode;
-    if (before < detonateAt && fx.t >= detonateAt) {
-      _spawnAlchemyBurst(
-        fx.position,
-        producedElement: 'Light',
-        reagentElements: [layout.element],
-        particleCount: 40,
-        intensity: 1.6,
-        unstable: true,
-      );
-    }
-
+    _advanceGuardianDeath(fx, dt);
     if (fx.done) {
+      fx.body.dispose();
       _raidDeath = null;
       onRaidCleared?.call();
       onChanged();
     }
   }
 
-  void _renderRaidDeath(Canvas canvas) {
-    final fx = _raidDeath;
+  void _renderRaidDeath(Canvas canvas) => _raidDeath?.paint(canvas);
+
+  void _renderGuardianFall(Canvas canvas) {
+    final fx = _guardianFall;
+    if (fx == null || fx.roomId != currentRoomId) return;
+    fx.paint(canvas);
+  }
+
+  /// TEST-ONLY: the guardian death now playing (the raid's, else the
+  /// dungeon's), its body's read, and a way to park it at [t] seconds so one
+  /// frame of it can be looked at.
+  @visibleForTesting
+  bool get debugGuardianDeathPlaying =>
+      _raidDeath != null || _guardianFall != null;
+
+  @visibleForTesting
+  GuardianGrainDeath? get debugGuardianDeath =>
+      (_raidDeath ?? _guardianFall)?.body;
+
+  @visibleForTesting
+  Future<void> debugGuardianDeathRead() async {
+    await (_raidDeath ?? _guardianFall)?.reading;
+  }
+
+  @visibleForTesting
+  void debugSeekGuardianDeath(double t) {
+    final fx = _raidDeath ?? _guardianFall;
     if (fx == null) return;
-    final c = fx.position;
-    final r = fx.radius;
-
-    // Beat 1 — the body seizes: it shudders in place while seams of light
-    // tear open across it.
-    if (fx.seizeT < 1.0) {
-      final s = fx.seizeT;
-      // Shudder grows as it loses the fight.
-      final shake = 3.0 * s;
-      final jitter = Offset(sin(fx.t * 47) * shake, cos(fx.t * 39) * shake);
-      final body = c + jitter;
-      canvas.drawCircle(
-        body,
-        r * (1.0 + 0.05 * sin(fx.t * 18)),
-        Paint()..color = fx.color.withValues(alpha: 0.30 + 0.25 * s),
-      );
-      // Cracks: fixed spokes that brighten and lengthen.
-      final crack = Paint()
-        ..color = Color.lerp(
-          fx.color,
-          Colors.white,
-          0.7,
-        )!.withValues(alpha: 0.25 + 0.75 * s)
-        ..strokeWidth = 1.5 + 2.5 * s
-        ..strokeCap = StrokeCap.round;
-      for (var i = 0; i < 7; i++) {
-        final a = (i / 7) * pi * 2 + 0.4;
-        final len = r * (0.35 + 0.75 * s);
-        canvas.drawLine(
-          body + Offset(cos(a), sin(a)) * (r * 0.12),
-          body + Offset(cos(a), sin(a)) * len,
-          crack,
-        );
-      }
-      // Escaping light, pulled outward and up.
-      final vent = Paint()
-        ..color = Colors.white.withValues(alpha: 0.10 + 0.35 * s)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8 + 14 * s);
-      canvas.drawCircle(body, r * (0.6 + 0.5 * s), vent);
-    }
-
-    // Beat 2 — implosion: rings race inward and the core whitens.
-    if (fx.implodeT > 0 && fx.implodeT < 1.0) {
-      final s = fx.implodeT;
-      final ease = s * s;
-      for (var i = 0; i < 3; i++) {
-        final phase = (ease + i / 3.0) % 1.0;
-        final ring = r * 5.0 * (1.0 - phase);
-        canvas.drawCircle(
-          c,
-          ring,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2 + 4 * phase
-            ..color = fx.color.withValues(alpha: 0.55 * (1.0 - phase)),
-        );
-      }
-      canvas.drawCircle(
-        c,
-        r * (1.0 - 0.75 * ease),
-        Paint()
-          ..color = Color.lerp(
-            fx.color,
-            Colors.white,
-            ease,
-          )!.withValues(alpha: 0.9),
-      );
-    }
-
-    // Beat 3 — detonation: a hard flash and one fast shockwave.
-    if (fx.burstT > 0 && fx.burstT < 1.0) {
-      final s = fx.burstT;
-      final out = Curves.easeOutQuart.transform(s);
-      canvas.drawCircle(
-        c,
-        r * (0.5 + 9.0 * out),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 14 * (1.0 - out) + 1
-          ..color = Colors.white.withValues(alpha: 0.85 * (1.0 - out)),
-      );
-      canvas.drawCircle(
-        c,
-        r * (0.4 + 5.0 * out),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 26 * (1.0 - out) + 1
-          ..color = fx.color.withValues(alpha: 0.5 * (1.0 - out)),
-      );
-      canvas.drawCircle(
-        c,
-        r * 2.4 * (1.0 - out),
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.9 * (1.0 - out))
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24),
-      );
-    }
-
-    // Beat 4 — settling: embers rise off the empty space where it stood.
-    if (fx.settleT > 0) {
-      final s = fx.settleT;
-      final fade = 1.0 - s;
-      final ember = Paint()..color = fx.color.withValues(alpha: 0.55 * fade);
-      for (var i = 0; i < 14; i++) {
-        final a = (i / 14) * pi * 2 + 1.1;
-        final spread = r * (0.6 + 1.8 * ((i * 37) % 11) / 11.0);
-        final rise = 40 + 70 * s + ((i * 53) % 9) * 6.0;
-        canvas.drawCircle(
-          c + Offset(cos(a) * spread, sin(a) * spread * 0.5 - rise * s),
-          1.6 + 1.4 * fade,
-          ember,
-        );
-      }
-      canvas.drawCircle(
-        c,
-        r * (1.2 + 2.0 * s),
-        Paint()
-          ..color = fx.color.withValues(alpha: 0.16 * fade)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 30),
-      );
+    fx.body.readyAt ??= 0;
+    fx.t = t;
+    final relic = _relicFx;
+    if (relic != null && relic.fromGrains) {
+      relic.t = t - GuardianGrainDeath.relicAt;
     }
   }
 
@@ -10532,10 +10529,24 @@ class PlanetDungeonGame extends FlameGame {
     // away into the player's keeping (End Run re-presents it formally).
     if (starIndex == 2) {
       final g = currentRoom.guardian;
-      _relicFx = _RelicDropFx(
-        roomId: currentRoomId,
-        position: g != null ? g.position : lastStarEarnPosition,
-      );
+      final body = _guardianEnemy;
+      if (body != null && (body.isDead || body.hp <= 0)) {
+        // Felled, not calmed: it dies in grains of itself where it fell, and
+        // the relic rises out of the last of them.
+        _guardianFall?.body.dispose();
+        _guardianFall = _newGuardianDeath(body);
+        _relicFx = _RelicDropFx(
+          roomId: currentRoomId,
+          position: body.position,
+          delay: GuardianGrainDeath.relicAt,
+          fromGrains: true,
+        );
+      } else {
+        _relicFx = _RelicDropFx(
+          roomId: currentRoomId,
+          position: g != null ? g.position : lastStarEarnPosition,
+        );
+      }
     }
     // Unlock announcements + door reveals come from the layout's star specs.
     final spec = starIndex < layout.stars.length
@@ -10815,6 +10826,7 @@ class PlanetDungeonGame extends FlameGame {
       _renderCreatures(canvas);
       _renderCarriedCloud(canvas);
       if (_isFuneral) _renderFuneralCarried(canvas);
+      _renderGuardianFall(canvas);
       _renderRelicDrop(canvas);
     }
     _renderVaultCacheGlow(canvas, room);
@@ -10840,12 +10852,14 @@ class PlanetDungeonGame extends FlameGame {
     final fx = _relicFx;
     if (fx == null || fx.roomId != currentRoomId) return;
     final t = fx.t;
+    if (t < 0) return; // the guardian's death is still thinning out
     double rise, scale, alpha;
     if (t < 0.7) {
-      // Drop: falls in from above, easing to a halt.
+      // Drop: falls in from above, easing to a halt — or, after a guardian
+      // dies in grains, rises out of the last of them where its heart was.
       final u = t / 0.7;
       final e = 1 - pow(1 - u, 3).toDouble();
-      rise = -70 * (1 - e);
+      rise = (fx.fromGrains ? 26 : -70) * (1 - e);
       scale = 0.75 + 0.25 * e;
       alpha = (u * 2).clamp(0.0, 1.0);
     } else if (t < 2.6) {
@@ -13162,27 +13176,12 @@ class PlanetDungeonGame extends FlameGame {
             ..color = const Color(0xFFE4C16A).withValues(alpha: 0.55),
         );
       }
-      final facingRight =
-          (active?.position.dx ?? c.dx) >= c.dx; // face the party
-      final breathe = vulnerable ? 1.0 + 0.03 * sin(t * 2.2) : 1.0;
-      final hover = vulnerable ? 10.0 : sin(t * 2.6) * 6.0;
-      canvas.save();
-      canvas.translate(c.dx, c.dy + hover);
-      canvas.scale(
-        (facingRight ? -1 : 1) * _guardianSpriteScale * breathe,
-        _guardianSpriteScale * breathe,
-      );
-      ticker.getSprite().render(
-        canvas,
-        anchor: Anchor.center,
-        overridePaint: Paint()..filterQuality = ui.FilterQuality.high,
-      );
-      canvas.restore();
+      _paintGuardianFigure(canvas, c, r, color, vulnerable);
       // Hit feedback: a white bloom (the sprite itself stays untinted).
       if (guardianHitFlash > 0 || (_guardianEnemy?.hitFlash ?? 0) > 0) {
         final f = max(guardianHitFlash, _guardianEnemy?.hitFlash ?? 0);
         canvas.drawCircle(
-          c + Offset(0, hover),
+          c + Offset(0, _guardianHover(vulnerable)),
           54,
           Paint()
             ..color = Colors.white.withValues(
@@ -13202,6 +13201,45 @@ class PlanetDungeonGame extends FlameGame {
           alpha: 0.35 * (0.6 + 0.4 * sin(t * (vulnerable ? 3 : 8))),
         ),
       );
+    }
+    _paintGuardianFigure(canvas, c, r, color, vulnerable);
+  }
+
+  /// How high the sprite floats over its spot: perched for the lull, bobbing
+  /// in the air during rage.
+  double _guardianHover(bool vulnerable) =>
+      vulnerable ? 10.0 : sin(_time * 2.6) * 6.0;
+
+  /// The guardian's figure alone — the Mystic sprite as it stands this frame,
+  /// or the procedural orb-with-wings — with none of the glow, halo, shadow
+  /// or hit bloom drawn round it. Its death reads THIS into grains.
+  void _paintGuardianFigure(
+    Canvas canvas,
+    Offset c,
+    double r,
+    Color color,
+    bool vulnerable,
+  ) {
+    final t = _time;
+    final ticker = _guardianTicker;
+    if (ticker != null) {
+      final facingRight =
+          (active?.position.dx ?? c.dx) >= c.dx; // face the party
+      final breathe = vulnerable ? 1.0 + 0.03 * sin(t * 2.2) : 1.0;
+      final hover = _guardianHover(vulnerable);
+      canvas.save();
+      canvas.translate(c.dx, c.dy + hover);
+      canvas.scale(
+        (facingRight ? -1 : 1) * _guardianSpriteScale * breathe,
+        _guardianSpriteScale * breathe,
+      );
+      ticker.getSprite().render(
+        canvas,
+        anchor: Anchor.center,
+        overridePaint: Paint()..filterQuality = ui.FilterQuality.high,
+      );
+      canvas.restore();
+      return;
     }
     canvas.save();
     canvas.translate(c.dx, c.dy);

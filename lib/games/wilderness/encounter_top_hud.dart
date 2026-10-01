@@ -340,38 +340,48 @@ class _EncounterIdentity extends StatelessWidget {
             ],
           ),
         ),
-        SizedBox(height: dossier ? 6 : AppSpace.sm),
-        CustomPaint(
-          painter: BracketFramePainter(
-            color: statusStyle.accent.withValues(alpha: 0.7),
-            bracketSize: 8,
-            strokeWidth: 1.0,
-          ),
-          child: Container(
+        // The slate only when it has something to say: a reading, a
+        // stability, or a status. An empty one was a box asking the player
+        // to "choose a protocol".
+        if (readings != null || breedChance != null || status.isNotEmpty) ...[
+          SizedBox(height: dossier ? 6 : AppSpace.sm),
+          DecoratedBox(
             // Opaque, not a wash: this reads against open sky.
-            color: _kPalette.bg0.withValues(alpha: 0.88),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpace.sm,
-              vertical: 6,
+            decoration: BoxDecoration(
+              color: _kPalette.bg0.withValues(alpha: 0.86),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: statusStyle.accent.withValues(alpha: 0.28),
+                width: 0.8,
+              ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (readings != null) ...[
-                  _PotentialReadout(readings: readings),
-                  const SizedBox(height: 5),
-                  Container(height: 1, color: _kPalette.lineSoft),
-                  const SizedBox(height: 5),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.sm + 2,
+                vertical: 7,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (readings != null) ...[
+                    _PotentialReadout(readings: readings),
+                    if (status.isNotEmpty || breedChance != null) ...[
+                      const SizedBox(height: 5),
+                      Container(height: 1, color: _kPalette.lineSoft),
+                      const SizedBox(height: 5),
+                    ],
+                  ],
+                  if (status.isNotEmpty || breedChance != null)
+                    _StatusLine(
+                      style: statusStyle,
+                      status: status,
+                      breedChance: breedChance,
+                    ),
                 ],
-                _StatusLine(
-                  style: statusStyle,
-                  status: status,
-                  breedChance: breedChance,
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -453,8 +463,19 @@ class _StatusLine extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(style.icon, color: style.accent, size: 13),
-        const SizedBox(width: 6),
+        if (status.isNotEmpty) ...[
+          // The status's colour as a single bead, not an icon: quieter, and
+          // the words carry the meaning.
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(
+              color: style.accent,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
         // Flexible, so a long status ellipsises instead of shoving the
         // stability figure out of the slate.
         Expanded(

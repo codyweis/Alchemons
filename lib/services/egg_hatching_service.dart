@@ -305,6 +305,7 @@ class EggHatching {
       genetics: hp.genetics,
       parentage: hp.parentage?.toJson(),
       isPrismaticSkin: hp.isPrismaticSkin,
+      mutation: hp.mutation,
       likelihoodAnalysisJson: hp.likelihoodAnalysisJson,
       source: hp.source,
       statBeauty: derivedStats['beauty'],

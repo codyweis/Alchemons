@@ -112,6 +112,10 @@ class CreatureInstances extends Table {
 
   TextColumn get alchemyEffect => text().nullable()();
 
+  /// A wild-fusion mutation ('alchemized', 'transmuted'), or null. Belongs to
+  /// this individual alone: breeding never passes it on.
+  TextColumn get mutation => text().nullable()();
+
   // STAT COLUMNS
   RealColumn get statSpeed => real().withDefault(const Constant(3.0))();
   RealColumn get statIntelligence => real().withDefault(const Constant(3.0))();

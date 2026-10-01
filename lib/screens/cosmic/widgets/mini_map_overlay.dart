@@ -2064,10 +2064,7 @@ class _PlanetPreviewPainter extends CustomPainter {
     canvas.save();
     canvas.clipRect(bounds);
     if (alpha < 1) {
-      canvas.saveLayer(
-        bounds,
-        Paint()..color = Color.fromRGBO(0, 0, 0, alpha),
-      );
+      canvas.saveLayer(bounds, Paint()..color = Color.fromRGBO(0, 0, 0, alpha));
     }
     if (highlighted) {
       // Selected: lifted by a soft pool of its own light, not a ring.

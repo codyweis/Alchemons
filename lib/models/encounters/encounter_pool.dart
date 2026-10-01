@@ -76,6 +76,10 @@ class EncounterPool {
 
   bool get isEmpty => entries.isEmpty;
 
+  /// Only the entries that pass [test].
+  EncounterPool where(bool Function(EncounterEntry e) test) =>
+      EncounterPool(entries: entries.where(test).toList());
+
   EncounterPool scaled(double factor) => EncounterPool(
     entries: entries
         .map(

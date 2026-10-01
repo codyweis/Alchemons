@@ -1,7 +1,8 @@
-// The all-specimens grid draws hundreds of these cards, and every alchemy
-// effect is a live particle field — AnimationControllers driving MaskFilter
-// blurs, per frame, per visible card. Scrolling the list stuttered because of
-// it, so the list opts out and the detail surfaces keep the artwork.
+// The all-specimens grid draws hundreds of these cards. The old alchemy
+// effects were AnimationControllers driving MaskFilter blurs, per frame, per
+// visible card, and scrolling stuttered, so lists opted out. They are one
+// blur-free painter on a shared clock now (its cost is pinned by
+// alchemy_effects_census_test), so every card wears its effect.
 //
 // The other half of this file pins the Dominant marker: it is gold in both
 // themes now. In light mode it used to ride on the faction accent, which for
@@ -11,8 +12,9 @@ import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
+import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -80,23 +82,39 @@ void main() {
         ),
       ),
     );
-    expect(find.byType(PrismaticCascade), findsOneWidget);
+    expect(find.byType(AlchemyEffectView), findsOneWidget);
   });
 
-  testWidgets('a list card opts out, so nothing animates behind the grid', (
+  testWidgets('every effect key mounts through the shared view', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      _host(
-        InstanceSprite(
-          creature: _species(),
-          instance: _instance(effect: 'prismatic_cascade'),
-          size: 96,
-          showAlchemyEffect: false,
+    for (final effect in AlchemyEffectPaint.keys) {
+      await tester.pumpWidget(
+        _host(
+          InstanceSprite(
+            key: ValueKey(effect),
+            creature: _species(),
+            instance: _instance(effect: effect),
+            size: 96,
+          ),
         ),
-      ),
-    );
-    expect(find.byType(PrismaticCascade), findsNothing);
+      );
+      expect(find.byType(AlchemyEffectView), findsOneWidget, reason: effect);
+    }
+    // No effect, or one this build does not know: just the sprite.
+    for (final effect in const [null, 'not_an_effect']) {
+      await tester.pumpWidget(
+        _host(
+          InstanceSprite(
+            key: ValueKey('none $effect'),
+            creature: _species(),
+            instance: _instance(effect: effect),
+            size: 96,
+          ),
+        ),
+      );
+      expect(find.byType(AlchemyEffectView), findsNothing);
+    }
   });
 
   test('the reward palette stays legible on a light surface', () {

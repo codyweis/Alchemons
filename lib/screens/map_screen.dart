@@ -33,6 +33,7 @@ import 'package:alchemons/services/wilderness_access_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 // for FactionTheme
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
+import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 TextStyle _display(
@@ -1338,10 +1339,24 @@ class _BiomeTimerPillState extends State<_BiomeTimerPill> {
   @override
   Widget build(BuildContext context) {
     final ready = widget.hasSpawns;
-    final text = ready
-        ? 'READY'
-        : _label(widget.spawnService.getNextSpawnTime(widget.biomeId));
-    final accent = ready ? const Color(0xFF7BE38B) : const Color(0xFFE4C16A);
+    // A batch that came with weather says so: it is where that weather's
+    // creatures are.
+    final weather = ready
+        ? widget.spawnService.weatherIn(widget.biomeId)
+        : null;
+
+    final text =
+        weather?.label ??
+        (ready
+            ? 'READY'
+            : _label(widget.spawnService.getNextSpawnTime(widget.biomeId)));
+    final accent = switch (weather?.kind) {
+      null => ready ? const Color(0xFF7BE38B) : const Color(0xFFE4C16A),
+      WeatherKind.rain => const Color(0xFF8CC8F0),
+      WeatherKind.snow => const Color(0xFFE2EEFA),
+      WeatherKind.storm => const Color(0xFFB4C6FF),
+      WeatherKind.dry => const Color(0xFFD8B47A),
+    };
 
     // Isolated so the ticking text cannot dirty the map behind it.
     return RepaintBoundary(
@@ -1355,14 +1370,32 @@ class _BiomeTimerPillState extends State<_BiomeTimerPill> {
               BoxShadow(color: Color(0xAA000000), blurRadius: 6),
             ],
           ),
-          child: Text(
-            text,
-            style: TextStyle(
-              color: ready ? accent : const Color(0xFFEDE3CF),
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.6,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (weather != null) ...[
+                Icon(
+                  switch (weather.kind) {
+                    WeatherKind.rain => AppIcons.water_drop_rounded,
+                    WeatherKind.snow => AppIcons.ac_unit_rounded,
+                    WeatherKind.storm => AppIcons.bolt_rounded,
+                    WeatherKind.dry => AppIcons.grain_rounded,
+                  },
+                  size: 11,
+                  color: accent,
+                ),
+                const SizedBox(width: 3),
+              ],
+              Text(
+                text,
+                style: TextStyle(
+                  color: ready ? accent : const Color(0xFFEDE3CF),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ],
           ),
         ),
       ),

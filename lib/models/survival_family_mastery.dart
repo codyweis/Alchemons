@@ -331,10 +331,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           'Grave Goods',
           "Enemies your darts kill leave a small trap of your element where they fell, at 35% strength.",
         ),
-        (
-          'Open Grave',
-          "Those traps are 40% wider and last 50% longer.",
-        ),
+        ('Open Grave', "Those traps are 40% wider and last 50% longer."),
         (
           'Cold Ground',
           "They carry your element's full effect instead of a weakened one.",
@@ -446,24 +443,26 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
     family: CreatureFamily.wing,
     chassis: FamilyCombatCopy.of(CreatureFamily.wing).attack,
     paths: [
-      _path('wing.burn_through', 'Burn Through', 'Hold the beam and it bites deeper', [
-        (
-          'Bore',
-          "Your beam hits harder the longer it stays on one enemy, up to +45%. Moving off drops it.",
-        ),
-        (
-          'Deeper',
-          "It builds twice as fast and reaches +80%.",
-        ),
-        (
-          'No Reprieve',
-          "Moving off no longer drops it at once — it fades over 2s, so switching targets costs little.",
-        ),
-        (
-          'Carry Through',
-          "An enemy that dies at full bite hands it to whatever your beam touches next.",
-        ),
-      ]),
+      _path(
+        'wing.burn_through',
+        'Burn Through',
+        'Hold the beam and it bites deeper',
+        [
+          (
+            'Bore',
+            "Your beam hits harder the longer it stays on one enemy, up to +45%. Moving off drops it.",
+          ),
+          ('Deeper', "It builds twice as fast and reaches +80%."),
+          (
+            'No Reprieve',
+            "Moving off no longer drops it at once — it fades over 2s, so switching targets costs little.",
+          ),
+          (
+            'Carry Through',
+            "An enemy that dies at full bite hands it to whatever your beam touches next.",
+          ),
+        ],
+      ),
       _path('wing.longshot', 'Longshot', 'The further out, the harder you hit', [
         (
           'Rangefinder',
@@ -542,61 +541,53 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           "The shield and the heal are worth 50% more, and reach allies near the line as well as on it.",
         ),
       ]),
-      _path('kin.benediction', 'Benediction', 'Your support runs deeper and longer', [
-        (
-          'Devotion',
-          "Your support ability lasts 40% longer.",
-        ),
-        (
-          'Deep Reserves',
-          "Its healing, shielding and buffs are 25% stronger.",
-        ),
-        (
-          'Unbroken',
-          "Being downed no longer ends it — your support runs its full course without you.",
-        ),
-        (
-          'Communion',
-          "It reaches every ally and the ship, however far apart you are standing.",
-        ),
-      ]),
+      _path(
+        'kin.benediction',
+        'Benediction',
+        'Your support runs deeper and longer',
+        [
+          ('Devotion', "Your support ability lasts 40% longer."),
+          (
+            'Deep Reserves',
+            "Its healing, shielding and buffs are 25% stronger.",
+          ),
+          (
+            'Unbroken',
+            "Being downed no longer ends it — your support runs its full course without you.",
+          ),
+          (
+            'Communion',
+            "It reaches every ally and the ship, however far apart you are standing.",
+          ),
+        ],
+      ),
     ],
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.mystic,
     chassis: FamilyCombatCopy.of(CreatureFamily.mystic).attack,
     paths: [
-      _path('mystic.quickening', 'Quickening', 'Your world acts far more often', [
-        (
-          'Quickening',
-          "Your world acts 25% more often.",
-        ),
-        (
-          'First Light',
-          "It acts the moment it ignites, instead of waiting out a full turn.",
-        ),
-        (
-          'Weight of Heaven',
-          "Everything your world does lands 30% harder.",
-        ),
-        (
-          'Relentless Sky',
-          "Your world acts twice as often as it did before you began.",
-        ),
-      ]),
+      _path(
+        'mystic.quickening',
+        'Quickening',
+        'Your world acts far more often',
+        [
+          ('Quickening', "Your world acts 25% more often."),
+          (
+            'First Light',
+            "It acts the moment it ignites, instead of waiting out a full turn.",
+          ),
+          ('Weight of Heaven', "Everything your world does lands 30% harder."),
+          (
+            'Relentless Sky',
+            "Your world acts twice as often as it did before you began.",
+          ),
+        ],
+      ),
       _path('mystic.firmament', 'Firmament', 'Your world shelters its makers', [
-        (
-          'Native Air',
-          "Allies standing in your world take 15% less damage.",
-        ),
-        (
-          'Home Ground',
-          "They deal 15% more while they stand in it.",
-        ),
-        (
-          'Tended',
-          "Your world slowly mends the allies inside it.",
-        ),
+        ('Native Air', "Allies standing in your world take 15% less damage."),
+        ('Home Ground', "They deal 15% more while they stand in it."),
+        ('Tended', "Your world slowly mends the allies inside it."),
         (
           'Sanctum',
           "Their attacks carry your world's element for as long as they stay.",

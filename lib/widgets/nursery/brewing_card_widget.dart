@@ -9,6 +9,12 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
+import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
+import 'package:alchemons/widgets/perf/viewport_ticker_gate.dart';
+
+/// Whether a chamber shows its cultivation as the sphere of its parents'
+/// grains (see [CultivationSphere]) or the older element particle brew.
+const bool kCultivationSphere = true;
 
 class NurseryBrewingCard extends StatefulWidget {
   final Egg egg;
@@ -181,7 +187,26 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
           child: ClipOval(
             child: Stack(
               children: [
-                if (showParticles &&
+                if (kCultivationSphere && showParticles)
+                  Positioned.fill(
+                    child: ViewportTickerGate(
+                      child: CultivationSphere(
+                        payload: payload,
+                        types: _parentTypes ?? const [],
+                        progress: widget.progress,
+                        isReady: widget.isReady,
+                        grains: deferEffects
+                            ? 200
+                            : switch (widget.quality) {
+                                CinematicQuality.cinematic => 640,
+                                CinematicQuality.performance => 380,
+                              },
+                        darkBackdrop: !isLight,
+                        pureElement: _pureElementTypeId,
+                      ),
+                    ),
+                  )
+                else if (showParticles &&
                     _parentTypes != null &&
                     _parentTypes!.isNotEmpty)
                   Positioned.fill(

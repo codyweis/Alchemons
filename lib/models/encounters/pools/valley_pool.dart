@@ -1,4 +1,5 @@
 import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 
 EncounterPool poolForSpawn({
@@ -185,3 +186,56 @@ valleyEncounterPools(SceneDefinition scene) {
   // Return both the filtered scene-wide pool and the override map
   return (sceneWide: sceneWide, perSpawn: perSpawn);
 }
+
+/// Rain over the Valley. One Valley batch in four comes with it, day or
+/// night, and brings Water Alchemons out into it: at least one, and each
+/// other creature of the batch half the time. They stand in the meadow and
+/// on the hill — only the Waterwing can take the open air. The first clear
+/// visit after a rainy one is guaranteed a rainbow (a moonbow by night).
+const valleyRain = WildWeather(
+  kind: WeatherKind.rain,
+  label: 'RAIN',
+  aftermath: true,
+  chance: 0.25,
+  guaranteed: 1,
+  extra: 0.5,
+  pool: EncounterPool(
+    entries: [
+      EncounterEntry(speciesId: 'LET02', rarity: EncounterRarity.common),
+      EncounterEntry(speciesId: 'PIP02', rarity: EncounterRarity.uncommon),
+      EncounterEntry(speciesId: 'MAN02', rarity: EncounterRarity.uncommon),
+      EncounterEntry(speciesId: 'HOR02', rarity: EncounterRarity.rare),
+      EncounterEntry(
+        speciesId: 'WNG02',
+        rarity: EncounterRarity.legendary,
+        weightMul: 1.5,
+      ),
+    ],
+  ),
+);
+
+/// Snow over the Valley. About one Valley batch in seven comes with it
+/// (rain and snow never come together), day or night, and Ice Alchemons are
+/// far likelier in it: each creature of the batch is Ice six times in ten —
+/// likely, not certain. They stand in the meadow and on the hill; only the
+/// Icewing can take the open air.
+const valleySnow = WildWeather(
+  kind: WeatherKind.snow,
+  label: 'SNOW',
+  chance: 0.15,
+  guaranteed: 0,
+  extra: 0.6,
+  pool: EncounterPool(
+    entries: [
+      EncounterEntry(speciesId: 'LET09', rarity: EncounterRarity.common),
+      EncounterEntry(speciesId: 'PIP09', rarity: EncounterRarity.uncommon),
+      EncounterEntry(speciesId: 'MAN09', rarity: EncounterRarity.uncommon),
+      EncounterEntry(speciesId: 'HOR09', rarity: EncounterRarity.rare),
+      EncounterEntry(
+        speciesId: 'WNG09',
+        rarity: EncounterRarity.legendary,
+        weightMul: 1.5,
+      ),
+    ],
+  ),
+);

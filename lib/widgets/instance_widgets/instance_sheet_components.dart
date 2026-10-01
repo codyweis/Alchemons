@@ -218,10 +218,6 @@ class InstanceCard extends StatelessWidget {
                                     creature: species,
                                     instance: instance,
                                     size: spriteSize,
-                                    // The alchemy particle fields made this
-                                    // grid stutter while scrolling; the
-                                    // detail sheets still show them.
-                                    showAlchemyEffect: false,
                                   )
                                 : Image.asset(
                                     species.image,

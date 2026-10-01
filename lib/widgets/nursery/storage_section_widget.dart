@@ -8,14 +8,15 @@ import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
+import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/models/elemental_group.dart';
-import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 class StorageSection extends StatefulWidget {
@@ -393,7 +394,6 @@ class _StorageEggCardState extends State<StorageEggCard>
     final egg = widget.egg;
     final payload = parseEggPayload(egg);
     final elementGroup = getElementalGroupFromPayload(payload);
-    final skin = elementGroup.skin;
     final media = MediaQuery.of(context);
     final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
     final displayRemaining = ColdStorageService.coldStorageRemainingFromEgg(
@@ -426,7 +426,6 @@ class _StorageEggCardState extends State<StorageEggCard>
         TickerMode.valuesOf(context).enabled &&
         !media.disableAnimations &&
         particleCount > 0;
-    final particleSpeed = isReady ? 0.8 + (_pulseController.value * 1.3) : 0.4;
     final accent = isReady ? const Color(0xFFFFD700) : elementGroup.color;
     final borderColor = isReady
         ? accent.withValues(alpha: 0.85)
@@ -451,16 +450,14 @@ class _StorageEggCardState extends State<StorageEggCard>
       child: ListenableBuilder(
         listenable: _pulseController,
         builder: (context, child) {
+          // Smoked glass with the cultivation held up in it, as every vial
+          // is shown — it used to sit on a card of saturated colour.
           return AnimatedContainer(
             duration: const Duration(milliseconds: 350),
             curve: Curves.easeOut,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(4),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [skin.frameStart, skin.frameEnd],
-              ),
+              color: kVialGlass,
               border: Border.all(
                 color: borderColor,
                 width: isReady ? 1.2 : 0.8,
@@ -471,33 +468,25 @@ class _StorageEggCardState extends State<StorageEggCard>
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: Alignment.center,
-                          radius: 1.0,
-                          colors: [
-                            skin.fill,
-                            Colors.black.withValues(alpha: 0.10),
-                            Colors.black.withValues(alpha: 0.22),
-                          ],
-                          stops: const [0.2, 0.7, 1.0],
-                        ),
-                      ),
+                    child: VialLightPool(
+                      color: elementGroup.color,
+                      strength: isReady ? 1.3 : 1,
                     ),
                   ),
                   if (showParticles)
                     Positioned.fill(
                       child: IgnorePointer(
-                        child: AlchemyBrewingParticleSystem(
-                          parentATypeId: elementGroup.particleTypes.$1,
-                          parentBTypeId: elementGroup.particleTypes.$2,
-                          particleCount: isReady
-                              ? particleCount + 1
-                              : particleCount,
-                          speedMultiplier: particleSpeed,
-                          fusion: isReady,
-                          useSimpleFusion: true,
+                        // Its parents' grains, as in a chamber — few, for a
+                        // card that sits in a row of them.
+                        child: CultivationSphere(
+                          payload: payload,
+                          types: _sphereTypes(payload, elementGroup),
+                          progress: percentDone,
+                          isReady: isReady,
+                          grains: 220,
+                          interactive: false,
+                          radiusFactor: 0.34,
+                          pureElement: pureElementFromPayload(payload),
                         ),
                       ),
                     ),
@@ -585,6 +574,17 @@ String _fmtShort(Duration d) {
   if (h > 0) return '${h}h ${m}m';
   if (m > 0) return '${m}m';
   return '${s}s';
+}
+
+/// The two element types a stored cultivation's sphere is coloured by.
+List<String> _sphereTypes(
+  Map<String, dynamic> payload,
+  ElementalGroup elementGroup,
+) {
+  final types = extractParticleTypeIdsFromPayload(payload);
+  if (types.isNotEmpty) return types;
+  final (a, b) = elementGroup.particleTypes;
+  return [a, ?b];
 }
 
 class _VialBracketsPainter extends CustomPainter {
@@ -844,50 +844,32 @@ class EggDetailsModal extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(4),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [displaySkin.frameStart, displaySkin.frameEnd],
-        ),
+        color: kVialGlass,
         border: Border.all(color: borderColor, width: isReady ? 1.4 : 1),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(3),
         child: Stack(
           children: [
-            // Background gradient
+            // The light it gives off, under its grains.
             Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.0,
-                    colors: [
-                      displaySkin.fill,
-                      Colors.black.withValues(alpha: 0.08),
-                      Colors.black.withValues(alpha: 0.18),
-                    ],
-                    stops: const [0.2, 0.7, 1.0],
-                  ),
-                ),
+              child: VialLightPool(
+                color: isBloodborn ? displaySkin.badge : elementGroup.color,
+                strength: isReady ? 1.3 : 1,
               ),
             ),
 
-            // Particle system
+            // Its parents' grains, which a held finger can part.
             Positioned.fill(
-              child: IgnorePointer(
-                child: AlchemyBrewingParticleSystem(
-                  parentATypeId: isBloodborn
-                      ? 'blood'
-                      : elementGroup.particleTypes.$1,
-                  parentBTypeId: isBloodborn
-                      ? 'dark'
-                      : elementGroup.particleTypes.$2,
-                  particleCount: isReady ? 22 : 18,
-                  speedMultiplier: isReady ? 1.0 : 0.45,
-                  fusion: isReady,
-                  useSimpleFusion: true,
-                ),
+              child: CultivationSphere(
+                payload: payload,
+                types: isBloodborn
+                    ? const ['blood', 'dark']
+                    : _sphereTypes(payload, elementGroup),
+                isReady: isReady,
+                grains: 800,
+                radiusFactor: 0.36,
+                pureElement: pureElementFromPayload(payload),
               ),
             ),
             // Time remaining badge

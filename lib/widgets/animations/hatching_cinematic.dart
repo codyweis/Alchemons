@@ -1,8 +1,13 @@
+import 'dart:math' as math;
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/services/cinematic_quality_service.dart';
+import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 import 'package:alchemons/widgets/animations/hatch_shell.dart';
 import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
@@ -41,6 +46,10 @@ const double _kDissolveFrom = 0.840;
 /// covered the fade entirely. Roughly 0.035 of the timeline (~260ms) separates
 /// the two so the dissolve has time to actually land.
 const double _kHandoverAt = 0.865;
+
+/// When the newborn's grains start to leave the unravelling shell for their
+/// places in its silhouette; they are all home by the reveal's end (0.840).
+const double _kSilGatherFrom = 0.70;
 
 /// Length of the shell's own arc, matching the prototype's 6.6s default.
 /// [_kHatchCeremonyMs] is derived so the arc keeps that duration.
@@ -178,6 +187,63 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
   /// the timeline running out or by SKIP jumping it forward.
   bool _handedOver = false;
 
+  /// THE CULTIVATION IT STARTS FROM. The extraction dialog hands its sphere
+  /// on — the same grains, turned to where they were, standing where they
+  /// stood — and the ceremony opens on it rather than on black: held in
+  /// place while this route fades in over the curtain carrying it, then
+  /// drawn to the middle, spun up, and unwound into the field the shell is
+  /// made from. Null when there is nothing to carry (the batch grid, a
+  /// hatch started elsewhere).
+  CultivationHandoff? _handoff;
+
+  /// The ceremony's own seconds at which it took the sphere over from the
+  /// curtain; null while the curtain still holds it.
+  double? _handoffFrom;
+  double _handoffLastU = 0;
+
+  /// The shell's strands, sorted by which parent's cluster they belong to,
+  /// for the carried grains to aim at.
+  List<List<int>>? _rootsBySide;
+
+  /// The newborn, read into grains from its portrait: what the unravelling
+  /// shell pours into, so the creature arrives made of particles — the same
+  /// language as the fusion it came from — instead of a flat shape fading in.
+  SpecimenGrains? _silGrains;
+  double _silWidth = 1;
+
+  Future<void> _readSilhouette() async {
+    final p = widget.creatureSilhouette;
+    if (p is! AssetImage) return;
+    try {
+      final data = await (p.bundle ?? rootBundle).load(p.assetName);
+      final codec = await ui.instantiateImageCodec(
+        data.buffer.asUint8List(),
+        targetWidth: 200,
+      );
+      final img = (await codec.getNextFrame()).image;
+      final bytes = await img.toByteData(
+        format: ui.ImageByteFormat.rawStraightRgba,
+      );
+      if (bytes == null || !mounted) return;
+      final g = SpecimenGrains.fromRgba(
+        bytes.buffer.asUint8List(),
+        img.width,
+        img.height,
+        pixelRatio: 1,
+        maxGrains: 1800,
+        tones: 4,
+      );
+      _silWidth = img.width.toDouble();
+      img.dispose();
+      if (g.length >= 60 && mounted) setState(() => _silGrains = g);
+    } catch (_) {
+      // The image reveal stands in.
+    }
+  }
+
+  static const double _handoffMove = 0.9, _handoffUnwindAt = 0.75;
+  static const double _handoffUnwind = 1.15;
+
   bool _reducedEffects = false;
   AudioController? _audio;
 
@@ -237,16 +303,46 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
       final animation = ModalRoute.of(context)?.animation;
       if (animation == null || animation.isCompleted) {
         HatchCurtain.lower(fade: false);
+        _carryHandoff();
         return;
       }
       void onStatus(AnimationStatus status) {
         if (status != AnimationStatus.completed) return;
         animation.removeStatusListener(onStatus);
         HatchCurtain.lower(fade: false);
+        _carryHandoff();
       }
 
       animation.addStatusListener(onStatus);
     });
+  }
+
+  /// How much of the shell is showing. With a cultivation carried in, none
+  /// until its grains reach the clusters, then rising as they arrive — the
+  /// motes are made of what was carried, not dropped in beside it.
+  double get _shellFadeIn {
+    if (_handoff == null) return 1;
+    final from = _handoffFrom;
+    if (from == null) return 0;
+    return _smooth((_seconds - from - 0.95) / 0.8);
+  }
+
+  /// The curtain is gone: from here the ceremony moves the sphere itself.
+  void _carryHandoff() {
+    final h = _handoff;
+    if (h == null || _handoffFrom != null) return;
+    h.carried = true;
+    _handoffFrom = _seconds;
+    _handoffLastU = 0;
+    if (mounted) setState(() {});
+  }
+
+  double get _seconds =>
+      _timeline.value * widget.totalDuration.inMicroseconds / 1e6;
+
+  static double _smooth(double x) {
+    final c = x.clamp(0.0, 1.0);
+    return c * c * (3 - 2 * c);
   }
 
   @override
@@ -256,6 +352,7 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
     // ceremony. A grid cell sits inside a route that is already up, so
     // lowering it from here would uncover the nursery mid-batch.
     if (widget.onComplete == null) {
+      _handoff = CultivationHandoff.take();
       _dropHatchCurtainWhenVisible();
     }
 
@@ -368,6 +465,7 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
     _shellModel = _buildShellModel();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      unawaited(_readSilhouette());
       final silhouette = widget.creatureSilhouette;
       if (silhouette != null && mounted) {
         try {
@@ -556,13 +654,22 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                             rarity: _shellRarity,
                             reduced:
                                 widget.quality == CinematicQuality.performance,
-                            opacity: 1.0 - whiteout,
+                            opacity: (1.0 - whiteout) * _shellFadeIn,
                           ),
                         );
                       },
                     ),
                   ),
                 ),
+
+                // The cultivation it started from, coming undone into it.
+                if (_handoff != null)
+                  IgnorePointer(
+                    child: CustomPaint(
+                      size: Size.infinite,
+                      painter: _HandoffPainter(this),
+                    ),
+                  ),
 
                 // Core + Geometry + Effects
                 RepaintBoundary(
@@ -587,8 +694,29 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                   ),
                 ),
 
-                // Silhouette reveal
-                if (widget.creatureSilhouette != null && _reveal.value > 0)
+                // The newborn, gathered out of the unravelling shell in
+                // grains, and carried out on the reveal's drift.
+                if (_silGrains != null && t > _kSilGatherFrom)
+                  IgnorePointer(
+                    child: CustomPaint(
+                      size: Size.infinite,
+                      painter: _SilhouetteGrainsPainter(
+                        grains: _silGrains!,
+                        imageWidth: _silWidth,
+                        t: t,
+                        drift: _revealScale.value,
+                        glow: widget.paletteMain,
+                        hintType: widget.hintType,
+                        variantColor: widget.variantColor,
+                      ),
+                    ),
+                  ),
+
+                // Silhouette reveal — the image, for a newborn that could
+                // not be read into grains.
+                if (_silGrains == null &&
+                    widget.creatureSilhouette != null &&
+                    _reveal.value > 0)
                   IgnorePointer(
                     child: Opacity(
                       opacity: _reveal.value,
@@ -865,4 +993,228 @@ class _CoreAndGeometryPainter extends CustomPainter {
         reducedEffects != old.reducedEffects ||
         highQualityEffects != old.highQualityEffects;
   }
+}
+
+/// The extraction dialog's sphere, carried into the ceremony: held where it
+/// stood until the curtain under it is gone, then drawn to the middle as it
+/// grows and spins up, its sigil coming apart, and unwound into the field.
+class _HandoffPainter extends CustomPainter {
+  _HandoffPainter(this.state);
+
+  final _HatchingCeremonyViewState state;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final h = state._handoff;
+    if (h == null) return;
+    final from = state._handoffFrom;
+    if (from == null) {
+      // Still on the curtain, which moves it; drawn identically over it.
+      h.paint(canvas, at: h.centre, radius: h.radius);
+      return;
+    }
+    final u = math.max(0.0, state._seconds - from);
+    // Spinning up as it is drawn in.
+    final du = u - state._handoffLastU;
+    state._handoffLastU = u;
+    final rate =
+        CultivationSphere.readySpin +
+        4.2 * _HatchingCeremonyViewState._smooth(u / 1.1);
+    if (du > 0) h.advance(du, rate);
+    final move = _HatchingCeremonyViewState._smooth(
+      u / _HatchingCeremonyViewState._handoffMove,
+    );
+    final centre = Offset.lerp(h.centre, size.center(Offset.zero), move)!;
+    final target = size.shortestSide * 0.24;
+    final radius = h.radius + (target - h.radius) * move;
+    final unwind =
+        ((u - _HatchingCeremonyViewState._handoffUnwindAt) /
+                _HatchingCeremonyViewState._handoffUnwind)
+            .clamp(0.0, 1.0);
+    if (unwind >= 1) return;
+    // Each grain flies to the ROOT of one of its own parent's strands — the
+    // node that strand's line then grows out of — so the cultivation becomes
+    // the shell's seeds, rather than a cloud the shell appears beside.
+    final roots = state._shell();
+    final bySide = state._rootsBySide ??= [
+      for (var s = 0; s < 2; s++)
+        [
+          for (var k = 0; k < roots.strandCount; k++)
+            if (roots.groupOf(k) == s) k,
+        ],
+    ];
+    h.paint(
+      canvas,
+      at: centre,
+      radius: radius,
+      // The sigil gives way first.
+      ready: h.ready * (1 - _HatchingCeremonyViewState._smooth(u / 0.45)),
+      unwind: unwind,
+      unwindTarget: (side, i) {
+        final list = bySide[side];
+        if (list.isEmpty) return Offset.zero;
+        final k = list[i % list.length];
+        return Offset(roots.rootX[k], roots.rootY[k]) - centre;
+      },
+      // Bright until they land; the nodes they land on carry it from there.
+      opacity: 1 - _HatchingCeremonyViewState._smooth((unwind - 0.8) / 0.2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_HandoffPainter old) => true;
+}
+
+/// THE NEWBORN, IN GRAINS. Each grain of its silhouette leaves the
+/// unravelling shell on its own clock and spirals in to its place, glinting
+/// as it lands — and the whole shape then drifts outward on the reveal's
+/// swell as the ceremony dissolves, as the image used to.
+class _SilhouetteGrainsPainter extends CustomPainter {
+  _SilhouetteGrainsPainter({
+    required this.grains,
+    required this.imageWidth,
+    required this.t,
+    required this.drift,
+    required this.glow,
+    required this.hintType,
+    this.variantColor,
+  });
+
+  final SpecimenGrains grains;
+  final double imageWidth;
+  final double t;
+
+  /// The reveal's scale: 1.6 → 1 as it lands, then a slow swell.
+  final double drift;
+  final Color glow;
+  final HatchHintType hintType;
+  final Color? variantColor;
+
+  // Glow; the core in three steps of arrival (faint as a grain leaves the
+  // shell, full once it is most of the way home); glints; prismatic hues
+  // in the same three steps.
+  static final GrainBatch _batch = GrainBatch(2 + 3 + 18);
+  static const int _glowB = 0, _glintB = 1, _coreB = 2, _prismB = 5;
+
+  static double _h(int i, int salt) {
+    final v = math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return v - v.floorToDouble();
+  }
+
+  static double _ease(double x) =>
+      x < 0.5 ? 4 * x * x * x : 1 - math.pow(-2 * x + 2, 3) / 2;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final span = size.shortestSide;
+    final display = span * 0.45;
+    // Landing at 1.0, not the reveal's 1.6 overshoot: the grains do the
+    // arriving themselves. Only the swell after it is kept.
+    final k = display / imageWidth * math.max(1.0, drift);
+    final centre = size.center(Offset.zero);
+    final shell = Offset(size.width / 2, size.height * 0.47);
+    final gather = (t - _kSilGatherFrom) / (0.835 - _kSilGatherFrom);
+    final b = _batch..clear();
+    final n = grains.length;
+    var minY = double.infinity, maxY = double.negativeInfinity;
+    var minX = double.infinity, maxX = double.negativeInfinity;
+    for (var i = 0; i < n; i++) {
+      minY = math.min(minY, grains.hy[i]);
+      maxY = math.max(maxY, grains.hy[i]);
+      minX = math.min(minX, grains.hx[i]);
+      maxX = math.max(maxX, grains.hx[i]);
+    }
+    final ySpan = math.max(1.0, maxY - minY),
+        xSpan = math.max(1.0, maxX - minX);
+    var landed = 0.0;
+    for (var i = 0; i < n; i++) {
+      // Head first, each on its own clock.
+      final delay = 0.6 * _h(i, 1) + 0.4 * (grains.hy[i] - minY) / ySpan;
+      final p = ((gather - delay * 0.45) / 0.55).clamp(0.0, 1.0);
+      if (p <= 0) continue;
+      final e = _ease(p);
+      final home = centre + Offset(grains.hx[i], grains.hy[i]) * k;
+      final a = _h(i, 2) * math.pi * 2;
+      final src =
+          shell +
+          Offset(math.cos(a), math.sin(a)) * span * (0.1 + 0.3 * _h(i, 3));
+      final dx = home.dx - src.dx, dy = home.dy - src.dy;
+      final len = math.sqrt(dx * dx + dy * dy) + 1e-3;
+      final bend = math.sin(math.pi * p) * span * 0.07 * (_h(i, 4) - 0.5);
+      final x = src.dx + dx * e - dy / len * bend;
+      final y = src.dy + dy * e + dx / len * bend;
+      if (p >= 1) landed++;
+      if (i % 4 == 0) b.add(_glowB, x, y);
+      // A few glint as they land; most just arrive.
+      if (p > 0.86 && p < 0.97 && _h(i, 5) < 0.12) {
+        b.add(_glintB, x, y);
+        continue;
+      }
+      final step = p < 0.2 ? 0 : (p < 0.5 ? 1 : 2);
+      if (hintType == HatchHintType.prismatic) {
+        final hue = ((grains.hx[i] - minX) / xSpan * 6).floor().clamp(0, 5);
+        b.add(_prismB + hue * 3 + step, x, y);
+      } else {
+        b.add(_coreB + step, x, y);
+      }
+    }
+    if (n == 0) return;
+    final home = landed / n;
+
+    // The light it arrives in, coming up as it gathers.
+    final pool = hintType == HatchHintType.variant
+        ? (variantColor ?? glow)
+        : glow;
+    final r = display * 0.8 * math.max(1.0, drift);
+    canvas.drawCircle(
+      centre,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            pool.withValues(alpha: 0.3 * home),
+            pool.withValues(alpha: 0.1 * home),
+            pool.withValues(alpha: 0),
+          ],
+          stops: const [0.0, 0.45, 1.0],
+        ).createShader(Rect.fromCircle(center: centre, radius: r)),
+    );
+    // Grains, not a fill: smaller than their spacing, so the shape is read
+    // through the gaps between them the way the title's letters are.
+    final d = (grains.step * k * 0.78).clamp(1.2, 2.6);
+    b.draw(canvas, _glowB, d * 3.4, glow.withValues(alpha: 0.07));
+    const steps = [0.3, 0.6, 0.9];
+    final core = switch (hintType) {
+      HatchHintType.variant => variantColor ?? const Color(0xFFFFF6E8),
+      _ => const Color(0xFFFFF6E8),
+    };
+    for (var s = 0; s < 3; s++) {
+      b.draw(canvas, _coreB + s, d, core.withValues(alpha: steps[s]));
+    }
+    const prism = [
+      Color(0xFFFF6B6B),
+      Color(0xFFFFB86B),
+      Color(0xFFFFE66D),
+      Color(0xFF4ECDC4),
+      Color(0xFF6B9BFF),
+      Color(0xFFB06BFF),
+    ];
+    for (var h = 0; h < 6; h++) {
+      for (var s = 0; s < 3; s++) {
+        b.draw(
+          canvas,
+          _prismB + h * 3 + s,
+          d,
+          prism[h].withValues(alpha: steps[s]),
+        );
+      }
+    }
+    const glint = Color(0xFFFFFBEA);
+    b.draw(canvas, _glintB, d * 2.0, glint.withValues(alpha: 0.2));
+    b.draw(canvas, _glintB, d * 1.1, glint);
+  }
+
+  @override
+  bool shouldRepaint(_SilhouetteGrainsPainter old) =>
+      old.t != t || old.drift != drift || old.grains != grains;
 }

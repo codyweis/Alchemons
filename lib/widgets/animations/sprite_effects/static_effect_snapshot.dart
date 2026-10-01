@@ -2,7 +2,7 @@
 //
 // Pre-baked "resting frame" rasters for the alchemy sprite effects.
 //
-// The sprite effects (VolcanicAura, PrismaticCascade, VoidRift, RitualGold, …)
+// The sprite effects (VolcanicAura, VoidRift, RitualGold, …)
 // were authored for a single hero slot: layered MaskFilter blurs, sweep
 // gradients and Paths rebuilt inside paint(), and two or three
 // AnimationControllers apiece. Eleven of them running at once inside a

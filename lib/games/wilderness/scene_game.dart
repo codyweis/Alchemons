@@ -1,12 +1,20 @@
 import 'dart:math';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/games/wilderness/creature_feet.dart';
+import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/games/wilderness/harvest_field.dart';
+import 'package:alchemons/games/wilderness/particle_fusion_effect.dart';
+import 'package:alchemons/games/wilderness/wild_summon.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/models/rift_state.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/encounters/wild_spawn.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
@@ -47,7 +55,8 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   @override
   Color backgroundColor() {
-    final isVoidStyleScene = scene.layers.every((l) => l.imagePath.isEmpty);
+    final isVoidStyleScene =
+        scene.art == null && scene.layers.every((l) => l.imagePath.isEmpty);
     return (transparentBackground || isVoidStyleScene)
         ? Colors.transparent
         : const Color(0xFF05060B);
@@ -86,7 +95,45 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   World? _world;
 
-  final Map<SceneLayer, _FiniteLayer> _layers = {};
+  final Map<SceneLayer, _ParallaxLayer> _layers = {};
+
+  /// A field drawn in code (see [SceneDefinition.art]), and its clock.
+  FieldArt? _art;
+  double _fieldTime = 0;
+
+  /// The hour that lights the field: the phone's own clock, so the sky
+  /// agrees with the encounter tables (night spawns run 20:00–05:00).
+  double _fieldHour = 12;
+  double _hourCheckedAt = -1;
+
+  /// Pins the field's hour (0–24) instead of the clock, for previews.
+  double? fieldHourOverride;
+
+  /// The weather over the field, if any (see [FieldArt.weather]); it rolls
+  /// in and clears over a few seconds — unless it is [WeatherKind.settled],
+  /// which is there or not at once.
+  WeatherKind? fieldWeather;
+  double _weather = 0;
+
+  /// Whether what the weather leaves behind is showing (see
+  /// [FieldArt.aftermath]); it comes in slowly once the scene is open.
+  bool fieldAftermath = false;
+  double _aftermath = 0;
+
+  /// The field drawn in code, if this scene has one — for previews.
+  @visibleForTesting
+  FieldArt? get debugField => _art;
+
+  /// Puts the weather and its aftermath fully in or out at once, for
+  /// previews.
+  @visibleForTesting
+  void debugSettleWeather() {
+    _weather = fieldWeather != null ? 1 : 0;
+    _aftermath = fieldAftermath ? 1 : 0;
+  }
+
+  /// Recent fingers on the field, newest last (screen px).
+  final List<FieldTouch> _touches = [];
   final PositionComponent layersRoot = PositionComponent()..priority = -200;
 
   // Spawn-point anchors we position creatures at
@@ -117,6 +164,28 @@ class SceneGame extends FlameGame with ScaleDetector {
   double get cameraX => _cameraX;
   double get cameraY => _cameraY;
 
+  /// A field that wraps round (see [SceneDefinition.loop]).
+  bool get _loops => scene.loop && _art != null;
+
+  /// How far a layer's units run before it repeats, in a looping field.
+  double _periodOf(SceneLayer id) {
+    final pf = scene.layers
+        .firstWhere((l) => l.id == id, orElse: () => scene.layers.first)
+        .parallaxFactor;
+    return scene.worldWidth * (1 + pf);
+  }
+
+  /// A spawn point's x on its layer, before any loop is taken into account.
+  double _spawnBaseX(SpawnPoint p) =>
+      p.normalizedPos.dx *
+      (_loops ? _periodOf(p.anchor) : scene.worldWidth.toDouble());
+
+  /// Camera x kept in bounds — except in a field that loops, which has none.
+  double _clampCamX(double x, double limit) => _loops ? x : x.clamp(0.0, limit);
+
+  /// The rift's x, and which loop of the field it is shown in.
+  double? _riftBaseX;
+
   // NEW: Hard limit for camera movement in Exploration Mode (based on worldWidth)
   double get _maxCamXExploration =>
       max(0.0, scene.worldWidth - (size.x / cam.viewfinder.zoom));
@@ -141,7 +210,8 @@ class SceneGame extends FlameGame with ScaleDetector {
   // Scene mode
   SceneMode _mode = SceneMode.exploration;
   SceneMode get mode => _mode;
-  bool get _hasImageLayers => scene.layers.any((l) => l.imagePath.isNotEmpty);
+  bool get _hasImageLayers =>
+      scene.art != null || scene.layers.any((l) => l.imagePath.isNotEmpty);
 
   double _zoomToFitBox({required double boxW, required double boxH}) {
     final root = layersRoot.scale.x;
@@ -249,7 +319,19 @@ class SceneGame extends FlameGame with ScaleDetector {
     world.add(layersRoot);
 
     // Build parallax layers
+    final art = _art = scene.art?.call();
+    art?.layout(scene.spawnPoints, scene.worldWidth, loop: scene.loop);
     for (final layerDef in scene.layers) {
+      if (art != null) {
+        _layers[layerDef.id] = _ArtLayer(
+          layersRoot,
+          art,
+          layerDef.id,
+          priority: -100 + layerDef.id.index,
+          parallaxFactor: layerDef.parallaxFactor,
+        );
+        continue;
+      }
       if (layerDef.imagePath.isEmpty) continue; // skip empty (black backdrop)
       final sprite = Sprite(images.fromCache(layerDef.imagePath));
       final layer = _FiniteLayer(
@@ -263,6 +345,10 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
 
     // Camera setup
+    if (art != null) {
+      cam.backdrop = _FieldSkyComponent(art);
+      cam.viewport.add(_FieldTapComponent());
+    }
     cam
       ..world = world
       ..viewfinder.anchor = Anchor.center
@@ -407,6 +493,10 @@ class SceneGame extends FlameGame with ScaleDetector {
       return;
     }
 
+    // Seat it on its perch by its own feet.
+    _standDrop[spawnId] = _feetBelow(speciesId, hydrated, adjustedSize);
+    anchor.position.y = _anchorY(sp, sp.normalizedPos.dy * _viewportH);
+
     anchor.add(comp);
     _wildBySpawnId[spawnId] = comp;
   }
@@ -483,47 +573,87 @@ class SceneGame extends FlameGame with ScaleDetector {
     return ok;
   }
 
-  /// Haul the party creature and the wild one into each other, in the scene.
-  ///
-  /// Completes once the pair have merged and left the world, so the caller can
-  /// hand over to the burst-and-reveal with nothing left to duplicate.
-  ///
-  /// Answers with the SCREEN rect the two met in, so whatever plays next can
-  /// play there: the fusion route defaults its core to the middle of the
-  /// display, which is not where two creatures standing in a scene happen to
-  /// come together. Null means there was no pair to play on and the caller
-  /// should draw them itself.
-  Future<Rect?> playFusionOnEncounter({
-    required Color accentParty,
-    required Color accentWild,
-  }) async {
+  /// The fusion in particles, from the moment the catalyst is spent until
+  /// it lands or falls apart.
+  ParticleFusionEffect? _fusion;
+
+  /// The party creature and the wild one, if both are standing.
+  (WildMonComponent, WildMonComponent)? _fusionPair() {
     final id = _currentEncounterSpawnId;
     final wild = id == null ? null : _wildBySpawnId[id];
     final party = _partyCreature;
-    final world = _world;
     if (wild == null ||
         party == null ||
         !wild.isMounted ||
         !party.isMounted ||
-        world == null) {
+        _world == null) {
       return null;
     }
+    return (party, wild);
+  }
+
+  static Color _accentOf(WildMonComponent c) {
+    final types = c.hydrated?.types ?? const <String>[];
+    return types.isEmpty
+        ? const Color(0xFFE4C16A)
+        : BreedConstants.getTypeColor(types.first);
+  }
+
+  ParticleFusionEffect? _startFusion() {
+    final existing = _fusion;
+    if (existing != null && existing.isMounted) return existing;
+    final pair = _fusionPair();
+    if (pair == null) return null;
+    final (party, wild) = pair;
+    final fx = ParticleFusionEffect(
+      a: party,
+      b: wild,
+      accentA: _accentOf(party),
+      accentB: _accentOf(wild),
+    );
+    (wild.parent ?? _world!).add(fx);
+    return _fusion = fx;
+  }
+
+  /// The catalyst is spent and the roll is being made: both turn to grains
+  /// where they stand while the verdict is waited on.
+  void startFusionCalibration() => _startFusion()?.calibrate();
+
+  /// The roll failed: the grains run back into the pair.
+  Future<void> recoilFusion() async {
+    final fx = _fusion;
+    _fusion = null;
+    if (fx != null && fx.isMounted) await fx.recoil();
+  }
+
+  /// Merge the party creature and the wild one, in the scene, in particles.
+  ///
+  /// Completes once the pair have become one and left the world, so the
+  /// caller can hand over to the eruption-and-reveal with nothing left to
+  /// duplicate.
+  ///
+  /// Answers with the SCREEN point the two met at — the fusion route
+  /// defaults its core to the middle of the display, which is not where two
+  /// creatures standing in a scene happen to come together — and what they
+  /// were made of, so the eruption is made of it too. Null means there was
+  /// no pair to play on and the caller should draw them itself.
+  Future<FusionMergeHandoff?> playFusionOnEncounter() async {
+    final id = _currentEncounterSpawnId;
+    final fx = _startFusion();
+    final world = _world;
+    if (fx == null || id == null || world == null) return null;
 
     pushInForHarvest();
     final dim = HarvestDim(fadeIn: 0.4);
     world.add(dim);
-    final fx = FusionFieldEffect(
-      a: party,
-      b: wild,
-      accentA: accentParty,
-      accentB: accentWild,
-    );
-    (wild.parent ?? world).add(fx);
-    final meeting = fx.meetingPoint.clone();
-    await fx.finished;
+    await fx.fuse();
     dim.release();
+    final meeting = fx.meetingPoint;
+    final grains = fx.specimens;
+    fx.removeFromParent();
+    _fusion = null;
 
-    _wildRenderVersionBySpawnId[id!] =
+    _wildRenderVersionBySpawnId[id] =
         (_wildRenderVersionBySpawnId[id] ?? 0) + 1;
     _wildBySpawnId.remove(id);
     _partyCreature = null;
@@ -531,12 +661,16 @@ class SceneGame extends FlameGame with ScaleDetector {
     // World point → screen point, through the camera as it is RIGHT NOW —
     // before the push is released, or the answer describes a camera the
     // player is not looking through yet.
-    final onScreen = cam.localToGlobal(meeting);
+    final onScreen = meeting == null ? null : cam.localToGlobal(meeting);
     releaseHarvestPush();
-    return Rect.fromCenter(
-      center: Offset(onScreen.x, onScreen.y),
-      width: 1,
-      height: 1,
+    if (onScreen == null || grains == null) return null;
+    return FusionMergeHandoff(
+      at: Rect.fromCenter(
+        center: Offset(onScreen.x, onScreen.y),
+        width: 1,
+        height: 1,
+      ),
+      grains: grains,
     );
   }
 
@@ -626,6 +760,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     // Priority 999: renders above all background layers and creature/spawn
     // components so the portal is always in the foreground.
     _riftPortalComp!.priority = 999;
+    _riftBaseX = _riftPortalComp!.position.x;
     layersRoot.add(_riftPortalComp!);
     debugPrint('✨ Rift portal spawned: ${faction.displayName}');
   }
@@ -643,11 +778,10 @@ class SceneGame extends FlameGame with ScaleDetector {
       // (e.g. arcane scene has no image layers — pure black backdrop).
       final parent = _layers[p.anchor]?.container ?? layersRoot;
 
-      final baseW = scene.worldWidth.toDouble();
       final baseH = _viewportH;
 
-      final x = p.normalizedPos.dx * baseW;
-      final y = p.normalizedPos.dy * baseH;
+      final x = _spawnBaseX(p);
+      final y = _anchorY(p, p.normalizedPos.dy * baseH);
 
       final anchor = PositionComponent(
         position: Vector2(x, y),
@@ -659,6 +793,26 @@ class SceneGame extends FlameGame with ScaleDetector {
       parent.add(anchor);
       _spawnPointComps[p.id] = anchor;
     }
+  }
+
+  /// How far below its centre the feet of the creature standing at each
+  /// spawn are, so one on a perch is seated by its own sprite.
+  final Map<String, double> _standDrop = {};
+
+  /// How far below its centre a creature's feet are drawn at [size]: its
+  /// sprite's own feet, scaled by its size gene.
+  double _feetBelow(String speciesId, Creature? hydrated, Vector2 size) {
+    final gene = hydrated?.spriteData != null
+        ? visualsFromInstance(hydrated, null).scale
+        : 1.0;
+    return creatureFeetDrop(speciesId) * size.y * gene;
+  }
+
+  /// The anchor y for [p]: its own, or seated on the perch the field built.
+  double _anchorY(SpawnPoint p, double authored) {
+    final perch = _art?.perchFor(p.id);
+    if (perch == null) return authored;
+    return perch - (_standDrop[p.id] ?? p.size.y * 0.46);
   }
 
   // ------------------------------------------------------------
@@ -725,10 +879,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     final maxCamY = math.max(0.0, worldHeight - 2 * halfH);
 
     // Parallax offsets layer X only; Y stays in world-space camera coordinates.
-    final camX = ((wild.x - halfW) / (1.0 + parallaxFactor)).clamp(
-      0.0,
-      maxCamX,
-    );
+    final camX = _clampCamX((wild.x - halfW) / (1.0 + parallaxFactor), maxCamX);
     final camY = (wild.y - halfH).clamp(0.0, maxCamY);
 
     _targetZoom = encounterZoom;
@@ -753,7 +904,7 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// Send the deployed party Alchemon home, clearing the debounce with it so
   /// the same species can be redeployed immediately afterwards.
   void dismissPartyCreature() {
-    _partyCreature?.removeFromParent();
+    _sendHome(_partyCreature);
     _partyCreature = null;
     _lastPartySpeciesId = null;
     _lastPartySpawnMs = 0;
@@ -786,10 +937,14 @@ class SceneGame extends FlameGame with ScaleDetector {
     // reliably keep both creatures on screen for edge spawns.
     final wildX = _spawnPointComps[_currentEncounterSpawnId]?.position.x ?? x;
     const edgeBand = 220.0;
-    const pairGap = 260.0;
-    final minX = 110.0;
-    final maxX = baseW - 110.0;
-    if (wildX > baseW - edgeBand) {
+    const pairGap = kFieldPairGap;
+    // A looping field has no edges: the partner stands a pace off the wild
+    // one, on the side its battle position names.
+    final minX = _loops ? -double.infinity : 110.0;
+    final maxX = _loops ? double.infinity : baseW - 110.0;
+    if (_loops) {
+      x = wildX + sp.partnerSide * pairGap;
+    } else if (wildX > baseW - edgeBand) {
       x = (wildX - pairGap).clamp(minX, maxX);
     } else if (wildX < edgeBand) {
       x = (wildX + pairGap).clamp(minX, maxX);
@@ -805,6 +960,15 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
     y = y.clamp(90.0, _viewportH - 90.0);
 
+    // Only a creature that can float is left in the air; anything else is
+    // stood on the ground under where it would have hung.
+    final partySize = _sizeForSpecies(sp.size, creature);
+    final ground = _art?.groundAt(sp.anchor, x);
+    if (ground != null && !speciesCanFloat(creature.id)) {
+      final drop = _feetBelow(creature.id, creature, partySize);
+      if (y + drop < ground.top) y = ground.rest - drop;
+    }
+
     debugPrint('🎮 Spawning party at ($x, $y)');
 
     // Face toward the wild creature: flip right if party is to the left.
@@ -819,14 +983,15 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     parent.add(anchor);
 
-    _partyCreature?.removeFromParent();
+    _sendHome(_partyCreature);
     _partyCreature =
         WildMonComponent(
             hydrated: creature,
             speciesId: creature.id,
             rarityLabel: '',
-            desiredSize: _sizeForSpecies(sp.size, creature),
+            desiredSize: partySize,
             flipX: faceRight,
+            pulse: false,
             onTap: () {},
             resolver: speciesSpriteResolver,
           )
@@ -835,8 +1000,38 @@ class SceneGame extends FlameGame with ScaleDetector {
           ..position = Vector2.zero();
 
     anchor.add(_partyCreature!);
+    // It gathers out of grains of itself, as it does when summoned in space.
+    anchor.add(
+      WildSummon.gather(
+        _partyCreature!,
+        accent: _accentOf(_partyCreature!),
+        mirror: faceRight,
+      )..priority = 90,
+    );
 
     _reframeForBattle(sp, anchor.position);
+  }
+
+  /// A party creature leaving: it comes apart into grains that drift off,
+  /// then is gone. One the fusion has already taken leaves no trace.
+  void _sendHome(WildMonComponent? c) {
+    if (c == null || !c.isMounted) {
+      c?.removeFromParent();
+      return;
+    }
+    final parent = c.parent;
+    if (parent == null || _fusion != null) {
+      c.removeFromParent();
+      return;
+    }
+    parent.add(
+      WildSummon.scatter(
+        c,
+        accent: _accentOf(c),
+        mirror: c.flipX,
+        onDone: c.removeFromParent,
+      )..priority = 90,
+    );
   }
 
   void _reframeForBattle(SpawnPoint sp, Vector2 partyPos) {
@@ -898,8 +1093,8 @@ class SceneGame extends FlameGame with ScaleDetector {
     final maxCamY = math.max(0.0, _viewportH - 2 * halfH);
 
     // Parallax offsets layer X only; Y remains unscaled world camera.
-    double camX = ((focusBiased.x - halfW) / (1.0 + parallaxFactor)).clamp(
-      0.0,
+    double camX = _clampCamX(
+      (focusBiased.x - halfW) / (1.0 + parallaxFactor),
       maxCamX,
     );
     double camY = (focusBiased.y - halfH).clamp(0.0, maxCamY);
@@ -937,8 +1132,8 @@ class SceneGame extends FlameGame with ScaleDetector {
       );
       final loopMaxCamY = math.max(0.0, _viewportH - 2 * loopHalfH);
 
-      camX = ((focusBiased.x - loopHalfW) / (1.0 + parallaxFactor)).clamp(
-        0.0,
+      camX = _clampCamX(
+        (focusBiased.x - loopHalfW) / (1.0 + parallaxFactor),
         loopMaxCamX,
       );
       camY = (focusBiased.y - loopHalfH).clamp(0.0, loopMaxCamY);
@@ -971,6 +1166,8 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   void exitEncounterMode() {
     _mode = SceneMode.exploration;
+    _fusion?.removeFromParent();
+    _fusion = null;
 
     // Zoom back out to exploration view
     _targetZoom = 1.0;
@@ -987,6 +1184,18 @@ class SceneGame extends FlameGame with ScaleDetector {
   // Gesture handling
   // ------------------------------------------------------------
 
+  void _touch(Vector2 at, Vector2 moved) {
+    if (_art == null) return;
+    _touches.add(FieldTouch(at.x, at.y, moved.x, moved.y, _fieldTime));
+    if (_touches.length > 48) _touches.removeAt(0);
+  }
+
+  /// A finger on the field at [x], [y] (screen px), moved by [dx], [dy] —
+  /// what a drag does; for tests and anything else that strokes the grass.
+  @visibleForTesting
+  void debugTouch(double x, double y, double dx, double dy) =>
+      _touch(Vector2(x, y), Vector2(dx, dy));
+
   @override
   void onScaleStart(ScaleStartInfo info) {
     // Disable gestures during encounter
@@ -996,6 +1205,7 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   @override
   void onScaleUpdate(ScaleUpdateInfo info) {
+    _touch(info.eventPosition.widget, info.delta.global);
     if (_mode == SceneMode.encounter) return;
 
     // Pinch zoom
@@ -1009,8 +1219,8 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     final dx = info.delta.global.x;
     if (dx != 0) {
-      _cameraX = (_cameraX - (dx / zoomFactor) * effectiveScroll).clamp(
-        0.0,
+      _cameraX = _clampCamX(
+        _cameraX - (dx / zoomFactor) * effectiveScroll,
         _maxCamXExploration, // <-- Use the strict limit here
       );
       _targetCameraX = _cameraX;
@@ -1045,6 +1255,37 @@ class SceneGame extends FlameGame with ScaleDetector {
   @override
   void update(double dt) {
     super.update(dt);
+    _fieldTime += dt;
+    final art = _art;
+    if (art != null) {
+      if (_fieldTime - _hourCheckedAt > 1 || _hourCheckedAt < 0) {
+        _hourCheckedAt = _fieldTime;
+        final now = DateTime.now();
+        _fieldHour = now.hour + now.minute / 60 + now.second / 3600;
+      }
+      while (_touches.isNotEmpty && _fieldTime - _touches.first.time > 1.5) {
+        _touches.removeAt(0);
+      }
+      double ease(double v, bool on, double seconds) {
+        final to = on ? 1.0 : 0.0;
+        final next = v + (to - v) * (1 - exp(-dt / seconds));
+        return (next - to).abs() < 1e-3 ? to : next;
+      }
+
+      // Weather rolls in and clears; a state the land is in (the Swamp
+      // gone dry) is simply there.
+      final settled = (fieldWeather ?? art.weatherKind)?.settled ?? false;
+      _weather = settled
+          ? (fieldWeather != null ? 1 : 0)
+          : ease(_weather, fieldWeather != null, 1.6);
+      // A rainbow comes slowly, a while after the scene opens.
+      _aftermath = ease(_aftermath, fieldAftermath && _fieldTime > 1.5, 2.6);
+      art
+        ..weatherKind = fieldWeather ?? art.weatherKind
+        ..weather = _weather
+        ..aftermath = _aftermath
+        ..prepare(fieldHourOverride ?? _fieldHour, time: _fieldTime);
+    }
 
     // 1) Smoothly tween zoom toward target
     final currentZoom = cam.viewfinder.zoom;
@@ -1059,11 +1300,23 @@ class SceneGame extends FlameGame with ScaleDetector {
     final horizontalLimit = isEncounter ? _maxCamX : _maxCamXExploration;
 
     // Clamp the ACTUAL camera position to current bounds
-    _cameraX = _cameraX.clamp(0.0, horizontalLimit);
+    _cameraX = _clampCamX(_cameraX, horizontalLimit);
 
     // ✅ Do NOT clamp targets in encounter mode (they were computed at target zoom)
     if (!isEncounter) {
-      _targetCameraX = _targetCameraX.clamp(0.0, horizontalLimit);
+      _targetCameraX = _clampCamX(_targetCameraX, horizontalLimit);
+    }
+
+    // A field that loops: the camera wraps round, which looks like nothing
+    // at all — every layer repeats exactly once per world width. Held still
+    // through an encounter, where the pair must stay put.
+    if (_loops && !isEncounter) {
+      final w = scene.worldWidth.toDouble();
+      final k = (_cameraX / w).floor() * w;
+      if (k != 0) {
+        _cameraX -= k;
+        _targetCameraX -= k;
+      }
     }
 
     // 3) Vertical clamping: only clamp targets in exploration
@@ -1128,8 +1381,8 @@ class SceneGame extends FlameGame with ScaleDetector {
     _recomputeMaxCamBounds();
 
     // Same rules as update(): clamp X, but only clamp Y in exploration.
-    _cameraX = _cameraX.clamp(0.0, _maxCamX);
-    _targetCameraX = _targetCameraX.clamp(0.0, _maxCamX);
+    _cameraX = _clampCamX(_cameraX, _maxCamX);
+    _targetCameraX = _clampCamX(_targetCameraX, _maxCamX);
 
     if (_mode == SceneMode.exploration) {
       _cameraY = _cameraY.clamp(0.0, _maxCamY);
@@ -1162,6 +1415,22 @@ class SceneGame extends FlameGame with ScaleDetector {
       return Vector2(imgW * scale, imgH * scale);
     }
 
+    void buildForArt(_ArtLayer layer) {
+      // Wide enough for the furthest this layer can be scrolled: the camera
+      // panned fully right at the closest zoom.
+      final vwMin = viewportW / maxZoom;
+      final span =
+          max(0.0, scene.worldWidth - vwMin) * (1 + layer.parallaxFactor) +
+          vwMin;
+      layer.build(
+        _loops
+            ? Size(_periodOf(layer.id), viewportH)
+            : Size(max(span, viewportW) + 64, viewportH),
+        Size(viewportW, viewportH),
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio,
+      );
+    }
+
     void buildForLayer(_FiniteLayer layer) {
       final t = heightFitTile(layer.sprite);
       final tileW = t.x * layer.widthMul;
@@ -1175,7 +1444,12 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
 
     for (final l in _layers.values) {
-      buildForLayer(l);
+      switch (l) {
+        case _FiniteLayer():
+          buildForLayer(l);
+        case _ArtLayer():
+          buildForArt(l);
+      }
     }
 
     _repositionSpawnPoints();
@@ -1187,7 +1461,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     final viewportW = size.x * inv;
     final viewportH = size.y * inv;
 
-    double layerMaxCamX(_FiniteLayer layer, double pf) {
+    double layerMaxCamX(_ParallaxLayer layer, double pf) {
       final exposed = layer.totalWidth - viewportW;
       if (pf == 0.0) {
         // Background layers with pf=0 should just never create gaps
@@ -1206,7 +1480,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       limits.add(layerMaxCamX(fl, ld.parallaxFactor));
     }
 
-    _maxCamX = limits.isEmpty ? double.infinity : limits.reduce(min);
+    _maxCamX = limits.isEmpty || _loops ? double.infinity : limits.reduce(min);
 
     // Fallback when there is no layer-derived horizontal limit:
     // - scenes with no image layers (e.g. poison/arcane),
@@ -1231,24 +1505,96 @@ class SceneGame extends FlameGame with ScaleDetector {
         _shakeOffset; // <-- add the shake here
   }
 
+  /// Stands [c] on a spawn anchor, as a wild Alchemon would be; with
+  /// [speciesId] and [size], seated on a perch by that sprite's feet.
+  @visibleForTesting
+  void debugStandAt(
+    String spawnId,
+    Component c, {
+    String? speciesId,
+    Vector2? size,
+  }) {
+    final anchor = _spawnPointComps[spawnId];
+    if (anchor == null) return;
+    if (speciesId != null && size != null) {
+      _standDrop[spawnId] = _feetBelow(speciesId, null, size);
+      final sp = scene.spawnPoints.firstWhere((s) => s.id == spawnId);
+      anchor.position.y = _anchorY(sp, sp.normalizedPos.dy * _viewportH);
+    }
+    anchor.add(c);
+  }
+
+  /// Frames [spawnId] the way tapping a wild Alchemon there does.
+  @visibleForTesting
+  void debugFrameEncounter(String spawnId) => _enterEncounterMode(spawnId);
+
+  /// The player's creature deployed into the encounter, if any.
+  @visibleForTesting
+  WildMonComponent? get debugPartyCreature => _partyCreature;
+
+  /// Pans the camera straight to [x] (world units), no easing.
+  @visibleForTesting
+  void debugPanTo(double x) => _cameraX = _targetCameraX = x;
+
+  /// What a layer whose container sits at [offsetX] can see this frame.
+  FieldView _fieldViewFor(double offsetX) {
+    final scale = layersRoot.scale.x * cam.viewfinder.zoom;
+    final vw = size.x / scale, vh = size.y / scale;
+    final left = _cameraX - offsetX;
+    return FieldView(
+      time: _fieldTime,
+      hour: fieldHourOverride ?? _fieldHour,
+      touches: _touches,
+      left: left,
+      right: left + vw,
+      top: _cameraY,
+      bottom: _cameraY + vh,
+      zoom: scale,
+      height: _viewportH,
+    );
+  }
+
   void _updateParallaxLayers() {
     final invRootAndZoom = 1.0 / (layersRoot.scale.x * cam.viewfinder.zoom);
     final viewportW = size.x * invRootAndZoom;
 
     for (final l in _layers.values) {
-      l.updateOffsetClamped(_cameraX, viewportW);
+      l.updateOffsetClamped(_cameraX, viewportW, loop: _loops);
+    }
+    if (_loops && _mode == SceneMode.exploration) {
+      _repositionSpawnPoints();
+      _placeRift(viewportW);
     }
   }
 
+  /// In a looping field each creature, and the rift, is shown in whichever
+  /// loop of its layer is nearest the middle of the screen.
+  double _nearestLoop(double baseX, SceneLayer layer, double viewportW) {
+    final period = _periodOf(layer);
+    final pf = period / scene.worldWidth - 1;
+    final centre = _cameraX * (1 + pf) + viewportW / 2;
+    return baseX + period * ((centre - baseX) / period).roundToDouble();
+  }
+
+  void _placeRift(double viewportW) {
+    final rift = _riftPortalComp;
+    final base = _riftBaseX;
+    if (rift == null || base == null) return;
+    final w = scene.worldWidth.toDouble();
+    final centre = _cameraX + viewportW / 2;
+    rift.position.x = base + w * ((centre - base) / w).roundToDouble();
+  }
+
   void _repositionSpawnPoints() {
+    final viewportW = size.x / (layersRoot.scale.x * cam.viewfinder.zoom);
     for (final p in scene.spawnPoints) {
       final comp = _spawnPointComps[p.id];
       if (comp == null) continue;
 
       // ✅ Same coordinate system as above
-      final baseW = scene.worldWidth.toDouble();
-      final x = p.normalizedPos.dx * baseW;
-      final y = p.normalizedPos.dy * _viewportH;
+      final base = _spawnBaseX(p);
+      final x = _loops ? _nearestLoop(base, p.anchor, viewportW) : base;
+      final y = _anchorY(p, p.normalizedPos.dy * _viewportH);
       comp.position.setValues(x, y);
     }
   }
@@ -1258,12 +1604,16 @@ class SceneGame extends FlameGame with ScaleDetector {
 // WildMonComponent: shows a single creature at a spawn point.
 // ------------------------------------------------------------
 class WildMonComponent extends PositionComponent
-    with TapCallbacks, HasGameReference<SceneGame> {
+    with TapCallbacks, HasGameReference<SceneGame>, Veiled {
   final String speciesId;
   final String rarityLabel;
   final VoidCallback onTap;
   final Vector2 desiredSize;
   final bool flipX;
+
+  /// Breathes gently to say it can be tapped. A wild creature does; the
+  /// player's own, deployed into an encounter, does not.
+  final bool pulse;
 
   final Creature? hydrated;
   final SpeciesSpriteResolver? resolver;
@@ -1276,6 +1626,7 @@ class WildMonComponent extends PositionComponent
     this.hydrated,
     this.resolver,
     this.flipX = false,
+    this.pulse = true,
     Vector2? position,
   }) : super(
          position: position ?? Vector2.zero(),
@@ -1406,6 +1757,7 @@ class WildMonComponent extends PositionComponent
   }
 
   void _addTapPulse() {
+    if (!pulse) return;
     add(
       ScaleEffect.to(
         Vector2.all(1.05),
@@ -1766,7 +2118,32 @@ class _ShipBeaconComponent extends PositionComponent with TapCallbacks {
 
 // Minimal finite parallax layer helper
 // ------------------------------------------------------------
-class _FiniteLayer {
+/// One parallax layer: a container the camera scrolls at its own rate, which
+/// spawn anchors are added to.
+sealed class _ParallaxLayer {
+  PositionComponent get container;
+  double get parallaxFactor;
+  double get totalWidth;
+
+  void updateOffsetClamped(
+    double cameraX,
+    double viewportWidthRootSpace, {
+    bool loop = false,
+  }) {
+    // Parallax scroll. clamp so we never expose beyond the layer's end —
+    // unless the layer loops, and has no end.
+    final raw = -(cameraX * parallaxFactor);
+    if (loop) {
+      container.position = Vector2(raw, 0);
+      return;
+    }
+    final minX = -(max(0.0, totalWidth - viewportWidthRootSpace));
+    final clamped = raw.clamp(minX, 0.0);
+    container.position = Vector2(clamped, 0);
+  }
+}
+
+class _FiniteLayer extends _ParallaxLayer {
   _FiniteLayer(
     this.parent,
     this.sprite, {
@@ -1780,15 +2157,18 @@ class _FiniteLayer {
   final PositionComponent parent;
   final Sprite sprite;
   final int priority;
+  @override
   final double parallaxFactor;
   final double widthMul;
 
+  @override
   final PositionComponent container;
   final List<SpriteComponent> _tiles = [];
 
   Vector2 _tileSize = Vector2.zero();
   double get tileWidth => _tileSize.x;
   double get tileHeight => _tileSize.y;
+  @override
   double totalWidth = 0.0;
 
   void buildOrUpdate(Vector2 tileSize, int tilesNeeded) {
@@ -1833,12 +2213,251 @@ class _FiniteLayer {
 
     container.position = Vector2.zero();
   }
+}
 
-  void updateOffsetClamped(double cameraX, double viewportWidthRootSpace) {
-    // Parallax scroll. clamp so we never expose beyond the last tile.
-    final raw = -(cameraX * parallaxFactor);
-    final minX = -(max(0.0, totalWidth - viewportWidthRootSpace));
-    final clamped = raw.clamp(minX, 0.0);
-    container.position = Vector2(clamped, 0);
+/// A layer drawn by the field's [FieldArt]: its still sheets baked into
+/// images once per screen size, its live parts painted each frame — the back
+/// pass under the creatures standing on it, the front pass over their feet.
+class _ArtLayer extends _ParallaxLayer {
+  _ArtLayer(
+    this.parent,
+    this.art,
+    this.id, {
+    required int priority,
+    required this.parallaxFactor,
+  }) : container = PositionComponent()..priority = priority;
+
+  final PositionComponent parent;
+  final FieldArt art;
+  final SceneLayer id;
+  @override
+  final double parallaxFactor;
+  @override
+  final PositionComponent container;
+  @override
+  double totalWidth = 0;
+
+  Size? _size;
+  Size? _screen;
+  _FieldSheetsComponent? _sheets;
+  bool _liveMounted = false;
+
+  void build(Size size, Size screen, double pixelRatio) {
+    if (size == _size && screen == _screen) return;
+    _size = size;
+    _screen = screen;
+    totalWidth = size.width;
+    if (container.parent == null) parent.add(container);
+
+    final baked = <_BakedSheet>[];
+    for (final sheet in art.build(id, size, screen)) {
+      final b = sheet.bounds;
+      if (b.width <= 0 || b.height <= 0) continue;
+      // Never past 2x (no one sees the difference in a backdrop) nor past
+      // the widest texture every GPU can hold.
+      final scale = min(
+        min(pixelRatio, 2.0) * sheet.resolution,
+        8000 / b.width,
+      ).clamp(0.25, 4.0);
+      final rec = ui.PictureRecorder();
+      final c = Canvas(rec)
+        ..scale(scale)
+        ..translate(-b.left, -b.top);
+      sheet.paint(c);
+      final picture = rec.endRecording();
+      final image = picture.toImageSync(
+        (b.width * scale).ceil(),
+        (b.height * scale).ceil(),
+      );
+      picture.dispose();
+      baked.add(_BakedSheet(image, sheet));
+    }
+    final sheets = _sheets ??= (_FieldSheetsComponent(this)..priority = -10);
+    sheets.replace(baked);
+    if (sheets.parent == null) container.add(sheets);
+
+    if (!_liveMounted) {
+      _liveMounted = true;
+      if (art.hasLive(id, front: false)) {
+        container.add(_FieldLiveComponent(this, front: false)..priority = -5);
+      }
+      // Over the creatures (10) and the party (60), under the rift (999).
+      if (art.hasLive(id, front: true)) {
+        container.add(_FieldLiveComponent(this, front: true)..priority = 70);
+      }
+    }
   }
+}
+
+class _BakedSheet {
+  _BakedSheet(this.image, this.sheet);
+  final ui.Image image;
+  final FieldSheet sheet;
+  final Paint paint = Paint()..filterQuality = FilterQuality.medium;
+}
+
+/// Draws a layer's baked sheets: body sheets through the hour's colour
+/// grade, light sheets in narrow columns each tinted with the light that
+/// falls there — one atlas draw for the lot.
+class _FieldSheetsComponent extends Component with HasGameReference<SceneGame> {
+  _FieldSheetsComponent(this.layer);
+
+  final _ArtLayer layer;
+  List<_BakedSheet> _sheets = const [];
+
+  static const _columns = 28;
+  final Float32List _xforms = Float32List(_columns * 4);
+  final Float32List _rects = Float32List(_columns * 4);
+  final Int32List _colors = Int32List(_columns);
+
+  void replace(List<_BakedSheet> sheets) {
+    for (final s in _sheets) {
+      s.image.dispose();
+    }
+    _sheets = sheets;
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final art = layer.art;
+    final view = game._fieldViewFor(layer.container.position.x);
+    // A looping field repeats each layer every [period]; a sheet is drawn at
+    // whichever repeats of it are on screen.
+    final period = game._loops ? layer.totalWidth : 0.0;
+    for (final s in _sheets) {
+      final sheet = s.sheet;
+      final shown = sheet.opacity?.call() ?? 1.0;
+      if (shown <= 0.004) continue;
+      final b = sheet.bounds;
+      final drift = sheet.drift == 0
+          ? 0.0
+          : (game._fieldTime * sheet.drift) % b.width;
+      // Sheet copies: its own place, shifted by the drift (a drifting sheet
+      // wraps on its own width), and by whole loops.
+      final wrap = sheet.drift != 0 ? b.width : period;
+      if (!sheet.light) {
+        s.paint
+          ..colorFilter = art.grade(sheet.grade)
+          ..color = Color.fromRGBO(0, 0, 0, shown.clamp(0.0, 1.0));
+      }
+      for (var k = -1; k <= 1; k++) {
+        if (k != 0 && wrap <= 0) continue;
+        final shift = drift + k * wrap;
+        if (b.right + shift < view.left || b.left + shift > view.right) {
+          continue;
+        }
+        if (sheet.light) {
+          _drawLight(canvas, s, art, view, shift, shown);
+        } else {
+          canvas.drawImageRect(
+            s.image,
+            Rect.fromLTWH(
+              0,
+              0,
+              s.image.width.toDouble(),
+              s.image.height.toDouble(),
+            ),
+            b.shift(Offset(shift, 0)),
+            s.paint,
+          );
+        }
+      }
+      // A drifting sheet in a looping layer that is wider than its own wrap
+      // never happens: clouds are built one loop wide.
+    }
+  }
+
+  void _drawLight(
+    Canvas canvas,
+    _BakedSheet s,
+    FieldArt art,
+    FieldView v,
+    double shift,
+    double shown,
+  ) {
+    final b = s.sheet.bounds.shift(Offset(shift, 0));
+    final left = max(b.left, v.left), right = min(b.right, v.right);
+    if (right <= left) return;
+    final scale = s.image.width / b.width;
+    final step = (v.right - v.left) / (_columns - 2);
+    var n = 0;
+    var any = false;
+    for (var x = left; x < right && n < _columns; x += step, n++) {
+      final x1 = min(right, x + step);
+      var color = art.lightAt(layer.id, (x + x1) / 2, v);
+      if (shown < 1) color = color.withValues(alpha: color.a * shown);
+      if (color.a > 0.004) any = true;
+      _xforms
+        ..[n * 4] = 1 / scale
+        ..[n * 4 + 1] = 0
+        ..[n * 4 + 2] = x
+        ..[n * 4 + 3] = b.top;
+      _rects
+        ..[n * 4] = (x - b.left) * scale
+        ..[n * 4 + 1] = 0
+        ..[n * 4 + 2] = (x1 - b.left) * scale
+        ..[n * 4 + 3] = s.image.height.toDouble();
+      _colors[n] = color.toARGB32();
+    }
+    if (!any || n == 0) return;
+    canvas.drawRawAtlas(
+      s.image,
+      Float32List.sublistView(_xforms, 0, n * 4),
+      Float32List.sublistView(_rects, 0, n * 4),
+      Int32List.sublistView(_colors, 0, n),
+      BlendMode.modulate,
+      null,
+      s.paint,
+    );
+  }
+
+  @override
+  void onRemove() {
+    replace(const []);
+    super.onRemove();
+  }
+}
+
+class _FieldLiveComponent extends Component with HasGameReference<SceneGame> {
+  _FieldLiveComponent(this.layer, {required this.front});
+
+  final _ArtLayer layer;
+  final bool front;
+
+  @override
+  void render(Canvas canvas) => layer.art.paintLive(
+    layer.id,
+    canvas,
+    game._fieldViewFor(layer.container.position.x),
+    front: front,
+  );
+}
+
+/// Any tap on a field drawn in code is a touch on it (a puff of grains from
+/// the grass), and then goes on to whatever was tapped — a creature still
+/// gets its tap. Drags arrive through the game's scale gesture instead.
+class _FieldTapComponent extends Component
+    with TapCallbacks, HasGameReference<SceneGame> {
+  @override
+  bool containsLocalPoint(Vector2 point) => true;
+
+  @override
+  void onTapDown(TapDownEvent event) {
+    game._touch(event.canvasPosition, Vector2.zero());
+    event.continuePropagation = true;
+  }
+}
+
+/// The field's sky, fixed to the screen behind every layer.
+class _FieldSkyComponent extends Component with HasGameReference<SceneGame> {
+  _FieldSkyComponent(this.art);
+
+  final FieldArt art;
+
+  @override
+  void render(Canvas canvas) => art.paintSky(
+    canvas,
+    Size(game.size.x, game.size.y),
+    game._fieldViewFor(0),
+  );
 }

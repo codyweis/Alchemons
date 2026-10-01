@@ -1,12 +1,21 @@
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/widgets/fx/power_orb.dart';
 import 'package:flutter/material.dart';
 
+/// A power orb in a shop row or an inventory cell — the same glass sphere
+/// of turning light the Enhance tray drops (see [PowerOrb]).
 class AlchemicalPowerupOrbSphere extends StatelessWidget {
   final AlchemicalPowerupType type;
   final double size;
+
+  /// Below 0.3 the orb is drawn dimmed (cannot be afforded or used).
   final double glowAlpha;
+
+  /// Kept for older call sites; the orb draws its own light now.
   final double blurRadius;
   final double spreadRadius;
+
+  final bool animate;
 
   const AlchemicalPowerupOrbSphere({
     super.key,
@@ -15,34 +24,10 @@ class AlchemicalPowerupOrbSphere extends StatelessWidget {
     this.glowAlpha = 0.55,
     this.blurRadius = 24,
     this.spreadRadius = 4,
+    this.animate = true,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [
-              Colors.white.withValues(alpha: 0.94),
-              type.color.withValues(alpha: 0.88),
-              type.glowColor.withValues(alpha: 0.36),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.30, 0.66, 1.0],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: type.glowColor.withValues(alpha: glowAlpha),
-              blurRadius: blurRadius,
-              spreadRadius: spreadRadius,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      PowerOrb(type: type, size: size, lit: glowAlpha >= 0.3, animate: animate);
 }

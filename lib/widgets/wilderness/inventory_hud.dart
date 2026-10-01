@@ -368,21 +368,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
 
     if (selectedInstance == null || !mounted) return;
 
-    final effectType = switch (item.key) {
-      InvKeys.alchemyGlow => 'alchemy_glow',
-      InvKeys.alchemyElementalAura => 'elemental_aura',
-      InvKeys.alchemyVolcanicAura => 'volcanic_aura',
-      InvKeys.alchemyVoidRift => 'void_rift',
-      InvKeys.alchemyPrismaticCascade => 'prismatic_cascade',
-      InvKeys.alchemyRitualGold => 'ritual_gold',
-      InvKeys.alchemyBeautyRadiance => 'beauty_radiance',
-      InvKeys.alchemySpeedFlux => 'speed_flux',
-      InvKeys.alchemyStrengthForge => 'strength_forge',
-      InvKeys.alchemyIntelligenceHalo => 'intelligence_halo',
-      InvKeys.alchemyBloodAura => 'blood_aura',
-      InvKeys.alchemyWavebreakerCrown => 'wavebreaker_crown',
-      _ => null,
-    };
+    final effectType = InvKeys.alchemyEffectFor(item.key);
 
     if (effectType == null) return;
 
