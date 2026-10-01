@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Materia — an alchemical study</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><a class="wordmark" href="#">M<span class="sigil">✳</span>TERIA</a><span class="edition">AN ALCHEMICAL STUDY <i> / </i> VOL. 001</span><button id="sound" class="quiet" aria-pressed="false">Sound off</button></header>
+<main>
+<section class="intro"><div><p class="eyebrow">THE OBSERVATION CHAMBER</p><h1>Everything is becoming.</h1></div><p class="lede">Introduce an element. Follow its nature.<br>Discover what happens at the edges.</p></section>
+<div class="workspace">
+<aside class="materials"><div class="section-label"><span>01 / MATTER</span><span id="element-count">17</span></div><div id="palette"></div><div class="selected-info"><span id="selected-symbol">Wa</span><h2 id="selected-name">Water</h2><p id="selected-description"></p></div></aside>
+<section class="instrument" aria-label="Interactive alchemy chamber">
+<div class="instrument-top"><span><b class="live-dot"></b><span id="state-label">SYSTEM ACTIVE</span></span><span id="particle-count">0 PARTICLES</span></div>
+<div class="canvas-wrap"><canvas id="chamber" aria-label="Draw elements in the chamber. Choose a material, then drag to pour." tabindex="0"></canvas><div class="chamber-corner top-left"></div><div class="chamber-corner bottom-right"></div><div class="canvas-caption"><span>VESSEL A—01</span><span id="canvas-hint">DRAG TO INTRODUCE WATER</span></div><div id="loading">Preparing the chamber…</div></div>
+<div class="controls"><div class="tool-group" aria-label="Chamber tools"><button class="tool active" data-tool="pour" aria-pressed="true">Pour <kbd>1</kbd></button><button class="tool" data-tool="stir" aria-pressed="false">Stir <kbd>2</kbd></button><button class="tool" data-tool="erase" aria-pressed="false">Erase <kbd>3</kbd></button></div><label class="brush-label">Radius <input id="brush" type="range" min="2" max="12" value="5" aria-label="Brush radius"></label><button id="feed" class="icon-button" aria-pressed="true">Feed on</button><button id="pause" class="icon-button" aria-pressed="false">Pause</button><button id="clear" class="icon-button">Clear</button></div>
+</section>
+<aside class="observations"><div class="section-label"><span>02 / OBSERVATIONS</span><span class="tiny-star">✧</span></div><div class="study-title"><p class="eyebrow">SELECTED INTERACTION</p><h2 id="recipe-title">Water + Fire</h2><div id="recipe-results"></div><p class="muted">Every known recipe transforms on contact. Bring the right materials together.</p></div><div class="journal-heading"><span>REACTION JOURNAL</span><span id="reaction-count">000</span></div><div id="journal" aria-live="polite"><p class="empty-note">Every transformation leaves a trace.</p></div><div class="field-note"><span>FIELD NOTE</span><p id="field-note">Steam rises. Water settles. Bring fire beneath a pool and watch the chamber begin to breathe.</p></div></aside>
+</div>
+<section class="studies"><div class="studies-heading"><p class="eyebrow">A PLACE TO BEGIN</p><p>Three small experiments in transformation.</p></div><button class="study" data-scene="vapor"><span class="study-number">I</span><div><h3>The breathing vessel</h3><p>Water · Fire · Steam</p></div><span class="arrow">↗</span></button><button class="study" data-scene="mineral"><span class="study-number">II</span><div><h3>A memory of lightning</h3><p>Earth · Lightning · Crystal</p></div><span class="arrow">↗</span></button><button class="study" data-scene="eclipse"><span class="study-number">III</span><div><h3>An eclipse in red</h3><p>Light · Dark · Blood</p></div><span class="arrow">↗</span></button></section>
+<footer><span>17 ELEMENTS. COUNTLESS ENCOUNTERS.</span><span>Hold Shift to stir · Space to pause · [ ] to resize</span><button id="reset">Reset experiment ↺</button></footer>
+</main><script type="module" src="simulation.js"></script>
+</body></html>

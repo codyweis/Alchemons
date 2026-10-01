@@ -1030,7 +1030,7 @@ class ElementParticle {
 // GARRISON CREATURE (stationed at home planet)
 // ─────────────────────────────────────────────────────────
 
-class _GarrisonCreature {
+class _GarrisonCreature with KinSupportFields {
   _GarrisonCreature({
     required this.member,
     required this.position,
@@ -1086,23 +1086,12 @@ class _GarrisonCreature {
   // Blessing state (Kin special)
   double blessingTimer = 0;
   double blessingHealPerTick = 0;
+  // HP is whole points; the fraction of a blessing's heal not yet paid.
+  double blessingCarry = 0;
 
-  // Kin support state. Garrison defenders cast the same specials as deployed
-  // companions, so their non-projectile paths must survive beyond the cast
-  // frame too.
-  bool kinFireOrbitalFlameActive = false;
-  double kinLavaPlateTimer = 0;
-  double kinIceChargeTimer = 0;
-  double kinIceChargeTotal = 0;
-  double kinSteamBoilerTimer = 0;
-  int kinSteamBoilerStacks = 0;
-  double kinSteamStackDecayTimer = 0;
-  double kinSteamStackCarry = 0;
-  double kinLightningChargeTimer = 0;
-  double kinDarkCloakTimer = 0;
-  double kinBloodPactTimer = 0;
-  double kinMudShipEnchantTimer = 0;
-  int kinSpiritWispKills = 0;
+  // Kin support state ([KinSupportFields]): garrison defenders cast the same
+  // specials as deployed companions, so their non-projectile paths survive
+  // beyond the cast frame too.
 
   // Temporary basic-attack haste granted by some specials.
   double basicHasteTimer = 0;

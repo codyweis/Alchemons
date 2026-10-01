@@ -207,6 +207,7 @@ class EnemyVisual {
       CosmicEnemyVariant.standard => 1.0,
     },
     flightSteering: e.flightSteering,
+    rootTimer: e.hornPlantRootTimer,
     seed: _seedOf(e),
   );
 }

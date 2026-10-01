@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'cosmic_data.dart';
+import 'cosmic_projectile_vfx.dart' show ZoneVfxEmit;
 import 'vfx_shapes.dart';
 
 const _elements = {
@@ -1223,4 +1224,175 @@ void drawMaskSpiritRemnant({
     }
   }
   canvas.restore();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  The moments round the traps: a vine fed, a marked body bleeding for the
+//  party, Spirit wisps waiting to be collected and the clear they set off.
+//  Survival's look, drawn once for every mode. Particle emitters route into
+//  the caller's pool through [emit]; [poolSize] is read before each particle
+//  so a full pool stops the burst, as Survival's does.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The burst a Plant vine throws as it is fed: brighter and bigger, with an
+/// upward sprout jet, when the feed grows a new tendril.
+void emitMaskPlantFeedBurst({
+  required ui.Offset at,
+  required bool newTendril,
+  required Random rng,
+  required int Function() poolSize,
+  required ZoneVfxEmit emit,
+}) {
+  if (poolSize() >= 145) return;
+  final plant = elementColor('Plant');
+  final bright = ui.Color.lerp(plant, const ui.Color(0xFFFFFFFF), 0.55)!;
+  final count = newTendril ? 18 : 9;
+  for (var i = 0; i < count; i++) {
+    if (poolSize() >= 150) break;
+    final a = rng.nextDouble() * 2 * pi;
+    final spd = 90 + rng.nextDouble() * 140;
+    emit(
+      at.dx,
+      at.dy,
+      cos(a) * spd,
+      sin(a) * spd,
+      (newTendril ? 1.8 : 1.4) + rng.nextDouble() * 1.4,
+      0.45 + rng.nextDouble() * 0.35,
+      i.isEven ? bright : plant,
+    );
+  }
+  if (newTendril) {
+    // Extra upward "sprout" jet so the unlock reads.
+    for (var i = 0; i < 8; i++) {
+      if (poolSize() >= 150) break;
+      final a = -pi / 2 + (rng.nextDouble() - 0.5) * 0.9;
+      final spd = 130 + rng.nextDouble() * 150;
+      emit(
+        at.dx,
+        at.dy,
+        cos(a) * spd,
+        sin(a) * spd,
+        1.6 + rng.nextDouble() * 1.4,
+        0.55 + rng.nextDouble() * 0.35,
+        i.isEven ? bright : plant,
+      );
+    }
+  }
+}
+
+/// One drop of blood running from a Blood-marked body at [from] toward the
+/// ally it is feeding at [toward]. Survival spawns about six a second.
+void emitMaskBloodDrainWisp({
+  required ui.Offset from,
+  required ui.Offset toward,
+  required Random rng,
+  required ZoneVfxEmit emit,
+}) {
+  final delta = toward - from;
+  final dist = delta.distance;
+  final dir = dist > 0.01
+      ? delta / dist
+      : ui.Offset(
+          cos(rng.nextDouble() * 2 * pi),
+          sin(rng.nextDouble() * 2 * pi),
+        );
+  // Spawn slightly off-center so the wisps trickle out of the enemy body
+  // rather than a single point.
+  final jitterA = rng.nextDouble() * 2 * pi;
+  final jitterR = rng.nextDouble() * 6.0;
+  final spawn = from + ui.Offset(cos(jitterA), sin(jitterA)) * jitterR;
+  final spd = 70 + rng.nextDouble() * 50;
+  const blood = ui.Color(0xFFC8254A);
+  const deep = ui.Color(0xFF5A0D1F);
+  emit(
+    spawn.dx,
+    spawn.dy,
+    dir.dx * spd,
+    dir.dy * spd,
+    1.2 + rng.nextDouble() * 1.4,
+    0.50 + rng.nextDouble() * 0.30,
+    rng.nextBool() ? blood : deep,
+  );
+}
+
+/// The spirit motes a Spirit clear sprays outward from [origin].
+void emitMaskSpiritNukeMotes({
+  required ui.Offset origin,
+  required Random rng,
+  required int Function() poolSize,
+  required ZoneVfxEmit emit,
+}) {
+  final spirit = elementColor('Spirit');
+  final bright = ui.Color.lerp(spirit, const ui.Color(0xFFFFFFFF), 0.55)!;
+  const count = 32;
+  for (var i = 0; i < count; i++) {
+    if (poolSize() >= 150) break;
+    final a = i * (pi * 2 / count) + rng.nextDouble() * 0.4;
+    final spd = 220 + rng.nextDouble() * 220;
+    emit(
+      origin.dx,
+      origin.dy,
+      cos(a) * spd,
+      sin(a) * spd,
+      1.6 + rng.nextDouble() * 1.6,
+      0.6 + rng.nextDouble() * 0.4,
+      i.isEven ? bright : spirit,
+    );
+  }
+}
+
+/// A Spirit wisp waiting to be collected: the soul-flame remnant, bobbing,
+/// fading as its time runs out and flickering through its last three
+/// seconds.
+void drawMaskSpiritWisp({
+  required ui.Canvas canvas,
+  required ui.Offset position,
+  required double life,
+  required double bobPhase,
+  required double time,
+  bool reduced = false,
+}) {
+  final bob = sin(time * 3.1 + bobPhase) * 1.8;
+  final pos = ui.Offset(position.dx, position.dy + bob);
+  final fade = (life / 12.0).clamp(0.0, 1.0);
+  final lifePulse = life < 3.0 ? 0.7 + 0.3 * sin(time * 8) : 1.0;
+  drawMaskSpiritRemnant(
+    canvas: canvas,
+    position: pos,
+    radius: 32,
+    time: time + bobPhase,
+    alpha: fade * lifePulse,
+    reduced: reduced,
+  );
+}
+
+/// A Spirit clear's punctuation: a spirit ring swelling out of [origin] as
+/// [flash] (1→0) fades, and a faint wash over [viewport].
+void drawMaskSpiritNukeFlash({
+  required ui.Canvas canvas,
+  required ui.Offset origin,
+  required double flash,
+  required ui.Rect viewport,
+}) {
+  if (flash <= 0.01) return;
+  final f = flash.clamp(0.0, 1.0);
+  final spirit = elementColor('Spirit');
+  // Outward ring — grows as the flash fades.
+  final ringR = 80.0 + 720.0 * (1.0 - f);
+  canvas.drawCircle(
+    origin,
+    ringR,
+    ui.Paint()..color = spirit.withValues(alpha: 0.22 * f),
+  );
+  canvas.drawCircle(
+    origin,
+    ringR * 0.65,
+    ui.Paint()..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.32 * f),
+  );
+  // Screen wash — semi-transparent spirit-purple sheet across the visible
+  // viewport, anchored to the camera so it covers the whole screen.
+  canvas.drawRect(
+    viewport,
+    ui.Paint()..color = spirit.withValues(alpha: 0.18 * f),
+  );
 }

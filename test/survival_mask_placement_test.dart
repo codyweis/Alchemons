@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic_survival/survival_mask_placement.dart';
+import 'package:alchemons/games/cosmic/mask_trap_placement.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 List<Projectile> cast(
@@ -26,7 +26,7 @@ void place(
   Offset ship = Offset.zero,
   List<Offset> allies = const [Offset.zero, Offset(60, 0)],
   Offset target = const Offset(600, 0),
-}) => placeSurvivalMaskTraps(
+}) => placeMaskTraps(
   traps: traps,
   caster: const Offset(60, 0),
   ship: ship,

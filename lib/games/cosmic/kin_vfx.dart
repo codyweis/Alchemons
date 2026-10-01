@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'dart:ui' as ui;
 
+import 'package:flutter/painting.dart' show TextPainter, TextSpan, TextStyle;
+
 import 'cosmic_data.dart';
 import 'horn_vfx.dart';
 import 'vfx_shapes.dart';
@@ -759,4 +761,129 @@ void drawShieldWard({
       0.3,
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// What a running Kin support shows on the ship and between allies. Lifted
+// out of survival's render so open space paints the same thing.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Lava kin's plate on the ship: a molten glow ring while any plate holds.
+/// Local coordinates, at the ship's centre.
+void drawKinLavaShipGlow({required ui.Canvas canvas, required double time}) {
+  final pulse = 0.78 + 0.22 * sin(time * 3);
+  const ember = ui.Color(0xFFFF7A20);
+  canvas.drawCircle(
+    ui.Offset.zero,
+    26,
+    ui.Paint()..color = ember.withValues(alpha: 0.22 * pulse),
+  );
+  canvas.drawCircle(
+    ui.Offset.zero,
+    18,
+    ui.Paint()
+      ..color = const ui.Color(0xFFFFC080).withValues(alpha: 0.18 * pulse),
+  );
+}
+
+/// Lightning kin's tesla channel on the ship: a halo and crackling arcs
+/// round the rim (4 a frame, from [rng]). Local coordinates, at the ship's
+/// centre, not rotated with its heading.
+void drawKinTeslaShip({
+  required ui.Canvas canvas,
+  required double time,
+  required Random rng,
+}) {
+  final ltg = elementColor('Lightning');
+  final hot = ui.Color.lerp(ltg, const ui.Color(0xFFFFFFFF), 0.55)!;
+  final pulse = 0.75 + 0.25 * sin(time * 14);
+  canvas.drawCircle(
+    ui.Offset.zero,
+    32,
+    ui.Paint()..color = ltg.withValues(alpha: 0.20 * pulse),
+  );
+  canvas.drawCircle(
+    ui.Offset.zero,
+    22,
+    ui.Paint()..color = hot.withValues(alpha: 0.32 * pulse),
+  );
+  for (var i = 0; i < 4; i++) {
+    final aa = rng.nextDouble() * pi * 2;
+    final r1 = 14.0 + rng.nextDouble() * 8;
+    final r2 = 26.0 + rng.nextDouble() * 10;
+    canvas.drawLine(
+      ui.Offset(cos(aa) * r1, sin(aa) * r1),
+      ui.Offset(cos(aa) * r2, sin(aa) * r2),
+      ui.Paint()
+        ..strokeWidth = 1.2
+        ..strokeCap = ui.StrokeCap.round
+        ..color = hot.withValues(alpha: 0.85 * pulse),
+    );
+  }
+}
+
+/// Blood kin's pact: pulsing threads tying every living ally (ship
+/// included) to every other while it holds. World coordinates.
+void drawKinBloodThreads({
+  required ui.Canvas canvas,
+  required List<ui.Offset> allies,
+  required double time,
+}) {
+  final pulse = 0.55 + 0.45 * sin(time * 3);
+  const blood = ui.Color(0xFFC8254A);
+  // Connect every pair (small N → cheap).
+  for (var i = 0; i < allies.length; i++) {
+    for (var j = i + 1; j < allies.length; j++) {
+      canvas.drawLine(
+        allies[i],
+        allies[j],
+        ui.Paint()
+          ..strokeWidth = 1.2
+          ..color = blood.withValues(alpha: 0.45 * pulse),
+      );
+    }
+  }
+}
+
+/// One laid-out "N/10" per stack count, built once.
+final Map<int, TextPainter> _steamBadgeText = {};
+
+/// Steam kin's boiler: the stack count floating above the kin while it
+/// boils, so the player can see when it is at full pressure. Local
+/// coordinates, at the kin's centre.
+void drawKinSteamBadge({required ui.Canvas canvas, required int stacks}) {
+  const badgeY = -34.0;
+  const steam = ui.Color(0xFFBFE5FF);
+  canvas.drawCircle(
+    const ui.Offset(-10, badgeY),
+    3.0,
+    ui.Paint()..color = steam.withValues(alpha: 0.95),
+  );
+  canvas.drawCircle(
+    const ui.Offset(-10, badgeY),
+    1.3,
+    ui.Paint()..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.9),
+  );
+  final tp = _steamBadgeText.putIfAbsent(
+    stacks,
+    () => TextPainter(
+      text: TextSpan(
+        text: '$stacks/10',
+        style: const TextStyle(
+          color: ui.Color(0xFFFFFFFF),
+          fontSize: 11,
+          fontWeight: ui.FontWeight.w800,
+          shadows: [
+            ui.Shadow(
+              color: ui.Color(0xFF0A1A22),
+              offset: ui.Offset(0, 1),
+              blurRadius: 1.5,
+            ),
+          ],
+        ),
+      ),
+      textDirection: ui.TextDirection.ltr,
+    )..layout(),
+  );
+  tp.paint(canvas, ui.Offset(-4, badgeY - tp.height * 0.5));
 }

@@ -704,3 +704,314 @@ void drawWingBeamCharge({
   }
   vfxSpill(canvas, origin, 6 + 9 * t, glint, 0.35 + 0.5 * t);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  WHAT A LIVE BEAM PUTS ON SCREEN EACH FRAME
+//
+//  Survival's, lifted verbatim so open space draws the same thing: the beam
+//  segments a beam lays into its game's beam list, the particles it sheds into
+//  the ability pool, Lightning's brewing storm while it charges, and the blast
+//  that ends it. Each game passes its own sinks; nothing here knows a game.
+//  The draws behind the random numbers are in survival's order, so a seeded
+//  survival run is unchanged.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A particle for a game's ability pool (survival's `_VfxParticle`, open
+/// space's `AbilityVfxPool.add`).
+typedef WingParticleEmit =
+    void Function(
+      double x,
+      double y,
+      double vx,
+      double vy,
+      double size,
+      double life,
+      ui.Color color,
+    );
+
+/// A segment for a game's beam list. [wingElement] null is the plain
+/// element-less line (a micro-arc, the heal core).
+typedef WingSegmentEmit =
+    void Function(
+      ui.Offset start,
+      ui.Offset end,
+      ui.Color color,
+      double width,
+      double life,
+      String? wingElement,
+    );
+
+/// How long every per-frame segment of a live beam lasts.
+const double kWingBeamFxLife = 0.08;
+
+/// Spirit's cable into the ship: a little narrower, and it lingers.
+const double kWingTetherCableWidthScale = 0.85;
+const double kWingTetherCableLife = 0.12;
+
+/// The white-green core a healing beam carries (not Water's or Crystal's).
+const double kWingHealCoreWidthScale = 0.45;
+const ui.Color kWingHealCoreColor = ui.Color(0xFFEFFFF1);
+
+/// Lightning's blast: one wide, bright flash along the line.
+const double kWingLightningBlastWidthScale = 3.4;
+const double kWingLightningBlastLife = 0.28;
+
+/// A ring is drawn out to its radius plus this before it is culled.
+const double kWingRingCullPad = 24;
+
+/// Pool sizes past which a beam sheds nothing more this frame.
+const int kWingBeamParticleBudget = 135;
+const int kWingChargeParticleBudget = 130;
+
+/// A healing beam's light is tinted toward life-green.
+ui.Color wingBeamColor(WingBeamEffect d) => d.healPerTick > 0
+    ? ui.Color.lerp(elementColor(d.element), const ui.Color(0xFFCFFFD8), 0.55)!
+    : elementColor(d.element);
+
+/// Rings hold full strength and fade over their last 0.45 s.
+double wingRingFade(double life) =>
+    life < 0.45 ? (life / 0.45).clamp(0.0, 1.0) : 1.0;
+
+/// The segments one live beam draws this frame, from [origin] to [end]. A
+/// ring draws nothing here (its perimeter is painted in the render pass); a
+/// Spirit tether runs a cable into [tetherTo] and a beam on from there.
+void emitWingBeamSegments({
+  required WingBeamEffect descriptor,
+  required ui.Offset origin,
+  required ui.Offset end,
+  required ui.Offset tetherTo,
+  required WingSegmentEmit segment,
+}) {
+  final d = descriptor;
+  if (d.targetPolicy == WingBeamTargetPolicy.ring) return;
+  if (d.targetPolicy == WingBeamTargetPolicy.shipTether) {
+    // One spectral cable carries energy into the ship; a second runs from
+    // the ship to its target. No generic white beams over the material,
+    // which would hide its translucent strands.
+    final tetherColor = elementColor(d.element);
+    segment(
+      origin,
+      tetherTo,
+      tetherColor,
+      d.width * kWingTetherCableWidthScale,
+      kWingTetherCableLife,
+      d.element,
+    );
+    segment(tetherTo, end, tetherColor, d.width, kWingBeamFxLife, d.element);
+    return;
+  }
+  segment(origin, end, wingBeamColor(d), d.width, kWingBeamFxLife, d.element);
+  if (d.healPerTick > 0 && d.element != 'Water' && d.element != 'Crystal') {
+    // Inner white-green core for healing beams.
+    segment(
+      origin,
+      end,
+      kWingHealCoreColor.withValues(alpha: 0.85),
+      d.width * kWingHealCoreWidthScale,
+      kWingBeamFxLife,
+      null,
+    );
+  }
+}
+
+/// The particles a live beam sheds this frame, so it reads as a living
+/// stream rather than a flat line. The caller checks its pool against
+/// [kWingBeamParticleBudget] first.
+void emitWingBeamParticles({
+  required WingBeamEffect descriptor,
+  required ui.Offset origin,
+  required ui.Offset end,
+  required ui.Offset tetherTo,
+  required double beamLife,
+  required Random rng,
+  required WingParticleEmit emit,
+}) {
+  final element = descriptor.element;
+  final base = elementColor(element);
+  final white = ui.Color.lerp(base, const ui.Color(0xFFFFFFFF), 0.55)!;
+  if (descriptor.targetPolicy == WingBeamTargetPolicy.ring) {
+    // Along the perimeter, drifting round it and a little outward.
+    final r = descriptor.radius;
+    if (r <= 0) return;
+    for (var i = 0; i < 3; i++) {
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = r * (0.92 + rng.nextDouble() * 0.18);
+      final tang = ui.Offset(-sin(a), cos(a));
+      final out = ui.Offset(cos(a), sin(a));
+      emit(
+        origin.dx + cos(a) * spawnR,
+        origin.dy + sin(a) * spawnR,
+        tang.dx * 30 + out.dx * 12,
+        tang.dy * 30 + out.dy * 12,
+        1.3 + rng.nextDouble() * 1.2,
+        0.35 + rng.nextDouble() * 0.3,
+        i.isEven ? base : white,
+      );
+    }
+    return;
+  }
+  if (descriptor.targetPolicy == WingBeamTargetPolicy.shipTether) {
+    // Sparkles flowing along the cable from the caster toward the ship.
+    final flow = (beamLife * 2.4) % 1.0;
+    final mid = ui.Offset.lerp(origin, tetherTo, flow)!;
+    emit(
+      mid.dx,
+      mid.dy,
+      (rng.nextDouble() - 0.5) * 30,
+      (rng.nextDouble() - 0.5) * 30,
+      1.5 + rng.nextDouble() * 1.0,
+      0.3,
+      white,
+    );
+    return;
+  }
+  final dir = end - origin;
+  final dist = dir.distance;
+  if (dist < 1) return;
+  final unit = ui.Offset(dir.dx / dist, dir.dy / dist);
+  final perp = ui.Offset(-unit.dy, unit.dx);
+  // Sparks bursting from the hit point.
+  for (var i = 0; i < 2; i++) {
+    final a = rng.nextDouble() * 2 * pi;
+    final spd = 30 + rng.nextDouble() * 50;
+    emit(
+      end.dx,
+      end.dy,
+      cos(a) * spd,
+      sin(a) * spd,
+      1.4 + rng.nextDouble() * 1.2,
+      0.30 + rng.nextDouble() * 0.25,
+      i.isEven ? base : white,
+    );
+  }
+  // One drifter somewhere along the beam, fanning off it.
+  final t = 0.2 + rng.nextDouble() * 0.6;
+  final midPos = origin + unit * dist * t;
+  final side = rng.nextBool() ? 1.0 : -1.0;
+  emit(
+    midPos.dx,
+    midPos.dy,
+    perp.dx * side * 18 + unit.dx * 12,
+    perp.dy * side * 18 + unit.dy * 12,
+    1.1 + rng.nextDouble() * 0.9,
+    0.30 + rng.nextDouble() * 0.20,
+    white.withValues(alpha: 0.75),
+  );
+}
+
+/// A beam still charging, at [center]. Lightning brews a storm there — an
+/// orb of inward-spiralling sparks and crackling micro-arcs that grows and
+/// crackles harder with [progress] — and fires no line yet. Any other
+/// element (none today) gets a small swelling point. [particleRoom] is the
+/// caller's pool check against [kWingChargeParticleBudget].
+void emitWingChargeVisual({
+  required WingBeamEffect descriptor,
+  required ui.Offset center,
+  required double progress,
+  required bool particleRoom,
+  required Random rng,
+  required WingParticleEmit emit,
+  required WingSegmentEmit segment,
+}) {
+  if (descriptor.element != 'Lightning') {
+    segment(
+      center,
+      center,
+      elementColor(
+        descriptor.element,
+      ).withValues(alpha: (0.35 + 0.55 * progress).clamp(0.0, 1.0)),
+      descriptor.width * (0.35 + 1.65 * progress),
+      kWingBeamFxLife,
+      null,
+    );
+    return;
+  }
+  if (!particleRoom) return;
+  final color = elementColor('Lightning');
+  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
+  // From a tight 10 px to a stormy 34 px as it builds.
+  final orbRadius = 10.0 + 24.0 * progress;
+  // One inward spark always, one more in the back half of the charge.
+  final sparkCount = 1 + (progress > 0.5 ? 1 : 0);
+  for (var i = 0; i < sparkCount; i++) {
+    final a = rng.nextDouble() * 2 * pi;
+    final r = orbRadius * (1.1 + rng.nextDouble() * 0.7);
+    final speed = 35 + 70 * progress;
+    emit(
+      center.dx + cos(a) * r,
+      center.dy + sin(a) * r,
+      -cos(a) * speed,
+      -sin(a) * speed,
+      1.0 + rng.nextDouble() * 1.6,
+      0.35 + rng.nextDouble() * 0.35,
+      i.isEven ? color : white,
+    );
+  }
+  // Now and then a micro-arc inside the orb, more often as it builds.
+  if (rng.nextDouble() < 0.30 + progress * 0.45) {
+    final a1 = rng.nextDouble() * 2 * pi;
+    final a2 = a1 + (rng.nextDouble() - 0.5) * 2.6;
+    final r1 = orbRadius * (0.35 + rng.nextDouble() * 0.65);
+    final r2 = orbRadius * (0.35 + rng.nextDouble() * 0.65);
+    segment(
+      ui.Offset(center.dx + cos(a1) * r1, center.dy + sin(a1) * r1),
+      ui.Offset(center.dx + cos(a2) * r2, center.dy + sin(a2) * r2),
+      white.withValues(alpha: 0.65 + 0.25 * progress),
+      1.1 + progress * 1.2,
+      kWingBeamFxLife,
+      null,
+    );
+  }
+}
+
+/// The flash of Lightning's blast, from [origin] along to [end].
+void emitWingLightningBlastFlash({
+  required WingBeamEffect descriptor,
+  required ui.Offset origin,
+  required ui.Offset end,
+  required WingSegmentEmit segment,
+}) {
+  segment(
+    origin,
+    end,
+    ui.Color.lerp(elementColor('Lightning'), const ui.Color(0xFFFFFFFF), 0.55)!,
+    descriptor.width * kWingLightningBlastWidthScale,
+    kWingLightningBlastLife,
+    'Lightning',
+  );
+}
+
+/// A Wing+Plant flower waiting to be collected ([life] counts down from
+/// 12 s): a soft halo, five turning petals round a bright core, pulsing
+/// once it is close to wilting. Survival's pickup art, which its Kin+Plant
+/// garden drops share.
+void drawWingFlowerPickup({
+  required ui.Canvas canvas,
+  required ui.Offset position,
+  required double life,
+  required double bobPhase,
+  required double time,
+}) {
+  final t = time;
+  final petal = elementColor('Plant');
+  final core = elementColor('Light');
+  final bob = sin(t * 2.4 + bobPhase) * 1.6;
+  final pos = ui.Offset(position.dx, position.dy + bob);
+  final fade = (life / 12.0).clamp(0.0, 1.0);
+  final lifePulse = life < 3.0 ? 0.7 + 0.3 * sin(t * 8) : 1.0;
+  _paint.shader = null;
+  _paint.color = petal.withValues(alpha: 0.18 * fade);
+  canvas.drawCircle(pos, 14.0, _paint);
+  _paint.color = petal.withValues(alpha: 0.28 * fade);
+  canvas.drawCircle(pos, 9.5, _paint);
+  for (var i = 0; i < 5; i++) {
+    final a = i * (pi * 2 / 5) + t * 0.35;
+    final petalPos = pos + ui.Offset(cos(a), sin(a)) * 5.5;
+    _paint.color = petal.withValues(alpha: 0.92 * fade * lifePulse);
+    canvas.drawCircle(petalPos, 4.0, _paint);
+  }
+  _paint.color = core.withValues(alpha: 0.95 * fade * lifePulse);
+  canvas.drawCircle(pos, 3.2, _paint);
+  _paint.color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.85 * fade);
+  canvas.drawCircle(pos, 1.4, _paint);
+}

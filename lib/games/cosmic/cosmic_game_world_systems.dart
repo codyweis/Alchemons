@@ -480,6 +480,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     elemParticles.clear();
     duelOpponent = null;
     duelOpponentProjectiles.clear();
+    _resetDuelCombat();
     _duelWildId = null;
     _wildDuelTargetCompanion = null;
   }
@@ -1049,8 +1050,8 @@ extension CosmicGameWorldSystems on CosmicGame {
       if (fastDist > 1800 * 1800) {
         e.position = _wrap(
           Offset(
-            e.position.dx + cos(e.angle) * e.speed * dt * 0.3,
-            e.position.dy + sin(e.angle) * e.speed * dt * 0.3,
+            e.position.dx + cos(e.angle) * e.moveSpeed * dt * 0.3,
+            e.position.dy + sin(e.angle) * e.moveSpeed * dt * 0.3,
           ),
         );
         final despawnDist = e.whirlIndex >= 0
@@ -1066,19 +1067,33 @@ extension CosmicGameWorldSystems on CosmicGame {
 
     // ── Check for nearby decoys — enemies prioritize attacking decoys ──
     Projectile? nearestDecoy;
+    Offset nearestLureCenter = Offset.zero;
     double nearestDecoyDist = double.infinity;
     for (final cp in companionProjectiles) {
-      if (!cp.decoy || cp.decoyHp <= 0) continue;
-      var ddx = cp.position.dx - e.position.dx;
-      var ddy = cp.position.dy - e.position.dy;
+      // Lures are survival's: whatever taunts draws bodies (a Horn's burning
+      // lane, a geyser, the void, a Kin Spirit wisp), not only decoys, and a
+      // Horn decoy with no taunt of its own draws from 180. A lure pulls
+      // toward what it circles (a wisp toward its kin), as survival's do.
+      final hornLure = cp.abilityFamily == 'horn';
+      if (cp.decoy && cp.decoyHp <= 0) continue;
+      if (!cp.decoy && cp.tauntRadius <= 0) continue;
+      final lureCenter =
+          cp.transferOrbitCenter ?? cp.orbitCenter ?? cp.position;
+      var ddx = lureCenter.dx - e.position.dx;
+      var ddy = lureCenter.dy - e.position.dy;
       if (ddx > ww / 2) ddx -= ww;
       if (ddx < -ww / 2) ddx += ww;
       if (ddy > wh / 2) ddy -= wh;
       if (ddy < -wh / 2) ddy += wh;
       final dd = sqrt(ddx * ddx + ddy * ddy);
-      final aggroRadius = cp.tauntRadius > 0 ? cp.tauntRadius : 500.0;
+      final aggroRadius = cp.tauntRadius > 0
+          ? cp.tauntRadius
+          : hornLure
+          ? 180.0
+          : 500.0;
       if (dd < aggroRadius && dd < nearestDecoyDist) {
         nearestDecoy = cp;
+        nearestLureCenter = lureCenter;
         nearestDecoyDist = dd;
       }
     }
@@ -1098,8 +1113,8 @@ extension CosmicGameWorldSystems on CosmicGame {
           e.behavior = EnemyBehavior.aggressive;
         }
       }
-      var ddx = nearestDecoy.position.dx - e.position.dx;
-      var ddy = nearestDecoy.position.dy - e.position.dy;
+      var ddx = nearestLureCenter.dx - e.position.dx;
+      var ddy = nearestLureCenter.dy - e.position.dy;
       if (ddx > ww / 2) ddx -= ww;
       if (ddx < -ww / 2) ddx += ww;
       if (ddy > wh / 2) ddy -= wh;
@@ -1128,9 +1143,9 @@ extension CosmicGameWorldSystems on CosmicGame {
       e.position = _wrap(
         Offset(
           e.position.dx +
-              cos(e.angle) * e.speed * tauntSpeedMult * snareMoveMult * dt,
+              cos(e.angle) * e.moveSpeed * tauntSpeedMult * snareMoveMult * dt,
           e.position.dy +
-              sin(e.angle) * e.speed * tauntSpeedMult * snareMoveMult * dt,
+              sin(e.angle) * e.moveSpeed * tauntSpeedMult * snareMoveMult * dt,
         ),
       );
       return;
@@ -1156,6 +1171,9 @@ extension CosmicGameWorldSystems on CosmicGame {
       if (snareDist2 > cp.snareRadius * cp.snareRadius) continue;
 
       moveSpeedMult = min(moveSpeedMult, cp.snareMoveMultiplier);
+      // A Mask snare (Mud's pool, Plant's vine) only slows, as Survival's
+      // do; it does not steer bodies into itself.
+      if (cp.abilityFamily == 'mask') continue;
       final toSnare = atan2(sdy, sdx);
       var snareDiff = toSnare - e.angle;
       while (snareDiff > pi) {
@@ -1193,7 +1211,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           CosmicEnemyVariant.standard => FlightSteeringProfile.spaceMelee,
         },
         toTarget: Offset(dx, dy),
-        speed: e.speed * moveSpeedMult,
+        speed: e.moveSpeed * moveSpeedMult,
         contactRange: e.radius + 8, // inside the kamikaze band (radius+14)
         dt: dt,
         rng: rng,
@@ -1445,8 +1463,8 @@ extension CosmicGameWorldSystems on CosmicGame {
     // Move
     e.position = _wrap(
       Offset(
-        e.position.dx + cos(e.angle) * e.speed * moveSpeedMult * dt,
-        e.position.dy + sin(e.angle) * e.speed * moveSpeedMult * dt,
+        e.position.dx + cos(e.angle) * e.moveSpeed * moveSpeedMult * dt,
+        e.position.dy + sin(e.angle) * e.moveSpeed * moveSpeedMult * dt,
       ),
     );
 
@@ -1851,7 +1869,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           for (final comp in _livingActiveCompanions) {
             final compDist = (comp.position - boss.position).distance;
             if (compDist <= pulseRadius + 14) {
-              comp.takeDamage((pulseDamage * 1.1).round());
+              _openCompanionIncomingDamage(comp, (pulseDamage * 1.1).round());
             }
           }
         }
@@ -2546,7 +2564,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           // companion-scale so it's meaningful against companion defenses.
           final scaledDmg = bp.damage * 30.0;
           final dmg = max(1, (scaledDmg * 100 / (100 + comp.elemDef)).round());
-          comp.takeDamage(dmg);
+          _openCompanionIncomingDamage(comp, dmg);
           _spawnHitSpark(comp.position, elementColor(bp.element));
           bossProjectiles.removeAt(i);
           break;
@@ -3277,41 +3295,9 @@ extension CosmicGameWorldSystems on CosmicGame {
     _spawnHitSpark(ship.pos, Colors.redAccent);
 
     if (shipHealth <= 0) {
-      CosmicCompanion? phoenix;
-      _GarrisonCreature? garrisonPhoenix;
-      for (final comp in activeCompanions.values) {
-        if (comp.isAlive &&
-            comp.member.family.toLowerCase() == 'kin' &&
-            comp.member.element == 'Fire' &&
-            !comp.kinFireOrbitalFlameActive) {
-          phoenix = comp;
-          break;
-        }
-      }
-      if (phoenix == null) {
-        for (final g in _garrison) {
-          if (g.hp > 0 &&
-              g.member.family.toLowerCase() == 'kin' &&
-              g.member.element == 'Fire' &&
-              !g.kinFireOrbitalFlameActive) {
-            garrisonPhoenix = g;
-            break;
-          }
-        }
-      }
-      if (phoenix != null || garrisonPhoenix != null) {
-        shipHealth = CosmicGame.shipMaxHealth * 0.25;
-        if (phoenix != null) {
-          phoenix.kinFireOrbitalFlameActive = true;
-          phoenix.invincibleTimer = max(phoenix.invincibleTimer, 1.0);
-        } else {
-          garrisonPhoenix!.kinFireOrbitalFlameActive = true;
-        }
-        _shipInvincible = max(_shipInvincible, 1.0);
-        _spawnHitSpark(ship.pos, const Color(0xFFFFB060));
-        _spawnHitSpark(ship.pos, const Color(0xFFFFE7B0));
-        return;
-      }
+      // A deployed Fire kin's phoenix catches the ship once and is reborn
+      // (cosmic_game_kin.dart).
+      if (_tryOpenKinPhoenixSave()) return;
       if (sandboxMode) {
         _spawnKillVfx(ship.pos, const Color(0xFF00E5FF), 18, true);
         resetSandboxCombatState();
@@ -3342,15 +3328,6 @@ extension CosmicGameWorldSystems on CosmicGame {
       if (d2 < bestDist2) {
         bestDist2 = d2;
         bestTarget = e.position;
-      }
-    }
-
-    final opp = duelOpponent;
-    if (wildDuelActive && opp != null && opp.isAlive) {
-      final d2 = (opp.position - origin).distanceSquared;
-      if (d2 < bestDist2) {
-        bestDist2 = d2;
-        bestTarget = opp.position;
       }
     }
 
@@ -3509,6 +3486,9 @@ extension CosmicGameWorldSystems on CosmicGame {
       orb.interceptCharges--;
       _spawnHitSpark(orb.position, sparkColor);
       _spawnHitSpark(hostilePosition, sparkColor);
+      // A Kin Crystal refractor turns what it took into a beam at the nearest
+      // foe (cosmic_game_kin.dart).
+      _refractOpenKinShot(orb);
       if (orb.interceptCharges <= 0) {
         companionProjectiles.removeAt(i);
       }

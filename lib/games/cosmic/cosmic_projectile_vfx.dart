@@ -48,21 +48,73 @@ bool drawMysticOrbitalProjectileVisual({
       projectile.stationary) {
     return false;
   }
+  _paintMysticComet(canvas, projectile, position, color, time);
+  return true;
+}
+
+/// A parked Mystic fixture (fog node, mire pool, dark well, turret, pillar).
+/// Fixtures are terrain, so the ground-zone painters get the first say; one
+/// no painter claims keeps the cast's comet silhouette. [reduceAmbient] drops
+/// the halo and tail, as Survival's performance mode does.
+bool drawMysticOrbitalFixtureVisual({
+  required ui.Canvas canvas,
+  required Projectile projectile,
+  required ui.Offset position,
+  required ui.Color color,
+  required double time,
+  bool reduceAmbient = false,
+}) {
+  if (projectile.visualStyle != ProjectileVisualStyle.mysticOrbital ||
+      !projectile.stationary) {
+    return false;
+  }
+  if (drawMaskElementalProjectileVisual(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    color: color,
+    time: time,
+  )) {
+    return true;
+  }
+  _paintMysticComet(
+    canvas,
+    projectile,
+    position,
+    color,
+    time,
+    reduceAmbient: reduceAmbient,
+  );
+  return true;
+}
+
+/// A bright core, halo and element-tinted comet tail, so a Mystic cast reads
+/// as an ultimate rather than a regular dart.
+void _paintMysticComet(
+  ui.Canvas canvas,
+  Projectile projectile,
+  ui.Offset position,
+  ui.Color color,
+  double time, {
+  bool reduceAmbient = false,
+}) {
   final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
   final radius = (1.65 * projectile.visualScale).clamp(1.4, 6.1).toDouble();
   final pulse = 0.78 + 0.22 * sin(time * 4.0 + projectile.life);
-  canvas.drawCircle(
-    position,
-    radius * 2.6,
-    ui.Paint()..color = color.withValues(alpha: 0.18 * pulse),
-  );
-  for (var i = 1; i <= 3; i++) {
-    final fade = 1.0 - i * 0.30;
+  if (!reduceAmbient) {
     canvas.drawCircle(
-      position - dir * (radius * 2.0 * i),
-      radius * (1.0 + i * 0.18) * 0.55,
-      ui.Paint()..color = color.withValues(alpha: 0.32 * fade),
+      position,
+      radius * 2.6,
+      ui.Paint()..color = color.withValues(alpha: 0.18 * pulse),
     );
+    for (var i = 1; i <= 3; i++) {
+      final fade = 1.0 - i * 0.30;
+      canvas.drawCircle(
+        position - dir * (radius * 2.0 * i),
+        radius * (1.0 + i * 0.18) * 0.55,
+        ui.Paint()..color = color.withValues(alpha: 0.32 * fade),
+      );
+    }
   }
   canvas.drawCircle(
     position,
@@ -82,7 +134,6 @@ bool drawMysticOrbitalProjectileVisual({
     color: color,
     time: time,
   );
-  return true;
 }
 
 /// The canonical three-layer beam used by Wing specials and Kin basic lasers.

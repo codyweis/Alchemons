@@ -2,6 +2,7 @@
 library;
 
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
@@ -116,4 +117,79 @@ void main() {
       picture.dispose();
     });
   }
+
+  // The live-beam pieces shared with survival: Lightning's brewing storm as
+  // its particles and micro-arcs build, and Plant's flower as it wilts.
+  test('Wing Lightning brew and Plant flower', () async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawColor(const Color(0xFF090E1C), BlendMode.src);
+    const brew = WingBeamEffect(
+      element: 'Lightning',
+      targetPolicy: WingBeamTargetPolicy.nearestEnemy,
+      duration: 3.2,
+      tickInterval: 0.2,
+      damagePerTick: 1,
+      width: 10,
+      chargeTime: 3,
+    );
+    for (var col = 0; col < 3; col++) {
+      final progress = [0.15, 0.55, 0.95][col];
+      final center = Offset(120 + col * 220.0, 110);
+      final rng = Random(7);
+      final dots = <(Offset, double, Color)>[];
+      final arcs = <(Offset, Offset, Color, double)>[];
+      // A second of brewing, with the particles aged as the pool ages them.
+      for (var f = 0; f < 60; f++) {
+        emitWingChargeVisual(
+          descriptor: brew,
+          center: center,
+          progress: progress,
+          particleRoom: true,
+          rng: rng,
+          emit: (x, y, vx, vy, size, life, color) {
+            final age = (60 - f) / 60 * 0.5;
+            if (age >= life) return;
+            final k = (1 - age / life);
+            dots.add((Offset(x + vx * age, y + vy * age), size * k, color));
+          },
+          segment: (a, b, color, width, life, _) {
+            if (f > 55) arcs.add((a, b, color, width));
+          },
+        );
+      }
+      for (final (p, r, c) in dots) {
+        canvas.drawCircle(p, r, Paint()..color = c.withValues(alpha: 0.8));
+      }
+      for (final (a, b, c, w) in arcs) {
+        canvas.drawLine(
+          a,
+          b,
+          Paint()
+            ..color = c
+            ..strokeWidth = w,
+        );
+      }
+      drawWingFlowerPickup(
+        canvas: canvas,
+        position: Offset(120 + col * 220.0, 250),
+        life: [12.0, 6.0, 2.0][col],
+        bobPhase: 0,
+        time: 0.7,
+      );
+    }
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(700, 320);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    expect(bytes, isNotNull);
+    final output = Platform.environment['WING_VFX_OUT'];
+    if (output != null) {
+      await Directory(output).create(recursive: true);
+      await File(
+        '$output/wing-brew-flower.png',
+      ).writeAsBytes(bytes!.buffer.asUint8List());
+    }
+    image.dispose();
+    picture.dispose();
+  });
 }

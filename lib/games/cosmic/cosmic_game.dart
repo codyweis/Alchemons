@@ -10,7 +10,12 @@ import 'dart:ui' as ui;
 
 import 'cosmic_contests.dart';
 import 'cosmic_ability_runtime.dart';
+import 'mask_trap_placement.dart';
 import 'cosmic_projectile_vfx.dart';
+import 'horn_runtime.dart';
+import 'kin_support_runtime.dart';
+import 'mane_runtime.dart';
+import 'mane_alchemical_vfx.dart' show maneLavaPoolCrowd;
 import 'cosmic_enemy_vfx.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/utils/color_util.dart';
@@ -45,6 +50,14 @@ part 'cosmic_game_caches.dart';
 part 'cosmic_game_mask.dart';
 part 'cosmic_game_wild.dart';
 part 'cosmic_game_companion_motion.dart';
+part 'cosmic_game_ability_render.dart';
+part 'cosmic_game_combat_actions.dart';
+part 'cosmic_game_ability_pass.dart';
+part 'cosmic_game_duel.dart';
+part 'cosmic_game_wing.dart';
+part 'cosmic_game_horn.dart';
+part 'cosmic_game_kin.dart';
+part 'cosmic_game_mane.dart';
 
 /// Cached icon-glyph painters for item loot drops — same shop icon set
 /// resolved via [InventoryItemArtwork.offerFor], baked once per (icon, color)
@@ -97,39 +110,6 @@ class _BeamFx {
 
   void update(double dt) {
     life -= dt;
-  }
-}
-
-class _ActiveWingBeam {
-  _ActiveWingBeam({
-    required this.descriptor,
-    required this.origin,
-    required this.angle,
-    this.originResolver,
-  }) : life = descriptor.duration,
-       tickTimer = descriptor.tickInterval,
-       chargeTimer = descriptor.chargeTime;
-
-  final WingBeamEffect descriptor;
-  final Offset? Function()? originResolver;
-  Offset origin;
-  double angle;
-  double life;
-  double tickTimer;
-  double chargeTimer;
-  int refractionsDone = 0;
-  bool steamKillUsed = false;
-
-  bool get dead => life <= 0;
-
-  bool refreshOrigin() {
-    final resolved = originResolver?.call();
-    if (resolved == null) {
-      if (originResolver != null) life = 0;
-      return originResolver == null;
-    }
-    origin = resolved;
-    return true;
   }
 }
 
@@ -353,7 +333,17 @@ class CosmicGame extends FlameGame with PanDetector {
   // a contest rival during a contest cinematic. Contests only stage it; the
   // duel update runs only while [wildDuelActive].
   CosmicCompanion? duelOpponent;
-  final List<Projectile> duelOpponentProjectiles = [];
+  final List<Projectile> duelOpponentProjectiles = CappedProjectileList();
+
+  // The wild Alchemon's side of a duel (cosmic_game_duel.dart). The party's
+  // abilities reach it as a body in the enemy list; its own abilities
+  // resolve in a world where the party's bodies are the enemies and it is
+  // the only ally.
+  final _WildSide _wildSide = _WildSide();
+  final Map<CosmicEnemy, _CombatBody> _combatBodies = {};
+  _CombatBody? _wildBody;
+  final Map<Object, _CombatBody> _partyBodies = {};
+  bool _onWildSideNow = false;
 
   // Wild Alchemons drifting in space — see cosmic_game_wild.dart.
   final List<SpaceWildAlchemon> wildAlchemons = [];
@@ -566,7 +556,9 @@ class CosmicGame extends FlameGame with PanDetector {
 
   // Active companions (summoned party alchemons), keyed by party slot index.
   // Multiple can be summoned simultaneously, up to [maxActiveCompanions].
-  final Map<int, CosmicCompanion> activeCompanions = {};
+  // Not final: while the wild Alchemon's abilities resolve, this and the
+  // other per-side lists below hold its side (see _onWildSide).
+  Map<int, CosmicCompanion> activeCompanions = {};
   static const int maxActiveCompanions = 3;
 
   /// The "primary" active companion (first summoned), used by systems that
@@ -576,7 +568,7 @@ class CosmicGame extends FlameGame with PanDetector {
       activeCompanions.isNotEmpty ? activeCompanions.values.first : null;
   int? get _primaryCompanionSlot =>
       activeCompanions.isEmpty ? null : activeCompanions.keys.first;
-  final List<Projectile> companionProjectiles = [];
+  List<Projectile> companionProjectiles = CappedProjectileList();
 
   // Let meteor craters. Shared struct + shared painter, so open space draws
   // the identical landing survival and the dungeon do.
@@ -586,14 +578,32 @@ class CosmicGame extends FlameGame with PanDetector {
   final List<_BeamFx> _beamFx = [];
   double _openKinPrevShipHealth = -1;
   double _openKinLastShipDamage = 0;
+
+  /// Kin lasers being drawn, from either side of a duel (cosmic_game_kin.dart).
+  final List<KinLaserBeam> _kinLaserBeams = [];
+
+  /// A Kin Plant garden's flowers waiting to be collected; on the wild side
+  /// of a duel, the wild one's (cosmic_game_kin.dart).
+  List<_KinFlower> _kinFlowers = [];
   final MaskTrapVisuals _maskTrapVisuals = MaskTrapVisuals();
-  final Set<CosmicEnemy> _maskBloodMarked = {};
-  final Map<int, int> _maskSpiritBank = {};
+  Set<CosmicEnemy> _maskBloodMarked = {};
+  Map<int, int> _maskSpiritBank = {};
   double _maskBloodTimer = 0;
   double _maskBloodHealing = 0;
-  final List<_ActiveWingBeam> _activeWingBeams = [];
-  final List<_ActiveWingBeam> _pendingWingBeams = [];
-  final Map<int, double> _wingFrostBuildup = {};
+
+  /// Spirit wisps waiting on the field for the ship (cosmic_game_mask.dart).
+  List<MaskSpiritWisp> _maskSpiritWisps = [];
+
+  /// How many times each slot's Plant vine has been fed, kept past the vine
+  /// itself so a redeployed caster regrows it from where it was.
+  Map<int, int> _maskPlantFeeds = {};
+
+  /// A Spirit clear's flash, 1→0, and where it went off.
+  double _maskSpiritNukeFlash = 0;
+  Offset _maskSpiritNukeOrigin = Offset.zero;
+  List<_ActiveWingBeam> _activeWingBeams = [];
+  List<_ActiveWingBeam> _pendingWingBeams = [];
+  final List<_WingFlower> _wingFlowers = [];
   final Map<int, SpriteAnimationTicker> _companionTickers = {};
   final Map<int, SpriteVisuals?> _companionVisualsBySlot = {};
   final Map<int, double> _companionSpriteScales = {};
@@ -642,10 +652,10 @@ class CosmicGame extends FlameGame with PanDetector {
   final Random _rng = Random();
 
   // Home garrison (stationed alchemons inside home planet)
-  final List<_GarrisonCreature> _garrison = [];
+  List<_GarrisonCreature> _garrison = [];
 
   // Enemies & bosses
-  final List<CosmicEnemy> enemies = [];
+  List<CosmicEnemy> enemies = [];
   CosmicBoss? activeBoss;
   final List<BossProjectile> bossProjectiles = [];
   bool sandboxMode = false;
@@ -780,6 +790,11 @@ class CosmicGame extends FlameGame with PanDetector {
   // Ship health
   double shipHealth = CosmicBalance.shipMaxHealth;
   static const double shipMaxHealth = CosmicBalance.shipMaxHealth;
+
+  /// Trails stop being laid at this many live ability projectiles (60% of
+  /// the list's 220), as survival's do: a source that generates itself gives
+  /// way to what the player cast.
+  static const int _trailProjectileCeiling = (220 * 0.60) ~/ 1;
   double _shipInvincible = 0; // invincibility timer after hit
   bool _shipDead = false;
   double _respawnTimer = 0;
@@ -1358,61 +1373,6 @@ class CosmicGame extends FlameGame with PanDetector {
     return (point - projection).distance;
   }
 
-  bool _resolveCompanionChargeImpact(
-    CosmicCompanion comp,
-    Offset from,
-    Offset to, {
-    double sweepRadius = 48.0,
-  }) {
-    // Track which enemies were already hit this charge to avoid repeat damage.
-    comp.chargeHitIds ??= <int>{};
-    var hit = false;
-
-    for (final e in enemies) {
-      if (e.dead) continue;
-      if (comp.chargeHitIds!.contains(e.hashCode)) continue;
-      final d = _distanceToSegment(e.position, from, to);
-      if (d <= e.radius + sweepRadius) {
-        e.health -= comp.chargeDamage;
-        _spawnHitSpark(e.position, elementColor(comp.member.element));
-        if (!e.provoked) _provokePackOf(e);
-        comp.chargeHitIds!.add(e.hashCode);
-        hit = true;
-      }
-    }
-
-    if (activeBoss != null) {
-      if (!comp.chargeHitIds!.contains(activeBoss.hashCode)) {
-        final bossRadius = activeBoss!.radius + sweepRadius;
-        final d = _distanceToSegment(activeBoss!.position, from, to);
-        if (d <= bossRadius) {
-          activeBoss!.health -= comp.chargeDamage;
-          _spawnHitSpark(to, elementColor(comp.member.element));
-          comp.chargeHitIds!.add(activeBoss.hashCode);
-          hit = true;
-        }
-      }
-    }
-
-    if (wildDuelActive && duelOpponent != null && duelOpponent!.isAlive) {
-      if (!comp.chargeHitIds!.contains(duelOpponent.hashCode)) {
-        final d = _distanceToSegment(duelOpponent!.position, from, to);
-        if (d <= sweepRadius + 28.0) {
-          duelOpponent!.takeDamage(comp.chargeDamage.round());
-          _spawnHitSpark(
-            duelOpponent!.position,
-            elementColor(comp.member.element),
-          );
-          comp.chargeHitIds!.add(duelOpponent.hashCode);
-          hit = true;
-        }
-      }
-    }
-
-    // Don't stop — let the horn charge through and land on the far side.
-    return hit;
-  }
-
   /// After a horn charge ends, re-anchor the companion at its landing spot.
   /// If it landed inside a boss, push it out to the far side so it doesn't
   /// get stuck orbiting on top of the boss.
@@ -1439,10 +1399,15 @@ class CosmicGame extends FlameGame with PanDetector {
     comp.anchorPosition = pos;
   }
 
+  /// [pull] false leaves the body where it stands: a special that holds or
+  /// carries its body (a Horn's wind-up, ram or circle, a Wing's Lightning
+  /// brew, a Light barrier) owns its position, as in survival, which has no
+  /// leash. A charge that carries it too far is still called off below.
   void _enforceCompanionTether(
     CosmicCompanion comp, {
     bool immediate = false,
     double dt = 0,
+    bool pull = true,
   }) {
     if (!companionTethered) return;
 
@@ -1457,7 +1422,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
     final toComp = comp.position - shipPos;
     final dist = toComp.distance;
-    if (dist > _companionTetherHardRadius && dist > 0.001) {
+    if (pull && dist > _companionTetherHardRadius && dist > 0.001) {
       final returnStep = min(
         _companionTetherReturnSpeed * max(dt, 0.0),
         dist - _companionTetherHardRadius,
@@ -1478,14 +1443,21 @@ class CosmicGame extends FlameGame with PanDetector {
           : target is CosmicEnemy
           ? target.radius
           : 0.0;
+      // How far past its target a ram may end is the ram's own: its
+      // overshoot, Ice's sideways wall, Dark's long carry.
       if (chargeTargetDist >
           _companionTetherEngageRange +
               targetRadius * 2 +
-              comp.chargeOvershootDistance) {
+              comp.chargeLeashAllowance) {
         _releaseCompanionChargeBurst(comp, slam: false);
-        comp.chargeTimer = 0;
-        comp.chargeTarget = null;
-        comp.chargeHitIds = null;
+        comp
+          ..chargeTimer = 0
+          ..chargeTarget = null
+          ..chargeHitIds = null
+          ..chargePathType = ''
+          ..chargeCircleCenter = null
+          ..iceWallTrailTimer = 0
+          ..hornDarkCaptured = null;
         comp.specialCooldown = max(
           comp.specialCooldown,
           comp.effectiveSpecialCooldown * 0.35,
@@ -1521,168 +1493,16 @@ class CosmicGame extends FlameGame with PanDetector {
     if (_beamFx.length > 42) _beamFx.removeAt(0);
   }
 
-  void _renderOpenWingBeams(Canvas canvas) {
-    for (final beam in _activeWingBeams) {
-      final d = beam.descriptor;
-      final color = elementColor(d.element);
-      if (beam.chargeTimer > 0) {
-        drawAdvancedWingBeamCharge(
-          canvas: canvas,
-          origin: beam.origin,
-          color: color,
-          progress: d.chargeTime <= 0 ? 1 : 1 - beam.chargeTimer / d.chargeTime,
-          time: _elapsed,
-        );
-        continue;
-      }
-      if (d.targetPolicy != WingBeamTargetPolicy.ring || d.radius <= 0) {
-        continue;
-      }
-      final alpha = (beam.life / d.duration).clamp(0.0, 1.0);
-      drawAdvancedWingBeamRing(
-        canvas: canvas,
-        center: beam.origin,
-        radius: d.radius,
-        width: d.width,
-        color: color,
-        element: d.element,
-        alpha: alpha,
-        time: _elapsed,
-      );
-    }
-
-    for (final fx in _beamFx) {
-      drawAdvancedAbilityBeam(
-        canvas: canvas,
-        start: fx.start,
-        end: fx.end,
-        color: fx.color,
-        wingElement: fx.wingElement,
-        width: fx.width,
-        alpha: fx.alpha,
-        time: _elapsed,
-      );
-    }
-  }
-
-  void _activateWingBeamEffects(
-    List<WingBeamEffect> beams, {
-    required Offset origin,
-    required double angle,
-    Offset? Function()? originResolver,
-  }) {
-    for (final beam in beams) {
-      if (_activeWingBeams.length >= 12) _activeWingBeams.removeAt(0);
-      _activeWingBeams.add(
-        _ActiveWingBeam(
-          descriptor: beam,
-          origin: origin,
-          angle: angle,
-          originResolver: originResolver,
-        ),
-      );
-    }
-  }
-
   bool _isDarkWingMember(CosmicPartyMember member) =>
       member.family.toLowerCase() == 'wing' && member.element == 'Dark';
 
   bool _isPipMember(CosmicPartyMember member, String element) =>
       member.family.toLowerCase() == 'pip' && member.element == element;
 
-  bool _isManeMember(CosmicPartyMember member, String element) =>
-      member.family.toLowerCase() == 'mane' && member.element == element;
-
   void _tagSource(List<Projectile> projectiles, int? sourceSlotIndex) {
     for (final p in projectiles) {
       p.sourceSlotIndex = sourceSlotIndex;
     }
-  }
-
-  Projectile _cloneOpenProjectile(
-    Projectile p, {
-    Offset? position,
-    double? angle,
-    double? life,
-    double? speedMultiplier,
-    double? radiusMultiplier,
-    double? visualScale,
-    int? sourceSlotIndex,
-  }) {
-    final copy = Projectile(
-      position: position ?? p.position,
-      angle: angle ?? p.angle,
-      life: life ?? p.life,
-      element: p.element,
-      damage: p.damage,
-      speedMultiplier: speedMultiplier ?? p.speedMultiplier,
-      radiusMultiplier: radiusMultiplier ?? p.radiusMultiplier,
-      piercing: p.piercing,
-      homing: p.homing,
-      homingStrength: p.homingStrength,
-      visualScale: visualScale ?? p.visualScale,
-      visualStyle: p.visualStyle,
-      stationary: p.stationary,
-      orbitCenter: p.orbitCenter,
-      orbitAngle: p.orbitAngle,
-      orbitRadius: p.orbitRadius,
-      orbitSpeed: p.orbitSpeed,
-      orbitTime: p.orbitTime,
-      followShipOrbit: p.followShipOrbit,
-      transferToShipOrbit: p.transferToShipOrbit,
-      shipOrbitDelay: p.shipOrbitDelay,
-      transferOrbitCenter: p.transferOrbitCenter,
-      holdOrbit: p.holdOrbit,
-      shipOrbitTransferSpeed: p.shipOrbitTransferSpeed,
-      decoy: p.decoy,
-      decoyHp: p.decoyHp,
-      deathExplosionCount: p.deathExplosionCount,
-      deathExplosionDamage: p.deathExplosionDamage,
-      deathExplosionRadius: p.deathExplosionRadius,
-      tauntRadius: p.tauntRadius,
-      tauntStrength: p.tauntStrength,
-      bounceCount: p.bounceCount,
-      trailInterval: p.trailInterval,
-      trailDamage: p.trailDamage,
-      trailLife: p.trailLife,
-      turretInterval: p.turretInterval,
-      turretDamage: p.turretDamage,
-      turretHomingStrength: p.turretHomingStrength,
-      turretSpeedMultiplier: p.turretSpeedMultiplier,
-      interceptRadius: p.interceptRadius,
-      interceptCharges: p.interceptCharges,
-      snareRadius: p.snareRadius,
-      snareMoveMultiplier: p.snareMoveMultiplier,
-      clusterCount: p.clusterCount,
-      clusterDamage: p.clusterDamage,
-      sourceSlotIndex: sourceSlotIndex ?? p.sourceSlotIndex,
-      letCasterIntelligence: p.letCasterIntelligence,
-      chainLightningCharges: p.chainLightningCharges,
-      abilityFamily: p.abilityFamily,
-      hitEffect: p.hitEffect,
-      killEffect: p.killEffect,
-      pierceEffect: p.pierceEffect,
-      tickEffect: p.tickEffect,
-      effectPower: p.effectPower,
-      effectRadius: p.effectRadius,
-      effectDuration: p.effectDuration,
-      effectChance: p.effectChance,
-      effectCount: p.effectCount,
-      effectStacks: p.effectStacks,
-      effectRequiresKill: p.effectRequiresKill,
-      effectOnBoss: p.effectOnBoss,
-      effectHitIds: Set<int>.of(p.effectHitIds),
-    );
-    copy.pierceCount = p.pierceCount;
-    copy.hitBoss = p.hitBoss;
-    copy.trailTimer = p.trailTimer;
-    copy.turretTimer = p.turretTimer;
-    copy.tickTimer = p.tickTimer;
-    copy.clustered = p.clustered;
-    copy.abilityGrowthTimer = p.abilityGrowthTimer;
-    copy.cachedHomingTarget = p.cachedHomingTarget;
-    copy.homingRescanTimer = p.homingRescanTimer;
-    return copy;
   }
 
   CosmicCompanion? _sourceCompanion(Projectile p) {
@@ -1703,6 +1523,46 @@ class CosmicGame extends FlameGame with PanDetector {
 
   CosmicPartyMember? _sourceMember(Projectile p) =>
       _sourceCompanion(p)?.member ?? _sourceGarrison(p)?.member;
+
+  /// Where a projectile's caster is now, companion or garrison.
+  Offset? _sourcePosition(Projectile p) =>
+      _sourceCompanion(p)?.position ?? _sourceGarrison(p)?.position;
+
+  /// Every frame, before anything moves: a piece that follows its caster
+  /// (Horn Crystal's shards, Kin Spirit's wisp, a Mane Light ring) orbits the
+  /// live creature rather than the spot it was cast from, and an attached
+  /// piece (Mask Dust's shields, Kin Water's rain cloud, Kin Air's updraft)
+  /// rides its host and goes when the host does. Survival does the same for
+  /// every projectile.
+  void updateAttachedAbilityPieces() {
+    for (final p in companionProjectiles) {
+      if (p.life <= 0) continue;
+      if (p.followSourceCompanion) {
+        final host = _sourcePosition(p);
+        if (host != null) p.orbitCenter = host;
+      }
+      if (p.attachedToSlot != -2) {
+        final host = _attachHostPosition(p.attachedToSlot);
+        if (host != null) {
+          p.position = host;
+        } else {
+          p.life = 0;
+        }
+      }
+    }
+  }
+
+  /// Where an attached piece's host is: -1 is the ship, a slot is the
+  /// companion or garrison creature in it. Null once the host is gone.
+  Offset? _attachHostPosition(int slot) {
+    if (slot == -1) return ship.pos;
+    final comp = activeCompanions[slot];
+    if (comp != null && comp.isAlive && !comp.returning) return comp.position;
+    for (final g in _garrison) {
+      if (g.member.slotIndex == slot && g.hp > 0) return g.position;
+    }
+    return null;
+  }
 
   double _openGarrisonBasicCooldown(_GarrisonCreature g) {
     final familyMultiplier = switch (g.member.family.toLowerCase()) {
@@ -1748,114 +1608,23 @@ class CosmicGame extends FlameGame with PanDetector {
     }
   }
 
-  void _tickOpenFamilyPassives(int slotIndex, CosmicCompanion comp, double dt) {
-    if (comp.member.family.toLowerCase() == 'kin' &&
-        comp.member.element == 'Fire' &&
-        comp.kinFireOrbitalFlameActive) {
-      comp.hornPoisonAuraTimer -= dt;
-      if (comp.hornPoisonAuraTimer <= 0) {
-        comp.hornPoisonAuraTimer = 0.5;
-        final damage = max(4.0, comp.abilityAtk * 0.6);
-        for (final enemy in enemies) {
-          if (!enemy.dead && (enemy.position - comp.position).distance <= 70) {
-            _damageOpenEnemy(enemy, damage, element: 'Fire');
-          }
-        }
-        _spawnHitSpark(comp.position, const Color(0xFFFFB060));
-      }
-    }
-    if (comp.member.family.toLowerCase() != 'horn') return;
-    final intelligence = AlchemonStatSystem.legacyGameplayRating(
-      comp.member.statIntelligence,
-    );
-    final scale = (1.0 + (intelligence - 4.0) * 0.10)
-        .clamp(0.85, 1.30)
-        .toDouble();
-
-    switch (comp.member.element) {
-      case 'Air':
-        final innerRadius = 90.0 * scale;
-        final auraRadius = 230.0 * scale;
-        for (final enemy in enemies) {
-          if (enemy.dead) continue;
-          final away = enemy.position - comp.position;
-          final distance = away.distance;
-          if (distance <= innerRadius || distance > auraRadius) continue;
-          final falloff =
-              1.0 - (distance - innerRadius) / (auraRadius - innerRadius);
-          enemy.position +=
-              away / distance * (80.0 * scale * (0.45 + 0.55 * falloff) * dt);
-        }
-        break;
-      case 'Mud':
-        comp.hornMudTrailTimer -= dt;
-        if (comp.hornMudTrailTimer > 0) return;
-        final density = ((intelligence - 3.0) / 2.0).clamp(0.0, 1.0);
-        comp.hornMudTrailTimer = 1.45 + (0.58 - 1.45) * density;
-        companionProjectiles.add(
-          Projectile(
-            position: comp.position,
-            angle: 0,
-            element: 'Mud',
-            damage: 0,
-            life: 4.5,
-            speedMultiplier: 0,
-            stationary: true,
-            piercing: true,
-            radiusMultiplier: 1.2,
-            visualScale: 1.1,
-            visualStyle: ProjectileVisualStyle.sigil,
-            sourceSlotIndex: slotIndex,
-            abilityFamily: 'horn',
-            tickEffect: AbilityEffectKind.slow,
-            effectPower: max(1.0, comp.abilityAtk * 0.08),
-            effectRadius: 48,
-            effectDuration: 1.4,
-          ),
-        );
-        break;
-      case 'Poison':
-        comp.hornPoisonAuraTimer -= dt;
-        if (comp.hornPoisonAuraTimer > 0) return;
-        comp.hornPoisonAuraTimer = 0.6;
-        final auraRadius = 140.0 * scale;
-        final damage = max(1.0, comp.abilityAtk * 0.18);
-        for (final enemy in enemies) {
-          if (!enemy.dead &&
-              (enemy.position - comp.position).distance <= auraRadius) {
-            _damageOpenEnemy(enemy, damage, element: 'Poison');
-          }
-        }
-        final boss = activeBoss;
-        if (boss != null &&
-            !boss.dead &&
-            (boss.position - comp.position).distance <=
-                auraRadius + boss.radius) {
-          _damageOpenBoss(damage, element: 'Poison');
-        }
-        break;
+  /// [engaged] is whether the creature is out fighting rather than flying
+  /// in formation; Horn Mud trails sludge only then, as survival's does only
+  /// off the ship's magnet.
+  void _tickOpenFamilyPassives(
+    int slotIndex,
+    CosmicCompanion comp,
+    double dt, {
+    bool engaged = true,
+  }) {
+    // A Fire kin's reborn flame is its support tick's (cosmic_game_kin.dart).
+    // Horn's passives are survival's (cosmic_game_horn.dart).
+    if (comp.member.family.toLowerCase() == 'horn') {
+      _tickOpenHornPassive(comp, dt, engaged: engaged);
     }
   }
 
   void _tickOpenGarrisonIdentity(_GarrisonCreature g, double dt) {
-    if (g.member.family.toLowerCase() == 'kin' &&
-        g.member.element == 'Fire' &&
-        g.kinFireOrbitalFlameActive) {
-      g.kinSteamStackDecayTimer -= dt;
-      if (g.kinSteamStackDecayTimer <= 0) {
-        g.kinSteamStackDecayTimer = 0.5;
-        for (final enemy in enemies) {
-          if (!enemy.dead && (enemy.position - g.position).distance <= 70) {
-            _damageOpenEnemy(
-              enemy,
-              max(4.0, g.specialDamage * 0.6),
-              element: 'Fire',
-            );
-          }
-        }
-        _spawnHitSpark(g.position, const Color(0xFFFFB060));
-      }
-    }
     if (g.pipSpiritEmpowerTimer > 0) {
       g.pipSpiritEmpowerTimer = max(0, g.pipSpiritEmpowerTimer - dt);
     }
@@ -1917,159 +1686,6 @@ class CosmicGame extends FlameGame with PanDetector {
     g.pendingChargeOrigin = null;
   }
 
-  void _applyOpenManeSpecialRuntime({
-    required CosmicPartyMember member,
-    required List<Projectile> projectiles,
-    required Offset origin,
-    required double angle,
-    required int currentStack,
-    required void Function(int stack) setStack,
-  }) {
-    if (!_isManeMember(member, member.element) || projectiles.isEmpty) return;
-    if (member.element == 'Spirit') {
-      final stacks = currentStack.clamp(0, 9);
-      final shotCount = 1 + stacks;
-      final base = projectiles.first;
-      final dir = Offset(cos(angle), sin(angle));
-      final perp = Offset(-dir.dy, dir.dx);
-      projectiles.clear();
-      for (var i = 0; i < shotCount; i++) {
-        final laneOffset = ((i % 3) - 1) * 2.5;
-        projectiles.add(
-          _cloneOpenProjectile(
-            base,
-            position: base.position - dir * (i * 9.0) + perp * laneOffset,
-            angle: angle + (i.isEven ? -0.018 : 0.018),
-            life: base.life + i * 0.025,
-            speedMultiplier: min(base.speedMultiplier + i * 0.012, 0.74),
-            radiusMultiplier: max(base.radiusMultiplier * 0.88, 0.72),
-            visualScale: max(base.visualScale * 0.86, 0.72),
-            sourceSlotIndex: member.slotIndex,
-          ),
-        );
-      }
-      setStack(currentStack >= 9 ? 0 : currentStack + 1);
-    } else if (member.element == 'Lightning') {
-      final base = projectiles.first;
-      final orbCount = 5 + _rng.nextInt(6);
-      final scatterCenter = ship.pos;
-      final scatterRadius = max(
-        220.0,
-        min(520.0, max(size.x, size.y) / max(0.7, _currentZoom) * 0.42),
-      );
-      projectiles.clear();
-      for (var i = 0; i < orbCount; i++) {
-        final a = angle + i * 2.399963 + (_rng.nextDouble() - 0.5) * 0.42;
-        final dist = 160.0 + _rng.nextDouble() * scatterRadius;
-        final rawTarget = scatterCenter + Offset(cos(a), sin(a)) * dist;
-        final target = Offset(
-          rawTarget.dx.clamp(64.0, world_.worldSize.width - 64.0).toDouble(),
-          rawTarget.dy.clamp(64.0, world_.worldSize.height - 64.0).toDouble(),
-        );
-        final launchAngle = atan2(target.dy - origin.dy, target.dx - origin.dx);
-        final orb = Projectile(
-          position: origin + Offset(cos(launchAngle), sin(launchAngle)) * 24,
-          angle: launchAngle,
-          element: 'Lightning',
-          damage: 0,
-          life: 2.9,
-          speedMultiplier: 0.82 + (i % 3) * 0.05,
-          piercing: true,
-          radiusMultiplier: 0.58,
-          visualScale: 0.62,
-          visualStyle: ProjectileVisualStyle.sigil,
-          sourceSlotIndex: member.slotIndex,
-          abilityFamily: 'mane',
-          effectPower: base.damage * 0.30,
-          effectRadius: 44,
-          effectDuration: 1.0,
-          effectStacks: 1,
-        );
-        orb.cachedHomingTarget = target;
-        projectiles.add(orb);
-      }
-    }
-  }
-
-  bool _updateOpenManeLightningOrbTransfer(Projectile p, double dt) {
-    if (p.abilityFamily != 'mane' ||
-        p.element != 'Lightning' ||
-        p.effectStacks != 1) {
-      return false;
-    }
-    final target = p.cachedHomingTarget;
-    if (target == null) return false;
-    final toTarget = target - p.position;
-    final dist = toTarget.distance;
-    final step = Projectile.speed * max(0.25, p.speedMultiplier) * dt;
-    if (dist <= step || dist < 8) {
-      _spawnOpenManeLightningShockField(p, target);
-      p.life = 0;
-      return true;
-    }
-    final dir = toTarget / dist;
-    p.angle = atan2(dir.dy, dir.dx);
-    p.position += dir * step;
-    return true;
-  }
-
-  void _spawnOpenManeLightningShockField(Projectile source, Offset target) {
-    companionProjectiles.add(
-      Projectile(
-        position: target,
-        angle: 0,
-        element: 'Lightning',
-        damage: 0,
-        life: 4.0,
-        speedMultiplier: 0,
-        stationary: true,
-        piercing: true,
-        radiusMultiplier: 0.95,
-        visualScale: 1.05,
-        visualStyle: ProjectileVisualStyle.sigil,
-        sourceSlotIndex: source.sourceSlotIndex,
-        abilityFamily: 'mane',
-        tickEffect: AbilityEffectKind.zoneDamage,
-        effectPower: source.effectPower,
-        effectRadius: source.effectRadius.clamp(36.0, 48.0).toDouble(),
-        effectDuration: source.effectDuration,
-        effectStacks: 2,
-      ),
-    );
-    _spawnHitSpark(target, elementColor('Lightning'));
-  }
-
-  void _spawnOpenManeEarthQuakePulse(Projectile source) {
-    final dir = Offset(cos(source.angle), sin(source.angle));
-    final perp = Offset(-dir.dy, dir.dx);
-    final offset = perp * ((_rng.nextDouble() - 0.5) * 56.0) - dir * 18.0;
-    final pulsePos = source.position + offset;
-    companionProjectiles.add(
-      Projectile(
-        position: pulsePos,
-        angle: source.angle,
-        element: 'Earth',
-        damage: 0,
-        life: 1.05,
-        speedMultiplier: 0,
-        stationary: true,
-        piercing: true,
-        radiusMultiplier: 0.92,
-        visualScale: 0.92,
-        visualStyle: ProjectileVisualStyle.sigil,
-        sourceSlotIndex: source.sourceSlotIndex,
-        abilityFamily: 'mane',
-        tickEffect: AbilityEffectKind.zoneDamage,
-        effectPower: max(source.turretDamage * 0.62, source.damage * 0.16),
-        effectRadius: max(54.0, source.effectRadius * 0.42),
-        effectDuration: 0.85,
-        snareRadius: max(48.0, source.snareRadius * 0.40),
-        snareMoveMultiplier: min(source.snareMoveMultiplier, 0.52),
-      ),
-    );
-    _spawnHitSpark(pulsePos, elementColor('Earth'));
-  }
-
   double _openSourceElementPower(Projectile p) {
     final comp = _sourceCompanion(p);
     if (comp != null) return comp.abilityAtk.toDouble();
@@ -2084,6 +1700,18 @@ class CosmicGame extends FlameGame with PanDetector {
     Offset position,
   ) {
     if (member.family.toLowerCase() != 'pip') return;
+    // Per the design board, as Survival gates it: Fire, Dust and Crystal
+    // placements come from the special's kills; Dark is the passive that
+    // fires on every other kill.
+    final fromPipSpecial =
+        source.abilityFamily == 'pip' &&
+        source.visualStyle == ProjectileVisualStyle.dart;
+    final allowedBySource = switch (member.element) {
+      'Dark' => !fromPipSpecial,
+      'Fire' || 'Dust' || 'Crystal' => fromPipSpecial,
+      _ => true,
+    };
+    if (!allowedBySource) return;
     final scale = _openSourceElementPower(source) * 0.20 + 4.0;
     switch (member.element) {
       case 'Fire':
@@ -2183,9 +1811,15 @@ class CosmicGame extends FlameGame with PanDetector {
   }
 
   void _applyOpenKillIdentityHooks(Projectile source, CosmicEnemy enemy) {
+    // What any kill sets off — a Mane Plant root, a Spirit kin's wisp — is
+    // the same however the kill was made (cosmic_game_kin.dart).
+    _onOpenKill(source.sourceSlotIndex, enemy);
     final member = _sourceMember(source);
     if (member == null) return;
     final family = member.family.toLowerCase();
+    // Any kill a Horn's hits make inside its special's window (a basic, a
+    // Lava flame) pays the cast's kill effect, as in survival.
+    if (family == 'horn') _creditHornKill(_sourceCompanion(source), enemy);
     if (family == 'pip') {
       _spawnOpenPipKillPlacement(source, member, enemy.position);
       if (member.element == 'Spirit') {
@@ -2216,62 +1850,6 @@ class CosmicGame extends FlameGame with PanDetector {
         }
         _spawnHitSpark(enemy.position, elementColor('Water'));
       }
-    } else if (family == 'kin' && member.element == 'Spirit') {
-      final comp = _sourceCompanion(source);
-      final garrison = _sourceGarrison(source);
-      if (comp != null) {
-        comp.kinSpiritWispKills++;
-        final tier = comp.kinSpiritWispKills >= 12
-            ? 4
-            : comp.kinSpiritWispKills >= 7
-            ? 3
-            : comp.kinSpiritWispKills >= 3
-            ? 2
-            : 1;
-        for (final wisp in companionProjectiles.where(
-          (p) =>
-              p.abilityFamily == 'kin' &&
-              p.element == 'Spirit' &&
-              p.sourceSlotIndex == comp.member.slotIndex &&
-              p.decoy,
-        )) {
-          wisp.effectStacks = tier;
-          wisp.tauntRadius = tier >= 2 ? 115 : 0;
-          wisp.effectPower = tier >= 3 ? comp.abilityAtk * 0.30 : 0;
-          if (tier >= 4) {
-            comp.currentHp = min(
-              comp.maxHp,
-              comp.currentHp + max(1, (comp.abilityAtk * 0.12).round()),
-            );
-          }
-        }
-      } else if (garrison != null) {
-        garrison.kinSpiritWispKills++;
-        final tier = garrison.kinSpiritWispKills >= 12
-            ? 4
-            : garrison.kinSpiritWispKills >= 7
-            ? 3
-            : garrison.kinSpiritWispKills >= 3
-            ? 2
-            : 1;
-        for (final wisp in companionProjectiles.where(
-          (p) =>
-              p.abilityFamily == 'kin' &&
-              p.element == 'Spirit' &&
-              p.sourceSlotIndex == garrison.member.slotIndex &&
-              p.decoy,
-        )) {
-          wisp.effectStacks = tier;
-          wisp.tauntRadius = tier >= 2 ? 115 : 0;
-          wisp.effectPower = tier >= 3 ? garrison.specialDamage * 0.30 : 0;
-          if (tier >= 4) {
-            garrison.hp = min(
-              garrison.maxHp,
-              garrison.hp + max(1, (garrison.specialDamage * 0.12).round()),
-            );
-          }
-        }
-      }
     } else if (family == 'mask' && member.element == 'Spirit') {
       final comp = _sourceCompanion(source);
       final g = _sourceGarrison(source);
@@ -2290,18 +1868,6 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    if (enemy.maneRootSlot != null && enemy.maneRootTimer > 0) {
-      const explodeRadius = 165.0;
-      for (final target in enemies) {
-        if (target.dead || identical(target, enemy)) continue;
-        if ((target.position - enemy.position).distance <= explodeRadius) {
-          _damageOpenEnemy(target, _openSourceElementPower(source) * 2.1);
-          target.maneRootSlot = enemy.maneRootSlot;
-          target.maneRootTimer = max(target.maneRootTimer, 1.4);
-        }
-      }
-      _spawnHitSpark(enemy.position, elementColor('Plant'));
-    }
   }
 
   void _openSpiritMaskBurst(
@@ -2315,7 +1881,7 @@ class CosmicGame extends FlameGame with PanDetector {
         _damageOpenEnemy(target, damage, element: member.element);
       }
     }
-    _damageOpenBoss(damage, element: member.element);
+    // Enemies only, as Survival's burst: the boss is not in the list.
     _spawnHitSpark(center, elementColor('Spirit'));
   }
 
@@ -2324,13 +1890,17 @@ class CosmicGame extends FlameGame with PanDetector {
     CosmicEnemy enemy, {
     required bool killed,
   }) {
-    if (p.abilityFamily.isNotEmpty) return;
     final member = _sourceMember(p);
     if (member == null || member.family.toLowerCase() != 'pip') return;
-    if (p.element == 'Mud' && !killed) {
+    // Mud's trail comes from the basic attack; Poison's web from the
+    // special's darts, as Survival lays them.
+    final isBasic = p.abilityFamily.isEmpty;
+    final isPipSpecialDart =
+        p.abilityFamily == 'pip' && p.visualStyle == ProjectileVisualStyle.dart;
+    if (isBasic && p.element == 'Mud' && !killed) {
       enemy.pipMudTrail = true;
       enemy.pipMudTrailTimer = max(enemy.pipMudTrailTimer, 0.2);
-    } else if (p.element == 'Poison') {
+    } else if (isPipSpecialDart && p.element == 'Poison') {
       final comp = _sourceCompanion(p);
       final g = _sourceGarrison(p);
       final prev = comp?.lastPipPoisonHitPos ?? g?.lastPipPoisonHitPos;
@@ -2373,6 +1943,28 @@ class CosmicGame extends FlameGame with PanDetector {
     }
   }
 
+  /// Pip Poison's web lasts until the next cast: a new special clears the
+  /// caster's old lines and starts a fresh web from its first hit.
+  void _clearPipPoisonWeb(CosmicPartyMember member) {
+    if (member.family.toLowerCase() != 'pip' || member.element != 'Poison') {
+      return;
+    }
+    for (final existing in companionProjectiles) {
+      if (existing.sourceSlotIndex == member.slotIndex &&
+          existing.abilityFamily == 'pip' &&
+          existing.element == 'Poison' &&
+          existing.stationary) {
+        existing.life = 0;
+      }
+    }
+    for (final comp in activeCompanions.values) {
+      if (identical(comp.member, member)) comp.lastPipPoisonHitPos = null;
+    }
+    for (final g in _garrison) {
+      if (identical(g.member, member)) g.lastPipPoisonHitPos = null;
+    }
+  }
+
   CosmicEnemy? _nearestOpenEnemy(Offset origin, double range) {
     CosmicEnemy? target;
     var best = range;
@@ -2387,726 +1979,94 @@ class CosmicGame extends FlameGame with PanDetector {
     return target;
   }
 
-  double _openKinScale(
-    num stat, {
-    required double perPoint,
-    required double minValue,
-    required double maxValue,
+  /// A puff of the mud a Pip Mud-marked body trails, slowing what follows.
+  Projectile _pipMudTrailPuff(Offset at) => Projectile(
+    position: at,
+    angle: 0,
+    element: 'Mud',
+    damage: 0,
+    life: 5.5,
+    speedMultiplier: 0,
+    stationary: true,
+    piercing: true,
+    radiusMultiplier: 1.1,
+    visualScale: 1.0,
+    visualStyle: ProjectileVisualStyle.sigil,
+    abilityFamily: 'pip',
+    tickEffect: AbilityEffectKind.slow,
+    effectPower: 1.0,
+    effectRadius: 38,
+    effectDuration: 1.2,
+  );
+
+  /// Adds a shove along [direction]. [byMass] makes heavier tiers take less,
+  /// as Survival's area shoves (Let Air's gust) do; contact knockback does
+  /// not scale.
+  void _knockOpenEnemy(
+    CosmicEnemy enemy,
+    Offset direction,
+    double force, {
+    bool byMass = false,
   }) {
-    final value = AlchemonStatSystem.legacyGameplayRating(stat.toDouble());
-    return (1 + (value - 4) * perPoint).clamp(minValue, maxValue).toDouble();
+    final d = direction.distance;
+    if (d <= 0.01 || force <= 0) return;
+    final impulse = byMass
+        ? force * CosmicAbilityRuntime.knockbackMassScale(enemy.tier)
+        : force;
+    enemy.knockbackVelocity += direction / d * impulse;
   }
 
-  bool get _openKinLightningActive =>
-      activeCompanions.values.any(
-        (comp) =>
-            comp.isAlive &&
-            comp.member.family.toLowerCase() == 'kin' &&
-            comp.member.element == 'Lightning' &&
-            comp.kinLightningChargeTimer > 0,
-      ) ||
-      _garrison.any(
-        (g) =>
-            g.hp > 0 &&
-            g.member.family.toLowerCase() == 'kin' &&
-            g.member.element == 'Lightning' &&
-            g.kinLightningChargeTimer > 0,
-      );
-
-  bool get _openKinDarkCloakActive =>
-      activeCompanions.values.any(
-        (comp) =>
-            comp.isAlive &&
-            comp.member.family.toLowerCase() == 'kin' &&
-            comp.member.element == 'Dark' &&
-            comp.kinDarkCloakTimer > 0,
-      ) ||
-      _garrison.any(
-        (g) =>
-            g.hp > 0 &&
-            g.member.family.toLowerCase() == 'kin' &&
-            g.member.element == 'Dark' &&
-            g.kinDarkCloakTimer > 0,
-      );
-
-  void _activateOpenKinSupport(CosmicCompanion comp, Offset target) {
-    final intel = comp.member.statIntelligence;
-    final beauty = comp.member.statBeauty;
-    switch (comp.member.element) {
-      case 'Lava':
-        comp.kinLavaPlateTimer =
-            _openKinScale(
-              intel,
-              perPoint: 0.10,
-              minValue: 0.85,
-              maxValue: 1.40,
-            ) *
-            9;
-        break;
-      case 'Ice':
-        final duration =
-            _openKinScale(
-              intel,
-              perPoint: -0.06,
-              minValue: 0.70,
-              maxValue: 1.15,
-            ) *
-            4;
-        comp.kinIceChargeTimer = duration;
-        comp.kinIceChargeTotal = duration;
-        break;
-      case 'Steam':
-        comp.kinSteamBoilerTimer =
-            _openKinScale(
-              intel,
-              perPoint: 0.12,
-              minValue: 0.80,
-              maxValue: 1.60,
-            ) *
-            10;
-        comp.kinSteamBoilerStacks = 0;
-        comp.kinSteamStackCarry = 0;
-        comp.kinSteamStackDecayTimer = 2;
-        break;
-      case 'Lightning':
-        comp.kinLightningChargeTimer =
-            _openKinScale(
-              intel,
-              perPoint: 0.10,
-              minValue: 0.85,
-              maxValue: 1.40,
-            ) *
-            10;
-        break;
-      case 'Dark':
-        comp.kinDarkCloakTimer =
-            _openKinScale(
-              intel,
-              perPoint: 0.10,
-              minValue: 0.85,
-              maxValue: 1.50,
-            ) *
-            7;
-        break;
-      case 'Blood':
-        comp.kinBloodPactTimer =
-            _openKinScale(
-              intel,
-              perPoint: 0.10,
-              minValue: 0.85,
-              maxValue: 1.50,
-            ) *
-            9;
-        break;
-      case 'Mud':
-        comp.kinMudShipEnchantTimer =
-            _openKinScale(
-              intel,
-              perPoint: 0.10,
-              minValue: 0.85,
-              maxValue: 1.40,
-            ) *
-            5;
-        comp.kinSteamStackDecayTimer = 0;
-        break;
-      case 'Dust':
-        final count = companionProjectiles
-            .where(
-              (p) =>
-                  p.abilityFamily == 'kin' &&
-                  p.element == 'Dust' &&
-                  p.sourceSlotIndex == comp.member.slotIndex,
-            )
-            .length;
-        if (count < 10) {
-          companionProjectiles.add(
-            Projectile(
-              position: target,
-              angle: 0,
-              element: 'Dust',
-              damage: 0,
-              life: 18,
-              speedMultiplier: 0,
-              stationary: true,
-              piercing: true,
-              visualStyle: ProjectileVisualStyle.sigil,
-              sourceSlotIndex: comp.member.slotIndex,
-              abilityFamily: 'kin',
-              tickEffect: AbilityEffectKind.suppressShooting,
-              effectRadius: 82 + beauty * 5,
-              effectDuration: 1.2,
-              visualScale: 1.8,
-            ),
-          );
-        }
-        break;
-      case 'Earth':
-        final count =
-            7 +
-            (AlchemonStatSystem.combatProgress(beauty.toDouble()) * 4).round();
-        for (var i = 0; i < count; i++) {
-          final t = count == 1 ? 0.5 : i / (count - 1);
-          final angle = comp.angle - 1.047 + 2.094 * t;
-          companionProjectiles.add(
-            Projectile(
-              position: ship.pos + Offset(cos(angle), sin(angle)) * 110,
-              angle: angle,
-              element: 'Earth',
-              damage: 0,
-              life: 12,
-              speedMultiplier: 0,
-              stationary: true,
-              piercing: true,
-              decoy: true,
-              decoyHp: 1e9,
-              tauntRadius: 75,
-              tauntStrength: 1,
-              interceptRadius: 22,
-              interceptCharges: 999,
-              visualStyle: ProjectileVisualStyle.sigil,
-              sourceSlotIndex: comp.member.slotIndex,
-              abilityFamily: 'kin',
-              tickEffect: AbilityEffectKind.knockback,
-              effectRadius: 30,
-              effectPower: comp.abilityAtk * 0.2,
-              effectDuration: 0.2,
-              visualScale: 1.35,
-            ),
-          );
-        }
-        break;
-      case 'Spirit':
-        final wisps = companionProjectiles.where(
-          (p) =>
-              p.abilityFamily == 'kin' &&
-              p.element == 'Spirit' &&
-              p.sourceSlotIndex == comp.member.slotIndex &&
-              p.decoy,
+  /// Crowd control on a body, as Survival applies it: a timed slow at the
+  /// effect's strength (root holds it still, freeze very nearly), and a
+  /// frozen or rooted body stops being carried by a shove. Suppressing shots
+  /// does nothing to a body that never fires, and open space's roaming
+  /// bodies do not.
+  void _crowdControlOpenEnemy(
+    CosmicEnemy enemy,
+    AbilityEffectKind effect,
+    double duration,
+  ) {
+    switch (effect) {
+      case AbilityEffectKind.slow:
+      case AbilityEffectKind.freeze:
+      case AbilityEffectKind.root:
+      case AbilityEffectKind.stun:
+        enemy.applySlow(
+          CosmicAbilityRuntime.survivalSlowMultiplier(effect),
+          CosmicAbilityRuntime.survivalCrowdControlDuration(effect, duration),
         );
-        if (wisps.isEmpty) {
-          companionProjectiles.add(
-            Projectile(
-              position: comp.position,
-              angle: comp.angle,
-              element: 'Spirit',
-              damage: comp.abilityAtk * 0.25,
-              life: 9999,
-              speedMultiplier: 0,
-              stationary: true,
-              piercing: true,
-              decoy: true,
-              decoyHp: max(20.0, comp.maxHp * 0.35),
-              visualStyle: ProjectileVisualStyle.kinOrbital,
-              sourceSlotIndex: comp.member.slotIndex,
-              abilityFamily: 'kin',
-              tickEffect: AbilityEffectKind.zoneDamage,
-              effectRadius: 55,
-              effectPower: comp.abilityAtk * 0.18,
-              effectDuration: 0.7,
-              effectStacks: 1,
-              visualScale: 1.1,
-            ),
-          );
-        } else {
-          wisps.first.life = 9999;
+        if (effect == AbilityEffectKind.freeze ||
+            effect == AbilityEffectKind.root) {
+          enemy.knockbackVelocity = Offset.zero;
         }
+      default:
         break;
     }
   }
 
-  void _activateOpenGarrisonKinSupport(_GarrisonCreature g, Offset target) {
-    final intel = g.member.statIntelligence;
-    final beauty = g.member.statBeauty;
-    switch (g.member.element) {
-      case 'Lava':
-        g.kinLavaPlateTimer =
-            9 *
-            _openKinScale(
-              intel,
-              perPoint: 0.10,
-              minValue: 0.85,
-              maxValue: 1.40,
-            );
-        break;
-      case 'Ice':
-        final duration =
-            4 *
-            _openKinScale(
-              intel,
-              perPoint: -0.06,
-              minValue: 0.70,
-              maxValue: 1.15,
-            );
-        g.kinIceChargeTimer = duration;
-        g.kinIceChargeTotal = duration;
-        break;
-      case 'Steam':
-        g.kinSteamBoilerTimer =
-            10 *
-            _openKinScale(
-              intel,
-              perPoint: 0.12,
-              minValue: 0.80,
-              maxValue: 1.60,
-            );
-        g.kinSteamBoilerStacks = 0;
-        g.kinSteamStackCarry = 0;
-        g.kinSteamStackDecayTimer = 2;
-        break;
-      case 'Lightning':
-        g.kinLightningChargeTimer =
-            10 *
-            _openKinScale(
-              intel,
-              perPoint: 0.10,
-              minValue: 0.85,
-              maxValue: 1.40,
-            );
-        break;
-      case 'Dark':
-        g.kinDarkCloakTimer =
-            7 *
-            _openKinScale(
-              intel,
-              perPoint: 0.10,
-              minValue: 0.85,
-              maxValue: 1.50,
-            );
-        break;
-      case 'Blood':
-        g.kinBloodPactTimer =
-            9 *
-            _openKinScale(
-              intel,
-              perPoint: 0.10,
-              minValue: 0.85,
-              maxValue: 1.50,
-            );
-        break;
-      case 'Mud':
-        g.kinMudShipEnchantTimer =
-            5 *
-            _openKinScale(
-              intel,
-              perPoint: 0.10,
-              minValue: 0.85,
-              maxValue: 1.40,
-            );
-        g.kinSteamStackDecayTimer = 0;
-        break;
-      case 'Dust':
-        final count = companionProjectiles
-            .where(
-              (p) =>
-                  p.abilityFamily == 'kin' &&
-                  p.element == 'Dust' &&
-                  p.sourceSlotIndex == g.member.slotIndex,
-            )
-            .length;
-        if (count < 10) {
-          companionProjectiles.add(
-            Projectile(
-              position: target,
-              angle: 0,
-              element: 'Dust',
-              damage: 0,
-              life: 18,
-              speedMultiplier: 0,
-              stationary: true,
-              piercing: true,
-              visualStyle: ProjectileVisualStyle.sigil,
-              sourceSlotIndex: g.member.slotIndex,
-              abilityFamily: 'kin',
-              tickEffect: AbilityEffectKind.suppressShooting,
-              effectRadius: 82 + beauty * 5,
-              effectDuration: 1.2,
-              visualScale: 1.8,
-            ),
-          );
-        }
-        break;
-      case 'Earth':
-        final count =
-            7 +
-            (AlchemonStatSystem.combatProgress(beauty.toDouble()) * 4).round();
-        for (var i = 0; i < count; i++) {
-          final t = count == 1 ? 0.5 : i / (count - 1);
-          final angle = g.faceAngle - 1.047 + 2.094 * t;
-          companionProjectiles.add(
-            Projectile(
-              position: ship.pos + Offset(cos(angle), sin(angle)) * 110,
-              angle: angle,
-              element: 'Earth',
-              damage: 0,
-              life: 12,
-              speedMultiplier: 0,
-              stationary: true,
-              piercing: true,
-              decoy: true,
-              decoyHp: 1e9,
-              tauntRadius: 75,
-              tauntStrength: 1,
-              interceptRadius: 22,
-              interceptCharges: 999,
-              visualStyle: ProjectileVisualStyle.sigil,
-              sourceSlotIndex: g.member.slotIndex,
-              abilityFamily: 'kin',
-              tickEffect: AbilityEffectKind.knockback,
-              effectRadius: 30,
-              effectPower: g.specialDamage * 0.2,
-              effectDuration: 0.2,
-              visualScale: 1.35,
-            ),
-          );
-        }
-        break;
-      case 'Spirit':
-        final wisps = companionProjectiles.where(
-          (p) =>
-              p.abilityFamily == 'kin' &&
-              p.element == 'Spirit' &&
-              p.sourceSlotIndex == g.member.slotIndex &&
-              p.decoy,
-        );
-        if (wisps.isEmpty) {
-          companionProjectiles.add(
-            Projectile(
-              position: g.position,
-              angle: g.faceAngle,
-              element: 'Spirit',
-              damage: g.specialDamage * 0.25,
-              life: 9999,
-              speedMultiplier: 0,
-              stationary: true,
-              piercing: true,
-              decoy: true,
-              decoyHp: max(20.0, g.maxHp * 0.35),
-              visualStyle: ProjectileVisualStyle.kinOrbital,
-              sourceSlotIndex: g.member.slotIndex,
-              abilityFamily: 'kin',
-              tickEffect: AbilityEffectKind.zoneDamage,
-              effectRadius: 55,
-              effectPower: g.specialDamage * 0.18,
-              effectDuration: 0.7,
-              effectStacks: 1,
-              visualScale: 1.1,
-            ),
-          );
-        } else {
-          wisps.first.life = 9999;
-        }
-        break;
-    }
+  void _integrateEnemyKnockback(CosmicEnemy enemy, double dt) {
+    final v = enemy.knockbackVelocity;
+    if (v == Offset.zero) return;
+    enemy.position += v * dt;
+    final next = v * exp(-CosmicAbilityRuntime.knockbackDamping * dt);
+    enemy.knockbackVelocity =
+        next.distance < CosmicAbilityRuntime.knockbackRestSpeed
+        ? Offset.zero
+        : next;
   }
 
-  void _updateOpenKinSupports(double dt) {
-    final shipDelta = _openKinPrevShipHealth >= 0
-        ? max(0.0, _openKinPrevShipHealth - shipHealth)
-        : 0.0;
-    _openKinPrevShipHealth = shipHealth.toDouble();
-    _openKinLastShipDamage = shipDelta;
-    for (final comp in activeCompanions.values) {
-      if (!comp.isAlive || comp.member.family.toLowerCase() != 'kin') continue;
-      final companionDelta = comp.kinPrevHp > 0
-          ? max(0, comp.kinPrevHp - comp.currentHp).toDouble()
-          : 0.0;
-      comp.kinPrevHp = comp.currentHp;
-      final teamDamage = shipDelta + companionDelta;
-
-      if (comp.kinLavaPlateTimer > 0) {
-        comp.kinLavaPlateTimer = max(0, comp.kinLavaPlateTimer - dt);
-        if (teamDamage > 0) {
-          final enemy = _nearestOpenEnemy(comp.position, 320);
-          if (enemy != null) {
-            _damageOpenEnemy(
-              enemy,
-              max(
-                teamDamage * 1.4,
-                comp.abilityAtk * 0.8,
-              ).clamp(0.0, comp.abilityAtk * 3.0).toDouble(),
-              element: 'Lava',
-            );
-          }
-        }
-      }
-      if (comp.kinDarkCloakTimer > 0) {
-        comp.kinDarkCloakTimer = max(0, comp.kinDarkCloakTimer - dt);
-      }
-      if (comp.kinBloodPactTimer > 0) {
-        comp.kinBloodPactTimer = max(0, comp.kinBloodPactTimer - dt);
-        if (teamDamage > 0) {
-          final living = activeCompanions.values
-              .where((c) => c.isAlive)
-              .toList();
-          if (living.isNotEmpty) {
-            final heal = (teamDamage * 0.60 / living.length).round();
-            for (final ally in living) {
-              ally.currentHp = min(ally.maxHp, ally.currentHp + heal);
-            }
-          }
-        }
-      }
-      if (comp.kinLightningChargeTimer > 0) {
-        comp.kinLightningChargeTimer = max(
-          0,
-          comp.kinLightningChargeTimer - dt,
-        );
-      }
-      if (comp.kinIceChargeTimer > 0) {
-        comp.kinIceChargeTimer = max(0, comp.kinIceChargeTimer - dt);
-        if (comp.kinIceChargeTimer == 0) {
-          final radius =
-              220 *
-              _openKinScale(
-                comp.member.statBeauty,
-                perPoint: 0.40,
-                minValue: 0.85,
-                maxValue: 6.0,
-              );
-          final duration =
-              4 *
-              _openKinScale(
-                comp.member.statIntelligence,
-                perPoint: 0.18,
-                minValue: 0.90,
-                maxValue: 2.0,
-              );
-          for (final enemy in enemies) {
-            if (!enemy.dead &&
-                (enemy.position - comp.position).distance <= radius) {
-              _applyOpenWingEffect(
-                AbilityEffectKind.freeze,
-                enemy,
-                comp.position,
-                comp.abilityAtk.toDouble(),
-                radius,
-                duration,
-              );
-            }
-          }
-          _spawnHitSpark(comp.position, elementColor('Ice'));
-        }
-      }
-      if (comp.kinSteamBoilerTimer > 0) {
-        comp.kinSteamBoilerTimer = max(0, comp.kinSteamBoilerTimer - dt);
-        if (teamDamage > 0) {
-          comp.kinSteamStackCarry +=
-              teamDamage / max(2.0, shipMaxHealth * 0.08);
-          final gained = comp.kinSteamStackCarry.floor();
-          if (gained > 0) {
-            comp.kinSteamStackCarry -= gained;
-            comp.kinSteamBoilerStacks = min(
-              10,
-              comp.kinSteamBoilerStacks + gained,
-            );
-            comp.kinSteamStackDecayTimer = 2;
-          }
-        }
-        if (comp.kinSteamBoilerStacks > 0) {
-          comp.kinSteamStackDecayTimer -= dt;
-          if (comp.kinSteamStackDecayTimer <= 0) {
-            comp.kinSteamBoilerStacks--;
-            comp.kinSteamStackDecayTimer = 2;
-          }
-        }
-        final perStack =
-            0.05 *
-            _openKinScale(
-              comp.member.statBeauty,
-              perPoint: 0.10,
-              minValue: 0.85,
-              maxValue: 1.40,
-            );
-        final multiplier = (1 - comp.kinSteamBoilerStacks * perStack)
-            .clamp(0.5, 1.0)
-            .toDouble();
-        for (final ally in activeCompanions.values) {
-          ally.basicHasteTimer = max(ally.basicHasteTimer, 0.5);
-          ally.basicHasteMultiplier = min(
-            ally.basicHasteMultiplier,
-            multiplier,
-          );
-        }
-      }
-      if (comp.kinMudShipEnchantTimer > 0) {
-        comp.kinMudShipEnchantTimer = max(0, comp.kinMudShipEnchantTimer - dt);
-        comp.kinSteamStackDecayTimer -= dt;
-        if (comp.kinSteamStackDecayTimer <= 0) {
-          comp.kinSteamStackDecayTimer = 0.35;
-          companionProjectiles.add(
-            Projectile(
-              position: ship.pos,
-              angle: 0,
-              element: 'Mud',
-              damage: 0,
-              life: 5,
-              speedMultiplier: 0,
-              stationary: true,
-              piercing: true,
-              visualStyle: ProjectileVisualStyle.sigil,
-              sourceSlotIndex: comp.member.slotIndex,
-              abilityFamily: 'kin',
-              tickEffect: AbilityEffectKind.slow,
-              effectRadius: 48,
-              effectDuration: 1.6,
-              visualScale: 1.4,
-            ),
-          );
-        }
-      }
-    }
-  }
-
-  void _updateOpenGarrisonKinSupport(_GarrisonCreature g, double dt) {
-    if (g.member.family.toLowerCase() != 'kin' || g.hp <= 0) return;
-    final damage = _openKinLastShipDamage;
-    if (g.kinLavaPlateTimer > 0) {
-      g.kinLavaPlateTimer = max(0, g.kinLavaPlateTimer - dt);
-      if (damage > 0) {
-        final enemy = _nearestOpenEnemy(ship.pos, 320);
-        if (enemy != null) {
-          _damageOpenEnemy(
-            enemy,
-            max(
-              damage * 1.4,
-              g.specialDamage * 0.8,
-            ).clamp(0.0, g.specialDamage * 3.0).toDouble(),
-            element: 'Lava',
-          );
-        }
-      }
-    }
-    if (g.kinDarkCloakTimer > 0) {
-      g.kinDarkCloakTimer = max(0, g.kinDarkCloakTimer - dt);
-    }
-    if (g.kinBloodPactTimer > 0) {
-      g.kinBloodPactTimer = max(0, g.kinBloodPactTimer - dt);
-      if (damage > 0) {
-        shipHealth = min(shipMaxHealth, shipHealth + damage * 0.60);
-      }
-    }
-    if (g.kinLightningChargeTimer > 0) {
-      g.kinLightningChargeTimer = max(0, g.kinLightningChargeTimer - dt);
-    }
-    if (g.kinIceChargeTimer > 0) {
-      g.kinIceChargeTimer = max(0, g.kinIceChargeTimer - dt);
-      if (g.kinIceChargeTimer == 0) {
-        final radius =
-            220 *
-            _openKinScale(
-              g.member.statBeauty,
-              perPoint: 0.40,
-              minValue: 0.85,
-              maxValue: 6.0,
-            );
-        for (final enemy in enemies) {
-          if (!enemy.dead && (enemy.position - g.position).distance <= radius) {
-            _applyOpenWingEffect(
-              AbilityEffectKind.freeze,
-              enemy,
-              g.position,
-              g.specialDamage,
-              radius,
-              4 *
-                  _openKinScale(
-                    g.member.statIntelligence,
-                    perPoint: 0.18,
-                    minValue: 0.90,
-                    maxValue: 2.0,
-                  ),
-            );
-          }
-        }
-        _spawnHitSpark(g.position, elementColor('Ice'));
-      }
-    }
-    if (g.kinSteamBoilerTimer > 0) {
-      g.kinSteamBoilerTimer = max(0, g.kinSteamBoilerTimer - dt);
-      if (damage > 0) {
-        g.kinSteamStackCarry += damage / max(2.0, shipMaxHealth * 0.08);
-        final gained = g.kinSteamStackCarry.floor();
-        if (gained > 0) {
-          g.kinSteamStackCarry -= gained;
-          g.kinSteamBoilerStacks = min(10, g.kinSteamBoilerStacks + gained);
-          g.kinSteamStackDecayTimer = 2;
-        }
-      }
-      if (g.kinSteamBoilerStacks > 0) {
-        g.kinSteamStackDecayTimer -= dt;
-        if (g.kinSteamStackDecayTimer <= 0) {
-          g.kinSteamBoilerStacks--;
-          g.kinSteamStackDecayTimer = 2;
-        }
-      }
-      final multiplier = (1 - g.kinSteamBoilerStacks * 0.05)
-          .clamp(0.5, 1.0)
-          .toDouble();
-      for (final ally in activeCompanions.values) {
-        ally.basicHasteTimer = max(ally.basicHasteTimer, 0.5);
-        ally.basicHasteMultiplier = min(ally.basicHasteMultiplier, multiplier);
-      }
-      for (final ally in _garrison) {
-        ally.basicHasteTimer = max(ally.basicHasteTimer, 0.5);
-        ally.basicHasteMultiplier = min(ally.basicHasteMultiplier, multiplier);
-      }
-    }
-    if (g.kinMudShipEnchantTimer > 0) {
-      g.kinMudShipEnchantTimer = max(0, g.kinMudShipEnchantTimer - dt);
-      g.kinSteamStackDecayTimer -= dt;
-      if (g.kinSteamStackDecayTimer <= 0) {
-        g.kinSteamStackDecayTimer = 0.35;
-        companionProjectiles.add(
-          Projectile(
-            position: ship.pos,
-            angle: 0,
-            element: 'Mud',
-            damage: 0,
-            life: 5,
-            speedMultiplier: 0,
-            stationary: true,
-            piercing: true,
-            visualStyle: ProjectileVisualStyle.sigil,
-            sourceSlotIndex: g.member.slotIndex,
-            abilityFamily: 'kin',
-            tickEffect: AbilityEffectKind.slow,
-            effectRadius: 48,
-            effectDuration: 1.6,
-            visualScale: 1.4,
-          ),
-        );
-      }
-    }
-  }
-
-  Offset _openWingBeamEndpoint(_ActiveWingBeam beam) {
-    final d = beam.descriptor;
-    final fallback =
-        beam.origin + Offset(cos(beam.angle), sin(beam.angle)) * d.range;
-    CosmicEnemy? target;
-    if (d.targetPolicy == WingBeamTargetPolicy.lowestHealthEnemy) {
-      for (final enemy in enemies) {
-        if (enemy.dead) continue;
-        if ((enemy.position - beam.origin).distance > d.range) continue;
-        if (target == null ||
-            enemy.health / enemy.maxHealth < target.health / target.maxHealth) {
-          target = enemy;
-        }
-      }
-    } else {
-      target = _nearestOpenEnemy(beam.origin, d.range);
-    }
-    if (target != null) return target.position;
-    final boss = activeBoss;
-    if (boss != null &&
-        !boss.dead &&
-        (boss.position - beam.origin).distance <= d.range) {
-      return boss.position;
-    }
-    return fallback;
-  }
-
-  bool _damageOpenEnemy(CosmicEnemy enemy, double damage, {String? element}) {
+  /// [sourceSlot], when given, is whose kill it is: a kill then sets off
+  /// what any kill credited to that slot does (see [_onOpenKill]).
+  bool _damageOpenEnemy(
+    CosmicEnemy enemy,
+    double damage, {
+    String? element,
+    int? sourceSlot,
+  }) {
     if (enemy.dead) return false;
+    // An Alchemon standing in as a body is never killed by an ability; the
+    // instant kill is booked as a heavy hit (cosmic_game_duel.dart).
+    if (damage >= enemy.health && _bookExecute(enemy)) return false;
     final wasAlive = enemy.health > 0;
     enemy.health -= damage;
     final killed = wasAlive && enemy.health <= 0;
@@ -3124,6 +2084,7 @@ class CosmicGame extends FlameGame with PanDetector {
         enemy.shardDrop,
         enemy.particleDrop,
       );
+      if (sourceSlot != null) _onOpenKill(sourceSlot, enemy);
     }
     return killed;
   }
@@ -3157,23 +2118,19 @@ class CosmicGame extends FlameGame with PanDetector {
     if (effect == AbilityEffectKind.none || enemy.dead) return;
     switch (effect) {
       case AbilityEffectKind.knockback:
-        final dir = enemy.position - origin;
-        final dist = dir.distance;
-        if (dist > 0.01) enemy.position += (dir / dist) * 28.0;
+        _knockOpenEnemy(
+          enemy,
+          enemy.position - origin,
+          CosmicAbilityRuntime.knockbackImpulse(power),
+        );
         break;
       case AbilityEffectKind.slow:
       case AbilityEffectKind.root:
       case AbilityEffectKind.freeze:
       case AbilityEffectKind.stun:
       case AbilityEffectKind.suppressShooting:
-        enemy.speed = max(
-          8.0,
-          enemy.speed *
-              CosmicAbilityRuntime.openSpaceCrowdControlSpeedMultiplier(effect),
-        );
-        enemy.driftTimer += CosmicAbilityRuntime.openSpaceCrowdControlDuration(
-          duration,
-        );
+        _crowdControlOpenEnemy(enemy, effect, duration);
+        if (effect == AbilityEffectKind.root) _damageOpenEnemy(enemy, power);
         break;
       case AbilityEffectKind.pull:
       case AbilityEffectKind.blackHole:
@@ -3232,263 +2189,6 @@ class CosmicGame extends FlameGame with PanDetector {
     }
   }
 
-  void _spawnOpenSteamClouds(Offset center, WingBeamEffect d) {
-    const count = 6;
-    for (var i = 0; i < count; i++) {
-      final a = i * pi * 2 / count + _rng.nextDouble() * 0.5;
-      final dist = 12.0 + _rng.nextDouble() * 46.0;
-      companionProjectiles.add(
-        Projectile(
-          position: center + Offset(cos(a), sin(a)) * dist,
-          angle: 0,
-          element: 'Steam',
-          damage: 0,
-          life: 2.8,
-          speedMultiplier: 0,
-          stationary: true,
-          piercing: true,
-          radiusMultiplier: 1.25,
-          visualScale: 1.15,
-          visualStyle: ProjectileVisualStyle.sigil,
-          abilityFamily: 'wing',
-          tickEffect: AbilityEffectKind.burn,
-          effectPower: d.damagePerTick * 0.34,
-          effectRadius: 38,
-          effectDuration: 2.8,
-        ),
-      );
-    }
-  }
-
-  void _spawnOpenLightSplitBeams(_ActiveWingBeam parent) {
-    if (parent.refractionsDone > 0 || parent.life < 0.25) return;
-    final d = parent.descriptor;
-    final child = WingBeamEffect(
-      element: 'Light',
-      targetPolicy: WingBeamTargetPolicy.nearestEnemy,
-      duration: parent.life,
-      tickInterval: d.tickInterval,
-      damagePerTick: d.damagePerTick * 0.5,
-      healPerTick: d.healPerTick * 0.5,
-      width: d.width * 0.58,
-      range: d.range * 0.85,
-      tickEffect: d.tickEffect,
-      effectPower: d.effectPower * 0.5,
-      effectDuration: d.effectDuration,
-    );
-    for (var i = 0; i < 2; i++) {
-      final beam = _ActiveWingBeam(
-        descriptor: child,
-        origin: parent.origin,
-        angle: parent.angle + (i == 0 ? -0.48 : 0.48),
-        originResolver: parent.originResolver,
-      )..refractionsDone = 1;
-      _pendingWingBeams.add(beam);
-    }
-  }
-
-  void _resolveOpenWingBeamTick(_ActiveWingBeam beam, Offset end) {
-    final d = beam.descriptor;
-    final beamDamage = d.tickEffect == AbilityEffectKind.chargeBlast
-        ? CosmicAbilityRuntime.directDamageForEffect(
-            d.tickEffect,
-            power: d.damagePerTick,
-            targetHp: double.infinity,
-            targetHpFraction: 1,
-          )
-        : d.damagePerTick;
-    if (d.element == 'Lava') {
-      companionProjectiles.add(
-        Projectile(
-          position: end,
-          angle: 0,
-          element: 'Lava',
-          damage: 0,
-          life: 2.2,
-          speedMultiplier: 0,
-          stationary: true,
-          piercing: true,
-          radiusMultiplier: 1.05,
-          visualScale: 1.0,
-          visualStyle: ProjectileVisualStyle.sigil,
-          abilityFamily: 'wing',
-          tickEffect: AbilityEffectKind.burn,
-          effectPower: d.damagePerTick * 0.36,
-          effectRadius: 34,
-          effectDuration: 2.2,
-        ),
-      );
-    }
-
-    if (d.healPerTick > 0) {
-      shipHealth = min(shipMaxHealth, shipHealth + d.healPerTick);
-      for (final comp in _livingActiveCompanions) {
-        comp.currentHp = min(
-          comp.maxHp,
-          comp.currentHp + d.healPerTick.round(),
-        );
-      }
-    }
-
-    if (d.targetPolicy == WingBeamTargetPolicy.ring && d.radius > 0) {
-      for (final enemy in enemies) {
-        if (enemy.dead || (enemy.position - beam.origin).distance > d.radius) {
-          continue;
-        }
-        _damageOpenEnemy(enemy, beamDamage, element: d.element);
-        _applyOpenWingEffect(
-          d.tickEffect,
-          enemy,
-          beam.origin,
-          d.effectPower,
-          d.radius,
-          d.effectDuration,
-        );
-      }
-    } else {
-      final radius = max(10.0, d.width * 1.45);
-      for (final enemy in enemies) {
-        if (enemy.dead) continue;
-        if (_distanceToSegment(enemy.position, beam.origin, end) >
-            enemy.radius + radius) {
-          continue;
-        }
-        if (d.element == 'Steam' && !beam.steamKillUsed) {
-          beam.steamKillUsed = true;
-          final killed = _damageOpenEnemy(
-            enemy,
-            enemy.health + 1,
-            element: 'Steam',
-          );
-          if (killed) _spawnOpenSteamClouds(enemy.position, d);
-          continue;
-        }
-        final wasDead = enemy.dead;
-        final execute =
-            d.executeThreshold > 0 &&
-            enemy.health / enemy.maxHealth <= d.executeThreshold;
-        _damageOpenEnemy(
-          enemy,
-          execute ? enemy.health + 1 : beamDamage,
-          element: d.element,
-        );
-        _applyOpenWingEffect(
-          d.tickEffect,
-          enemy,
-          beam.origin,
-          d.effectPower,
-          radius * 6,
-          d.effectDuration,
-        );
-        if (d.element == 'Ice' && !enemy.dead) {
-          final id = identityHashCode(enemy);
-          final buildup = min(1.0, (_wingFrostBuildup[id] ?? 0) + 0.18);
-          _wingFrostBuildup[id] = buildup;
-          if (buildup >= 1.0) {
-            _wingFrostBuildup[id] = 0;
-            enemy.speed = max(8.0, enemy.speed * 0.05);
-            enemy.driftTimer += 2.4;
-            _spawnHitSpark(enemy.position, elementColor('Ice'));
-          }
-        }
-        if (!wasDead && enemy.dead && d.element == 'Light') {
-          _spawnOpenLightSplitBeams(beam);
-        }
-      }
-    }
-
-    final boss = activeBoss;
-    if (boss != null && !boss.dead) {
-      final hitsBoss = d.targetPolicy == WingBeamTargetPolicy.ring
-          ? (boss.position - beam.origin).distance <= d.radius + boss.radius
-          : _distanceToSegment(boss.position, beam.origin, end) <=
-                boss.radius + max(10.0, d.width * 1.45);
-      if (hitsBoss) _damageOpenBoss(beamDamage, element: d.element);
-    }
-  }
-
-  void _updateOpenWingBeams(double dt) {
-    _maskTrapVisuals.update(dt);
-    for (final fx in _beamFx) {
-      fx.update(dt);
-    }
-    _beamFx.removeWhere((fx) => fx.dead);
-
-    for (final beam in _activeWingBeams) {
-      beam.life -= dt;
-      if (!beam.refreshOrigin()) continue;
-      if (beam.descriptor.targetPolicy != WingBeamTargetPolicy.ring) {
-        final endNow = _openWingBeamEndpoint(beam);
-        final dir = endNow - beam.origin;
-        if (dir.distanceSquared > 0.5) beam.angle = atan2(dir.dy, dir.dx);
-      }
-      if (beam.chargeTimer > 0) {
-        beam.chargeTimer = max(0, beam.chargeTimer - dt);
-        _spawnBeamFx(
-          beam.origin,
-          beam.origin +
-              Offset(cos(beam.angle), sin(beam.angle)) *
-                  beam.descriptor.range *
-                  0.55,
-          elementColor(beam.descriptor.element).withValues(alpha: 0.75),
-          width: beam.descriptor.width * 0.55,
-        );
-        continue;
-      }
-
-      final end = _openWingBeamEndpoint(beam);
-      if (beam.descriptor.targetPolicy == WingBeamTargetPolicy.shipTether) {
-        _spawnBeamFx(
-          beam.origin,
-          ship.pos,
-          elementColor(beam.descriptor.element).withValues(alpha: 0.55),
-          width: beam.descriptor.width * 0.75,
-          wingElement: beam.descriptor.element,
-        );
-        _spawnBeamFx(
-          ship.pos,
-          end,
-          elementColor(beam.descriptor.element),
-          width: beam.descriptor.width,
-          wingElement: beam.descriptor.element,
-        );
-      } else if (beam.descriptor.targetPolicy != WingBeamTargetPolicy.ring) {
-        final isHealing = beam.descriptor.healPerTick > 0;
-        _spawnBeamFx(
-          beam.origin,
-          end,
-          isHealing
-              ? Color.lerp(
-                  elementColor(beam.descriptor.element),
-                  const Color(0xFFCFFFD8),
-                  0.55,
-                )!
-              : elementColor(beam.descriptor.element),
-          width: beam.descriptor.width,
-          wingElement: beam.descriptor.element,
-        );
-      }
-
-      beam.tickTimer -= dt;
-      if (beam.tickTimer <= 0) {
-        beam.tickTimer += beam.descriptor.tickInterval;
-        _resolveOpenWingBeamTick(beam, end);
-      }
-    }
-    if (_pendingWingBeams.isNotEmpty) {
-      for (final beam in _pendingWingBeams) {
-        if (_activeWingBeams.length >= 12) _activeWingBeams.removeAt(0);
-        _activeWingBeams.add(beam);
-      }
-      _pendingWingBeams.clear();
-    }
-    _activeWingBeams.removeWhere((beam) => beam.dead);
-    _wingFrostBuildup.removeWhere(
-      (id, _) =>
-          !enemies.any((enemy) => !enemy.dead && identityHashCode(enemy) == id),
-    );
-  }
-
   // ── update loop ────────────────────────────────────────
 
   double _elapsed = 0;
@@ -3498,11 +2198,22 @@ class CosmicGame extends FlameGame with PanDetector {
     super.update(dt);
     if (_tearWild != null || _tearCloseT >= 0) dt = _tickPortalTear(dt);
     _elapsed += dt;
+    // The party's abilities touch the wild Alchemon being fought as they
+    // touch any body, but only while they resolve: the ship's guns, enemy AI
+    // and the spawner never see it in the enemy list.
+    _admitWildBody();
+    _ageBeamFx(dt);
     _updateOpenWingBeams(dt);
+    _updateWingFlowers(dt);
+    _updateKinFlowers(dt);
+    updateAttachedAbilityPieces();
     updateMaskRuntime(dt);
+    _updateMaskVisuals(dt);
+    _releaseWildBody();
     updateLetSkyfallImpacts(_letSkyfallImpacts, dt);
     updateLetFx(_letFx, dt);
     updateHornFx(_hornFx, dt);
+    updateKinLaserBeams(_kinLaserBeams, dt);
 
     // ── zoom animation ──
     if (!_zoomAnimComplete) {
@@ -4451,6 +3162,7 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── update companion (summoned party alchemon) ──
+    _admitWildBody();
     // Keep the party in the ship's frame across the world's wrapped edge.
     for (final comp in activeCompanions.values) {
       comp.position = _nearestImage(comp.position, ship.pos);
@@ -4502,249 +3214,102 @@ class CosmicGame extends FlameGame with PanDetector {
           comp.returnTimer = 0.6;
           onCompanionAutoReturned?.call(comp.member);
         } else {
-          if (comp.basicHasteTimer > 0) {
-            comp.basicHasteTimer = max(0.0, comp.basicHasteTimer - dt);
-            if (comp.basicHasteTimer <= 0) {
-              comp.basicHasteMultiplier = 1.0;
-            }
-          }
-          _tickOpenCompanionIdentity(comp, dt);
-          _tickOpenFamilyPassives(slot, comp, dt);
-          comp.basicCooldown = (comp.basicCooldown - dt).clamp(0.0, 100.0);
-          comp.specialCooldown = (comp.specialCooldown - dt).clamp(0.0, 100.0);
-
-          // Fly to its place in the follow formation, or its station in the
-          // fight (cosmic_game_companion_motion.dart).
-          if (!comp.isCharging) _steerCompanion(slot, comp, dt);
-          _enforceCompanionTether(comp, dt: dt);
-
-          // ── Horn charge: rush toward target, AoE on arrival ──
-          if (comp.isCharging) {
-            // The charge owns its motion; steering picks up from rest after.
-            comp.velocity = Offset.zero;
-            comp.steerGoal = null;
-            comp.chargeTimer -= dt;
-            if (comp.chargeTarget != null) {
-              final startPos = comp.position;
-              final toTarget = comp.chargeTarget! - comp.position;
-              final dist = toTarget.distance;
-              if (dist > 10) {
-                final step =
-                    CosmicCompanion.chargeSpeed *
-                    comp.chargeSpeedMultiplier *
-                    dt;
-                comp.position += (toTarget / dist) * min(step, dist);
-                comp.angle = atan2(toTarget.dy, toTarget.dx);
-                _resolveCompanionChargeImpact(
-                  comp,
-                  startPos,
-                  comp.position,
-                  sweepRadius: comp.chargeSweepRadius,
-                );
-              } else {
-                // Arrived at overshoot point — final AoE sweep and stop.
-                _resolveCompanionChargeImpact(
-                  comp,
-                  startPos,
-                  comp.position,
-                  sweepRadius: comp.chargeFinalSweepRadius,
-                );
-                _releaseCompanionChargeBurst(comp);
-                comp.chargeTimer = 0;
-                comp.chargeTarget = null;
-                comp.chargeHitIds = null;
-                _postChargeReanchor(comp);
-                // Prevent immediate re-charge after landing
-                comp.specialCooldown = max(
-                  comp.specialCooldown,
-                  comp.effectiveSpecialCooldown * 0.5,
-                );
-              }
-            }
-            if (comp.chargeTimer <= 0) {
-              _releaseCompanionChargeBurst(comp);
-              comp.chargeTarget = null;
-              comp.chargeHitIds = null;
-              _postChargeReanchor(comp);
-              // Prevent immediate re-charge after timeout
-              comp.specialCooldown = max(
-                comp.specialCooldown,
-                comp.effectiveSpecialCooldown * 0.5,
-              );
-            }
-            _enforceCompanionTether(comp, dt: dt);
-          }
-
-          // ── Kin blessing: heal over time ──
-          if (comp.isBlessing) {
-            comp.blessingTimer -= dt;
-            // Heal a small tick each frame
-            comp.currentHp = min(
-              comp.maxHp,
-              comp.currentHp + (comp.blessingHealPerTick * dt).round(),
-            );
-          }
-
-          final engagement = _companionEngagements[slot];
-          if (engagement != null) {
-            final targetPos = engagement.position;
-            // Face target (for sprite flipping & shooting direction)
-            final toTarget = targetPos - comp.position;
-            comp.angle = atan2(toTarget.dy, toTarget.dx);
-            // Reach is measured to the target's hitbox, not its centre. A
-            // boss is up to ~240 across: its centre can sit out of range
-            // while its edge is well inside it.
-            final distToTarget = max(
-              0.0,
-              toTarget.distance - engagement.hitRadius,
-            );
-            // Unlinked, it holds whatever ground the fight carries it to.
-            if (!companionTethered) comp.anchorPosition = comp.position;
-            // Basic attack — family-specific pattern
-            if (comp.basicCooldown <= 0 && distToTarget <= comp.attackRange) {
-              final isDarkWing = _isDarkWingMember(comp.member);
-              comp.basicCooldown =
-                  comp.effectiveBasicCooldown * (isDarkWing ? 0.5 : 1.0);
-              final basics = createFamilyBasicAttack(
-                origin: comp.position,
-                angle: comp.angle,
-                element: comp.member.element,
-                family: comp.member.family,
-                damage: comp.physAtk.toDouble() * comp.damageAmp,
-              );
-              _tagSource(basics, comp.member.slotIndex);
-              if (_openKinLightningActive) {
-                for (final projectile in basics) {
-                  projectile.chainLightningCharges = max(
-                    projectile.chainLightningCharges,
-                    3,
-                  );
-                }
-              }
-              companionProjectiles.addAll(basics);
-              if (comp.member.family.toLowerCase() == 'pip' &&
-                  comp.member.element == 'Earth') {
-                comp.specialCooldown = max(0, comp.specialCooldown - 0.4);
-              }
-            }
-
-            // Special attack (every 30s base, scaled by cooldownReduction)
-            // Each family has a unique ability, flavored by element!
-            if (comp.specialCooldown <= 0 &&
-                distToTarget <= comp.specialAbilityRange &&
-                !isPassiveOnlyCosmicAbility(
-                  comp.member.family,
-                  comp.member.element,
-                )) {
-              final isDarkWing = _isDarkWingMember(comp.member);
-              comp.specialCooldown =
-                  comp.effectiveSpecialCooldown * (isDarkWing ? 0.5 : 1.0);
-              // Generate family+element special ability
-              final result = createCosmicSpecialAbility(
-                origin: comp.position,
-                baseAngle: comp.angle,
-                family: comp.member.family,
-                element: comp.member.element,
-                damage: comp.abilityAtk * 0.8 * comp.damageAmp,
-                maxHp: comp.maxHp,
-                casterPower: comp.member.statIntelligence.toDouble(),
-                casterBeauty: comp.member.statBeauty.toDouble(),
-                casterIntelligence: comp.member.statIntelligence.toDouble(),
-                casterStrength: comp.member.statStrength.toDouble(),
-                targetPos: targetPos,
-              );
-              _tagSource(result.projectiles, comp.member.slotIndex);
-              _applyOpenManeSpecialRuntime(
-                member: comp.member,
-                projectiles: result.projectiles,
-                origin: comp.position,
-                angle: comp.angle,
-                currentStack: comp.abilityKillStacks,
-                setStack: (stack) => comp.abilityKillStacks = stack,
-              );
-              final isHornCharge =
-                  comp.member.family.toLowerCase() == 'horn' &&
-                  result.chargeTimer > 0;
-              if (isHornCharge) {
-                comp.pendingChargeBurst = result.projectiles;
-                comp.pendingChargeOrigin = comp.position;
-                comp.pendingChargeAngle = comp.angle;
-              } else if (!activateMaskPlacements(result.projectiles)) {
-                companionProjectiles.addAll(result.projectiles);
-              }
-              _activateWingBeamEffects(
-                result.beams,
-                origin: comp.position,
-                angle: comp.angle,
-                originResolver: () => comp.isAlive ? comp.position : null,
-              );
-              // Apply companion state changes from ability
-              if (result.shieldHp > 0) comp.shieldHp = result.shieldHp;
-              if (result.chargeTimer > 0) {
-                comp.chargeDamage = result.chargeDamage;
-                comp.chargeSpeedMultiplier = result.chargeSpeedMultiplier;
-                comp.chargeSweepRadius = result.chargeSweepRadius;
-                comp.chargeOvershootDistance = result.chargeOvershootDistance;
-                comp.chargeFinalSweepRadius = result.chargeFinalSweepRadius;
-                if (!isHornCharge) {
-                  comp.pendingChargeBurst = null;
-                  comp.pendingChargeOrigin = null;
-                }
-                comp.chargeHitIds = <int>{};
-                // Overshoot varies per element so Horn charges read differently.
-                final dir = targetPos - comp.position;
-                final dist = dir.distance;
-                if (dist > 1) {
-                  final overshootTarget =
-                      targetPos + (dir / dist) * comp.chargeOvershootDistance;
-                  comp.chargeTarget = overshootTarget;
-                  // Timer = time to reach overshoot + small buffer.
-                  final travelDist = (overshootTarget - comp.position).distance;
-                  final travelTime =
-                      travelDist /
-                      (CosmicCompanion.chargeSpeed *
-                          comp.chargeSpeedMultiplier);
-                  comp.chargeTimer = (travelTime + 0.15).clamp(0.3, 3.0);
-                } else {
-                  comp.chargeTarget = targetPos;
-                  comp.chargeTimer = result.chargeTimer;
-                }
-              }
-              if (result.selfHeal > 0) {
-                comp.currentHp = min(
-                  comp.maxHp,
-                  comp.currentHp + result.selfHeal,
-                );
-              }
-              if (result.shipHeal > 0) {
-                shipHealth = min(shipMaxHealth, shipHealth + result.shipHeal);
-              }
-              if (result.blessingTimer > 0) {
-                comp.blessingTimer = result.blessingTimer;
-                comp.blessingHealPerTick = result.blessingHealPerTick;
-              }
-              if (result.basicHasteTimer > 0) {
-                comp.basicHasteTimer = result.basicHasteTimer;
-                comp.basicHasteMultiplier = result.basicHasteMultiplier;
-              }
-              if (comp.member.family.toLowerCase() == 'kin') {
-                _activateOpenKinSupport(comp, targetPos);
-              }
-              // VFX burst
-              _spawnHitSpark(comp.position, elementColor(comp.member.element));
-            }
+          // A Horn special holding its body — a ram, a wind-up, Lightning's
+          // brew — owns the frame, as in survival: the body holds still or
+          // rams, and its cooldowns, timers, passives, basics and special
+          // wait (cosmic_game_horn.dart).
+          if (_updateHornPhases(comp, dt)) {
+            _enforceCompanionTether(comp, dt: dt, pull: false);
           } else {
-            // Nothing to fight: face the way it is flying, or the ship's way
-            // once it has settled into its place.
-            comp.angle = comp.velocity.distance > 30
-                ? atan2(comp.velocity.dy, comp.velocity.dx)
-                : _formationHeading;
+            if (comp.basicHasteTimer > 0) {
+              comp.basicHasteTimer = max(0.0, comp.basicHasteTimer - dt);
+              if (comp.basicHasteTimer <= 0) {
+                comp.basicHasteMultiplier = 1.0;
+              }
+            }
+            _tickOpenCompanionIdentity(comp, dt);
+            _tickOpenFamilyPassives(
+              slot,
+              comp,
+              dt,
+              engaged:
+                  !companionTethered || _companionEngagements[slot] != null,
+            );
+            // A Light horn holds its ground, both cooldowns waiting, while
+            // its barrier stands.
+            final lightHeld = _hornLightChanneling(comp);
+            if (!lightHeld) {
+              comp.basicCooldown = (comp.basicCooldown - dt).clamp(0.0, 100.0);
+              comp.specialCooldown = (comp.specialCooldown - dt).clamp(
+                0.0,
+                100.0,
+              );
+            }
+
+            // Fly to its place in the follow formation, or its station in
+            // the fight (cosmic_game_companion_motion.dart). A Wing charging
+            // its beam holds where it committed (cosmic_game_wing.dart).
+            final held = _heldByWingCharge(comp) || lightHeld;
+            // A Kin holds still while it gathers its laser, charges its Ice
+            // or channels its tesla (cosmic_game_kin.dart); the tether
+            // still reels it in.
+            final kinHeld = _kinHoldsBody(
+              comp,
+              comp.member,
+              engaged: _companionEngagements[slot] != null,
+            );
+            if (held || kinHeld) {
+              comp.velocity = Offset.zero;
+              comp.steerGoal = null;
+            } else {
+              _steerCompanion(slot, comp, dt);
+            }
+            _enforceCompanionTether(comp, dt: dt, pull: !held);
+
+            _tickCompanionBlessing(comp, dt);
+
+            final engagement = _companionEngagements[slot];
+            if (engagement != null) {
+              final targetPos = engagement.position;
+              // Face target (for sprite flipping & shooting direction)
+              final toTarget = targetPos - comp.position;
+              comp.angle = atan2(toTarget.dy, toTarget.dx);
+              // Reach is measured to the target's hitbox, not its centre. A
+              // boss is up to ~240 across: its centre can sit out of range
+              // while its edge is well inside it.
+              final distToTarget = max(
+                0.0,
+                toTarget.distance - engagement.hitRadius,
+              );
+              // Unlinked, it holds whatever ground the fight carries it to.
+              if (!companionTethered) comp.anchorPosition = comp.position;
+              // Basic attack — family-specific pattern. A Kin's is a charged
+              // laser (cosmic_game_kin.dart).
+              if (_isKinMember(comp.member)) {
+                _tickOpenKinChargedAuto(comp, targetPos, distToTarget, dt);
+              } else if (comp.basicCooldown <= 0 &&
+                  distToTarget <= comp.attackRange) {
+                _fireCompanionBasic(comp);
+              }
+
+              // Special attack. Each family has a unique ability, flavored by
+              // element.
+              if (_companionSpecialReady(comp) &&
+                  distToTarget <= comp.specialAbilityRange) {
+                _castCompanionSpecial(comp, targetPos);
+              }
+            } else {
+              // Nothing to fight: face the way it is flying, or the ship's way
+              // once it has settled into its place.
+              comp.angle = comp.velocity.distance > 30
+                  ? atan2(comp.velocity.dy, comp.velocity.dx)
+                  : _formationHeading;
+            }
           }
 
           // Companion takes damage from enemies that touch it
           for (final e in enemies) {
-            if (e.dead) continue;
-            if (_openKinDarkCloakActive) continue;
+            if (e.dead || _isCombatBody(e)) continue;
             final d = (e.position - comp.position).distance;
             if (d < e.radius + 15) {
               final contactDmg = CosmicBalance.enemyCompanionContactDamage(
@@ -4754,7 +3319,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 1,
                 (contactDmg * 100 / (100 + comp.physDef)).round(),
               );
-              comp.takeDamage(dmg);
+              _openCompanionIncomingDamage(comp, dmg);
               _spawnHitSpark(comp.position, elementColor(e.element));
             }
           }
@@ -4765,15 +3330,20 @@ class CosmicGame extends FlameGame with PanDetector {
       activeCompanions.remove(slot);
     }
     _updateOpenKinSupports(dt);
+    _releaseWildBody();
 
     // ── update the wild Alchemon being fought ──
+    // It moves by the duel's steering; everything else it does is a
+    // companion's turn, taken on its own side (cosmic_game_duel.dart).
     if (duelOpponent != null && wildDuelActive) {
       final opp = duelOpponent!;
       opp.life += dt;
       opp.invincibleTimer = (opp.invincibleTimer - dt).clamp(0.0, 10.0);
       _duelOpponentTicker?.update(dt);
 
-      if (opp.currentHp <= 0) {
+      // A wild Fire kin's phoenix catches it once, as a party one catches
+      // the ship (cosmic_game_kin.dart).
+      if (opp.currentHp <= 0 && !_tryWildKinPhoenixSave(opp)) {
         // Beaten, not killed: it collapses and can be rammed.
         _endWildDuel(WildDuelEnd.exhausted);
       } else if (_shipDead) {
@@ -4782,1818 +3352,56 @@ class CosmicGame extends FlameGame with PanDetector {
           _wildDisengageRange) {
         _endWildDuel(WildDuelEnd.disengaged);
       } else {
+        _tickCombatBodies(dt);
         // It fights the nearest companion out (the ship when none is).
         final duelTarget = _pickWildDuelTarget(opp);
-        final duelTargetActive = duelTarget != null;
+        final target = _WildDuelTarget(this, duelTarget);
+        final targetRadius = duelTarget != null
+            ? _companionBodyRadius(duelTarget)
+            : 20.0;
 
-        // Wander near ring center only while the duel target is absent.
-        opp.wanderTimer -= dt;
-        if (!duelTargetActive && opp.wanderTimer <= 0) {
-          opp.wanderAngle = _rng.nextDouble() * 2 * pi;
-          opp.wanderTimer = 2.0 + _rng.nextDouble();
-        }
-        if (!duelTargetActive) {
-          // Smooth sine-wave orbit around anchor
-          final phase = opp.life * 0.7 + opp.wanderAngle;
-          final orbitX = cos(phase) * CosmicCompanion.wanderRadius * 0.5;
-          final orbitY = sin(phase * 1.3) * CosmicCompanion.wanderRadius * 0.35;
-          final wanderTargetO = Offset(
-            opp.anchorPosition.dx + orbitX,
-            opp.anchorPosition.dy + orbitY,
+        final stepFrom = opp.position;
+        // A Horn special holding it (a ram, a wind-up, a brew, a Light
+        // barrier) holds it here too, as it holds a companion.
+        if (!opp.hornHoldsBody &&
+            !_hornLightChanneling(opp, duelOpponentProjectiles) &&
+            !_heldByWingCharge(opp) &&
+            !_kinHoldsBody(opp, opp.member)) {
+          final family = opp.member.family.toLowerCase();
+          final holdDistance = _combatHoldDistance(
+            family: family,
+            attackRange: opp.attackRange,
+            specialRange: opp.specialAbilityRange,
+            basicCooldown: opp.basicCooldown,
+            specialCooldown: opp.specialCooldown,
           );
-          final toWanderO = wanderTargetO - opp.position;
-          if (toWanderO.distance > 1.0) {
-            final lerpFactor = (3.0 * dt).clamp(0.0, 1.0);
-            opp.position = Offset(
-              opp.position.dx + toWanderO.dx * lerpFactor,
-              opp.position.dy + toWanderO.dy * lerpFactor,
-            );
-          }
-          // Soft pull if outside radius
-          final fromAnchorO = opp.position - opp.anchorPosition;
-          final anchorDistO = fromAnchorO.distance;
-          if (anchorDistO > CosmicCompanion.wanderRadius) {
-            final pullStrength = (4.0 * dt).clamp(0.0, 1.0);
-            final target =
-                opp.anchorPosition +
-                (fromAnchorO / anchorDistO) * CosmicCompanion.wanderRadius;
-            opp.position = Offset(
-              opp.position.dx + (target.dx - opp.position.dx) * pullStrength,
-              opp.position.dy + (target.dy - opp.position.dy) * pullStrength,
-            );
-          }
-        }
-
-        // Cooldowns
-        if (opp.basicHasteTimer > 0) {
-          opp.basicHasteTimer = max(0.0, opp.basicHasteTimer - dt);
-          if (opp.basicHasteTimer <= 0) {
-            opp.basicHasteMultiplier = 1.0;
-          }
-        }
-        opp.basicCooldown = (opp.basicCooldown - dt).clamp(0.0, 100.0);
-        opp.specialCooldown = (opp.specialCooldown - dt).clamp(0.0, 100.0);
-
-        // Target the player's companion, or the ship when none is out.
-        {
-          final comp = _WildDuelTarget(this, duelTarget);
-          final toComp = comp.position - opp.position;
-          var distToComp = toComp.distance;
-          opp.angle = atan2(toComp.dy, toComp.dx);
-
-          if (opp.isBlessing) {
-            opp.blessingTimer -= dt;
-            opp.currentHp = min(
-              opp.maxHp,
-              opp.currentHp + (opp.blessingHealPerTick * dt).round(),
-            );
-          }
-
-          var skipActions = false;
-          if (opp.isCharging) {
-            opp.chargeTimer -= dt;
-            opp.chargeTarget = comp.position;
-            final toTarget = opp.chargeTarget! - opp.position;
-            final dist = toTarget.distance;
-            if (dist > 10) {
-              final step =
-                  CosmicCompanion.chargeSpeed * opp.chargeSpeedMultiplier * dt;
-              final stepFrom = opp.position;
-              opp.position += (toTarget / dist) * min(step, dist);
-              if (!comp.isShip) {
-                opp.position = _wildStepClearOfShip(stepFrom, opp.position);
-              }
-              opp.angle = atan2(toTarget.dy, toTarget.dx);
-            } else {
-              final dmg = _duelDamageAfterDefense(
-                opp.chargeDamage,
-                comp.physDef,
-              );
-              comp.takeDamage(dmg);
-              _spawnHitSpark(comp.position, elementColor(opp.member.element));
-              opp.chargeTimer = 0;
-              opp.chargeTarget = null;
-            }
-            if (opp.chargeTimer > 0) {
-              skipActions = true;
-            } else {
-              final refreshToComp = comp.position - opp.position;
-              distToComp = refreshToComp.distance;
-              opp.angle = atan2(refreshToComp.dy, refreshToComp.dx);
-            }
-          }
-
-          if (!skipActions) {
-            final family = opp.member.family.toLowerCase();
-            final holdDistance = _combatHoldDistance(
-              family: family,
-              attackRange: opp.attackRange,
-              specialRange: opp.specialAbilityRange,
-              basicCooldown: opp.basicCooldown,
-              specialCooldown: opp.specialCooldown,
-            );
-            final toCompNow = comp.position - opp.position;
-            distToComp = toCompNow.distance;
-            final stepFrom = opp.position;
-            opp.position = _updateDuelMovement(
-              actorPos: opp.position,
-              targetPos: comp.position,
-              dt: dt,
-              family: family,
-              idSeed: opp.member.instanceId,
-              speedStat: opp.member.statSpeed.toDouble(),
-              holdDistance: holdDistance,
-              attackRange: opp.attackRange,
-              specialRange: opp.specialAbilityRange,
-              life: opp.life,
-            );
-            if (!comp.isShip) {
-              opp.position = _wildStepClearOfShip(stepFrom, opp.position);
-            }
-            final refreshedToComp = comp.position - opp.position;
-            distToComp = refreshedToComp.distance;
-            opp.angle = atan2(refreshedToComp.dy, refreshedToComp.dx);
-
-            // Basic attack
-            if (distToComp <= opp.attackRange && opp.basicCooldown <= 0) {
-              opp.basicCooldown = opp.effectiveBasicCooldown;
-              final basics = createFamilyBasicAttack(
-                origin: opp.position,
-                angle: opp.angle,
-                element: opp.member.element,
-                family: opp.member.family,
-                damage: opp.physAtk.toDouble(),
-              );
-              duelOpponentProjectiles.addAll(basics);
-            }
-
-            // Special attack
-            if (distToComp <= opp.specialAbilityRange &&
-                opp.specialCooldown <= 0) {
-              opp.specialCooldown = opp.effectiveSpecialCooldown;
-              final result = createCosmicSpecialAbility(
-                origin: opp.position,
-                baseAngle: opp.angle,
-                family: opp.member.family,
-                element: opp.member.element,
-                damage: opp.abilityAtk * 0.8,
-                maxHp: opp.maxHp,
-                casterPower: opp.member.statIntelligence.toDouble(),
-                casterBeauty: opp.member.statBeauty.toDouble(),
-                casterIntelligence: opp.member.statIntelligence.toDouble(),
-                casterStrength: opp.member.statStrength.toDouble(),
-                targetPos: comp.position,
-              );
-              duelOpponentProjectiles.addAll(result.projectiles);
-              if (result.shieldHp > 0) opp.shieldHp = result.shieldHp;
-              if (result.chargeTimer > 0) {
-                opp.chargeTimer = result.chargeTimer;
-                opp.chargeDamage = result.chargeDamage;
-                opp.chargeSpeedMultiplier = result.chargeSpeedMultiplier;
-                opp.chargeSweepRadius = result.chargeSweepRadius;
-                opp.chargeOvershootDistance = result.chargeOvershootDistance;
-                opp.chargeFinalSweepRadius = result.chargeFinalSweepRadius;
-                opp.chargeTarget = comp.position;
-              }
-              if (result.selfHeal > 0) {
-                opp.currentHp = min(opp.maxHp, opp.currentHp + result.selfHeal);
-              }
-              if (result.blessingTimer > 0) {
-                opp.blessingTimer = result.blessingTimer;
-                opp.blessingHealPerTick = result.blessingHealPerTick;
-              }
-              if (result.basicHasteTimer > 0) {
-                opp.basicHasteTimer = result.basicHasteTimer;
-                opp.basicHasteMultiplier = result.basicHasteMultiplier;
-              }
-              _spawnHitSpark(opp.position, elementColor(opp.member.element));
-            }
-          }
-        }
-      }
-    }
-
-    // ── update the fought Alchemon's projectiles ──
-    // They are aimed at the companion it is fighting, else at the ship, and
-    // land on whichever companion they meet.
-    final duelVictims = duelOpponentProjectiles.isEmpty
-        ? const <CosmicCompanion>[]
-        : _livingActiveCompanions.toList();
-    final aimedComp = _wildDuelTargetCompanion;
-    final duelShotTarget = aimedComp != null && aimedComp.isAlive
-        ? _WildDuelTarget(this, aimedComp)
-        : duelVictims.isNotEmpty
-        ? _WildDuelTarget(this, duelVictims.first)
-        : (wildDuelActive && !_shipDead ? _WildDuelTarget(this, null) : null);
-    for (var i = duelOpponentProjectiles.length - 1; i >= 0; i--) {
-      final p = duelOpponentProjectiles[i];
-      var transferringToOrbit = false;
-
-      if (p.homing && duelShotTarget != null) {
-        final target = duelShotTarget.position;
-        final desired = atan2(
-          target.dy - p.position.dy,
-          target.dx - p.position.dx,
-        );
-        double diff = desired - p.angle;
-        while (diff > pi) {
-          diff -= 2 * pi;
-        }
-        while (diff < -pi) {
-          diff += 2 * pi;
-        }
-        final maxTurn = p.homingStrength * dt;
-        p.angle += diff.clamp(-maxTurn, maxTurn);
-      }
-
-      final pSpeed = Projectile.speed * p.speedMultiplier;
-
-      // Handle orbital projectiles
-      if (p.transferOrbitCenter != null) {
-        if (p.shipOrbitDelay > 0) {
-          p.shipOrbitDelay = max(0.0, p.shipOrbitDelay - dt);
-        } else {
-          transferringToOrbit = true;
-          p.orbitAngle += p.orbitSpeed * dt;
-          final desiredCenter = p.transferOrbitCenter!;
-          final desiredPos = Offset(
-            desiredCenter.dx + cos(p.orbitAngle) * p.orbitRadius,
-            desiredCenter.dy + sin(p.orbitAngle) * p.orbitRadius,
+          final moved = _updateDuelMovement(
+            actorPos: opp.position,
+            targetPos: target.position,
+            dt: dt,
+            family: family,
+            idSeed: opp.member.instanceId,
+            speedStat: opp.member.statSpeed.toDouble(),
+            holdDistance: holdDistance,
+            attackRange: opp.attackRange,
+            specialRange: opp.specialAbilityRange,
+            life: opp.life,
           );
-          final toDesired = desiredPos - p.position;
-          final dist = toDesired.distance;
-          final attachStep = Projectile.speed * p.shipOrbitTransferSpeed * dt;
-          if (dist <= attachStep || dist < 8) {
-            p.position = desiredPos;
-            p.orbitCenter = desiredCenter;
-            p.transferOrbitCenter = null;
-            transferringToOrbit = false;
-          } else {
-            p.position += (toDesired / dist) * attachStep;
-          }
+          // What the party's abilities left on it (a slow, a root) holds it.
+          opp.position = stepFrom + (moved - stepFrom) * opp.ccMoveFactor;
         }
-      }
 
-      if (!transferringToOrbit &&
-          p.orbitCenter != null &&
-          (p.holdOrbit || p.orbitTime > 0)) {
-        if (!p.holdOrbit) {
-          p.orbitTime -= dt;
-        }
-        p.orbitAngle += p.orbitSpeed * dt;
-        p.position = Offset(
-          p.orbitCenter!.dx + cos(p.orbitAngle) * p.orbitRadius,
-          p.orbitCenter!.dy + sin(p.orbitAngle) * p.orbitRadius,
-        );
-        if (p.turretInterval > 0 && duelShotTarget != null) {
-          p.turretTimer += dt;
-          if (p.turretTimer >= p.turretInterval) {
-            p.turretTimer -= p.turretInterval;
-            duelOpponentProjectiles.add(
-              _createEscortTurretShot(p, duelShotTarget.position),
-            );
-          }
-        }
-        if (!p.holdOrbit && p.orbitTime <= 0) {
-          p.angle = atan2(
-            p.position.dy - p.orbitCenter!.dy,
-            p.position.dx - p.orbitCenter!.dx,
-          );
-          p.orbitCenter = null;
-        }
-      } else if (p.stationary) {
-        // no movement
-        if (p.turretInterval > 0 && duelShotTarget != null) {
-          p.turretTimer += dt;
-          if (p.turretTimer >= p.turretInterval) {
-            p.turretTimer -= p.turretInterval;
-            duelOpponentProjectiles.add(
-              _createEscortTurretShot(p, duelShotTarget.position),
-            );
-          }
-        }
-      } else if (!transferringToOrbit) {
-        p.position = Offset(
-          p.position.dx + cos(p.angle) * pSpeed * dt,
-          p.position.dy + sin(p.angle) * pSpeed * dt,
-        );
-      }
+        _onWildSide(opp, () => _wildTurn(opp, target, targetRadius, dt));
 
-      if (p.trailInterval > 0 && !p.stationary && p.orbitCenter == null) {
-        p.trailTimer += dt;
-        if (p.trailTimer >= p.trailInterval) {
-          p.trailTimer -= p.trailInterval;
-          duelOpponentProjectiles.add(
-            Projectile(
-              position: p.position,
-              angle: 0,
-              element: p.element,
-              damage: p.trailDamage,
-              life: p.trailLife,
-              stationary: true,
-              radiusMultiplier: 1.5,
-              piercing: true,
-              visualScale: 1.2,
-              sourceSlotIndex: p.sourceSlotIndex,
-              abilityFamily: p.abilityFamily,
-              hitEffect: p.tickEffect == AbilityEffectKind.none
-                  ? p.hitEffect
-                  : p.tickEffect,
-              tickEffect: p.tickEffect,
-              effectPower: p.effectPower * 0.55,
-              effectRadius: p.effectRadius,
-              effectDuration: p.effectDuration,
-            ),
-          );
-        }
-      }
-
-      if (p.clusterCount > 0 && !p.clustered && p.life < 0.75) {
-        p.clustered = true;
-        for (var ci = 0; ci < p.clusterCount; ci++) {
-          final ca = ci * (pi * 2 / p.clusterCount);
-          duelOpponentProjectiles.add(
-            Projectile(
-              position: Offset(
-                p.position.dx + cos(ca) * 10,
-                p.position.dy + sin(ca) * 10,
-              ),
-              angle: ca,
-              element: p.element,
-              damage: p.clusterDamage,
-              life: 1.5,
-              speedMultiplier: 0.7,
-              radiusMultiplier: 1.5,
-              piercing: true,
-              visualScale: 1.0,
-              visualStyle: p.visualStyle == ProjectileVisualStyle.letShard
-                  ? ProjectileVisualStyle.letShard
-                  : ProjectileVisualStyle.standard,
-            ),
-          );
-        }
-      }
-
-      p.life -= dt;
-      if (p.life <= 0) {
-        duelOpponentProjectiles.removeAt(i);
-        continue;
-      }
-
-      // Hit whichever companion it meets, or the ship when none is out
-      if (duelShotTarget != null) {
-        final hitRadius = Projectile.radius * p.radiusMultiplier;
-        _WildDuelTarget? struck;
-        if (duelVictims.isEmpty) {
-          if (duelShotTarget.isShip) {
-            final dx = p.position.dx - ship.pos.dx;
-            final dy = p.position.dy - ship.pos.dy;
-            final reach = hitRadius + 20.0;
-            if (dx * dx + dy * dy < reach * reach) struck = duelShotTarget;
-          }
-        } else {
-          final reach = hitRadius + 15.0;
-          for (final victim in duelVictims) {
-            if (!victim.isAlive) continue;
-            final dx = p.position.dx - victim.position.dx;
-            final dy = p.position.dy - victim.position.dy;
-            if (dx * dx + dy * dy < reach * reach) {
-              struck = _WildDuelTarget(this, victim);
-              break;
-            }
-          }
-        }
-        if (struck != null) {
-          final comp = struck;
-          final pierceFalloff = p.piercing
-              ? pow(0.7, p.pierceCount).toDouble()
-              : 1.0;
-          final dmg = _duelDamageAfterDefense(
-            p.damage * pierceFalloff,
-            comp.elemDef,
-          );
-          comp.takeDamage(dmg);
-          _spawnHitSpark(
-            p.position,
-            elementColor(duelOpponent?.member.element ?? 'Earth'),
-          );
-          if (p.piercing) {
-            p.pierceCount++;
-          } else if (p.bounceCount > 0) {
-            p.bounceCount--;
-            p.pierceCount++;
-            p.angle += pi * 0.65 + (_rng.nextDouble() * pi * 0.7);
-          } else {
-            duelOpponentProjectiles.removeAt(i);
-          }
-          continue;
-        }
+        // Contact with the ship is a ram and opens the portal, so neither its
+        // steering nor a charge carries it into the hull.
+        opp.position = _wildStepClearOfShip(stepFrom, opp.position);
       }
     }
 
     // ── update companion projectiles ──
-    void resolveAbilityEffect(
-      AbilityEffectKind effect,
-      Projectile projectile,
-      CosmicEnemy enemy,
-    ) {
-      if (effect == AbilityEffectKind.none || enemy.dead) return;
-      final power = CosmicAbilityRuntime.projectileEffectPower(projectile);
-      final radius = CosmicAbilityRuntime.projectileEffectRadius(
-        projectile,
-        fallbackRadius: 90.0,
-      );
-      switch (effect) {
-        case AbilityEffectKind.knockback:
-          final dir = enemy.position - projectile.position;
-          final dist = dir.distance;
-          if (dist > 0.01) enemy.position += (dir / dist) * 22.0;
-          break;
-        case AbilityEffectKind.pull:
-        case AbilityEffectKind.blackHole:
-          for (final other in enemies) {
-            if (other.dead) continue;
-            final dir = projectile.position - other.position;
-            final dist = dir.distance;
-            if (dist > 0.01 && dist <= radius) {
-              other.position += (dir / dist) * min(18.0, radius / 18.0);
-            }
-            if (effect == AbilityEffectKind.blackHole &&
-                other.health / other.maxHealth <= 0.12) {
-              other.health = 0;
-              other.dead = true;
-              _spawnKillVfx(
-                other.position,
-                elementColor(other.element),
-                other.radius,
-                false,
-              );
-              _spawnLootDrops(
-                other.position,
-                other.element,
-                other.shardDrop,
-                other.particleDrop,
-              );
-            }
-          }
-          break;
-        case AbilityEffectKind.slow:
-        case AbilityEffectKind.root:
-        case AbilityEffectKind.freeze:
-        case AbilityEffectKind.stun:
-        case AbilityEffectKind.suppressShooting:
-          enemy.speed = max(
-            8.0,
-            enemy.speed *
-                CosmicAbilityRuntime.openSpaceCrowdControlSpeedMultiplier(
-                  effect,
-                ),
-          );
-          enemy.driftTimer +=
-              CosmicAbilityRuntime.openSpaceCrowdControlDuration(
-                CosmicAbilityRuntime.projectileEffectDuration(projectile),
-              );
-          break;
-        case AbilityEffectKind.burn:
-        case AbilityEffectKind.poison:
-        case AbilityEffectKind.zoneDamage:
-        case AbilityEffectKind.execute:
-        case AbilityEffectKind.geyser:
-        case AbilityEffectKind.refraction:
-        case AbilityEffectKind.chargeBlast:
-          enemy.health -= CosmicAbilityRuntime.directDamageForEffect(
-            effect,
-            power: power,
-            targetHp: enemy.health,
-            targetHpFraction: enemy.health / enemy.maxHealth,
-          );
-          // A geyser pushes as well as scalds — survival's knockback, as a
-          // step, since open space has no knockback velocity.
-          if (effect == AbilityEffectKind.geyser) {
-            enemy.position += const Offset(0, -14);
-          }
-          break;
-        case AbilityEffectKind.splash:
-        case AbilityEffectKind.split:
-        case AbilityEffectKind.chain:
-          for (final other in enemies) {
-            if (other.dead || identical(other, enemy)) continue;
-            if ((other.position - enemy.position).distance <= radius) {
-              other.health -=
-                  power * CosmicAbilityRuntime.splashMultiplier(effect);
-              if (other.health <= 0) {
-                other.dead = true;
-                _spawnKillVfx(
-                  other.position,
-                  elementColor(other.element),
-                  other.radius,
-                  false,
-                );
-                _spawnLootDrops(
-                  other.position,
-                  other.element,
-                  other.shardDrop,
-                  other.particleDrop,
-                );
-              }
-            }
-          }
-          break;
-        case AbilityEffectKind.leech:
-        case AbilityEffectKind.zoneHeal:
-          shipHealth = min(shipMaxHealth, shipHealth + power * 0.35);
-          break;
-        case AbilityEffectKind.alchemyBonus:
-        case AbilityEffectKind.flower:
-          break;
-        case AbilityEffectKind.buff:
-        case AbilityEffectKind.cooldownRefund:
-          final sourceMember = _sourceMember(projectile);
-          if (sourceMember?.family.toLowerCase() == 'mask' &&
-              sourceMember?.element == 'Ice') {
-            final ampDuration = CosmicAbilityRuntime.projectileEffectDuration(
-              projectile,
-              fallbackDuration: 1.5,
-            );
-            final ampRadius = radius * 1.4;
-            for (final comp in _livingActiveCompanions) {
-              if ((comp.position - projectile.position).distance > ampRadius) {
-                continue;
-              }
-              comp.damageAmpTimer = max(comp.damageAmpTimer, ampDuration);
-              comp.damageAmpMultiplier = max(comp.damageAmpMultiplier, 2.4);
-            }
-            for (final g in _garrison) {
-              if (g.hp <= 0) continue;
-              if ((g.position - projectile.position).distance > ampRadius) {
-                continue;
-              }
-              g.damageAmpTimer = max(g.damageAmpTimer, ampDuration);
-              g.damageAmpMultiplier = max(g.damageAmpMultiplier, 2.4);
-            }
-          }
-          if (effect == AbilityEffectKind.cooldownRefund) {
-            final comp = _sourceCompanion(projectile);
-            final g = _sourceGarrison(projectile);
-            if (comp != null) {
-              comp.specialCooldown = max(0, comp.specialCooldown - 0.45);
-            } else if (g != null) {
-              g.specialCooldown = max(0, g.specialCooldown - 0.45);
-            }
-          }
-          break;
-        case AbilityEffectKind.taunt:
-        case AbilityEffectKind.carry:
-        case AbilityEffectKind.none:
-          break;
-      }
-    }
-
-    void spawnDarkLetKillMeteors(Projectile source, Offset center) {
-      final count = CosmicAbilityRuntime.darkLetFollowupCount(
-        source.letCasterIntelligence,
-      );
-      final targets = enemies
-          .where(
-            (enemy) =>
-                !enemy.dead &&
-                enemy.health > 0 &&
-                (enemy.position - center).distance <=
-                    max(420.0, source.effectRadius * 3.0),
-          )
-          .take(count)
-          .toList(growable: false);
-      for (var mi = 0; mi < count; mi++) {
-        final target = mi < targets.length ? targets[mi].position : null;
-        final a = target != null
-            ? atan2(target.dy - center.dy, target.dx - center.dx)
-            : source.angle + (mi - 2) * 0.42;
-        // The follow-ups fall too. Per design this is a bombardment, and a
-        // volley of sideways meteors next to a parent that dropped from the
-        // sky would look like two different abilities. Staggered so they
-        // arrive as a rolling barrage rather than one simultaneous thud.
-        final aim = target ?? center + Offset(cos(a), sin(a)) * 180.0;
-        final drop = letSkyfallDrop(aim, a, timeScale: 0.72 + mi * 0.16);
-        companionProjectiles.add(
-          Projectile(
-            position: drop.position,
-            angle: drop.angle,
-            element: 'Dark',
-            damage: source.damage * 0.7,
-            life: drop.duration + 0.4,
-            speedMultiplier: 0,
-            skyfallDuration: drop.duration,
-            skyfallImpact: aim,
-            skyfallDistance: drop.distance,
-            // Thrown at a place, not a body — see Projectile.skyfallTracks.
-            skyfallTracks: false,
-            // "Twice as big" per design — the same as survival.
-            radiusMultiplier: max(3.5, source.radiusMultiplier * 2.0),
-            visualScale: max(3.5, source.visualScale * 2.0),
-            visualStyle: ProjectileVisualStyle.meteor,
-            homing: false,
-            homingStrength: 2.4,
-            sourceSlotIndex: source.sourceSlotIndex,
-            abilityFamily: 'let',
-            hitEffect: AbilityEffectKind.pull,
-            effectPower: source.effectPower * 0.85,
-            effectRadius: max(140.0, source.effectRadius),
-            effectDuration: source.effectDuration,
-            effectStacks: 1,
-          ),
-        );
-      }
-    }
-
-    // A Let zone, from the shared table. It carries its effect as a
-    // TICK, so the aura pass applies it to everything inside its radius every
-    // 0.35s — the same as survival. It used to carry it as a hit effect with
-    // no family, which meant contact every frame with a ~14px centre under a
-    // 130px drawing: Lava burned only what touched its middle, and a stun
-    // piled 3s onto a body per frame.
-    void spawnLetZone(
-      Projectile source,
-      Offset center,
-      String element,
-      LetZoneSpec spec,
-    ) {
-      companionProjectiles.add(
-        CosmicAbilityRuntime.letZone(source, center, element, spec),
-      );
-    }
-
-    /// One body taking [amount], dying the way the crater's bodies do.
-    void hurtEnemy(CosmicEnemy enemy, double amount) {
-      if (enemy.dead || enemy.health <= 0) return;
-      enemy.health -= amount;
-      if (enemy.health <= 0) {
-        enemy.dead = true;
-        _spawnKillVfx(
-          enemy.position,
-          elementColor(enemy.element),
-          enemy.radius,
-          false,
-        );
-        _spawnLootDrops(
-          enemy.position,
-          enemy.element,
-          enemy.shardDrop,
-          enemy.particleDrop,
-        );
-      }
-    }
-
-    void damageEnemiesNear(
-      Offset center,
-      double radius,
-      double damage, {
-      CosmicEnemy? exclude,
-    }) {
-      for (final other in enemies) {
-        if (other.dead || other.health <= 0 || identical(other, exclude)) {
-          continue;
-        }
-        if ((other.position - center).distance > radius) continue;
-        other.health -= damage;
-        if (other.health <= 0) {
-          other.dead = true;
-          _spawnKillVfx(
-            other.position,
-            elementColor(other.element),
-            other.radius,
-            false,
-          );
-          _spawnLootDrops(
-            other.position,
-            other.element,
-            other.shardDrop,
-            other.particleDrop,
-          );
-        }
-      }
-    }
-
-    void healCompanionOrShip(double amount) {
-      if (amount <= 0) return;
-      final companions = _livingActiveCompanions.toList(growable: false);
-      if (companions.isNotEmpty) {
-        for (final comp in companions) {
-          comp.currentHp = min(comp.maxHp, comp.currentHp + amount.round());
-        }
-      } else {
-        shipHealth = min(shipMaxHealth, shipHealth + amount);
-      }
-    }
-
-    void healAllCompanionsAndShip(double amount) {
-      if (amount <= 0) return;
-      shipHealth = min(shipMaxHealth, shipHealth + amount);
-      for (final comp in _livingActiveCompanions) {
-        comp.currentHp = min(comp.maxHp, comp.currentHp + amount.round());
-      }
-    }
-
-    // Aura tick for kin wards / escort orbs: a projectile carrying a
-    // tickEffect periodically applies it. Support effects (zoneHeal)
-    // restore allies once per tick; leech drains enemies in radius and
-    // converts it to party healing; every other effect routes through
-    // resolveAbilityEffect for each enemy inside effectRadius.
-    void applyKinAuraTick(Projectile p) {
-      if (tickMaskPlacement(p)) return;
-      final radius = p.effectRadius;
-      final power = p.effectPower > 0 ? p.effectPower : p.damage * 0.35;
-      if (p.tickEffect == AbilityEffectKind.zoneHeal) {
-        healAllCompanionsAndShip(power);
-        return;
-      }
-      if (p.tickEffect == AbilityEffectKind.leech) {
-        var drained = 0.0;
-        for (final enemy in enemies) {
-          if (enemy.dead) continue;
-          if ((enemy.position - p.position).distance > radius) continue;
-          final before = enemy.health;
-          enemy.health -= power;
-          drained += before - max(0.0, enemy.health);
-          if (enemy.health <= 0 && !enemy.dead) {
-            enemy.dead = true;
-            _spawnKillVfx(
-              enemy.position,
-              elementColor(enemy.element),
-              enemy.radius,
-              false,
-            );
-            _spawnLootDrops(
-              enemy.position,
-              enemy.element,
-              enemy.shardDrop,
-              enemy.particleDrop,
-            );
-          }
-        }
-        healAllCompanionsAndShip(drained * 0.6);
-        return;
-      }
-      for (final enemy in enemies) {
-        if (enemy.dead) continue;
-        if ((enemy.position - p.position).distance > radius) continue;
-        resolveAbilityEffect(p.tickEffect, p, enemy);
-      }
-    }
-
-    /// Kill-gated: every element here is authored "if the meteor kills". Air
-    /// is the one deliberate exception and fires on any hit, because its
-    /// knockback is the cast's crowd control. See the survival implementation.
-    void resolveLetMeteorImpactAftermath(
-      Projectile projectile,
-      Offset center, {
-      CosmicEnemy? primary,
-      required bool killed,
-    }) {
-      if (!killed && projectile.element != 'Air') return;
-      final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
-      final zone = CosmicAbilityRuntime.letKillZone(projectile.element);
-      if (zone != null && isMeteorCore) {
-        spawnLetZone(projectile, center, projectile.element!, zone);
-      }
-      switch (projectile.element) {
-        case 'Air':
-          // Open space has no knockback velocity, so the shove is a step —
-          // strongest at the crater, as far as survival's knockback carries.
-          final reach = CosmicAbilityRuntime.letAirReach(projectile);
-          for (final other in enemies) {
-            if (other.dead) continue;
-            final dir = other.position - center;
-            final dist = dir.distance;
-            if (dist <= 0.01 || dist > reach) continue;
-            final shove = (130.0 + projectile.damage * 0.6).clamp(130.0, 200.0);
-            other.position += (dir / dist) * shove * (1.0 - 0.5 * dist / reach);
-          }
-          if (isMeteorCore) {
-            pushLetFx(_letFx, LetFx.gust(position: center, radius: reach));
-          }
-          break;
-        case 'Plant':
-          if (isMeteorCore) {
-            for (final spot in CosmicAbilityRuntime.letVineSpots(
-              center,
-              projectile.angle,
-            )) {
-              companionProjectiles.add(
-                CosmicAbilityRuntime.letVine(projectile, spot),
-              );
-            }
-          }
-          break;
-        case 'Blood':
-          final drain = projectile.damage * 0.22;
-          final reach = max(170.0, projectile.effectRadius);
-          var drawn = 0;
-          for (final other in enemies) {
-            if (other.dead || identical(other, primary)) continue;
-            if ((other.position - center).distance > reach) continue;
-            if (drawn < 8) {
-              drawn++;
-              pushLetFx(_letFx, LetFx.drain(from: other.position, to: center));
-            }
-            hurtEnemy(other, drain);
-          }
-          healAllCompanionsAndShip(drain * 0.18);
-          break;
-        case 'Fire':
-          final reach = CosmicAbilityRuntime.letFireReach(projectile);
-          damageEnemiesNear(
-            center,
-            reach,
-            projectile.damage * 0.72,
-            exclude: primary,
-          );
-          pushLetFx(_letFx, LetFx.blast(position: center, radius: reach));
-          break;
-        case 'Dark':
-          if (projectile.effectStacks == 0) {
-            spawnDarkLetKillMeteors(projectile, center);
-          } else {
-            for (final other in enemies) {
-              if (other.dead) continue;
-              final dir = center - other.position;
-              final dist = dir.distance;
-              if (dist > 0.01 && dist <= max(120.0, projectile.effectRadius)) {
-                other.position += (dir / dist) * min(28.0, 720.0 / dist);
-                other.driftTimer += 0.6;
-              }
-            }
-          }
-          break;
-        default:
-          break;
-      }
-    }
-
-    /// Lightning's contact: a chain hopping from the struck body to its
-    /// nearest neighbours — survival's chain, not an area burst.
-    void chainLetLightning(Projectile projectile, CosmicEnemy from) {
-      final hops = max(2, projectile.effectCount);
-      final points = <Offset>[from.position];
-      final struck = <CosmicEnemy>{from};
-      var at = from;
-      for (var h = 0; h < hops; h++) {
-        CosmicEnemy? next;
-        var bestSq = 180.0 * 180.0;
-        for (final other in enemies) {
-          if (other.dead || other.health <= 0 || struck.contains(other)) {
-            continue;
-          }
-          final d = other.position - at.position;
-          final dSq = d.dx * d.dx + d.dy * d.dy;
-          if (dSq < bestSq) {
-            bestSq = dSq;
-            next = other;
-          }
-        }
-        final hop = next;
-        if (hop == null) break;
-        struck.add(hop);
-        points.add(hop.position);
-        hurtEnemy(hop, projectile.damage * 0.72);
-        at = hop;
-      }
-      if (points.length > 1) {
-        pushLetFx(_letFx, LetFx.chain(points: points));
-      }
-    }
-
-    void resolveLetMeteorHit(
-      Projectile projectile,
-      CosmicEnemy enemy, {
-      required bool killed,
-    }) {
-      final element = projectile.element;
-      final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
-      final zone = CosmicAbilityRuntime.letContactZone(element);
-      if (zone != null && isMeteorCore) {
-        spawnLetZone(projectile, enemy.position, element!, zone);
-      }
-      switch (element) {
-        case 'Poison':
-          enemy.driftTimer += 2.2;
-          enemy.health -= projectile.damage * 0.20;
-          break;
-        case 'Earth':
-          healCompanionOrShip(projectile.damage * 0.26);
-          damageEnemiesNear(
-            enemy.position,
-            max(150, projectile.effectRadius),
-            projectile.damage * 0.38,
-            exclude: enemy,
-          );
-          break;
-        case 'Spirit':
-          if (enemy.health > 0 &&
-              (enemy.health / enemy.maxHealth <= 0.35 ||
-                  _rng.nextDouble() <= projectile.effectChance)) {
-            enemy.health = 0;
-            if (isMeteorCore) {
-              pushLetFx(
-                _letFx,
-                LetFx.soul(position: enemy.position, bodyRadius: enemy.radius),
-              );
-            }
-          } else {
-            enemy.health -= projectile.damage * 0.35;
-          }
-          break;
-        case 'Crystal':
-          enemy.speed = max(10.0, enemy.speed * 0.10);
-          enemy.driftTimer += CosmicAbilityRuntime.kLetCrystalHold;
-          enemy.health -= projectile.damage * 0.25;
-          damageEnemiesNear(
-            enemy.position,
-            max(140, projectile.effectRadius),
-            projectile.damage * 0.32,
-            exclude: enemy,
-          );
-          if (isMeteorCore && enemy.health > 0) {
-            final held = enemy;
-            pushLetFx(
-              _letFx,
-              LetFx.crystal(
-                position: held.position,
-                bodyRadius: held.radius,
-                duration: CosmicAbilityRuntime.kLetCrystalHold,
-                anchor: () =>
-                    held.dead || held.health <= 0 ? null : held.position,
-              ),
-            );
-          }
-          break;
-        case 'Lightning':
-          chainLetLightning(projectile, enemy);
-          enemy.health -= projectile.damage * 0.18;
-          break;
-        case 'Ice':
-          enemy.speed = max(8.0, enemy.speed * 0.05);
-          enemy.driftTimer += CosmicAbilityRuntime.kLetIceHold;
-          if (isMeteorCore && enemy.health > 0) {
-            final held = enemy;
-            pushLetFx(
-              _letFx,
-              LetFx.frost(
-                position: held.position,
-                bodyRadius: held.radius,
-                duration: CosmicAbilityRuntime.kLetIceHold,
-                anchor: () =>
-                    held.dead || held.health <= 0 ? null : held.position,
-              ),
-            );
-          }
-          break;
-        case 'Water':
-          final reach = CosmicAbilityRuntime.letWaterReach(projectile);
-          damageEnemiesNear(
-            enemy.position,
-            reach,
-            projectile.damage * 0.42,
-            exclude: enemy,
-          );
-          if (isMeteorCore) {
-            pushLetFx(
-              _letFx,
-              LetFx.splash(position: enemy.position, radius: reach),
-            );
-          }
-          break;
-        default:
-          break;
-      }
-      resolveLetMeteorImpactAftermath(
-        projectile,
-        enemy.position,
-        primary: enemy,
-        killed: killed || enemy.dead || enemy.health <= 0,
-      );
-    }
-
-    void resolveAbilityKill(Projectile projectile, CosmicEnemy enemy) {
-      if (projectile.abilityFamily == 'let') {
-        resolveLetMeteorImpactAftermath(
-          projectile,
-          enemy.position,
-          primary: enemy,
-          killed: true,
-        );
-        return;
-      }
-      resolveAbilityEffect(projectile.killEffect, projectile, enemy);
-      _applyOpenKillIdentityHooks(projectile, enemy);
-    }
-
-    void resolveAbilityHit(
-      Projectile projectile,
-      CosmicEnemy enemy, {
-      required bool killed,
-    }) {
-      _maskTrapVisuals.contact(projectile);
-      if (projectile.abilityFamily == 'let') {
-        resolveLetMeteorHit(projectile, enemy, killed: killed);
-        return;
-      }
-      if (!resolveMaskContact(projectile, enemy)) {
-        resolveAbilityEffect(projectile.hitEffect, projectile, enemy);
-      }
-      if (killed) resolveAbilityKill(projectile, enemy);
-    }
-
-    void resolveAbilityPierce(Projectile projectile, CosmicEnemy enemy) {
-      final id = identityHashCode(enemy);
-      if (!projectile.effectHitIds.add(id)) return;
-      if (projectile.abilityFamily == 'mane' && projectile.element == 'Air') {
-        final pushDistance = max(
-          95.0,
-          projectile.effectPower * 0.72,
-        ).clamp(95.0, 180.0).toDouble();
-        enemy.position = Offset(
-          enemy.position.dx + cos(projectile.angle) * pushDistance,
-          enemy.position.dy + sin(projectile.angle) * pushDistance,
-        );
-        enemy.driftTimer += CosmicAbilityRuntime.openSpaceCrowdControlDuration(
-          max(0.45, projectile.effectDuration * 0.35),
-        );
-        _spawnHitSpark(enemy.position, elementColor('Air'));
-        return;
-      }
-      if (projectile.pierceEffect == AbilityEffectKind.carry) {
-        final isManeWaterWall =
-            projectile.abilityFamily == 'mane' && projectile.element == 'Water';
-        final dragDistance = isManeWaterWall
-            ? max(
-                120.0,
-                projectile.effectPower * 0.85,
-              ).clamp(120.0, 190.0).toDouble()
-            : CosmicAbilityRuntime.maneCarryDistance(projectile.effectPower);
-        enemy.position = Offset(
-          enemy.position.dx + cos(projectile.angle) * dragDistance,
-          enemy.position.dy + sin(projectile.angle) * dragDistance,
-        );
-        enemy.driftTimer += CosmicAbilityRuntime.openSpaceCrowdControlDuration(
-          projectile.effectDuration + (isManeWaterWall ? 0.8 : 0.0),
-        );
-        if (isManeWaterWall) {
-          _spawnHitSpark(enemy.position, elementColor('Water'));
-        }
-        return;
-      }
-      if (projectile.abilityFamily == 'mane') {
-        switch (projectile.element) {
-          case 'Plant':
-            enemy.maneRootSlot = projectile.sourceSlotIndex;
-            enemy.maneRootTimer = max(enemy.maneRootTimer, 2.6);
-            enemy.driftTimer +=
-                CosmicAbilityRuntime.openSpaceCrowdControlDuration(1.6);
-            _spawnHitSpark(enemy.position, elementColor('Plant'));
-            break;
-          case 'Light':
-            const maxLightManeRadius = 28.0;
-            const maxLightManeVisual = 24.0;
-            if (projectile.radiusMultiplier < maxLightManeRadius) {
-              projectile.damage *= 2.0;
-              projectile.radiusMultiplier = min(
-                projectile.radiusMultiplier * 2.0,
-                maxLightManeRadius,
-              );
-              projectile.visualScale = min(
-                projectile.visualScale * 2.0,
-                maxLightManeVisual,
-              );
-              projectile.effectRadius = min(projectile.effectRadius * 2.0, 360);
-            }
-            _spawnHitSpark(enemy.position, elementColor('Light'));
-            break;
-          case 'Lava':
-            companionProjectiles.add(
-              Projectile(
-                position: enemy.position,
-                angle: 0,
-                element: 'Lava',
-                damage: 0,
-                life: 3.6,
-                speedMultiplier: 0,
-                stationary: true,
-                piercing: true,
-                radiusMultiplier: 1.4,
-                visualScale: 1.3,
-                visualStyle: ProjectileVisualStyle.sigil,
-                sourceSlotIndex: projectile.sourceSlotIndex,
-                abilityFamily: 'mane',
-                tickEffect: AbilityEffectKind.burn,
-                effectPower: projectile.damage * 0.18,
-                effectRadius: 50,
-                effectDuration: 3.6,
-              ),
-            );
-            break;
-        }
-      }
-      resolveAbilityEffect(projectile.pierceEffect, projectile, enemy);
-    }
-
-    /// The live position a descending Let meteor keeps itself aimed at,
-    /// leashed to the neighbourhood of the point it was committed to.
-    Offset? liveSkyfallTarget(Projectile p) {
-      final leash = letSkyfallBlastRadius(p) + 140.0;
-      final centre = p.skyfallImpact;
-      var bestSq = leash * leash;
-      Offset? best;
-      for (final enemy in enemies) {
-        if (enemy.dead || enemy.health <= 0) continue;
-        final d = enemy.position - centre;
-        final dSq = d.dx * d.dx + d.dy * d.dy;
-        if (dSq < bestSq) {
-          bestSq = dSq;
-          best = enemy.position;
-        }
-      }
-      return best;
-    }
-
-    /// A Let meteor touching down. Full damage to the body it lands on, a
-    /// reduced share to everything else in the crater, and the element's
-    /// ground effects whether or not anything was standing there.
-    void detonateLetSkyfall(Projectile p) {
-      final centre = p.skyfallImpact;
-      final blast = letSkyfallBlastRadius(p);
-      pushLetSkyfallImpact(
-        _letSkyfallImpacts,
-        LetSkyfallImpact(
-          position: centre,
-          color: elementColor(p.element ?? 'Fire'),
-          element: p.element,
-          radius: blast,
-        ),
-      );
-
-      CosmicEnemy? primary;
-      var bestSq = blast * blast;
-      for (final enemy in enemies) {
-        if (enemy.dead || enemy.health <= 0) continue;
-        final d = enemy.position - centre;
-        final dSq = d.dx * d.dx + d.dy * d.dy;
-        if (dSq < bestSq) {
-          bestSq = dSq;
-          primary = enemy;
-        }
-      }
-
-      final struck = primary;
-      // The crater catches everything in it whether or not there was a body at
-      // the centre. Routed through damageEnemiesNear so kills keep running the
-      // loot and vfx that lives inside it.
-      // Who is in the crater before it goes off, so the kill gate counts
-      // bodies finished by the splash as well as by the direct hit.
-      final inBlast = <CosmicEnemy>[
-        for (final enemy in enemies)
-          if (!enemy.dead &&
-              enemy.health > 0 &&
-              (enemy.position - centre).distance <= blast)
-            enemy,
-      ];
-      damageEnemiesNear(
-        centre,
-        blast,
-        p.damage * kLetSkyfallSplashShare,
-        exclude: struck,
-      );
-      if (struck != null) {
-        damageEnemiesNear(struck.position, 0.5, p.damage);
-        resolveLetMeteorHit(
-          p,
-          struck,
-          killed: inBlast.any((enemy) => enemy.dead || enemy.health <= 0),
-        );
-      }
-      // No aftermath when nothing was struck — those behaviours are kill-gated
-      // by design. See the survival implementation.
-      p.life = 0;
-    }
-
-    for (var i = companionProjectiles.length - 1; i >= 0; i--) {
-      final p = companionProjectiles[i];
-      var transferringToShip = false;
-
-      // Let meteors fall. A descending meteor takes no collisions, lays no
-      // trail and does not age — everything it does happens when it lands.
-      if (p.isDescending) {
-        final landed = CosmicAbilityRuntime.advanceSkyfall(
-          p,
-          dt,
-          p.skyfallTracks ? liveSkyfallTarget(p) : null,
-        );
-        if (landed) {
-          detonateLetSkyfall(p);
-          companionProjectiles.removeAt(i);
-        }
-        continue;
-      }
-
-      if (p.transferToShipOrbit && !p.followShipOrbit) {
-        if (p.shipOrbitDelay > 0) {
-          p.shipOrbitDelay = max(0.0, p.shipOrbitDelay - dt);
-        } else {
-          transferringToShip = true;
-          p.orbitAngle += p.orbitSpeed * dt;
-          final desiredPos = Offset(
-            ship.pos.dx + cos(p.orbitAngle) * p.orbitRadius,
-            ship.pos.dy + sin(p.orbitAngle) * p.orbitRadius,
-          );
-          final toDesired = desiredPos - p.position;
-          final dist = toDesired.distance;
-          final attachStep = Projectile.speed * p.shipOrbitTransferSpeed * dt;
-          if (dist <= attachStep || dist < 8) {
-            p.position = desiredPos;
-            p.orbitCenter = ship.pos;
-            p.followShipOrbit = true;
-            transferringToShip = false;
-          } else {
-            p.position += (toDesired / dist) * attachStep;
-          }
-        }
-      } else if (p.transferOrbitCenter != null) {
-        if (p.shipOrbitDelay > 0) {
-          p.shipOrbitDelay = max(0.0, p.shipOrbitDelay - dt);
-        } else {
-          transferringToShip = true;
-          p.orbitAngle += p.orbitSpeed * dt;
-          final desiredCenter = p.transferOrbitCenter!;
-          final desiredPos = Offset(
-            desiredCenter.dx + cos(p.orbitAngle) * p.orbitRadius,
-            desiredCenter.dy + sin(p.orbitAngle) * p.orbitRadius,
-          );
-          final toDesired = desiredPos - p.position;
-          final dist = toDesired.distance;
-          final attachStep = Projectile.speed * p.shipOrbitTransferSpeed * dt;
-          if (dist <= attachStep || dist < 8) {
-            p.position = desiredPos;
-            p.orbitCenter = desiredCenter;
-            p.transferOrbitCenter = null;
-            transferringToShip = false;
-          } else {
-            p.position += (toDesired / dist) * attachStep;
-          }
-        }
-      }
-
-      if (p.followShipOrbit) {
-        p.orbitCenter = ship.pos;
-      }
-
-      // Homing: steer toward nearest enemy
-      if (p.homing) {
-        double bestDist = double.infinity;
-        Offset? bestTarget;
-        for (final e in enemies) {
-          if (e.dead) continue;
-          final d = (e.position - p.position).distance;
-          if (d < bestDist) {
-            bestDist = d;
-            bestTarget = e.position;
-          }
-        }
-        // Home onto the wild Alchemon being fought, too.
-        final duelOpp = duelOpponent;
-        if (wildDuelActive && duelOpp != null && duelOpp.isAlive) {
-          final d = (duelOpp.position - p.position).distance;
-          if (d < bestDist) {
-            bestDist = d;
-            bestTarget = duelOpp.position;
-          }
-        }
-        if (activeBoss != null) {
-          final bd = (activeBoss!.position - p.position).distance;
-          if (bd < bestDist) {
-            bestTarget = activeBoss!.position;
-          }
-        }
-        if (bestTarget != null) {
-          final desired = atan2(
-            bestTarget.dy - p.position.dy,
-            bestTarget.dx - p.position.dx,
-          );
-          // Shortest-arc turn
-          double diff = desired - p.angle;
-          while (diff > pi) {
-            diff -= 2 * pi;
-          }
-          while (diff < -pi) {
-            diff += 2 * pi;
-          }
-          final maxTurn = p.homingStrength * dt;
-          p.angle += diff.clamp(-maxTurn, maxTurn);
-        }
-      }
-
-      if (_updateOpenManeLightningOrbTransfer(p, dt)) {
-        transferringToShip = true;
-      }
-
-      final pSpeed = Projectile.speed * p.speedMultiplier;
-
-      // Orbital projectiles: orbit their center before launching
-      if (!transferringToShip &&
-          p.orbitCenter != null &&
-          (p.holdOrbit || p.orbitTime > 0)) {
-        if (!p.holdOrbit) {
-          p.orbitTime -= dt;
-        }
-        p.orbitAngle += p.orbitSpeed * dt;
-        p.position = Offset(
-          p.orbitCenter!.dx + cos(p.orbitAngle) * p.orbitRadius,
-          p.orbitCenter!.dy + sin(p.orbitAngle) * p.orbitRadius,
-        );
-        if (p.turretInterval > 0 &&
-            (!p.transferToShipOrbit || p.followShipOrbit) &&
-            p.transferOrbitCenter == null) {
-          p.turretTimer += dt;
-          if (p.turretTimer >= p.turretInterval) {
-            p.turretTimer -= p.turretInterval;
-            final target = _nearestEscortTarget(p.position);
-            if (target != null) {
-              companionProjectiles.add(_createEscortTurretShot(p, target));
-            }
-          }
-        }
-        // When orbit time expires, launch outward
-        if (!p.holdOrbit && p.orbitTime <= 0) {
-          p.angle = p.orbitAngle; // launch in current orbital direction
-          p.orbitCenter = null; // stop orbiting
-        }
-      } else if (p.stationary) {
-        // Stationary projectiles don't move (mines, lingering clouds)
-        // no position change
-        if (p.turretInterval > 0) {
-          p.turretTimer += dt;
-          if (p.turretTimer >= p.turretInterval) {
-            p.turretTimer -= p.turretInterval;
-            final target = _nearestEscortTarget(p.position);
-            if (target != null) {
-              companionProjectiles.add(_createEscortTurretShot(p, target));
-            }
-          }
-        }
-      } else if (!transferringToShip) {
-        p.position = Offset(
-          p.position.dx + cos(p.angle) * pSpeed * dt,
-          p.position.dy + sin(p.angle) * pSpeed * dt,
-        );
-        if (p.abilityFamily == 'mane' && p.element == 'Dust') {
-          p.trailTimer += dt;
-          if (p.trailTimer >= 0.35) {
-            p.trailTimer = 0;
-            companionProjectiles.add(
-              Projectile(
-                position: p.position,
-                angle: 0,
-                element: 'Dust',
-                damage: 0,
-                life: 2.4,
-                speedMultiplier: 0,
-                stationary: true,
-                piercing: true,
-                radiusMultiplier: 1.3,
-                visualScale: 1.3,
-                visualStyle: ProjectileVisualStyle.sigil,
-                sourceSlotIndex: p.sourceSlotIndex,
-                abilityFamily: 'mane',
-                tickEffect: AbilityEffectKind.suppressShooting,
-                effectPower: p.damage * 0.10,
-                effectRadius: 60,
-                effectDuration: 1.6,
-              ),
-            );
-          }
-        }
-        if (p.turretInterval > 0 &&
-            p.visualStyle == ProjectileVisualStyle.mysticOrbital &&
-            p.element == 'Lava') {
-          p.turretTimer += dt;
-          while (p.turretTimer >= p.turretInterval) {
-            p.turretTimer -= p.turretInterval;
-            companionProjectiles.add(
-              Projectile(
-                position: p.position,
-                angle: 0,
-                element: 'Lava',
-                damage: 0,
-                life: 8.5,
-                speedMultiplier: 0,
-                stationary: true,
-                piercing: true,
-                radiusMultiplier: 1.8,
-                visualScale: 1.7,
-                visualStyle: ProjectileVisualStyle.mysticOrbital,
-                sourceSlotIndex: p.sourceSlotIndex,
-                abilityFamily: 'mystic',
-                tickEffect: AbilityEffectKind.burn,
-                effectPower: p.turretDamage,
-                effectRadius: 70,
-                effectDuration: 1.6,
-                snareRadius: 70,
-                snareMoveMultiplier: 0.65,
-              ),
-            );
-          }
-        }
-        if (p.turretInterval > 0 && p.abilityFamily == 'mane') {
-          if (p.element == 'Earth') {
-            p.turretTimer += dt;
-            while (p.turretTimer >= p.turretInterval) {
-              p.turretTimer -= p.turretInterval;
-              _spawnOpenManeEarthQuakePulse(p);
-            }
-            p.radiusMultiplier = max(p.radiusMultiplier - dt * 0.36, 2.15);
-            p.visualScale = max(p.visualScale - dt * 0.30, 1.85);
-          } else if (p.element == 'Steam') {
-            p.turretTimer += dt;
-            while (p.turretTimer >= p.turretInterval) {
-              p.turretTimer -= p.turretInterval;
-              companionProjectiles.add(
-                Projectile(
-                  position: p.position,
-                  angle: 0,
-                  element: 'Steam',
-                  damage: 0,
-                  life: 1.6,
-                  speedMultiplier: 0,
-                  stationary: true,
-                  piercing: true,
-                  radiusMultiplier: 1.5,
-                  visualScale: 1.4,
-                  visualStyle: ProjectileVisualStyle.sigil,
-                  sourceSlotIndex: p.sourceSlotIndex,
-                  abilityFamily: 'mane',
-                  tickEffect: AbilityEffectKind.geyser,
-                  effectPower: p.turretDamage,
-                  effectRadius: 70,
-                  effectDuration: 1.2,
-                ),
-              );
-            }
-          }
-        }
-      }
-      // Trail-dropping: spawn stationary residue projectiles periodically
-      if (p.trailInterval > 0 && !p.stationary && p.orbitCenter == null) {
-        p.trailTimer += dt;
-        if (p.trailTimer >= p.trailInterval) {
-          p.trailTimer -= p.trailInterval;
-          companionProjectiles.add(
-            Projectile(
-              position: p.position,
-              angle: 0,
-              element: p.element,
-              damage: p.trailDamage,
-              life: p.trailLife,
-              stationary: true,
-              radiusMultiplier: 1.5,
-              piercing: true,
-              visualScale: 1.2,
-              abilityFamily: p.abilityFamily,
-              hitEffect: p.tickEffect == AbilityEffectKind.none
-                  ? p.hitEffect
-                  : p.tickEffect,
-              tickEffect: p.tickEffect,
-              effectPower: p.effectPower * 0.55,
-              effectRadius: p.effectRadius,
-              effectDuration: p.effectDuration,
-            ),
-          );
-        }
-      }
-
-      // Kin ward aura tick: stationary ward placements and kin orbiting
-      // escort orbs emanate their tickEffect to enemies/allies in radius
-      // on a fixed cadence (mirrors survival's updatePersistentAbilityEffects).
-      final isKinOrbitingAura =
-          p.abilityFamily == 'kin' &&
-          (p.holdOrbit ||
-              p.transferToShipOrbit ||
-              p.transferOrbitCenter != null);
-      if (p.tickEffect != AbilityEffectKind.none &&
-          p.effectRadius > 0 &&
-          (p.stationary || isKinOrbitingAura)) {
-        p.tickTimer += dt;
-        if (p.tickTimer >= 0.35) {
-          p.tickTimer -= 0.35;
-          applyKinAuraTick(p);
-        }
-        // Ambient per-element wisps so the painted zone feels alive (embers,
-        // bubbles, rain, etc.). Pool-capped so it never floods the frame.
-        if (_abilityVfx.length < 130) {
-          _spawnZoneParticles(p);
-        }
-      }
-
-      // Cluster fragmentation: split into sub-projectiles at half-life
-      if (p.clusterCount > 0 && !p.clustered) {
-        // Estimate initial life by checking if we're past halfway
-        // We trigger when remaining life < 50% of original
-        // Since we don't store original life, trigger when life < 0.75s for meteors
-        if (p.life < 0.75) {
-          p.clustered = true;
-          for (var ci = 0; ci < p.clusterCount; ci++) {
-            final ca = ci * (pi * 2 / p.clusterCount);
-            companionProjectiles.add(
-              Projectile(
-                position: Offset(
-                  p.position.dx + cos(ca) * 10,
-                  p.position.dy + sin(ca) * 10,
-                ),
-                angle: ca,
-                element: p.element,
-                damage: p.clusterDamage,
-                life: 1.5,
-                speedMultiplier: 0.7,
-                radiusMultiplier: 1.5,
-                piercing: true,
-                visualScale: 1.0,
-                visualStyle: p.visualStyle == ProjectileVisualStyle.letShard
-                    ? ProjectileVisualStyle.letShard
-                    : ProjectileVisualStyle.standard,
-                sourceSlotIndex: p.sourceSlotIndex,
-                abilityFamily: p.abilityFamily,
-                hitEffect: p.hitEffect,
-                killEffect: p.killEffect,
-                pierceEffect: p.pierceEffect,
-                tickEffect: p.tickEffect,
-                effectPower: p.effectPower * 0.65,
-                effectRadius: p.effectRadius,
-                effectDuration: p.effectDuration,
-                effectCount: p.effectCount,
-              ),
-            );
-          }
-        }
-      }
-
-      p.life -= dt;
-      if (p.life <= 0) {
-        if (p.decoy && p.deathExplosionCount > 0) {
-          _spawnDecoyExplosion(p);
-        }
-        companionProjectiles.removeAt(i);
-        continue;
-      }
-
-      final hitRadius = Projectile.radius * p.radiusMultiplier;
-      bool consumed = false;
-
-      // Decoys/taunt traps resolve damage through the dedicated
-      // enemy->decoy collision path so they persist as lures.
-      if (p.decoy) {
-        continue;
-      }
-
-      // Let's ground never collides. Its zones act through their tick (the
-      // aura pass above), and a vine strikes the first body in its reach and
-      // is spent.
-      if (p.stationary && p.abilityFamily == 'let') {
-        if (CosmicAbilityRuntime.isLetVine(p)) {
-          for (final enemy in enemies) {
-            if (enemy.dead || enemy.health <= 0) continue;
-            final reach = p.effectRadius + enemy.radius;
-            final d = enemy.position - p.position;
-            if (d.dx * d.dx + d.dy * d.dy > reach * reach) continue;
-            pushLetFx(_letFx, LetFx.lash(from: p.position, to: enemy.position));
-            hurtEnemy(enemy, p.effectPower);
-            companionProjectiles.removeAt(i);
-            break;
-          }
-        }
-        continue;
-      }
-
-      // Hit enemies
-      for (var ei = enemies.length - 1; ei >= 0; ei--) {
-        if (p.trapSpent) break;
-        if (p.abilityFamily == 'mask' && p.element == 'Spirit') break;
-        final enemy = enemies[ei];
-        if (enemy.dead) continue;
-        final edx = p.position.dx - enemy.position.dx;
-        final edy = p.position.dy - enemy.position.dy;
-        final hitR = enemy.radius + hitRadius;
-        if (edx * edx + edy * edy < hitR * hitR) {
-          if (p.abilityFamily == 'mask' && p.stationary) {
-            p.maxHitsPerEnemy = 1;
-            final id = identityHashCode(enemy);
-            if (!p.canHitEnemy(id)) continue;
-            p.noteEnemyHit(id);
-          }
-          // Piercing projectiles deal reduced damage after first hit
-          final pierceFalloff = p.piercing && p.abilityFamily != 'mask'
-              ? pow(0.7, p.pierceCount).toDouble()
-              : 1.0;
-          final preRootForPlantKill =
-              p.piercing && p.abilityFamily == 'mane' && p.element == 'Plant';
-          if (preRootForPlantKill) resolveAbilityPierce(p, enemy);
-          final wasAlive = enemy.health > 0 && !enemy.dead;
-          enemy.health -= p.damage * pierceFalloff;
-          final killedByBase = wasAlive && enemy.health <= 0;
-          resolveAbilityHit(p, enemy, killed: killedByBase);
-          if (p.piercing) resolveAbilityPierce(p, enemy);
-          _applyOpenBasicHitIdentityHooks(p, enemy, killed: enemy.health <= 0);
-          if (p.abilityFamily == 'mane' &&
-              p.element == 'Mud' &&
-              !p.clustered &&
-              p.effectStacks == 0) {
-            p.clustered = true;
-            for (var fi = 0; fi < 10; fi++) {
-              final fragAngle = fi * (pi * 2 / 10);
-              companionProjectiles.add(
-                Projectile(
-                  position: enemy.position,
-                  angle: fragAngle,
-                  element: 'Mud',
-                  damage: p.damage * 0.45,
-                  life: 1.0,
-                  speedMultiplier: 1.4,
-                  radiusMultiplier: max(p.radiusMultiplier * 0.55, 0.7),
-                  visualScale: max(p.visualScale * 0.55, 0.7),
-                  piercing: false,
-                  visualStyle: ProjectileVisualStyle.slash,
-                  sourceSlotIndex: p.sourceSlotIndex,
-                  abilityFamily: 'mane',
-                  hitEffect: AbilityEffectKind.slow,
-                  effectPower: p.effectPower * 0.6,
-                  effectRadius: 40,
-                  effectDuration: 1.5,
-                  effectStacks: 1,
-                ),
-              );
-            }
-            consumed = true;
-          }
-          _spawnHitSpark(p.position, elementColor(enemy.element));
-          if (!enemy.provoked &&
-              (enemy.behavior == EnemyBehavior.feeding ||
-                  enemy.behavior == EnemyBehavior.territorial ||
-                  enemy.behavior == EnemyBehavior.drifting)) {
-            _provokePackOf(enemy);
-          }
-          final isPipSpecialProjectile = p.abilityFamily == 'pip';
-          if (!consumed &&
-              p.piercing &&
-              !(isPipSpecialProjectile && p.bounceCount > 0)) {
-            p.pierceCount++;
-            if (isPipSpecialProjectile && p.pierceCount >= kPipMaxPierceHits) {
-              consumed = true;
-            }
-            // Don't consume — keep going, unless the family has a tighter cap.
-          } else if (!consumed && p.bounceCount > 0) {
-            // Ricochet: redirect toward nearest OTHER enemy
-            p.bounceCount--;
-            p.pierceCount++;
-            double bestBounce = double.infinity;
-            Offset? bounceTarget;
-            for (final other in enemies) {
-              if (other.dead || other == enemy) continue;
-              final bd = (other.position - p.position).distance;
-              if (bd < bestBounce && bd < 500) {
-                bestBounce = bd;
-                bounceTarget = other.position;
-              }
-            }
-            if (bounceTarget != null) {
-              p.angle = atan2(
-                bounceTarget.dy - p.position.dy,
-                bounceTarget.dx - p.position.dx,
-              );
-              if (isPipSpecialProjectile) {
-                p.life = min(max(p.life, 0.18), kPipRicochetPostHitLife);
-                final falloff = p.element == 'Lightning' ? 0.85 : 0.70;
-                p.damage *= falloff;
-                p.speedMultiplier = max(0.6, p.speedMultiplier * 0.92);
-              }
-            } else {
-              if (isPipSpecialProjectile) {
-                consumed = true;
-              } else {
-                // No nearby target — bounce in a random direction
-                p.angle += pi * 0.6 + Random().nextDouble() * pi * 0.8;
-              }
-            }
-            // Don't consume — keep going as a bounce
-          } else {
-            consumed = true;
-          }
-          if (enemy.health <= 0 && !enemy.dead) {
-            enemy.dead = true;
-            _spawnKillVfx(
-              enemy.position,
-              elementColor(enemy.element),
-              enemy.radius,
-              false,
-            );
-            _spawnLootDrops(
-              enemy.position,
-              enemy.element,
-              enemy.shardDrop,
-              enemy.particleDrop,
-            );
-          }
-          if (consumed) break;
-        }
-      }
-      if (consumed) {
-        companionProjectiles.removeAt(i);
-        continue;
-      }
-
-      if (p.trapSpent || (p.abilityFamily == 'mask' && p.element == 'Spirit')) {
-        continue;
-      }
-      // Hit boss
-      if (i < companionProjectiles.length && activeBoss != null) {
-        final cp = companionProjectiles[i];
-        if (!cp.hitBoss) {
-          final boss = activeBoss!;
-          final bdx = cp.position.dx - boss.position.dx;
-          final bdy = cp.position.dy - boss.position.dy;
-          if (bdx * bdx + bdy * bdy <
-              (boss.radius + hitRadius) * (boss.radius + hitRadius)) {
-            final pierceFalloff = cp.piercing
-                ? pow(0.7, cp.pierceCount).toDouble()
-                : 1.0;
-            final isCrystalmaneBossHit =
-                cp.abilityFamily == 'mane' && cp.element == 'Crystal';
-            if (isCrystalmaneBossHit) {
-              boss.shieldUp = false;
-              boss.shieldHealth = 0;
-              for (final enemy in enemies) {
-                if (enemy.dead) continue;
-                if ((enemy.position - boss.position).distance <= 240) {
-                  _damageOpenEnemy(enemy, cp.damage * 3.0, element: 'Crystal');
-                }
-              }
-              _damageOpenBoss(boss.health + 1, element: 'Crystal');
-              _spawnHitSpark(boss.position, elementColor('Crystal'));
-              companionProjectiles.removeAt(i);
-              continue;
-            }
-            if (cp.abilityFamily == 'mask') {
-              _activateMaskContactPlacement(cp, boss.position);
-            }
-            final bossDamage = cp.damage * pierceFalloff;
-            if (boss.shieldUp &&
-                (boss.type == BossType.gunner ||
-                    boss.type == BossType.bulwark)) {
-              boss.shieldHealth -= bossDamage;
-              _spawnHitSpark(cp.position, Colors.cyanAccent);
-              if (boss.shieldHealth <= 0) {
-                boss.shieldUp = false;
-                boss.shieldTimer = CosmicBoss.shieldCooldown;
-              }
-            } else {
-              boss.health -= bossDamage;
-              _spawnHitSpark(cp.position, elementColor(boss.element));
-              if (boss.health <= 0) {
-                _handleBossKill(boss);
-              }
-            }
-            if (cp.piercing && cp.abilityFamily != 'pip') {
-              cp.pierceCount++;
-              cp.hitBoss = true;
-            } else {
-              companionProjectiles.removeAt(i);
-            }
-          }
-        }
-      }
-
-      // Hit the wild Alchemon being fought
-      if (i < companionProjectiles.length &&
-          duelOpponent != null &&
-          duelOpponent!.isAlive &&
-          wildDuelActive) {
-        final cp = companionProjectiles[i];
-        final opp = duelOpponent!;
-        final odx = cp.position.dx - opp.position.dx;
-        final ody = cp.position.dy - opp.position.dy;
-        if (odx * odx + ody * ody < (15 + hitRadius) * (15 + hitRadius)) {
-          final pierceFalloff = cp.piercing
-              ? pow(0.7, cp.pierceCount).toDouble()
-              : 1.0;
-          final dmg = _duelDamageAfterDefense(
-            cp.damage * pierceFalloff,
-            opp.elemDef,
-          );
-          opp.takeDamage(dmg);
-          _spawnHitSpark(cp.position, elementColor(opp.member.element));
-          if (cp.piercing) {
-            cp.pierceCount++;
-          } else {
-            companionProjectiles.removeAt(i);
-          }
-        }
-      }
-    }
+    _admitWildBody();
+    _updateAbilityProjectiles(dt);
 
     // ── update garrison creatures (home-planet patrol & combat) ──
     if (homePlanet != null) {
@@ -6680,7 +3488,10 @@ class CosmicGame extends FlameGame with PanDetector {
         // ── Kin blessing: heal over time ──
         if (g.blessingTimer > 0) {
           g.blessingTimer -= dt;
-          g.hp = min(g.maxHp, g.hp + (g.blessingHealPerTick * dt).round());
+          g.blessingCarry += g.blessingHealPerTick * dt;
+          final heal = g.blessingCarry.floor();
+          g.blessingCarry -= heal;
+          g.hp = min(g.maxHp, g.hp + heal);
         }
 
         final family = g.member.family.toLowerCase();
@@ -6727,7 +3538,9 @@ class CosmicGame extends FlameGame with PanDetector {
           final toTarget = targetPos - g.position;
           g.faceAngle = atan2(toTarget.dy, toTarget.dx);
 
-          if (toTarget.distance > preferredDistance) {
+          if (toTarget.distance > preferredDistance &&
+              !_heldByWingCharge(g) &&
+              !_kinHoldsBody(g, g.member)) {
             final chaseSpeed =
                 _combatChaseSpeed(family, g.member.statSpeed.toDouble()) * dt;
             g.position +=
@@ -6735,8 +3548,18 @@ class CosmicGame extends FlameGame with PanDetector {
                 min(chaseSpeed, toTarget.distance);
           }
 
-          // Basic attack — family-specific pattern
-          if (g.attackCooldown <= 0 && toTarget.distance <= g.attackRange) {
+          // Basic attack — family-specific pattern. A Kin's is a charged
+          // laser (cosmic_game_kin.dart).
+          if (_isKinMember(g.member)) {
+            _tickOpenGarrisonKinChargedAuto(
+              g,
+              targetPos,
+              toTarget.distance,
+              gBasicCooldownDuration,
+              dt,
+            );
+          } else if (g.attackCooldown <= 0 &&
+              toTarget.distance <= g.attackRange) {
             g.attackCooldown = gBasicCooldownDuration;
             final basics = createFamilyBasicAttack(
               origin: g.position,
@@ -6771,7 +3594,9 @@ class CosmicGame extends FlameGame with PanDetector {
             g.specialCooldown =
                 (14.0 - (effectiveSpeed * 0.6) - (effectiveIntelligence * 0.4))
                     .clamp(6.0, 14.0) *
-                (_isDarkWingMember(g.member) ? 0.5 : 1.0);
+                (_isDarkWingMember(g.member) ? 0.5 : 1.0) *
+                (_isKinMember(g.member) ? kKinSpecialCooldownStretch : 1.0);
+            _clearPipPoisonWeb(g.member);
             final result = createCosmicSpecialAbility(
               origin: g.position,
               baseAngle: g.faceAngle,
@@ -6783,6 +3608,7 @@ class CosmicGame extends FlameGame with PanDetector {
               casterBeauty: g.member.statBeauty.toDouble(),
               casterIntelligence: g.member.statIntelligence.toDouble(),
               casterStrength: g.member.statStrength.toDouble(),
+              casterBeautyPotential: g.member.statBeautyPotential,
               targetPos: targetPos,
             );
             _tagSource(result.projectiles, g.member.slotIndex);
@@ -6801,14 +3627,18 @@ class CosmicGame extends FlameGame with PanDetector {
               g.pendingChargeBurst = result.projectiles;
               g.pendingChargeOrigin = g.position;
               g.pendingChargeAngle = g.faceAngle;
-            } else if (!activateMaskPlacements(result.projectiles)) {
+            } else if (!activateMaskPlacements(
+              result.projectiles,
+              caster: g.position,
+              target: targetPos,
+              fromGarrison: true,
+            )) {
               companionProjectiles.addAll(result.projectiles);
             }
             _activateWingBeamEffects(
               result.beams,
-              origin: g.position,
+              caster: _WingCaster.garrison(g),
               angle: g.faceAngle,
-              originResolver: () => g.hp > 0 ? g.position : null,
             );
             // Apply garrison state changes
             if (result.shieldHp > 0) g.shieldHp = result.shieldHp;
@@ -6842,8 +3672,11 @@ class CosmicGame extends FlameGame with PanDetector {
               g.hp = min(g.maxHp, g.hp + result.selfHeal);
             }
             if (result.blessingTimer > 0) {
-              g.blessingTimer = result.blessingTimer;
-              g.blessingHealPerTick = result.blessingHealPerTick;
+              g.blessingTimer = max(g.blessingTimer, result.blessingTimer);
+              g.blessingHealPerTick = max(
+                g.blessingHealPerTick,
+                result.blessingHealPerTick,
+              );
             }
             if (result.basicHasteTimer > 0) {
               g.basicHasteTimer = result.basicHasteTimer;
@@ -6874,7 +3707,7 @@ class CosmicGame extends FlameGame with PanDetector {
           final laneBandMax = g.guardRadius + 18.0;
           final needsLaneRecovery =
               radialDist < laneBandMin || radialDist > laneBandMax;
-          if (wDist > 1.0) {
+          if (wDist > 1.0 && !_heldByWingCharge(g)) {
             final step =
                 (needsLaneRecovery
                     ? 220.0
@@ -6902,6 +3735,8 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       }
     }
+
+    _releaseWildBody();
 
     _updateWildAlchemons(dt);
 
@@ -6968,28 +3803,14 @@ class CosmicGame extends FlameGame with PanDetector {
         e.pipMudTrailTimer -= dt;
         if (e.pipMudTrailTimer <= 0) {
           e.pipMudTrailTimer = 0.42;
-          companionProjectiles.add(
-            Projectile(
-              position: e.position,
-              angle: 0,
-              element: 'Mud',
-              damage: 0,
-              life: 5.5,
-              speedMultiplier: 0,
-              stationary: true,
-              piercing: true,
-              radiusMultiplier: 1.1,
-              visualScale: 1.0,
-              visualStyle: ProjectileVisualStyle.sigil,
-              abilityFamily: 'pip',
-              tickEffect: AbilityEffectKind.slow,
-              effectPower: 1.0,
-              effectRadius: 38,
-              effectDuration: 1.2,
-            ),
-          );
+          companionProjectiles.add(_pipMudTrailPuff(e.position));
         }
       }
+      if (e.hornPlantRootTimer > 0) {
+        e.hornPlantRootTimer = max(0.0, e.hornPlantRootTimer - dt);
+      }
+      e.tickSlow(dt);
+      _integrateEnemyKnockback(e, dt);
       if (e.maneRootTimer <= 0) {
         _updateEnemyAI(e, dt);
       }
@@ -7255,7 +4076,7 @@ class CosmicGame extends FlameGame with PanDetector {
           );
           final scaledDmg = rawDmg * 30.0;
           final dmg = max(1, (scaledDmg * 100 / (100 + comp.physDef)).round());
-          comp.takeDamage(dmg);
+          _openCompanionIncomingDamage(comp, dmg);
           _spawnHitSpark(comp.position, elementColor(boss.element));
         }
       }
@@ -8004,7 +4825,9 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     _renderOpenWingBeams(canvas);
-    _maskTrapVisuals.render(canvas);
+    _renderWildWingBeams(canvas);
+    _renderWingFlowers(canvas);
+    _renderKinFlowers(canvas);
 
     if (_beautyContestCinematicActive) {
       final introFade = _beautyContestIntroActive
@@ -9534,22 +6357,15 @@ class CosmicGame extends FlameGame with PanDetector {
             8,
           );
 
-          if (g.member.family.toLowerCase() == 'kin') {
-            drawAdvancedKinSupportAura(
-              canvas: canvas,
-              element: g.member.element,
-              color: eColor,
-              time: _elapsed,
-              iceChargeProgress:
-                  g.kinIceChargeTimer > 0 && g.kinIceChargeTotal > 0
-                  ? 1 - g.kinIceChargeTimer / g.kinIceChargeTotal
-                  : 0,
-              lightningActive: g.kinLightningChargeTimer > 0,
-              fireOrbitalActive: g.kinFireOrbitalFlameActive,
-              lavaPlateActive: g.kinLavaPlateTimer > 0,
-              darkCloakActive: g.kinDarkCloakTimer > 0,
-            );
-          }
+          // A Kin's running support, its laser gathering — and a raised
+          // Lava plate on the rest (cosmic_game_kin.dart).
+          _renderKinOverlay(
+            canvas,
+            g,
+            g.member,
+            position: g.position,
+            lavaTeam: _openKinLavaPlateActive,
+          );
 
           // ── Shield bubble (Horn special) ──
           if (g.shieldHp > 0) {
@@ -10349,1299 +7165,23 @@ class CosmicGame extends FlameGame with PanDetector {
 
     drawHornFx(canvas, _hornFx);
 
-    // ── companion projectiles ──
-    for (final cp in companionProjectiles) {
-      final cpp = cp.position;
-      if ((cpp.dx - cx - screenW / 2).abs() > screenW ||
-          (cpp.dy - cy - screenH / 2).abs() > screenH) {
-        continue;
-      }
-      final projColor = cp.element != null
-          ? elementColor(cp.element!)
-          : const Color(0xFF42A5F5);
-      final vs = cp.visualScale;
-      final style = cp.visualStyle;
-      if (drawKinSpiritWispVisual(
-        canvas: canvas,
-        projectile: cp,
-        position: cpp,
-        color: projColor,
-        time: _elapsed,
-      )) {
-        continue;
-      }
-      if (drawMysticOrbitalProjectileVisual(
-        canvas: canvas,
-        projectile: cp,
-        position: cpp,
-        color: projColor,
-        time: _elapsed,
-      )) {
-        continue;
-      }
-      if (drawLetElementalProjectileVisual(
-        canvas: canvas,
-        projectile: cp,
-        position: cpp,
-        color: projColor,
-        time: _elapsed,
-      )) {
-        drawProjectileRoleOverlay(
-          canvas: canvas,
-          projectile: cp,
-          position: cpp,
-          color: projColor,
-          time: _elapsed,
-        );
-        continue;
-      }
-      if (drawPipElementalProjectileVisual(
-        canvas: canvas,
-        projectile: cp,
-        position: cpp,
-        color: projColor,
-        time: _elapsed,
-      )) {
-        drawProjectileRoleOverlay(
-          canvas: canvas,
-          projectile: cp,
-          position: cpp,
-          color: projColor,
-          time: _elapsed,
-        );
-        continue;
-      }
-      if (drawManeElementalProjectileVisual(
-        canvas: canvas,
-        projectile: cp,
-        position: cpp,
-        color: projColor,
-        time: _elapsed,
-      )) {
-        drawProjectileRoleOverlay(
-          canvas: canvas,
-          projectile: cp,
-          position: cpp,
-          color: projColor,
-          time: _elapsed,
-        );
-        continue;
-      }
-      if (drawHornElementalProjectileVisual(
-        canvas: canvas,
-        projectile: cp,
-        position: cpp,
-        color: projColor,
-        time: _elapsed,
-      )) {
-        drawProjectileRoleOverlay(
-          canvas: canvas,
-          projectile: cp,
-          position: cpp,
-          color: projColor,
-          time: _elapsed,
-        );
-        continue;
-      }
-
-      // ALL stationary trap/ground zones — any family (mask traps, kin wards,
-      // pip pools/wells, mud trails, etc.) — render as rich per-element ground
-      // zones (poison pool, ice field, vine trap, gravity void, etc.) via the
-      // shared zone renderer, exactly like survival + dungeons. The renderer
-      // self-guards on sigil style + a ground-zone/trap signal, so non-zone
-      // sigils fall through. Decoys are excluded so they keep cosmic's
-      // dedicated lure art below.
-      if (drawMaskElementalProjectileVisual(
-        canvas: canvas,
-        projectile: cp,
-        position: cpp,
-        color: projColor,
-        time: _elapsed,
-      )) {
-        if (cp.abilityFamily == 'mask' && cp.element == 'Plant') {
-          _drawMaskPlantTendrils(canvas, cp, projColor);
+    // ── companion projectiles, then the wild Alchemon's: the same
+    // abilities, drawn the same way ──
+    // Many Mane Lava pools on the field draw a lighter pool, as survival's.
+    maneLavaPoolCrowd =
+        ManeRuntime.countLavaPools(companionProjectiles) +
+        ManeRuntime.countLavaPools(duelOpponentProjectiles);
+    for (final list in [companionProjectiles, duelOpponentProjectiles]) {
+      for (final cp in list) {
+        final cpp = cp.position;
+        if ((cpp.dx - cx - screenW / 2).abs() > screenW ||
+            (cpp.dy - cy - screenH / 2).abs() > screenH) {
+          continue;
         }
-        drawProjectileRoleOverlay(
-          canvas: canvas,
-          projectile: cp,
-          position: cpp,
-          color: projColor,
-          time: _elapsed,
-        );
-        continue;
-      }
-
-      // Everything outside Survival's stationary Mystic world fixtures uses
-      // the same authored fallback silhouette as Survival and Dungeons.
-      if (style != ProjectileVisualStyle.mysticOrbital) {
-        drawGenericProjectileVisual(
-          canvas: canvas,
-          projectile: cp,
-          position: cpp,
-          color: projColor,
-          time: _elapsed,
-        );
-        drawProjectileRoleOverlay(
-          canvas: canvas,
-          projectile: cp,
-          position: cpp,
-          color: projColor,
-          time: _elapsed,
-        );
-        if (cp.decoy) {
-          canvas.drawCircle(
-            cpp,
-            12 * vs,
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.5
-              ..color = projColor.withValues(alpha: 0.2),
-          );
-        }
-        continue;
-      }
-
-      if (cp.decoy && cp.decoyHp > 0 && cp.stationary) {
-        final pulse = 0.72 + 0.28 * sin(cp.life * 4.5);
-        final runeR = 9.0 * vs;
-        paintSoftCircle(
-          canvas,
-          cpp,
-          runeR * 2.8,
-          projColor.withValues(alpha: 0.08 * pulse),
-          runeR * 1.6,
-        );
-        final outer = Path();
-        for (var j = 0; j < 6; j++) {
-          final a = cp.life * 1.2 + j * (pi / 3);
-          final pt = Offset(cpp.dx + cos(a) * runeR, cpp.dy + sin(a) * runeR);
-          if (j == 0) {
-            outer.moveTo(pt.dx, pt.dy);
-          } else {
-            outer.lineTo(pt.dx, pt.dy);
-          }
-        }
-        outer.close();
-        canvas.drawPath(
-          outer,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.8
-            ..color = projColor.withValues(alpha: 0.75),
-        );
-        canvas.drawCircle(
-          cpp,
-          runeR * 0.58,
-          Paint()..color = projColor.withValues(alpha: 0.26),
-        );
-        canvas.drawCircle(
-          cpp,
-          runeR * 0.22,
-          Paint()..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.7)!,
-        );
-      } else if (cp.decoy && cp.decoyHp > 0) {
-        // ── Decoy totem rendering (Mask decoys that enemies target) ──
-        final pulse = 0.7 + 0.3 * sin(cp.life * 4.0);
-        final totemR = 8.0 * vs;
-        // Aggro aura: large pulsing ring that draws enemies
-        paintSoftCircle(
-          canvas,
-          cpp,
-          totemR * 3.0 * pulse,
-          projColor.withValues(alpha: 0.08),
-          totemR * 2,
-        );
-        // Outer diamond shape (rotating)
-        final rotAngle = cp.life * 2.0;
-        final path = Path();
-        for (var j = 0; j < 4; j++) {
-          final da = rotAngle + j * (pi / 2);
-          final pt = Offset(
-            cpp.dx + cos(da) * totemR * 1.2,
-            cpp.dy + sin(da) * totemR * 1.2,
-          );
-          if (j == 0) {
-            path.moveTo(pt.dx, pt.dy);
-          } else {
-            path.lineTo(pt.dx, pt.dy);
-          }
-        }
-        path.close();
-        canvas.drawPath(
-          path,
-          Paint()..color = projColor.withValues(alpha: 0.4 * pulse),
-        );
-        // Inner core
-        canvas.drawCircle(
-          cpp,
-          totemR * 0.5,
-          Paint()..color = projColor.withValues(alpha: 0.85),
-        );
-        // Bright center pip
-        canvas.drawCircle(
-          cpp,
-          totemR * 0.2,
-          Paint()..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.8)!,
-        );
-      } else if (style == ProjectileVisualStyle.sigil) {
-        final pulse = 0.7 + 0.3 * sin(cp.life * 5.0);
-        final spin = cp.life * 1.7;
-        final runeR = 5.8 * vs;
-        final auraR = cp.stationary ? runeR * 2.4 : runeR * 1.7;
-
-        if (!cp.stationary) {
-          final tailLen = 10.0 * vs;
-          final tail = Offset(
-            cpp.dx - cos(cp.angle) * tailLen,
-            cpp.dy - sin(cp.angle) * tailLen,
-          );
-          canvas.drawLine(
-            tail,
-            cpp,
-            Paint()
-              ..color = projColor.withValues(alpha: 0.16)
-              ..strokeWidth = 3.4 * vs
-              ..strokeCap = StrokeCap.round
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-          );
-        }
-
-        paintSoftCircle(
-          canvas,
-          cpp,
-          auraR,
-          projColor.withValues(alpha: (cp.stationary ? 0.12 : 0.08) * pulse),
-          runeR,
-        );
-
-        final outer = Path();
-        for (var j = 0; j < 6; j++) {
-          final a = spin + j * (pi / 3);
-          final point = Offset(
-            cpp.dx + cos(a) * runeR,
-            cpp.dy + sin(a) * runeR,
-          );
-          if (j == 0) {
-            outer.moveTo(point.dx, point.dy);
-          } else {
-            outer.lineTo(point.dx, point.dy);
-          }
-        }
-        outer.close();
-        canvas.drawPath(
-          outer,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.2 * vs
-            ..color = projColor.withValues(alpha: 0.82),
-        );
-
-        canvas.drawCircle(
-          cpp,
-          runeR * 0.62,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0 * vs
-            ..color = Color.lerp(
-              projColor,
-              const Color(0xFFFFFFFF),
-              0.28,
-            )!.withValues(alpha: 0.78),
-        );
-
-        final crossPaint = Paint()
-          ..color = Color.lerp(
-            projColor,
-            const Color(0xFFFFFFFF),
-            0.35,
-          )!.withValues(alpha: 0.66)
-          ..strokeWidth = 1.0 * vs
-          ..strokeCap = StrokeCap.round;
-        canvas.drawLine(
-          Offset(cpp.dx - runeR * 0.7, cpp.dy),
-          Offset(cpp.dx + runeR * 0.7, cpp.dy),
-          crossPaint,
-        );
-        canvas.drawLine(
-          Offset(cpp.dx, cpp.dy - runeR * 0.7),
-          Offset(cpp.dx, cpp.dy + runeR * 0.7),
-          crossPaint,
-        );
-
-        canvas.drawCircle(
-          cpp,
-          2.6 * vs,
-          Paint()..color = projColor.withValues(alpha: 0.9),
-        );
-        canvas.drawCircle(
-          cpp,
-          1.2 * vs,
-          Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.88),
-        );
-      } else if (style == ProjectileVisualStyle.meteor) {
-        final tailLen = 22.0 * vs;
-        final tailStart = Offset(
-          cpp.dx - cos(cp.angle) * tailLen,
-          cpp.dy - sin(cp.angle) * tailLen,
-        );
-        canvas.drawLine(
-          tailStart,
-          cpp,
-          Paint()
-            ..shader = ui.Gradient.linear(
-              tailStart,
-              cpp,
-              [
-                projColor.withValues(alpha: 0.02),
-                projColor.withValues(alpha: 0.35),
-                Color.lerp(projColor, const Color(0xFFFFFFFF), 0.35)!,
-              ],
-              const [0.0, 0.6, 1.0],
-            )
-            ..strokeWidth = 7.5 * vs
-            ..strokeCap = StrokeCap.round,
-        );
-        canvas.drawCircle(
-          cpp,
-          6.0 * vs,
-          Paint()..color = projColor.withValues(alpha: 0.92),
-        );
-        canvas.drawCircle(
-          Offset(
-            cpp.dx - cos(cp.angle) * (2.5 * vs),
-            cpp.dy - sin(cp.angle) * (2.5 * vs),
-          ),
-          3.2 * vs,
-          Paint()
-            ..color = Color.lerp(projColor, const Color(0xFF2B1A12), 0.55)!,
-        );
-        canvas.drawCircle(
-          Offset(
-            cpp.dx + cos(cp.angle + 0.6) * (1.8 * vs),
-            cpp.dy + sin(cp.angle + 0.6) * (1.8 * vs),
-          ),
-          1.7 * vs,
-          Paint()..color = const Color(0xFFFFF2D6).withValues(alpha: 0.85),
-        );
-      } else if (style == ProjectileVisualStyle.letShard) {
-        final dir = Offset(cos(cp.angle), sin(cp.angle));
-        final perp = Offset(-dir.dy, dir.dx);
-        final tailLen = 30.0 * vs;
-        final tail = cpp - dir * tailLen;
-
-        canvas.drawLine(
-          tail,
-          cpp,
-          Paint()
-            ..shader = ui.Gradient.linear(
-              tail,
-              cpp,
-              [
-                projColor.withValues(alpha: 0.0),
-                projColor.withValues(alpha: 0.16),
-                Color.lerp(projColor, const Color(0xFFFFFFFF), 0.18)!,
-              ],
-              const [0.0, 0.58, 1.0],
-            )
-            ..strokeWidth = 5.4 * vs
-            ..strokeCap = StrokeCap.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
-        );
-
-        final shard = Path()
-          ..moveTo(cpp.dx + dir.dx * (8.5 * vs), cpp.dy + dir.dy * (8.5 * vs))
-          ..lineTo(cpp.dx + perp.dx * (4.2 * vs), cpp.dy + perp.dy * (4.2 * vs))
-          ..lineTo(cpp.dx - dir.dx * (6.0 * vs), cpp.dy - dir.dy * (6.0 * vs))
-          ..lineTo(cpp.dx - perp.dx * (4.2 * vs), cpp.dy - perp.dy * (4.2 * vs))
-          ..close();
-
-        canvas.drawPath(
-          shard,
-          Paint()
-            ..shader = ui.Gradient.linear(
-              tail,
-              cpp + dir * (10.0 * vs),
-              [
-                Color.lerp(projColor, const Color(0xFF1A1014), 0.42)!,
-                projColor,
-                Color.lerp(projColor, const Color(0xFFFFFFFF), 0.55)!,
-              ],
-              const [0.0, 0.62, 1.0],
-            ),
-        );
-
-        canvas.drawPath(
-          shard,
-          Paint()
-            ..color = Color.lerp(
-              projColor,
-              const Color(0xFFFFFFFF),
-              0.42,
-            )!.withValues(alpha: 0.8)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.1 * vs,
-        );
-
-        canvas.drawCircle(
-          cpp - dir * (1.2 * vs),
-          2.4 * vs,
-          Paint()..color = const Color(0xFFFFF4DC).withValues(alpha: 0.85),
-        );
-      } else if (style == ProjectileVisualStyle.slash) {
-        final tailLen = 18.0 * vs;
-        final tail = Offset(
-          cpp.dx - cos(cp.angle) * tailLen,
-          cpp.dy - sin(cp.angle) * tailLen,
-        );
-        canvas.drawLine(
-          tail,
-          cpp,
-          Paint()
-            ..color = projColor.withValues(alpha: 0.24)
-            ..strokeWidth = 5.0 * vs
-            ..strokeCap = StrokeCap.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-        );
-        canvas.drawLine(
-          tail,
-          cpp,
-          Paint()
-            ..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.22)!
-            ..strokeWidth = 2.2 * vs
-            ..strokeCap = StrokeCap.round,
-        );
-      } else if (style == ProjectileVisualStyle.dart) {
-        final tailLen = 12.0 * vs;
-        final tail = Offset(
-          cpp.dx - cos(cp.angle) * tailLen,
-          cpp.dy - sin(cp.angle) * tailLen,
-        );
-        canvas.drawLine(
-          tail,
-          cpp,
-          Paint()
-            ..color = projColor.withValues(alpha: 0.32)
-            ..strokeWidth = 3.2 * vs
-            ..strokeCap = StrokeCap.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-        );
-        final wingAngle = pi * 0.75;
-        final headLen = 5.0 * vs;
-        final left = Offset(
-          cpp.dx - cos(cp.angle - wingAngle) * headLen,
-          cpp.dy - sin(cp.angle - wingAngle) * headLen,
-        );
-        final right = Offset(
-          cpp.dx - cos(cp.angle + wingAngle) * headLen,
-          cpp.dy - sin(cp.angle + wingAngle) * headLen,
-        );
-        final head = Path()
-          ..moveTo(cpp.dx, cpp.dy)
-          ..lineTo(left.dx, left.dy)
-          ..lineTo(right.dx, right.dy)
-          ..close();
-        canvas.drawPath(
-          head,
-          Paint()..color = projColor.withValues(alpha: 0.95),
-        );
-      } else if (cp.piercing && vs >= 1.5) {
-        // ── Beam-style rendering (Crystal, Lightning piercing) ──
-        final tailLen = 16.0 * vs;
-        final tailX = cpp.dx - cos(cp.angle) * tailLen;
-        final tailY = cpp.dy - sin(cp.angle) * tailLen;
-        // Outer glow
-        canvas.drawLine(
-          Offset(tailX, tailY),
-          cpp,
-          Paint()
-            ..color = projColor.withValues(alpha: 0.3)
-            ..strokeWidth = 6.0 * vs
-            ..strokeCap = StrokeCap.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-        );
-        // Core beam
-        canvas.drawLine(
-          Offset(tailX, tailY),
-          cpp,
-          Paint()
-            ..color = projColor
-            ..strokeWidth = 3.0 * vs
-            ..strokeCap = StrokeCap.round,
-        );
-        // Bright tip
-        canvas.drawCircle(
-          cpp,
-          3.0 * vs,
-          Paint()..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.6)!,
-        );
-      } else if (cp.homing) {
-        // ── Homing orb rendering (Spirit, Blood) ──
-        // Pulsating outer glow
-        final pulse = 0.6 + 0.4 * sin(cp.life * 8.0);
-        paintSoftCircle(
-          canvas,
-          cpp,
-          10.0 * vs * pulse,
-          projColor.withValues(alpha: 0.2),
-          10,
-        );
-        // Inner orb
-        canvas.drawCircle(
-          cpp,
-          5.0 * vs,
-          Paint()..color = projColor.withValues(alpha: 0.85),
-        );
-        // Bright center
-        canvas.drawCircle(
-          cpp,
-          2.5 * vs,
-          Paint()..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.7)!,
-        );
-      } else if (vs >= 1.6 && cp.speedMultiplier < 0.5) {
-        // ── Cloud/AoE rendering (Steam, Ice nova, Mud) ──
-        final cloudR = 8.0 * vs;
-        paintSoftCircle(
-          canvas,
-          cpp,
-          cloudR,
-          projColor.withValues(alpha: 0.18),
-          cloudR * 0.8,
-        );
-        paintSoftCircle(
-          canvas,
-          cpp,
-          cloudR * 0.5,
-          projColor.withValues(alpha: 0.35),
-          4,
-        );
-      } else if (cp.stationary) {
-        // ── Mine/trap rendering (Mask specials, lingering zones) ──
-        final pulse = 0.7 + 0.3 * sin(cp.life * 6.0);
-        final mineR = 6.0 * vs;
-        // Danger zone glow
-        paintSoftCircle(
-          canvas,
-          cpp,
-          mineR * 1.5,
-          projColor.withValues(alpha: 0.12 * pulse),
-          mineR,
-        );
-        // Mine body
-        canvas.drawCircle(
-          cpp,
-          mineR * 0.6,
-          Paint()..color = projColor.withValues(alpha: 0.7 * pulse),
-        );
-        // Warning pip
-        canvas.drawCircle(
-          cpp,
-          mineR * 0.25,
-          Paint()
-            ..color = Color.lerp(
-              projColor,
-              const Color(0xFFFFFFFF),
-              0.8,
-            )!.withValues(alpha: pulse),
-        );
-      } else if (cp.orbitCenter != null &&
-          style == ProjectileVisualStyle.kinOrbital) {
-        final pulse = 0.78 + 0.22 * sin(cp.orbitAngle * 3.5 + cp.life * 2.0);
-        final ringR = 6.2 * vs;
-        final haloPaint = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4 * vs
-          ..color = projColor.withValues(alpha: 0.35)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-        switch (cp.element) {
-          case 'Light':
-            canvas.drawCircle(cpp, ringR * 1.35 * pulse, haloPaint);
-            canvas.drawCircle(
-              cpp,
-              ringR * 0.72,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.0 * vs
-                ..color = const Color(0xFFFFF3C8).withValues(alpha: 0.72),
-            );
-            for (var j = 0; j < 4; j++) {
-              final a = cp.life * 2.4 + j * (pi / 2);
-              canvas.drawCircle(
-                Offset(cpp.dx + cos(a) * 5.6 * vs, cpp.dy + sin(a) * 5.6 * vs),
-                1.1 * vs,
-                Paint()..color = const Color(0xFFFFF7DA).withValues(alpha: 0.9),
-              );
-            }
-            canvas.drawCircle(
-              cpp,
-              3.1 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.82),
-            );
-            canvas.drawCircle(
-              cpp,
-              1.8 * vs,
-              Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.95),
-            );
-            break;
-          case 'Dark':
-            final crescent = Path()
-              ..addOval(Rect.fromCircle(center: cpp, radius: 4.5 * vs))
-              ..addOval(
-                Rect.fromCircle(
-                  center: Offset(cpp.dx + 1.8 * vs, cpp.dy - 0.6 * vs),
-                  radius: 3.4 * vs,
-                ),
-              );
-            canvas.drawCircle(
-              cpp,
-              ringR * 0.82 * pulse,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.0 * vs
-                ..color = projColor.withValues(alpha: 0.18),
-            );
-            canvas.drawPath(
-              crescent,
-              Paint()..color = projColor.withValues(alpha: 0.92),
-            );
-            canvas.drawCircle(
-              Offset(cpp.dx - 1.4 * vs, cpp.dy + 0.8 * vs),
-              1.4 * vs,
-              Paint()..color = const Color(0xFFF8E8FF).withValues(alpha: 0.86),
-            );
-            break;
-          case 'Crystal':
-            final prism = Path();
-            for (var j = 0; j < 6; j++) {
-              final a = cp.life * 1.8 + j * (pi / 3);
-              final r = j.isEven ? 5.2 * vs : 3.0 * vs;
-              final pt = Offset(cpp.dx + cos(a) * r, cpp.dy + sin(a) * r);
-              if (j == 0) {
-                prism.moveTo(pt.dx, pt.dy);
-              } else {
-                prism.lineTo(pt.dx, pt.dy);
-              }
-            }
-            prism.close();
-            canvas.drawPath(
-              prism,
-              Paint()..color = projColor.withValues(alpha: 0.9),
-            );
-            canvas.drawCircle(
-              cpp,
-              2.0 * vs,
-              Paint()
-                ..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.75)!,
-            );
-            break;
-          case 'Blood':
-            canvas.drawCircle(
-              cpp,
-              4.2 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.86),
-            );
-            canvas.drawCircle(
-              Offset(cpp.dx, cpp.dy + 2.0 * vs),
-              2.6 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.62),
-            );
-            canvas.drawCircle(
-              Offset(cpp.dx - 0.8 * vs, cpp.dy - 1.5 * vs),
-              1.2 * vs,
-              Paint()..color = const Color(0xFFFFD8D8).withValues(alpha: 0.9),
-            );
-            break;
-          case 'Water':
-            canvas.drawCircle(
-              cpp,
-              ringR * 0.95 * pulse,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.2 * vs
-                ..color = projColor.withValues(alpha: 0.48),
-            );
-            canvas.drawCircle(
-              Offset(cpp.dx - 1.2 * vs, cpp.dy - 1.1 * vs),
-              3.2 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.58),
-            );
-            canvas.drawCircle(
-              Offset(cpp.dx + 1.4 * vs, cpp.dy + 1.6 * vs),
-              1.6 * vs,
-              Paint()..color = const Color(0xFFE5FBFF).withValues(alpha: 0.85),
-            );
-            break;
-          case 'Air':
-            final gust = Path();
-            for (var j = 0; j < 3; j++) {
-              final a = cp.life * 4.0 + j * (pi * 2 / 3);
-              gust.addArc(
-                Rect.fromCircle(center: cpp, radius: (3.6 + j * 1.4) * vs),
-                a,
-                pi * 0.9,
-              );
-            }
-            canvas.drawPath(
-              gust,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.3 * vs
-                ..strokeCap = StrokeCap.round
-                ..color = projColor.withValues(alpha: 0.82),
-            );
-            canvas.drawCircle(
-              cpp,
-              1.6 * vs,
-              Paint()..color = const Color(0xFFF0FDFF).withValues(alpha: 0.9),
-            );
-            break;
-          case 'Fire':
-            final tail = Offset(
-              cpp.dx - cos(cp.orbitAngle) * 8.0 * vs,
-              cpp.dy - sin(cp.orbitAngle) * 8.0 * vs,
-            );
-            canvas.drawLine(
-              tail,
-              cpp,
-              Paint()
-                ..color = projColor.withValues(alpha: 0.46)
-                ..strokeWidth = 3.2 * vs
-                ..strokeCap = StrokeCap.round,
-            );
-            canvas.drawCircle(cpp, 3.6 * vs, Paint()..color = projColor);
-            canvas.drawCircle(
-              Offset(cpp.dx + 1.0 * vs, cpp.dy - 1.2 * vs),
-              1.4 * vs,
-              Paint()..color = const Color(0xFFFFE2AE),
-            );
-            break;
-          case 'Lightning':
-            final bolt = Path()
-              ..moveTo(cpp.dx - 2.6 * vs, cpp.dy - 4.8 * vs)
-              ..lineTo(cpp.dx + 0.6 * vs, cpp.dy - 1.2 * vs)
-              ..lineTo(cpp.dx - 0.9 * vs, cpp.dy - 0.7 * vs)
-              ..lineTo(cpp.dx + 2.5 * vs, cpp.dy + 4.8 * vs)
-              ..lineTo(cpp.dx - 0.8 * vs, cpp.dy + 1.0 * vs)
-              ..lineTo(cpp.dx + 0.8 * vs, cpp.dy + 0.4 * vs)
-              ..close();
-            canvas.drawPath(
-              bolt,
-              Paint()..color = projColor.withValues(alpha: 0.92),
-            );
-            break;
-          case 'Plant':
-            final leaf = Path()
-              ..moveTo(cpp.dx, cpp.dy - 4.6 * vs)
-              ..quadraticBezierTo(
-                cpp.dx + 4.5 * vs,
-                cpp.dy - 1.0 * vs,
-                cpp.dx,
-                cpp.dy + 4.8 * vs,
-              )
-              ..quadraticBezierTo(
-                cpp.dx - 4.5 * vs,
-                cpp.dy - 1.0 * vs,
-                cpp.dx,
-                cpp.dy - 4.6 * vs,
-              );
-            canvas.drawPath(
-              leaf,
-              Paint()..color = projColor.withValues(alpha: 0.88),
-            );
-            canvas.drawLine(
-              Offset(cpp.dx, cpp.dy - 3.6 * vs),
-              Offset(cpp.dx, cpp.dy + 3.2 * vs),
-              Paint()
-                ..color = const Color(0xFFE2FFC7).withValues(alpha: 0.72)
-                ..strokeWidth = 1.0 * vs,
-            );
-            break;
-          case 'Earth':
-            final slab = Path()
-              ..moveTo(cpp.dx - 4.8 * vs, cpp.dy - 2.0 * vs)
-              ..lineTo(cpp.dx + 4.0 * vs, cpp.dy - 4.6 * vs)
-              ..lineTo(cpp.dx + 5.2 * vs, cpp.dy + 2.6 * vs)
-              ..lineTo(cpp.dx - 3.2 * vs, cpp.dy + 5.0 * vs)
-              ..close();
-            canvas.drawPath(
-              slab,
-              Paint()..color = projColor.withValues(alpha: 0.9),
-            );
-            break;
-          case 'Mud':
-            for (final offset in [
-              Offset(-2.2 * vs, 1.0 * vs),
-              Offset(1.6 * vs, -1.4 * vs),
-              Offset(2.0 * vs, 2.2 * vs),
-            ]) {
-              canvas.drawCircle(
-                cpp + offset,
-                2.4 * vs,
-                Paint()..color = projColor.withValues(alpha: 0.78),
-              );
-            }
-            break;
-          case 'Steam':
-            for (final offset in [
-              Offset(-2.6 * vs, 1.4 * vs),
-              Offset(0.4 * vs, -1.8 * vs),
-              Offset(2.8 * vs, 1.0 * vs),
-            ]) {
-              canvas.drawCircle(
-                cpp + offset,
-                2.5 * vs,
-                Paint()..color = projColor.withValues(alpha: 0.38),
-              );
-            }
-            canvas.drawCircle(
-              cpp,
-              1.3 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.7),
-            );
-            break;
-          case 'Ice':
-            final shard = Path()
-              ..moveTo(cpp.dx, cpp.dy - 5.0 * vs)
-              ..lineTo(cpp.dx + 3.2 * vs, cpp.dy - 0.6 * vs)
-              ..lineTo(cpp.dx + 0.8 * vs, cpp.dy + 4.8 * vs)
-              ..lineTo(cpp.dx - 2.8 * vs, cpp.dy + 0.4 * vs)
-              ..close();
-            canvas.drawPath(
-              shard,
-              Paint()..color = projColor.withValues(alpha: 0.9),
-            );
-            break;
-          case 'Poison':
-            canvas.drawCircle(
-              cpp,
-              4.2 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.75),
-            );
-            canvas.drawCircle(
-              Offset(cpp.dx - 1.6 * vs, cpp.dy - 1.1 * vs),
-              1.4 * vs,
-              Paint()..color = const Color(0xFFE7FFD3).withValues(alpha: 0.8),
-            );
-            canvas.drawCircle(
-              Offset(cpp.dx + 1.2 * vs, cpp.dy + 1.8 * vs),
-              0.9 * vs,
-              Paint()..color = const Color(0xFFE7FFD3).withValues(alpha: 0.72),
-            );
-            break;
-          case 'Spirit':
-            canvas.drawCircle(
-              cpp,
-              4.5 * vs,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.1 * vs
-                ..color = projColor.withValues(alpha: 0.52),
-            );
-            canvas.drawArc(
-              Rect.fromCircle(center: cpp, radius: 5.0 * vs),
-              cp.life * 2.0,
-              pi * 1.15,
-              false,
-              Paint()
-                ..color = projColor.withValues(alpha: 0.9)
-                ..strokeWidth = 1.4 * vs
-                ..strokeCap = StrokeCap.round
-                ..style = PaintingStyle.stroke,
-            );
-            canvas.drawCircle(
-              cpp,
-              1.6 * vs,
-              Paint()..color = const Color(0xFFF7F3FF).withValues(alpha: 0.9),
-            );
-            break;
-          case 'Lava':
-            canvas.drawCircle(
-              cpp,
-              4.6 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.88),
-            );
-            canvas.drawCircle(
-              Offset(cpp.dx - 1.0 * vs, cpp.dy + 1.4 * vs),
-              2.3 * vs,
-              Paint()..color = const Color(0xFF4D2818),
-            );
-            canvas.drawCircle(
-              cpp,
-              1.1 * vs,
-              Paint()..color = const Color(0xFFFFD36E),
-            );
-            break;
-          case 'Dust':
-            for (var j = 0; j < 5; j++) {
-              final a = cp.life * 5.5 + j * (pi * 2 / 5);
-              canvas.drawCircle(
-                Offset(cpp.dx + cos(a) * 3.9 * vs, cpp.dy + sin(a) * 3.9 * vs),
-                0.9 * vs,
-                Paint()..color = projColor.withValues(alpha: 0.76),
-              );
-            }
-            canvas.drawCircle(
-              cpp,
-              1.0 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.86),
-            );
-            break;
-          default:
-            canvas.drawCircle(cpp, ringR * pulse, haloPaint);
-            canvas.drawCircle(
-              cpp,
-              3.8 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.88),
-            );
-            canvas.drawCircle(
-              cpp,
-              1.8 * vs,
-              Paint()
-                ..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.72)!,
-            );
-        }
-      } else if (cp.orbitCenter != null &&
-          style == ProjectileVisualStyle.mysticOrbital) {
-        final pulse = 0.75 + 0.25 * sin(cp.orbitAngle * 4.0 + cp.life * 2.5);
-        final glow = Paint()
-          ..color = projColor.withValues(alpha: 0.20)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
-        canvas.drawCircle(cpp, 6.8 * vs * pulse, glow);
-        switch (cp.element) {
-          case 'Fire':
-            final tail = Offset(
-              cpp.dx - cos(cp.angle) * 9.0 * vs,
-              cpp.dy - sin(cp.angle) * 9.0 * vs,
-            );
-            canvas.drawLine(
-              tail,
-              cpp,
-              Paint()
-                ..color = projColor.withValues(alpha: 0.45)
-                ..strokeWidth = 3.0 * vs
-                ..strokeCap = StrokeCap.round,
-            );
-            canvas.drawCircle(cpp, 3.8 * vs, Paint()..color = projColor);
-            canvas.drawCircle(
-              Offset(cpp.dx + 1.2 * vs, cpp.dy - 1.2 * vs),
-              1.5 * vs,
-              Paint()..color = const Color(0xFFFFE7B8),
-            );
-            break;
-          case 'Lava':
-            canvas.drawCircle(
-              cpp,
-              4.5 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.92),
-            );
-            canvas.drawCircle(
-              Offset(cpp.dx - 1.1 * vs, cpp.dy + 1.4 * vs),
-              2.4 * vs,
-              Paint()..color = const Color(0xFF4B2617),
-            );
-            canvas.drawCircle(
-              cpp,
-              1.2 * vs,
-              Paint()..color = const Color(0xFFFFD36E),
-            );
-            break;
-          case 'Lightning':
-            final star = Path();
-            for (var j = 0; j < 4; j++) {
-              final a = cp.life * 8.0 + j * (pi / 2);
-              final outer = Offset(
-                cpp.dx + cos(a) * 5.2 * vs,
-                cpp.dy + sin(a) * 5.2 * vs,
-              );
-              final inner = Offset(
-                cpp.dx + cos(a + pi / 4) * 1.8 * vs,
-                cpp.dy + sin(a + pi / 4) * 1.8 * vs,
-              );
-              if (j == 0) {
-                star.moveTo(outer.dx, outer.dy);
-              } else {
-                star.lineTo(outer.dx, outer.dy);
-              }
-              star.lineTo(inner.dx, inner.dy);
-            }
-            star.close();
-            canvas.drawPath(
-              star,
-              Paint()..color = projColor.withValues(alpha: 0.95),
-            );
-            break;
-          case 'Water':
-            canvas.drawCircle(
-              cpp,
-              4.6 * vs,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.6 * vs
-                ..color = projColor.withValues(alpha: 0.75),
-            );
-            canvas.drawCircle(
-              Offset(cpp.dx - 1.0 * vs, cpp.dy - 1.0 * vs),
-              2.9 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.55),
-            );
-            break;
-          case 'Ice':
-            final hex = Path();
-            for (var j = 0; j < 6; j++) {
-              final a = cp.life * 1.8 + j * (pi / 3);
-              final pt = Offset(
-                cpp.dx + cos(a) * 4.8 * vs,
-                cpp.dy + sin(a) * 4.8 * vs,
-              );
-              if (j == 0) {
-                hex.moveTo(pt.dx, pt.dy);
-              } else {
-                hex.lineTo(pt.dx, pt.dy);
-              }
-            }
-            hex.close();
-            canvas.drawPath(
-              hex,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.4 * vs
-                ..color = projColor.withValues(alpha: 0.9),
-            );
-            canvas.drawCircle(cpp, 1.8 * vs, Paint()..color = projColor);
-            break;
-          case 'Steam':
-            for (final offset in [
-              Offset(-2.5 * vs, 1.0 * vs),
-              Offset(0, -1.5 * vs),
-              Offset(2.5 * vs, 1.0 * vs),
-            ]) {
-              canvas.drawCircle(
-                cpp + offset,
-                2.3 * vs,
-                Paint()..color = projColor.withValues(alpha: 0.42),
-              );
-            }
-            break;
-          case 'Earth':
-            final diamond = Path()
-              ..moveTo(cpp.dx, cpp.dy - 5.0 * vs)
-              ..lineTo(cpp.dx + 4.2 * vs, cpp.dy)
-              ..lineTo(cpp.dx, cpp.dy + 5.0 * vs)
-              ..lineTo(cpp.dx - 4.2 * vs, cpp.dy)
-              ..close();
-            canvas.drawPath(
-              diamond,
-              Paint()..color = projColor.withValues(alpha: 0.92),
-            );
-            break;
-          case 'Mud':
-            for (final offset in [
-              Offset(-2.6 * vs, 0.6 * vs),
-              Offset(1.4 * vs, -1.3 * vs),
-              Offset(2.2 * vs, 2.0 * vs),
-            ]) {
-              canvas.drawCircle(
-                cpp + offset,
-                2.4 * vs,
-                Paint()..color = projColor.withValues(alpha: 0.82),
-              );
-            }
-            break;
-          case 'Dust':
-            for (var j = 0; j < 4; j++) {
-              final a = cp.life * 5.0 + j * (pi / 2);
-              canvas.drawCircle(
-                Offset(cpp.dx + cos(a) * 3.8 * vs, cpp.dy + sin(a) * 3.8 * vs),
-                1.1 * vs,
-                Paint()..color = projColor.withValues(alpha: 0.8),
-              );
-            }
-            canvas.drawCircle(cpp, 1.2 * vs, Paint()..color = projColor);
-            break;
-          case 'Crystal':
-            final prism = Path();
-            for (var j = 0; j < 6; j++) {
-              final a = cp.life * 1.5 + j * (pi / 3);
-              final r = j.isEven ? 5.0 * vs : 3.0 * vs;
-              final pt = Offset(cpp.dx + cos(a) * r, cpp.dy + sin(a) * r);
-              if (j == 0) {
-                prism.moveTo(pt.dx, pt.dy);
-              } else {
-                prism.lineTo(pt.dx, pt.dy);
-              }
-            }
-            prism.close();
-            canvas.drawPath(
-              prism,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.4 * vs
-                ..color = projColor.withValues(alpha: 0.95),
-            );
-            break;
-          case 'Air':
-            canvas.drawArc(
-              Rect.fromCircle(center: cpp, radius: 5.0 * vs),
-              cp.life * 4.5,
-              pi * 1.1,
-              false,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.8 * vs
-                ..color = projColor.withValues(alpha: 0.88),
-            );
-            break;
-          case 'Plant':
-            for (var j = 0; j < 3; j++) {
-              final a = cp.life * 2.0 + j * (pi * 2 / 3);
-              canvas.drawCircle(
-                Offset(cpp.dx + cos(a) * 2.8 * vs, cpp.dy + sin(a) * 2.8 * vs),
-                2.0 * vs,
-                Paint()..color = projColor.withValues(alpha: 0.78),
-              );
-            }
-            canvas.drawCircle(
-              cpp,
-              1.1 * vs,
-              Paint()..color = const Color(0xFFF2FFD6),
-            );
-            break;
-          case 'Poison':
-            canvas.drawCircle(
-              cpp,
-              4.5 * vs,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.5 * vs
-                ..color = projColor.withValues(alpha: 0.78),
-            );
-            canvas.drawCircle(
-              cpp,
-              1.8 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.92),
-            );
-            break;
-          case 'Spirit':
-            canvas.drawCircle(
-              Offset(cpp.dx - 1.9 * vs, cpp.dy),
-              2.4 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.58),
-            );
-            canvas.drawCircle(
-              Offset(cpp.dx + 1.9 * vs, cpp.dy),
-              2.4 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.78),
-            );
-            break;
-          case 'Dark':
-            canvas.drawCircle(
-              cpp,
-              4.8 * vs,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.4 * vs
-                ..color = projColor.withValues(alpha: 0.65),
-            );
-            canvas.drawCircle(
-              cpp,
-              2.4 * vs,
-              Paint()..color = const Color(0xFF120E1F),
-            );
-            break;
-          case 'Light':
-            canvas.drawCircle(
-              cpp,
-              4.4 * vs,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.3 * vs
-                ..color = projColor.withValues(alpha: 0.82),
-            );
-            canvas.drawLine(
-              Offset(cpp.dx - 4.5 * vs, cpp.dy),
-              Offset(cpp.dx + 4.5 * vs, cpp.dy),
-              Paint()
-                ..color = projColor.withValues(alpha: 0.85)
-                ..strokeWidth = 1.4 * vs,
-            );
-            canvas.drawLine(
-              Offset(cpp.dx, cpp.dy - 4.5 * vs),
-              Offset(cpp.dx, cpp.dy + 4.5 * vs),
-              Paint()
-                ..color = projColor.withValues(alpha: 0.85)
-                ..strokeWidth = 1.4 * vs,
-            );
-            break;
-          case 'Blood':
-            final drop = Path()
-              ..moveTo(cpp.dx, cpp.dy - 4.8 * vs)
-              ..quadraticBezierTo(
-                cpp.dx + 4.0 * vs,
-                cpp.dy - 1.2 * vs,
-                cpp.dx,
-                cpp.dy + 5.0 * vs,
-              )
-              ..quadraticBezierTo(
-                cpp.dx - 4.0 * vs,
-                cpp.dy - 1.2 * vs,
-                cpp.dx,
-                cpp.dy - 4.8 * vs,
-              );
-            canvas.drawPath(
-              drop,
-              Paint()..color = projColor.withValues(alpha: 0.9),
-            );
-            break;
-          default:
-            canvas.drawCircle(
-              cpp,
-              3.5 * vs,
-              Paint()..color = projColor.withValues(alpha: 0.9),
-            );
-        }
-      } else if (cp.orbitCenter != null) {
-        final pulse = 0.8 + 0.2 * sin(cp.orbitAngle * 3);
-        paintSoftCircle(
-          canvas,
-          cpp,
-          5.0 * vs * pulse,
-          projColor.withValues(alpha: 0.3),
-          6,
-        );
-        canvas.drawCircle(
-          cpp,
-          3.5 * vs,
-          Paint()..color = projColor.withValues(alpha: 0.9),
-        );
-        canvas.drawCircle(
-          cpp,
-          1.5 * vs,
-          Paint()..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.7)!,
-        );
-      } else {
-        // ── Standard bolt rendering (with visual scale) ──
-        final glowR = 8.0 * vs;
-        final tailLen = 8.0 * vs;
-        // Glow trail
-        paintSoftCircle(
-          canvas,
-          cpp,
-          glowR,
-          projColor.withValues(alpha: 0.25),
-          6.0 * vs,
-        );
-        // Core bolt
-        final tailX = cpp.dx - cos(cp.angle) * tailLen;
-        final tailY = cpp.dy - sin(cp.angle) * tailLen;
-        canvas.drawLine(
-          Offset(tailX, tailY),
-          cpp,
-          Paint()
-            ..color = projColor
-            ..strokeWidth = (cp.damage > 10 ? 3.0 : 2.0) * vs
-            ..strokeCap = StrokeCap.round,
-        );
+        _renderAbilityProjectile(canvas, cp);
       }
     }
+    _renderMaskOverlays(canvas, Rect.fromLTWH(cx, cy, screenW, screenH));
 
     // ── wild Alchemons (behind the companions that fight them) ──
     _renderWildAlchemons(canvas, cx, cy, screenW, screenH);
@@ -11719,48 +7259,18 @@ class CosmicGame extends FlameGame with PanDetector {
         14,
       );
 
-      // ── Shield bubble (Horn special) ──
-      if (comp.member.family.toLowerCase() == 'kin') {
-        drawAdvancedKinSupportAura(
-          canvas: canvas,
-          element: comp.member.element,
-          color: eColor,
-          time: _elapsed,
-          iceChargeProgress:
-              comp.kinIceChargeTimer > 0 && comp.kinIceChargeTotal > 0
-              ? 1 - comp.kinIceChargeTimer / comp.kinIceChargeTotal
-              : 0,
-          lightningActive: comp.kinLightningChargeTimer > 0,
-          fireOrbitalActive: comp.kinFireOrbitalFlameActive,
-          lavaPlateActive: comp.kinLavaPlateTimer > 0,
-          darkCloakActive: comp.kinDarkCloakTimer > 0,
-        );
-      }
-      if (comp.member.family.toLowerCase() == 'horn' &&
-          comp.member.element == 'Poison') {
-        drawHornPoisonAura(canvas: canvas, radius: 140, time: _elapsed);
-      }
-      if (comp.hasShield) {
-        drawAdvancedCompanionShield(
-          canvas: canvas,
-          time: _elapsed,
-          scale: animScale,
-        );
-      }
-
-      // ── Charge trail (Horn charging) ──
-      if (comp.isCharging) {
-        drawAdvancedChargeTrail(
-          canvas: canvas,
-          color: eColor,
-          angle: comp.angle,
-          sweepRadius: comp.chargeSweepRadius,
-          overshootDistance: comp.chargeOvershootDistance,
-          element: comp.member.element,
-          time: _elapsed,
-          scale: animScale,
-        );
-      }
+      // A Kin's running support, its laser gathering — and a raised Lava
+      // plate on everyone else (cosmic_game_kin.dart).
+      _renderKinOverlay(
+        canvas,
+        comp,
+        comp.member,
+        position: compPos,
+        lavaTeam: _openKinLavaPlateActive,
+      );
+      // Horn Poison's reach, a shield, a ram's wake — worn by the wild
+      // Alchemon it fights as well (cosmic_game_horn.dart).
+      _renderCasterOverlay(canvas, comp, scale: animScale);
 
       // ── Blessing aura (Kin healing) ──
       if (comp.isBlessing) {
@@ -11789,6 +7299,7 @@ class CosmicGame extends FlameGame with PanDetector {
             paint.colorFilter = _geneticsColorFilter(v);
           }
         }
+        _applyCasterHitFlash(paint, comp);
 
         // Simple canvas-based effect overlays for companion (behind sprite)
         if (companionVisuals?.alchemyEffect != null) {
@@ -11927,6 +7438,16 @@ class CosmicGame extends FlameGame with PanDetector {
         14,
       );
 
+      // What it wears of its own abilities, as a companion does.
+      _renderKinOverlay(
+        canvas,
+        opp,
+        opp.member,
+        position: oppPos,
+        lavaTeam: false,
+      );
+      _renderCasterOverlay(canvas, opp, scale: summonScale);
+
       // Render sprite
       if (_duelOpponentTicker != null) {
         final sprite = _duelOpponentTicker!.getSprite();
@@ -11943,6 +7464,7 @@ class CosmicGame extends FlameGame with PanDetector {
             paint.colorFilter = _geneticsColorFilter(v);
           }
         }
+        _applyCasterHitFlash(paint, opp);
 
         // Simple effect overlays for ring opponent (behind sprite)
         if (_duelOpponentVisuals?.alchemyEffect != null) {
@@ -12033,39 +7555,10 @@ class CosmicGame extends FlameGame with PanDetector {
       canvas.restore();
     }
 
-    // ── render duel opponent projectiles ──
-    for (final rp in duelOpponentProjectiles) {
-      final rpPos = rp.position;
-      final projColor = elementColor(duelOpponent?.member.element ?? 'Fire');
-      final vs = rp.radiusMultiplier.clamp(0.5, 3.0);
-      // Red-tinted glow trail
-      paintSoftCircle(
-        canvas,
-        rpPos,
-        8.0 * vs,
-        projColor.withValues(alpha: 0.15),
-        8,
-      );
-      canvas.drawLine(
-        rpPos,
-        Offset(
-          rpPos.dx - cos(rp.angle) * 10 * vs,
-          rpPos.dy - sin(rp.angle) * 10 * vs,
-        ),
-        Paint()
-          ..color = projColor.withValues(alpha: 0.5)
-          ..strokeWidth = 2.0 * vs
-          ..strokeCap = StrokeCap.round,
-      );
-      canvas.drawCircle(
-        rpPos,
-        3.0 * vs,
-        Paint()..color = projColor.withValues(alpha: 0.9),
-      );
-    }
-
     // ── ship ──
     if (!_shipDead) {
+      // A Lava plate's glow, a tesla channel's current (cosmic_game_kin.dart).
+      _renderKinShipOverlay(canvas);
       // Invincibility flash
       if (_shipInvincible > 0) {
         final flash = (sin(_elapsed * 30) > 0) ? 0.4 : 1.0;
@@ -12161,6 +7654,12 @@ class CosmicGame extends FlameGame with PanDetector {
       ship.render(canvas, _elapsed, skin: activeShipSkin);
       canvas.restore();
     }
+    // A Blood pact's threads and the Kin lasers, over the world.
+    _renderKinWorld(canvas);
+    _renderMaskSpiritNukeFlash(
+      canvas,
+      Rect.fromLTWH(cx, cy, screenW, screenH),
+    );
 
     // ── VFX particles ──
     _abilityVfx.render(canvas);

@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
+import 'package:alchemons/games/cosmic/mask_trap_placement.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
@@ -237,7 +238,7 @@ void main() {
         expect(game.companionProjectiles.length, 2);
         game.ship.pos = const Offset(40, 30);
         game.activeCompanions[0]!.position = const Offset(80, 10);
-        game.updateMaskRuntime(0.1);
+        game.updateAttachedAbilityPieces();
         expect(game.companionProjectiles.first.position, game.ship.pos);
         expect(
           game.companionProjectiles.last.position,
@@ -254,12 +255,20 @@ void main() {
       final enemy = openEnemy(const Offset(500, 0));
       game.enemies.add(enemy);
       for (var i = 0; i < 6; i++) {
-        final p = cast('Spirit').first..position = game.ship.pos;
-        game.companionProjectiles.add(p);
+        // One wisp at a time, laid where the ship will take it.
+        game.activateMaskPlacements([cast('Spirit').first]);
+        expect(
+          game.companionProjectiles,
+          isEmpty,
+          reason: 'wisps are collectibles, not projectiles',
+        );
+        final wisp = game.debugMaskSpiritWisps.single..position = game.ship.pos;
         game.updateMaskRuntime(0.01);
-        expect(p.life, 0);
+        expect(wisp.dead, isTrue);
+        expect(game.debugMaskSpiritWisps, isEmpty);
         expect(enemy.dead, i == 5);
       }
+      expect(game.debugMaskSpiritNukeFlash, 1.0);
     });
     for (final element in [
       'Lava',
@@ -318,16 +327,259 @@ void main() {
         speed: 0,
       );
       game.activeBoss = boss;
+      final enemy = openEnemy(const Offset(300, 0));
+      game.enemies.add(enemy);
       for (var i = 0; i < 6; i++) {
-        game.companionProjectiles.add(
-          cast('Spirit').first..position = Offset.zero,
-        );
+        game.activateMaskPlacements([cast('Spirit').first]);
+        game.debugMaskSpiritWisps.single.position = Offset.zero;
         game.updateMaskRuntime(0.01);
       }
+      expect(enemy.dead, isTrue, reason: 'the clear did go off');
       expect(boss.health, 1000);
       expect(boss.dead, isFalse);
       game.tickMaskPlacement(cast('Light').single);
       expect(boss.health, 1000);
+    });
+    test('Spirit wisps swoop to the ship inside 200 and are taken at 56', () {
+      final game = openArena();
+      game.activateMaskPlacements(cast('Spirit').take(3).toList());
+      final wisps = game.debugMaskSpiritWisps;
+      final near = wisps[0]..position = const Offset(150, 0);
+      final beyond = wisps[1]..position = const Offset(0, 250);
+      final taken = wisps[2]..position = const Offset(0, -50);
+      game.updateMaskRuntime(0.05);
+      expect(taken.dead, isTrue);
+      expect(near.position.dx, lessThan(150));
+      expect(beyond.position, const Offset(0, 250));
+      for (var i = 0; i < 120 && !near.dead; i++) {
+        game.updateMaskRuntime(1 / 60);
+      }
+      expect(near.dead, isTrue, reason: 'the magnet brings it in');
+      expect(game.debugMaskSpiritWisps.single, same(beyond));
+    });
+    test('Spirit clear reaches the fight round the ship, not the world', () {
+      final game = openArena();
+      final inField = openEnemy(Offset(game.debugMaskFieldRadius - 20, 0));
+      final outside = openEnemy(Offset(game.debugMaskFieldRadius + 200, 0));
+      game.enemies.addAll([inField, outside]);
+      for (var i = 0; i < 6; i++) {
+        game.activateMaskPlacements([cast('Spirit').first]);
+        game.debugMaskSpiritWisps.single.position = game.ship.pos;
+        game.updateMaskRuntime(0.01);
+      }
+      expect(inField.dead, isTrue);
+      expect(outside.dead, isFalse);
+      expect(outside.health, 1000);
+    });
+    test('a Spirit wisp whose caster is gone banks nothing', () {
+      final game = openArena();
+      final enemy = openEnemy(const Offset(300, 0));
+      game.enemies.add(enemy);
+      game.activeCompanions.clear();
+      for (var i = 0; i < 6; i++) {
+        game.activateMaskPlacements([cast('Spirit').first]);
+        game.debugMaskSpiritWisps.single.position = game.ship.pos;
+        game.updateMaskRuntime(0.01);
+      }
+      expect(game.debugMaskSpiritWisps, isEmpty);
+      expect(enemy.dead, isFalse);
+    });
+    for (final element in ['Light', 'Crystal', 'Fire']) {
+      test('$element flares on an enemy contact', () {
+        final game = openArena();
+        final p = cast(element).first;
+        final enemy = openEnemy(p.position);
+        game.enemies.add(enemy);
+        expect(p.abilityGrowthTimer, 0);
+        game.resolveMaskContact(p, enemy);
+        expect(p.trapSpent, isTrue);
+        expect(p.abilityGrowthTimer, 1.0);
+      });
+    }
+    test('Crystal shards break at a random turn', () {
+      final angles = <double>{};
+      for (var i = 0; i < 4; i++) {
+        final game = openArena();
+        final p = cast('Crystal').first;
+        final enemy = openEnemy(p.position);
+        game.resolveMaskContact(p, enemy);
+        final shard = game.companionProjectiles.first;
+        final d = shard.position - enemy.position;
+        angles.add((atan2(d.dy, d.dx) * 1000).roundToDouble());
+      }
+      expect(angles.length, greaterThan(1));
+    });
+    test('Earth flares on every heal tick', () {
+      final game = openArena()..shipHealth = 20;
+      final p = cast('Earth').first..position = Offset.zero;
+      game.tickMaskPlacement(p);
+      expect(p.abilityGrowthTimer, greaterThanOrEqualTo(0.8));
+    });
+    test('Plant flashes 2.0 on its first cast and every tenth feed', () {
+      final game = openArena();
+      final before = game.debugAbilityVfxCount;
+      game.activateMaskPlacements(cast('Plant'));
+      final vine = game.companionProjectiles.single;
+      expect(vine.effectStacks, 1);
+      expect(vine.abilityGrowthTimer, 2.0);
+      expect(game.debugAbilityVfxCount, greaterThan(before));
+      for (var feed = 2; feed <= 10; feed++) {
+        game.activateMaskPlacements(cast('Plant'));
+        expect(vine.effectStacks, feed);
+        expect(vine.abilityGrowthTimer, feed == 10 ? 2.0 : 1.0);
+      }
+    });
+    test('a Plant vine regrows from its feeds and follows a moved fight', () {
+      final game = openArena();
+      for (var i = 0; i < 12; i++) {
+        game.activateMaskPlacements(cast('Plant'));
+      }
+      final vine = game.companionProjectiles.single;
+      expect(vine.effectStacks, 12);
+      // Its caster was recalled and the vine withered.
+      game.companionProjectiles.clear();
+      final regrown = cast('Plant').first;
+      game.activateMaskPlacements([regrown]);
+      expect(game.companionProjectiles.single, same(regrown));
+      expect(regrown.effectStacks, 13);
+      // A cast aimed near the vine only nudges it; one far across the map
+      // replants it where it was aimed.
+      final near = cast('Plant', at: regrown.position + const Offset(200, 0));
+      final from = regrown.position;
+      game.activateMaskPlacements(near);
+      expect((regrown.position - from).distance, closeTo(60, 0.01));
+      final far = cast('Plant', at: const Offset(9000, 0)).first;
+      game.activateMaskPlacements([far]);
+      expect(regrown.position, far.position);
+      expect(game.companionProjectiles.length, 1);
+    });
+    test('the Plant vine holds what it bites, as Survival roots it', () {
+      final game = openArena();
+      game.activateMaskPlacements(cast('Plant'));
+      final vine = game.companionProjectiles.single;
+      final enemy = openEnemy(vine.position)
+        ..speed = 80
+        ..knockbackVelocity = const Offset(300, 0);
+      game.enemies.add(enemy);
+      game.tickMaskPlacement(vine);
+      expect(enemy.health, lessThan(1000));
+      expect(enemy.moveSpeed, 0);
+      expect(enemy.slowTimer, greaterThan(1));
+      expect(enemy.knockbackVelocity, Offset.zero);
+    });
+    test('Mud slows a body that has walked out of the pool', () {
+      final game = openArena();
+      final mud = cast('Mud').first..position = Offset.zero;
+      final enemy = openEnemy(const Offset(40, 0))..speed = 80;
+      game.enemies.add(enemy);
+      game.tickMaskPlacement(mud);
+      enemy.position = const Offset(2000, 0);
+      enemy.tickSlow(2.0);
+      expect(enemy.slowTimer, greaterThan(0));
+      expect(enemy.moveSpeed, closeTo(80 * 0.45, 0.001));
+      expect(enemy.health, 1000, reason: 'Mud only slows');
+    });
+    test('Steam geysers throw what they scald upward', () {
+      final game = openArena();
+      final geyser = cast('Steam').first..position = Offset.zero;
+      final enemy = openEnemy(const Offset(100, 0));
+      game.enemies.add(enemy);
+      game.tickMaskPlacement(geyser);
+      expect(enemy.health, lessThan(1000));
+      expect(enemy.knockbackVelocity.dy, lessThan(0));
+    });
+    test('Dark throws a body out of the fight, never back into the hole', () {
+      final game = openArena();
+      final hole = cast('Dark').single..position = const Offset(300, 0);
+      final ring = game.debugMaskFieldRadius + 70;
+      for (var i = 0; i < 20; i++) {
+        final enemy = openEnemy(hole.position)
+          ..speed = 80
+          ..knockbackVelocity = const Offset(200, 0);
+        game.enemies.add(enemy);
+        game.tickMaskPlacement(hole);
+        expect((enemy.position - game.ship.pos).distance, closeTo(ring, 0.01));
+        expect(
+          (enemy.position - hole.position).distance,
+          greaterThan(hole.effectRadius * 1.2),
+        );
+        expect(enemy.knockbackVelocity, Offset.zero);
+        expect(enemy.moveSpeed, closeTo(80 * 0.4, 0.001));
+        expect(enemy.health, 1000);
+        game.enemies.remove(enemy);
+      }
+    });
+    test('Blood heals its caster on contact and drains every frame', () {
+      final game = openArena();
+      final comp = game.activeCompanions[0]!;
+      final p = cast('Blood').single;
+      final enemy = openEnemy(p.position);
+      game.enemies.add(enemy);
+      game.resolveMaskContact(p, enemy);
+      expect(comp.currentHp, 50 + p.effectPower.round());
+      game.updateMaskRuntime(1 / 60);
+      expect(
+        enemy.health,
+        closeTo(1000 - maskBloodDrainPerSecond(enemy.maxHealth) / 60, 1e-9),
+      );
+    });
+    test('Dust shields take Survival\'s floors and flare when refreshed', () {
+      final game = openArena();
+      game.activateMaskPlacements(cast('Dust'));
+      for (final s in game.companionProjectiles) {
+        expect(s.life, greaterThanOrEqualTo(8));
+        expect(s.visualScale, greaterThanOrEqualTo(1.6));
+        expect(s.radiusMultiplier, greaterThanOrEqualTo(1.4));
+        expect(s.effectDuration, greaterThan(0));
+        expect(s.abilityGrowthTimer, 0);
+      }
+      game.activateMaskPlacements(cast('Dust'));
+      expect(
+        game.companionProjectiles.every((s) => s.abilityGrowthTimer >= 0.8),
+        isTrue,
+      );
+    });
+    test('a garrison caster lays its field at home, not on the ship', () {
+      final game = openArena();
+      final home = const Offset(6000, 0);
+      game.homePlanet = HomePlanet(position: home);
+      game.spawnGarrison([
+        CosmicPartyMember(
+          instanceId: 'garrison-mask',
+          baseId: 'MSK01',
+          displayName: 'Garrison Mask',
+          family: 'Mask',
+          element: 'Dust',
+          level: 10,
+          slotIndex: 3,
+          statSpeed: 4,
+          statIntelligence: 4,
+          statStrength: 4,
+          statBeauty: 4,
+          staminaBars: 5,
+          staminaMax: 5,
+        ),
+      ]);
+      final dust = cast('Dust')..forEach((p) => p.sourceSlotIndex = 3);
+      game.activateMaskPlacements(
+        dust,
+        caster: home,
+        target: home + const Offset(100, 0),
+        fromGarrison: true,
+      );
+      final shields = game.companionProjectiles;
+      expect(shields.map((s) => s.attachedToSlot), [3]);
+      final earth = cast('Earth')..forEach((p) => p.sourceSlotIndex = 3);
+      game.companionProjectiles.clear();
+      game.activateMaskPlacements(
+        earth,
+        caster: home,
+        target: home + const Offset(100, 0),
+        fromGarrison: true,
+      );
+      for (final pool in game.companionProjectiles) {
+        expect((pool.position - home).distance, lessThan(1000));
+      }
     });
     test(
       'real Cosmic collision caps Water contact across frames and splashes neighbors',
@@ -352,6 +604,86 @@ void main() {
         }
         expect(enemy.health, after);
         expect(neighbor.health, splashAfter);
+      },
+    );
+    for (final element in ['Crystal', 'Fire', 'Water']) {
+      test(
+        'real Cosmic collision: a $element trap strikes a boss at full weight '
+        'and flares only for enemies',
+        () async {
+          final game = openArena();
+          game.onGameResize(Vector2(900, 700));
+          await game.onLoad();
+          game.activeCompanions.clear();
+          game.enemies.clear();
+          final at = game.ship.pos + const Offset(500, 0);
+          final boss = CosmicBoss(
+            position: at,
+            name: 'Test',
+            element: 'Water',
+            level: 1,
+            radius: 20,
+            maxHealth: 100000,
+            speed: 0,
+          );
+          game.activeBoss = boss;
+          final p = cast(element).first
+            ..position = at
+            // It has already been through three bodies.
+            ..pierceCount = 3;
+          game.companionProjectiles.add(p);
+          game.update(1 / 60);
+          expect(boss.health, closeTo(100000 - p.damage, 0.001));
+          expect(p.hitBoss, isTrue);
+          expect(p.abilityGrowthTimer, 0);
+          if (element == 'Water') {
+            expect(p.trapSpent, isFalse);
+          } else {
+            expect(p.trapSpent, isTrue);
+            expect(
+              game.companionProjectiles.where((c) => !identical(c, p)).length,
+              element == 'Crystal' ? 3 : 1,
+            );
+          }
+        },
+      );
+    }
+    test(
+      'real Cosmic collision: a Steam geyser fires homing shots only at bodies '
+      'within 360',
+      () async {
+        final game = openArena();
+        game.onGameResize(Vector2(900, 700));
+        await game.onLoad();
+        game.activeCompanions.clear();
+        game.enemies.clear();
+        game.activeBoss = null;
+        final at = game.ship.pos + const Offset(600, 0);
+        final geyser = cast('Steam').first..position = at;
+        game.companionProjectiles.add(geyser);
+        final far = openEnemy(at + const Offset(400, 0));
+        final mine = <CosmicEnemy>[far];
+        final shots = <Projectile>{};
+        void run(int frames) {
+          for (var i = 0; i < frames; i++) {
+            game.enemies
+              ..removeWhere((e) => !mine.contains(e))
+              ..addAll(mine.where((e) => !game.enemies.contains(e)));
+            game.update(1 / 60);
+            shots.addAll(
+              game.companionProjectiles.where(
+                (p) => p.abilityFamily.isEmpty && p.element == 'Steam',
+              ),
+            );
+          }
+        }
+
+        run(70);
+        expect(shots, isEmpty);
+        mine.add(openEnemy(at + const Offset(0, 200)));
+        run(70);
+        expect(shots, isNotEmpty);
+        expect(shots.every((s) => s.homing && s.homingStrength > 0), isTrue);
       },
     );
     test(

@@ -108,7 +108,11 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       specialAbilityRange: _familySpecialRange(family, baseRange),
       speciesScale: specScale,
     );
-    companion.primeSpecialCooldown(savedCooldown: initialSpecialCooldown);
+    companion.primeSpecialCooldown(
+      savedCooldown: initialSpecialCooldown,
+      // A Kin's special waits longer, as survival stretches it.
+      cooldownMultiplier: family == 'kin' ? kKinSpecialCooldownStretch : 1.0,
+    );
     // Its tear opens at its own place in the formation, not on the ship.
     if (!sandboxMode) {
       companion.position = _companionSummonPoint(companion);
@@ -258,8 +262,11 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     // Use spawnPosition if provided, else default to ring center
     final placePos = member.spawnPosition ?? ship.pos;
 
+    _resetDuelCombat();
     duelOpponent = CosmicCompanion(
-      member: member,
+      // It casts from its own slot, apart from the party's and the ship's,
+      // so what it lays down is never mistaken for theirs.
+      member: member.withSlot(kWildCasterSlot),
       position: placePos,
       anchor: placePos,
       maxHp: maxHp,
@@ -405,6 +412,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
   void dismissDuelOpponent() {
     duelOpponent = null;
     duelOpponentProjectiles.clear();
+    _resetDuelCombat();
     _duelOpponentTicker = null;
     _duelOpponentVisuals = null;
     _duelOpponentFallbackSprite = null;

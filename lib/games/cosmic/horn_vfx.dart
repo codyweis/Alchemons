@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'cosmic_data.dart';
+import 'cosmic_projectile_vfx.dart' show ZoneVfxEmit;
 import 'vfx_shapes.dart';
 
 /// Horn's art: the wake a creature tears while it rams, the slam when it
@@ -207,9 +208,25 @@ void _drawWakeDebris(
           sides: 4,
         );
       case 'Earth':
-        vfxChunk(canvas, p, 3.6 * s, i * 7.0, m, alpha: fade, rot: time * 6 + i);
+        vfxChunk(
+          canvas,
+          p,
+          3.6 * s,
+          i * 7.0,
+          m,
+          alpha: fade,
+          rot: time * 6 + i,
+        );
       case 'Dust' when i.isEven:
-        vfxChunk(canvas, p, 3.6 * s, i * 7.0, m, alpha: fade, rot: time * 6 + i);
+        vfxChunk(
+          canvas,
+          p,
+          3.6 * s,
+          i * 7.0,
+          m,
+          alpha: fade,
+          rot: time * 6 + i,
+        );
       case 'Steam' || 'Dust' || 'Spirit':
         vfxSpill(canvas, p, (4.0 + 9.0 * f) * scale, m.glint, 0.28 * fade);
       case 'Mud':
@@ -1139,5 +1156,509 @@ void drawHornTrailPatch({
       }
     default:
       vfxSpill(canvas, c, radius, m.light, 0.14 * a);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Particles and telegraphs
+//
+// What a horn throws into the world while it winds up, rams, brews and
+// lingers — Cosmic Survival's own emitters, lifted as they were so every game
+// draws them the same. Each writes into sinks the caller supplies (its
+// particle pool, its beam list) and the caller keeps its own pool gates, so
+// an emitter never decides how busy a frame may get. The only lines are the
+// ones survival draws as lines: Crystal's shard dashes, Lightning's and
+// Dark's arcs, the Spirit ring marker and the Light barrier's arc.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// A short-lived beam segment, into the caller's beam list.
+typedef HornBeamEmit =
+    void Function(
+      ui.Offset start,
+      ui.Offset end,
+      ui.Color color,
+      double width,
+      double life,
+    );
+
+const ui.Color _white = ui.Color(0xFFFFFFFF);
+
+/// The flash colour of a Lightning discharge (and its hit spark).
+ui.Color get hornLightningFlashColor =>
+    ui.Color.lerp(elementColor('Lightning'), _white, 0.55)!;
+
+/// The hit spark a Lava kill's explosion ends on.
+const ui.Color kHornLavaKillSparkColor = ui.Color(0xFFFFA040);
+
+/// Lava: embers gathering round the horn while it builds to the slam.
+/// [progress] runs 0 → 1. Caller gates on its particle pool (130).
+void emitHornLavaChargeTelegraph(
+  ui.Offset center,
+  double progress,
+  Random rng,
+  ZoneVfxEmit emit,
+) {
+  final orbR = 18.0 + 14.0 * progress;
+  final lavaColor = elementColor('Lava');
+  const emberColor = ui.Color(0xFFFFB050);
+  final spawnCount = 1 + (progress > 0.5 ? 1 : 0);
+  for (var i = 0; i < spawnCount; i++) {
+    final a = rng.nextDouble() * 2 * pi;
+    final r = orbR * (1.0 + rng.nextDouble() * 0.6);
+    emit(
+      center.dx + cos(a) * r,
+      center.dy + sin(a) * r,
+      -cos(a) * (20 + 60 * progress),
+      -sin(a) * (20 + 60 * progress),
+      1.6 + rng.nextDouble() * 1.4,
+      0.35 + rng.nextDouble() * 0.30,
+      i.isEven ? lavaColor : emberColor,
+    );
+  }
+}
+
+/// Lightning: the storm brewing round a landed horn. [brewRemaining] counts
+/// down from [HornRules.postDashBrew]. Caller gates on its pool (130).
+void emitHornLightningStormBrew(
+  ui.Offset center,
+  double brewRemaining,
+  Random rng,
+  ZoneVfxEmit emit,
+  HornBeamEmit beam,
+) {
+  const total = 3.0;
+  final elapsed = (total - brewRemaining).clamp(0.0, total);
+  final t = elapsed / total;
+  final orbR = 18.0 + 30.0 * t;
+  final base = elementColor('Lightning');
+  final white = hornLightningFlashColor;
+  final spawnCount = 1 + (t > 0.4 ? 1 : 0) + (t > 0.75 ? 1 : 0);
+  for (var i = 0; i < spawnCount; i++) {
+    final a = rng.nextDouble() * 2 * pi;
+    final r = orbR * (1.0 + rng.nextDouble() * 0.7);
+    final spd = 35 + 80 * t;
+    emit(
+      center.dx + cos(a) * r,
+      center.dy + sin(a) * r,
+      -cos(a) * spd,
+      -sin(a) * spd,
+      1.3 + rng.nextDouble() * 1.4,
+      0.3 + rng.nextDouble() * 0.3,
+      i.isEven ? base : white,
+    );
+  }
+  if (rng.nextDouble() < 0.30 + t * 0.45) {
+    final a1 = rng.nextDouble() * 2 * pi;
+    final a2 = a1 + (rng.nextDouble() - 0.5) * 2.6;
+    final r1 = orbR * (0.35 + rng.nextDouble() * 0.65);
+    final r2 = orbR * (0.35 + rng.nextDouble() * 0.65);
+    beam(
+      ui.Offset(center.dx + cos(a1) * r1, center.dy + sin(a1) * r1),
+      ui.Offset(center.dx + cos(a2) * r2, center.dy + sin(a2) * r2),
+      white.withValues(alpha: 0.70 + 0.25 * t),
+      1.4 + t * 1.4,
+      0.08,
+    );
+  }
+}
+
+/// Lightning: the discharge — a storm of sparks fanning out from the
+/// impact, fuller for a bigger blast. Spawns at most [budget] (survival
+/// passes what is left of 145). The caller adds the
+/// [hornLightningFlashColor] hit spark at [center].
+void emitHornLightningChainBurst(
+  ui.Offset center,
+  double blastRadius,
+  int budget,
+  Random rng,
+  ZoneVfxEmit emit,
+) {
+  final base = elementColor('Lightning');
+  final white = hornLightningFlashColor;
+  final count = (blastRadius * 0.28).clamp(40, 70).round();
+  final spawn = min(count, max(0, budget));
+  for (var i = 0; i < spawn; i++) {
+    final a = rng.nextDouble() * 2 * pi;
+    final r = blastRadius * (0.15 + rng.nextDouble() * 0.85);
+    final spd = 60 + rng.nextDouble() * 180;
+    emit(
+      center.dx + cos(a) * (r * 0.2),
+      center.dy + sin(a) * (r * 0.2),
+      cos(a) * spd,
+      sin(a) * spd,
+      1.6 + rng.nextDouble() * 1.8,
+      rng.nextDouble() < 0.4
+          ? 0.7 + rng.nextDouble() * 0.5
+          : 0.30 + rng.nextDouble() * 0.30,
+      rng.nextBool() ? white : base,
+    );
+  }
+}
+
+/// Lava: the fire burst where a body fell in the window. The caller gates
+/// the whole effect on its pool (140) and adds a [kHornLavaKillSparkColor]
+/// hit spark at [center].
+void emitHornLavaKillExplosion(ui.Offset center, Random rng, ZoneVfxEmit emit) {
+  const orange = kHornLavaKillSparkColor;
+  const yellow = ui.Color(0xFFFFE08A);
+  for (var i = 0; i < 12; i++) {
+    final a = i * pi / 6 + rng.nextDouble() * 0.4;
+    final spd = 140 + rng.nextDouble() * 80;
+    emit(
+      center.dx,
+      center.dy,
+      cos(a) * spd,
+      sin(a) * spd,
+      2.0 + rng.nextDouble() * 1.8,
+      0.35 + rng.nextDouble() * 0.25,
+      i.isEven ? orange : yellow,
+    );
+  }
+}
+
+/// Dark: the singularity brewing through the void's wind-up. Caller gates
+/// on its pool (130).
+void emitHornDarkVoidBrew(
+  ui.Offset center,
+  double windUpRemaining,
+  Random rng,
+  ZoneVfxEmit emit,
+  HornBeamEmit beam,
+) {
+  const totalWindUp = 5.0;
+  final elapsed = (totalWindUp - windUpRemaining).clamp(0.0, totalWindUp);
+  final t = elapsed / totalWindUp;
+  final orbRadius = 16.0 + 36.0 * t;
+  final spawnCount = 1 + (t > 0.4 ? 1 : 0) + (t > 0.75 ? 1 : 0);
+  for (var i = 0; i < spawnCount; i++) {
+    final a = rng.nextDouble() * 2 * pi;
+    final r = orbRadius * (1.2 + rng.nextDouble() * 0.7);
+    final speed = 40 + 90 * t;
+    emit(
+      center.dx + cos(a) * r,
+      center.dy + sin(a) * r,
+      -cos(a) * speed,
+      -sin(a) * speed,
+      1.4 + rng.nextDouble() * 1.6,
+      0.35 + rng.nextDouble() * 0.30,
+      i.isEven
+          ? const ui.Color(0xFF1A0A2A)
+          : ui.Color.lerp(elementColor('Dark'), _white, 0.25)!,
+    );
+  }
+  if (rng.nextDouble() < 0.20 + t * 0.40) {
+    final a1 = rng.nextDouble() * 2 * pi;
+    final a2 = a1 + (rng.nextDouble() - 0.5) * 2.6;
+    final r1 = orbRadius * (0.30 + rng.nextDouble() * 0.70);
+    final r2 = orbRadius * (0.30 + rng.nextDouble() * 0.70);
+    beam(
+      ui.Offset(center.dx + cos(a1) * r1, center.dy + sin(a1) * r1),
+      ui.Offset(center.dx + cos(a2) * r2, center.dy + sin(a2) * r2),
+      const ui.Color(0xFFB89AFF).withValues(alpha: 0.55 + 0.25 * t),
+      1.2 + t * 1.0,
+      0.08,
+    );
+  }
+}
+
+/// Crystal: six shards orbiting the horn through its wind-up, the bulwark
+/// it will carry. Caller gates on its beam list (22).
+void emitHornCrystalOrbit(
+  ui.Offset center,
+  double windUpRemaining,
+  HornBeamEmit beam,
+) {
+  const totalWindUp = 1.2;
+  final elapsed = (totalWindUp - windUpRemaining).clamp(0.0, totalWindUp);
+  final t = elapsed / totalWindUp;
+  final orbitR = 28.0 + 24.0 * t;
+  final spinPhase = elapsed * 5.0;
+  final white = ui.Color.lerp(elementColor('Crystal'), _white, 0.55)!;
+  for (var i = 0; i < 6; i++) {
+    final a = spinPhase + i * pi * 2 / 6;
+    final shardCenter = center + ui.Offset(cos(a), sin(a)) * orbitR;
+    final tangent = ui.Offset(-sin(a), cos(a));
+    final half = 3.2 + 2.0 * t;
+    beam(
+      shardCenter - tangent * half,
+      shardCenter + tangent * half,
+      white.withValues(alpha: 0.55 + 0.30 * t),
+      2.4 + t * 1.4,
+      0.05,
+    );
+  }
+}
+
+/// Spirit: phantoms swarming the horn through its wind-up. Caller gates on
+/// its pool (130).
+void emitHornSpiritSwarm(
+  ui.Offset center,
+  double windUpRemaining,
+  Random rng,
+  ZoneVfxEmit emit,
+  HornBeamEmit beam,
+) {
+  const totalWindUp = 2.0;
+  final elapsed = (totalWindUp - windUpRemaining).clamp(0.0, totalWindUp);
+  final t = elapsed / totalWindUp;
+  final orbR = 14.0 + 12.0 * sin(elapsed * 4.0);
+  for (var i = 0; i < 2; i++) {
+    final a = rng.nextDouble() * 2 * pi;
+    final startR = 40.0 + 18.0 * (1.0 - t);
+    emit(
+      center.dx + cos(a) * startR,
+      center.dy + sin(a) * startR,
+      -cos(a) * (50 + 60 * t),
+      -sin(a) * (50 + 60 * t),
+      1.8 + rng.nextDouble() * 1.2,
+      0.4 + rng.nextDouble() * 0.25,
+      ui.Color.lerp(
+        elementColor('Spirit'),
+        _white,
+        0.55,
+      )!.withValues(alpha: 0.7),
+    );
+  }
+  beam(
+    center + ui.Offset(orbR, 0),
+    center + ui.Offset(-orbR, 0),
+    elementColor('Spirit').withValues(alpha: 0.18 + 0.18 * t),
+    1.0 + t * 0.6,
+    0.05,
+  );
+}
+
+/// Air: two wisps blown from the still middle out to the rim, tracing the
+/// push. The caller keeps the [HornRules.airParticleInterval] cadence and
+/// gates on its pool (130).
+void emitHornAirWind(
+  ui.Offset center,
+  double inner,
+  double outer,
+  Random rng,
+  ZoneVfxEmit emit,
+) {
+  const travelSpeed = 140.0;
+  final travelLife = (outer - inner) / travelSpeed;
+  final airColor = elementColor('Air');
+  for (var i = 0; i < 2; i++) {
+    final a = rng.nextDouble() * 2 * pi;
+    final startR = inner + rng.nextDouble() * 6.0;
+    emit(
+      center.dx + cos(a) * startR,
+      center.dy + sin(a) * startR,
+      cos(a) * travelSpeed,
+      sin(a) * travelSpeed,
+      1.3 + rng.nextDouble() * 0.8,
+      travelLife,
+      airColor.withValues(alpha: 0.55),
+    );
+  }
+}
+
+/// The particles a Horn projectile trails each frame: Spirit's phantoms,
+/// Crystal's shards, Lightning's discharge, and the stationary Fire, Water,
+/// Dust, Ice, Steam, Dark and Light pieces. [beam] is null when the
+/// caller's beam list is full (survival: 22), which only the Light
+/// barrier's arc needs. Caller gates on its pool (130).
+void emitHornProjectileParticles(
+  Projectile p,
+  Random rng,
+  ZoneVfxEmit emit,
+  HornBeamEmit? beam,
+) {
+  if (p.element == 'Spirit' && p.decoy) {
+    final ghost = ui.Color.lerp(elementColor('Spirit'), _white, 0.55)!;
+    for (var i = 0; i < 3; i++) {
+      final a = rng.nextDouble() * 2 * pi;
+      final r = 6.0 + rng.nextDouble() * 16.0;
+      emit(
+        p.position.dx + cos(a) * r,
+        p.position.dy + sin(a) * r,
+        cos(a) * (8 + rng.nextDouble() * 24),
+        sin(a) * (8 + rng.nextDouble() * 24),
+        1.4 + rng.nextDouble() * 1.4,
+        0.40 + rng.nextDouble() * 0.35,
+        i.isEven ? ghost : _white,
+      );
+    }
+  } else if (p.element == 'Crystal' && p.orbitRadius > 0) {
+    final white = ui.Color.lerp(elementColor('Crystal'), _white, 0.55)!;
+    for (var i = 0; i < 2; i++) {
+      final a = rng.nextDouble() * 2 * pi;
+      final r = 4.0 + rng.nextDouble() * 12.0;
+      emit(
+        p.position.dx + cos(a) * r,
+        p.position.dy + sin(a) * r,
+        cos(a) * (12 + rng.nextDouble() * 30),
+        sin(a) * (12 + rng.nextDouble() * 30),
+        1.1 + rng.nextDouble() * 1.2,
+        0.30 + rng.nextDouble() * 0.25,
+        rng.nextBool() ? white : _white,
+      );
+    }
+  } else if (p.element == 'Lightning' &&
+      p.stationary &&
+      p.tickEffect == AbilityEffectKind.chain) {
+    final blastR = p.effectRadius > 0 ? p.effectRadius : 140.0;
+    final base = elementColor('Lightning');
+    final white = ui.Color.lerp(base, _white, 0.6)!;
+    for (var i = 0; i < 4; i++) {
+      final a = rng.nextDouble() * 2 * pi;
+      final r = blastR * (0.10 + rng.nextDouble() * 0.90);
+      emit(
+        p.position.dx + cos(a) * r,
+        p.position.dy + sin(a) * r,
+        cos(a) * (10 + rng.nextDouble() * 30),
+        sin(a) * (10 + rng.nextDouble() * 30),
+        1.4 + rng.nextDouble() * 1.4,
+        0.30 + rng.nextDouble() * 0.35,
+        i.isEven ? white : base,
+      );
+    }
+  } else if (p.element == 'Fire' && p.stationary) {
+    const ember = ui.Color(0xFFFFB060);
+    const hot = ui.Color(0xFFFFD080);
+    final a = rng.nextDouble() * 2 * pi;
+    final r =
+        (p.effectRadius > 0 ? p.effectRadius : 40.0) * 0.45 * rng.nextDouble();
+    emit(
+      p.position.dx + cos(a) * r,
+      p.position.dy + sin(a) * r,
+      cos(a) * (6 + rng.nextDouble() * 8),
+      -22 - rng.nextDouble() * 24,
+      1.2 + rng.nextDouble() * 1.0,
+      0.5 + rng.nextDouble() * 0.35,
+      rng.nextBool() ? ember : hot,
+    );
+  } else if (p.element == 'Water' && p.stationary) {
+    final whirlR = max(40.0, p.radiusMultiplier * 18.0 + 20.0);
+    final base = elementColor('Water').withValues(alpha: 0.65);
+    final a = rng.nextDouble() * 2 * pi;
+    final r = whirlR * (0.55 + rng.nextDouble() * 0.45);
+    final tang = ui.Offset(-sin(a), cos(a));
+    final inward = ui.Offset(-cos(a), -sin(a));
+    final tangSpd = 40 + rng.nextDouble() * 30;
+    final inSpd = 18 + rng.nextDouble() * 16;
+    emit(
+      p.position.dx + cos(a) * r,
+      p.position.dy + sin(a) * r,
+      tang.dx * tangSpd + inward.dx * inSpd,
+      tang.dy * tangSpd + inward.dy * inSpd,
+      1.2 + rng.nextDouble() * 1.0,
+      0.4 + rng.nextDouble() * 0.4,
+      base,
+    );
+  } else if (p.element == 'Dust' && p.stationary) {
+    final dustR = max(36.0, p.radiusMultiplier * 18.0 + 16.0);
+    final base = elementColor('Dust').withValues(alpha: 0.55);
+    for (var i = 0; i < 3; i++) {
+      final a = rng.nextDouble() * 2 * pi;
+      final r = dustR * (0.20 + rng.nextDouble() * 0.75);
+      final tang = ui.Offset(-sin(a), cos(a));
+      final outward = ui.Offset(cos(a), sin(a));
+      final tangSpd = 25 + rng.nextDouble() * 30;
+      final outSpd = 8 + rng.nextDouble() * 10;
+      emit(
+        p.position.dx + cos(a) * r,
+        p.position.dy + sin(a) * r,
+        tang.dx * tangSpd + outward.dx * outSpd,
+        tang.dy * tangSpd + outward.dy * outSpd,
+        1.1 + rng.nextDouble() * 1.0,
+        0.5 + rng.nextDouble() * 0.4,
+        base,
+      );
+    }
+  } else if (p.element == 'Ice' && p.stationary) {
+    final iceR = max(20.0, p.radiusMultiplier * 16.0 + 8.0);
+    final base = elementColor('Ice');
+    final white = ui.Color.lerp(base, _white, 0.55)!;
+    final a = rng.nextDouble() * 2 * pi;
+    final r = iceR * (0.30 + rng.nextDouble() * 0.70);
+    emit(
+      p.position.dx + cos(a) * r,
+      p.position.dy + sin(a) * r,
+      cos(a) * (8 + rng.nextDouble() * 12),
+      sin(a) * (8 + rng.nextDouble() * 12) + 6,
+      1.0 + rng.nextDouble() * 1.0,
+      0.5 + rng.nextDouble() * 0.4,
+      rng.nextBool() ? white : _white,
+    );
+  } else if (p.element == 'Steam' && p.stationary) {
+    final steamR = max(38.0, p.radiusMultiplier * 18.0 + 18.0);
+    final base = elementColor('Steam');
+    final white = ui.Color.lerp(base, _white, 0.55)!;
+    for (var i = 0; i < 2; i++) {
+      final a = rng.nextDouble() * 2 * pi;
+      final r = steamR * (0.15 + rng.nextDouble() * 0.50);
+      emit(
+        p.position.dx + cos(a) * r,
+        p.position.dy + sin(a) * r,
+        cos(a) * (10 + rng.nextDouble() * 8),
+        -30 - rng.nextDouble() * 30,
+        2.0 + rng.nextDouble() * 1.8,
+        0.6 + rng.nextDouble() * 0.4,
+        i.isEven ? white : base,
+      );
+    }
+  } else if (p.element == 'Dark' && p.stationary) {
+    final voidR = max(40.0, p.radiusMultiplier * 18.0 + 24.0);
+    const voidColor = ui.Color(0xFFB89AFF);
+    const deepColor = ui.Color(0xFF1A0A2A);
+    for (var i = 0; i < 3; i++) {
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = voidR * (0.85 + rng.nextDouble() * 0.25);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        -cos(a) * (50 + rng.nextDouble() * 60),
+        -sin(a) * (50 + rng.nextDouble() * 60),
+        1.4 + rng.nextDouble() * 1.4,
+        0.4 + rng.nextDouble() * 0.3,
+        i.isEven ? voidColor : deepColor,
+      );
+    }
+  } else if (p.element == 'Light' && p.stationary && p.reflectsProjectiles) {
+    final domeR = max(60.0, p.radiusMultiplier * 20.0 + 70.0);
+    final white = ui.Color.lerp(elementColor('Light'), _white, 0.55)!;
+    for (var i = 0; i < 5; i++) {
+      final a = rng.nextDouble() * 2 * pi;
+      final spawnR = domeR * (0.88 + rng.nextDouble() * 0.20);
+      emit(
+        p.position.dx + cos(a) * spawnR,
+        p.position.dy + sin(a) * spawnR,
+        -cos(a) * (12 + rng.nextDouble() * 22),
+        -sin(a) * (12 + rng.nextDouble() * 22),
+        1.4 + rng.nextDouble() * 1.4,
+        0.5 + rng.nextDouble() * 0.4,
+        i.isEven ? white : _white,
+      );
+    }
+    for (var i = 0; i < 2; i++) {
+      final a = rng.nextDouble() * 2 * pi;
+      final innerR = domeR * (0.15 + rng.nextDouble() * 0.30);
+      emit(
+        p.position.dx + cos(a) * innerR,
+        p.position.dy + sin(a) * innerR,
+        cos(a) * (20 + rng.nextDouble() * 18),
+        sin(a) * (20 + rng.nextDouble() * 18),
+        1.6 + rng.nextDouble() * 1.2,
+        0.3 + rng.nextDouble() * 0.2,
+        _white,
+      );
+    }
+    if (rng.nextDouble() < 0.45 && beam != null) {
+      final a1 = rng.nextDouble() * 2 * pi;
+      final a2 = a1 + pi + (rng.nextDouble() - 0.5) * 0.6;
+      final r1 = domeR * (0.70 + rng.nextDouble() * 0.25);
+      final r2 = domeR * (0.70 + rng.nextDouble() * 0.25);
+      beam(
+        ui.Offset(p.position.dx + cos(a1) * r1, p.position.dy + sin(a1) * r1),
+        ui.Offset(p.position.dx + cos(a2) * r2, p.position.dy + sin(a2) * r2),
+        white.withValues(alpha: 0.65),
+        1.5,
+        0.08,
+      );
+    }
   }
 }

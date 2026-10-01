@@ -285,6 +285,84 @@ void main() {
     });
   }
 
+  test('a swarm on the ship: they hold their sides, not circle', () async {
+    final a = await _arena();
+    final game = a.game;
+    // Drones, wisps and sentinels closing on the ship from all round.
+    const tiers = [
+      EnemyTier.drone,
+      EnemyTier.wisp,
+      EnemyTier.sentinel,
+      EnemyTier.drone,
+      EnemyTier.wisp,
+      EnemyTier.drone,
+      EnemyTier.sentinel,
+      EnemyTier.wisp,
+    ];
+    final swarm = [
+      for (var i = 0; i < tiers.length; i++)
+        CosmicEnemy(
+          position:
+              a.home +
+              Offset(
+                    cos(i / tiers.length * 2 * pi),
+                    sin(i / tiers.length * 2 * pi),
+                  ) *
+                  (260.0 + (i % 3) * 50),
+          element: 'Fire',
+          tier: tiers[i],
+          radius: tiers[i] == EnemyTier.sentinel ? 20 : 10,
+          health: 1e7,
+          speed: tiers[i] == EnemyTier.drone ? 90 : 50,
+        ),
+    ];
+    game.enemies.addAll(swarm);
+    const dt = 1 / 60;
+    final circling = <double>[];
+    final speeds = <double>[];
+    var switches = 0;
+    final last = <CosmicCompanion, Object?>{};
+    a.step(
+      12,
+      each: () {
+        game.enemies.removeWhere((e) => !swarm.contains(e));
+        for (final e in swarm) {
+          e.dead = false;
+        }
+        if (a.frame < 90) return;
+        for (final c in a.comps) {
+          speeds.add(c.velocity.distance);
+          final t = c.combatTarget;
+          if (last[c] != null && !identical(last[c], t)) switches++;
+          last[c] = t;
+          if (t is! CosmicEnemy) continue;
+          final rel = c.position - t.position;
+          if (rel.distance < 1) continue;
+          final n = rel / rel.distance;
+          // Its own motion round the target, not the target's darting.
+          circling.add((c.velocity.dx * -n.dy + c.velocity.dy * n.dx).abs());
+        }
+      },
+    );
+    circling.sort();
+    speeds.sort();
+    double p(List<double> l, double q) => l[(l.length * q).floor()];
+    final minutes = (a.frame - 90) * dt / 60;
+    // ignore: avoid_print
+    print(
+      'swarm: circling p50 ${p(circling, .5).toStringAsFixed(0)} '
+      'p90 ${p(circling, .9).toStringAsFixed(0)} px/s, speed p95 '
+      '${p(speeds, .95).toStringAsFixed(0)} px/s, '
+      '${(switches / minutes).toStringAsFixed(0)} target switches/min',
+    );
+    // Before the station swing cap, target commitment and fighting from its
+    // own side near the ship: circling p90 ~240 px/s (counting the targets'
+    // own darting), speed p90 ~250 and p99 ~380 px/s, ~75 switches a minute.
+    expect(p(circling, .9), lessThan(170));
+    expect(p(speeds, .95), lessThan(250));
+    expect(switches / minutes, lessThan(60));
+  });
+
   test('a wild Alchemon fight: it meets the whole party', () async {
     final a = await _arena();
     final game = a.game;

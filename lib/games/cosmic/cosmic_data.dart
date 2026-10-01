@@ -3798,8 +3798,50 @@ class CosmicEnemy {
 
   int? maneRootSlot;
   double maneRootTimer;
+
+  /// Mane Poison's stacks on this body (to 8); each pierce hits harder.
+  int manePoisonStacks = 0;
   bool pipMudTrail;
   double pipMudTrailTimer;
+
+  /// A shove in progress. Integrated and damped every frame, as Survival
+  /// does, so a knockback carries a body and dies away instead of
+  /// teleporting it. See [CosmicAbilityRuntime.knockbackDamping].
+  Offset knockbackVelocity = Offset.zero;
+
+  /// Timed crowd control, as Survival runs it. While [slowTimer] runs the
+  /// body moves at [slowMultiplier] of its speed, and the strongest slow
+  /// wins. It lapses back to Survival's resting 0.5, so the next slow is
+  /// measured against that. Abilities used to scale [speed] itself, which
+  /// never came back: one Mud pool and a body crawled for the rest of its
+  /// life.
+  double slowTimer = 0;
+  double slowMultiplier = 0.5;
+
+  /// Wing Ice's frost, 0→1; full, the body freezes and it starts again.
+  /// Thaws while no beam feeds it.
+  double frostBuildup = 0;
+
+  /// Horn Plant's root, for the vine wrap. The hold itself is a zero slow.
+  double hornPlantRootTimer = 0;
+
+  /// The speed the body actually moves at this frame.
+  double get moveSpeed {
+    if (maneRootTimer > 0 || slowMultiplier <= 0) return 0;
+    return slowTimer > 0 ? speed * slowMultiplier : speed;
+  }
+
+  /// Holds the body at [multiplier] of its speed for at least [duration].
+  void applySlow(double multiplier, double duration) {
+    slowTimer = max(slowTimer, duration);
+    slowMultiplier = min(slowMultiplier, multiplier);
+  }
+
+  void tickSlow(double dt) {
+    if (slowTimer > 0) slowTimer = max(0.0, slowTimer - dt);
+    if (slowTimer <= 0 && maneRootTimer <= 0) slowMultiplier = 0.5;
+    if (frostBuildup > 0) frostBuildup = max(0.0, frostBuildup - dt * 0.35);
+  }
 
   /// Shared hover/dive steering state (lazily created when this enemy
   /// commits to an attack). See games/shared/enemy_flight_steering.dart.
@@ -12304,6 +12346,32 @@ class CosmicPartyMember {
     this.visualVariant,
     this.spawnPosition,
   });
+
+  /// The same creature in another slot.
+  CosmicPartyMember withSlot(int slot) => CosmicPartyMember(
+    instanceId: instanceId,
+    baseId: baseId,
+    displayName: displayName,
+    imagePath: imagePath,
+    element: element,
+    family: family,
+    level: level,
+    statSpeed: statSpeed,
+    statIntelligence: statIntelligence,
+    statStrength: statStrength,
+    statBeauty: statBeauty,
+    statSpeedPotential: statSpeedPotential,
+    statIntelligencePotential: statIntelligencePotential,
+    statStrengthPotential: statStrengthPotential,
+    statBeautyPotential: statBeautyPotential,
+    slotIndex: slot,
+    staminaBars: staminaBars,
+    staminaMax: staminaMax,
+    spriteSheet: spriteSheet,
+    spriteVisuals: spriteVisuals,
+    visualVariant: visualVariant,
+    spawnPosition: spawnPosition,
+  );
 }
 
 double normalizedCompanionSpecialCooldown({
@@ -12319,7 +12387,60 @@ double normalizedCompanionSpecialCooldown({
 }
 
 /// Runtime state for a summoned (active) party alchemon in cosmic space.
-class CosmicCompanion with HasEffects {
+/// The running state of a Kin's support path, as Cosmic Survival's companion
+/// carries it (the same names, so the rules read the same in both games).
+/// Open space's companions and home-planet garrison both carry it; the rules
+/// that drive it are in kin_support_runtime.dart.
+mixin KinSupportFields {
+  /// Fire: the phoenix has fired and the orbital flame burns for good, with
+  /// the rebirth buff rolled from the kin's own stats at that moment.
+  bool kinFireOrbitalFlameActive = false;
+  double kinFireRebirthDamageAmp = 1.0;
+  double kinFireRebirthHaste = 1.0;
+  double kinFireFlameRadius = 70;
+  double kinFireFlameInterval = 0.5;
+  double kinFireFlameTimer = 0;
+
+  /// Lava: damage taken while > 0 splashes lava at whatever struck.
+  double kinLavaPlateTimer = 0;
+
+  /// Ice: the charge winding down to its release.
+  double kinIceChargeTimer = 0;
+  double kinIceChargeTotal = 0;
+
+  /// Steam: the boiler's window, its stacks and their carry and decay.
+  double kinSteamBoilerTimer = 0;
+  int kinSteamBoilerStacks = 0;
+  double kinSteamStackDecayTimer = 0;
+  double kinSteamStackCarry = 0;
+
+  /// Lightning: the tesla channel, while the kin holds still.
+  double kinLightningChargeTimer = 0;
+
+  /// Dark: the veil that hides the party.
+  double kinDarkCloakTimer = 0;
+
+  /// Blood: the pact that heals back what the alchemons take.
+  double kinBloodPactTimer = 0;
+
+  /// Mud: the ship enchant that trails slowing mud.
+  double kinMudShipEnchantTimer = 0;
+
+  /// Spirit: kills credited to the kin, which tier up its wisp.
+  int kinSpiritWispKills = 0;
+
+  /// Health a frame ago, for the damage the reactive paths answer.
+  int kinPrevHp = 0;
+
+  /// The basic attack's charge: > 0 while the kin gathers its laser.
+  double kinAutoChargeTimer = 0;
+
+  /// Where it was aiming when the charge began, and the body it locked.
+  Offset? kinAutoChargeTarget;
+  CosmicEnemy? kinAutoChargeEnemy;
+}
+
+class CosmicCompanion with HasEffects, KinSupportFields {
   final CosmicPartyMember member;
 
   /// World-space position (current, moves around anchor).
@@ -12401,6 +12522,22 @@ class CosmicCompanion with HasEffects {
   /// Blessing heal amount per tick.
   double blessingHealPerTick;
 
+  /// The part of a blessing's heal not yet paid out. HP is an integer and a
+  /// blessing pays a fraction of a point per frame; see [takeBlessingHeal].
+  double blessingCarry = 0;
+
+  /// Whole HP owed by the blessing this frame, the fraction carried to the
+  /// next. Rounding the per-frame amount paid nothing at all, as Survival
+  /// found: every blessing is a few HP a second, well under half a point a
+  /// frame.
+  int takeBlessingHeal(double dt) {
+    blessingCarry += blessingHealPerTick * dt;
+    if (blessingCarry < 1) return 0;
+    final heal = blessingCarry.floor();
+    blessingCarry -= heal;
+    return heal;
+  }
+
   /// Temporary basic-attack haste window granted by some specials.
   double basicHasteTimer;
   double basicHasteMultiplier;
@@ -12413,28 +12550,60 @@ class CosmicCompanion with HasEffects {
   double pipSteamWindowTimer;
   double hornMudTrailTimer;
   double hornPoisonAuraTimer;
-  bool kinFireOrbitalFlameActive;
-  // Kin support state is kept on the shared companion model so open Cosmic
-  // can execute the same authored support paths as Survival instead of
-  // spending a cooldown on an empty generic payload.
-  double kinLavaPlateTimer;
-  double kinIceChargeTimer;
-  double kinIceChargeTotal;
-  double kinSteamBoilerTimer;
-  int kinSteamBoilerStacks;
-  double kinSteamStackDecayTimer;
-  double kinSteamStackCarry;
-  double kinLightningChargeTimer;
-  double kinDarkCloakTimer;
-  double kinBloodPactTimer;
-  double kinMudShipEnchantTimer;
-  int kinSpiritWispKills;
-  int kinPrevHp;
+  // Kin support state ([KinSupportFields]) is kept on the shared companion
+  // model so open Cosmic executes the same authored support paths as
+  // Survival instead of spending a cooldown on an empty generic payload.
   Offset? lastPipPoisonHitPos;
   List<Projectile>? pendingChargeBurst;
   Offset? pendingChargeOrigin;
   double pendingChargeAngle;
   static const double pipSteamWindowDuration = 9.0;
+
+  // ── Horn special state, as Cosmic Survival's companion carries it (the
+  // same names, so the rules read the same in both games) ──
+
+  /// Dark's void, Crystal's orbit, Spirit's phantoms: the horn holds still
+  /// this long before it rams at [windUpDashTarget].
+  double windUpTimer = 0;
+  String windUpElement = '';
+  Offset? windUpDashTarget;
+  double windUpFireAngle = 0;
+  double pendingChargeTimerValue = 0;
+
+  /// '' for a straight ram, 'circle' for Water's lap, 'ice-wall' for Ice's
+  /// sideways dash.
+  String chargePathType = '';
+  Offset? chargeCircleCenter;
+  double chargeCircleRadius = 0;
+  double chargeCircleAngle = 0;
+  double chargeCircleAngularSpeed = 0;
+
+  /// Cadence of Ice's wall blocks and Fire's burning patches.
+  double iceWallTrailTimer = 0;
+
+  /// Kills credited to the cast (Steam, Lava, Blood) while this runs.
+  double hornSpecialActiveWindow = 0;
+
+  /// Lightning: damage taken mid-ram, carried into the discharge.
+  double hornLightningAbsorbed = 0;
+
+  /// Dark: what the void held when the wind-up ended.
+  List<CosmicEnemy>? hornDarkCaptured;
+
+  /// Lightning: the storm brewed where the ram landed.
+  double hornPostDashWindUpTimer = 0;
+  double hornAirParticleTimer = 0;
+
+  /// Open space only: how far past the engage range this ram may end
+  /// before the ship's tether calls it off.
+  double chargeLeashAllowance = 0;
+
+  /// A white flash on the sprite (a Blood horn paying its price).
+  double hitFlash = 0;
+
+  /// A Horn special holding the body: a ram, a wind-up or a brew.
+  bool get hornHoldsBody =>
+      chargeTimer > 0 || windUpTimer > 0 || hornPostDashWindUpTimer > 0;
 
   /// Open-space steering. The companion flies with a velocity toward a goal
   /// (its place in the follow formation, or its station in a fight) instead
@@ -12447,6 +12616,18 @@ class CosmicCompanion with HasEffects {
   /// What it is fighting (an enemy, the boss or the wild Alchemon), held so
   /// it does not flip between two targets at similar range.
   Object? combatTarget;
+
+  /// Seconds left before it will consider switching [combatTarget].
+  double targetCommitTimer = 0;
+
+  /// Where round [stationFor] its fight station sits (radians). It swings
+  /// toward where the fan wants it at a capped speed, so a darting enemy
+  /// does not whip the companion round it.
+  double? stationBearing;
+  Object? stationFor;
+
+  /// The smoothed point its fight station is measured round.
+  Offset? stationCenter;
 
   final String? visualVariant;
 
@@ -12494,20 +12675,6 @@ class CosmicCompanion with HasEffects {
     this.pipSteamWindowTimer = 0,
     this.hornMudTrailTimer = 0,
     this.hornPoisonAuraTimer = 0,
-    this.kinFireOrbitalFlameActive = false,
-    this.kinLavaPlateTimer = 0,
-    this.kinIceChargeTimer = 0,
-    this.kinIceChargeTotal = 0,
-    this.kinSteamBoilerTimer = 0,
-    this.kinSteamBoilerStacks = 0,
-    this.kinSteamStackDecayTimer = 0,
-    this.kinSteamStackCarry = 0,
-    this.kinLightningChargeTimer = 0,
-    this.kinDarkCloakTimer = 0,
-    this.kinBloodPactTimer = 0,
-    this.kinMudShipEnchantTimer = 0,
-    this.kinSpiritWispKills = 0,
-    this.kinPrevHp = 0,
     this.lastPipPoisonHitPos,
     this.pendingChargeBurst,
     this.pendingChargeOrigin,
@@ -12621,6 +12788,22 @@ class CosmicCompanion with HasEffects {
   bool get hasShield => shieldHp > 0;
   bool get isCharging => chargeTimer > 0;
   bool get isBlessing => blessingTimer > 0;
+
+  /// How fast it can move this frame, from what an opposing Alchemon's
+  /// abilities did to it (a slow, a root, a freeze). 1 is unhindered.
+  double ccMoveFactor = 1.0;
+
+  /// Damage that always lands, grace window or not — an instant kill's heavy
+  /// hit. A shield still takes it first.
+  void takeAbilityDamage(int dmg) {
+    if (dmg <= 0) return;
+    if (shieldHp > 0) {
+      final absorbed = min(dmg, shieldHp);
+      shieldHp -= absorbed;
+      dmg -= absorbed;
+    }
+    if (dmg > 0) currentHp = (currentHp - dmg).clamp(0, maxHp);
+  }
 
   void takeDamage(int dmg) {
     if (invincibleTimer > 0) return;

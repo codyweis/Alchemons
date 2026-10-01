@@ -90,9 +90,17 @@ extension CosmicGameCompanionMotion on CosmicGame {
         continue;
       }
       slots.add(entry.key);
+      comp.targetCommitTimer = max(0.0, comp.targetCommitTimer - dt);
       final engagement = _chooseCompanionEngagement(comp, ringDuel);
+      if (!identical(engagement?.target, comp.combatTarget)) {
+        comp.targetCommitTimer = engagement == null ? 0 : _targetCommitSeconds;
+      }
       comp.combatTarget = engagement?.target;
-      if (engagement != null) _companionEngagements[entry.key] = engagement;
+      if (engagement != null) {
+        _companionEngagements[entry.key] = engagement;
+      } else {
+        comp.stationFor = null;
+      }
     }
     if (slots.isEmpty) return;
     slots.sort();
@@ -130,12 +138,23 @@ extension CosmicGameCompanionMotion on CosmicGame {
     for (final group in groups.values) {
       final engagement = _companionEngagements[group.first]!;
       var groupBody = 0.0;
+      // Where round the target the group stands now, on average.
+      var sx = 0.0, sy = 0.0;
       for (final slot in group) {
-        groupBody = max(
-          groupBody,
-          _companionBodyRadius(activeCompanions[slot]!),
-        );
+        final comp = activeCompanions[slot]!;
+        groupBody = max(groupBody, _companionBodyRadius(comp));
+        final b =
+            identical(comp.stationFor, engagement.target) &&
+                comp.stationBearing != null
+            ? comp.stationBearing!
+            : atan2(
+                (comp.position - engagement.position).dy,
+                (comp.position - engagement.position).dx,
+              );
+        sx += cos(b);
+        sy += sin(b);
       }
+      final groupBearing = atan2(sy, sx);
       Offset station(int slot, int rank) {
         final comp = activeCompanions[slot]!;
         final body = _companionBodyRadius(comp);
@@ -146,6 +165,7 @@ extension CosmicGameCompanionMotion on CosmicGame {
           rank: rank,
           count: group.length,
           groupBody: groupBody,
+          groupBearing: groupBearing,
         );
         // Whatever is still on the ship's hull (a bigger body than the
         // group's gap allowed for, the weave) slides round the arc off it,
@@ -166,9 +186,10 @@ extension CosmicGameCompanionMotion on CosmicGame {
       final ranks = _assignPlaces(group, station);
       for (var i = 0; i < group.length; i++) {
         final slot = group[i];
+        final comp = activeCompanions[slot]!;
         _companionGoals[slot] = _keepGoalOffShip(
-          station(slot, ranks[i]),
-          _companionBodyRadius(activeCompanions[slot]!),
+          _swingLimited(comp, engagement, station(slot, ranks[i]), dt),
+          _companionBodyRadius(comp),
         );
       }
     }
@@ -398,14 +419,23 @@ extension CosmicGameCompanionMotion on CosmicGame {
       }
     }
 
+    // Committed for a moment after picking a target, so a crowd at similar
+    // range does not have it switching, and racing to a new spot, more than
+    // once a second. It lets go at once if the target dies or leaves reach.
+    final current = comp.combatTarget;
+    if (comp.targetCommitTimer > 0) {
+      final held = _engagementWith(current, comp, range * 1.15);
+      if (held != null) return held;
+    }
+
     // Nearest by distance to its surface. The current target keeps a head
     // start, so two enemies at similar range do not trade places each frame.
     const stickiness = 90.0;
-    final current = comp.combatTarget;
     Object? best;
     var bestScore = double.infinity;
     for (final e in enemies) {
-      if (e.dead) continue;
+      // The wild Alchemon's body is the Alchemon itself, chosen above.
+      if (e.dead || _isCombatBody(e)) continue;
       if (!_companionTetherAllowsTarget(e.position, radius: e.radius)) {
         continue;
       }
@@ -428,23 +458,98 @@ extension CosmicGameCompanionMotion on CosmicGame {
       }
     }
 
-    if (best is CosmicBoss) {
-      return _CompanionEngagement(
-        target: best,
-        position: best.position,
-        hitRadius: best.radius,
-        bodyRadius: best.radius,
-      );
+    return _engagementWith(best, comp, double.infinity);
+  }
+
+  /// Seconds a companion stays on a target it has just picked.
+  static const double _targetCommitSeconds = 2.5;
+
+  /// The engagement with [target], an enemy or the boss, if it is alive, the
+  /// tether allows it and its surface is within [reach]; otherwise null.
+  _CompanionEngagement? _engagementWith(
+    Object? target,
+    CosmicCompanion comp,
+    double reach,
+  ) {
+    final Object held;
+    final Offset position;
+    final double radius;
+    if (target is CosmicBoss && identical(target, activeBoss) && !target.dead) {
+      held = target;
+      position = target.position;
+      radius = target.radius;
+    } else if (target is CosmicEnemy && !target.dead) {
+      held = target;
+      position = target.position;
+      radius = target.radius;
+    } else {
+      return null;
     }
-    if (best is CosmicEnemy) {
-      return _CompanionEngagement(
-        target: best,
-        position: best.position,
-        hitRadius: best.radius,
-        bodyRadius: best.radius,
-      );
+    if (!_companionTetherAllowsTarget(position, radius: radius)) return null;
+    if ((position - comp.position).distance - radius > reach) return null;
+    return _CompanionEngagement(
+      target: held,
+      position: position,
+      hitRadius: radius,
+      bodyRadius: radius,
+    );
+  }
+
+  /// How fast a fight station may swing round its target, along its arc.
+  static const double _stationSwingSpeed = 110.0;
+
+  /// [goal] with its bearing round the target turned toward where the fan
+  /// wants it at no more than [_stationSwingSpeed], round a smoothed
+  /// centre. The station still follows the target; it just cannot whip
+  /// round it, or jitter with it, when the target darts about the ship. On
+  /// a new target it starts from where the companion already stands.
+  Offset _swingLimited(
+    CosmicCompanion comp,
+    _CompanionEngagement e,
+    Offset goal,
+    double dt,
+  ) {
+    final rel = goal - e.position;
+    final r = rel.distance;
+    if (r < 1) return goal;
+    final want = atan2(rel.dy, rel.dx);
+    final fresh = !identical(comp.stationFor, e.target);
+    // Fight from where the target has been over the last quarter second,
+    // not from every dart it makes.
+    var center = comp.stationCenter;
+    center = center == null || fresh
+        ? e.position
+        : Offset.lerp(center, e.position, 1 - exp(-4.0 * dt))!;
+    comp.stationCenter = center;
+    var bearing = comp.stationBearing;
+    if (bearing == null || fresh) {
+      final from = comp.position - e.position;
+      bearing = from.distance > 1 ? atan2(from.dy, from.dx) : want;
     }
-    return null;
+    var diff = want - bearing;
+    while (diff > pi) {
+      diff -= 2 * pi;
+    }
+    while (diff < -pi) {
+      diff += 2 * pi;
+    }
+    // Crowding a partner (a group arriving on one bearing and fanning out),
+    // it may swing out faster; the cap is for a darting target, not that.
+    var swing = _stationSwingSpeed;
+    final body = _companionBodyRadius(comp);
+    for (final other in activeCompanions.values) {
+      if (identical(other, comp) || !other.isAlive) continue;
+      final near = body + _companionBodyRadius(other) + 14;
+      if ((other.position - comp.position).distance < near) {
+        swing = _stationSwingSpeed * 2.5;
+        break;
+      }
+    }
+    final maxStep = min(1.2, swing / r) * dt;
+    bearing += diff.clamp(-maxStep, maxStep);
+    comp.stationBearing = bearing;
+    comp.stationFor = e.target;
+    return center + Offset(cos(bearing), sin(bearing)) * r;
   }
 
   /// Where a newly summoned companion's tear opens: its own place in the
@@ -495,6 +600,7 @@ extension CosmicGameCompanionMotion on CosmicGame {
     required int rank,
     required int count,
     required double groupBody,
+    required double groupBearing,
   }) {
     final family = comp.member.family.toLowerCase();
     // Hold distance is measured from the target's surface, so the reach an
@@ -518,8 +624,42 @@ extension CosmicGameCompanionMotion on CosmicGame {
     final home = companionTethered ? ship.pos : comp.anchorPosition;
     var toHome = home - e.position;
     if (toHome.distance < 1) toHome = comp.position - e.position;
-    final baseAngle = atan2(toHome.dy, toHome.dx);
+
     final step = ((2 * groupBody + 34) / max(standoff, 1.0)).clamp(0.38, 1.25);
+
+    // A target with the ship inside this companion's reach of it (a swarm
+    // on the hull, a boss parked on it) has no "ship's side" worth taking:
+    // every station would land on the ship and get slid round the target,
+    // and the party would circle round and round. The group fans out round
+    // the side it already stands on and only closes or opens the range.
+    if (toHome.distance < standoff) {
+      var center = groupBearing;
+      // Tethered, only part of that circle is in the tether's reach of the
+      // ship. Keep the whole fan inside that part, or the tether drags the
+      // far places back into one another.
+      if (companionTethered) {
+        final shipSide = atan2(toHome.dy, toHome.dx);
+        const limit = CosmicGame._companionTetherHardRadius - 12;
+        final d = toHome.distance;
+        final c =
+            (standoff * standoff + d * d - limit * limit) / (2 * standoff * d);
+        final reachable = c <= -1 ? pi : (c >= 1 ? 0.0 : acos(c));
+        final halfFan = (count - 1) / 2 * step;
+        final room = max(0.0, reachable - halfFan);
+        var off = center - shipSide;
+        while (off > pi) {
+          off -= 2 * pi;
+        }
+        while (off < -pi) {
+          off += 2 * pi;
+        }
+        center = shipSide + off.clamp(-room, room);
+      }
+      final a = center + (rank - (count - 1) / 2) * step;
+      return e.position + Offset(cos(a), sin(a)) * standoff;
+    }
+
+    final baseAngle = atan2(toHome.dy, toHome.dx);
     // When the arc runs through the ship (a ranged companion whose range is
     // about the target's distance from the ship), the ship takes the middle
     // of the fan and the places go out on alternate sides of it: the same
@@ -540,7 +680,7 @@ extension CosmicGameCompanionMotion on CosmicGame {
     // target together and never cross. Round the ship's gap the swing stays
     // inside it, so a place never swings across the ship. Breathing only
     // ever draws them in, so it cannot carry them out of reach.
-    final beat = _elapsed * 0.8 + (identityHashCode(e.target) % 628) / 100.0;
+    final beat = _elapsed * 0.55 + (identityHashCode(e.target) % 628) / 100.0;
     final weaveReach = shipGap > 0
         ? min(_companionWeave(family), shipGap * 0.8)
         : _companionWeave(family);
@@ -649,7 +789,7 @@ extension CosmicGameCompanionMotion on CosmicGame {
         (engagement == null
             ? max(chase * 1.3, 190.0)
             : max(chase * 1.6, 210.0)) +
-        max(0.0, dist - 140.0) * 1.6;
+        max(0.0, dist - 140.0) * (engagement == null ? 1.6 : 1.0);
 
     var desired = goalVel;
     if (dist > 0.5) desired += toGoal / dist * min(cruise, dist * 2.8);
@@ -658,14 +798,23 @@ extension CosmicGameCompanionMotion on CosmicGame {
       body,
       heading: dist > 20 ? toGoal / dist : null,
     );
-    desired += _companionDodge(comp, body, family);
+    // In a fight it moves at a fighting pace, not a darting enemy's: only
+    // when well off its station does it hurry. Dodging is on top.
+    if (engagement != null) {
+      final fightPace = max(chase * 1.8, 260.0) + max(0.0, dist - 220.0);
+      final pace = desired.distance;
+      if (pace > fightPace) desired = desired / pace * fightPace;
+    }
+    final dodge = _companionDodge(comp, body, family);
+    desired += dodge;
 
     comp.velocity +=
         (desired - comp.velocity) * min(1.0, _agility(family) * dt);
-    final cap = goalVel.distance + cruise + 360.0;
+    final cap = goalVel.distance + cruise + dodge.distance + 360.0;
     final speed = comp.velocity.distance;
     if (speed > cap) comp.velocity = comp.velocity / speed * cap;
-    comp.position += comp.velocity * dt;
+    // A wild Alchemon's slow or root holds it (cosmic_game_duel.dart).
+    comp.position += comp.velocity * dt * comp.ccMoveFactor;
   }
 
   /// A waypoint round a circular obstacle at [center] when the straight line
@@ -921,6 +1070,12 @@ extension CosmicGameCompanionMotion on CosmicGame {
   /// is clearly closer or it falls. Null when none is out (it fights the
   /// ship).
   CosmicCompanion? _pickWildDuelTarget(CosmicCompanion opp) {
+    // A Kin Dark veil hides the party's companions: the wild one goes for
+    // the ship while it holds, as survival's bodies do (cosmic_game_kin.dart).
+    if (_openKinDarkCloakActive) {
+      _wildDuelTargetCompanion = null;
+      return null;
+    }
     CosmicCompanion? best;
     var bestScore = double.infinity;
     for (final comp in _livingActiveCompanions) {

@@ -79,6 +79,7 @@ flutter:
     - assets/audio/sounds/cosmic/
 
   shaders:
+  - assets/shaders/alchemy_fluid.frag
   - assets/shaders/fire.frag
   - assets/shaders/dungeon/built/air.frag
   - assets/shaders/dungeon/built/fire.frag

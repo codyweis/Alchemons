@@ -15,6 +15,7 @@ import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
+import 'package:alchemons/screens/alchemy_chamber_screen.dart';
 import 'package:alchemons/screens/debug/dungeon_debug_screen.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/widgets/campaign_rewards_button.dart';
@@ -1372,6 +1373,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 24),
                   const _EtchedDivider(label: 'GENERAL SETTINGS'),
                   const SizedBox(height: 14),
+
+                  _ForgePanel(
+                    accentBar: t.amber,
+                    padding: EdgeInsets.zero,
+                    child: ListTile(
+                      leading: Icon(AppIcons.science_rounded, color: t.amber),
+                      title: Text('ALCHEMY CHAMBER', style: _label(t)),
+                      subtitle: Text(
+                        'An interactive experiment in elemental matter',
+                        style: _body(t),
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right_rounded,
+                        color: t.amber,
+                      ),
+                      onTap: context.soundAction(() {
+                        Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => const AlchemyChamberScreen(),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
 
                   // ── Appearance ────────────────────────────────────────────
                   _ForgePanel(
