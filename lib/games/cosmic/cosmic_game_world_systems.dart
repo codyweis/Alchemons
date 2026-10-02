@@ -3100,7 +3100,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       Color(0xFFFF5722), // Fire
       Color(0xFF448AFF), // Water
       Color(0xFF81D4FA), // Air
-      Color(0xFF795548), // Earth
+      Color(0xFFB08968), // Earth
     ];
     for (var i = 0; i < 4; i++) {
       final a = riftPulse * 0.6 + i * pi / 2;
@@ -3183,7 +3183,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     const portalColors = [
       Color(0xFFFF5722), // Fire
       Color(0xFF448AFF), // Water
-      Color(0xFF795548), // Earth
+      Color(0xFFB08968), // Earth
       Color(0xFF81D4FA), // Air
     ];
     for (var i = 0; i < 4; i++) {
@@ -3193,23 +3193,13 @@ extension CosmicGameWorldSystems on CosmicGame {
       );
       final col = portalColors[i];
 
-      // Outer glow
+      // The wash the rift sits in (the rift itself is drawn per frame).
       paintSoftCircle(
         c,
         pp,
-        80 * scale,
+        ElementalNexus.pocketPortalRadius * 1.25 * scale,
         col.withValues(alpha: 0.2 * pulse),
-        25 * scale,
-      );
-
-      // Rim ring with blur
-      paintSoftRing(
-        c,
-        pp,
-        50 * pulse * scale,
-        col.withValues(alpha: 0.4 * pulse),
-        2.5 * scale,
-        3 * scale,
+        40 * scale,
       );
     }
 
@@ -3781,45 +3771,48 @@ extension CosmicGameWorldSystems on CosmicGame {
     canvas.restore();
 
     // ── Per-frame elements (cheap: no blur) ──
-    final pulse = 0.85 + 0.15 * sin(_riftPulse * 2.0);
-
-    // 4 elemental portals — dark cores, orbiting sparks, labels
+    // 4 elemental portals — the same grain rift the world's rifts and the
+    // First Crossing use, drawn big. Each steps on the pocket's own clock.
     final portals = ElementalNexus.pocketPortalPositions(center);
     const portalColors = [
       Color(0xFFFF5722), // Fire
       Color(0xFF448AFF), // Water
-      Color(0xFF795548), // Earth
+      Color(0xFFB08968), // Earth
       Color(0xFF81D4FA), // Air
     ];
     const portalLabels = ['FIRE', 'WATER', 'EARTH', 'AIR'];
+    const portalR = ElementalNexus.pocketPortalRadius;
 
     for (var i = 0; i < 4; i++) {
       final pp = portals[i];
       final col = portalColors[i];
+      final key = 'pocket_${ElementalNexus.pocketElements[i]}';
 
-      // Dark core (gradient, no blur)
-      canvas.drawCircle(
-        pp,
-        45 * pulse,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            pp,
-            45 * pulse,
-            [const Color(0xFF000000), col.withValues(alpha: 0.15)],
-            [0.0, 1.0],
-          ),
+      final field = _riftFields.putIfAbsent(
+        key,
+        () => RiftVortexField(
+          grains: 900,
+          ringGrains: 160,
+          motes: 40,
+          core: 0.27,
+          grainSize: 2.8,
+        )..open = 1,
       );
-
-      // Orbiting sparks (tiny dots, no blur)
-      for (var j = 0; j < 5; j++) {
-        final a = _riftPulse * 1.2 + j * pi * 2 / 5 + i * pi / 4;
-        final sr = 55.0;
-        canvas.drawCircle(
-          Offset(pp.dx + cos(a) * sr, pp.dy + sin(a) * sr),
-          3 * pulse,
-          Paint()..color = col.withValues(alpha: 0.5 * pulse),
-        );
-      }
+      final last = _riftFieldTimes[key] ?? _riftPulse;
+      _riftFieldTimes[key] = _riftPulse;
+      field.step((_riftPulse - last).clamp(0.0, 0.05));
+      // The one the ship is at draws in, as the key does on the wild rifts.
+      field.charge = nearPocketPortalElement == ElementalNexus.pocketElements[i]
+          ? 0.35
+          : 0;
+      field.paint(
+        canvas,
+        Size.zero,
+        pp,
+        portalR,
+        _riftPalettes.putIfAbsent(key, () => RiftPalette(col)),
+        backdrop: false,
+      );
 
       // Label
       final tp = TextPainter(
@@ -3827,14 +3820,14 @@ extension CosmicGameWorldSystems on CosmicGame {
           text: portalLabels[i],
           style: TextStyle(
             color: col.withValues(alpha: 0.85),
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w900,
-            letterSpacing: 2,
+            letterSpacing: 2.4,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      tp.paint(canvas, Offset(pp.dx - tp.width / 2, pp.dy + 60));
+      tp.paint(canvas, Offset(pp.dx - tp.width / 2, pp.dy + portalR + 8));
     }
 
     // Center marker dot (no blur)

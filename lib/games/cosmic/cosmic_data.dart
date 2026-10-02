@@ -765,7 +765,10 @@ class ElementalNexus {
   // Pocket dimension layout
   static const double pocketRadius = 1200.0;
   static const double portalOrbitR = 250.0;
-  static const double portalInteractR = 120.0;
+  static const double portalInteractR = 150.0;
+
+  /// How big each pocket portal's rift is drawn (outer edge of its disk).
+  static const double pocketPortalRadius = 165.0;
 
   static const List<String> pocketElements = ['Fire', 'Water', 'Earth', 'Air'];
 
