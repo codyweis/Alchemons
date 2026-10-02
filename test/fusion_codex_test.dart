@@ -85,8 +85,6 @@ void main() {
         containsAll(<String>['Let', 'Pip', 'Horn', 'Mask']),
       );
       expect(data.knownFamilies, isNot(contains('Wing')));
-      expect(data.ownedByElement, {'Fire': 1, 'Ice': 1});
-      expect(data.ownedByFamily, {'Let': 1, 'Horn': 1});
       // A family's face is one the player found, when there is one.
       expect(data.familyFaces['Pip']!.id, 'PIP02');
       expect(data.familyFaces['Wing'], isNotNull);

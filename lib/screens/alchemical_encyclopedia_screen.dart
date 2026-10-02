@@ -32,6 +32,8 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/fx/codex_stage.dart';
 import 'package:alchemons/widgets/fx/element_orb.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
+import 'package:alchemons/widgets/fx/glyph_clock.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -90,6 +92,9 @@ class _AlchemicalEncyclopediaScreenState
 
   /// What the showcase found, marked NEW on the tables.
   final Set<String> _fresh = {};
+
+  /// A sheet covers the tables: they hold still under it.
+  bool _sheetOpen = false;
 
   @override
   void initState() {
@@ -156,22 +161,27 @@ class _AlchemicalEncyclopediaScreenState
     required EncyclopediaRecipeKind kind,
     required String name,
     EncyclopediaRecipeEntry? showcase,
-  }) {
+  }) async {
     HapticFeedback.selectionClick();
-    return showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.55),
-      constraints: const BoxConstraints(maxWidth: 640),
-      builder: (_) => _CodexSheet(
-        data: data,
-        kind: kind,
-        name: name,
-        showcase: showcase,
-        fresh: _fresh,
-      ),
-    );
+    setState(() => _sheetOpen = true);
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withValues(alpha: 0.55),
+        constraints: const BoxConstraints(maxWidth: 640),
+        builder: (_) => _CodexSheet(
+          data: data,
+          kind: kind,
+          name: name,
+          showcase: showcase,
+          fresh: _fresh,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sheetOpen = false);
+    }
   }
 
   @override
@@ -239,6 +249,7 @@ class _AlchemicalEncyclopediaScreenState
                           data: data,
                           palette: palette,
                           fresh: _fresh,
+                          live: _tab == 0 && !_sheetOpen,
                           onOpen: (e) => _openSheet(
                             data,
                             kind: EncyclopediaRecipeKind.element,
@@ -249,6 +260,7 @@ class _AlchemicalEncyclopediaScreenState
                           data: data,
                           palette: palette,
                           fresh: _fresh,
+                          live: _tab == 1 && !_sheetOpen,
                           onOpen: (f) => _openSheet(
                             data,
                             kind: EncyclopediaRecipeKind.family,
@@ -441,12 +453,16 @@ class _ElementTable extends StatelessWidget {
     required this.data,
     required this.palette,
     required this.fresh,
+    required this.live,
     required this.onOpen,
   });
 
   final AlchemicalEncyclopediaSnapshot data;
   final BracketPalette palette;
   final Set<String> fresh;
+
+  /// Whether its cells move: only the table in view, with nothing over it.
+  final bool live;
   final ValueChanged<String> onOpen;
 
   @override
@@ -492,7 +508,7 @@ class _ElementTable extends StatelessWidget {
             cell: (name) => _ElementCell(
               name: name,
               known: known.contains(name),
-              kept: data.ownedByElement[name] ?? 0,
+              live: live,
               fresh: fresh.contains(name),
               onTap: () => onOpen(name),
             ),
@@ -602,15 +618,13 @@ class _ElementCell extends StatelessWidget {
   const _ElementCell({
     required this.name,
     required this.known,
-    required this.kept,
+    required this.live,
     required this.fresh,
     required this.onTap,
   });
 
   final String name;
-  final bool known;
-  final int kept;
-  final bool fresh;
+  final bool known, live, fresh;
   final VoidCallback onTap;
 
   @override
@@ -626,40 +640,23 @@ class _ElementCell extends StatelessWidget {
       onTap: context.soundAction(onTap),
       child: _GlassCase(
         frame: frame,
-        padding: const EdgeInsets.fromLTRB(4, 6, 4, 7),
+        padding: const EdgeInsets.fromLTRB(4, 7, 4, 8),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             Column(
               children: [
                 SizedBox(
-                  height: 50,
-                  child: _StillOrb(name: name, locked: !known, radius: 19),
-                ),
-                const SizedBox(height: 3),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    name.toUpperCase(),
-                    maxLines: 1,
-                    style: _mono(
-                      10.5,
-                      known ? _kGlassInk : _kGlassMuted.withValues(alpha: 0.7),
-                      weight: FontWeight.w800,
-                      spacing: 0.8,
-                    ),
+                  height: 52,
+                  child: _Orb(
+                    name: name,
+                    locked: !known,
+                    radius: 19,
+                    live: live,
                   ),
                 ),
-                const SizedBox(height: 1),
-                Text(
-                  known ? (kept > 0 ? '×$kept' : 'KNOWN') : '—',
-                  style: _mono(
-                    9,
-                    known ? tint.withValues(alpha: 0.85) : _kGlassMuted,
-                    weight: FontWeight.w700,
-                    spacing: 0.6,
-                  ),
-                ),
+                const SizedBox(height: 4),
+                _CellName(name: name, known: known),
               ],
             ),
             if (fresh) const Positioned(top: -2, right: 0, child: _NewPip()),
@@ -668,6 +665,28 @@ class _ElementCell extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CellName extends StatelessWidget {
+  const _CellName({required this.name, required this.known});
+
+  final String name;
+  final bool known;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Text(
+      name.toUpperCase(),
+      maxLines: 1,
+      style: _mono(
+        10.5,
+        known ? _kGlassInk : _kGlassMuted.withValues(alpha: 0.7),
+        weight: FontWeight.w800,
+        spacing: 0.8,
+      ),
+    ),
+  );
 }
 
 class _NewPip extends StatelessWidget {
@@ -684,24 +703,45 @@ class _NewPip extends StatelessWidget {
   );
 }
 
-/// An element's orb, standing still: painted once.
-class _StillOrb extends StatefulWidget {
-  const _StillOrb({
+/// Paints [draw] at the shared glyph clock's time, or at one still moment
+/// when there is no clock.
+class _ClockPainter extends CustomPainter {
+  _ClockPainter(this.draw, this.clock) : super(repaint: clock);
+
+  final void Function(Canvas canvas, Offset centre, double t) draw;
+  final ValueListenable<double>? clock;
+
+  @override
+  void paint(Canvas canvas, Size size) =>
+      draw(canvas, size.center(Offset.zero), clock?.value ?? 1.3);
+
+  @override
+  bool shouldRepaint(_ClockPainter old) =>
+      old.clock != clock || old.draw != draw;
+}
+
+/// An element's orb: turning while [live] (a table's cell), still otherwise
+/// (a formula's token). Every live one runs off the one glyph clock.
+class _Orb extends StatefulWidget {
+  const _Orb({
     required this.name,
     required this.locked,
     required this.radius,
+    this.live = false,
   });
 
   final String name;
   final bool locked;
   final double radius;
+  final bool live;
 
   @override
-  State<_StillOrb> createState() => _StillOrbState();
+  State<_Orb> createState() => _OrbState();
 }
 
-class _StillOrbState extends State<_StillOrb> {
+class _OrbState extends State<_Orb> with GlyphClockLease<_Orb> {
   late ElementOrb _orb = _make();
+  bool _ticking = true;
 
   ElementOrb _make() => ElementOrb(
     EssenceElement.of(widget.name),
@@ -710,20 +750,125 @@ class _StillOrbState extends State<_StillOrb> {
   );
 
   @override
-  void didUpdateWidget(_StillOrb old) {
+  bool get wantsClock => widget.live && _ticking && !widget.locked;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Under another page, nobody is looking.
+    _ticking = TickerMode.valuesOf(context).enabled;
+    syncGlyphClock();
+  }
+
+  @override
+  void didUpdateWidget(_Orb old) {
     super.didUpdateWidget(old);
     if (old.name != widget.name ||
         old.locked != widget.locked ||
         old.radius != widget.radius) {
       _orb = _make();
     }
+    syncGlyphClock();
   }
+
+  @override
+  void dispose() {
+    releaseGlyphClock();
+    super.dispose();
+  }
+
+  void _draw(Canvas canvas, Offset c, double t) => _orb.paint(canvas, c, t);
 
   @override
   Widget build(BuildContext context) => RepaintBoundary(
     child: CustomPaint(
-      painter: ElementOrbPainter(_orb),
+      painter: _ClockPainter(_draw, glyphClock),
       size: Size.square(widget.radius * 2.6),
+    ),
+  );
+}
+
+/// A species' face in a cell: the creature in grains, drifting while
+/// [live]; a still grey shadow of grains while it is not yet known.
+class _Face extends StatefulWidget {
+  const _Face({
+    required this.family,
+    required this.face,
+    required this.known,
+    required this.live,
+  });
+
+  final String family;
+  final Creature face;
+  final bool known, live;
+
+  @override
+  State<_Face> createState() => _FaceState();
+}
+
+class _FaceState extends State<_Face> with GlyphClockLease<_Face> {
+  PortraitBody? _body;
+  bool _ticking = true;
+
+  /// The cell's face, read coarsely: eight of them drift at once.
+  static const double _height = 54;
+  static const int _grains = 850;
+
+  @override
+  bool get wantsClock =>
+      widget.live && widget.known && _ticking && _body != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final f = widget.face;
+    final body = await PortraitBody.load(
+      _faceAsset(f),
+      height: _height,
+      element: f.types.isEmpty ? 'Spirit' : f.types.first,
+      color: _familyTint(widget.family),
+      locked: !widget.known,
+      maxGrains: _grains,
+    );
+    if (!mounted) return;
+    setState(() => _body = body);
+    syncGlyphClock();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ticking = TickerMode.valuesOf(context).enabled;
+    syncGlyphClock();
+  }
+
+  @override
+  void didUpdateWidget(_Face old) {
+    super.didUpdateWidget(old);
+    if (old.face.id != widget.face.id || old.known != widget.known) {
+      _body = null;
+      _load();
+    }
+    syncGlyphClock();
+  }
+
+  @override
+  void dispose() {
+    releaseGlyphClock();
+    super.dispose();
+  }
+
+  void _draw(Canvas canvas, Offset c, double t) => _body?.paint(canvas, c, t);
+
+  @override
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: CustomPaint(
+      painter: _ClockPainter(_draw, glyphClock),
+      size: const Size(64, _height),
     ),
   );
 }
@@ -735,12 +880,16 @@ class _SpeciesTable extends StatelessWidget {
     required this.data,
     required this.palette,
     required this.fresh,
+    required this.live,
     required this.onOpen,
   });
 
   final AlchemicalEncyclopediaSnapshot data;
   final BracketPalette palette;
   final Set<String> fresh;
+
+  /// Whether its cells move: only the table in view, with nothing over it.
+  final bool live;
   final ValueChanged<String> onOpen;
 
   @override
@@ -786,7 +935,7 @@ class _SpeciesTable extends StatelessWidget {
                           family: families[i],
                           face: data.familyFaces[families[i]],
                           known: known.contains(families[i]),
-                          kept: data.ownedByFamily[families[i]] ?? 0,
+                          live: live,
                           fresh: fresh.contains(families[i]),
                           onTap: () => onOpen(families[i]),
                         )
@@ -818,16 +967,14 @@ class _SpeciesCell extends StatelessWidget {
     required this.family,
     required this.face,
     required this.known,
-    required this.kept,
+    required this.live,
     required this.fresh,
     required this.onTap,
   });
 
   final String family;
   final Creature? face;
-  final bool known;
-  final int kept;
-  final bool fresh;
+  final bool known, live, fresh;
   final VoidCallback onTap;
 
   @override
@@ -844,7 +991,7 @@ class _SpeciesCell extends StatelessWidget {
       onTap: context.soundAction(onTap),
       child: _GlassCase(
         frame: frame,
-        padding: const EdgeInsets.fromLTRB(4, 6, 4, 7),
+        padding: const EdgeInsets.fromLTRB(4, 7, 4, 8),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -854,35 +1001,15 @@ class _SpeciesCell extends StatelessWidget {
                   height: 54,
                   child: f == null
                       ? null
-                      : Image.asset(
-                          _faceAsset(f),
-                          fit: BoxFit.contain,
-                          filterQuality: FilterQuality.medium,
-                          color: known ? null : const Color(0xFF2E3440),
-                          colorBlendMode: known ? null : BlendMode.srcIn,
-                          errorBuilder: (_, __, ___) => const SizedBox(),
+                      : _Face(
+                          family: family,
+                          face: f,
+                          known: known,
+                          live: live,
                         ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  family.toUpperCase(),
-                  style: _mono(
-                    10.5,
-                    known ? _kGlassInk : _kGlassMuted.withValues(alpha: 0.7),
-                    weight: FontWeight.w800,
-                    spacing: 0.8,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  known ? (kept > 0 ? '×$kept' : 'KNOWN') : '—',
-                  style: _mono(
-                    9,
-                    known ? tint.withValues(alpha: 0.9) : _kGlassMuted,
-                    weight: FontWeight.w700,
-                    spacing: 0.6,
-                  ),
-                ),
+                const SizedBox(height: 4),
+                _CellName(name: family, known: known),
               ],
             ),
             if (fresh) const Positioned(top: -2, right: 0, child: _NewPip()),
@@ -1079,7 +1206,6 @@ class _CodexSheetState extends State<_CodexSheet> {
                         child: _StageCaption(
                           play: _shown,
                           busy: _stage.busy,
-                          known: known,
                           subject: name,
                           isElement: _isElement,
                           onOpen: _openHere,
@@ -1144,8 +1270,6 @@ class _CodexSheetState extends State<_CodexSheet> {
   }
 
   String _subtitle(String name, bool known) {
-    final kept =
-        (_isElement ? _data.ownedByElement : _data.ownedByFamily)[name] ?? 0;
     final where = _isElement
         ? ElementalGroup.values
               .firstWhere(
@@ -1155,8 +1279,7 @@ class _CodexSheetState extends State<_CodexSheet> {
               .displayName
               .toUpperCase()
         : 'SPECIES';
-    if (!known) return '$where · NOT YET FOUND';
-    return kept > 0 ? '$where · $kept KEPT' : '$where · KNOWN';
+    return known ? where : '$where · NOT YET FOUND';
   }
 
   Widget _rowFor(
@@ -1255,27 +1378,21 @@ class _StageCaption extends StatelessWidget {
   const _StageCaption({
     required this.play,
     required this.busy,
-    required this.known,
     required this.subject,
     required this.isElement,
     required this.onOpen,
   });
 
   final _Play? play;
-  final bool busy, known, isElement;
+  final bool busy, isElement;
   final String subject;
   final ValueChanged<String> onOpen;
 
   @override
   Widget build(BuildContext context) {
     final p = play;
-    if (p == null) {
-      return Text(
-        known ? (busy ? '' : 'TAP TO SEE IT COME APART') : 'NOT YET FOUND',
-        textAlign: TextAlign.center,
-        style: _mono(9.5, _kGlassMuted, spacing: 1.6),
-      );
-    }
+    // Nothing to say until a formula has played.
+    if (p == null) return const SizedBox.shrink();
     final word = _mono(10.5, _kGlassInk, weight: FontWeight.w800);
     const mark = TextStyle(color: _kGilt, fontSize: 13);
     final away = !busy && p.result != subject;
@@ -1564,7 +1681,7 @@ class _Token extends StatelessWidget {
           SizedBox(
             width: 22,
             height: 22,
-            child: _StillOrb(name: n, locked: false, radius: 8),
+            child: _Orb(name: n, locked: false, radius: 8),
           )
         else
           Container(width: 6, height: 6, color: tint),

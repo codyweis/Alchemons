@@ -11,8 +11,7 @@
 //   and what they make gathers out of the bloom ([EssenceField.reveal]).
 //
 // Plain Dart bodies and fields on one ticker, which only runs while
-// something moves: an orb turning, a play. A species at rest is a still
-// picture and costs nothing.
+// something moves: an orb turning, a species' grains drifting, a play.
 
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -113,18 +112,24 @@ class OrbBody implements CodexBody {
   }
 }
 
-/// A species, as its portrait — and the grains it was read into.
+/// A species, as its creature read into grains — alive at rest, each grain
+/// on a small loop of its own and a glint now and then; a still grey shadow
+/// of grains while it is not yet known.
 class PortraitBody implements CodexBody {
-  PortraitBody._(
-    this._image,
-    this._grains,
-    this.element,
-    this.color,
-    this.locked,
-  );
+  PortraitBody._(this._grains, this.element, this.color, this.locked) {
+    final n = _grains.length;
+    _loop = Uint8List(n);
+    _ph = Float32List(n);
+    final rng = math.Random(31);
+    for (var i = 0; i < n; i++) {
+      _loop[i] = rng.nextInt(_loops);
+      _ph[i] = rng.nextDouble();
+    }
+  }
 
-  final ui.Image _image;
   final SpecimenGrains _grains;
+  late final Uint8List _loop;
+  late final Float32List _ph;
 
   @override
   final String element;
@@ -136,22 +141,30 @@ class PortraitBody implements CodexBody {
   final bool locked;
 
   @override
-  bool get turns => false;
+  bool get turns => !locked;
 
   static const double _ratio = 2;
   static final Map<String, Future<PortraitBody?>> _cache = {};
 
-  /// Reads the portrait at [asset] at [height] logical px tall. Null if it
-  /// would not load.
+  /// Reads the portrait at [asset] at [height] logical px tall into at most
+  /// [maxGrains] grains. Null if it would not load.
   static Future<PortraitBody?> load(
     String asset, {
     required double height,
     required String element,
     required Color color,
     bool locked = false,
+    int maxGrains = 2200,
   }) {
-    final key = '$asset|${height.round()}|$element|$locked';
-    return _cache[key] ??= _read(asset, height, element, color, locked);
+    final key = '$asset|${height.round()}|$element|$locked|$maxGrains';
+    return _cache[key] ??= _read(
+      asset,
+      height,
+      element,
+      color,
+      locked,
+      maxGrains,
+    );
   }
 
   static Future<PortraitBody?> _read(
@@ -160,6 +173,7 @@ class PortraitBody implements CodexBody {
     String element,
     Color color,
     bool locked,
+    int maxGrains,
   ) async {
     try {
       final data = await rootBundle.load(asset);
@@ -168,40 +182,36 @@ class PortraitBody implements CodexBody {
         targetHeight: (height * _ratio).round(),
       );
       final image = (await codec.getNextFrame()).image;
-      // A locked one is only ever a shadow: nothing to read.
-      var grains = SpecimenGrains.points(
-        Float32List(0),
-        Float32List(0),
-        Uint8List(0),
-        const [],
-        1,
-      );
-      if (!locked) {
+      try {
         final rgba = await image.toByteData(
           format: ui.ImageByteFormat.rawStraightRgba,
         );
-        if (rgba != null) {
-          grains = SpecimenGrains.fromRgba(
-            rgba.buffer.asUint8List(),
-            image.width,
-            image.height,
-            pixelRatio: _ratio,
-            maxGrains: 2200,
-            tones: 16,
-          );
-        }
+        if (rgba == null) return null;
+        final grains = SpecimenGrains.fromRgba(
+          rgba.buffer.asUint8List(),
+          image.width,
+          image.height,
+          pixelRatio: _ratio,
+          maxGrains: maxGrains,
+          tones: 16,
+        );
+        if (grains.length == 0) return null;
+        return PortraitBody._(grains, element, color, locked);
+      } finally {
+        image.dispose();
       }
-      return PortraitBody._(image, grains, element, color, locked);
     } catch (_) {
       return null;
     }
   }
 
-  static final Paint _p = Paint()..filterQuality = FilterQuality.medium;
-  static const ColorFilter _shadow = ColorFilter.mode(
-    Color(0xFF2E3440),
-    BlendMode.srcIn,
-  );
+  // The loops the grains ride, shared so each frame costs a dozen turns of
+  // a circle rather than one per grain.
+  static const int _loops = 12;
+  static final Float32List _ox = Float32List(_loops), _oy = Float32List(_loops);
+  static const int _glintB = 16, _shadowB = 17;
+  static final GrainBatch _batch = GrainBatch(_shadowB + 1);
+  static const Color _shadow = Color(0xFF3A404C);
 
   @override
   SpecimenGrains grainsAt(double t) => _grains;
@@ -216,20 +226,48 @@ class PortraitBody implements CodexBody {
     double fade = 1,
     double scale = 1,
   }) {
+    // Its grains are all there is of it: a field drawing them has it all.
+    if (!grains) return;
     final a = (opacity * fade).clamp(0.0, 1.0);
     if (a <= 0) return;
-    final w = _image.width / _ratio * scale;
-    final h = _image.height / _ratio * scale;
-    _p
-      ..color = Color.fromRGBO(0, 0, 0, a)
-      ..colorFilter = locked ? _shadow : null;
-    canvas.drawImageRect(
-      _image,
-      Rect.fromLTWH(0, 0, _image.width.toDouble(), _image.height.toDouble()),
-      Rect.fromCenter(center: c, width: w, height: h),
-      _p,
-    );
-    _p.colorFilter = null;
+    final g = _grains;
+    final b = _batch..clear();
+    if (locked) {
+      for (var i = 0; i < g.length; i++) {
+        b.add(_shadowB, c.dx + g.hx[i] * scale, c.dy + g.hy[i] * scale);
+      }
+      b.draw(
+        canvas,
+        _shadowB,
+        g.step * 1.22 * scale,
+        _shadow.withValues(alpha: 0.85 * a),
+      );
+      return;
+    }
+    final amp = g.step * 0.45;
+    for (var k = 0; k < _loops; k++) {
+      _ox[k] = math.cos(t * (1.7 + 0.23 * k) + k * 2.1) * amp;
+      _oy[k] = math.sin(t * (1.3 + 0.19 * k) + k * 1.3) * amp;
+    }
+    // A slow breath, so it is plainly alive.
+    final breathe = 1 + 0.012 * math.sin(t * 1.6);
+    final nt = math.min(16, g.tones.length);
+    for (var i = 0; i < g.length; i++) {
+      final k = _loop[i];
+      final x = c.dx + (g.hx[i] * breathe + _ox[k]) * scale;
+      final y = c.dy + (g.hy[i] * breathe + _oy[k]) * scale;
+      if ((t * 0.25 + _ph[i] * 7.3) % 1.0 < 0.006) {
+        b.add(_glintB, x, y);
+      } else {
+        b.add(math.min(g.tone[i], nt - 1), x, y);
+      }
+    }
+    final d = g.step * 1.22 * scale;
+    for (var k = 0; k < nt; k++) {
+      b.draw(canvas, k, d, g.tones[k].withValues(alpha: a));
+    }
+    b.draw(canvas, _glintB, d * 2.2, Color.fromRGBO(255, 251, 234, 0.2 * a));
+    b.draw(canvas, _glintB, d * 1.2, Color.fromRGBO(255, 251, 234, 0.9 * a));
   }
 }
 
@@ -552,13 +590,9 @@ class _CodexStageState extends State<CodexStage>
         _subject?.paint(canvas, c, _rest);
       case _Mode.essence:
         final f = _field!;
-        _subject?.paint(
-          canvas,
-          c,
-          _rest,
-          opacity: EssenceField.spriteOpacity(_t),
-          grains: false,
-        );
+        // The body under its grains, crossed over at both ends: it gives
+        // way as they come loose and is back as they go out.
+        _subject?.paint(canvas, c, _rest, fade: EssenceField.spriteOpacity(_t));
         f.paint(canvas, c, _t);
       case _Mode.combo:
         _paintCombo(canvas, c);
@@ -606,13 +640,7 @@ class _CodexStageState extends State<CodexStage>
     final reveal = _reveal;
     if (reveal != null) {
       final rt = _revealT;
-      _subject?.paint(
-        canvas,
-        c,
-        0,
-        opacity: EssenceField.spriteOpacity(rt),
-        grains: false,
-      );
+      _subject?.paint(canvas, c, 0, fade: EssenceField.spriteOpacity(rt));
       reveal.paint(canvas, c, rt);
     }
     if (mt < FusionParticleField.duration) {

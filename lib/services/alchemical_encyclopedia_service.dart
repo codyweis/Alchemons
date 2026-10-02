@@ -78,10 +78,6 @@ class AlchemicalEncyclopediaSnapshot {
   /// Species families the same way ('Let'…).
   final Set<String> knownFamilies;
 
-  /// Specimens kept now, by primary element and by family.
-  final Map<String, int> ownedByElement;
-  final Map<String, int> ownedByFamily;
-
   /// A creature to show each family by: the first the player has found, or
   /// the first in the catalog for a family not yet known.
   final Map<String, Creature> familyFaces;
@@ -96,8 +92,6 @@ class AlchemicalEncyclopediaSnapshot {
     required this.discoveredElementOutcomeKeys,
     this.knownElements = const {},
     this.knownFamilies = const {},
-    this.ownedByElement = const {},
-    this.ownedByFamily = const {},
     this.familyFaces = const {},
   });
 
@@ -209,8 +203,6 @@ class AlchemicalEncyclopediaService {
     // What the player has come across.
     final knownElements = <String>{};
     final knownFamilies = <String>{};
-    final ownedByElement = <String, int>{};
-    final ownedByFamily = <String, int>{};
     final familyFaces = <String, Creature>{};
     if (catalog != null && catalog.isLoaded) {
       final found = {
@@ -219,12 +211,7 @@ class AlchemicalEncyclopediaService {
       };
       for (final inst in instances) {
         final c = catalog.getCreatureById(inst.baseId);
-        if (c == null) continue;
-        found.add(c.id);
-        final el = _primaryElement(c.types);
-        if (el != null) ownedByElement[el] = (ownedByElement[el] ?? 0) + 1;
-        final fam = _familyFromCreature(c);
-        if (fam != null) ownedByFamily[fam] = (ownedByFamily[fam] ?? 0) + 1;
+        if (c != null) found.add(c.id);
       }
       for (final c in catalog.creatures) {
         final fam = _familyFromCreature(c);
@@ -278,8 +265,6 @@ class AlchemicalEncyclopediaService {
       discoveredElementOutcomeKeys: discoveredElementOutcomeKeys,
       knownElements: knownElements,
       knownFamilies: knownFamilies,
-      ownedByElement: ownedByElement,
-      ownedByFamily: ownedByFamily,
       familyFaces: familyFaces,
     );
   }

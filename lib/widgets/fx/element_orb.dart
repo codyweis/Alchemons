@@ -442,19 +442,3 @@ class ElementOrb {
     _paintRimAndShine(canvas, r, g * 0.55, smoke);
   }
 }
-
-/// An [ElementOrb] standing still, for a table of them: painted once.
-class ElementOrbPainter extends CustomPainter {
-  ElementOrbPainter(this.orb, {this.time = 1.3});
-
-  final ElementOrb orb;
-  final double time;
-
-  @override
-  void paint(Canvas canvas, Size size) =>
-      orb.paint(canvas, size.center(Offset.zero), time);
-
-  @override
-  bool shouldRepaint(ElementOrbPainter old) =>
-      old.orb != orb || old.time != time;
-}
