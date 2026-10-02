@@ -8,7 +8,15 @@ enum WeatherKind {
 
   /// The Swamp gone dry: the water drawn down to its last pools, the bog
   /// floor cracked and dusty.
-  dry;
+  dry,
+
+  /// A meteor shower over the Arcane: meteors streaming out of one point
+  /// of the void, and given back by the glass.
+  meteors,
+
+  /// The northern lights over the Arcane: curtains of light hung over the
+  /// dust band.
+  aurora;
 
   /// A state the land is in rather than weather passing over it: already
   /// there when the scene opens, never rolling in or clearing in front of
@@ -18,7 +26,8 @@ enum WeatherKind {
 
 /// Weather that sometimes comes with a scene's spawns and brings creatures
 /// of its own — the Sky's lightning storm, the Valley's rain and snow, the
-/// Swamp gone dry. When
+/// Swamp gone dry — or only shows itself (the Arcane's meteor shower and
+/// northern lights, whose [pool] is empty). When
 /// a batch spawns, a scene's weathers roll in turn, each with its own
 /// [chance] (at most one comes); a batch that comes with one has at least
 /// [guaranteed] of its creatures drawn from [pool] (each of the rest with
@@ -38,7 +47,8 @@ class WildWeather {
 
   final WeatherKind kind;
 
-  /// What the map calls it while it waits: `STORM`, `RAIN`, `SNOW`, `DRY`.
+  /// What the map calls it while it waits: `STORM`, `RAIN`, `SNOW`, `DRY`,
+  /// `METEORS`, `AURORA`.
   final String label;
 
   final double chance;

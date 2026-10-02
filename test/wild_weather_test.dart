@@ -1,6 +1,7 @@
 // Weather that comes with a scene's spawns: the Sky's lightning storm, the
-// Valley's rain and snow, the Swamp gone dry. A batch that comes with it
-// always holds that weather's creatures, standing where they can stand; the
+// Valley's rain and snow, the Swamp gone dry, the Arcane's meteor shower and
+// northern lights. A batch that comes with it always holds that weather's
+// creatures, standing where they can stand (the Arcane's bring none); the
 // weather lives and dies with its batch; and the first clear visit after
 // the Valley's rain is owed a rainbow.
 
@@ -8,10 +9,12 @@ import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
+import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
@@ -54,6 +57,15 @@ _Scene _swamp() {
   final pools = swampEncounterPools(swampScene);
   return (
     scene: swampScene,
+    sceneWide: pools.sceneWide,
+    perSpawn: pools.perSpawn,
+  );
+}
+
+_Scene _arcane() {
+  final pools = arcaneEncounterPools(arcaneScene);
+  return (
+    scene: arcaneScene,
     sceneWide: pools.sceneWide,
     perSpawn: pools.perSpawn,
   );
@@ -410,4 +422,85 @@ void main() {
     final spread = 7 * math.sqrt(mean * (1 - swampDry.chance));
     expect(times, inInclusiveRange(mean - spread, mean + spread));
   });
+
+  // ── The Arcane: a meteor shower, the northern lights ─────────────────────
+
+  test('the Arcane\'s weathers bring no creatures of their own', () {
+    expect(WildernessSpawnService.weathers['arcane'], [
+      arcaneMeteors,
+      arcaneAurora,
+    ]);
+    for (final w in [arcaneMeteors, arcaneAurora]) {
+      expect(w.pool.entries, isEmpty, reason: w.label);
+      expect(w.guaranteed, 0, reason: w.label);
+      expect(w.extra, 0, reason: w.label);
+      expect(w.aftermath, isFalse, reason: w.label);
+      expect(w.kind.settled, isFalse, reason: w.label);
+    }
+  });
+
+  test('about one Arcane batch in seven comes with a meteor shower and one '
+      'in five with the northern lights — never both — and its creatures '
+      'are the Arcane\'s own', () async {
+    final db = AlchemonsDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    // The Arcane spawns only once its portal is open.
+    await db.settingsDao.setSetting('arcane_portal_unlocked', '1');
+    final tables = _arcane();
+    final s = await service(db, {'arcane': tables});
+    final own = tables.sceneWide.entries.map((e) => e.speciesId).toSet();
+    var meteors = 0, aurora = 0;
+    const tries = 400;
+    for (var i = 0; i < tries; i++) {
+      await s.clearSceneSpawns('arcane');
+      await s.ensureSpawnsForScene('arcane');
+      final w = s.weatherIn('arcane');
+      if (identical(w, arcaneMeteors)) meteors++;
+      if (identical(w, arcaneAurora)) aurora++;
+      final ids = s.getActiveSpawnPoints('arcane');
+      expect(ids, isNotEmpty);
+      for (final id in ids) {
+        expect(own, contains(s.getSpawnAt('arcane', id)!.speciesId));
+      }
+    }
+    // ignore: avoid_print
+    print('Arcane: meteors $meteors, aurora $aurora / $tries');
+    for (final (times, w) in [
+      (meteors, arcaneMeteors),
+      (aurora, arcaneAurora),
+    ]) {
+      final mean = tries * w.chance;
+      final spread = 7 * math.sqrt(mean * (1 - w.chance));
+      expect(
+        times,
+        inInclusiveRange(mean - spread, mean + spread),
+        reason: w.label,
+      );
+    }
+  });
+
+  test(
+    'an Arcane weather goes with its batch and survives a restart',
+    () async {
+      final db = AlchemonsDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      await db.settingsDao.setSetting('arcane_portal_unlocked', '1');
+      final scenes = {'arcane': _arcane()};
+      final s = await service(db, scenes);
+      for (final w in [arcaneMeteors, arcaneAurora]) {
+        expect(await s.debugBringWeather('arcane', w.kind), isTrue);
+        expect(s.weatherIn('arcane'), same(w));
+        expect(
+          await db.settingsDao.getSetting('wild_weather_arcane'),
+          w.kind.name,
+        );
+        final again = await service(db, scenes);
+        expect(again.weatherIn('arcane'), same(w));
+        for (final id in again.getActiveSpawnPoints('arcane')) {
+          await again.removeSpawn('arcane', id);
+        }
+        expect(again.hasWeather('arcane'), isFalse);
+      }
+    },
+  );
 }

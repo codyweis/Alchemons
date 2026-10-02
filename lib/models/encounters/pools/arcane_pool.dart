@@ -1,4 +1,5 @@
 import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 
 /// Returns a scene-wide pool plus per-location overrides for the Arcane Portal.
@@ -131,3 +132,26 @@ arcaneEncounterPools(SceneDefinition scene) {
   final sceneWide = EncounterPool(entries: entries);
   return (sceneWide: sceneWide, perSpawn: {});
 }
+
+/// A meteor shower over the Arcane, on about one batch in seven: meteors
+/// stream out of one point of the void all through the visit. It brings no
+/// creatures of its own; the void's are the same under it.
+const arcaneMeteors = WildWeather(
+  kind: WeatherKind.meteors,
+  label: 'METEORS',
+  chance: 0.15,
+  pool: EncounterPool(entries: []),
+  guaranteed: 0,
+  extra: 0,
+);
+
+/// The northern lights over the Arcane, on one batch in five: curtains of
+/// light over the dust band, and in the glass. No creatures of their own.
+const arcaneAurora = WildWeather(
+  kind: WeatherKind.aurora,
+  label: 'AURORA',
+  chance: 0.2,
+  pool: EncounterPool(entries: []),
+  guaranteed: 0,
+  extra: 0,
+);

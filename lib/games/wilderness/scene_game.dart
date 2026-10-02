@@ -24,6 +24,7 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
 import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart';
 import 'package:flame/components.dart';
+import 'package:flame/extensions.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
@@ -503,6 +504,22 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     anchor.add(comp);
     _wildBySpawnId[spawnId] = comp;
+    _mirrorOnGlass(anchor, comp, sp.anchor, _standDrop[spawnId]!);
+  }
+
+  /// On ground that gives back what stands on it (see
+  /// [FieldArt.reflectionAt]), [creature]'s image under its feet, which lie
+  /// [feet] below its anchor's middle.
+  void _mirrorOnGlass(
+    PositionComponent anchor,
+    PositionComponent creature,
+    SceneLayer layer,
+    double feet,
+  ) {
+    final art = _art;
+    final alpha = art?.reflectionAt(layer) ?? 0;
+    if (art == null || alpha <= 0) return;
+    anchor.add(_MirrorImage(creature, art, layer, feet: feet, alpha: alpha));
   }
 
   /// Push the camera in on whatever the encounter is looking at, and remember
@@ -1004,6 +1021,12 @@ class SceneGame extends FlameGame with ScaleDetector {
           ..position = Vector2.zero();
 
     anchor.add(_partyCreature!);
+    _mirrorOnGlass(
+      anchor,
+      _partyCreature!,
+      sp.anchor,
+      _feetBelow(creature.id, creature, partySize),
+    );
     // It gathers out of grains of itself, as it does when summoned in space.
     anchor.add(
       WildSummon.gather(
@@ -1525,6 +1548,9 @@ class SceneGame extends FlameGame with ScaleDetector {
       _standDrop[spawnId] = _feetBelow(speciesId, null, size);
       final sp = scene.spawnPoints.firstWhere((s) => s.id == spawnId);
       anchor.position.y = _anchorY(sp, sp.normalizedPos.dy * _viewportH);
+      if (c is PositionComponent) {
+        _mirrorOnGlass(anchor, c, sp.anchor, _standDrop[spawnId]!);
+      }
     }
     anchor.add(c);
   }
@@ -1809,6 +1835,63 @@ class WildMonComponent extends PositionComponent
 
   @override
   void onTapDown(TapDownEvent event) => onTap();
+}
+
+/// A creature's image in still glass under its feet (see
+/// [FieldArt.reflectionAt]): its current frame drawn upside down about the
+/// line its feet stand on, faint — through whatever moves it (a harvest
+/// lifting it, its breathing), and gone when it goes. Under it, whatever
+/// the ground does where something stands (see [FieldArt.paintUnderfoot]).
+class _MirrorImage extends Component with HasGameReference<SceneGame> {
+  _MirrorImage(
+    this.creature,
+    this.art,
+    this.layer, {
+    required this.feet,
+    required this.alpha,
+  }) : super(priority: 5);
+
+  final PositionComponent creature;
+  final FieldArt art;
+  final SceneLayer layer;
+
+  /// Where its feet stand, below its anchor's middle.
+  final double feet;
+  final double alpha;
+  final Paint _paint = Paint()..filterQuality = FilterQuality.medium;
+
+  @override
+  void update(double dt) {
+    if (creature.isRemoved) removeFromParent();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final c = creature;
+    if (!c.isMounted || (c is Veiled && c.veiled)) return;
+    canvas
+      ..save()
+      ..translate(0, feet);
+    art.paintUnderfoot(canvas, layer, c.size.x * 0.4, game._fieldTime);
+    canvas
+      ..restore()
+      ..save()
+      ..translate(0, 2 * feet)
+      ..scale(1, -1)
+      ..transform32(c.transformMatrix.storage);
+    final sprite = c.children.whereType<CreatureSpriteComponent>().firstOrNull;
+    if (sprite != null) {
+      sprite.renderImage(canvas, alpha);
+    } else if (c is SpriteComponent) {
+      // What a preview stands there.
+      c.sprite?.render(
+        canvas,
+        size: c.size,
+        overridePaint: _paint..color = Color.fromRGBO(255, 255, 255, alpha),
+      );
+    }
+    canvas.restore();
+  }
 }
 
 /// Soft radial glow rendered behind dark creatures for visibility.

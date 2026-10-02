@@ -2,6 +2,7 @@
 
 import 'dart:async' as async;
 import 'dart:math';
+import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
@@ -47,6 +48,7 @@ class WildernessSpawnService extends ChangeNotifier {
     'sky': [skyStorm],
     'valley': [valleyRain, valleySnow],
     'swamp': [swampDry],
+    'arcane': [arcaneMeteors, arcaneAurora],
   };
 
   /// The weather over each scene whose current batch came with one.

@@ -1,19 +1,21 @@
 // Creatures in a field must make sense where they are: only those that can
 // fly or float are ever put in the open air, and anything standing has
 // something under its feet. These pin that for each field drawn in code —
-// the Valley, the Sky, the Swamp and the Volcano — and the rule every
-// redesigned field follows.
+// the Valley, the Sky, the Swamp, the Volcano and the Arcane — and the rule
+// every redesigned field follows.
 
 import 'dart:ui';
 
 import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
+import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
@@ -619,4 +621,118 @@ void main() {
       expect(shelves, greaterThan(0), reason: '$layer has no shelves');
     }
   });
+
+  // ── The Arcane: a mirror out to the dust band ────────────────────────────
+
+  double arcanePeriod(SceneLayer layer) =>
+      arcaneScene.worldWidth *
+      (1 + arcaneScene.layers.firstWhere((l) => l.id == layer).parallaxFactor);
+
+  ArcaneField builtArcane(double h) {
+    final field = ArcaneField()
+      ..layout(
+        arcaneScene.spawnPoints,
+        arcaneScene.worldWidth,
+        loop: arcaneScene.loop,
+      );
+    final screen = Size(h * 1.6, h);
+    for (final layer in [
+      SceneLayer.layer2,
+      SceneLayer.layer3,
+      SceneLayer.layer4,
+    ]) {
+      field.build(layer, Size(arcanePeriod(layer), h), screen);
+    }
+    return field;
+  }
+
+  test('no Arcane point is in the open air: the only floaters it rolls are '
+      'its legendary wings', () {
+    final ids = arcaneScene.spawnPoints.map((p) => p.id).toSet();
+    expect(ids, {'SP_arcane_01', 'SP_arcane_02', 'SP_arcane_03'});
+    for (final p in arcaneScene.spawnPoints) {
+      expect(p.aloft, isFalse, reason: p.id);
+      expect(
+        p.anchor,
+        anyOf(SceneLayer.layer3, SceneLayer.layer4),
+        reason: p.id,
+      );
+    }
+    final pool = arcaneEncounterPools(arcaneScene).sceneWide.entries;
+    final floaters = pool.where((e) => speciesCanFloat(e.speciesId));
+    for (final e in floaters) {
+      expect(e.speciesId, startsWith('WNG'), reason: e.speciesId);
+      expect(e.rarity, EncounterRarity.legendary, reason: e.speciesId);
+    }
+  });
+
+  for (final h in const [412.0, 475.0, 700.0]) {
+    test('every Arcane creature and partner stands on the glass at $h', () {
+      final field = builtArcane(h);
+      final glass = field.debugGlassLine;
+      for (final p in arcaneScene.spawnPoints) {
+        final x = p.normalizedPos.dx * arcanePeriod(p.anchor);
+        final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
+        expect(field.perchFor(p.id), closeTo(feet, 1e-6), reason: p.id);
+        expect(feet, greaterThan(glass + 4), reason: '${p.id} over the band');
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} has no ground');
+        expect(ground!.top, lessThanOrEqualTo(feet), reason: p.id);
+        // Its partner, a pace off, on the glass too.
+        final px = x + p.partnerSide * kFieldPairGap;
+        final partnerFeet = p.getBattlePos().dy * h + p.size.y * 0.42;
+        final under = field.groundAt(p.anchor, px);
+        expect(under, isNotNull, reason: '${p.id} partner has no ground');
+        expect(
+          under!.top,
+          lessThanOrEqualTo(partnerFeet),
+          reason: '${p.id} partner in the air',
+        );
+      }
+    });
+
+    test('the Arcane glass is ground everywhere nearer than the band, and '
+        'gives back what stands on it, at $h', () {
+      final field = builtArcane(h);
+      for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+        final period = arcanePeriod(layer);
+        for (var x = 0.0; x < period * 2; x += period / 97) {
+          final g = field.groundAt(layer, x);
+          expect(g, isNotNull, reason: '$layer at $x');
+          expect(g!.top, closeTo(field.debugGlassLine, 1e-6));
+        }
+        expect(field.reflectionAt(layer), greaterThan(0));
+      }
+      expect(field.groundAt(SceneLayer.layer2, 100), isNull);
+      expect(field.reflectionAt(SceneLayer.layer2), 0);
+    });
+
+    test('no Arcane standing stone stands where a creature or its partner '
+        'does at $h', () {
+      final field = builtArcane(h);
+      for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+        final period = arcanePeriod(layer);
+        double gap(double a, double aw, double b, double bw) {
+          var d = (a - b) % period;
+          if (d > period / 2) d -= period;
+          return d.abs() - (aw + bw) / 2;
+        }
+
+        for (final p in arcaneScene.spawnPoints.where(
+          (p) => p.anchor == layer,
+        )) {
+          final x = p.normalizedPos.dx * period;
+          for (final spot in [x, x + p.partnerSide * kFieldPairGap]) {
+            for (final stone in field.debugStones(layer)) {
+              expect(
+                gap(stone.center.dx, stone.width, spot, p.size.x),
+                greaterThan(8),
+                reason: '${p.id}: a stone at ${stone.center.dx}',
+              );
+            }
+          }
+        }
+      }
+    });
+  }
 }

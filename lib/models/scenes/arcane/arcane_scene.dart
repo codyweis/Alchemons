@@ -14,7 +14,6 @@ final arcaneScene = SceneDefinition(
   worldWidth: 1000,
   worldHeight: 850,
   loop: true,
-  allowVerticalPan: false,
   // Drawn in code (lib/games/wilderness/field/arcane_field.dart). The void
   // is the camera's backdrop, so it has no layer; nearest moves fastest.
   art: ArcaneField.new,
@@ -22,13 +21,12 @@ final arcaneScene = SceneDefinition(
     LayerDefinition(id: SceneLayer.layer2, imagePath: '', parallaxFactor: 0.1),
     LayerDefinition(id: SceneLayer.layer3, imagePath: '', parallaxFactor: 0.35),
     LayerDefinition(id: SceneLayer.layer4, imagePath: '', parallaxFactor: 1.0),
-    LayerDefinition(id: SceneLayer.layer5, imagePath: '', parallaxFactor: 1.6),
   ],
   // Spirit, Dark, Light, Blood and Crystal don't float, and the only
   // floaters the Arcane rolls are its legendary wings — an open-air point
-  // would roll nothing else — so every point stands on something. The field
-  // builds it under each, and under where each point's encounter partner
-  // stands (a pace to the side its battle position names).
+  // would roll nothing else — so every point stands on the glass, which
+  // runs out to the dust band under every creature and every encounter's
+  // partner alike.
   //
   // x is a share of the point's own layer's loop.
   spawnPoints: [

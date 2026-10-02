@@ -155,6 +155,21 @@ abstract class FieldArt {
   /// feet higher than [top] are in the air; [rest] is where to stand one.
   ({double top, double rest})? groundAt(SceneLayer layer, double x) => null;
 
+  /// How much of a creature standing on [layer] its ground gives back, as
+  /// an image upside down under its feet — 0 for none, as on most ground.
+  double reflectionAt(SceneLayer layer) => 0;
+
+  /// Paints what the ground on [layer] does under a creature standing on
+  /// it, with the canvas at its feet, [halfWidth] the half of its body's
+  /// width, at the field's clock [time] — the Arcane's glass holding a
+  /// little light under whatever stands on it. Most ground does nothing.
+  void paintUnderfoot(
+    Canvas canvas,
+    SceneLayer layer,
+    double halfWidth,
+    double time,
+  ) {}
+
   /// The still sheets of [layer] at [size] (layer-local units), for a
   /// [screen] of that height. Called on every rebuild, so a field prepares
   /// its live parts for that size here.

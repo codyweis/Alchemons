@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/wilderness/scene_game.dart';
+import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
@@ -23,7 +24,7 @@ import 'package:flutter_test/flutter_test.dart';
 //   FILM_OUT=/tmp/film FILM_SCENE=sky flutter test \
 //     test/field_touch_film_test.dart --tags preview
 //
-// FILM_SCENE is valley, sky, swamp or volcano; FILM_GESTURES picks gestures by name
+// FILM_SCENE is valley, sky, swamp, volcano or arcane; FILM_GESTURES picks gestures by name
 // (comma separated) from the scene's list below; FILM_WEATHER=dry (or rain,
 // snow, storm) films it in that weather.
 void main() {
@@ -45,6 +46,7 @@ void main() {
       'valley' => valleySceneCorrected,
       'swamp' => swampScene,
       'volcano' => volcanoScene,
+      'arcane' => arcaneScene,
       _ => skyScene,
     };
     // name → (camera x, path of the finger as screen fractions over its
@@ -67,6 +69,50 @@ void main() {
               false,
               const Rect.fromLTRB(0.2, 0.62, 0.7, 1),
               11,
+            ),
+          } else if (sceneName == 'arcane') ...{
+            // Across the glass in front of the first creature, at night.
+            'drag': (
+              0,
+              const [Offset(0.42, 0.84), Offset(0.7, 0.85)],
+              0.6,
+              true,
+              const Rect.fromLTRB(0.2, 0.55, 0.95, 1),
+              23,
+            ),
+            'tap': (
+              0,
+              const [Offset(0.55, 0.86)],
+              0,
+              false,
+              const Rect.fromLTRB(0.3, 0.55, 0.8, 1),
+              23,
+            ),
+            // On the glass far off, near the band, by day.
+            'fartap': (
+              0,
+              const [Offset(0.62, 0.63)],
+              0,
+              false,
+              const Rect.fromLTRB(0.4, 0.45, 0.85, 0.8),
+              11,
+            ),
+            // Through the void over the glass, and a tap in it.
+            'sky': (
+              0,
+              const [Offset(0.15, 0.3), Offset(0.35, 0.26)],
+              0.5,
+              true,
+              const Rect.fromLTRB(0, 0.05, 0.6, 0.95),
+              23,
+            ),
+            'skytap': (
+              0,
+              const [Offset(0.75, 0.32)],
+              0,
+              false,
+              const Rect.fromLTRB(0.5, 0.1, 1, 0.95),
+              19.4,
             ),
           } else if (sceneName == 'volcano') ...{
             // Through the dry grass on the tutorial's basalt shelf.

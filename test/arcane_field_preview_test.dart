@@ -6,9 +6,9 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:alchemons/games/wilderness/creature_feet.dart';
 import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
+import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart' as scene;
 import 'package:alchemons/models/scenes/scene_definition.dart';
@@ -32,9 +32,9 @@ import 'package:flutter_test/flutter_test.dart';
 // the screen (logical px), ARCANE_SCALE the render scale, ARCANE_HOURS the
 // hours of the day sheet. ARCANE_ENCOUNTERS=1 adds the encounters (slower),
 // ARCANE_BEFORE=1 the old void (its gradient, its floating creatures and
-// the motes drifting over them), ARCANE_ONLY=day,loop,… a subset,
-// ARCANE_GROUND=shards|mirror|ruins what the creatures stand on for every
-// frame (the options set shows all three, by day, at sunset and by night).
+// the motes drifting over them), ARCANE_ONLY=day,loop,… a subset. The
+// weather set shows the meteor shower, the northern lights and a lone
+// shooting star.
 void main() {
   final out = Platform.environment['ARCANE_OUT'];
 
@@ -105,9 +105,12 @@ void main() {
       double? stroke,
       bool tap = false,
       bool before = false,
-      bool reflect = false,
+      WeatherKind? weather,
+      bool shootingStar = false,
     }) async {
-      final game = SceneGame(scene: scene)..fieldHourOverride = hour;
+      final game = SceneGame(scene: scene)
+        ..fieldHourOverride = hour
+        ..fieldWeather = weather;
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
@@ -127,7 +130,9 @@ void main() {
         );
         await tester.pump();
       }
-      game.update(0);
+      game
+        ..update(0)
+        ..debugSettleWeather();
 
       for (final p in scene.spawnPoints) {
         final who = _cast[p.id];
@@ -164,21 +169,6 @@ void main() {
           );
         }
         final species = who.$1.split('/').last.split('_').first;
-        // On the mirror, its image in the glass under its feet (a stand-in:
-        // the game itself does not draw these yet).
-        if (reflect) {
-          final drop = creatureFeetDrop(species) * size;
-          c.add(
-            SpriteComponent(
-                sprite: Sprite(img),
-                size: Vector2.all(size),
-                anchor: Anchor.center,
-                position: Vector2(size / 2, size / 2 + 2 * drop),
-              )
-              ..flipVertically()
-              ..opacity = 0.3,
-          );
-        }
         game.debugStandAt(p.id, c, speciesId: species, size: Vector2.all(size));
       }
 
@@ -208,6 +198,9 @@ void main() {
             game.debugTouch(screen.width * 0.45, screen.height * stroke, 0, 0);
           }
         }
+        if (shootingStar && clock > t - 0.42 && clock <= t - 0.42 + dt) {
+          (game.debugField! as ArcaneField).debugShootingStar();
+        }
         if (deployed) {
           // The partner's sprite loads off the test clock.
           await tester.runAsync(
@@ -217,8 +210,9 @@ void main() {
         game.update(dt);
         clock += dt;
         // The last half second is drawn as a phone would draw it, frame by
-        // frame (the field learns where the camera is from its frames).
-        if (clock > t - 0.5) {
+        // frame (the field learns where the camera is from its frames) —
+        // the whole of it in weather, whose meteors come as they are drawn.
+        if (clock > t - 0.5 || weather != null) {
           final rec = ui.PictureRecorder();
           game.render(Canvas(rec));
           rec.endRecording().dispose();
@@ -245,37 +239,41 @@ void main() {
             .where((h) => h.isNotEmpty)
             .map(double.parse);
     final drawn = _arcane.art != null;
-    final ground = ArcaneGround.values
-        .where((g) => g.name == Platform.environment['ARCANE_GROUND'])
-        .firstOrNull;
-    final arcaneScene = ground == null
-        ? _arcane
-        : _arcane.copyWith(art: () => ArcaneField(ground: ground));
+    final arcaneScene = _arcane;
     final frames = <(String, ui.Image)>[
-      if (drawn && wants('options'))
-        for (final g in ArcaneGround.values)
-          for (final (h, pan) in const [
-            (11.0, 0.0),
-            (19.4, 360.0),
-            (23.0, 0.0),
-            (23.0, 720.0),
-          ])
-            (
-              'option_${g.name}_${h.round()}_${pan.round()}',
-              await shoot(
-                _arcane.copyWith(art: () => ArcaneField(ground: g)),
-                t: 2,
-                hour: h,
-                pan: pan,
-                reflect: g == ArcaneGround.mirror,
-              ),
-            ),
       if (drawn && wants('day'))
         for (final h in hours)
           (
             'hour_${h.toStringAsFixed(1).padLeft(4, '0')}',
             await shoot(arcaneScene, t: 1.5, hour: h),
           ),
+      if (drawn && wants('weather')) ...[
+        for (final h in const [23.0, 11.0])
+          (
+            'wx_meteors_${h.round()}',
+            await shoot(
+              arcaneScene,
+              t: 6,
+              hour: h,
+              weather: WeatherKind.meteors,
+            ),
+          ),
+        for (final h in const [23.0, 11.0, 19.4])
+          (
+            'wx_aurora_${h.round()}',
+            await shoot(
+              arcaneScene,
+              t: 3,
+              hour: h,
+              weather: WeatherKind.aurora,
+            ),
+          ),
+        for (final h in const [23.0, 11.0])
+          (
+            'wx_star_${h.round()}',
+            await shoot(arcaneScene, t: 2, hour: h, shootingStar: true),
+          ),
+      ],
       if (drawn && wants('stroke')) ...[
         ('stroke_day', await shoot(arcaneScene, t: 2.2, stroke: strokeY)),
         (
@@ -299,17 +297,18 @@ void main() {
           wants('encounters') &&
           Platform.environment['ARCANE_ENCOUNTERS'] == '1')
         for (final p in arcaneScene.spawnPoints)
-          (
-            'encounter_${p.id.substring(10)}',
-            await shoot(
-              arcaneScene,
-              t: 3.4,
-              hour: 17.6,
-              encounter: p.id,
-              // Lightlet cannot float: it must land on the ground.
-              partner: 'LET16',
+          for (final h in const [17.6, 23.0])
+            (
+              'encounter_${p.id.substring(10)}_${h.round()}',
+              await shoot(
+                arcaneScene,
+                t: 3.4,
+                hour: h,
+                encounter: p.id,
+                // Lightlet cannot float: it must land on the ground.
+                partner: 'LET16',
+              ),
             ),
-          ),
       if (Platform.environment['ARCANE_BEFORE'] == '1') ...[
         ('before', await shoot(_voidArcane, t: 1.5, before: true)),
         (
@@ -332,9 +331,7 @@ void main() {
         ('encounters', 'encounter_'),
         ('strokes', 'stroke_'),
         ('befores', 'before'),
-        ('options_shards', 'option_shards'),
-        ('options_mirror', 'option_mirror'),
-        ('options_ruins', 'option_ruins'),
+        ('weathers', 'wx_'),
       ]) {
         final set = [
           for (final f in frames)

@@ -1,5 +1,5 @@
-// The fields drawn in code — the Valley, the Sky, the Swamp and the
-// Volcano — draw every frame, under the encounter, the harvest and the
+// The fields drawn in code — the Valley, the Sky, the Swamp, the Volcano
+// and the Arcane — draw every frame, under the encounter, the harvest and the
 // fusion. Their still parts are baked once; what is left per frame is the
 // sky, the baked sheets and the live grass, motes, glints, water and lava. These pin that it stays that
 // way for each: no blur passes, a handful of draws, and a ceiling on the
@@ -11,6 +11,7 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
+import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
@@ -67,6 +68,12 @@ final _fields = <_Field>[
     scene: volcanoScene,
     encounter: 'SP_volcano_02',
     strokeY: 0.765,
+  ),
+  (
+    name: 'arcane',
+    scene: arcaneScene,
+    encounter: 'SP_arcane_01',
+    strokeY: 0.84,
   ),
 ];
 
@@ -350,6 +357,92 @@ void main() {
         print(
           'volcano $name record: ${(sw.elapsedMicroseconds / 60).round()} '
           'µs/frame (JIT)',
+        );
+      });
+    }
+  }
+
+  // The Arcane at night — the black hole up, and given back by the glass —
+  // with fingers waking the glass and stirring the void's dust.
+  for (final screen in const [Size(751, 475), Size(915, 412)]) {
+    testWidgets('arcane glass touch budget at $screen', (tester) async {
+      final game = await mount(tester, arcaneScene, screen)
+        ..fieldHourOverride = 23;
+      var worst = _CensusCanvas();
+      for (var i = 0; i < 60; i++) {
+        game
+          ..debugTouch(
+            screen.width * (0.2 + i * 0.008),
+            screen.height * 0.86,
+            7,
+            0,
+          )
+          ..debugTouch(screen.width * 0.7, screen.height * 0.8, 0, 0)
+          ..debugTouch(screen.width * 0.4, screen.height * 0.3, 0, 0);
+        game.update(1 / 30);
+        final c = census(game);
+        expect(c.blurredDraws, 0);
+        if (c.draws > worst.draws) worst = c;
+      }
+      // ignore: avoid_print
+      print(
+        'arcane glass $screen worst: ${worst.draws} draws, '
+        '${worst.points} grains ${worst.counts}',
+      );
+      expect(worst.draws, lessThan(120));
+      expect(worst.points, lessThan(18000));
+    });
+  }
+
+  // The Arcane under a meteor shower and under the northern lights, at
+  // night, with a lone shooting star across it too and fingers on the glass.
+  for (final screen in const [Size(751, 475), Size(915, 412)]) {
+    for (final weather in const [WeatherKind.meteors, WeatherKind.aurora]) {
+      testWidgets('arcane ${weather.name} budget at $screen', (tester) async {
+        final game = await mount(tester, arcaneScene, screen)
+          ..fieldHourOverride = 23
+          ..fieldWeather = weather
+          ..debugSettleWeather();
+        // The shower comes as it is drawn: let it get going.
+        for (var i = 0; i < 90; i++) {
+          game.update(1 / 30);
+          census(game);
+        }
+        (game.debugField! as ArcaneField).debugShootingStar();
+        var worst = _CensusCanvas();
+        for (var i = 0; i < 90; i++) {
+          game
+            ..debugTouch(
+              screen.width * (0.2 + i * 0.006),
+              screen.height * 0.86,
+              7,
+              0,
+            )
+            ..debugTouch(screen.width * 0.7, screen.height * 0.8, 0, 0);
+          game.update(1 / 30);
+          final c = census(game);
+          expect(c.blurredDraws, 0);
+          if (c.draws > worst.draws) worst = c;
+        }
+        // ignore: avoid_print
+        print(
+          'arcane ${weather.name} $screen worst: ${worst.draws} draws, '
+          '${worst.points} grains ${worst.counts}',
+        );
+        expect(worst.draws, lessThan(120));
+        expect(worst.points, lessThan(18000));
+        // Sanity on raw recording cost (JIT; a ceiling, not a target).
+        final sw = Stopwatch()..start();
+        for (var i = 0; i < 60; i++) {
+          game.update(1 / 60);
+          final rec = ui.PictureRecorder();
+          game.render(Canvas(rec));
+          rec.endRecording().dispose();
+        }
+        // ignore: avoid_print
+        print(
+          'arcane ${weather.name} record: '
+          '${(sw.elapsedMicroseconds / 60).round()} µs/frame (JIT)',
         );
       });
     }

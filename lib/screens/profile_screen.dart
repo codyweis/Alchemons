@@ -2190,6 +2190,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                Text('ARCANE METEORS', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Replace the Arcane\'s spawns with a batch '
+                                  'that comes with a meteor shower',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'BRING',
+                            icon: AppIcons.auto_awesome_rounded,
+                            onTap: context.soundAction(
+                              () => _bringWeather(
+                                'arcane',
+                                WeatherKind.meteors,
+                                'The meteor shower',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('ARCANE AURORA', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Replace the Arcane\'s spawns with a batch '
+                                  'that comes with the northern lights',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'BRING',
+                            icon: AppIcons.nights_stay_rounded,
+                            onTap: context.soundAction(
+                              () => _bringWeather(
+                                'arcane',
+                                WeatherKind.aurora,
+                                'The northern lights',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 Text('VOLCANO STAGE', style: _label(t)),
                                 const SizedBox(height: 2),
                                 Text(

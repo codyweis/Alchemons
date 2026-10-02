@@ -9,6 +9,7 @@ import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:flame/components.dart';
+import 'package:flame/extensions.dart';
 import 'package:flame/game.dart';
 
 class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
@@ -53,6 +54,46 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
       );
     }
     super.render(canvas);
+  }
+
+  final Paint _imagePaint = Paint()..filterQuality = FilterQuality.medium;
+
+  /// Draws this frame of the creature in its parent's units at [alpha] of
+  /// itself — its genetics colouring and any cut kept, its aura not — for
+  /// an image of it, such as its reflection in still glass. One draw;
+  /// nothing until it has loaded.
+  void renderImage(Canvas canvas, double alpha) {
+    if (!isLoaded || !_anim.isMounted) return;
+    final frame = _anim.animationTicker?.getSprite();
+    if (frame == null) return;
+    canvas
+      ..save()
+      ..transform32(transformMatrix.storage);
+    final cut = cutY;
+    if (cut != null) {
+      canvas.clipRect(
+        Rect.fromLTRB(
+          -size.x,
+          size.y / 2 + cut.clamp(-1e4, 1e4),
+          size.x * 2,
+          size.y * 2,
+        ),
+      );
+    }
+    canvas.transform32(_anim.transformMatrix.storage);
+    frame.render(
+      canvas,
+      size: _anim.size,
+      overridePaint: _imagePaint
+        ..colorFilter = _anim.paint.colorFilter
+        ..color = Color.fromRGBO(
+          255,
+          255,
+          255,
+          (alpha * _anim.opacity).clamp(0.0, 1.0),
+        ),
+    );
+    canvas.restore();
   }
 
   /// This frame of the creature, exactly as it is being drawn — its genetics
