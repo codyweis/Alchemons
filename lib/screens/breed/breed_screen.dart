@@ -345,6 +345,11 @@ class _FuseModeToggleState extends State<_FuseModeToggle>
     );
   }
 
+  late final Animation<double> _pressScale = Tween<double>(
+    begin: 1,
+    end: 0.975,
+  ).animate(_press);
+
   @override
   void dispose() {
     _sigilSpin.dispose();
@@ -389,116 +394,112 @@ class _FuseModeToggleState extends State<_FuseModeToggle>
 
     final radius = BorderRadius.circular(6);
 
-    return AnimatedBuilder(
-      animation: Listenable.merge([_sigilSpin, _sigilCounter, _press, _ignite]),
-      builder: (context, _) {
-        final pressed = _press.value;
-        final ignite = _ignite.value;
-        final scale = 1 - (pressed * 0.025);
-
-        return GestureDetector(
-          onTapDown: (_) => _press.forward(),
-          onTapCancel: () => _press.reverse(),
-          onTapUp: (_) => _press.reverse(),
-          onTap: context.soundAction(_handleTap),
-          child: Transform.scale(
-            scale: scale,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 360),
-              curve: Curves.easeOutCubic,
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: gradColors,
-                ),
-                border: Border.all(
-                  color: accent.withValues(alpha: .65),
-                  width: 1.2,
-                ),
+    // Built once: only the two sigils turn, each on a layer of its own, and
+    // the button is its own layer so their turning never re-records the
+    // page around it. As one AnimatedBuilder it rebuilt the whole button
+    // every frame for a sigil that takes 22 seconds to go round.
+    return GestureDetector(
+      onTapDown: (_) => _press.forward(),
+      onTapCancel: () => _press.reverse(),
+      onTapUp: (_) => _press.reverse(),
+      onTap: context.soundAction(_handleTap),
+      child: RepaintBoundary(
+        child: ScaleTransition(
+          scale: _pressScale,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 360),
+            curve: Curves.easeOutCubic,
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: gradColors,
               ),
-              child: ClipRRect(
-                borderRadius: radius,
-                child: Stack(
-                  children: [
-                    // Background alchemy sigil — wide, very faint, slow rotation
-                    Positioned.fill(
+              border: Border.all(
+                color: accent.withValues(alpha: .65),
+                width: 1.2,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: radius,
+              child: Stack(
+                children: [
+                  // Background alchemy sigil — wide, very faint, slow rotation
+                  Positioned.fill(
+                    child: RepaintBoundary(
                       child: CustomPaint(
                         painter: _AlchemySigilPainter(
-                          rotation: _sigilSpin.value * 2 * 3.1415926,
-                          counterRotation: -_sigilCounter.value * 2 * 3.1415926,
+                          spin: _sigilSpin,
+                          counter: _sigilCounter,
+                          ignite: _ignite,
                           color: onColor,
-                          igniteProgress: ignite,
                         ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 14,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.max,
-                        children: [
-                          _AlchemyIconCrest(
-                            color: onColor,
-                            ringRotation: _sigilSpin.value * 2 * 3.1415926,
-                            igniteProgress: ignite,
-                            child: iconWidget,
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 280),
-                              switchInCurve: Curves.easeOutCubic,
-                              switchOutCurve: Curves.easeInCubic,
-                              transitionBuilder: (child, anim) {
-                                final slide = Tween<Offset>(
-                                  begin: const Offset(0, 0.4),
-                                  end: Offset.zero,
-                                ).animate(anim);
-                                return ClipRect(
-                                  child: SlideTransition(
-                                    position: slide,
-                                    child: FadeTransition(
-                                      opacity: anim,
-                                      child: child,
-                                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 14,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        _AlchemyIconCrest(
+                          color: onColor,
+                          spin: _sigilSpin,
+                          ignite: _ignite,
+                          child: iconWidget,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 280),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            transitionBuilder: (child, anim) {
+                              final slide = Tween<Offset>(
+                                begin: const Offset(0, 0.4),
+                                end: Offset.zero,
+                              ).animate(anim);
+                              return ClipRect(
+                                child: SlideTransition(
+                                  position: slide,
+                                  child: FadeTransition(
+                                    opacity: anim,
+                                    child: child,
                                   ),
-                                );
-                              },
-                              child: Text(
-                                label,
-                                key: ValueKey(label),
-                                style: TextStyle(
-                                  color: onColor,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.8,
                                 ),
+                              );
+                            },
+                            child: Text(
+                              label,
+                              key: ValueKey(label),
+                              style: TextStyle(
+                                color: onColor,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.8,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          Opacity(
-                            opacity: 0.85,
-                            child: Icon(
-                              AppIcons.arrow_forward_rounded,
-                              color: onColor,
-                              size: 20,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 10),
+                        Icon(
+                          AppIcons.arrow_forward_rounded,
+                          color: onColor.withValues(alpha: onColor.a * 0.85),
+                          size: 20,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -507,14 +508,14 @@ class _AlchemyIconCrest extends StatelessWidget {
   const _AlchemyIconCrest({
     required this.child,
     required this.color,
-    required this.ringRotation,
-    required this.igniteProgress,
+    required this.spin,
+    required this.ignite,
   });
 
   final Widget child;
   final Color color;
-  final double ringRotation;
-  final double igniteProgress;
+  final Animation<double> spin;
+  final Animation<double> ignite;
 
   @override
   Widget build(BuildContext context) {
@@ -525,13 +526,13 @@ class _AlchemyIconCrest extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           // Rotating runic ring behind the icon
-          Transform.rotate(
-            angle: ringRotation,
+          RepaintBoundary(
             child: CustomPaint(
               size: const Size(38, 38),
               painter: _RuneRingPainter(
                 color: color,
-                igniteProgress: igniteProgress,
+                spin: spin,
+                ignite: ignite,
               ),
             ),
           ),
@@ -622,19 +623,22 @@ class _HexagramPainter extends CustomPainter {
 // Two concentric circles + tick marks + an inscribed triangle, rotating slowly.
 class _AlchemySigilPainter extends CustomPainter {
   _AlchemySigilPainter({
-    required this.rotation,
-    required this.counterRotation,
+    required this.spin,
+    required this.counter,
+    required this.ignite,
     required this.color,
-    required this.igniteProgress,
-  });
+  }) : super(repaint: Listenable.merge([spin, counter, ignite]));
 
-  final double rotation;
-  final double counterRotation;
+  final Animation<double> spin;
+  final Animation<double> counter;
+  final Animation<double> ignite;
   final Color color;
-  final double igniteProgress;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final rotation = spin.value * 2 * 3.1415926;
+    final counterRotation = -counter.value * 2 * 3.1415926;
+    final igniteProgress = ignite.value;
     final center = Offset(size.width / 2, size.height / 2);
     final maxR = size.height * 0.95;
 
@@ -701,23 +705,32 @@ class _AlchemySigilPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_AlchemySigilPainter old) =>
-      old.rotation != rotation ||
-      old.counterRotation != counterRotation ||
-      old.color != color ||
-      old.igniteProgress != igniteProgress;
+      old.spin != spin ||
+      old.counter != counter ||
+      old.ignite != ignite ||
+      old.color != color;
 }
 
 // Small runic ring around the icon — concentric circle with short tick dashes.
 class _RuneRingPainter extends CustomPainter {
-  _RuneRingPainter({required this.color, required this.igniteProgress});
+  _RuneRingPainter({
+    required this.color,
+    required this.spin,
+    required this.ignite,
+  }) : super(repaint: Listenable.merge([spin, ignite]));
 
   final Color color;
-  final double igniteProgress;
+  final Animation<double> spin;
+  final Animation<double> ignite;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final igniteProgress = ignite.value;
     final center = Offset(size.width / 2, size.height / 2);
     final r = size.width / 2 - 1;
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(spin.value * 2 * 3.1415926);
+    canvas.translate(-center.dx, -center.dy);
 
     final alpha = 0.55 + (igniteProgress * 0.35);
     final paint = Paint()
@@ -744,5 +757,5 @@ class _RuneRingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_RuneRingPainter old) =>
-      old.color != color || old.igniteProgress != igniteProgress;
+      old.color != color || old.spin != spin || old.ignite != ignite;
 }

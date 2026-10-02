@@ -1,5 +1,6 @@
 // widgets/alchemical_particle_background.dart
 import 'dart:math';
+import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 import 'package:flutter/material.dart';
 
 // -----------------------------------------------------------------
@@ -22,9 +23,9 @@ class _Particle {
   final double speedY;
   final double amplitudeX;
   final double amplitudeY;
-  final Color color;
-  final double radius;
-  double opacity;
+
+  /// Which batch it is drawn in: its colour, size and strength.
+  final int bucket;
   double x = 0;
   double y = 0;
 
@@ -39,9 +40,7 @@ class _Particle {
     required this.speedY,
     required this.amplitudeX,
     required this.amplitudeY,
-    required this.color,
-    required this.radius,
-    required this.opacity,
+    required this.bucket,
   });
 }
 
@@ -86,6 +85,11 @@ class _AlchemicalParticleBackgroundState
   final Random _random = Random();
   bool _isInitialized = false;
   Size? _lastSize;
+
+  /// The palette the motes were made from, and their batches: one point
+  /// draw per colour, size and strength rather than a circle per mote.
+  List<Color> _palette = _particleColors;
+  GrainBatch _batch = GrainBatch(_particleColors.length * _MoteLook.count);
 
   static const List<Color> _particleColors = [
     Colors.cyanAccent,
@@ -132,8 +136,12 @@ class _AlchemicalParticleBackgroundState
   }
 
   void _initializeParticles(Size size) {
-    final palette = widget.colors ?? _particleColors;
     if (_isInitialized) return;
+    final palette = widget.colors ?? _particleColors;
+    if (palette.length != _palette.length) {
+      _batch = GrainBatch(palette.length * _MoteLook.count);
+    }
+    _palette = palette;
 
     final particleCount =
         ((size.width * size.height * 0.0002) * widget.densityMultiplier)
@@ -153,9 +161,9 @@ class _AlchemicalParticleBackgroundState
           speedY: (_random.nextDouble() * 0.02) + 0.005,
           amplitudeX: _random.nextDouble() * 20 + 10,
           amplitudeY: _random.nextDouble() * 20 + 10,
-          color: palette[_random.nextInt(palette.length)],
-          radius: _random.nextDouble() * 1.5 + 0.5,
-          opacity: _random.nextDouble() * 0.5 + 0.2,
+          bucket:
+              _random.nextInt(palette.length) * _MoteLook.count +
+              _random.nextInt(_MoteLook.count),
         ),
       );
     }
@@ -213,6 +221,8 @@ class _AlchemicalParticleBackgroundState
 
         final painter = _ParticlePainter(
           particles: _particles,
+          palette: _palette,
+          batch: _batch,
           globalOpacity: widget.opacity,
           repaint: _controller,
         );
@@ -248,28 +258,51 @@ class _AlchemicalParticleBackgroundState
   }
 }
 
+/// The sizes and strengths a mote can have: a small faint one, a small
+/// bright one, a large faint one and a large bright one, spanning what the
+/// motes used to pick from at random (radius 0.5–2, alpha 0.2–0.7).
+abstract final class _MoteLook {
+  static const int count = 4;
+  static double radius(int look) => look < 2 ? 0.875 : 1.625;
+  static double alpha(int look) => look.isEven ? 0.325 : 0.575;
+}
+
 // 5. The CustomPainter
 class _ParticlePainter extends CustomPainter {
   final List<_Particle> particles;
-  final Paint _paint = Paint();
+  final List<Color> palette;
+  final GrainBatch batch;
   final double globalOpacity;
 
   _ParticlePainter({
     required this.particles,
+    required this.palette,
+    required this.batch,
     required this.globalOpacity,
     required Listenable repaint,
   }) : super(repaint: repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
+    final b = batch..clear();
     for (final p in particles) {
-      _paint.color = p.color.withValues(alpha: p.opacity * globalOpacity);
-      canvas.drawCircle(Offset(p.x, p.y), p.radius, _paint);
+      b.add(p.bucket, p.x, p.y);
+    }
+    for (var c = 0; c < palette.length; c++) {
+      for (var look = 0; look < _MoteLook.count; look++) {
+        b.draw(
+          canvas,
+          c * _MoteLook.count + look,
+          _MoteLook.radius(look) * 2,
+          palette[c].withValues(alpha: _MoteLook.alpha(look) * globalOpacity),
+        );
+      }
     }
   }
 
   @override
   bool shouldRepaint(covariant _ParticlePainter oldDelegate) =>
       oldDelegate.particles != particles ||
+      oldDelegate.palette != palette ||
       oldDelegate.globalOpacity != globalOpacity;
 }

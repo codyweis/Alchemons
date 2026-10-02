@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 import 'dart:math';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart'
@@ -34,7 +36,14 @@ class BreedingTab extends StatefulWidget {
     super.key,
     required this.discoveredCreatures,
     required this.onBreedingComplete,
+    this.debugParent1,
+    this.debugParent2,
   });
+
+  /// Specimens already in the chambers when the tab opens, with no reveal:
+  /// for measuring the chamber at rest.
+  @visibleForTesting
+  final CreatureInstance? debugParent1, debugParent2;
 
   @override
   State<BreedingTab> createState() => _BreedingTabState();
@@ -259,6 +268,12 @@ class _BreedingTabState extends State<BreedingTab>
         curve: Curves.easeInCubic,
       ),
     );
+
+    selectedParent1 = widget.debugParent1;
+    selectedParent2 = widget.debugParent2;
+    if (selectedParent1 != null || selectedParent2 != null) {
+      _updateAnimations();
+    }
   }
 
   @override
@@ -765,6 +780,9 @@ class _BreedingTabState extends State<BreedingTab>
   }
 
   // empty avatar — alchemical summoning circle
+  //
+  // Only the mote going round it moves, so only the mote repaints: the
+  // circle is drawn once, and the mote on a layer of its own.
   Widget _buildEmptyAvatar(FactionTheme theme) {
     final primary = Theme.of(context).colorScheme.primary;
 
@@ -774,26 +792,32 @@ class _BreedingTabState extends State<BreedingTab>
         child: SizedBox(
           width: 104,
           height: 104,
-          child: AnimatedBuilder(
-            animation: _emptyFuseController,
-            builder: (context, _) {
-              return CustomPaint(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CustomPaint(
                 painter: _SummoningCirclePainter(
                   color: theme.border.withValues(alpha: .45),
                   accentColor: primary,
                   glowColor: primary.withValues(alpha: .06),
-                  progress: _emptyFuseController.value,
-                  showOrbit: true,
                 ),
-                child: Center(
-                  child: Icon(
-                    AppIcons.help_center_rounded,
-                    color: theme.textMuted.withValues(alpha: .25),
-                    size: 28,
+              ),
+              RepaintBoundary(
+                child: CustomPaint(
+                  painter: _SummoningOrbitPainter(
+                    progress: _emptyFuseController,
+                    color: primary,
                   ),
                 ),
-              );
-            },
+              ),
+              Center(
+                child: Icon(
+                  AppIcons.help_center_rounded,
+                  color: theme.textMuted.withValues(alpha: .25),
+                  size: 28,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -866,8 +890,6 @@ class _BreedingTabState extends State<BreedingTab>
                     color: typeColor.withValues(alpha: .5),
                     accentColor: typeColor,
                     glowColor: typeColor.withValues(alpha: .08),
-                    progress: 0,
-                    showOrbit: false,
                   ),
                 ),
               ),
@@ -937,258 +959,165 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
-  Widget _buildOrbFill({
-    required bool hasParents,
-    required Color? leftColor,
-    required Color? rightColor,
-    required Color fallbackColor,
-  }) {
-    // Case: both parents selected (full fusion)
-    if (leftColor != null && rightColor != null) {
-      return Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [leftColor, rightColor],
-          ),
-        ),
-      );
-    }
-
-    // Case: exactly one parent selected
-    final singleColor = leftColor ?? rightColor;
-    if (singleColor != null) {
-      return Stack(
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: ClipPath(
-              clipper: _HalfCircleClipper(side: HalfSide.left),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: singleColor,
-                  shape: BoxShape.rectangle,
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    // Case: no parents selected
-    return Container(
-      decoration: BoxDecoration(color: fallbackColor, shape: BoxShape.circle),
-    );
-  }
-
   // ================== FUSION INDICATOR ==================
+  //
+  // Painted, on a layer of its own. It turns every frame while a specimen is
+  // in, and as a stack of widgets it rebuilt each frame and took the whole
+  // card with it when it repainted.
   Widget _buildFusionIndicator({
     required FactionTheme theme,
     required bool hasParents,
     Color? leftColor,
     Color? rightColor,
   }) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([
-        _compatibilityController,
-        _preCinematicFadeController,
-      ]),
-      builder: (context, child) {
-        final baseRotation = _compatibilityController.value * 2 * math.pi;
-        final spinMultiplier = _orbSpinSpeedAnim.value;
-        final bothParents = hasParents;
-        final speedBase = bothParents ? 2.0 : 1;
-
-        final rotation = baseRotation * speedBase * spinMultiplier;
-
-        final idlePulseScale = hasParents
-            ? 1.0 +
-                  (math.sin(_compatibilityController.value * 2 * math.pi) * 0.1)
-            : 1.0;
-
-        final chargedScale = idlePulseScale * _orbScaleAnim.value;
-
-        Color ringColor;
-        if (leftColor != null && rightColor != null) {
-          ringColor = Color.lerp(
-            leftColor,
-            rightColor,
-            0.5,
-          )!.withValues(alpha: .8);
-        } else if (leftColor != null) {
-          ringColor = leftColor.withValues(alpha: .8);
-        } else if (rightColor != null) {
-          ringColor = rightColor.withValues(alpha: .8);
-        } else {
-          ringColor = theme.border.withValues(alpha: .4);
-        }
-
-        final innerOrb = _buildOrbFill(
-          hasParents: hasParents,
-          leftColor: leftColor,
-          rightColor: rightColor,
-          fallbackColor: theme.surfaceAlt,
-        );
-
-        return Opacity(
-          opacity: _orbFadeAnim.value,
-          child: Transform.scale(
-            scale: chargedScale,
-            child: Transform.rotate(
-              angle: rotation,
-              child: Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: (leftColor != null || rightColor != null)
-                        ? ringColor
-                        : theme.border.withValues(alpha: .3),
-                    width: 1.5,
-                  ),
-                  boxShadow: (leftColor != null || rightColor != null)
-                      ? [
-                          BoxShadow(
-                            color: ringColor.withValues(alpha: .3),
-                            blurRadius: 24,
-                            spreadRadius: 4,
-                          ),
-                        ]
-                      : [],
-                ),
-                child: ClipOval(child: innerOrb),
-              ),
-            ),
+    return RepaintBoundary(
+      child: SizedBox.square(
+        dimension: 52,
+        child: CustomPaint(
+          painter: _FusionOrbPainter(
+            spin: _compatibilityController,
+            merge: _preCinematicFadeController,
+            charge: _orbScaleAnim,
+            fade: _orbFadeAnim,
+            spinSpeed: _orbSpinSpeedAnim,
+            hasParents: hasParents,
+            leftColor: leftColor,
+            rightColor: rightColor,
+            emptyFill: theme.surfaceAlt,
+            emptyRing: theme.border.withValues(alpha: .3),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
   // ================== DNA CONNECTION LINE ==================
+  // The FadeTransition round it is already its own layer.
   Widget _buildDNAConnection(FactionTheme theme) {
-    return AnimatedBuilder(
-      animation: _compatibilityController,
-      builder: (context, child) {
-        return IgnorePointer(
-          child: CustomPaint(
-            size: const Size(double.infinity, 200),
-            painter: _DNAConnectionPainter(
-              progress: _compatibilityController.value,
-              color: theme.accent,
-            ),
-          ),
-        );
-      },
+    return IgnorePointer(
+      child: CustomPaint(
+        size: const Size(double.infinity, 200),
+        painter: _DNAConnectionPainter(
+          progress: _compatibilityController,
+          color: theme.accent,
+        ),
+      ),
     );
   }
 
   // ================== BACKGROUND PARTICLES ==================
   Widget _buildBackgroundParticles(FactionTheme theme) {
     return Positioned.fill(
-      child: AnimatedBuilder(
-        animation: _compatibilityController,
-        builder: (context, child) {
-          return IgnorePointer(
-            child: CustomPaint(
-              painter: _ParticlePainter(
-                progress: _compatibilityController.value,
-                color: theme.accent,
-              ),
+      child: IgnorePointer(
+        child: RepaintBoundary(
+          child: CustomPaint(
+            painter: _ParticlePainter(
+              progress: _compatibilityController,
+              color: theme.accent,
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 
   // ================== BREED BUTTON ==================
+  //
+  // Its own layer, and only the glow and the pulse are rebuilt each frame:
+  // the label is built once.
   Widget _buildBreedButton(FactionTheme theme) {
     final canBreed =
         selectedParent1 != null && selectedParent2 != null && !_isBreeding;
 
-    return AnimatedBuilder(
-      animation: _breedButtonController,
-      builder: (context, child) {
-        final t = _breedButtonController.value;
-        final pulseValue = canBreed
-            ? 1.0 + (math.sin(t * 2 * math.pi) * 0.04)
-            : 1.0;
-        final glowAlpha = canBreed
-            ? 0.4 + math.sin(t * 2 * math.pi) * 0.2
-            : 0.0;
-
-        return Transform.scale(
-          scale: pulseValue,
-          child: GestureDetector(
-            onTap: context.soundAction(canBreed ? _onBreedTap : null),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              decoration: BoxDecoration(
-                gradient: canBreed
-                    ? LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [theme.accent, theme.accentSoft, theme.accent],
-                        stops: const [0.0, 0.5, 1.0],
-                      )
-                    : null,
-                color: canBreed ? null : theme.surfaceAlt.withValues(alpha: .4),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: canBreed
-                      ? theme.accent.withValues(alpha: .9)
-                      : theme.border.withValues(alpha: .4),
-                  width: canBreed ? 1.5 : 1,
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: context.soundAction(canBreed ? _onBreedTap : null),
+        child: AnimatedBuilder(
+          animation: _breedButtonController,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (canBreed) ...[
+                Icon(
+                  AppIcons.merge_type_rounded,
+                  color: Colors.black,
+                  size: 18,
                 ),
-                boxShadow: canBreed
-                    ? [
-                        BoxShadow(
-                          color: theme.accent.withValues(alpha: glowAlpha),
-                          blurRadius: 28,
-                          spreadRadius: 6,
-                        ),
-                        BoxShadow(
-                          color: theme.accent.withValues(alpha: glowAlpha * .4),
-                          blurRadius: 52,
-                          spreadRadius: 2,
-                        ),
-                      ]
-                    : [],
+                const SizedBox(width: 10),
+              ],
+              Text(
+                canBreed ? 'INITIATE FUSION' : 'SELECT TWO SPECIMENS',
+                style: TextStyle(
+                  color: canBreed
+                      ? Colors.black
+                      : theme.textMuted.withValues(alpha: .5),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.0,
+                ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (canBreed) ...[
-                    Icon(
-                      AppIcons.merge_type_rounded,
-                      color: Colors.black,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-                  Text(
-                    canBreed ? 'INITIATE FUSION' : 'SELECT TWO SPECIMENS',
-                    style: TextStyle(
-                      color: canBreed
-                          ? Colors.black
-                          : theme.textMuted.withValues(alpha: .5),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            ],
           ),
-        );
-      },
+          builder: (context, child) {
+            final t = _breedButtonController.value;
+            final pulseValue = canBreed
+                ? 1.0 + (math.sin(t * 2 * math.pi) * 0.04)
+                : 1.0;
+            final glowAlpha = canBreed
+                ? 0.4 + math.sin(t * 2 * math.pi) * 0.2
+                : 0.0;
+
+            return Transform.scale(
+              scale: pulseValue,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                decoration: BoxDecoration(
+                  gradient: canBreed
+                      ? LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            theme.accent,
+                            theme.accentSoft,
+                            theme.accent,
+                          ],
+                          stops: const [0.0, 0.5, 1.0],
+                        )
+                      : null,
+                  color: canBreed
+                      ? null
+                      : theme.surfaceAlt.withValues(alpha: .4),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: canBreed
+                        ? theme.accent.withValues(alpha: .9)
+                        : theme.border.withValues(alpha: .4),
+                    width: canBreed ? 1.5 : 1,
+                  ),
+                  boxShadow: canBreed
+                      ? [
+                          BoxShadow(
+                            color: theme.accent.withValues(alpha: glowAlpha),
+                            blurRadius: 28,
+                            spreadRadius: 6,
+                          ),
+                          BoxShadow(
+                            color: theme.accent.withValues(
+                              alpha: glowAlpha * .4,
+                            ),
+                            blurRadius: 52,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                      : [],
+                ),
+                child: child,
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -1903,43 +1832,180 @@ class _BreedingTabState extends State<BreedingTab>
 
 // ================== CUSTOM PAINTERS ==================
 
-enum HalfSide { left, right }
-
-class _HalfCircleClipper extends CustomClipper<Path> {
-  final HalfSide side;
-  _HalfCircleClipper({required this.side});
-
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    if (side == HalfSide.left) {
-      path.addArc(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        math.pi / 2,
-        math.pi,
-      );
-    } else {
-      path.addArc(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        -math.pi / 2,
-        math.pi,
-      );
+/// A disc of [radius] under a gaussian blur of [sigma], as one radial
+/// gradient: the BoxShadow and MaskFilter glows this tab asked the GPU to
+/// blur every frame, worked out once instead. The stops follow the blurred
+/// disc's own falloff, so the glow hugs the rim as the blur did.
+class _BlurredDisc {
+  _BlurredDisc(this.radius, this.sigma) : extent = radius + 3 * sigma {
+    for (var k = 0; k < _stops.length; k++) {
+      _coverage[k] = k == _stops.length - 1
+          ? 0
+          : _coverageAt(_stops[k] * extent);
     }
-    path.close();
-    return path;
   }
 
-  @override
-  bool shouldReclip(covariant _HalfCircleClipper oldClipper) {
-    return oldClipper.side != side;
+  /// The orb's BoxShadow: its 26 px disc spread by 4, under a blur of 24.
+  static final orbGlow = _BlurredDisc(30, 24 * 0.57735 + 0.5);
+
+  /// The mote round an empty chamber: 2.5 px under a blur of 3.
+  static final orbitMote = _BlurredDisc(2.5, 3);
+
+  final double radius, sigma, extent;
+
+  static const List<double> _stops = [
+    0, .08, .16, .24, .32, .40, .48, .56, .64, .72, .80, .88, 1, //
+  ];
+  final List<double> _coverage = List.filled(_stops.length, 0);
+
+  /// How much of the gaussian at distance [d] from the centre falls inside
+  /// the disc.
+  double _coverageAt(double d) {
+    const rings = 32, spokes = 64;
+    final dr = radius / rings, dt = 2 * math.pi / spokes;
+    final twoS2 = 2 * sigma * sigma;
+    var sum = 0.0;
+    for (var i = 0; i < rings; i++) {
+      final rho = (i + 0.5) * dr;
+      for (var j = 0; j < spokes; j++) {
+        final th = (j + 0.5) * dt;
+        final dx = d - rho * math.cos(th), dy = rho * math.sin(th);
+        sum += math.exp(-(dx * dx + dy * dy) / twoS2) * rho;
+      }
+    }
+    return (sum * dr * dt / (math.pi * twoS2)).clamp(0.0, 1.0);
+  }
+
+  void paint(Canvas canvas, Offset at, Color color) {
+    if (color.a <= 0) return;
+    canvas.drawCircle(
+      at,
+      extent,
+      Paint()
+        ..shader = ui.Gradient.radial(at, extent, [
+          for (final c in _coverage) color.withValues(alpha: color.a * c),
+        ], _stops),
+    );
   }
 }
 
+/// The orb between the chambers, drawn as the widgets it replaced drew it:
+/// a disc of the pair's colours (one specimen alone fills its left half)
+/// turning inside a thin ring, over a soft glow.
+class _FusionOrbPainter extends CustomPainter {
+  _FusionOrbPainter({
+    required this.spin,
+    required this.merge,
+    required this.charge,
+    required this.fade,
+    required this.spinSpeed,
+    required this.hasParents,
+    required this.leftColor,
+    required this.rightColor,
+    required this.emptyFill,
+    required this.emptyRing,
+  }) : super(repaint: Listenable.merge([spin, merge]));
+
+  final Animation<double> spin, merge, charge, fade, spinSpeed;
+  final bool hasParents;
+  final Color? leftColor, rightColor;
+  final Color emptyFill, emptyRing;
+
+  static const double _border = 1.5;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final opacity = fade.value;
+    if (opacity <= 0) return;
+    final r = size.shortestSide / 2;
+    final turn = spin.value * 2 * math.pi;
+    final rotation = turn * (hasParents ? 2.0 : 1.0) * spinSpeed.value;
+    final pulse = hasParents ? 1.0 + math.sin(turn) * 0.1 : 1.0;
+
+    final a = leftColor, b = rightColor;
+    final ring = a != null && b != null
+        ? Color.lerp(a, b, 0.5)!.withValues(alpha: .8)
+        : (a ?? b)?.withValues(alpha: .8);
+
+    final centre = size.center(Offset.zero);
+    // A layer only while the merge fades it out; at rest it is drawn
+    // straight.
+    final faded = opacity < 1;
+    if (faded) {
+      canvas.saveLayer(
+        Rect.fromCircle(center: centre, radius: r * 4),
+        Paint()..color = Color.fromRGBO(0, 0, 0, opacity),
+      );
+    }
+    canvas.save();
+    canvas.translate(centre.dx, centre.dy);
+    canvas.scale(pulse * charge.value);
+    canvas.rotate(rotation);
+
+    // The BoxShadow's glow (blur 24, spread 4), without the blur.
+    if (ring != null) {
+      _BlurredDisc.orbGlow.paint(
+        canvas,
+        Offset.zero,
+        ring.withValues(alpha: .3),
+      );
+    }
+
+    final inner = r - _border;
+    final disc = Rect.fromCircle(center: Offset.zero, radius: inner);
+    if (a != null && b != null) {
+      canvas.drawCircle(
+        Offset.zero,
+        inner,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [a, b],
+          ).createShader(disc),
+      );
+    } else if (a != null || b != null) {
+      canvas.drawArc(
+        disc,
+        math.pi / 2,
+        math.pi,
+        true,
+        Paint()..color = (a ?? b)!,
+      );
+    } else {
+      canvas.drawCircle(Offset.zero, inner, Paint()..color = emptyFill);
+    }
+    canvas.drawCircle(
+      Offset.zero,
+      r - _border / 2,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _border
+        ..color = ring ?? emptyRing,
+    );
+    canvas.restore();
+    if (faded) canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_FusionOrbPainter old) =>
+      old.hasParents != hasParents ||
+      old.leftColor != leftColor ||
+      old.rightColor != rightColor ||
+      old.emptyFill != emptyFill ||
+      old.emptyRing != emptyRing;
+}
+
 class _DNAConnectionPainter extends CustomPainter {
-  final double progress;
+  _DNAConnectionPainter({required this.progress, required this.color})
+    : super(repaint: progress);
+
+  final Animation<double> progress;
   final Color color;
 
-  _DNAConnectionPainter({required this.progress, required this.color});
+  /// A wave this gentle is smooth with a vertex every few pixels. One per
+  /// pixel was ~360 segments to tessellate every frame.
+  static const double _step = 6;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1949,69 +2015,119 @@ class _DNAConnectionPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final width = size.width;
-    final height = size.height;
-    final centerY = height / 2;
+    final centerY = size.height / 2;
+    final phase = progress.value * 2 * math.pi;
+    double yAt(double x) =>
+        centerY + math.sin((x / width) * 4 * math.pi + phase) * 8;
 
-    final path = Path();
-    for (double x = 0; x < width; x++) {
-      final y =
-          centerY +
-          math.sin((x / width) * 4 * math.pi + progress * 2 * math.pi) * 8;
-      if (x == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
+    final path = Path()..moveTo(0, yAt(0));
+    for (double x = _step; x < width; x += _step) {
+      path.lineTo(x, yAt(x));
     }
-
+    path.lineTo(width, yAt(width));
     canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(_DNAConnectionPainter oldDelegate) => true;
+  bool shouldRepaint(_DNAConnectionPainter old) =>
+      old.progress != progress || old.color != color;
 }
 
+/// The motes drifting in the card once both chambers are filled: placed
+/// once, and drawn in three sizes as three point batches rather than a
+/// circle each.
 class _ParticlePainter extends CustomPainter {
-  final double progress;
+  _ParticlePainter({required this.progress, required this.color})
+    : super(repaint: progress);
+
+  final Animation<double> progress;
   final Color color;
 
-  _ParticlePainter({required this.progress, required this.color});
+  static const List<double> _radii = [1.33, 2.0, 2.67];
+
+  /// Each mote's place, as a fraction of the card, and its size.
+  static final List<(double, double, int)> _motes = () {
+    final random = math.Random(42);
+    return [
+      for (var i = 0; i < 20; i++)
+        (
+          random.nextDouble(),
+          random.nextDouble(),
+          (random.nextDouble() * _radii.length).floor(),
+        ),
+    ];
+  }();
+
+  final GrainBatch _batch = GrainBatch(_radii.length);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withValues(alpha: .2)
-      ..style = PaintingStyle.fill;
-
-    final random = math.Random(42); // Fixed seed for consistency
-
-    for (int i = 0; i < 20; i++) {
-      final x = random.nextDouble() * size.width;
-      final baseY = random.nextDouble() * size.height;
-      final y = baseY + math.sin(progress * 2 * math.pi + i) * 20;
-      final radius = 1.0 + random.nextDouble() * 2;
-
-      canvas.drawCircle(Offset(x, y), radius, paint);
+    final b = _batch..clear();
+    final t = progress.value * 2 * math.pi;
+    for (var i = 0; i < _motes.length; i++) {
+      final (fx, fy, k) = _motes[i];
+      b.add(k, fx * size.width, fy * size.height + math.sin(t + i) * 20);
+    }
+    final c = color.withValues(alpha: .2);
+    for (var k = 0; k < _radii.length; k++) {
+      b.draw(canvas, k, _radii[k] * 2, c);
     }
   }
 
   @override
-  bool shouldRepaint(_ParticlePainter oldDelegate) => true;
+  bool shouldRepaint(_ParticlePainter old) =>
+      old.progress != progress || old.color != color;
+}
+
+/// The mote going round an empty chamber's circle, with its trail.
+class _SummoningOrbitPainter extends CustomPainter {
+  _SummoningOrbitPainter({required this.progress, required this.color})
+    : super(repaint: progress);
+
+  final Animation<double> progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final outerR = cx - 4;
+    final orbitR = (outerR + outerR * 0.78) / 2;
+    final angle = progress.value * 2 * math.pi;
+
+    // The mote, as it was drawn under a blur of 3, without the blur.
+    _BlurredDisc.orbitMote.paint(
+      canvas,
+      Offset(cx + orbitR * math.cos(angle), cy + orbitR * math.sin(angle)),
+      color,
+    );
+
+    // Fading trail
+    final trail = Paint();
+    for (int t = 1; t <= 6; t++) {
+      final ta = angle - t * 0.15;
+      canvas.drawCircle(
+        Offset(cx + orbitR * math.cos(ta), cy + orbitR * math.sin(ta)),
+        2.0 - t * 0.25,
+        trail..color = color.withValues(alpha: color.a * (1.0 - t / 7)),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SummoningOrbitPainter old) =>
+      old.progress != progress || old.color != color;
 }
 
 class _SummoningCirclePainter extends CustomPainter {
   final Color color;
   final Color accentColor;
   final Color glowColor;
-  final double progress;
-  final bool showOrbit;
 
   _SummoningCirclePainter({
     required this.color,
     required this.accentColor,
     required this.glowColor,
-    required this.progress,
-    this.showOrbit = false,
   });
 
   @override
@@ -2106,83 +2222,51 @@ class _SummoningCirclePainter extends CustomPainter {
     canvas.drawPath(triDownPath, triPaint);
 
     // --- Small tick marks at 12 positions on outer ring ---
+    // One batch of line segments rather than a draw per tick.
     final tickPaint = Paint()
       ..color = color.withValues(alpha: color.a * 0.5)
       ..strokeWidth = 1.0
       ..strokeCap = StrokeCap.round;
 
+    final ticks = Float32List(12 * 4);
     for (int i = 0; i < 12; i++) {
       final angle = (i / 12) * 2 * math.pi - math.pi / 2;
       final isCardinal = i % 3 == 0;
       final len = isCardinal ? 4.0 : 2.0;
-      final from = Offset(
-        cx + outerR * math.cos(angle),
-        cy + outerR * math.sin(angle),
-      );
-      final to = Offset(
-        cx + (outerR + len) * math.cos(angle),
-        cy + (outerR + len) * math.sin(angle),
-      );
-      canvas.drawLine(from, to, tickPaint);
+      final c = math.cos(angle), s = math.sin(angle);
+      ticks
+        ..[i * 4] = cx + outerR * c
+        ..[i * 4 + 1] = cy + outerR * s
+        ..[i * 4 + 2] = cx + (outerR + len) * c
+        ..[i * 4 + 3] = cy + (outerR + len) * s;
     }
+    canvas.drawRawPoints(ui.PointMode.lines, ticks, tickPaint);
 
     // --- Small diamond runes at 4 cardinal points (outside ring) ---
     final runePaint = Paint()
       ..color = accentColor.withValues(alpha: accentColor.a * 0.4)
       ..style = PaintingStyle.fill;
 
+    final runes = Path();
     for (int i = 0; i < 4; i++) {
       final angle = (i / 4) * 2 * math.pi - math.pi / 2;
       final dx = cx + (outerR + 7) * math.cos(angle);
       final dy = cy + (outerR + 7) * math.sin(angle);
-      final d = Path()
+      runes
         ..moveTo(dx, dy - 2.2)
         ..lineTo(dx + 1.3, dy)
         ..lineTo(dx, dy + 2.2)
         ..lineTo(dx - 1.3, dy)
         ..close();
-      canvas.drawPath(d, runePaint);
     }
-
-    // --- Orbiting particle with trail (empty state) ---
-    if (showOrbit) {
-      final angle = progress * 2 * math.pi;
-      final orbitR = (outerR + innerR) / 2;
-
-      // Main dot with glow
-      final orbX = cx + orbitR * math.cos(angle);
-      final orbY = cy + orbitR * math.sin(angle);
-      canvas.drawCircle(
-        Offset(orbX, orbY),
-        2.5,
-        Paint()
-          ..color = accentColor
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-      );
-
-      // Fading trail
-      for (int t = 1; t <= 6; t++) {
-        final ta = angle - t * 0.15;
-        final tx = cx + orbitR * math.cos(ta);
-        final ty = cy + orbitR * math.sin(ta);
-        canvas.drawCircle(
-          Offset(tx, ty),
-          2.0 - t * 0.25,
-          Paint()
-            ..color = accentColor.withValues(
-              alpha: accentColor.a * (1.0 - t / 7),
-            ),
-        );
-      }
-    }
+    canvas.drawPath(runes, runePaint);
   }
 
   @override
   bool shouldRepaint(_SummoningCirclePainter old) =>
-      old.progress != progress ||
-      old.showOrbit != showOrbit ||
       old.color != color ||
-      old.accentColor != accentColor;
+      old.accentColor != accentColor ||
+      old.glowColor != glowColor;
 }
 
 /// A toast captured during the fusion cinematic, shown once after it closes.
