@@ -14,6 +14,10 @@ import 'package:flutter/rendering.dart';
 class SpecimenGrains {
   SpecimenGrains._(this.hx, this.hy, this.tone, this.tones, this.step);
 
+  /// Grains laid out by hand, for a body that was never a sprite — an
+  /// element's orb, say. [tones] darkest first, as a read sprite's are.
+  SpecimenGrains.points(this.hx, this.hy, this.tone, this.tones, this.step);
+
   /// Where each grain sits, from the centre of the box it was read out of,
   /// in logical px.
   final Float32List hx, hy;

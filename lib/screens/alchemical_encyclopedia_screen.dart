@@ -1,19 +1,75 @@
-import 'package:alchemons/audio/audio.dart';
-import 'dart:async';
-import 'dart:math' as math;
+// lib/screens/alchemical_encyclopedia_screen.dart
+//
+// THE FUSION CODEX: what the player has learned about fusing, by what it is
+// made of.
+//
+//   ELEMENTS  the seventeen, in their five groups, each a glass orb of its
+//             grains once it is known (an empty bulb until then). Open one
+//             and it stands on a stage under dark glass — tap it and it comes
+//             apart into its element — over the formulas that MAKE it and
+//             those it FUSES INTO. Play a formula and its two makers pour
+//             together on the stage and what they make gathers out of them.
+//   SPECIES   the eight families the same way, shown by a creature of each.
+//   NATURES   the behaviour log, once a Gene Analyzer is built.
+//
+// After a hatch that found something new, the Codex opens on it and plays
+// the formula that made it (see [AlchemicalEncyclopediaScreen.unlockShowcase]).
 
-import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/services/alchemical_encyclopedia_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/nature_effect_formatter.dart';
+import 'package:alchemons/widgets/animations/extraction_vile_ui.dart'
+    show kVialGlass;
+import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/fx/codex_stage.dart';
+import 'package:alchemons/widgets/fx/element_orb.dart';
+import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+/// Gilt: the Codex's own accent.
+const Color _kGilt = Color(0xFFE4B356);
+
+/// Light ink, for what is written on the dark glass whatever the theme.
+const Color _kGlassInk = Color(0xFFE8DCC8);
+const Color _kGlassMuted = Color(0xFF8D8478);
+
+TextStyle _mono(
+  double size,
+  Color color, {
+  FontWeight weight = FontWeight.w700,
+  double spacing = 1.2,
+}) => TextStyle(
+  fontFamily: 'monospace',
+  color: color,
+  fontSize: size,
+  fontWeight: weight,
+  letterSpacing: spacing,
+);
+
+/// An element's colour as its orb shows it.
+Color _elementTint(String element) =>
+    elementOrbTint(EssenceElement.of(element));
+
+/// A family's colour.
+Color _familyTint(String family) {
+  for (final f in CreatureFamily.values) {
+    if (f.displayName == family) return f.color;
+  }
+  return _kGilt;
+}
+
 class AlchemicalEncyclopediaScreen extends StatefulWidget {
+  /// Formulas just found, to open on and play.
   final List<EncyclopediaRecipeEntry> unlockShowcase;
 
   const AlchemicalEncyclopediaScreen({
@@ -27,2588 +83,1320 @@ class AlchemicalEncyclopediaScreen extends StatefulWidget {
 }
 
 class _AlchemicalEncyclopediaScreenState
-    extends State<AlchemicalEncyclopediaScreen>
-    with TickerProviderStateMixin {
+    extends State<AlchemicalEncyclopediaScreen> {
   late Future<AlchemicalEncyclopediaSnapshot> _snapshotFuture;
-  late TabController _tabController;
-  final GlobalKey<_RecipeTabListState> _familyListKey =
-      GlobalKey<_RecipeTabListState>();
-  final GlobalKey<_RecipeTabListState> _elementListKey =
-      GlobalKey<_RecipeTabListState>();
-  final GlobalKey<_NatureTabListState> _natureListKey =
-      GlobalKey<_NatureTabListState>();
-
-  final TextEditingController _searchController = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode();
-  String _searchQuery = '';
-  bool _showKnownOnly = false;
+  int _tab = 0;
   bool _showcaseQueued = false;
-  bool _showcaseRunning = false;
-  bool _searchFocused = false;
-  bool _hasNatureTab = false;
-  Timer? _searchDebounce;
-  _FilteredEncyclopediaView? _filteredViewCache;
 
-  // Whether we've shown the initial entry animation
-  bool _hasAnimatedIn = false;
+  /// What the showcase found, marked NEW on the tables.
+  final Set<String> _fresh = {};
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _load();
+  }
+
+  void _load() {
     _snapshotFuture = AlchemicalEncyclopediaService.loadSnapshot(
       db: context.read<AlchemonsDatabase>(),
+      catalog: _catalogOrNull(),
     );
-    _searchController.addListener(_onSearchChanged);
-    _searchFocusNode.addListener(_onSearchFocusChanged);
   }
 
-  @override
-  void dispose() {
-    _searchDebounce?.cancel();
-    _searchController.removeListener(_onSearchChanged);
-    _searchController.dispose();
-    _searchFocusNode.removeListener(_onSearchFocusChanged);
-    _searchFocusNode.dispose();
-    _tabController.dispose();
-    super.dispose();
+  CreatureCatalog? _catalogOrNull() {
+    try {
+      return context.read<CreatureCatalog>();
+    } catch (_) {
+      return null;
+    }
   }
 
-  void _syncTabController({required bool hasNatureTab}) {
-    if (_hasNatureTab == hasNatureTab) return;
-    final nextLength = hasNatureTab ? 3 : 2;
-    final previousIndex = _tabController.index;
-    final nextIndex = math.min(previousIndex, nextLength - 1);
-    _tabController.dispose();
-    _tabController = TabController(
-      length: nextLength,
-      vsync: this,
-      initialIndex: nextIndex,
-    );
-    _hasNatureTab = hasNatureTab;
-  }
+  void _reload() => setState(_load);
 
-  void _onSearchFocusChanged() {
-    setState(() => _searchFocused = _searchFocusNode.hasFocus);
-  }
+  // ── the showcase ──────────────────────────────────────────────────────
 
-  void _queueShowcaseIfNeeded({
-    required AlchemicalEncyclopediaSnapshot data,
-    required List<EncyclopediaRecipeEntry> visibleFamily,
-    required List<EncyclopediaRecipeEntry> visibleElement,
-  }) {
+  void _queueShowcase(AlchemicalEncyclopediaSnapshot data) {
     if (_showcaseQueued || widget.unlockShowcase.isEmpty) return;
     _showcaseQueued = true;
-
-    final targets = _resolveShowcaseTargets(
-      data: data,
-      visibleFamily: visibleFamily,
-      visibleElement: visibleElement,
-    );
-    if (targets.isEmpty) return;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _runUnlockShowcase(targets);
-    });
-  }
-
-  List<_UnlockShowcaseTarget> _resolveShowcaseTargets({
-    required AlchemicalEncyclopediaSnapshot data,
-    required List<EncyclopediaRecipeEntry> visibleFamily,
-    required List<EncyclopediaRecipeEntry> visibleElement,
-  }) {
     final seen = <String>{};
-    final targets = <_UnlockShowcaseTarget>[];
-
+    final plays = <(EncyclopediaRecipeEntry, String)>[];
     for (final entry in widget.unlockShowcase) {
-      final token = '${entry.kind.name}:${entry.pairKey}';
-      if (!seen.add(token)) continue;
-
-      final visible = switch (entry.kind) {
-        EncyclopediaRecipeKind.family => visibleFamily.any(
-          (r) => r.pairKey == entry.pairKey,
-        ),
-        EncyclopediaRecipeKind.element => visibleElement.any(
-          (r) => r.pairKey == entry.pairKey,
-        ),
-      };
-      if (!visible) continue;
-
-      final discovered = switch (entry.kind) {
-        EncyclopediaRecipeKind.family => data.discoveredFamilyKeys.contains(
-          entry.pairKey,
-        ),
-        EncyclopediaRecipeKind.element => data.discoveredElementKeys.contains(
-          entry.pairKey,
-        ),
-      };
-      if (!discovered) continue;
-
-      targets.add(
-        _UnlockShowcaseTarget(kind: entry.kind, pairKey: entry.pairKey),
+      if (!seen.add('${entry.kind.name}:${entry.pairKey}')) continue;
+      final recipes = entry.kind == EncyclopediaRecipeKind.element
+          ? data.elementRecipes
+          : data.familyRecipes;
+      final recipe = recipes.firstWhere(
+        (r) => r.pairKey == entry.pairKey,
+        orElse: () => entry,
       );
+      final made = recipe.outcomes
+          .map((o) => o.result)
+          .where((r) => data.outcomeFound(recipe, r))
+          .firstOrNull;
+      if (made == null) continue;
+      plays.add((recipe, made));
+      _fresh.add(made);
     }
-
-    return targets;
-  }
-
-  Future<void> _runUnlockShowcase(List<_UnlockShowcaseTarget> targets) async {
-    if (_showcaseRunning || targets.isEmpty) return;
-    _showcaseRunning = true;
-
-    for (final target in targets) {
-      if (!mounted) break;
-
-      final desiredTabIndex = target.kind == EncyclopediaRecipeKind.family
-          ? 0
-          : 1;
-      if (_tabController.index != desiredTabIndex) {
-        _tabController.animateTo(
-          desiredTabIndex,
-          duration: const Duration(milliseconds: 360),
-          curve: Curves.easeOutCubic,
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 430));
+    if (plays.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      for (final (recipe, made) in plays) {
+        if (!mounted) return;
+        final element = recipe.kind == EncyclopediaRecipeKind.element;
+        setState(() => _tab = element ? 0 : 1);
+        await Future<void>.delayed(const Duration(milliseconds: 240));
+        if (!mounted) return;
+        await _openSheet(data, kind: recipe.kind, name: made, showcase: recipe);
       }
-
-      if (!mounted) break;
-
-      final listState = desiredTabIndex == 0
-          ? _familyListKey.currentState
-          : _elementListKey.currentState;
-      if (listState == null) {
-        await Future<void>.delayed(const Duration(milliseconds: 120));
-        continue;
-      }
-
-      await listState.focusAndPulse(target.pairKey);
-      if (!mounted) break;
-      await Future<void>.delayed(const Duration(milliseconds: 160));
-    }
-
-    _showcaseRunning = false;
-  }
-
-  void _onSearchChanged() {
-    final next = _searchController.text.trim().toLowerCase();
-    _searchDebounce?.cancel();
-    if (next == _searchQuery) return;
-    // Debounce so every keystroke doesn't trigger a full re-filter/rebuild.
-    _searchDebounce = Timer(const Duration(milliseconds: 180), () {
-      if (!mounted) return;
-      setState(() => _searchQuery = next);
     });
   }
 
-  void _reloadSnapshot() {
-    setState(() {
-      _snapshotFuture = AlchemicalEncyclopediaService.loadSnapshot(
-        db: context.read<AlchemonsDatabase>(),
-      );
-    });
-  }
-
-  List<EncyclopediaRecipeEntry> _visibleRecipes({
-    required List<EncyclopediaRecipeEntry> recipes,
-    required Set<String> discoveredPairKeys,
-    required Set<String> discoveredOutcomeKeys,
+  Future<void> _openSheet(
+    AlchemicalEncyclopediaSnapshot data, {
+    required EncyclopediaRecipeKind kind,
+    required String name,
+    EncyclopediaRecipeEntry? showcase,
   }) {
-    final out = <EncyclopediaRecipeEntry>[];
-    for (final recipe in recipes) {
-      final unlocked = discoveredPairKeys.contains(recipe.pairKey);
-      if (_showKnownOnly && !unlocked) continue;
-
-      if (_searchQuery.isNotEmpty) {
-        if (!unlocked) continue;
-        final outcomeNames = recipe.outcomes
-            .where(
-              (entry) => discoveredOutcomeKeys.contains(
-                recipe.outcomePathKey(entry.result),
-              ),
-            )
-            .map((entry) => entry.result)
-            .join(' ');
-        final haystack = '${recipe.parentA} ${recipe.parentB} $outcomeNames'
-            .toLowerCase();
-        if (!haystack.contains(_searchQuery)) continue;
-      }
-      out.add(recipe);
-    }
-
-    out.sort((a, b) {
-      final aKnown = discoveredPairKeys.contains(a.pairKey);
-      final bKnown = discoveredPairKeys.contains(b.pairKey);
-      if (aKnown != bKnown) return aKnown ? -1 : 1;
-
-      final first = a.parentA.compareTo(b.parentA);
-      if (first != 0) return first;
-      final second = a.parentB.compareTo(b.parentB);
-      if (second != 0) return second;
-      return a.result.compareTo(b.result);
-    });
-    return out;
-  }
-
-  List<EncyclopediaNatureEntry> _visibleNatures({
-    required List<EncyclopediaNatureEntry> natures,
-  }) {
-    final out = <EncyclopediaNatureEntry>[];
-    for (final entry in natures) {
-      if (_showKnownOnly && !entry.discovered) continue;
-
-      if (_searchQuery.isNotEmpty) {
-        if (!entry.discovered) continue;
-        final haystack =
-            '${entry.nature.id} ${formatNatureEffectSummary(entry.nature.effect)}'
-                .toLowerCase();
-        if (!haystack.contains(_searchQuery)) continue;
-      }
-      out.add(entry);
-    }
-
-    out.sort((a, b) {
-      if (a.discovered != b.discovered) return a.discovered ? -1 : 1;
-      final observed = b.observedCount.compareTo(a.observedCount);
-      if (observed != 0) return observed;
-      return a.nature.id.compareTo(b.nature.id);
-    });
-    return out;
-  }
-
-  _FilteredEncyclopediaView _filteredView(AlchemicalEncyclopediaSnapshot data) {
-    final cached = _filteredViewCache;
-    if (cached != null &&
-        identical(cached.snapshot, data) &&
-        cached.query == _searchQuery &&
-        cached.knownOnly == _showKnownOnly) {
-      return cached;
-    }
-
-    final next = _FilteredEncyclopediaView(
-      snapshot: data,
-      query: _searchQuery,
-      knownOnly: _showKnownOnly,
-      family: List.unmodifiable(
-        _visibleRecipes(
-          recipes: data.familyRecipes,
-          discoveredPairKeys: data.discoveredFamilyKeys,
-          discoveredOutcomeKeys: data.discoveredFamilyOutcomeKeys,
-        ),
+    HapticFeedback.selectionClick();
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      constraints: const BoxConstraints(maxWidth: 640),
+      builder: (_) => _CodexSheet(
+        data: data,
+        kind: kind,
+        name: name,
+        showcase: showcase,
+        fresh: _fresh,
       ),
-      element: List.unmodifiable(
-        _visibleRecipes(
-          recipes: data.elementRecipes,
-          discoveredPairKeys: data.discoveredElementKeys,
-          discoveredOutcomeKeys: data.discoveredElementOutcomeKeys,
-        ),
-      ),
-      natures: List.unmodifiable(_visibleNatures(natures: data.natureEntries)),
     );
-    _filteredViewCache = next;
-    return next;
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
     final hasNatureTab = context
         .watch<ConstellationEffectsService>()
         .hasGeneAnalyzer();
-    _syncTabController(hasNatureTab: hasNatureTab);
+    if (!hasNatureTab && _tab > 1) _tab = 0;
 
     return Scaffold(
-      backgroundColor: _C.of(context).bg0,
-      body: Stack(
-        children: [
-          const _ForgeBackdrop(),
-          SafeArea(
-            child: FutureBuilder<AlchemicalEncyclopediaSnapshot>(
-              future: _snapshotFuture,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return _LoadFailure(onRetry: _reloadSnapshot);
-                }
-
-                if (!snapshot.hasData) {
-                  return const _ScorchedLoading();
-                }
-
-                final data = snapshot.data!;
-                final discoveredFamily = data.familyRecipes
-                    .where((e) => data.discoveredFamilyKeys.contains(e.pairKey))
-                    .length;
-                final discoveredElement = data.elementRecipes
-                    .where(
-                      (e) => data.discoveredElementKeys.contains(e.pairKey),
-                    )
-                    .length;
-                final totalDiscovered = discoveredFamily + discoveredElement;
-                final totalRecipes =
-                    data.familyRecipes.length + data.elementRecipes.length;
-                final completion = totalRecipes == 0
-                    ? 0.0
-                    : totalDiscovered / totalRecipes;
-
-                final filtered = _filteredView(data);
-                final visibleFamily = filtered.family;
-                final visibleElement = filtered.element;
-                final visibleNature = filtered.natures;
-                _queueShowcaseIfNeeded(
-                  data: data,
-                  visibleFamily: visibleFamily,
-                  visibleElement: visibleElement,
-                );
-
-                // Trigger entry animation once data loads
-                if (!_hasAnimatedIn) {
-                  _hasAnimatedIn = true;
-                }
-
-                return NestedScrollView(
-                  headerSliverBuilder: (context, innerScrolled) => [
-                    // Scroll-away: title bar + progress overview.
-                    SliverToBoxAdapter(
-                      child: Column(
-                        children: [
-                          _ForgeTopBar(
-                            completion: completion,
-                            onBack: () => Navigator.of(context).pop(),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                            child: _OverviewPanel(
-                              totalDiscovered: totalDiscovered,
-                              totalRecipes: totalRecipes,
-                              discoveredFamily: discoveredFamily,
-                              totalFamily: data.familyRecipes.length,
-                              discoveredElement: discoveredElement,
-                              totalElement: data.elementRecipes.length,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Docked: search + filter + tabs stay pinned to the top.
-                    SliverOverlapAbsorber(
-                      handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
-                        context,
-                      ),
-                      sliver: SliverPersistentHeader(
-                        pinned: true,
-                        delegate: _DockHeaderDelegate(
-                          extent: _kDockHeight,
-                          child: _DockedControls(
-                            controller: _searchController,
-                            focusNode: _searchFocusNode,
-                            hasSearchQuery: _searchQuery.isNotEmpty,
-                            showKnownOnly: _showKnownOnly,
-                            isFocused: _searchFocused,
-                            onToggleKnownOnly: () {
-                              HapticFeedback.lightImpact();
-                              setState(() => _showKnownOnly = !_showKnownOnly);
-                            },
-                            onClearSearch: () {
-                              _searchController.clear();
-                              HapticFeedback.selectionClick();
-                            },
-                            tabController: _tabController,
-                            familyCount: visibleFamily.length,
-                            elementCount: visibleElement.length,
-                            natureCount: visibleNature.length,
-                            showNatureTab: hasNatureTab,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                  body: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _RecipeTabList(
-                        key: _familyListKey,
-                        kind: EncyclopediaRecipeKind.family,
-                        recipes: visibleFamily,
-                        discoveredKeys: data.discoveredFamilyKeys,
-                        discoveredOutcomeKeys: data.discoveredFamilyOutcomeKeys,
-                        query: _searchQuery,
-                        knownOnly: _showKnownOnly,
-                      ),
-                      _RecipeTabList(
-                        key: _elementListKey,
-                        kind: EncyclopediaRecipeKind.element,
-                        recipes: visibleElement,
-                        discoveredKeys: data.discoveredElementKeys,
-                        discoveredOutcomeKeys:
-                            data.discoveredElementOutcomeKeys,
-                        query: _searchQuery,
-                        knownOnly: _showKnownOnly,
-                      ),
-                      if (hasNatureTab)
-                        _NatureTabList(
-                          key: _natureListKey,
-                          entries: visibleNature,
-                          query: _searchQuery,
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Showcase target ────────────────────────────────────────────────────────
-
-class _FilteredEncyclopediaView {
-  final AlchemicalEncyclopediaSnapshot snapshot;
-  final String query;
-  final bool knownOnly;
-  final List<EncyclopediaRecipeEntry> family;
-  final List<EncyclopediaRecipeEntry> element;
-  final List<EncyclopediaNatureEntry> natures;
-
-  const _FilteredEncyclopediaView({
-    required this.snapshot,
-    required this.query,
-    required this.knownOnly,
-    required this.family,
-    required this.element,
-    required this.natures,
-  });
-}
-
-class _UnlockShowcaseTarget {
-  final EncyclopediaRecipeKind kind;
-  final String pairKey;
-  const _UnlockShowcaseTarget({required this.kind, required this.pairKey});
-}
-
-// ─── Color palette ──────────────────────────────────────────────────────────
-
-class _C {
-  final Color bg0, bg1, bg2, bg3;
-  final Color amber, amberBright, amberGlow, teal;
-  final Color textPrimary, textSecondary, textMuted;
-  final Color borderDim, borderAccent;
-
-  const _C._({
-    required this.bg0,
-    required this.bg1,
-    required this.bg2,
-    required this.bg3,
-    required this.amber,
-    required this.amberBright,
-    required this.amberGlow,
-    required this.teal,
-    required this.textPrimary,
-    required this.textSecondary,
-    required this.textMuted,
-    required this.borderDim,
-    required this.borderAccent,
-  });
-
-  static const _C _dark = _C._(
-    bg0: Color(0xFF080A0E),
-    bg1: Color(0xFF0E1117),
-    bg2: Color(0xFF141820),
-    bg3: Color(0xFF1C2230),
-    amber: Color(0xFFD97706),
-    amberBright: Color(0xFFF59E0B),
-    amberGlow: Color(0xFFFFB020),
-    teal: Color(0xFF0EA5E9),
-    textPrimary: Color(0xFFE8DCC8),
-    textSecondary: Color(0xFF8A7B6A),
-    textMuted: Color(0xFF4A3F35),
-    borderDim: Color(0xFF252D3A),
-    borderAccent: Color(0xFF6B4C20),
-  );
-
-  static const _C _light = _C._(
-    bg0: Color(0xFFF5F7FB),
-    bg1: Color(0xFFFFFFFF),
-    bg2: Color(0xFFFFFFFF),
-    bg3: Color(0xFFE8EDF5),
-    amber: Color(0xFFD97706),
-    amberBright: Color(0xFFB45309),
-    amberGlow: Color(0xFFF59E0B),
-    teal: Color(0xFF0E7490),
-    textPrimary: Color(0xFF111827),
-    textSecondary: Color(0xFF4B5563),
-    textMuted: Color(0xFF6B7280),
-    borderDim: Color(0xFFD0D7E2),
-    borderAccent: Color(0xFFB8C3D3),
-  );
-
-  static _C of(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? _dark : _light;
-}
-
-// ─── Text styles ────────────────────────────────────────────────────────────
-
-class _T {
-  static TextStyle heading(BuildContext context) => TextStyle(
-    fontFamily: 'monospace',
-    color: _C.of(context).textPrimary,
-    fontSize: 13,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 2.0,
-  );
-  static TextStyle label(BuildContext context) => TextStyle(
-    fontFamily: 'monospace',
-    color: _C.of(context).textSecondary,
-    fontSize: 12,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 1.6,
-  );
-  static TextStyle body(BuildContext context) => TextStyle(
-    color: _C.of(context).textSecondary,
-    fontSize: 12,
-    height: 1.5,
-    fontWeight: FontWeight.w400,
-  );
-}
-
-// ─── Loading / error ────────────────────────────────────────────────────────
-
-class _ScorchedLoading extends StatelessWidget {
-  const _ScorchedLoading();
-  @override
-  Widget build(BuildContext context) => Center(
-    child: CircularProgressIndicator(color: _C.of(context).amberBright),
-  );
-}
-
-class _LoadFailure extends StatelessWidget {
-  final VoidCallback onRetry;
-  const _LoadFailure({required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: _PlateFrame(
-        accentColor: _C.of(context).amber,
-        highlight: true,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'ENCYCLOPEDIA DATA LINK LOST',
-              style: _T.heading(context),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Could not load purity extraction records. Reconnect and retry.',
-              textAlign: TextAlign.center,
-              style: _T.body(context).copyWith(color: _C.of(context).textMuted),
-            ),
-            const SizedBox(height: 12),
-            _ActionButton(label: 'Retry', onTap: onRetry),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-// ─── Backdrop ───────────────────────────────────────────────────────────────
-
-class _ForgeBackdrop extends StatelessWidget {
-  const _ForgeBackdrop();
-  @override
-  Widget build(BuildContext context) => Stack(
-    children: [
-      Container(
+      backgroundColor: palette.bg0,
+      body: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [_C.of(context).bg1, _C.of(context).bg0],
+            colors: [palette.bg1, palette.bg0],
+          ),
+        ),
+        child: SafeArea(
+          child: FutureBuilder<AlchemicalEncyclopediaSnapshot>(
+            future: _snapshotFuture,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return _LoadFailure(palette: palette, onRetry: _reload);
+              }
+              final data = snapshot.data;
+              if (data == null) {
+                return Center(child: CircularProgressIndicator(color: _kGilt));
+              }
+              _queueShowcase(data);
+              final found =
+                  data.discoveredElementKeys.length +
+                  data.discoveredFamilyKeys.length;
+              final total =
+                  data.elementRecipes.length + data.familyRecipes.length;
+              return Column(
+                children: [
+                  _Header(
+                    palette: palette,
+                    found: found,
+                    total: total,
+                    onBack: () => Navigator.of(context).pop(),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                    child: BracketTabs(
+                      labels: [
+                        'ELEMENTS',
+                        'SPECIES',
+                        if (hasNatureTab) 'NATURES',
+                      ],
+                      selected: _tab,
+                      onSelect: (i) => setState(() => _tab = i),
+                      palette: palette,
+                      accent: _kGilt,
+                    ),
+                  ),
+                  Expanded(
+                    child: IndexedStack(
+                      index: _tab,
+                      children: [
+                        _ElementTable(
+                          data: data,
+                          palette: palette,
+                          fresh: _fresh,
+                          onOpen: (e) => _openSheet(
+                            data,
+                            kind: EncyclopediaRecipeKind.element,
+                            name: e,
+                          ),
+                        ),
+                        _SpeciesTable(
+                          data: data,
+                          palette: palette,
+                          fresh: _fresh,
+                          onOpen: (f) => _openSheet(
+                            data,
+                            kind: EncyclopediaRecipeKind.family,
+                            name: f,
+                          ),
+                        ),
+                        if (hasNatureTab)
+                          _NatureLog(data: data, palette: palette),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
-      Positioned(
-        top: -120,
-        left: -40,
-        child: Container(
-          width: 240,
-          height: 240,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _C.of(context).amber.withValues(alpha: .08),
-          ),
-        ),
-      ),
-      Positioned(
-        bottom: -140,
-        right: -80,
-        child: Container(
-          width: 280,
-          height: 280,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _C.of(context).teal.withValues(alpha: .06),
-          ),
-        ),
-      ),
-      IgnorePointer(
-        child: CustomPaint(
-          painter: _ScanlinePainter(),
-          child: const SizedBox.expand(),
-        ),
-      ),
-    ],
-  );
-}
-
-class _ScanlinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.black.withValues(alpha: 0.08);
-    for (double y = 0; y < size.height; y += 3) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
-    }
+    );
   }
-
-  @override
-  bool shouldRepaint(_) => false;
 }
 
-// ─── Top bar ────────────────────────────────────────────────────────────────
+// ─── Header ─────────────────────────────────────────────────────────────────
 
-class _ForgeTopBar extends StatelessWidget {
-  final double completion;
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.palette,
+    required this.found,
+    required this.total,
+    required this.onBack,
+  });
+
+  final BracketPalette palette;
+  final int found, total;
   final VoidCallback onBack;
-  const _ForgeTopBar({required this.completion, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
-    final percent = (completion * 100).round().clamp(0, 100);
+    final pct = total == 0 ? 0 : (found * 100 / total).round();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: context.soundAction(onBack),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: _C.of(context).bg2,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: _C.of(context).borderDim),
-              ),
-              child: Text(
-                'BACK',
-                style: _T
-                    .label(context)
-                    .copyWith(
-                      fontSize: 12,
-                      color: _C.of(context).textSecondary,
-                    ),
-              ),
-            ),
+          BracketIconButton(
+            icon: AppIcons.arrow_back_rounded,
+            onTap: onBack,
+            palette: palette,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    // Pulsing status dot
-                    _PulsingStatusDot(),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'ALCHEMY',
-                        style: _T.heading(context),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
+                Text('ALCHEMY', style: _mono(11, palette.muted, spacing: 2.2)),
+                const SizedBox(height: 2),
+                Text(
+                  'FUSION CODEX',
+                  style: _mono(16, palette.ink, weight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '$pct%',
+                style: _mono(
+                  16,
+                  palette.isDark ? _kGilt : const Color(0xFF9A6B00),
+                  weight: FontWeight.w900,
+                  spacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '$found / $total FORMULAS',
+                style: _mono(10, palette.muted, spacing: 1),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadFailure extends StatelessWidget {
+  const _LoadFailure({required this.palette, required this.onRetry});
+
+  final BracketPalette palette;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'THE CODEX WOULD NOT OPEN',
+            textAlign: TextAlign.center,
+            style: _mono(13, palette.ink, weight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Its records could not be read.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: palette.muted, fontSize: 12),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: 160,
+            child: BracketButton(
+              label: 'TRY AGAIN',
+              onTap: onRetry,
+              palette: palette,
+              accent: _kGilt,
+              height: 40,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// ─── Tallies ────────────────────────────────────────────────────────────────
+
+/// "12 / 17 ELEMENTS KNOWN" over a thin bar.
+class _Tally extends StatelessWidget {
+  const _Tally({
+    required this.palette,
+    required this.label,
+    required this.value,
+    required this.total,
+    required this.color,
+  });
+
+  final BracketPalette palette;
+  final String label;
+  final int value, total;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = total == 0 ? 0.0 : value / total;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: '$value',
+                style: _mono(15, palette.ink, weight: FontWeight.w900),
+              ),
+              TextSpan(
+                text: ' / $total  ',
+                style: _mono(11, palette.muted, weight: FontWeight.w700),
+              ),
+              TextSpan(text: label, style: _mono(10, palette.muted)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 3,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ColoredBox(color: palette.lineSoft),
+              FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: p.clamp(0.0, 1.0),
+                child: ColoredBox(color: color),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── The element table ──────────────────────────────────────────────────────
+
+class _ElementTable extends StatelessWidget {
+  const _ElementTable({
+    required this.data,
+    required this.palette,
+    required this.fresh,
+    required this.onOpen,
+  });
+
+  final AlchemicalEncyclopediaSnapshot data;
+  final BracketPalette palette;
+  final Set<String> fresh;
+  final ValueChanged<String> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final known = data.knownElements;
+    return ListView(
+      key: const PageStorageKey('codex-elements'),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _Tally(
+                palette: palette,
+                label: 'ELEMENTS KNOWN',
+                value: Elements.values
+                    .where((e) => known.contains(_title(e.name)))
+                    .length,
+                total: Elements.values.length,
+                color: _kGilt,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _Tally(
+                palette: palette,
+                label: 'FORMULAS FOUND',
+                value: data.discoveredElementKeys.length,
+                total: data.elementRecipes.length,
+                color: const Color(0xFF7FB8E0),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        for (final group in ElementalGroup.values) ...[
+          _GroupRow(
+            palette: palette,
+            title: group.displayName.toUpperCase(),
+            color: group.color,
+            names: group.elementTypes,
+            known: known,
+            cell: (name) => _ElementCell(
+              name: name,
+              known: known.contains(name),
+              kept: data.ownedByElement[name] ?? 0,
+              fresh: fresh.contains(name),
+              onTap: () => onOpen(name),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            'Open an element to see what makes it and what it makes.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: palette.muted, fontSize: 12),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _title(String s) =>
+    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
+
+/// A group's name and its cells, four to a row so the columns line up.
+class _GroupRow extends StatelessWidget {
+  const _GroupRow({
+    required this.palette,
+    required this.title,
+    required this.color,
+    required this.names,
+    required this.known,
+    required this.cell,
+  });
+
+  final BracketPalette palette;
+  final String title;
+  final Color color;
+  final List<String> names;
+  final Set<String> known;
+  final Widget Function(String name) cell;
+
+  @override
+  Widget build(BuildContext context) {
+    final have = names.where(known.contains).length;
+    final ink = palette.isDark
+        ? Color.lerp(color, Colors.white, 0.25)!
+        : Color.lerp(color, Colors.black, 0.35)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(width: 6, height: 6, color: color),
+            const SizedBox(width: 8),
+            Text(title, style: _mono(11, ink, weight: FontWeight.w800)),
+            const SizedBox(width: 10),
+            Expanded(child: Container(height: 1, color: palette.lineSoft)),
+            const SizedBox(width: 10),
+            Text(
+              '$have/${names.length}',
+              style: _mono(11, palette.muted, spacing: 0.5),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            for (var i = 0; i < 4; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(
+                child: i < names.length ? cell(names[i]) : const SizedBox(),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// A dark glass case, bracketed in [frame]: how a cell, the stage and a
+/// formula's tokens are framed, as the vials are.
+class _GlassCase extends StatelessWidget {
+  const _GlassCase({
+    required this.frame,
+    required this.child,
+    this.bracket = 7,
+    this.padding = EdgeInsets.zero,
+  });
+
+  final Color frame;
+  final Widget child;
+  final double bracket;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    foregroundPainter: BracketFramePainter(
+      color: frame,
+      bracketSize: bracket,
+      strokeWidth: 1.2,
+    ),
+    child: Container(color: kVialGlass, padding: padding, child: child),
+  );
+}
+
+class _ElementCell extends StatelessWidget {
+  const _ElementCell({
+    required this.name,
+    required this.known,
+    required this.kept,
+    required this.fresh,
+    required this.onTap,
+  });
+
+  final String name;
+  final bool known;
+  final int kept;
+  final bool fresh;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = _elementTint(name);
+    final frame = fresh
+        ? _kGilt
+        : known
+        ? tint.withValues(alpha: 0.75)
+        : const Color(0xFF3A404C);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: _GlassCase(
+        frame: frame,
+        padding: const EdgeInsets.fromLTRB(4, 6, 4, 7),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Column(
+              children: [
+                SizedBox(
+                  height: 50,
+                  child: _StillOrb(name: name, locked: !known, radius: 19),
+                ),
+                const SizedBox(height: 3),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    name.toUpperCase(),
+                    maxLines: 1,
+                    style: _mono(
+                      10.5,
+                      known ? _kGlassInk : _kGlassMuted.withValues(alpha: 0.7),
+                      weight: FontWeight.w800,
+                      spacing: 0.8,
                     ),
-                  ],
+                  ),
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  'PURITY EXTRACTION RECORDS',
-                  style: _T.label(context),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
+                  known ? (kept > 0 ? '×$kept' : 'KNOWN') : '—',
+                  style: _mono(
+                    9,
+                    known ? tint.withValues(alpha: 0.85) : _kGlassMuted,
+                    weight: FontWeight.w700,
+                    spacing: 0.6,
+                  ),
                 ),
               ],
             ),
-          ),
-          // Animated percentage badge
-          _AnimatedPercentBadge(percent: percent),
-        ],
+            if (fresh) const Positioned(top: -2, right: 0, child: _NewPip()),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ─── Pulsing status dot ─────────────────────────────────────────────────────
+class _NewPip extends StatelessWidget {
+  const _NewPip();
 
-class _PulsingStatusDot extends StatefulWidget {
-  const _PulsingStatusDot();
   @override
-  State<_PulsingStatusDot> createState() => _PulsingStatusDotState();
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+    color: _kGilt,
+    child: Text(
+      'NEW',
+      style: _mono(8, const Color(0xFF1A1206), weight: FontWeight.w900),
+    ),
+  );
 }
 
-class _PulsingStatusDotState extends State<_PulsingStatusDot>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _scale;
-  late final Animation<double> _opacity;
+/// An element's orb, standing still: painted once.
+class _StillOrb extends StatefulWidget {
+  const _StillOrb({
+    required this.name,
+    required this.locked,
+    required this.radius,
+  });
+
+  final String name;
+  final bool locked;
+  final double radius;
 
   @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    )..repeat(reverse: false);
+  State<_StillOrb> createState() => _StillOrbState();
+}
 
-    _scale = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(
-          begin: 1.0,
-          end: 1.55,
-        ).chain(CurveTween(curve: Curves.easeOut)),
-        weight: 30,
-      ),
-      TweenSequenceItem(
-        tween: Tween(
-          begin: 1.55,
-          end: 1.0,
-        ).chain(CurveTween(curve: Curves.easeIn)),
-        weight: 25,
-      ),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 45),
-    ]).animate(_ctrl);
+class _StillOrbState extends State<_StillOrb> {
+  late ElementOrb _orb = _make();
 
-    _opacity = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(
-          begin: 0.9,
-          end: 0.3,
-        ).chain(CurveTween(curve: Curves.easeOut)),
-        weight: 30,
-      ),
-      TweenSequenceItem(
-        tween: Tween(
-          begin: 0.3,
-          end: 0.9,
-        ).chain(CurveTween(curve: Curves.easeIn)),
-        weight: 25,
-      ),
-      TweenSequenceItem(tween: ConstantTween(0.9), weight: 45),
-    ]).animate(_ctrl);
+  ElementOrb _make() => ElementOrb(
+    EssenceElement.of(widget.name),
+    radius: widget.radius,
+    locked: widget.locked,
+  );
+
+  @override
+  void didUpdateWidget(_StillOrb old) {
+    super.didUpdateWidget(old);
+    if (old.name != widget.name ||
+        old.locked != widget.locked ||
+        old.radius != widget.radius) {
+      _orb = _make();
+    }
   }
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: CustomPaint(
+      painter: ElementOrbPainter(_orb),
+      size: Size.square(widget.radius * 2.6),
+    ),
+  );
+}
+
+// ─── The species table ──────────────────────────────────────────────────────
+
+class _SpeciesTable extends StatelessWidget {
+  const _SpeciesTable({
+    required this.data,
+    required this.palette,
+    required this.fresh,
+    required this.onOpen,
+  });
+
+  final AlchemicalEncyclopediaSnapshot data;
+  final BracketPalette palette;
+  final Set<String> fresh;
+  final ValueChanged<String> onOpen;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 14,
-      height: 14,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Expanding ring
-          AnimatedBuilder(
-            animation: _ctrl,
-            builder: (_, __) => Opacity(
-              opacity: (1.0 - _ctrl.value).clamp(0.0, 1.0) * 0.55,
-              child: Transform.scale(
-                scale: _scale.value,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: _C.of(context).amberBright,
-                      width: 1.5,
-                    ),
+    final families = [for (final f in CreatureFamily.values) f.displayName];
+    final known = data.knownFamilies;
+    return ListView(
+      key: const PageStorageKey('codex-species'),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _Tally(
+                palette: palette,
+                label: 'SPECIES KNOWN',
+                value: families.where(known.contains).length,
+                total: families.length,
+                color: _kGilt,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _Tally(
+                palette: palette,
+                label: 'FORMULAS FOUND',
+                value: data.discoveredFamilyKeys.length,
+                total: data.familyRecipes.length,
+                color: const Color(0xFF7FB8E0),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        for (var row = 0; row < families.length; row += 4) ...[
+          Row(
+            children: [
+              for (var i = row; i < row + 4; i++) ...[
+                if (i > row) const SizedBox(width: 8),
+                Expanded(
+                  child: i < families.length
+                      ? _SpeciesCell(
+                          family: families[i],
+                          face: data.familyFaces[families[i]],
+                          known: known.contains(families[i]),
+                          kept: data.ownedByFamily[families[i]] ?? 0,
+                          fresh: fresh.contains(families[i]),
+                          onTap: () => onOpen(families[i]),
+                        )
+                      : const SizedBox(),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Text(
+            'Open a species to see what makes it and what it makes.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: palette.muted, fontSize: 12),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _faceAsset(Creature c) =>
+    c.image.startsWith('assets/') ? c.image : 'assets/images/${c.image}';
+
+class _SpeciesCell extends StatelessWidget {
+  const _SpeciesCell({
+    required this.family,
+    required this.face,
+    required this.known,
+    required this.kept,
+    required this.fresh,
+    required this.onTap,
+  });
+
+  final String family;
+  final Creature? face;
+  final bool known;
+  final int kept;
+  final bool fresh;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = _familyTint(family);
+    final frame = fresh
+        ? _kGilt
+        : known
+        ? tint.withValues(alpha: 0.75)
+        : const Color(0xFF3A404C);
+    final f = face;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: _GlassCase(
+        frame: frame,
+        padding: const EdgeInsets.fromLTRB(4, 6, 4, 7),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Column(
+              children: [
+                SizedBox(
+                  height: 54,
+                  child: f == null
+                      ? null
+                      : Image.asset(
+                          _faceAsset(f),
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.medium,
+                          color: known ? null : const Color(0xFF2E3440),
+                          colorBlendMode: known ? null : BlendMode.srcIn,
+                          errorBuilder: (_, __, ___) => const SizedBox(),
+                        ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  family.toUpperCase(),
+                  style: _mono(
+                    10.5,
+                    known ? _kGlassInk : _kGlassMuted.withValues(alpha: 0.7),
+                    weight: FontWeight.w800,
+                    spacing: 0.8,
                   ),
                 ),
-              ),
-            ),
-          ),
-          // Core dot
-          AnimatedBuilder(
-            animation: _opacity,
-            builder: (_, __) => Opacity(
-              opacity: _opacity.value,
-              child: Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: _C.of(context).amberBright,
-                  shape: BoxShape.circle,
+                const SizedBox(height: 1),
+                Text(
+                  known ? (kept > 0 ? '×$kept' : 'KNOWN') : '—',
+                  style: _mono(
+                    9,
+                    known ? tint.withValues(alpha: 0.9) : _kGlassMuted,
+                    weight: FontWeight.w700,
+                    spacing: 0.6,
+                  ),
                 ),
-              ),
+              ],
             ),
-          ),
-        ],
+            if (fresh) const Positioned(top: -2, right: 0, child: _NewPip()),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ─── Animated % badge (counts up on entry) ──────────────────────────────────
+// ─── The sheet ──────────────────────────────────────────────────────────────
 
-class _AnimatedPercentBadge extends StatefulWidget {
-  final int percent;
-  const _AnimatedPercentBadge({required this.percent});
-  @override
-  State<_AnimatedPercentBadge> createState() => _AnimatedPercentBadgeState();
+/// One formula as a row plays it: who makes it, and what.
+class _Play {
+  const _Play(this.recipe, this.a, this.b, this.result);
+
+  final EncyclopediaRecipeEntry recipe;
+  final String a, b, result;
+
+  String get tag => '${recipe.pairKey}::$result';
 }
 
-class _AnimatedPercentBadgeState extends State<_AnimatedPercentBadge>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late Animation<int> _value;
+/// An element or a species on its stage, over the formulas that make it
+/// and that it fuses into. A formula's result can be opened in place.
+class _CodexSheet extends StatefulWidget {
+  const _CodexSheet({
+    required this.data,
+    required this.kind,
+    required this.name,
+    required this.fresh,
+    this.showcase,
+  });
+
+  final AlchemicalEncyclopediaSnapshot data;
+  final EncyclopediaRecipeKind kind;
+  final String name;
+  final Set<String> fresh;
+
+  /// A formula just found, played as the sheet opens.
+  final EncyclopediaRecipeEntry? showcase;
+
+  @override
+  State<_CodexSheet> createState() => _CodexSheetState();
+}
+
+class _CodexSheetState extends State<_CodexSheet> {
+  final CodexStageController _stage = CodexStageController();
+  late String _name = widget.name;
+
+  /// The last formula played, for its caption; null at rest.
+  _Play? _shown;
+
+  /// The showcase's row, marked NEW.
+  String? _newTag;
+
+  static const double _stageHeight = 220;
+
+  bool get _isElement => widget.kind == EncyclopediaRecipeKind.element;
+
+  AlchemicalEncyclopediaSnapshot get _data => widget.data;
+
+  bool _known(String name) => _isElement
+      ? _data.knownElements.contains(name)
+      : _data.knownFamilies.contains(name);
+
+  Color _tint(String name) =>
+      _isElement ? _elementTint(name) : _familyTint(name);
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-    _value = IntTween(
-      begin: 0,
-      end: widget.percent,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ctrl.forward();
-    });
-  }
-
-  @override
-  void didUpdateWidget(_AnimatedPercentBadge old) {
-    super.didUpdateWidget(old);
-    if (old.percent != widget.percent) {
-      _value = IntTween(
-        begin: _value.value,
-        end: widget.percent,
-      ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-      _ctrl.forward(from: 0);
+    _stage.addListener(_onStage);
+    _showSubject(reveal: widget.showcase == null);
+    final s = widget.showcase;
+    if (s != null) {
+      final result = widget.name;
+      _newTag = '${s.pairKey}::$result';
+      Future<void>.delayed(const Duration(milliseconds: 420), () {
+        if (mounted) _play(_Play(s, s.parentA, s.parentB, result));
+      });
     }
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _stage.removeListener(_onStage);
+    _stage.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _value,
-      builder: (_, __) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: _C.of(context).bg2,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: _C.of(context).borderAccent.withValues(alpha: .75),
-          ),
-        ),
-        child: Text(
-          '${_value.value}%',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: _C.of(context).amberBright,
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ),
+  void _onStage() {
+    if (mounted) setState(() {});
+  }
+
+  // ── bodies ─────────────────────────────────────────────────────────────
+
+  double get _orbRadius => _stageHeight * 0.25;
+  double get _faceHeight => _stageHeight * 0.66;
+
+  Future<CodexBody?> _body(String name) async {
+    final locked = !_known(name);
+    if (_isElement) {
+      return OrbBody(name, radius: _orbRadius, locked: locked);
+    }
+    final face = _data.familyFaces[name];
+    if (face == null) return null;
+    return PortraitBody.load(
+      _faceAsset(face),
+      height: _faceHeight,
+      element: face.types.isEmpty ? 'Spirit' : face.types.first,
+      color: _familyTint(name),
+      locked: locked,
     );
   }
-}
 
-// ─── Overview panel ─────────────────────────────────────────────────────────
+  Future<void> _showSubject({bool reveal = false}) async {
+    final name = _name;
+    final body = await _body(name);
+    if (!mounted || body == null || name != _name) return;
+    _stage.show(body, reveal: reveal);
+  }
 
-class _OverviewPanel extends StatelessWidget {
-  final int totalDiscovered, totalRecipes;
-  final int discoveredFamily, totalFamily;
-  final int discoveredElement, totalElement;
+  Future<void> _play(_Play p) async {
+    final bodies = await Future.wait([_body(p.a), _body(p.b), _body(p.result)]);
+    if (!mounted || bodies.any((b) => b == null)) return;
+    setState(() => _shown = p);
+    _stage.combine(bodies[0]!, bodies[1]!, bodies[2]!, tag: p.tag);
+  }
 
-  const _OverviewPanel({
-    required this.totalDiscovered,
-    required this.totalRecipes,
-    required this.discoveredFamily,
-    required this.totalFamily,
-    required this.discoveredElement,
-    required this.totalElement,
-  });
+  void _openHere(String name) {
+    if (name == _name) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _name = name;
+      _shown = null;
+    });
+    _showSubject(reveal: true);
+  }
+
+  // ── build ──────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final completion = totalRecipes == 0 ? 0.0 : totalDiscovered / totalRecipes;
-    return _PlateFrame(
-      accentColor: _C.of(context).amber,
-      highlight: true,
+    final palette = BracketPalette.of(context);
+    final media = MediaQuery.of(context);
+    final name = _name;
+    final tint = _tint(name);
+    final known = _known(name);
+    final made = _isElement
+        ? _data.elementMadeFrom(name)
+        : _data.familyMadeFrom(name);
+    final uses = _isElement
+        ? _data.elementFusesInto(name)
+        : _data.familyFusesInto(name);
+
+    return Container(
+      height: media.size.height * 0.9,
+      decoration: BoxDecoration(
+        color: palette.bg1,
+        border: Border(top: BorderSide(color: tint.withValues(alpha: 0.6))),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 8),
+          Container(width: 38, height: 4, color: palette.lineSoft),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 12, 10),
+            child: _SheetHeader(
+              palette: palette,
+              title: name,
+              subtitle: _subtitle(name, known),
+              tint: tint,
+              onClose: () => Navigator.of(context).pop(),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SizedBox(
+              height: _stageHeight,
+              child: _GlassCase(
+                frame: tint.withValues(alpha: known ? 0.8 : 0.35),
+                bracket: 12,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    // Count-up number display
-                    _CountUpText(
-                      value: totalDiscovered,
-                      total: totalRecipes,
-                      style: TextStyle(
-                        color: _C.of(context).textPrimary,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
+                    // Held inside its glass: a flame rises past the top.
+                    ClipRect(child: CodexStage(controller: _stage)),
+                    Positioned(
+                      left: 12,
+                      right: 12,
+                      bottom: 10,
+                      child: IgnorePointer(
+                        ignoring: _stage.busy,
+                        child: _StageCaption(
+                          play: _shown,
+                          busy: _stage.busy,
+                          known: known,
+                          subject: name,
+                          isElement: _isElement,
+                          onOpen: _openHere,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Archive completion ${(completion * 100).toStringAsFixed(1)}%',
-                      style: _T.body(context).copyWith(fontSize: 12),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _AnimatedCompletionBar(
-            progress: completion,
-            color: _C.of(context).amberBright,
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _DiscoveryStat(
-                  label: 'Species',
-                  discovered: discoveredFamily,
-                  total: totalFamily,
-                  color: _C.of(context).amberBright,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _DiscoveryStat(
-                  label: 'Element',
-                  discovered: discoveredElement,
-                  total: totalElement,
-                  color: _C.of(context).teal,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Count-up text ───────────────────────────────────────────────────────────
-
-class _CountUpText extends StatefulWidget {
-  final int value;
-  final int total;
-  final TextStyle style;
-  const _CountUpText({
-    required this.value,
-    required this.total,
-    required this.style,
-  });
-  @override
-  State<_CountUpText> createState() => _CountUpTextState();
-}
-
-class _CountUpTextState extends State<_CountUpText>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late Animation<int> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1100),
-    );
-    _anim = IntTween(
-      begin: 0,
-      end: widget.value,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ctrl.forward();
-    });
-  }
-
-  @override
-  void didUpdateWidget(_CountUpText old) {
-    super.didUpdateWidget(old);
-    if (old.value != widget.value) {
-      _anim = IntTween(
-        begin: _anim.value,
-        end: widget.value,
-      ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-      _ctrl.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _anim,
-    builder: (_, __) => Text(
-      '${_anim.value} / ${widget.total} formulas recovered',
-      style: widget.style,
-    ),
-  );
-}
-
-// ─── Animated completion bar (fills on mount) ────────────────────────────────
-
-class _AnimatedCompletionBar extends StatefulWidget {
-  final double progress;
-  final Color color;
-  const _AnimatedCompletionBar({required this.progress, required this.color});
-  @override
-  State<_AnimatedCompletionBar> createState() => _AnimatedCompletionBarState();
-}
-
-class _AnimatedCompletionBarState extends State<_AnimatedCompletionBar>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-    _anim = Tween<double>(
-      begin: 0.0,
-      end: widget.progress,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ctrl.forward();
-    });
-  }
-
-  @override
-  void didUpdateWidget(_AnimatedCompletionBar old) {
-    super.didUpdateWidget(old);
-    if (old.progress != widget.progress) {
-      _anim = Tween<double>(
-        begin: _anim.value,
-        end: widget.progress,
-      ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-      _ctrl.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _anim,
-    builder: (_, __) =>
-        _CompletionBar(progress: _anim.value, color: widget.color),
-  );
-}
-
-// ─── Docked controls (search + filter + tabs, pinned to top) ─────────────────
-
-/// Fixed height of the pinned header. Kept in sync with [_DockedControls]'
-/// layout below; the column is laid out top-aligned so a few px of slack here
-/// is harmless, but it must never be *smaller* than the content.
-const double _kDockHeight = 116;
-
-class _DockedControls extends StatelessWidget {
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final bool hasSearchQuery;
-  final bool showKnownOnly;
-  final bool isFocused;
-  final VoidCallback onToggleKnownOnly;
-  final VoidCallback onClearSearch;
-  final TabController tabController;
-  final int familyCount, elementCount, natureCount;
-  final bool showNatureTab;
-
-  const _DockedControls({
-    required this.controller,
-    required this.focusNode,
-    required this.hasSearchQuery,
-    required this.showKnownOnly,
-    required this.isFocused,
-    required this.onToggleKnownOnly,
-    required this.onClearSearch,
-    required this.tabController,
-    required this.familyCount,
-    required this.elementCount,
-    required this.natureCount,
-    required this.showNatureTab,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: _SearchField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  hasSearchQuery: hasSearchQuery,
-                  isFocused: isFocused,
-                  onClearSearch: onClearSearch,
-                ),
-              ),
-              const SizedBox(width: 8),
-              _ToggleChip(
-                label: 'Known',
-                enabled: showKnownOnly,
-                onTap: context.soundTap(onToggleKnownOnly),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: _RecipeTabBar(
-            controller: tabController,
-            familyCount: familyCount,
-            elementCount: elementCount,
-            natureCount: natureCount,
-            showNatureTab: showNatureTab,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SearchField extends StatelessWidget {
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final bool hasSearchQuery;
-  final bool isFocused;
-  final VoidCallback onClearSearch;
-
-  const _SearchField({
-    required this.controller,
-    required this.focusNode,
-    required this.hasSearchQuery,
-    required this.isFocused,
-    required this.onClearSearch,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-      height: 40,
-      decoration: BoxDecoration(
-        color: _C.of(context).bg1,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(
-          color: isFocused
-              ? _C.of(context).amberBright.withValues(alpha: .7)
-              : _C.of(context).borderDim,
-          width: isFocused ? 1.5 : 1.0,
-        ),
-        boxShadow: isFocused
-            ? [
-                BoxShadow(
-                  color: _C.of(context).amber.withValues(alpha: .12),
-                  blurRadius: 10,
-                  spreadRadius: 0,
-                ),
-              ]
-            : null,
-      ),
-      child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        style: TextStyle(color: _C.of(context).textPrimary, fontSize: 13),
-        cursorColor: _C.of(context).amberBright,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          isDense: true,
-          hintText: 'Search formulas, results, natures',
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 10,
-          ),
-          hintStyle: TextStyle(
-            color: _C.of(context).textMuted.withValues(alpha: .75),
-            fontSize: 12,
-          ),
-          suffixIcon: hasSearchQuery
-              ? Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(0, 0),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: context.soundAction(onClearSearch),
-                    child: Text(
-                      'CLEAR',
-                      style: _T
-                          .label(context)
-                          .copyWith(
-                            fontSize: 12,
-                            color: _C.of(context).textSecondary,
-                          ),
-                    ),
-                  ),
-                )
-              : null,
-          suffixIconConstraints: const BoxConstraints(
-            minWidth: 0,
-            minHeight: 0,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Pinned header delegate ──────────────────────────────────────────────────
-
-class _DockHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final double extent;
-  final Widget child;
-
-  _DockHeaderDelegate({required this.extent, required this.child});
-
-  @override
-  double get minExtent => extent;
-
-  @override
-  double get maxExtent => extent;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    // Opaque background so list items scrolling underneath are occluded.
-    return Container(
-      color: _C.of(context).bg0,
-      alignment: Alignment.topCenter,
-      child: child,
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant _DockHeaderDelegate old) =>
-      old.extent != extent || old.child != child;
-}
-
-// ─── Tab bar ─────────────────────────────────────────────────────────────────
-
-class _RecipeTabBar extends StatelessWidget {
-  final TabController controller;
-  final int familyCount, elementCount;
-  final int natureCount;
-  final bool showNatureTab;
-
-  const _RecipeTabBar({
-    required this.controller,
-    required this.familyCount,
-    required this.elementCount,
-    required this.natureCount,
-    required this.showNatureTab,
-  });
-
-  @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      color: _C.of(context).bg1,
-      borderRadius: BorderRadius.circular(3),
-      border: Border.all(color: _C.of(context).borderDim),
-    ),
-    child: TabBar(
-      controller: controller,
-      indicatorSize: TabBarIndicatorSize.tab,
-      indicator: BoxDecoration(
-        color: _C.of(context).bg3,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(
-          color: _C.of(context).borderAccent.withValues(alpha: .85),
-        ),
-      ),
-      labelColor: _C.of(context).amberBright,
-      unselectedLabelColor: _C.of(context).textSecondary,
-      dividerColor: Colors.transparent,
-      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
-      labelStyle: const TextStyle(
-        fontFamily: 'monospace',
-        fontSize: 12,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.8,
-      ),
-      unselectedLabelStyle: const TextStyle(
-        fontFamily: 'monospace',
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.8,
-      ),
-      tabs: [
-        _CountTab(label: 'SPECIES', count: familyCount),
-        _CountTab(label: 'ELEMENT', count: elementCount),
-        if (showNatureTab) _CountTab(label: 'NATURE', count: natureCount),
-      ],
-    ),
-  );
-}
-
-/// A tab whose label and count never clip: the name inherits the [TabBar]'s
-/// animated selected/unselected style, the count rides alongside in a smaller
-/// dimmed badge, and the whole thing scales down on narrow screens instead of
-/// truncating mid-word.
-class _CountTab extends StatelessWidget {
-  final String label;
-  final int count;
-  const _CountTab({required this.label, required this.count});
-
-  @override
-  Widget build(BuildContext context) => Tab(
-    height: 44,
-    child: FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label),
-          const SizedBox(width: 6),
-          Builder(
-            builder: (context) {
-              final color = DefaultTextStyle.of(context).style.color;
-              return Text(
-                '$count',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                  color: color?.withValues(alpha: 0.65),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-// ─── Tab list ────────────────────────────────────────────────────────────────
-
-class _RecipeTabList extends StatefulWidget {
-  final EncyclopediaRecipeKind kind;
-  final List<EncyclopediaRecipeEntry> recipes;
-  final Set<String> discoveredKeys;
-  final Set<String> discoveredOutcomeKeys;
-  final String query;
-  final bool knownOnly;
-
-  const _RecipeTabList({
-    super.key,
-    required this.kind,
-    required this.recipes,
-    required this.discoveredKeys,
-    required this.discoveredOutcomeKeys,
-    required this.query,
-    required this.knownOnly,
-  });
-
-  @override
-  State<_RecipeTabList> createState() => _RecipeTabListState();
-}
-
-class _RecipeTabListState extends State<_RecipeTabList>
-    with SingleTickerProviderStateMixin {
-  final Map<String, GlobalKey> _rowKeys = <String, GlobalKey>{};
-  late final AnimationController _focusController;
-  String? _activePairKey;
-
-  // Phase boundaries (0..1 on the controller):
-  //  0.00–0.12  → flash burst (screen-level white flash on card)
-  //  0.12–0.35  → bounce scale up + border surge
-  //  0.35–0.68  → peak glow + diagonal shimmer sweep
-  //  0.68–1.00  → settle back, sustained soft glow fades out
-
-  @override
-  void initState() {
-    super.initState();
-    _focusController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    )..addListener(_onFocusTick);
-  }
-
-  @override
-  void dispose() {
-    _focusController.removeListener(_onFocusTick);
-    _focusController.dispose();
-    super.dispose();
-  }
-
-  void _onFocusTick() {
-    if (!mounted || _activePairKey == null) return;
-    setState(() {});
-  }
-
-  Future<bool> focusAndPulse(String pairKey) async {
-    final targetIndex = widget.recipes.indexWhere(
-      (entry) =>
-          entry.pairKey == pairKey &&
-          widget.discoveredKeys.contains(entry.pairKey),
-    );
-    if (targetIndex < 0) return false;
-
-    _activePairKey = pairKey;
-    _focusController.value = 0;
-    if (mounted) setState(() {});
-
-    await _scrollToIndex(targetIndex, pairKey);
-    if (!mounted || _activePairKey != pairKey) return false;
-
-    // Brief settle pause so the card is fully visible before flash
-    await Future<void>.delayed(const Duration(milliseconds: 120));
-    if (!mounted || _activePairKey != pairKey) return false;
-
-    HapticFeedback.mediumImpact();
-    await _focusController.forward(from: 0);
-    if (!mounted || _activePairKey != pairKey) return true;
-
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    if (mounted && _activePairKey == pairKey) {
-      setState(() => _activePairKey = null);
-    }
-    return true;
-  }
-
-  /// Gap between cards, from the SliverList.separated above.
-  static const double _rowSeparator = 10.0;
-
-  /// Fallback only. Anything better is measured off a real row.
-  static const double _fallbackRowExtent = 120.0;
-
-  /// The height of any row currently built, plus its separator.
-  ///
-  /// A hardcoded estimate was the whole bug: it overshot, the clamp pinned the
-  /// scroll to the bottom of the list, the target was then far off-screen and
-  /// never built, and the precise landing below was skipped — leaving you at
-  /// the end of the list looking at undiscovered rows.
-  double? _measuredRowExtent() {
-    for (final key in _rowKeys.values) {
-      final ctx = key.currentContext;
-      if (ctx == null || !ctx.mounted) continue;
-      final box = ctx.findRenderObject();
-      if (box is RenderBox && box.hasSize && box.size.height > 0) {
-        return box.size.height + _rowSeparator;
-      }
-    }
-    return null;
-  }
-
-  Future<void> _scrollToIndex(int index, String pairKey) async {
-    // Inside a NestedScrollView the active tab's list attaches to the
-    // coordinated PrimaryScrollController; use it to get near the target so the
-    // (lazily-built) row exists, then ensureVisible for the precise landing.
-    final controller = PrimaryScrollController.maybeOf(context);
-    if (controller != null) {
-      if (!controller.hasClients) {
-        await Future<void>.delayed(const Duration(milliseconds: 16));
-      }
-
-      // Close in, rather than trusting one guess. Each pass re-measures the
-      // real row height from whatever is currently built, so an estimate that
-      // was wrong the first time corrects itself instead of stranding the
-      // scroll at the clamp.
-      var extent = _measuredRowExtent() ?? _fallbackRowExtent;
-      for (var attempt = 0; attempt < 4; attempt++) {
-        final ctx = _rowKeys[pairKey]?.currentContext;
-        if (ctx != null && ctx.mounted) break; // built — land precisely below
-
-        // While a tab is animating, both tabs' inner scrollables can be
-        // attached to the coordinated controller, and `position` asserts
-        // unless there is exactly one. Wait it out rather than throwing.
-        if (controller.positions.length != 1) {
-          await Future<void>.delayed(const Duration(milliseconds: 32));
-          if (!mounted || _activePairKey != pairKey) return;
-          continue;
-        }
-
-        final position = controller.position;
-        final target = (index * extent).clamp(0.0, position.maxScrollExtent);
-        if ((position.pixels - target).abs() < 1.0 && attempt > 0) {
-          // Already sitting where the estimate wants us and the row still is
-          // not built; another identical jump would not help.
-          break;
-        }
-
-        await controller.animateTo(
-          target,
-          duration: Duration(milliseconds: attempt == 0 ? 620 : 220),
-          curve: Curves.easeInOutCubic,
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 32));
-        if (!mounted || _activePairKey != pairKey) return;
-
-        extent = _measuredRowExtent() ?? extent;
-      }
-    }
-
-    final targetContext = _rowKeys[pairKey]?.currentContext;
-    if (targetContext == null || !mounted) return;
-    if (!targetContext.mounted) return;
-
-    await Scrollable.ensureVisible(
-      targetContext,
-      alignment: 0.18,
-      duration: const Duration(milliseconds: 380),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  _FocusState _focusStateForPair(String pairKey) {
-    if (_activePairKey != pairKey) return const _FocusState.idle();
-    final t = _focusController.value;
-
-    // Phase 0: flash burst (0..0.12) — near-white fill explodes outward
-    if (t <= 0.12) {
-      final p = t / 0.12;
-      return _FocusState(
-        flash: Curves.easeOut.transform(p),
-        glow: 0.0,
-        scale: 1.0 + Curves.easeOut.transform(p) * 0.04,
-        sweep: 0.0,
-        badge: 0.0,
-      );
-    }
-
-    // Phase 1: bounce + border surge (0.12..0.35)
-    if (t <= 0.35) {
-      final p = (t - 0.12) / 0.23;
-      final flashFade = 1.0 - Curves.easeIn.transform(p);
-      // Overshoot bounce: peaks at ~p=0.4 then settles
-      final scaleOvershoot = p <= 0.4
-          ? 1.04 + Curves.easeOut.transform(p / 0.4) * 0.04
-          : 1.08 - Curves.easeOutCubic.transform((p - 0.4) / 0.6) * 0.06;
-      return _FocusState(
-        flash: flashFade * 0.85,
-        glow: Curves.easeOut.transform(p),
-        scale: scaleOvershoot,
-        sweep: 0.0,
-        badge: Curves.easeOut.transform(p),
-      );
-    }
-
-    // Phase 2: peak glow + diagonal shimmer sweep (0.35..0.68)
-    if (t <= 0.68) {
-      final p = (t - 0.35) / 0.33;
-      return _FocusState(
-        flash: 0.0,
-        glow: 1.0 - Curves.easeIn.transform(p) * 0.3,
-        scale: 1.02 - Curves.easeOut.transform(p) * 0.02,
-        sweep: Curves.easeInOut.transform(p), // drives shimmer position
-        badge: 1.0,
-      );
-    }
-
-    // Phase 3: settle + sustained glow fades (0.68..1.0)
-    final p = (t - 0.68) / 0.32;
-    return _FocusState(
-      flash: 0.0,
-      glow: 0.7 - Curves.easeInCubic.transform(p) * 0.65,
-      scale: 1.0,
-      sweep: 1.0,
-      badge: 1.0 - Curves.easeIn.transform(p),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final injector = SliverOverlapInjector(
-      handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
-    );
-
-    if (widget.recipes.isEmpty) {
-      return CustomScrollView(
-        key: PageStorageKey<String>('recipes-${widget.kind.name}'),
-        slivers: [
-          injector,
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: _EmptyTabState(
-              kind: widget.kind,
-              query: widget.query,
-              knownOnly: widget.knownOnly,
             ),
           ),
-        ],
-      );
-    }
-
-    final knownCount = widget.recipes
-        .where((e) => widget.discoveredKeys.contains(e.pairKey))
-        .length;
-
-    return CustomScrollView(
-      key: PageStorageKey<String>('recipes-${widget.kind.name}'),
-      slivers: [
-        injector,
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            child: Row(
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                24 + media.padding.bottom,
+              ),
               children: [
-                Text(
-                  '$knownCount discovered • ${widget.recipes.length} shown',
-                  style: _T.label(context),
+                _SectionTitle(
+                  palette: palette,
+                  title: 'MADE FROM',
+                  found: made.where(_data.isDiscovered).length,
+                  total: made.length,
                 ),
-                const Spacer(),
-                _KindTag(kind: widget.kind),
+                if (made.isEmpty)
+                  _Empty(
+                    palette: palette,
+                    text: 'Nothing makes ${_title(name)}. It is only found.',
+                  ),
+                for (final r in made.where(_data.isDiscovered))
+                  _rowFor(r, palette, makes: true),
+                _Unfound(
+                  palette: palette,
+                  count: made.where((r) => !_data.isDiscovered(r)).length,
+                ),
+                const SizedBox(height: 18),
+                _SectionTitle(
+                  palette: palette,
+                  title: 'FUSES INTO',
+                  found: uses.where(_data.isDiscovered).length,
+                  total: uses.length,
+                ),
+                if (uses.isEmpty)
+                  _Empty(
+                    palette: palette,
+                    text: 'No formula uses ${_title(name)}.',
+                  ),
+                for (final r in uses.where(_data.isDiscovered))
+                  _rowFor(r, palette, makes: false),
+                _Unfound(
+                  palette: palette,
+                  count: uses.where((r) => !_data.isDiscovered(r)).length,
+                ),
               ],
             ),
           ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-          sliver: SliverList.separated(
-            itemCount: widget.recipes.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final recipe = widget.recipes[index];
-              final rowKey = _rowKeys.putIfAbsent(
-                recipe.pairKey,
-                () => GlobalKey(debugLabel: 'recipe-${recipe.pairKey}'),
-              );
-              final focusState = _focusStateForPair(recipe.pairKey);
-              return KeyedSubtree(
-                key: rowKey,
-                // Staggered entrance per card
-                child: _AnimatedCardEntrance(
-                  index: index,
-                  child: _RecipeCard(
-                    recipe: recipe,
-                    unlocked: widget.discoveredKeys.contains(recipe.pairKey),
-                    discoveredOutcomeKeys: widget.discoveredOutcomeKeys,
-                    focusState: focusState,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─── Per-card staggered entrance ─────────────────────────────────────────────
-
-class _AnimatedCardEntrance extends StatefulWidget {
-  final int index;
-  final Widget child;
-  const _AnimatedCardEntrance({required this.index, required this.child});
-  @override
-  State<_AnimatedCardEntrance> createState() => _AnimatedCardEntranceState();
-}
-
-class _AnimatedCardEntranceState extends State<_AnimatedCardEntrance>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _fade;
-  late final Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 380),
-    );
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _slide = Tween<Offset>(
-      begin: const Offset(0, 0.08),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-
-    // Stagger delay — cap at 8 cards worth so long lists don't lag
-    final delayMs = (widget.index.clamp(0, 8) * 42);
-    Future.delayed(Duration(milliseconds: delayMs), () {
-      if (mounted) _ctrl.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => FadeTransition(
-    opacity: _fade,
-    child: SlideTransition(position: _slide, child: widget.child),
-  );
-}
-
-// ─── Focus state value object ─────────────────────────────────────────────────
-
-class _FocusState {
-  /// 0..1 — white/accent flash fill at start of reveal
-  final double flash;
-
-  /// 0..1 — overall glow intensity driving border + shadow
-  final double glow;
-
-  /// scale multiplier for the card
-  final double scale;
-
-  /// 0..1 — diagonal shimmer sweep progress across card
-  final double sweep;
-
-  /// 0..1 — "UNLOCKED" badge opacity
-  final double badge;
-
-  const _FocusState({
-    required this.flash,
-    required this.glow,
-    required this.scale,
-    required this.sweep,
-    required this.badge,
-  });
-
-  const _FocusState.idle()
-    : flash = 0,
-      glow = 0,
-      scale = 1,
-      sweep = 0,
-      badge = 0;
-
-  bool get isActive => glow > 0.01 || flash > 0.01;
-}
-
-// ─── Recipe card ─────────────────────────────────────────────────────────────
-
-class _RecipeCard extends StatelessWidget {
-  final EncyclopediaRecipeEntry recipe;
-  final bool unlocked;
-  final Set<String> discoveredOutcomeKeys;
-  final _FocusState focusState;
-
-  const _RecipeCard({
-    required this.recipe,
-    required this.unlocked,
-    required this.discoveredOutcomeKeys,
-    this.focusState = const _FocusState.idle(),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = _recipeResultColor(context, recipe);
-    final fs = focusState;
-    final glow = fs.glow.clamp(0.0, 1.0);
-    final flash = fs.flash.clamp(0.0, 1.0);
-    // The plate rests as quiet bronze and blooms into the result's element
-    // colour only while the unlock animation fires, so colour reads as an
-    // event rather than constant noise.
-    final bloom = glow > flash ? glow : flash;
-    final frameAccent =
-        Color.lerp(_C.of(context).amber, accent, bloom) ?? accent;
-    final isElementRecipe = recipe.kind == EncyclopediaRecipeKind.element;
-    final discoveredOutcomes = recipe.outcomes
-        .where(
-          (entry) => discoveredOutcomeKeys.contains(
-            recipe.outcomePathKey(entry.result),
-          ),
-        )
-        .toList(growable: false);
-    final hiddenOutcomeCount =
-        recipe.outcomes.length - discoveredOutcomes.length;
-
-    final pairText = unlocked
-        ? '${recipe.parentA} + ${recipe.parentB}'
-        : 'Unknown Parent Pair';
-    final outcomeText = unlocked
-        ? isElementRecipe
-              ? null
-              : '${discoveredOutcomes.length} of ${recipe.outcomes.length} defined outcomes extracted'
-        : 'Defined outcomes hidden';
-
-    return Transform.scale(
-      scale: fs.scale,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // ── Base plate with amplified glow ──────────────────────────────
-          _PlateFrame(
-            accentColor: unlocked ? frameAccent : accent.withValues(alpha: .38),
-            highlight: unlocked || fs.isActive,
-            glowBoost: glow,
-            calm: true,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: isElementRecipe
-                ? _ElementEquation(
-                    recipe: recipe,
-                    unlocked: unlocked,
-                    discoveredOutcomes: discoveredOutcomes,
-                    hiddenOutcomeCount: hiddenOutcomeCount,
-                    flash: flash,
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              pairText,
-                              style: TextStyle(
-                                color: unlocked
-                                    ? Color.lerp(
-                                        _C.of(context).textPrimary,
-                                        Colors.white,
-                                        flash * 0.45,
-                                      )
-                                    : accent.withValues(alpha: .65),
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (outcomeText != null) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                outcomeText,
-                                style: _T
-                                    .body(context)
-                                    .copyWith(
-                                      fontSize: 12,
-                                      color: unlocked
-                                          ? _C.of(context).textSecondary
-                                          : _C.of(context).textMuted,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      SizedBox(height: outcomeText != null ? 10 : 8),
-                      unlocked
-                          ? Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                for (final outcome in discoveredOutcomes)
-                                  _OutcomeChip(
-                                    label: outcome.result,
-                                    weight: outcome.weight,
-                                    color: accent,
-                                    flash: flash,
-                                    emphasized:
-                                        recipe.kind ==
-                                        EncyclopediaRecipeKind.element,
-                                  ),
-                                for (var i = 0; i < hiddenOutcomeCount; i++)
-                                  _OutcomeChip.hidden(
-                                    color: accent,
-                                    emphasized:
-                                        recipe.kind ==
-                                        EncyclopediaRecipeKind.element,
-                                  ),
-                              ],
-                            )
-                          : Text(
-                              '???',
-                              style: TextStyle(
-                                color: accent.withValues(alpha: .58),
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: .8,
-                                fontSize: 16,
-                              ),
-                            ),
-                    ],
-                  ),
-          ),
-
-          // ── Flash burst overlay (phase 0) ───────────────────────────────
-          if (flash > 0.01)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    gradient: RadialGradient(
-                      center: Alignment.center,
-                      radius: 1.2,
-                      colors: [
-                        accent.withValues(alpha: flash * 0.55),
-                        Colors.white.withValues(alpha: flash * 0.18),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 0.45, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-          // ── Radial glow (phases 1-3) ────────────────────────────────────
-          if (glow > 0.01)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    gradient: RadialGradient(
-                      center: const Alignment(0.0, 0.0),
-                      radius: 1.4,
-                      colors: [
-                        accent.withValues(alpha: glow * 0.28),
-                        accent.withValues(alpha: glow * 0.08),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 0.5, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-          // ── Diagonal shimmer sweep (phase 2) ────────────────────────────
-          if (fs.sweep > 0.01 && fs.sweep < 0.99)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: CustomPaint(
-                    painter: _ShimmerSweepPainter(
-                      progress: fs.sweep,
-                      color: accent,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-          // ── "NEWLY UNLOCKED" badge ──────────────────────────────────────
-          if (fs.badge > 0.01)
-            Positioned(
-              top: -8,
-              left: 0,
-              right: 0,
-              child: Opacity(
-                opacity: fs.badge.clamp(0.0, 1.0),
-                child: Center(
-                  child: Transform.scale(
-                    scale: 0.85 + fs.badge * 0.15,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: accent,
-                        borderRadius: BorderRadius.circular(2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: accent.withValues(alpha: 0.6),
-                            blurRadius: 12,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        '★  NEWLY UNLOCKED  ★',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: Colors.black.withValues(alpha: 0.85),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.4,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-          // ── Outer ring pulse (extends beyond card bounds) ───────────────
-          if (glow > 0.05)
-            Positioned(
-              top: -(glow * 6),
-              left: -(glow * 6),
-              right: -(glow * 6),
-              bottom: -(glow * 6),
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4 + glow * 6),
-                    border: Border.all(
-                      color: accent.withValues(alpha: glow * 0.4),
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );
   }
-}
 
-// ─── Element equation (compact icon layout for element recipes) ──────────────
+  String _subtitle(String name, bool known) {
+    final kept =
+        (_isElement ? _data.ownedByElement : _data.ownedByFamily)[name] ?? 0;
+    final where = _isElement
+        ? ElementalGroup.values
+              .firstWhere(
+                (g) => g.elementTypes.contains(name),
+                orElse: () => ElementalGroup.arcane,
+              )
+              .displayName
+              .toUpperCase()
+        : 'SPECIES';
+    if (!known) return '$where · NOT YET FOUND';
+    return kept > 0 ? '$where · $kept KEPT' : '$where · KNOWN';
+  }
 
-class _ElementEquation extends StatelessWidget {
-  final EncyclopediaRecipeEntry recipe;
-  final bool unlocked;
-  final List<EncyclopediaOutcomeEntry> discoveredOutcomes;
-  final int hiddenOutcomeCount;
-  final double flash;
-
-  const _ElementEquation({
-    required this.recipe,
-    required this.unlocked,
-    required this.discoveredOutcomes,
-    required this.hiddenOutcomeCount,
-    required this.flash,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final opColor = _C.of(context).textSecondary;
-    // Operators stay bronze so colour discipline holds: parents read neutral,
-    // the join/yields marks are gilt, only the result chip carries its element
-    // colour.
-    final arrowColor = unlocked
-        ? _C.of(context).amber
-        : _C.of(context).textMuted;
-
-    final results = <Widget>[
-      if (unlocked) ...[
-        for (final outcome in discoveredOutcomes)
-          _ResultToken(
-            result: outcome.result,
-            weight: outcome.weight,
-            flash: flash,
-          ),
-        for (var i = 0; i < hiddenOutcomeCount; i++)
-          const _ResultToken.hidden(),
-      ] else
-        const _ResultToken.hidden(),
+  Widget _rowFor(
+    EncyclopediaRecipeEntry r,
+    BracketPalette palette, {
+    required bool makes,
+  }) {
+    final name = _name;
+    final found = _data.isDiscovered(r);
+    final partner = makes ? null : (r.parentA == name ? r.parentB : r.parentA);
+    // What the row plays: for MADE FROM, this; for FUSES INTO, the first
+    // outcome found.
+    final outcomes = makes
+        ? [r.outcomes.firstWhere((o) => o.result == name)]
+        : r.outcomes;
+    final foundOutcomes = [
+      for (final o in outcomes)
+        if (_data.outcomeFound(r, o.result)) o,
     ];
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Parents take the left half, left-aligned (scaled down only if long).
-        Expanded(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _ElementToken(name: unlocked ? recipe.parentA : null),
-                _EqGlyph('⊕', opColor), // ⊕ conjunction
-                _ElementToken(name: unlocked ? recipe.parentB : null),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        // Arrow stays centered across every row.
-        _EqGlyph('⟶', arrowColor), // ⟶ yields
-        const SizedBox(width: 8),
-        // Result(s) take the right half, right-aligned so they line up.
-        Expanded(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerRight,
-            child: Row(mainAxisSize: MainAxisSize.min, children: results),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// A tinted parent element pill (icon + name); shows "?" when locked.
-class _ElementToken extends StatelessWidget {
-  final String? name;
-  const _ElementToken({required this.name});
-
-  @override
-  Widget build(BuildContext context) {
-    final known = name != null;
-    final color = known
-        ? BreedConstants.getTypeColor(name!)
-        : _C.of(context).textMuted;
-    final icon = known ? BreedConstants.getTypeIcon(name!) : null;
-    // Inscribed, not buttoned: bare sigil + letter-spaced caps so the parents
-    // read as a quiet incantation. Only the result keeps a plated chip.
+    final play = !found || foundOutcomes.isEmpty
+        ? null
+        : _Play(
+            r,
+            makes ? r.parentA : name,
+            makes ? r.parentB : partner!,
+            foundOutcomes.first.result,
+          );
+    final playing = play != null && _stage.playing == play.tag;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 15, color: color),
-            const SizedBox(width: 5),
-          ],
-          Text(
-            known ? name!.toUpperCase() : '?',
-            style: TextStyle(
-              color: known
-                  ? _C.of(context).textPrimary.withValues(alpha: .92)
-                  : color,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              letterSpacing: 1.0,
-            ),
-          ),
+      padding: const EdgeInsets.only(top: 8),
+      child: _FormulaRow(
+        palette: palette,
+        isElement: _isElement,
+        makers: makes ? [r.parentA, r.parentB] : [partner!],
+        leadingJoin: !makes,
+        outcomes: [
+          for (final o in outcomes)
+            (_data.outcomeFound(r, o.result) ? o.result : null, o.weight),
         ],
+        found: found,
+        playing: playing,
+        isNew: play != null && play.tag == _newTag,
+        tintOf: _tint,
+        onTap: play == null ? null : () => _play(play),
       ),
     );
   }
 }
 
-/// The result element pill (icon + NAME + weight%), tinted by its own type.
-class _ResultToken extends StatelessWidget {
-  final String result;
-  final int? weight;
-  final double flash;
-  final bool hidden;
+class _SheetHeader extends StatelessWidget {
+  const _SheetHeader({
+    required this.palette,
+    required this.title,
+    required this.subtitle,
+    required this.tint,
+    required this.onClose,
+  });
 
-  const _ResultToken({
-    required this.result,
-    required this.weight,
-    required this.flash,
-  }) : hidden = false;
-
-  const _ResultToken.hidden()
-    : result = '???',
-      weight = null,
-      flash = 0,
-      hidden = true;
+  final BracketPalette palette;
+  final String title, subtitle;
+  final Color tint;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
-    final color = hidden
-        ? _C.of(context).textMuted
-        : BreedConstants.getTypeColor(result);
-    final chipColor = Color.lerp(color, Colors.white, flash * 0.45) ?? color;
-    final icon = hidden ? null : BreedConstants.getTypeIcon(result);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: chipColor.withValues(alpha: hidden ? 0.06 : 0.16),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(
-          color: chipColor.withValues(alpha: hidden ? 0.2 : 0.5),
-          width: 1.0,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 15, color: chipColor),
-            const SizedBox(width: 6),
-          ],
-          Text(
-            result.toUpperCase(),
-            style: TextStyle(
-              color: hidden
-                  ? _C.of(context).textMuted
-                  : _C.of(context).textPrimary,
-              fontWeight: FontWeight.w800,
-              fontSize: 13,
-              letterSpacing: 0.6,
-            ),
-          ),
-          if (weight != null) ...[
-            const SizedBox(width: 7),
-            Text(
-              '$weight%',
-              style: TextStyle(
-                color: chipColor,
-                fontWeight: FontWeight.w900,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Small "+"/"→" operator glyph between equation tokens.
-class _EqGlyph extends StatelessWidget {
-  final String glyph;
-  final Color color;
-  const _EqGlyph(this.glyph, this.color);
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 4),
-    child: Text(
-      glyph,
-      style: TextStyle(
-        color: color.withValues(alpha: 0.7),
-        fontWeight: FontWeight.w500,
-        fontSize: 16,
-      ),
-    ),
-  );
-}
-
-// ─── Diagonal shimmer sweep painter ──────────────────────────────────────────
-
-class _ShimmerSweepPainter extends CustomPainter {
-  final double progress; // 0..1, drives diagonal band position
-  final Color color;
-
-  const _ShimmerSweepPainter({required this.progress, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Band sweeps diagonally from top-left to bottom-right
-    final diagonal = size.width + size.height;
-    final bandCenter = progress * (diagonal + 80) - 40;
-    final bandHalf = 55.0;
-
-    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final gradient = LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [
-        Colors.transparent,
-        color.withValues(alpha: 0.0),
-        color.withValues(alpha: 0.22),
-        Colors.white.withValues(alpha: 0.15),
-        color.withValues(alpha: 0.22),
-        color.withValues(alpha: 0.0),
-        Colors.transparent,
-      ],
-      stops: [
-        0.0,
-        ((bandCenter - bandHalf) / diagonal).clamp(0.0, 1.0),
-        ((bandCenter - bandHalf * 0.3) / diagonal).clamp(0.0, 1.0),
-        (bandCenter / diagonal).clamp(0.0, 1.0),
-        ((bandCenter + bandHalf * 0.3) / diagonal).clamp(0.0, 1.0),
-        ((bandCenter + bandHalf) / diagonal).clamp(0.0, 1.0),
-        1.0,
-      ],
-    );
-
-    final paint = Paint()..shader = gradient.createShader(rect);
-    canvas.drawRect(rect, paint);
-  }
-
-  @override
-  bool shouldRepaint(_ShimmerSweepPainter old) =>
-      old.progress != progress || old.color != color;
-}
-
-// ─── Nature tab ─────────────────────────────────────────────────────────────
-
-class _NatureTabList extends StatefulWidget {
-  final List<EncyclopediaNatureEntry> entries;
-  final String query;
-
-  const _NatureTabList({super.key, required this.entries, required this.query});
-
-  @override
-  State<_NatureTabList> createState() => _NatureTabListState();
-}
-
-class _NatureTabListState extends State<_NatureTabList> {
-  @override
-  Widget build(BuildContext context) {
-    final injector = SliverOverlapInjector(
-      handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
-    );
-
-    if (widget.entries.isEmpty) {
-      return CustomScrollView(
-        key: const PageStorageKey<String>('natures'),
-        slivers: [
-          injector,
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: _NatureEmptyState(query: widget.query),
-          ),
-        ],
-      );
-    }
-
-    return CustomScrollView(
-      key: const PageStorageKey<String>('natures'),
-      slivers: [
-        injector,
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            child: Row(
-              children: [
-                Text(
-                  '${widget.entries.where((e) => e.discovered).length} discovered • ${widget.entries.length} shown',
-                  style: _T.label(context),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _natureAccentColor(context).withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(2),
-                    border: Border.all(
-                      color: _natureAccentColor(context).withValues(alpha: .45),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Text(
-                    'BEHAVIOR LOG',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: _natureAccentColor(context),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-          sliver: SliverList.separated(
-            itemCount: widget.entries.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) => _AnimatedCardEntrance(
-              index: index,
-              child: _NatureCard(entry: widget.entries[index]),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _NatureCard extends StatelessWidget {
-  final EncyclopediaNatureEntry entry;
-
-  const _NatureCard({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    final locked = !entry.discovered;
-    final accent = locked
-        ? _C.of(context).textMuted
-        : _natureAccentColor(context, entry.nature);
-    final summary = locked
-        ? '???'
-        : formatNatureEffectSummary(entry.nature.effect);
-    final observedText = locked
-        ? 'Not yet discovered'
-        : entry.observedCount > 0
-        ? 'Observed on ${entry.observedCount} active specimen${entry.observedCount == 1 ? '' : 's'}'
-        : 'Archived from prior specimen records';
-
-    return _PlateFrame(
-      accentColor: accent,
-      highlight: !locked,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final ink = palette.isDark
+        ? Color.lerp(tint, Colors.white, 0.35)!
+        : Color.lerp(tint, Colors.black, 0.4)!;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  locked ? '???' : entry.nature.id,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: locked
-                        ? _C.of(context).textMuted
-                        : _C.of(context).textPrimary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    letterSpacing: 0.2,
-                  ),
-                ),
+              Text(
+                title.toUpperCase(),
+                style: _mono(20, palette.ink, weight: FontWeight.w900),
               ),
+              const SizedBox(height: 3),
+              Text(subtitle, style: _mono(10.5, ink, spacing: 1.4)),
             ],
           ),
-          const SizedBox(height: 10),
-          _NatureSummaryRow(
-            label: 'Effect',
-            value: summary,
-            valueColor: locked || entry.nature.effect.modifiers.isEmpty
-                ? _natureReadableTextColor(context, muted: true)
-                : _natureReadableTextColor(context),
-          ),
-          const SizedBox(height: 6),
-          _NatureSummaryRow(
-            label: 'Observed',
-            value: observedText,
-            valueColor: _natureReadableTextColor(context, muted: true),
-          ),
-        ],
-      ),
+        ),
+        BracketIconButton(
+          icon: AppIcons.close_rounded,
+          onTap: onClose,
+          palette: palette,
+        ),
+      ],
     );
   }
 }
 
-class _NatureSummaryRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  const _NatureSummaryRow({
-    required this.label,
-    required this.value,
-    this.valueColor,
+/// Under the stage: what it is doing, or what to do with it.
+class _StageCaption extends StatelessWidget {
+  const _StageCaption({
+    required this.play,
+    required this.busy,
+    required this.known,
+    required this.subject,
+    required this.isElement,
+    required this.onOpen,
   });
+
+  final _Play? play;
+  final bool busy, known, isElement;
+  final String subject;
+  final ValueChanged<String> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = play;
+    if (p == null) {
+      return Text(
+        known ? (busy ? '' : 'TAP TO SEE IT COME APART') : 'NOT YET FOUND',
+        textAlign: TextAlign.center,
+        style: _mono(9.5, _kGlassMuted, spacing: 1.6),
+      );
+    }
+    final word = _mono(10.5, _kGlassInk, weight: FontWeight.w800);
+    const mark = TextStyle(color: _kGilt, fontSize: 13);
+    final away = !busy && p.result != subject;
+    return Row(
+      children: [
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: away ? Alignment.centerLeft : Alignment.center,
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: p.a.toUpperCase(), style: word),
+                  const TextSpan(text: '  ⊕  ', style: mark),
+                  TextSpan(text: p.b.toUpperCase(), style: word),
+                  const TextSpan(text: '  →  ', style: mark),
+                  TextSpan(text: p.result.toUpperCase(), style: word),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (away)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: context.soundAction(() => onOpen(p.result)),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'OPEN ${p.result.toUpperCase()}',
+                    style: _mono(10, _kGilt, weight: FontWeight.w900),
+                  ),
+                  const Icon(
+                    AppIcons.chevron_right_rounded,
+                    size: 16,
+                    color: _kGilt,
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({
+    required this.palette,
+    required this.title,
+    required this.found,
+    required this.total,
+  });
+
+  final BracketPalette palette;
+  final String title;
+  final int found, total;
 
   @override
   Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      SizedBox(
-        width: 84,
-        child: Text(
-          label.toUpperCase(),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: _T
-              .label(context)
-              .copyWith(
-                fontSize: 12,
-                letterSpacing: 1.0,
-                color: _natureLabelColor(context),
-              ),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Text(
-          value,
-          style: _T
-              .body(context)
-              .copyWith(
-                fontSize: 12,
-                color: valueColor ?? _natureReadableTextColor(context),
-              ),
-        ),
-      ),
+      Text(title, style: _mono(11.5, palette.ink, weight: FontWeight.w800)),
+      const SizedBox(width: 10),
+      Expanded(child: Container(height: 1, color: palette.lineSoft)),
+      if (total > 0) ...[
+        const SizedBox(width: 10),
+        Text('$found / $total FOUND', style: _mono(10, palette.muted)),
+      ],
     ],
   );
 }
 
-class _NatureEmptyState extends StatelessWidget {
-  final String query;
+class _Empty extends StatelessWidget {
+  const _Empty({required this.palette, required this.text});
 
-  const _NatureEmptyState({required this.query});
+  final BracketPalette palette;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 10),
+    child: Text(text, style: TextStyle(color: palette.muted, fontSize: 12.5)),
+  );
+}
+
+/// The formulas not yet found, as one line: how many, and nothing more.
+class _Unfound extends StatelessWidget {
+  const _Unfound({required this.palette, required this.count});
+
+  final BracketPalette palette;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    final color = _natureAccentColor(context);
-    final title = query.isNotEmpty
-        ? 'No known natures match "$query"'
-        : 'No natures archived yet';
-    final subtitle = query.isNotEmpty
-        ? 'Try a different nature name or effect keyword.'
-        : 'Extract or hatch alchemons with identified natures to populate this log.';
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: _PlateFrame(
-          accentColor: color,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    if (count == 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: palette.lineSoft,
+          bracketSize: 7,
+        ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          child: Row(
             children: [
-              Text(
-                title,
-                style: _T.heading(context).copyWith(fontSize: 12),
-                textAlign: TextAlign.center,
+              Icon(
+                AppIcons.lock_outline_rounded,
+                size: 13,
+                color: palette.muted.withValues(alpha: 0.6),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(width: 8),
               Text(
-                subtitle,
-                style: _T
-                    .body(context)
-                    .copyWith(
-                      fontSize: 12,
-                      color: _natureReadableTextColor(context),
-                    ),
-                textAlign: TextAlign.center,
+                count == 1
+                    ? '1 MORE NOT YET FOUND'
+                    : '$count MORE NOT YET FOUND',
+                style: _mono(10.5, palette.muted, spacing: 1.2),
               ),
             ],
           ),
@@ -2618,74 +1406,296 @@ class _NatureEmptyState extends StatelessWidget {
   }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+/// A formula: its makers, joined, and what it gives.
+///
+/// [makers] are both makers for MADE FROM, or only the partner for FUSES
+/// INTO ([leadingJoin] puts the join before it: the subject is the other
+/// maker). [outcomes] are (name or null if not yet made, chance).
+class _FormulaRow extends StatelessWidget {
+  const _FormulaRow({
+    required this.palette,
+    required this.isElement,
+    required this.makers,
+    required this.leadingJoin,
+    required this.outcomes,
+    required this.found,
+    required this.playing,
+    required this.isNew,
+    required this.tintOf,
+    required this.onTap,
+  });
 
-class _OutcomeChip extends StatelessWidget {
-  final String label;
-  final int? weight;
-  final Color color;
-  final double flash;
-  final bool hidden;
-  final bool emphasized;
-
-  const _OutcomeChip({
-    required this.label,
-    required this.weight,
-    required this.color,
-    required this.flash,
-    this.emphasized = false,
-  }) : hidden = false;
-
-  const _OutcomeChip.hidden({required this.color, this.emphasized = false})
-    : label = '???',
-      weight = null,
-      flash = 0,
-      hidden = true;
+  final BracketPalette palette;
+  final bool isElement;
+  final List<String> makers;
+  final bool leadingJoin;
+  final List<(String?, int)> outcomes;
+  final bool found, playing, isNew;
+  final Color Function(String) tintOf;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final chipColor = Color.lerp(color, Colors.white, flash * 0.45) ?? color;
-    final displayLabel = emphasized ? label.toUpperCase() : label;
-    return Container(
-      constraints: emphasized
-          ? const BoxConstraints(minWidth: 118)
-          : const BoxConstraints(),
-      padding: emphasized
-          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 9)
-          : const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: chipColor.withValues(alpha: hidden ? 0.06 : 0.12),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(
-          color: chipColor.withValues(alpha: hidden ? 0.18 : 0.35),
-          width: 0.9,
+    final join = palette.isDark ? _kGilt : const Color(0xFF9A6B00);
+    final frame = playing || isNew
+        ? _kGilt
+        : found
+        ? palette.line
+        : palette.lineSoft;
+    Widget glyph(String g) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Text(
+        g,
+        style: TextStyle(
+          color: found ? join : palette.muted.withValues(alpha: 0.6),
+          fontSize: 15,
         ),
       ),
-      child: RichText(
-        text: TextSpan(
-          children: [
-            TextSpan(
-              text: weight != null && emphasized
-                  ? '$displayLabel '
-                  : displayLabel,
-              style: TextStyle(
-                color: hidden
-                    ? _C.of(context).textMuted
-                    : _C.of(context).textPrimary,
-                fontWeight: FontWeight.w800,
-                fontSize: emphasized ? 15 : 11,
-                letterSpacing: emphasized ? 0.8 : 0,
-              ),
-            ),
-            if (weight != null)
-              TextSpan(
-                text: emphasized ? '$weight%' : '  $weight%',
-                style: TextStyle(
-                  color: chipColor,
-                  fontWeight: FontWeight.w900,
-                  fontSize: emphasized ? 14 : 10,
+    );
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: frame,
+          bracketSize: 7,
+          strokeWidth: playing ? 1.4 : 1,
+        ),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 9, 8, 9),
+          color: playing
+              ? palette.accentWash(_kGilt, darkAlpha: 0.12, lightAlpha: 0.08)
+              : palette.surfaceMutedFill(),
+          child: Row(
+            children: [
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (leadingJoin) glyph('⊕'),
+                      for (var i = 0; i < makers.length; i++) ...[
+                        if (i > 0) glyph('⊕'),
+                        _Token(
+                          palette: palette,
+                          name: found ? makers[i] : null,
+                          isElement: isElement,
+                          tintOf: tintOf,
+                        ),
+                      ],
+                      glyph('→'),
+                      for (var i = 0; i < outcomes.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 8),
+                        _Token(
+                          palette: palette,
+                          name: found ? outcomes[i].$1 : null,
+                          isElement: isElement,
+                          tintOf: tintOf,
+                          chance: found && outcomes[i].$1 != null
+                              ? outcomes[i].$2
+                              : null,
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
+              const SizedBox(width: 6),
+              if (isNew && !playing)
+                const _NewPip()
+              else if (onTap != null)
+                Icon(
+                  playing
+                      ? AppIcons.auto_awesome_rounded
+                      : AppIcons.play_arrow_rounded,
+                  size: 18,
+                  color: playing ? _kGilt : palette.muted,
+                )
+              else
+                Icon(
+                  AppIcons.lock_outline_rounded,
+                  size: 14,
+                  color: palette.muted.withValues(alpha: 0.5),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One element or species in a formula: a small orb (or face) and its
+/// name, or a question mark.
+class _Token extends StatelessWidget {
+  const _Token({
+    required this.palette,
+    required this.name,
+    required this.isElement,
+    required this.tintOf,
+    this.chance,
+  });
+
+  final BracketPalette palette;
+  final String? name;
+  final bool isElement;
+  final Color Function(String) tintOf;
+  final int? chance;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = name;
+    if (n == null) {
+      return Text(
+        '?',
+        style: _mono(13, palette.muted.withValues(alpha: 0.7), spacing: 0),
+      );
+    }
+    final tint = tintOf(n);
+    final ink = palette.isDark
+        ? Color.lerp(tint, Colors.white, 0.3)!
+        : Color.lerp(tint, Colors.black, 0.45)!;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isElement)
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: _StillOrb(name: n, locked: false, radius: 8),
+          )
+        else
+          Container(width: 6, height: 6, color: tint),
+        const SizedBox(width: 5),
+        Text(
+          n.toUpperCase(),
+          style: _mono(
+            11.5,
+            palette.ink,
+            weight: FontWeight.w800,
+            spacing: 0.8,
+          ),
+        ),
+        if (chance != null) ...[
+          const SizedBox(width: 5),
+          Text(
+            '$chance%',
+            style: _mono(11, ink, weight: FontWeight.w900, spacing: 0),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ─── Natures ────────────────────────────────────────────────────────────────
+
+class _NatureLog extends StatelessWidget {
+  const _NatureLog({required this.data, required this.palette});
+
+  final AlchemicalEncyclopediaSnapshot data;
+  final BracketPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = [...data.natureEntries]
+      ..sort((a, b) {
+        if (a.discovered != b.discovered) return a.discovered ? -1 : 1;
+        final seen = b.observedCount.compareTo(a.observedCount);
+        if (seen != 0) return seen;
+        return a.nature.id.compareTo(b.nature.id);
+      });
+    final known = entries.where((e) => e.discovered).length;
+    return ListView(
+      key: const PageStorageKey('codex-natures'),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+      children: [
+        _Tally(
+          palette: palette,
+          label: 'NATURES OBSERVED',
+          value: known,
+          total: entries.length,
+          color: const Color(0xFF22C55E),
+        ),
+        const SizedBox(height: 14),
+        for (final e in entries) ...[
+          _NatureRow(entry: e, palette: palette),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _NatureRow extends StatelessWidget {
+  const _NatureRow({required this.entry, required this.palette});
+
+  final EncyclopediaNatureEntry entry;
+  final BracketPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final locked = !entry.discovered;
+    final accent = locked ? palette.lineSoft : _natureAccent(entry.nature);
+    final seen = locked
+        ? 'Not yet observed'
+        : entry.observedCount > 0
+        ? 'On ${entry.observedCount} specimen${entry.observedCount == 1 ? '' : 's'} you keep'
+        : 'Seen on a specimen you no longer keep';
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: locked ? palette.lineSoft : accent.withValues(alpha: 0.8),
+        bracketSize: 7,
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        color: palette.surfaceMutedFill(),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Container(
+                width: 7,
+                height: 7,
+                color: locked ? palette.lineSoft : accent,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    locked ? '???' : entry.nature.id,
+                    style: _mono(
+                      13,
+                      locked ? palette.muted : palette.ink,
+                      weight: FontWeight.w800,
+                      spacing: 0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    locked
+                        ? '???'
+                        : formatNatureEffectSummary(entry.nature.effect),
+                    style: TextStyle(
+                      color: locked ? palette.muted : palette.ink,
+                      fontSize: 12.5,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    seen,
+                    style: TextStyle(color: palette.muted, fontSize: 11.5),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -2693,422 +1703,15 @@ class _OutcomeChip extends StatelessWidget {
   }
 }
 
-Color _recipeResultColor(BuildContext context, EncyclopediaRecipeEntry recipe) {
-  if (recipe.kind == EncyclopediaRecipeKind.element) {
-    return BreedConstants.getTypeColor(recipe.result);
-  }
-  final normalized = recipe.result.trim().toLowerCase();
-  for (final family in CreatureFamily.values) {
-    if (family.displayName.toLowerCase() == normalized) return family.color;
-  }
-  return _C.of(context).amberBright;
-}
-
-Color _natureAccentColor(BuildContext context, [NatureDef? nature]) {
-  final effect = nature?.effect.modifiers ?? const <String, num>{};
+Color _natureAccent(NatureDef nature) {
+  final effect = nature.effect.modifiers;
   if (effect.containsKey('stat_strength_bonus')) {
     return const Color(0xFFEF4444);
   }
-  if (effect.containsKey('stat_speed_bonus')) {
-    return _C.of(context).teal;
-  }
+  if (effect.containsKey('stat_speed_bonus')) return const Color(0xFF0EA5E9);
   if (effect.containsKey('stat_intelligence_bonus')) {
     return const Color(0xFF38BDF8);
   }
-  if (effect.containsKey('stat_beauty_bonus')) {
-    return _C.of(context).amberBright;
-  }
+  if (effect.containsKey('stat_beauty_bonus')) return const Color(0xFFF59E0B);
   return const Color(0xFF22C55E);
-}
-
-Color _natureReadableTextColor(BuildContext context, {bool muted = false}) {
-  final palette = _C.of(context);
-  if (Theme.of(context).brightness == Brightness.dark) {
-    return muted ? palette.textSecondary : palette.textPrimary;
-  }
-  return muted ? palette.textMuted : palette.textSecondary;
-}
-
-Color _natureLabelColor(BuildContext context) {
-  final palette = _C.of(context);
-  if (Theme.of(context).brightness == Brightness.dark) {
-    return palette.textPrimary.withValues(alpha: 0.78);
-  }
-  return palette.textSecondary;
-}
-
-// ─── Discovery stat ──────────────────────────────────────────────────────────
-
-class _DiscoveryStat extends StatelessWidget {
-  final String label;
-  final int discovered, total;
-  final Color color;
-
-  const _DiscoveryStat({
-    required this.label,
-    required this.discovered,
-    required this.total,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = total == 0 ? 0.0 : discovered / total;
-    return Container(
-      padding: const EdgeInsets.all(9),
-      decoration: BoxDecoration(
-        color: _C.of(context).bg1,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: color.withValues(alpha: .25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                label.toUpperCase(),
-                style: _T
-                    .label(context)
-                    .copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                    ),
-              ),
-              const Spacer(),
-              Text(
-                '$discovered/$total',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: _C.of(context).textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 7),
-          _AnimatedCompletionBar(progress: progress, color: color),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Completion bar (static, used by animated wrapper) ───────────────────────
-
-class _CompletionBar extends StatelessWidget {
-  final double progress;
-  final Color color;
-  const _CompletionBar({required this.progress, required this.color});
-
-  @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(99),
-    child: SizedBox(
-      height: 7,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(color: _C.of(context).bg3),
-          FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: progress.clamp(0.0, 1.0),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color.withValues(alpha: .65), color],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-// ─── Toggle chip ─────────────────────────────────────────────────────────────
-
-class _ToggleChip extends StatelessWidget {
-  final String label;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  const _ToggleChip({
-    required this.label,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: context.soundAction(onTap),
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 130),
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: enabled
-            ? _C.of(context).amber.withValues(alpha: .16)
-            : _C.of(context).bg1,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(
-          color: enabled
-              ? _C.of(context).amberBright.withValues(alpha: .6)
-              : _C.of(context).borderDim,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: enabled
-                  ? _C.of(context).amberBright
-                  : _C.of(context).textMuted.withValues(alpha: .35),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.3,
-              color: enabled
-                  ? _C.of(context).amberBright
-                  : _C.of(context).textSecondary,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-// ─── Kind tag ────────────────────────────────────────────────────────────────
-
-class _KindTag extends StatelessWidget {
-  final EncyclopediaRecipeKind kind;
-  const _KindTag({required this.kind});
-
-  @override
-  Widget build(BuildContext context) {
-    final isFamily = kind == EncyclopediaRecipeKind.family;
-    final color = isFamily ? _C.of(context).amberBright : _C.of(context).teal;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: color.withValues(alpha: .45), width: 0.8),
-      ),
-      child: Text(
-        isFamily ? 'SPECIES MATRIX' : 'ELEMENT MATRIX',
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Empty state ─────────────────────────────────────────────────────────────
-
-class _EmptyTabState extends StatelessWidget {
-  final EncyclopediaRecipeKind kind;
-  final String query;
-  final bool knownOnly;
-
-  const _EmptyTabState({
-    required this.kind,
-    required this.query,
-    required this.knownOnly,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isFamily = kind == EncyclopediaRecipeKind.family;
-    final color = isFamily ? _C.of(context).amberBright : _C.of(context).teal;
-    final title = query.isNotEmpty
-        ? 'No known records match "$query"'
-        : knownOnly
-        ? 'No known ${isFamily ? 'species' : 'element'} formulas yet'
-        : 'No ${isFamily ? 'species' : 'element'} formulas available';
-    final subtitle = query.isNotEmpty
-        ? 'Try a different parent or outcome name.'
-        : knownOnly
-        ? 'Breed more pairs to unlock this matrix.'
-        : 'Recipe data for this matrix is empty.';
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: _PlateFrame(
-          accentColor: color,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                style: _T.heading(context).copyWith(fontSize: 12),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                subtitle,
-                style: _T.body(context).copyWith(fontSize: 12),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Action button ───────────────────────────────────────────────────────────
-
-class _ActionButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _ActionButton({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: context.soundAction(onTap),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: _C.of(context).amber,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: _C.of(context).amberGlow),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: _C.of(context).bg0,
-          fontWeight: FontWeight.w800,
-          fontSize: 12,
-          letterSpacing: 1.2,
-        ),
-      ),
-    ),
-  );
-}
-
-// ─── Plate frame ─────────────────────────────────────────────────────────────
-
-class _PlateFrame extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  final Color accentColor;
-  final bool highlight;
-  final double glowBoost;
-
-  /// When true the resting border is a quiet hairline and there is no idle
-  /// glow — colour only blooms in via [glowBoost] during the unlock animation.
-  /// Used by list rows so the page reads as a calm ledger, not a stack of lit
-  /// buttons.
-  final bool calm;
-
-  const _PlateFrame({
-    required this.child,
-    this.padding = const EdgeInsets.all(14),
-    this.accentColor = const Color(0xFFD97706),
-    this.highlight = false,
-    this.glowBoost = 0,
-    this.calm = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final boostedGlow = glowBoost.clamp(0.0, 1.0).toDouble();
-    final borderAlpha = highlight
-        ? ((calm ? 0.30 : 0.6) + boostedGlow * (calm ? 0.7 : 0.4))
-        : 0.18;
-    final borderWidth = highlight
-        ? ((calm ? 1.0 : 1.4) + boostedGlow * 1.2)
-        : 1.0;
-    final baseShadowAlpha = (highlight && !calm) ? 0.12 : 0.0;
-    final shadowAlpha = baseShadowAlpha + boostedGlow * 0.45;
-    final shadowBlur = 18 + boostedGlow * 40;
-    final shadowSpread = boostedGlow * 4;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _C.of(context).bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: highlight
-              ? accentColor.withValues(alpha: borderAlpha)
-              : _C.of(context).borderDim,
-          width: borderWidth,
-        ),
-        boxShadow: (highlight || boostedGlow > 0.01)
-            ? [
-                BoxShadow(
-                  color: accentColor.withValues(alpha: shadowAlpha),
-                  blurRadius: shadowBlur,
-                  spreadRadius: shadowSpread,
-                ),
-              ]
-            : null,
-      ),
-      child: Stack(
-        children: [
-          Padding(padding: padding, child: child),
-          Positioned(
-            top: 0,
-            left: 0,
-            child: _CornerNotch(accent: accentColor, topLeft: true),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: _CornerNotch(accent: accentColor, topLeft: false),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CornerNotch extends StatelessWidget {
-  final Color accent;
-  final bool topLeft;
-  const _CornerNotch({required this.accent, required this.topLeft});
-
-  @override
-  Widget build(BuildContext context) {
-    final side = accent.withValues(alpha: 0.45);
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        border: topLeft
-            ? Border(
-                top: BorderSide(color: side, width: 1.5),
-                left: BorderSide(color: side, width: 1.5),
-              )
-            : Border(
-                bottom: BorderSide(color: side, width: 1.5),
-                right: BorderSide(color: side, width: 1.5),
-              ),
-      ),
-    );
-  }
 }

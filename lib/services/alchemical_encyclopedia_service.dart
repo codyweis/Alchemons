@@ -70,6 +70,22 @@ class AlchemicalEncyclopediaSnapshot {
   final Set<String> discoveredFamilyOutcomeKeys;
   final Set<String> discoveredElementOutcomeKeys;
 
+  /// Elements the player has come across ('Fire'…): in a species they have
+  /// found or a specimen they keep, or in a formula they have made — its
+  /// makers as well as what it made.
+  final Set<String> knownElements;
+
+  /// Species families the same way ('Let'…).
+  final Set<String> knownFamilies;
+
+  /// Specimens kept now, by primary element and by family.
+  final Map<String, int> ownedByElement;
+  final Map<String, int> ownedByFamily;
+
+  /// A creature to show each family by: the first the player has found, or
+  /// the first in the catalog for a family not yet known.
+  final Map<String, Creature> familyFaces;
+
   const AlchemicalEncyclopediaSnapshot({
     required this.familyRecipes,
     required this.elementRecipes,
@@ -78,7 +94,47 @@ class AlchemicalEncyclopediaSnapshot {
     required this.discoveredElementKeys,
     required this.discoveredFamilyOutcomeKeys,
     required this.discoveredElementOutcomeKeys,
+    this.knownElements = const {},
+    this.knownFamilies = const {},
+    this.ownedByElement = const {},
+    this.ownedByFamily = const {},
+    this.familyFaces = const {},
   });
+
+  /// The element formulas that make [element], and those it is a maker in.
+  List<EncyclopediaRecipeEntry> elementMadeFrom(String element) =>
+      _madeFrom(elementRecipes, element);
+  List<EncyclopediaRecipeEntry> elementFusesInto(String element) =>
+      _fusesInto(elementRecipes, element);
+
+  /// The same for a species family.
+  List<EncyclopediaRecipeEntry> familyMadeFrom(String family) =>
+      _madeFrom(familyRecipes, family);
+  List<EncyclopediaRecipeEntry> familyFusesInto(String family) =>
+      _fusesInto(familyRecipes, family);
+
+  static List<EncyclopediaRecipeEntry> _madeFrom(
+    List<EncyclopediaRecipeEntry> recipes,
+    String name,
+  ) => [
+    for (final r in recipes)
+      if (r.definesOutcome(name)) r,
+  ];
+
+  static List<EncyclopediaRecipeEntry> _fusesInto(
+    List<EncyclopediaRecipeEntry> recipes,
+    String name,
+  ) => [
+    for (final r in recipes)
+      if (r.parentA == name || r.parentB == name) r,
+  ];
+
+  /// Whether the outcome [result] of [recipe] has been made.
+  bool outcomeFound(EncyclopediaRecipeEntry recipe, String result) =>
+      switch (recipe.kind) {
+        EncyclopediaRecipeKind.family => discoveredFamilyOutcomeKeys,
+        EncyclopediaRecipeKind.element => discoveredElementOutcomeKeys,
+      }.contains(recipe.outcomePathKey(result));
 
   bool isDiscovered(EncyclopediaRecipeEntry entry) {
     return switch (entry.kind) {
@@ -115,42 +171,116 @@ class AlchemicalEncyclopediaService {
   static const String _elementDiscoveredKey = 'enc.element.outcomes.v2';
   static const String _natureDiscoveredKey = 'enc.nature.discovered.v1';
 
-  static Future<_RecipeCatalog>? _catalogFuture;
+  // The recipe books, once read. Kept as the value, not the future: a
+  // future completed in one zone hands its result back through that zone,
+  // which a test's fake clock may have stopped running.
+  static _RecipeCatalog? _catalog;
 
+  /// Everything the Codex shows. Without a [catalog] only formulas make an
+  /// element or family known, and families have no faces.
   static Future<AlchemicalEncyclopediaSnapshot> loadSnapshot({
     required AlchemonsDatabase db,
+    CreatureCatalog? catalog,
   }) async {
-    final catalog = await _loadCatalog();
+    final recipes = await _loadCatalog();
     final discoveredFamilyOutcomeKeys = await _readDiscoveredOutcomeSet(
       db,
       currentKey: _familyDiscoveredKey,
       legacyPairKey: _legacyFamilyDiscoveredKey,
-      recipesByPair: catalog.familyByPair,
+      recipesByPair: recipes.familyByPair,
     );
     final discoveredElementOutcomeKeys = await _readDiscoveredOutcomeSet(
       db,
       currentKey: _elementDiscoveredKey,
       legacyPairKey: _legacyElementDiscoveredKey,
-      recipesByPair: catalog.elementByPair,
+      recipesByPair: recipes.elementByPair,
     );
     final discoveredFamily = _pairKeysFromOutcomeKeys(
-      catalog.familyRecipes,
+      recipes.familyRecipes,
       discoveredFamilyOutcomeKeys,
     );
     final discoveredElement = _pairKeysFromOutcomeKeys(
-      catalog.elementRecipes,
+      recipes.elementRecipes,
       discoveredElementOutcomeKeys,
     );
-    final natureEntries = await _loadNatureEntries(db);
+    final instances = await db.creatureDao.listAllInstances();
+    final natureEntries = await _loadNatureEntries(db, instances);
+
+    // What the player has come across.
+    final knownElements = <String>{};
+    final knownFamilies = <String>{};
+    final ownedByElement = <String, int>{};
+    final ownedByFamily = <String, int>{};
+    final familyFaces = <String, Creature>{};
+    if (catalog != null && catalog.isLoaded) {
+      final found = {
+        for (final p in await db.creatureDao.getAllCreatures())
+          if (p.discovered) p.id,
+      };
+      for (final inst in instances) {
+        final c = catalog.getCreatureById(inst.baseId);
+        if (c == null) continue;
+        found.add(c.id);
+        final el = _primaryElement(c.types);
+        if (el != null) ownedByElement[el] = (ownedByElement[el] ?? 0) + 1;
+        final fam = _familyFromCreature(c);
+        if (fam != null) ownedByFamily[fam] = (ownedByFamily[fam] ?? 0) + 1;
+      }
+      for (final c in catalog.creatures) {
+        final fam = _familyFromCreature(c);
+        final isFound = found.contains(c.id);
+        if (isFound) {
+          final el = _primaryElement(c.types);
+          if (el != null) knownElements.add(el);
+          if (fam != null) knownFamilies.add(fam);
+        }
+        if (fam != null &&
+            (!familyFaces.containsKey(fam) ||
+                (isFound && !found.contains(familyFaces[fam]!.id)))) {
+          familyFaces[fam] = c;
+        }
+      }
+    }
+    void fromFormulas(
+      List<EncyclopediaRecipeEntry> list,
+      Set<String> outcomeKeys,
+      Set<String> into,
+    ) {
+      for (final r in list) {
+        for (final o in r.outcomes) {
+          if (!outcomeKeys.contains(r.outcomePathKey(o.result))) continue;
+          into
+            ..add(r.parentA)
+            ..add(r.parentB)
+            ..add(o.result);
+        }
+      }
+    }
+
+    fromFormulas(
+      recipes.elementRecipes,
+      discoveredElementOutcomeKeys,
+      knownElements,
+    );
+    fromFormulas(
+      recipes.familyRecipes,
+      discoveredFamilyOutcomeKeys,
+      knownFamilies,
+    );
 
     return AlchemicalEncyclopediaSnapshot(
-      familyRecipes: catalog.familyRecipes,
-      elementRecipes: catalog.elementRecipes,
+      familyRecipes: recipes.familyRecipes,
+      elementRecipes: recipes.elementRecipes,
       natureEntries: natureEntries,
       discoveredFamilyKeys: discoveredFamily,
       discoveredElementKeys: discoveredElement,
       discoveredFamilyOutcomeKeys: discoveredFamilyOutcomeKeys,
       discoveredElementOutcomeKeys: discoveredElementOutcomeKeys,
+      knownElements: knownElements,
+      knownFamilies: knownFamilies,
+      ownedByElement: ownedByElement,
+      ownedByFamily: ownedByFamily,
+      familyFaces: familyFaces,
     );
   }
 
@@ -240,9 +370,8 @@ class AlchemicalEncyclopediaService {
         : EncyclopediaDiscoveryResult(unlocked: unlocked);
   }
 
-  static Future<_RecipeCatalog> _loadCatalog() {
-    return _catalogFuture ??= _buildCatalog();
-  }
+  static Future<_RecipeCatalog> _loadCatalog() async =>
+      _catalog ??= await _buildCatalog();
 
   static Future<_RecipeCatalog> _buildCatalog() async {
     final elementRaw = await rootBundle.loadString(
@@ -485,9 +614,9 @@ class AlchemicalEncyclopediaService {
 
   static Future<List<EncyclopediaNatureEntry>> _loadNatureEntries(
     AlchemonsDatabase db,
+    List<CreatureInstance> instances,
   ) async {
     final stored = await _readDiscoveredSet(db, _natureDiscoveredKey);
-    final instances = await db.creatureDao.listAllInstances();
     final observedCounts = <String, int>{};
 
     for (final instance in instances) {
