@@ -65,6 +65,13 @@ class AltarSeat {
   /// 0..1 after the relic lands: the seat takes it.
   double landing = 0;
 
+  /// 0..1 as its Mystic is first seen: the relic set, the drift over the
+  /// ring gathers into it. 1 once it has been, or it never was hidden here.
+  double reveal = 1;
+
+  /// No relic set on it yet: its Mystic is still a secret.
+  bool get veiled => state == SeatState.unearned || state == SeatState.held;
+
   /// 0..1 as the Mystic wakes: the seat ignites and its stream begins. A
   /// seat that was already awake when the altar opened is simply 1.
   double waking = 1;
@@ -576,19 +583,21 @@ class AltarHubField {
 
   // ── the apparition ────────────────────────────────────────────────────────
   //
-  // The chosen seat's Mystic, standing beyond the ring as grains of itself:
-  // a ghost in ash while its relic is unearned, filling in with colour as
-  // its offerings are given, whole once it is awake. Turning to another seat
-  // pours the grains from one Mystic into the next.
+  // Above the ring, the chosen seat's Mystic — once it has been revealed.
+  // Until its relic is set it is a secret: a formless drift of particles,
+  // ash while the relic is unearned, faintly its element's once the relic
+  // is in hand. Setting the relic gathers the drift into the Mystic, a ghost
+  // of grains that fills in with colour as its offerings are given and is
+  // whole once it is awake. Turning to another seat pours the grains across.
 
   AltarSeat? _shown, _from;
   double _morph = 1;
   Float32List? _rank;
 
-  /// Seconds a turn from one Mystic to the next takes.
+  /// Seconds a turn from one seat to the next takes.
   static const double _morphSeconds = 0.75;
 
-  /// Advances the pour between Mystics; the screen calls this each frame.
+  /// Advances the pour between seats; the screen calls this each frame.
   void stepApparition(double dt) {
     final want = selected < 0 ? heart : seats[selected];
     if (!identical(want, _shown)) {
@@ -608,14 +617,51 @@ class AltarHubField {
     SeatState.awakened => 0.85 + 0.15 * s.waking,
   };
 
-  // Its own batch: tones (12), ghost (3), glints.
-  final GrainBatch _ab = GrainBatch(16);
+  /// How far a seat's Mystic has come out of the drift, 0..1.
+  static double _formed(AltarSeat s) => s.veiled ? 0 : s.reveal;
+
+  /// Grain [i]'s place in the drift: five loose clouds of motes drifting
+  /// slowly past one another, each mote wandering on its own. Nothing in it
+  /// turns as a whole — a turning cloud reads as a galaxy, and this is only
+  /// dust that has not yet been given a shape. Pressing a relic down draws
+  /// the clouds in together.
+  Offset _drift(int i, double scale, double press) {
+    final h1 = (i * 0.6180339887 + 0.21) % 1.0;
+    final h2 = (i * 0.7548776662 + 0.37) % 1.0;
+    final h3 = (i * 0.5698402910 + 0.11) % 1.0;
+    final h4 = (i * 0.4142135624 + 0.53) % 1.0;
+    final w = i % 5;
+    final wa = w * 1.2566 + time * 0.05 * (w.isEven ? 1 : -1) + press * 1.2;
+    final wd = (26 + 30 * ((w * 0.618) % 1.0)) * scale * (1 - 0.5 * press);
+    // Scattered through its cloud, thickest at the middle: never on a ring.
+    final pull = 1 - 0.35 * press;
+    final ox = (h1 + h2 - 1) * 74 * scale * pull;
+    final oy = (h3 + h4 - 1) * 54 * scale * pull;
+    final f1 = 0.19 + 0.3 * h3, f2 = 0.15 + 0.3 * h1;
+    final wx =
+        (math.sin(time * f1 + i * 1.7) * 7 +
+            math.sin(time * f2 * 1.9 + i * 0.6) * 4) *
+        scale;
+    final wy =
+        (math.cos(time * f2 + i * 2.3) * 6 +
+            math.cos(time * f1 * 1.7 + i * 0.9) * 3) *
+        scale;
+    return Offset(
+      math.cos(wa) * wd * 1.4 + ox + wx,
+      math.sin(wa) * wd * 0.8 + oy + wy,
+    );
+  }
+
+  // Its own batch: tones (12), ghost (3), glints, the reveal's heat (3).
+  static const int _apGhostB = 12, _apGlintB = 15, _apHotB = 16;
+  final GrainBatch _ab = GrainBatch(19);
 
   void _paintApparition(Canvas canvas) {
     final to = _shown;
     final g = to?.mystic;
     if (to == null || g == null) return;
-    final from = _morph < 1 ? _from?.mystic : null;
+    final fromSeat = _morph < 1 ? _from : null;
+    final from = fromSeat?.mystic;
     final b = _ab..clear();
     final n = g.length;
     // Grain dice, the same for every Mystic so a grain lit in one stays lit
@@ -632,19 +678,55 @@ class AltarHubField {
     final cy = top + room * 0.5 + math.sin(time * 0.7) * 3;
     final e = _morph < 1 ? Curves.easeInOutCubic.transform(_morph) : 1.0;
     final fill = _filled(to);
-    final ghostOnly = to.state == SeatState.unearned;
+    final formed = _formed(to);
+    final fromFormed = fromSeat == null ? formed : _formed(fromSeat);
+    final press = to.veiled ? to.setting : 0.0;
     final tones = math.min(12, g.tones.length);
     final fn = from?.length ?? 0;
     for (var i = 0; i < n; i++) {
-      var x = g.hx[i] * scale, y = g.hy[i] * scale;
       final h = rank[i % rank.length];
+      // Its own way out of the drift: early grains first, feet first-ish.
+      double out(double f) => f <= 0
+          ? 0
+          : f >= 1
+          ? 1
+          : Curves.easeInOutCubic.transform(
+              ((f * 1.5 - h * 0.5)).clamp(0.0, 1.0),
+            );
+      final eTo = out(formed);
+      // The drift is sparse: a third of the grains, until the reveal brings
+      // the rest in out of nothing.
+      final sparse = i % 3 != 0;
+      final eFrom = from != null && fn > 0 ? out(fromFormed) : eTo;
+      if (sparse && eTo <= 0 && eFrom <= 0) continue;
+
+      Offset place(double x0, double y0, double ef) {
+        if (ef >= 1) return Offset(x0, y0);
+        final d = _drift(i, scale, press);
+        return Offset(d.dx + (x0 - d.dx) * ef, d.dy + (y0 - d.dy) * ef);
+      }
+
+      var p = place(g.hx[i] * scale, g.hy[i] * scale, eTo);
       if (from != null && fn > 0) {
         final j = (i * fn) ~/ n;
-        final fx = from.hx[j] * scale, fy = from.hy[j] * scale;
+        final q = place(from.hx[j] * scale, from.hy[j] * scale, eFrom);
         // Poured along a bow, each grain to its own side.
         final bow = math.sin(math.pi * e) * (h - 0.5) * 60 * scale;
-        x = fx + (x - fx) * e + bow;
-        y = fy + (y - fy) * e - math.sin(math.pi * e) * 24 * h * scale;
+        p = Offset(
+          q.dx + (p.dx - q.dx) * e + bow,
+          q.dy + (p.dy - q.dy) * e - math.sin(math.pi * e) * 24 * h * scale,
+        );
+      }
+      var x = p.dx, y = p.dy;
+      final shown = e < 0.5 && from != null ? eFrom : eTo;
+      if (shown < 1) {
+        if (shown > 0) {
+          // Gathering out of the drift: hot with its element as it comes.
+          b.add(_apHotB + (h * 3).floor().clamp(0, 2), cx + x, cy + y);
+        } else {
+          b.add(_apGhostB + (h * 3).floor().clamp(0, 2), cx + x, cy + y);
+        }
+        continue;
       }
       final lit = h < fill;
       if (!lit) {
@@ -652,17 +734,20 @@ class AltarHubField {
         x += math.sin(time * 0.9 + i * 1.7) * 1.6 * scale;
         y += math.cos(time * 0.7 + i * 2.3) * 1.6 * scale;
         final k = (g.tone[i] * 3 ~/ math.max(1, g.tones.length)).clamp(0, 2);
-        if (ghostOnly && i % 3 == 0) continue;
-        b.add(12 + k, cx + x, cy + y);
+        b.add(_apGhostB + k, cx + x, cy + y);
       } else if ((time * 0.4 + h * 13.1) % 1.0 < 0.002) {
-        b.add(15, cx + x, cy + y);
+        b.add(_apGlintB, cx + x, cy + y);
       } else {
         b.add(math.min(g.tone[i], tones - 1), cx + x, cy + y);
       }
     }
 
-    // A pool of the element's light under it, if anything of it is held.
-    final glowA = 0.05 + 0.14 * fill;
+    // A pool of light under it: violet while it is a secret, its element's
+    // once it stands there, brighter as more of it is held.
+    final unearned = to.state == SeatState.unearned;
+    final flare = formed > 0 && formed < 1 ? math.sin(math.pi * formed) : 0.0;
+    final glowA =
+        (to.veiled ? 0.05 + 0.08 * press : 0.05 + 0.14 * fill) + 0.2 * flare;
     final pc = Offset(cx, cy + 40 * scale);
     final pr = 150 * scale;
     canvas.drawCircle(
@@ -670,7 +755,7 @@ class AltarHubField {
       pr,
       Paint()
         ..shader = ui.Gradient.radial(pc, pr, [
-          (ghostOnly ? AltarTone.violetDeep : to.accent).withValues(
+          (unearned ? AltarTone.violetDeep : to.accent).withValues(
             alpha: glowA,
           ),
           const Color(0x00000000),
@@ -688,20 +773,40 @@ class AltarHubField {
         Color.lerp(g.tones[k], AltarTone.void1, 0.18)!.withValues(alpha: 0.92),
       );
     }
-    final ghostTint = ghostOnly ? AltarTone.ash : to.ramp[1];
+    // Ghost and drift: ash for a relic not yet earned, a breath of the
+    // element once it is in hand, the element's shadow once it stands.
+    final ghostTint = unearned
+        ? AltarTone.ash
+        : to.veiled
+        ? Color.lerp(AltarTone.ash, to.ramp[2], 0.45)!
+        : to.ramp[1];
     for (var k = 0; k < 3; k++) {
       b.draw(
         canvas,
-        12 + k,
-        d,
+        _apGhostB + k,
+        d * (to.veiled ? 1.1 : 1),
         Color.lerp(
           const Color(0xFF231E2E),
           ghostTint,
           0.35 + 0.3 * k,
-        )!.withValues(alpha: ghostOnly ? 0.28 + 0.1 * k : 0.3 + 0.12 * k),
+        )!.withValues(
+          alpha: to.veiled
+              ? 0.24 + 0.1 * k + 0.2 * press
+              : (unearned ? 0.28 + 0.1 * k : 0.3 + 0.12 * k),
+        ),
       );
     }
-    b.draw(canvas, 15, d * 1.3, to.ramp[3].withValues(alpha: 0.8));
+    b.draw(canvas, _apGlintB, d * 1.3, to.ramp[3].withValues(alpha: 0.8));
+    // The reveal's heat stays in the element's own shades: its glint is
+    // near white for most, and a cloud of white reads as a flash.
+    final hot = [
+      to.ramp[1],
+      to.ramp[2],
+      Color.lerp(to.ramp[2], to.ramp[3], 0.4)!,
+    ];
+    for (var k = 0; k < 3; k++) {
+      b.draw(canvas, _apHotB + k, d * 1.05, hot[k]);
+    }
   }
 
   // ── a seat ────────────────────────────────────────────────────────────────

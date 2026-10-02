@@ -228,6 +228,15 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
       if (seat.state == SeatState.awakened && seat.waking < 1) {
         seat.waking = math.min(1, seat.waking + dt / 2.8);
       }
+      if (!seat.veiled && seat.reveal < 1) {
+        final was = seat.reveal;
+        seat.reveal = math.min(1, seat.reveal + dt / _revealSeconds);
+        // Its name with it, once enough of it has gathered to be known.
+        if (was < _nameAt && seat.reveal >= _nameAt) {
+          HapticFeedback.mediumImpact();
+          setState(() {});
+        }
+      }
     }
     final run = _arcaneRun;
     if (run != null && !run.isCompleted) {
@@ -238,6 +247,14 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
     }
     _clock.value = f.time;
   }
+
+  /// How long a Mystic takes to gather out of the drift, and how far in
+  /// its name is shown.
+  static const double _revealSeconds = 2.2;
+  static const double _nameAt = 0.55;
+
+  /// Its Mystic is not to be named yet: no relic set, or still gathering.
+  bool _unknown(AltarSeat s) => s.veiled || s.reveal < _nameAt;
 
   // ── turning and choosing ──────────────────────────────────────────────────
 
@@ -338,9 +355,13 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
       seat
         ..state = SeatState.placed
         ..setting = 0
-        ..landing = 0.001;
+        ..landing = 0.001
+        ..reveal = 0;
     });
-    await Future<void>.delayed(const Duration(milliseconds: 1000));
+    // Let it be seen before the altar opens.
+    await Future<void>.delayed(
+      Duration(milliseconds: (_revealSeconds * 1000).round() + 700),
+    );
     if (!mounted) return;
     final everyRelic = _all.every(
       (s) => s.state == SeatState.placed || s.state == SeatState.awakened,
@@ -491,9 +512,11 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
         'The heart of the altar wakes last. Its relic, the $relic, is won '
             'from the guardian of the ${e.element} planet.',
       SeatState.unearned =>
-        'Defeat the guardian of the ${e.element} planet to earn the $relic.',
+        'Defeat the guardian of the ${e.element} planet to earn the $relic. '
+            'Its Mystic shows itself once the relic is set.',
       SeatState.held =>
-        'The $relic is in your satchel. Set it on the altar to open the rite.',
+        'The $relic is in your satchel. Set it on the altar to reveal the '
+            'Mystic it calls.',
       SeatState.placed when isHeart && witnesses < 16 =>
         'The relic is set. The rite needs all sixteen Mystics awake: '
             '$witnesses of 16.',
@@ -546,7 +569,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
             children: [...previous, ?current],
           ),
           child: Column(
-            key: ValueKey('${e.id}-${seat.state}'),
+            key: ValueKey('${e.id}-${seat.state}-${_unknown(seat)}'),
             mainAxisAlignment: MainAxisAlignment.end,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -556,12 +579,17 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
                 style: altarMono(10.5, ink, spacing: 2.2),
               ),
               const SizedBox(height: 6),
-              Text(
-                seat.state == SeatState.unearned ? name : name,
-                style: altarName(context, 30).copyWith(
-                  color: seat.state == SeatState.unearned
-                      ? AltarTone.parchment.withValues(alpha: 0.55)
-                      : AltarTone.parchment,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _unknown(seat) ? 'Unknown Mystic' : name,
+                  maxLines: 1,
+                  style: altarName(context, 30).copyWith(
+                    color: _unknown(seat)
+                        ? AltarTone.parchment.withValues(alpha: 0.5)
+                        : AltarTone.parchment,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),

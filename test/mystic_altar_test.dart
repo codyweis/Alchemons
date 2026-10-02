@@ -84,8 +84,12 @@ void main() {
       );
       await tester.pumpWidget(app(const MysticAltarScreen()));
       await run(tester, 20);
-      // The held relic is the one the altar opens on.
+      // The held relic is the one the altar opens on, and its Mystic is a
+      // secret until the relic is set.
       expect(find.text('HOLD TO SET THE RELIC'), findsOneWidget);
+      final simurgh = catalog.mysticByElement('Fire')!.name;
+      expect(find.text('Unknown Mystic'), findsOneWidget);
+      expect(find.text(simurgh), findsNothing);
 
       // Let go early: nothing is spent.
       await holdText(tester, 'HOLD TO SET THE RELIC', 8);
@@ -94,6 +98,10 @@ void main() {
       expect(await tester.runAsync(() => db.inventoryDao.getItemQty(key)), 1);
 
       await holdText(tester, 'HOLD TO SET THE RELIC', 30);
+      // Set, the Mystic gathers out of the drift and is named.
+      await run(tester, 34);
+      expect(find.text(simurgh), findsOneWidget);
+      expect(find.byType(BossAltarDetailScreen), findsNothing);
       await run(tester, 40);
       expect(await tester.runAsync(() => db.inventoryDao.getItemQty(key)), 0);
       final placed = await tester.runAsync(

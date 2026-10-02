@@ -506,6 +506,59 @@ void main() {
     await tester.runAsync(db.close);
   });
 
+  testWidgets('hub reveal', (tester) async {
+    if (outDir == null) return;
+    late AlchemonsDatabase db;
+    final catalog = CreatureCatalog();
+    await tester.runAsync(() async {
+      db = AlchemonsDatabase(NativeDatabase.memory());
+      await catalog.load();
+      await loadNatures();
+      await OnboardingTaskService(db).markVisited('rite');
+      await db.inventoryDao.addItemQty(
+        BossLootKeys.traitKeyForElement('Water'),
+        1,
+      );
+    });
+    tester.view.physicalSize = const Size(412, 892) * 2;
+    tester.view.devicePixelRatio = 2;
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<AlchemonsDatabase>.value(value: db),
+          Provider<CreatureCatalog>.value(value: catalog),
+        ],
+        child: RepaintBoundary(
+          key: key,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData.dark(),
+            home: const MysticAltarScreen(),
+          ),
+        ),
+      ),
+    );
+    await settle(tester, 70);
+    await shootWidget(tester, key, 'reveal_0_veiled');
+    final hold = await tester.startGesture(
+      tester.getCenter(find.text('HOLD TO SET THE RELIC')),
+    );
+    await settle(tester, 18);
+    await shootWidget(tester, key, 'reveal_1_pressing');
+    await settle(tester, 18);
+    await hold.up();
+    for (final (n, f) in const [('2', 10), ('3', 12), ('4', 14), ('5', 20)]) {
+      await settle(tester, f);
+      await shootWidget(tester, key, 'reveal_$n');
+    }
+    await settle(tester, 60);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+    tester.view.reset();
+    await tester.runAsync(db.close);
+  });
+
   testWidgets('hub screen', (tester) async {
     if (outDir == null) return;
     Directory(outDir).createSync(recursive: true);

@@ -881,7 +881,15 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Expanded(
-                  child: Text(_mysticName, style: altarName(context, 30)),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _mysticName,
+                      maxLines: 1,
+                      style: altarName(context, 30),
+                    ),
+                  ),
                 ),
                 Text(
                   '$given / $total',
