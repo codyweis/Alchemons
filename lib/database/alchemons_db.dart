@@ -312,7 +312,15 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
         ''');
       }
       if (from < 42) {
-        await m.addColumn(creatureInstances, creatureInstances.mutation);
+        // Only where the table is there and the column is not: a partial or
+        // re-run upgrade must not fail on it.
+        final columns = await customSelect(
+          "PRAGMA table_info('creature_instances')",
+        ).get();
+        if (columns.isNotEmpty &&
+            !columns.any((c) => c.read<String>('name') == 'mutation')) {
+          await m.addColumn(creatureInstances, creatureInstances.mutation);
+        }
       }
     },
   );

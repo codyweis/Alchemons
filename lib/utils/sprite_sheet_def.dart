@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/components.dart';
@@ -39,6 +40,10 @@ class SpriteVisuals {
   final String? elementType; // the creature's own first type ('Fire'…)
   final double prismaticHueDeg; // Hue for prismatic visuals
 
+  /// A wild-fusion mutation id ([AlchemonMutation.id]), or null. Draw its
+  /// sheet through [mutatedSheet]; a Transmuted one carries no tint here.
+  final String? mutation;
+
   /// What the Elemental Aura shows: the pigment's faction when it has an
   /// off-faction one, so the aura matches its tint, else its own element.
   String? get auraElement => variantFaction ?? elementType;
@@ -55,6 +60,7 @@ class SpriteVisuals {
     this.variantFaction,
     this.elementType,
     this.prismaticHueDeg = 0.0, // Default value
+    this.mutation,
   });
 }
 
@@ -81,6 +87,24 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
   final sat = satFromGenes(g);
   final bri = briFromGenes(g);
   final tint = deriveLineageTint(inst);
+
+  final mutation = inst?.mutation ?? creature?.wildMutation;
+
+  // Gold replaces the colour: a Transmuted creature shows no tint, pigment
+  // (so no variant faction either — its aura takes its own element), albino
+  // or prismatic (it is never rolled prismatic; this keeps it so).
+  if (mutation == AlchemonMutation.transmuted.id) {
+    return SpriteVisuals(
+      scale: scale,
+      alchemyEffect: inst?.alchemyEffect?.isNotEmpty == true
+          ? inst!.alchemyEffect
+          : creature?.alchemyEffect,
+      elementType: creature?.types.isNotEmpty == true
+          ? creature!.types.first
+          : null,
+      mutation: mutation,
+    );
+  }
 
   final isPrismatic = inst?.isPrismaticSkin ?? creature!.isPrismaticSkin;
 
@@ -109,5 +133,6 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
     elementType: creature?.types.isNotEmpty == true
         ? creature!.types.first
         : null,
+    mutation: mutation,
   );
 }

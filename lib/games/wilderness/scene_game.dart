@@ -10,6 +10,7 @@ import 'package:alchemons/games/wilderness/particle_fusion_effect.dart';
 import 'package:alchemons/games/wilderness/wild_summon.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/models/rift_state.dart';
 import 'package:alchemons/models/creature.dart';
@@ -1643,12 +1644,13 @@ class WildMonComponent extends PositionComponent
     size = desiredSize;
 
     if (hydrated?.spriteData != null) {
-      final sheet = sheetFromCreature(hydrated!);
       final visuals = visualsFromInstance(hydrated!, null);
+      // An ally's mutation is its sheet: baked once, then drawn as any other.
+      final sheet = sheetForVisuals(sheetFromCreature(hydrated!), visuals)!;
 
       final imagePath = sheet.path;
       try {
-        await game.images.load(imagePath);
+        await loadCreatureSheet(game.images, imagePath);
       } catch (e) {
         debugPrint('Failed to load sprite: $imagePath - $e');
         _addFallbackBlob();
@@ -1784,7 +1786,11 @@ class WildMonComponent extends PositionComponent
     if (game.transparentBackground) return;
 
     // Only apply in dark-backdrop scenes (all layers have empty imagePath)
-    final hasDarkBackdrop = game.scene.layers.every((l) => l.imagePath.isEmpty);
+    // A field drawn in code (whose layers have no pictures either) lights
+    // its own creatures.
+    final hasDarkBackdrop =
+        game.scene.art == null &&
+        game.scene.layers.every((l) => l.imagePath.isEmpty);
     if (!hasDarkBackdrop) return;
 
     final types = hydrated!.types;

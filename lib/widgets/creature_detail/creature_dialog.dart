@@ -51,6 +51,8 @@ import 'package:alchemons/widgets/fx/elemental_essence.dart';
 
 import '../../models/creature.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/wild_fusion.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -686,6 +688,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   ) {
     var out = base;
     if (row.isPrismaticSkin == true) out = out.copyWith(isPrismaticSkin: true);
+    if (row.mutation != null) out = out.copyWith(wildMutation: row.mutation);
     if (row.natureId != null && row.natureId!.isNotEmpty) {
       final n = NatureCatalog.byId(row.natureId!);
       if (n != null) out = out.copyWith(nature: n);
@@ -1559,6 +1562,13 @@ class _OverviewTab extends StatelessWidget {
                       label: 'Special Trait',
                       value: 'Prismatic Phenotype',
                       valueColor: const Color(0xFFE879F9),
+                    ),
+                  if (AlchemonMutation.byId(creature.wildMutation)
+                      case final m?)
+                    _DataRow(
+                      label: 'Mutation',
+                      value: m.label,
+                      valueColor: mutationAccent(m),
                     ),
                   if (hasNotablePurity)
                     _DataRow(

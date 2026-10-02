@@ -141,7 +141,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     CosmicPartyMember member,
     int slotIndex,
   ) async {
-    final sheet = member.spriteSheet;
+    final sheet = sheetForVisuals(member.spriteSheet, member.spriteVisuals);
     if (sheet == null) {
       _companionTickers.remove(slotIndex);
       _companionVisualsBySlot.remove(slotIndex);
@@ -149,7 +149,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     }
 
     try {
-      final image = await images.load(sheet.path);
+      final image = await loadCreatureSheet(images, sheet.path);
       final current = activeCompanions[slotIndex];
       if (current == null || current.member.instanceId != member.instanceId) {
         return;
@@ -1609,10 +1609,10 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
   }
 
   Future<void> _loadGarrisonSprite(int index, CosmicPartyMember m) async {
-    final sheet = m.spriteSheet;
+    final sheet = sheetForVisuals(m.spriteSheet, m.spriteVisuals);
     if (sheet == null) return;
     try {
-      final image = await images.load(sheet.path);
+      final image = await loadCreatureSheet(images, sheet.path);
       final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
       final anim = SpriteAnimation.fromFrameData(
         image,

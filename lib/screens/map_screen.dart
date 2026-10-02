@@ -4,7 +4,6 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/screens/wilderness_peek_dialog.dart';
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
@@ -13,7 +12,6 @@ import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
-import 'package:alchemons/widgets/pulsing_hitbox_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -35,6 +33,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/wilderness/wild_map_view.dart';
 
 TextStyle _display(
   BuildContext context,
@@ -136,7 +135,6 @@ class _MapScreenState extends State<MapScreen>
     // Start the animation after the first frame so it feels like
     // the map is animating in instead of just appearing.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      precacheImage(const AssetImage('assets/images/ui/map.png'), context);
       // Check if arcane portal is unlocked
       final db = context.read<AlchemonsDatabase>();
       final v = await db.settingsDao.getSetting('arcane_portal_unlocked');
@@ -238,6 +236,9 @@ class _MapScreenState extends State<MapScreen>
 
     return ParticleBackgroundScaffold(
       whiteBackground: theme.brightness == Brightness.light,
+      // The map is all the particles this screen needs; a second field
+      // drifting behind it only cost frames.
+      showParticles: false,
       body: PopScope(
         canPop: !widget.isTutorial,
         onPopInvokedWithResult: (didPop, result) {
@@ -273,9 +274,7 @@ class _MapScreenState extends State<MapScreen>
                   isTutorial: widget.isTutorial,
                 ),
 
-                const SizedBox(height: 12),
-
-                if (!widget.isTutorial) const SizedBox(height: 16),
+                const SizedBox(height: 8),
 
                 // Show tutorial hint
                 if (widget.isTutorial) ...[
@@ -304,7 +303,7 @@ class _MapScreenState extends State<MapScreen>
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'TAP A GLOWING AREA TO ENTER A REALM.',
+                            'TAP THE REALM CIRCLED IN GREEN TO ENTER IT.',
                             style: TextStyle(
                               color: theme.text,
                               fontSize: 12,
@@ -333,9 +332,8 @@ class _MapScreenState extends State<MapScreen>
                         ),
                       );
                     },
-                    child: _ExpeditionMap(
+                    child: _WildMap(
                       theme: theme,
-                      isTutorial: widget.isTutorial,
                       arcaneUnlocked: _arcaneUnlocked,
                       onSelectRegion: (biomeId, scene) {
                         _handleRegionTap(context, biomeId, scene);
@@ -889,26 +887,13 @@ class _HeaderBar extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      isTutorial ? 'First Expedition' : 'Fusing Expeditions',
+                      isTutorial ? 'First Expedition' : 'Alchemical Biomes',
                       style: _display(
                         context,
                         23,
                         theme.text,
                         letterSpacing: 0.5,
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      isTutorial
-                          ? 'Begin your journey into the wilderness'
-                          : 'Discover wild Alchemons & attempt fusions',
-                      style: _display(
-                        context,
-                        13,
-                        theme.textMuted,
-                        fontStyle: FontStyle.italic,
-                      ),
-                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
@@ -1062,570 +1047,59 @@ class SpawnDebugPanel extends StatelessWidget {
 }
 
 // =====================================================
-// MAP + MARKERS
+// THE MAP
 // =====================================================
-class _ExpeditionMap extends StatelessWidget {
-  const _ExpeditionMap({
+
+/// The wild as grains: each realm a shape on a faint circle of sand, its
+/// circle pulsing green when something waits in it. A finger stirs it;
+/// tapping a realm goes in.
+class _WildMap extends StatelessWidget {
+  const _WildMap({
     required this.theme,
     required this.onSelectRegion,
-    this.isTutorial = false,
     this.onPeekRegion,
     this.arcaneUnlocked = false,
   });
 
   final FactionTheme theme;
   final void Function(String biomeId, SceneDefinition scene) onSelectRegion;
-  final bool isTutorial;
-  final void Function(String biomeId)? onPeekRegion; // NEW
+  final void Function(String biomeId)? onPeekRegion;
   final bool arcaneUnlocked;
+
+  static final Map<String, SceneDefinition> _scenes = {
+    'valley': valleySceneCorrected,
+    'sky': skyScene,
+    'swamp': swampScene,
+    'volcano': volcanoScene,
+    'arcane': arcaneScene,
+  };
 
   @override
   Widget build(BuildContext context) {
     final spawnService = context.watch<WildernessSpawnService>();
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Calculate the actual size the map will occupy (square/circular)
-        final size = constraints.maxWidth < constraints.maxHeight
-            ? constraints.maxWidth
-            : constraints.maxHeight;
-
-        Widget hotspot({
-          required double leftPct,
-          required double topPct,
-          required String biomeId,
-          required SceneDefinition scene,
-        }) {
-          // Use the calculated size instead of separate width/height
-          final dx = size * leftPct;
-          final dy = size * topPct;
-
-          final hasSpawns = scene.spawnPoints.any(
-            (sp) => spawnService.hasSpawnAt(biomeId, sp.id),
-          );
-
-          return Positioned(
-            left: dx - 70,
-            top: dy - 70,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: context.soundAction(() => onSelectRegion(biomeId, scene)),
-              onLongPress: () {
-                if (onPeekRegion != null) {
-                  HapticFeedback.selectionClick();
-                  onPeekRegion!(biomeId);
-                }
-              },
-              child: SizedBox(
-                width: 140,
-                height: 140,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (hasSpawns)
-                      PulsingDebugHitbox(
-                        size: 125,
-                        color: Colors.red,
-                        clipOval: true,
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        // The biome names are painted into map.png at different heights per
-        // landmass, so a single offset below each hotspot cannot clear them
-        // all — SKY and VOLCANO sat directly on their own labels. These are
-        // tuned against the artwork, per biome.
-        Widget pill({
-          required double leftPct,
-          required double topPct,
-          required String biomeId,
-          required SceneDefinition scene,
-        }) {
-          final hasSpawns = scene.spawnPoints.any(
-            (sp) => spawnService.hasSpawnAt(biomeId, sp.id),
-          );
-          return Positioned(
-            left: size * leftPct - 60,
-            top: size * topPct,
-            child: SizedBox(
-              width: 120,
-              child: Center(
-                child: _BiomeTimerPill(
-                  biomeId: biomeId,
-                  spawnService: spawnService,
-                  hasSpawns: hasSpawns,
-                ),
-              ),
-            ),
-          );
-        }
-
-        return Center(
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: Stack(
-              children: [
-                ClipOval(
-                  child: Container(
-                    color: const Color.fromARGB(255, 48, 69, 82),
-                    child: Padding(
-                      padding: const EdgeInsets.all(10.0),
-                      child: Image.asset(
-                        gaplessPlayback: true,
-                        'assets/images/ui/map.png',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // HOTSPOTS
-                hotspot(
-                  leftPct: 0.3,
-                  topPct: 0.3,
-                  biomeId: 'valley',
-                  scene: valleySceneCorrected,
-                ),
-                hotspot(
-                  leftPct: 0.72,
-                  topPct: 0.3,
-                  biomeId: 'sky',
-                  scene: skyScene,
-                ),
-                hotspot(
-                  leftPct: 0.25,
-                  topPct: 0.75,
-                  biomeId: 'volcano',
-                  scene: volcanoScene,
-                ),
-                hotspot(
-                  leftPct: 0.75,
-                  topPct: 0.72,
-                  biomeId: 'swamp',
-                  scene: swampScene,
-                ),
-
-                // TIMERS — placed to sit clear of the painted biome names.
-                pill(
-                  leftPct: 0.30,
-                  topPct: 0.34,
-                  biomeId: 'valley',
-                  scene: valleySceneCorrected,
-                ),
-                // SKY's label sits lower in the art than VALLEY's.
-                pill(
-                  leftPct: 0.72,
-                  topPct: 0.40,
-                  biomeId: 'sky',
-                  scene: skyScene,
-                ),
-                // VOLCANO's label is at the foot of the landmass.
-                pill(
-                  leftPct: 0.25,
-                  topPct: 0.85,
-                  biomeId: 'volcano',
-                  scene: volcanoScene,
-                ),
-                pill(
-                  leftPct: 0.75,
-                  topPct: 0.76,
-                  biomeId: 'swamp',
-                  scene: swampScene,
-                ),
-
-                // ARCANE PORTAL VORTEX — centre of map
-                if (arcaneUnlocked) ...[
-                  _ArcaneVortex(
-                    mapSize: size,
-                    hasSpawns: spawnService.getSceneSpawnCount('arcane') > 0,
-                    onTap: context.soundTap(
-                      () => onSelectRegion('arcane', arcaneScene),
-                    ),
-                    onLongPress: onPeekRegion == null
-                        ? null
-                        : () => onPeekRegion!('arcane'),
-                  ),
-                  Positioned(
-                    left: size * 0.5 - 60,
-                    top: size * 0.5 + 34,
-                    child: SizedBox(
-                      width: 120,
-                      child: Center(
-                        child: _BiomeTimerPill(
-                          biomeId: 'arcane',
-                          spawnService: spawnService,
-                          hasSpawns:
-                              spawnService.getSceneSpawnCount('arcane') > 0,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// =====================================================
-// BIOME SPAWN TIMER PILL
-// =====================================================
-
-/// The spawn countdown, sitting on the biome it belongs to.
-///
-/// These used to be a row of boxes above the map, which meant reading
-/// "Swamp 47m 28s" and then hunting for Swamp on the map — two lookups for one
-/// decision — while printing each biome's name a second time next to the one
-/// already painted into the artwork.
-///
-/// Carries its own one-second ticker rather than rebuilding the map screen:
-/// the parent holds the map image and the hotspot stack, and none of that
-/// needs to repaint to advance a clock.
-class _BiomeTimerPill extends StatefulWidget {
-  const _BiomeTimerPill({
-    required this.biomeId,
-    required this.spawnService,
-    required this.hasSpawns,
-  });
-
-  final String biomeId;
-  final WildernessSpawnService spawnService;
-
-  /// Something is already waiting to be caught — more useful than a countdown.
-  final bool hasSpawns;
-
-  @override
-  State<_BiomeTimerPill> createState() => _BiomeTimerPillState();
-}
-
-class _BiomeTimerPillState extends State<_BiomeTimerPill> {
-  Timer? _tick;
-
-  @override
-  void initState() {
-    super.initState();
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _tick?.cancel();
-    super.dispose();
-  }
-
-  /// Seconds only matter when the wait is short; above an hour they are noise.
-  String _label(int? dueMs) {
-    if (dueMs == null) return '--';
-    final diff = dueMs - DateTime.now().toUtc().millisecondsSinceEpoch;
-    if (diff <= 0) return 'DUE';
-    final total = diff ~/ 1000;
-    final h = total ~/ 3600;
-    final m = (total % 3600) ~/ 60;
-    final sec = total % 60;
-    if (h > 0) return '${h}h ${m}m';
-    if (m > 0) return '${m}m ${sec}s';
-    return '${sec}s';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ready = widget.hasSpawns;
-    // A batch that came with weather says so: it is where that weather's
-    // creatures are.
-    final weather = ready
-        ? widget.spawnService.weatherIn(widget.biomeId)
-        : null;
-
-    final text =
-        weather?.label ??
-        (ready
-            ? 'READY'
-            : _label(widget.spawnService.getNextSpawnTime(widget.biomeId)));
-    final accent = switch (weather?.kind) {
-      null => ready ? const Color(0xFF7BE38B) : const Color(0xFFE4C16A),
-      WeatherKind.rain => const Color(0xFF8CC8F0),
-      WeatherKind.snow => const Color(0xFFE2EEFA),
-      WeatherKind.storm => const Color(0xFFB4C6FF),
-      WeatherKind.dry => const Color(0xFFD8B47A),
+    final weather = <String, WeatherKind>{
+      for (final id in _scenes.keys)
+        if (spawnService.weatherIn(id) case final w?) id: w.kind,
+    };
+    final ready = <String>{
+      for (final id in _scenes.keys)
+        if (spawnService.getSceneSpawnCount(id) > 0) id,
     };
 
-    // Isolated so the ticking text cannot dirty the map behind it.
-    return RepaintBoundary(
-      child: IgnorePointer(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: const Color(0xE60A0D12),
-            border: Border.all(color: accent.withValues(alpha: 0.7)),
-            boxShadow: const [
-              BoxShadow(color: Color(0xAA000000), blurRadius: 6),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (weather != null) ...[
-                Icon(
-                  switch (weather.kind) {
-                    WeatherKind.rain => AppIcons.water_drop_rounded,
-                    WeatherKind.snow => AppIcons.ac_unit_rounded,
-                    WeatherKind.storm => AppIcons.bolt_rounded,
-                    WeatherKind.dry => AppIcons.grain_rounded,
-                  },
-                  size: 11,
-                  color: accent,
-                ),
-                const SizedBox(width: 3),
-              ],
-              Text(
-                text,
-                style: TextStyle(
-                  color: ready ? accent : const Color(0xFFEDE3CF),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.6,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// =====================================================
-// ARCANE VORTEX (black hole in map centre)
-// =====================================================
-class _ArcaneVortex extends StatefulWidget {
-  final double mapSize;
-  final VoidCallback onTap;
-
-  /// Long-press to peek, same as the four biome hotspots. Arcane is drawn as
-  /// its own widget rather than through the shared hotspot builder, so it did
-  /// not inherit the gesture.
-  final VoidCallback? onLongPress;
-  final bool hasSpawns;
-  const _ArcaneVortex({
-    required this.mapSize,
-    required this.onTap,
-    this.onLongPress,
-    this.hasSpawns = false,
-  });
-
-  @override
-  State<_ArcaneVortex> createState() => _ArcaneVortexState();
-}
-
-class _ArcaneVortexState extends State<_ArcaneVortex>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: Duration(seconds: widget.hasSpawns ? 3 : 6),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const vortexSize = 100.0;
-    final cx = widget.mapSize * 0.50 - vortexSize / 2;
-    final cy = widget.mapSize * 0.50 - vortexSize / 2;
-
-    return Positioned(
-      left: cx,
-      top: cy,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: context.soundAction(widget.onTap),
-        onLongPress: widget.onLongPress == null
-            ? null
-            : () {
-                HapticFeedback.selectionClick();
-                widget.onLongPress!();
-              },
-        child: SizedBox(
-          width: vortexSize,
-          height: vortexSize,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              if (widget.hasSpawns)
-                PulsingDebugHitbox(
-                  size: 90,
-                  color: Colors.black,
-                  clipOval: true,
-                ),
-              AnimatedBuilder(
-                animation: _ctrl,
-                builder: (_, __) =>
-                    CustomPaint(painter: _VortexPainter(t: _ctrl.value)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _VortexPainter extends CustomPainter {
-  final double t;
-  const _VortexPainter({required this.t});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final center = Offset(cx, cy);
-    final pulse = (math.sin(t * math.pi * 2) + 1) / 2;
-
-    // Outer event-horizon glow
-    canvas.drawCircle(
-      center,
-      size.width * 0.48,
-      Paint()
-        ..color = const Color(0xFF7C3AED).withValues(alpha: 0.08 + pulse * 0.06)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20),
-    );
-
-    // Dark accretion disc rings
-    for (int ring = 0; ring < 3; ring++) {
-      final r = size.width * (0.18 + ring * 0.10);
-      final alpha = (0.12 - ring * 0.03 + pulse * 0.04).clamp(0.0, 1.0);
-      canvas.drawCircle(
-        center,
-        r,
-        Paint()
-          ..color = const Color(0xFF7C3AED).withValues(alpha: alpha)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2 - ring * 0.2,
-      );
-    }
-
-    // Spiral arms (4 arms, faster spin)
-    const arms = 4;
-    const sweepRad = math.pi * 1.8;
-    const steps = 40;
-
-    for (int arm = 0; arm < arms; arm++) {
-      final armOffset = (arm / arms) * math.pi * 2;
-      for (int s = 0; s < steps; s++) {
-        final frac = s / steps;
-        final r = size.width * 0.04 + frac * size.width * 0.42;
-        final angle = t * math.pi * 2 * 2 + armOffset + frac * sweepRad;
-        final nextFrac = (s + 1) / steps;
-        final rN = size.width * 0.04 + nextFrac * size.width * 0.42;
-        final angleN = t * math.pi * 2 * 2 + armOffset + nextFrac * sweepRad;
-
-        final pA = Offset(cx + r * math.cos(angle), cy + r * math.sin(angle));
-        final pB = Offset(
-          cx + rN * math.cos(angleN),
-          cy + rN * math.sin(angleN),
-        );
-
-        final opacity = (0.08 + frac * 0.5).clamp(0.0, 1.0);
-        canvas.drawLine(
-          pA,
-          pB,
-          Paint()
-            ..color = const Color(
-              0xFFAB78FF,
-            ).withValues(alpha: opacity * (0.5 + pulse * 0.5))
-            ..strokeWidth = 0.6 + frac * 1.5
-            ..strokeCap = StrokeCap.round,
-        );
-      }
-    }
-
-    // Black hole centre
-    canvas.drawCircle(
-      center,
-      size.width * 0.08,
-      Paint()..color = const Color(0xFF050010),
-    );
-    // Hot edge glow
-    canvas.drawCircle(
-      center,
-      size.width * 0.10,
-      Paint()
-        ..color = const Color(0xFFAB78FF).withValues(alpha: 0.25 + pulse * 0.2)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-    );
-    // Tiny white core
-    canvas.drawCircle(
-      center,
-      1.5,
-      Paint()..color = Colors.white.withValues(alpha: 0.7 + pulse * 0.3),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_VortexPainter old) => old.t != t;
-}
-
-class _MarkerTapWrapper extends StatefulWidget {
-  const _MarkerTapWrapper({required this.onTap, required this.child});
-
-  final VoidCallback onTap;
-  final Widget child;
-
-  @override
-  State<_MarkerTapWrapper> createState() => _MarkerTapWrapperState();
-}
-
-class _MarkerTapWrapperState extends State<_MarkerTapWrapper> {
-  bool _down = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTapDown: (_) => setState(() => _down = true),
-      onTapCancel: () => setState(() => _down = false),
-      onTapUp: (_) {
-        setState(() => _down = false);
-        HapticFeedback.lightImpact();
-        widget.onTap();
-      },
-      child: AnimatedScale(
-        duration: const Duration(milliseconds: 100),
-        curve: Curves.easeOutCubic,
-        scale: _down ? 0.94 : 1.0,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Touchable hotspot area for the biome icon itself.
-            // (This is invisible but ensures the hit box is chunky.)
-            SizedBox(
-              width: 64,
-              height: 64,
-              // uncomment to debug tap zones:
-              // child: ColoredBox(color: Colors.red.withValues(alpha: .2)),
-            ),
-            const SizedBox(height: 6),
-            widget.child,
-          ],
-        ),
+    return Padding(
+      // Clear of the docked close button.
+      padding: const EdgeInsets.only(bottom: 70),
+      child: WildMapView(
+        weather: weather,
+        ready: ready,
+        arcane: arcaneUnlocked,
+        ink: theme.brightness == Brightness.light,
+        onEnter: (id) {
+          final scene = _scenes[id];
+          if (scene == null) return;
+          context.soundTap(() => onSelectRegion(id, scene))();
+        },
+        onPeek: onPeekRegion,
       ),
     );
   }
@@ -1674,7 +1148,7 @@ class _InfoDialog extends StatelessWidget {
                 ),
                 Expanded(
                   child: Text(
-                    'Fusing Expeditions',
+                    'Alchemical Biomes',
                     style: ft.heading.copyWith(
                       fontSize: 14,
                       color: fc.textPrimary,
@@ -1686,7 +1160,7 @@ class _InfoDialog extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Wild areas will light up when a creature has been detected. Venture into diverse biomes to discover new creatures. Successful breeding or harvesting will create an offspring you can extract in the Incubator. Wild Alchemons are more powerful and have better stats.',
+              'Tap a realm to enter it. Its circle pulses green when a creature has been detected there. Venture into diverse biomes to discover new creatures. Successful breeding or harvesting will create an offspring you can extract in the Incubator. Wild Alchemons are more powerful and have better stats.',
               style: ft.body.copyWith(color: fc.textSecondary),
               textAlign: TextAlign.left,
             ),

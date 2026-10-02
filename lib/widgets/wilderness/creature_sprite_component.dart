@@ -7,6 +7,7 @@ import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 
@@ -136,7 +137,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
 
     Image image;
     try {
-      image = await game.images.load(sheet.path);
+      image = await loadCreatureSheet(game.images, sheet.path);
     } catch (e) {
       image = await _loadFallbackImage();
     }

@@ -50,6 +50,7 @@ import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/games/shared/type_effectiveness.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:flame/components.dart' show Anchor;
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
@@ -4747,13 +4748,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     int slotIndex,
     CosmicPartyMember member,
   ) async {
-    final sheet = member.spriteSheet;
+    final sheet = sheetForVisuals(member.spriteSheet, member.spriteVisuals);
     if (sheet == null) {
       _companionTickers.remove(slotIndex);
       _companionVisuals.remove(slotIndex);
       return;
     }
-    final image = await images.load(sheet.path);
+    final image = await loadCreatureSheet(images, sheet.path);
     final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
     final anim = SpriteAnimation.fromFrameData(
       image,

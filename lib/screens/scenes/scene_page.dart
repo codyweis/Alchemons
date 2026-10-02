@@ -1334,7 +1334,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       );
     }
 
-    if (widget.sceneId == 'arcane') {
+    // A field drawn in code paints its own void.
+    if (widget.sceneId == 'arcane' && widget.scene.art == null) {
       return IgnorePointer(
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -1435,6 +1436,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                       _wildCreature = prepared;
                     },
                     party: widget.party,
+                    // A planet surface belongs to space; only the
+                    // wilderness's own fields mutate a fusion.
+                    fieldMutations: !_isCosmicPlanetMode,
                     highlightPartyHUD: _showTutorialHighlight,
                     isTutorial: widget.isTutorial,
                     isCaptureTutorial: _isCaptureTutorialScene,

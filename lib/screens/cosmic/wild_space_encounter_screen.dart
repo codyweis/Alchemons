@@ -1292,6 +1292,7 @@ class _SpecimenSprite extends StatelessWidget {
         brightness: visuals.brightness,
         hueShift: visuals.hueShiftDeg,
         isPrismatic: visuals.isPrismatic,
+        mutation: visuals.mutation,
         tint: visuals.tint,
         alchemyEffect: visuals.alchemyEffect,
         variantFaction: visuals.variantFaction,

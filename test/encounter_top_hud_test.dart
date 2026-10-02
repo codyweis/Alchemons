@@ -26,8 +26,6 @@ Future<void> _pump(
   required Size surface,
   int partyCount = 4,
   List<WildPotentialReading>? potentials,
-  double? breedChance = 0.95,
-  String status = 'Select a party ally to begin fusion.',
   String rarity = 'common',
 }) async {
   tester.view.physicalSize = surface;
@@ -58,8 +56,6 @@ Future<void> _pump(
                     key: _identityKey,
                     name: 'AIRLET',
                     rarity: rarity,
-                    status: status,
-                    breedChance: breedChance,
                     potentials: potentials,
                     partyStripWidth: partyCount == 0 ? 0 : stripWidth,
                     partyStrip: partyCount == 0
@@ -151,27 +147,12 @@ void main() {
     expect(name.top, lessThan(strip.bottom));
   });
 
-  testWidgets('a long status does not push the stability figure out', (
-    tester,
-  ) async {
-    // The exact case that used to overflow: a full party, a narrow lane and
-    // two labels with no flexible child between them.
-    await _pump(
-      tester,
-      surface: const Size(915, 412),
-      status:
-          'Harvester failed to secure the specimen and the field has '
-          'destabilised badly.',
-    );
-
-    final slate = tester.getRect(find.byType(WildEncounterTopHud));
-    final stability = tester.getRect(find.text('95.0%'));
-    expect(stability.right, lessThanOrEqualTo(slate.right));
-    expect(
-      tester.getRect(find.byKey(_stripKey)).overlaps(stability),
-      isFalse,
-      reason: 'the stability figure used to render under the party strip',
-    );
+  testWidgets('no status slate under the name', (tester) async {
+    // "X locked in." and the fusion stability only narrated what the party
+    // strip and the buttons already showed, so the band carries neither.
+    await _pump(tester, surface: const Size(915, 412));
+    expect(find.text('STAB'), findsNothing);
+    expect(find.textContaining('%'), findsNothing);
   });
 
   group('the Potential readout is gated', () {

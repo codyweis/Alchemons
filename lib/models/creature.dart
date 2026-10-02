@@ -151,6 +151,12 @@ class Creature {
   final String? alchemyEffect;
   final String? variantFaction;
 
+  /// The individual's wild-fusion mutation id ('alchemized', 'transmuted'),
+  /// carried on a creature hydrated from an instance so it draws right where
+  /// only the [Creature] travels. Not the species-level [mutationFamily], and
+  /// never serialised: the instance's `mutation` column is the record.
+  final String? wildMutation;
+
   Creature({
     required this.id,
     required this.name,
@@ -175,6 +181,7 @@ class Creature {
     this.isPure = false,
     this.alchemyEffect,
     this.variantFaction,
+    this.wildMutation,
   });
 
   /// JSON -> Creature (null-safe)
@@ -365,6 +372,7 @@ extension CreatureCopy on Creature {
     bool? isPure,
     String? alchemyEffect,
     String? variantFaction,
+    String? wildMutation,
   }) {
     return Creature(
       id: id ?? this.id,
@@ -394,6 +402,7 @@ extension CreatureCopy on Creature {
       isPure: isPure ?? this.isPure,
       alchemyEffect: alchemyEffect ?? this.alchemyEffect,
       variantFaction: variantFaction ?? this.variantFaction,
+      wildMutation: wildMutation ?? this.wildMutation,
     );
   }
 }

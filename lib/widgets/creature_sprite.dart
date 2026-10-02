@@ -8,6 +8,7 @@ import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flame/flame.dart' show Flame;
 import 'package:flame/sprite.dart';
@@ -93,6 +94,11 @@ class CreatureSprite extends StatefulWidget {
   // (e.g. party pickers) so effects don't overpower the sprite.
   final double? effectSlotSize;
 
+  /// A wild-fusion mutation id, or null: draws the baked sheet instead
+  /// ([mutatedSheet]). Pass the rest of the visuals as usual — a Transmuted
+  /// creature's come from [visualsFromInstance] already untinted.
+  final String? mutation;
+
   const CreatureSprite({
     super.key,
     required this.spritePath,
@@ -110,6 +116,7 @@ class CreatureSprite extends StatefulWidget {
     this.variantFaction,
     this.elementType,
     this.effectSlotSize,
+    this.mutation,
   });
 
   @override
@@ -163,6 +170,9 @@ class _CreatureSpriteState extends State<CreatureSprite>
     // reload animation if sprite config changed
     final baseChanged =
         widget.spritePath != oldWidget.spritePath ||
+        widget.mutation != oldWidget.mutation ||
+        (widget.mutation != null &&
+            widget.isPrismatic != oldWidget.isPrismatic) ||
         widget.totalFrames != oldWidget.totalFrames ||
         widget.rows != oldWidget.rows ||
         widget.frameSize != oldWidget.frameSize ||
@@ -295,13 +305,27 @@ class _CreatureSpriteState extends State<CreatureSprite>
     });
   }
 
+  /// The sheet actually drawn: the asset, or its baked mutation.
+  SpriteSheetDef get _sheet => mutatedSheet(
+    SpriteSheetDef(
+      path: widget.spritePath,
+      totalFrames: widget.totalFrames,
+      rows: widget.rows,
+      frameSize: widget.frameSize,
+      stepTime: widget.stepTime,
+    ),
+    mutation: widget.mutation,
+    prismatic: widget.isPrismatic,
+  );
+
   Future<void> _loadAnimation() async {
     try {
       final images = Flame.images;
+      final sheet = _sheet;
 
       // If the image is already cached, do everything synchronously
-      if (images.containsKey(widget.spritePath)) {
-        final image = images.fromCache(widget.spritePath);
+      if (images.containsKey(sheet.path)) {
+        final image = images.fromCache(sheet.path);
 
         final cols = (widget.totalFrames + widget.rows - 1) ~/ widget.rows;
 
@@ -310,7 +334,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
           SpriteAnimationData.sequenced(
             amount: widget.totalFrames,
             amountPerRow: cols,
-            textureSize: widget.frameSize,
+            textureSize: sheet.frameSize,
             stepTime: widget.stepTime,
             loop: true,
           ),
@@ -330,7 +354,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
       }
 
       // Otherwise, fall back to async loading
-      final image = await images.load(widget.spritePath);
+      final image = await loadCreatureSheet(images, sheet.path);
 
       final cols = (widget.totalFrames + widget.rows - 1) ~/ widget.rows;
 
@@ -339,13 +363,14 @@ class _CreatureSpriteState extends State<CreatureSprite>
         SpriteAnimationData.sequenced(
           amount: widget.totalFrames,
           amountPerRow: cols,
-          textureSize: widget.frameSize,
+          textureSize: sheet.frameSize,
           stepTime: widget.stepTime,
           loop: true,
         ),
       );
 
-      if (!mounted) return;
+      // A slow bake can land after the widget moved on to another sheet.
+      if (!mounted || _sheet.path != sheet.path) return;
       setState(() {
         _spriteAnimation = anim;
         _spriteTicker = anim.createTicker();
@@ -408,6 +433,7 @@ class InstanceSprite extends StatelessWidget {
         hueShift: visuals.hueShiftDeg,
         isPrismatic: visuals.isPrismatic,
         tint: visuals.tint,
+        mutation: visuals.mutation,
       ),
     );
 

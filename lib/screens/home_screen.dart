@@ -77,6 +77,8 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'breed/breed_screen.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/wild_fusion.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 
 const bool kEnableCosmicShip = true;
 
@@ -1775,8 +1777,13 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final base = repo.getCreatureById(inst.baseId);
       if (base?.spriteData == null) return;
-      final sheet = sheetFromCreature(base!);
-      await Flame.images.load(sheet.path);
+      // A mutated one is baked here too, so it never flashes plain first.
+      final sheet = mutatedSheet(
+        sheetFromCreature(base!),
+        mutation: inst.mutation,
+        prismatic: inst.isPrismaticSkin,
+      );
+      await loadCreatureSheet(Flame.images, sheet.path);
     } catch (_) {}
   }
 
@@ -1818,9 +1825,12 @@ class _HomeScreenState extends State<HomeScreen>
       'SPECIMEN #$shortTag',
     ].join(' • ');
 
-    final finalSubtitle = pick.isPrismaticSkin
-        ? 'PRISMATIC VARIANT • $subtitleLine'
-        : subtitleLine;
+    final mutation = AlchemonMutation.byId(pick.mutation);
+    final finalSubtitle = [
+      if (mutation != null) mutation.label.toUpperCase(),
+      if (pick.isPrismaticSkin) 'PRISMATIC VARIANT',
+      subtitleLine,
+    ].join(' • ');
 
     return PresentationData(
       displayName: displayTitle,

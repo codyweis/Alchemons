@@ -1,5 +1,4 @@
-// The top band of a wild encounter: who you are looking at, and how the
-// field is behaving.
+// The top band of a wild encounter: who you are looking at.
 //
 // It used to be three boxes fighting for the same strip of sky — a FIELD
 // STATUS card, a rarity chip and a name — laid out with a guessed symmetric
@@ -16,8 +15,6 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:alchemons/constants/design_tokens.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 
@@ -76,61 +73,6 @@ double partyStripGutterFor(int count, {bool withCallout = false}) {
 /// One of the wild specimen's four Potential ratings.
 typedef WildPotentialReading = ({String label, double value});
 
-/// Accent and icon for the current field status line.
-class EncounterStatusStyle {
-  final Color accent;
-  final IconData icon;
-
-  const EncounterStatusStyle({required this.accent, required this.icon});
-
-  static const _danger = Color(0xFFC0392B);
-  static const _amber = Color(0xFFE4C16A);
-  static const _success = Color(0xFF22C55E);
-  static const _teal = Color(0xFF5BC8E8);
-
-  factory EncounterStatusStyle.resolve(String status) {
-    final normalized = status.toLowerCase();
-
-    if (normalized.contains('failed') ||
-        normalized.contains('error') ||
-        normalized.contains('lost')) {
-      return const EncounterStatusStyle(
-        accent: _danger,
-        icon: AppIcons.warning_amber_rounded,
-      );
-    }
-    if (normalized.contains('research') ||
-        normalized.contains('stamina') ||
-        normalized.contains('capacity')) {
-      return const EncounterStatusStyle(
-        accent: _amber,
-        icon: AppIcons.bolt_rounded,
-      );
-    }
-    if (normalized.contains('complete') ||
-        normalized.contains('sent to cultivations') ||
-        normalized.contains('transferred')) {
-      return const EncounterStatusStyle(
-        accent: _success,
-        icon: AppIcons.check_circle_rounded,
-      );
-    }
-    if (normalized.contains('calibrating') ||
-        normalized.contains('select') ||
-        normalized.contains('choose') ||
-        normalized.contains('secure')) {
-      return const EncounterStatusStyle(
-        accent: _teal,
-        icon: AppIcons.tune_rounded,
-      );
-    }
-    return const EncounterStatusStyle(
-      accent: _amber,
-      icon: AppIcons.auto_awesome_rounded,
-    );
-  }
-}
-
 /// The encounter's top band. Give it the party strip; it decides where the
 /// strip and the identity can both live at this width.
 class WildEncounterTopHud extends StatelessWidget {
@@ -138,10 +80,9 @@ class WildEncounterTopHud extends StatelessWidget {
     super.key,
     required this.name,
     required this.rarity,
-    required this.status,
     this.showRarityBadge = true,
-    this.breedChance,
     this.potentials,
+    this.passingPotential,
     this.partyStrip,
     this.partyStripWidth = 0,
     this.leftGutter = kEncounterHudLeftGutter,
@@ -152,15 +93,15 @@ class WildEncounterTopHud extends StatelessWidget {
 
   final String name;
   final String rarity;
-  final String status;
   final bool showRarityBadge;
-
-  /// Wild-fusion stability, 0..1. Null when this encounter cannot be fused.
-  final double? breedChance;
 
   /// The four Potential ratings, or null when the Wild Potential Scanner is
   /// still locked — in which case the readout is absent, not blanked.
   final List<WildPotentialReading>? potentials;
+
+  /// Index into [potentials] of the one a fusion is certain to pass on — the
+  /// wild's highest — marked in gold. Null when this encounter cannot fuse.
+  final int? passingPotential;
 
   final Widget? partyStrip;
   final double partyStripWidth;
@@ -196,10 +137,9 @@ class WildEncounterTopHud extends StatelessWidget {
             child: _EncounterIdentity(
               name: name,
               rarity: rarity,
-              status: status,
               showRarityBadge: showRarityBadge,
-              breedChance: breedChance,
               potentials: potentials,
+              passingPotential: passingPotential,
               animateName: animateName,
               dossier: dossier,
             ),
@@ -250,27 +190,26 @@ class WildEncounterTopHud extends StatelessWidget {
   }
 }
 
-/// Rarity, name, and — under them — one quiet slate carrying the readout and
-/// the field status. One frame, not three.
+/// Rarity and the Potential plate, and the name under them. Nothing else: a
+/// status slate under the name ("X locked in.", the fusion stability) only
+/// narrated what the party strip and the buttons already showed.
 class _EncounterIdentity extends StatelessWidget {
   const _EncounterIdentity({
     required this.name,
     required this.rarity,
-    required this.status,
     required this.showRarityBadge,
-    required this.breedChance,
     required this.potentials,
     required this.animateName,
+    this.passingPotential,
     this.dossier = false,
   });
 
   final bool dossier;
   final String name;
   final String rarity;
-  final String status;
   final bool showRarityBadge;
-  final double? breedChance;
   final List<WildPotentialReading>? potentials;
+  final int? passingPotential;
   final bool animateName;
 
   Color get _rarityColor {
@@ -290,7 +229,6 @@ class _EncounterIdentity extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusStyle = EncounterStatusStyle.resolve(status);
     final readings = potentials;
 
     return Column(
@@ -333,7 +271,11 @@ class _EncounterIdentity extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (readings != null) _PotentialReadout(readings: readings),
+              if (readings != null)
+                _PotentialReadout(
+                  readings: readings,
+                  passing: passingPotential,
+                ),
             ],
           ),
           const SizedBox(height: 4),
@@ -359,34 +301,6 @@ class _EncounterIdentity extends StatelessWidget {
             ],
           ),
         ),
-        // The slate only when it has something to say: a stability or a
-        // status. An empty one was a box asking the player to "choose a
-        // protocol".
-        if (breedChance != null || status.isNotEmpty) ...[
-          SizedBox(height: dossier ? 6 : AppSpace.sm),
-          DecoratedBox(
-            // Opaque, not a wash: this reads against open sky.
-            decoration: BoxDecoration(
-              color: _kPalette.bg0.withValues(alpha: 0.86),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: statusStyle.accent.withValues(alpha: 0.28),
-                width: 0.8,
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpace.sm + 2,
-                vertical: 7,
-              ),
-              child: _StatusLine(
-                style: statusStyle,
-                status: status,
-                breedChance: breedChance,
-              ),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -395,17 +309,24 @@ class _EncounterIdentity extends StatelessWidget {
 /// The four Potential ratings as one tight plate beside the rarity chip —
 /// sized to its figures, not stretched across the slate.
 class _PotentialReadout extends StatelessWidget {
-  const _PotentialReadout({required this.readings});
+  const _PotentialReadout({required this.readings, this.passing});
 
   final List<WildPotentialReading> readings;
 
+  /// The reading a fusion is certain to pass on, if any.
+  final int? passing;
+
   static const _accent = Color(0xFF60A5FA);
+
+  /// The gold of the passing Potential: the same amber the rest of the
+  /// encounter chrome uses for what is earned.
+  static const _gold = Color(0xFFE4C16A);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
-      // Opaque like the slate: the figures read against open sky. No accent
+      // Opaque: the figures read against open sky. No accent
       // edge — the rarity chip beside it owns the line's colour.
       color: _kPalette.bg0.withValues(alpha: 0.86),
       child: Row(
@@ -420,7 +341,7 @@ class _PotentialReadout extends StatelessWidget {
               style: bracketText(
                 context,
                 8.5,
-                _kPalette.muted,
+                i == passing ? _gold : _kPalette.muted,
                 weight: FontWeight.w700,
                 letterSpacing: 0.5,
               ),
@@ -431,88 +352,13 @@ class _PotentialReadout extends StatelessWidget {
               style: bracketText(
                 context,
                 11,
-                _accent,
+                i == passing ? _gold : _accent,
                 weight: FontWeight.w900,
               ),
             ),
           ],
         ],
       ),
-    );
-  }
-}
-
-/// Chrome: what the field is doing, and how firmly it is holding.
-class _StatusLine extends StatelessWidget {
-  const _StatusLine({
-    required this.style,
-    required this.status,
-    required this.breedChance,
-  });
-
-  final EncounterStatusStyle style;
-  final String status;
-  final double? breedChance;
-
-  @override
-  Widget build(BuildContext context) {
-    final chance = breedChance;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        if (status.isNotEmpty) ...[
-          // The status's colour as a single bead, not an icon: quieter, and
-          // the words carry the meaning.
-          Container(
-            width: 5,
-            height: 5,
-            decoration: BoxDecoration(
-              color: style.accent,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
-        // Flexible, so a long status ellipsises instead of shoving the
-        // stability figure out of the slate.
-        Expanded(
-          child: Text(
-            status,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: bracketText(
-              context,
-              11,
-              _kPalette.muted,
-              weight: FontWeight.w600,
-            ),
-            strutStyle: const StrutStyle(height: 1.25),
-          ),
-        ),
-        if (chance != null) ...[
-          const SizedBox(width: AppSpace.sm),
-          Text(
-            'STAB',
-            style: bracketText(
-              context,
-              8.5,
-              _kPalette.muted,
-              weight: FontWeight.w700,
-              letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(width: 3),
-          Text(
-            '${(chance * 100).toStringAsFixed(1)}%',
-            style: bracketText(
-              context,
-              12,
-              const Color(0xFF22C55E),
-              weight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ],
     );
   }
 }

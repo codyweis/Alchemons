@@ -42,6 +42,7 @@ import 'package:alchemons/systems/effects/effect_registry.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/grain_assembly.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 
 part 'cosmic_game_helpers.dart';

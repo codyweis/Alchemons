@@ -9,6 +9,7 @@ import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
+part 'arcane_field.dart';
 part 'sky_field.dart';
 part 'swamp_field.dart';
 part 'valley_field.dart';

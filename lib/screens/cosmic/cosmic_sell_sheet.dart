@@ -853,6 +853,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                       brightness: visuals.brightness,
                       hueShift: visuals.hueShiftDeg,
                       isPrismatic: visuals.isPrismatic,
+                      mutation: visuals.mutation,
                       tint: visuals.tint,
                       alchemyEffect: visuals.alchemyEffect,
                       variantFaction: visuals.variantFaction,

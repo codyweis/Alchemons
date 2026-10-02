@@ -179,6 +179,7 @@ class _PartySlot extends StatelessWidget {
               isPrismaticSkin: inst.isPrismaticSkin,
               alchemyEffect: inst.alchemyEffect,
               variantFaction: inst.variantFaction,
+              wildMutation: inst.mutation,
             ) ??
             Creature(
               // Fallback if base not found (shouldn't happen)

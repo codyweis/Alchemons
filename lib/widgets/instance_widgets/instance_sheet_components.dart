@@ -29,6 +29,8 @@ import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/wild_fusion.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
 
 String _displayVariantFaction(String faction) {
   final trimmed = faction.trim();
@@ -850,6 +852,10 @@ class _GeneticsBlock extends StatelessWidget {
           const _PrismaticChip(),
           const SizedBox(height: 3),
         ],
+        if (AlchemonMutation.byId(instance.mutation) case final m?) ...[
+          _MutationChip(mutation: m),
+          const SizedBox(height: 3),
+        ],
         // Only deviations earn a line. Every other variant name says which
         // track it belongs to on its own -- GIANT is obviously a size, ALBINO
         // obviously a colour -- so a card printing NORMAL twice was spending
@@ -922,6 +928,10 @@ class _HarvestBlock extends StatelessWidget {
         ],
         if (instance.isPrismaticSkin == true) ...[
           const _PrismaticChip(),
+          const SizedBox(height: 3),
+        ],
+        if (AlchemonMutation.byId(instance.mutation) case final m?) ...[
+          _MutationChip(mutation: m),
           const SizedBox(height: 3),
         ],
         // Total output row
@@ -1065,6 +1075,36 @@ class _PrismaticChip extends StatelessWidget {
       ),
       child: Text(
         'Prismatic',
+        style: bracketText(
+          context,
+          11,
+          c,
+          weight: FontWeight.w700,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
+  }
+}
+
+/// A wild-fusion mutation, in the colour of what it made the creature:
+/// gold for Transmuted, the pale violet of loose grains for Alchemized.
+class _MutationChip extends StatelessWidget {
+  const _MutationChip({required this.mutation});
+
+  final AlchemonMutation mutation;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = mutationAccent(mutation);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.14),
+        border: Border(left: BorderSide(color: c, width: 2)),
+      ),
+      child: Text(
+        mutation.label,
         style: bracketText(
           context,
           11,

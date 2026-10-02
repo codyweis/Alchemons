@@ -1,51 +1,60 @@
 import 'dart:ui';
 
+import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:flame/components.dart';
 
-/// Arcane Portal scene — a void realm unlocked when all altar relics are placed.
-/// Uses a solid black background. The visual backdrop is
-/// provided by the AlchemicalParticleBackground widget in the scene page.
+/// Arcane Portal scene — the void behind the portal, unlocked when all the
+/// altar relics are placed.
 final arcaneScene = SceneDefinition(
+  // The Arcane wraps round like the other fields: the near ground (which
+  // scrolls at twice the camera) comes round again every 2000 units, under
+  // three screens — it has only three creatures to show.
   worldWidth: 1000,
-  worldHeight: 1000,
+  worldHeight: 850,
+  loop: true,
   allowVerticalPan: false,
-  encounterGroundBias: 0,
-  encounterMinZoom: 0.9,
-  encounterMaxZoom: 1.3,
-  layers: [
-    // No layer images — pure black background.
-    // The ScenePage background colour (black) handles the backdrop,
-    // and AlchemicalParticleBackground renders floating particles.
-    const LayerDefinition(
-      id: SceneLayer.layer1,
-      imagePath: '',
-      parallaxFactor: 0.0,
-      widthMul: 1.0,
-    ),
+  // Drawn in code (lib/games/wilderness/field/arcane_field.dart). The void
+  // is the camera's backdrop, so it has no layer; nearest moves fastest.
+  art: ArcaneField.new,
+  layers: const [
+    LayerDefinition(id: SceneLayer.layer2, imagePath: '', parallaxFactor: 0.1),
+    LayerDefinition(id: SceneLayer.layer3, imagePath: '', parallaxFactor: 0.35),
+    LayerDefinition(id: SceneLayer.layer4, imagePath: '', parallaxFactor: 1.0),
+    LayerDefinition(id: SceneLayer.layer5, imagePath: '', parallaxFactor: 1.6),
   ],
+  // Spirit, Dark, Light, Blood and Crystal don't float, and the only
+  // floaters the Arcane rolls are its legendary wings — an open-air point
+  // would roll nothing else — so every point stands on something. The field
+  // builds it under each, and under where each point's encounter partner
+  // stands (a pace to the side its battle position names).
+  //
+  // x is a share of the point's own layer's loop.
   spawnPoints: [
+    // near, first thing in view
     SpawnPoint(
       id: 'SP_arcane_01',
-      normalizedPos: const Offset(0.30, 0.28),
-      anchor: SceneLayer.layer1,
+      normalizedPos: const Offset(0.14, 0.70),
+      anchor: SceneLayer.layer4,
       size: Vector2(80, 80),
-      battlePos: const Offset(0.52, 0.28),
+      battlePos: const Offset(0.24, 0.70),
     ),
+    // far off, midway along
     SpawnPoint(
       id: 'SP_arcane_02',
-      normalizedPos: const Offset(0.50, 0.31),
-      anchor: SceneLayer.layer1,
-      size: Vector2(80, 80),
-      battlePos: const Offset(0.32, 0.31),
+      normalizedPos: const Offset(0.47, 0.575),
+      anchor: SceneLayer.layer3,
+      size: Vector2(66, 66),
+      battlePos: const Offset(0.37, 0.575),
     ),
+    // near, past the halfway point
     SpawnPoint(
       id: 'SP_arcane_03',
-      normalizedPos: const Offset(0.70, 0.34),
-      anchor: SceneLayer.layer1,
+      normalizedPos: const Offset(0.64, 0.71),
+      anchor: SceneLayer.layer4,
       size: Vector2(80, 80),
-      battlePos: const Offset(0.48, 0.34),
+      battlePos: const Offset(0.54, 0.71),
     ),
   ],
 );

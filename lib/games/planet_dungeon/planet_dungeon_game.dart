@@ -50,6 +50,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:flame/components.dart' show Anchor;
 import 'package:flame/game.dart';
 import 'package:flame/sprite.dart';
@@ -2929,9 +2930,9 @@ class PlanetDungeonGame extends FlameGame {
   Future<void> debugLoadGuardianArt() => _loadGuardianArt();
 
   Future<void> _loadSprite(DungeonCreature c) async {
-    final sheet = c.member.spriteSheet;
+    final sheet = sheetForVisuals(c.member.spriteSheet, c.member.spriteVisuals);
     if (sheet == null) return;
-    final image = await images.load(sheet.path);
+    final image = await loadCreatureSheet(images, sheet.path);
     final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
     final anim = SpriteAnimation.fromFrameData(
       image,

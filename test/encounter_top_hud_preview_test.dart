@@ -72,9 +72,9 @@ void main() {
                     child: WildEncounterTopHud(
                       name: 'Airlet',
                       rarity: 'rare',
-                      status: 'Select a party ally to begin fusion.',
-                      breedChance: 0.95,
                       potentials: potentials,
+                      // SPD 76 is the wild's best: the one a fusion passes.
+                      passingPotential: potentials == null ? null : 0,
                       dossier: dossier,
                       leftGutter: dossier ? 0 : kEncounterHudLeftGutter,
                       partyStripWidth: partyStripWidthFor(party),

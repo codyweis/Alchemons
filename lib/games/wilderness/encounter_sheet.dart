@@ -49,6 +49,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/services/game_data_service.dart';
@@ -129,6 +130,10 @@ class EncounterOverlay extends StatefulWidget {
   /// exit of their own.
   final bool showLeaveAction;
 
+  /// A fusion here is a wilderness fusion: its child can come out mutated
+  /// ([AlchemonMutation]). Off for space, whose fusions never mutate.
+  final bool fieldMutations;
+
   const EncounterOverlay({
     super.key,
     required this.encounter,
@@ -155,11 +160,16 @@ class EncounterOverlay extends StatefulWidget {
     this.harvestBonus = 0,
     this.dossierHud = false,
     this.showLeaveAction = false,
+    this.fieldMutations = false,
   });
 
   @override
   State<EncounterOverlay> createState() => _EncounterOverlayState();
 }
+
+/// What a wild fusion came to: the line the result notice carries, whether it
+/// landed or not.
+typedef _FusionOutcome = ({bool ok, String message});
 
 class _EncounterOverlayState extends State<EncounterOverlay>
     with TickerProviderStateMixin {
@@ -173,9 +183,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   /// Which harvester the Harvest button draws. Null until the kit answers.
   String? _harvesterBiome;
   late Creature _wildCreature;
-  late String _status;
-
-  double? _breedChance; // 0.0–1.0 probability
 
   late final AnimationController _slideController = AnimationController(
     vsync: this,
@@ -194,13 +201,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     super.initState();
     _soundController = context.audio;
     _wildCreature = widget.hydratedWildCreature;
-    _status = widget.isCaptureTutorial
-        ? 'Harvester calibrated. Secure the specimen.'
-        : _supportsFusion
-        ? 'Select a party ally to begin fusion.'
-        // Nothing to ask for: the buttons say what can be done, and the
-        // status slate stays away until there is something to report.
-        : '';
     // Auto-show on mount
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _show();
@@ -225,6 +225,112 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     });
     widget.onWildCreaturePrepared?.call(prepared);
     await _resolveHarvesterGlyph();
+    await _maybeExplainWildPotential();
+  }
+
+  static const _wildPotentialIntroKey = 'wild_fusion_top_potential_intro_v1';
+
+  /// Once, the first fusable encounter after the Wild Potential Scanner is
+  /// unlocked: what the gold figure on the plate means. Before the scanner
+  /// the rule still holds; there is just nothing on screen to point at.
+  Future<void> _maybeExplainWildPotential() async {
+    if (!mounted || !_supportsFusion) return;
+    if (!context
+        .read<ConstellationEffectsService>()
+        .hasWildPotentialAnalyzer()) {
+      return;
+    }
+    final settings = context.read<AlchemonsDatabase>().settingsDao;
+    if (await settings.getSetting(_wildPotentialIntroKey) != null) return;
+    await settings.setSetting(_wildPotentialIntroKey, '1');
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        const gold = Color(0xFFE4C16A);
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: CustomPaint(
+              painter: BracketFramePainter(
+                color: gold.withValues(alpha: 0.85),
+                bracketSize: 12,
+                strokeWidth: 1.3,
+              ),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+                color: _kPalette.surfaceFill(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(width: 3, height: 24, color: gold),
+                        const SizedBox(width: AppSpace.md),
+                        Expanded(
+                          child: Text(
+                            'Wild fusion',
+                            style: bracketText(
+                              ctx,
+                              17,
+                              _kPalette.ink,
+                              weight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpace.lg),
+                    Text(
+                      'Fusing with a wild Alchemon always passes its highest '
+                      'Potential to the offspring.\n\n'
+                      'The Potential that passes is the one shown in gold.',
+                      style: bracketText(
+                        ctx,
+                        12.5,
+                        _kPalette.muted,
+                        weight: FontWeight.w500,
+                      ),
+                      strutStyle: const StrutStyle(height: 1.45),
+                    ),
+                    const SizedBox(height: AppSpace.lg),
+                    GestureDetector(
+                      onTap: ctx.soundAction(() => Navigator.of(ctx).pop()),
+                      behavior: HitTestBehavior.opaque,
+                      child: CustomPaint(
+                        painter: BracketFramePainter(
+                          color: gold,
+                          bracketSize: 8,
+                          strokeWidth: 1.2,
+                        ),
+                        child: Container(
+                          height: 42,
+                          alignment: Alignment.center,
+                          color: gold.withValues(alpha: 0.14),
+                          child: Text(
+                            'Got it',
+                            style: bracketText(
+                              ctx,
+                              13,
+                              gold,
+                              weight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   /// Work out which device the Harvest button should be drawn as.
@@ -523,10 +629,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   }
 
   void _hide([bool success = false]) {
-    setState(() {
-      _breedChance = null;
-      _chosenInstanceId = null;
-    });
+    setState(() => _chosenInstanceId = null);
     if (success) {
       // Notify the host immediately so the wild + party actors are
       // cleared from the scene before any result notification appears.
@@ -580,10 +683,13 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     name: wildCreature.name,
                     rarity: widget.encounter.rarity,
                     showRarityBadge: widget.showRarityBadge,
-                    status: _status,
-                    breedChance: _supportsFusion ? _breedChance : null,
                     potentials: showWildPotentials
                         ? _wildPotentialReadings(wildCreature)
+                        : null,
+                    // Readings are in StatKind order, so its index is the
+                    // reading's.
+                    passingPotential: _supportsFusion
+                        ? wildTopPotential(wildCreature.stats)?.stat.index
                         : null,
                     opacity: slide,
                     dossier: widget.dossierHud,
@@ -718,28 +824,19 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           ? NatureCatalog.byId(instRow.natureId2!)
           : baseCreature.nature2,
       isPrismaticSkin: instRow.isPrismaticSkin || baseCreature.isPrismaticSkin,
+      wildMutation: instRow.mutation,
     );
 
-    final wilderness = WildernessService(db);
     if (!mounted) return;
-    final constellation = context.read<ConstellationEffectsService>();
-    final p = _computeWildBreedChance(instRow, wilderness, constellation);
-
-    setState(() {
-      _status = '${hydrated.name} locked in.';
-      _chosenInstanceId = instanceId;
-      _breedChance = p;
-    });
+    setState(() => _chosenInstanceId = instanceId);
 
     widget.onPartyCreatureSelected?.call(hydrated);
     HapticFeedback.selectionClick();
   }
 
   Future<void> _handleBreed(BuildContext ctx, Creature wildCreature) async {
-    if (_chosenInstanceId == null) {
-      setState(() => _status = 'Select a party ally first.');
-      return;
-    }
+    // The button is off until an ally is chosen.
+    if (_chosenInstanceId == null) return;
 
     setState(() => _busy = true);
 
@@ -751,7 +848,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       final instance = await db.creatureDao.getInstance(_chosenInstanceId!);
       if (instance == null) {
-        setState(() => _status = 'Specimen sync failed.');
+        if (ctx.mounted) _notify(ctx, 'Fusion failed', 'Specimen sync failed.');
         return;
       }
 
@@ -760,7 +857,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       final speciesB = wildCreature;
 
       if (speciesA == null) {
-        setState(() => _status = 'Wild record lookup failed.');
+        if (ctx.mounted) {
+          _notify(ctx, 'Fusion failed', 'Wild record lookup failed.');
+        }
         return;
       }
 
@@ -774,16 +873,13 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       if (!sameFamily && !hasCrossSpecies) {
         if (!ctx.mounted) return;
         await _showCrossSpeciesLockedDialog(ctx, famA, famB);
-        setState(() {
-          _status = 'Cross-lineage fusion requires more research.';
-        });
         return;
       }
 
       final placementFailure = await breedingService
           .getEggPlacementFailureMessage(requireStorageCapacity: false);
       if (placementFailure != null) {
-        setState(() => _status = placementFailure);
+        if (ctx.mounted) _notify(ctx, 'Fusion blocked', placementFailure);
         return;
       }
       // --------------------------------------------------------------
@@ -793,10 +889,14 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       final consumed = await wilderness.consumeWildFusion();
       if (!consumed) {
-        setState(() {
-          _wildFusionQty = 0;
-          _status = 'A Wild Fusion catalyst is required for this attempt.';
-        });
+        setState(() => _wildFusionQty = 0);
+        if (ctx.mounted) {
+          _notify(
+            ctx,
+            'Fusion blocked',
+            'A Wild Fusion catalyst is required for this attempt.',
+          );
+        }
         return;
       }
       if (mounted) setState(() => _wildFusionQty = max(0, _wildFusionQty - 1));
@@ -810,7 +910,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       // opening cue is the one the lab fusion opens on, so a wild fusion and
       // a chamber fusion sound like the same act.
       if (ctx.mounted) ctx.sound(SoundCue.breedingStart, owner: this);
-      setState(() => _status = 'Calibrating the alchemical matrix...');
       // The tense beat between the catalyst and the verdict.
       if (ctx.mounted) {
         ctx.sound(SoundCue.extractionReactionStart, owner: this);
@@ -878,7 +977,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         final merged = handoff != null;
 
         if (!ctx.mounted) return;
-        final didBreed = await showAlchemyFusionCinematic<bool>(
+        final outcome = await showAlchemyFusionCinematic<_FusionOutcome>(
           context: ctx,
           leftSprite: partySprite(),
           rightSprite: wildSprite(),
@@ -897,12 +996,15 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           },
         );
 
-        if (didBreed != true) {
+        if (outcome == null || !outcome.ok) {
           // The fusion failed: the panel comes back so the player can try
           // something else, rather than being left staring at the scene.
           if (mergeInScene != null && mounted) {
             _slideController.forward();
             _fadeController.forward();
+          }
+          if (outcome != null && ctx.mounted) {
+            _notify(ctx, 'Fusion failed', outcome.message);
           }
           return;
         }
@@ -912,9 +1014,12 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         // scene page under this sheet, and a snackbar posted into a
         // messenger that is on its way out never reaches the screen.
         final messenger = ScaffoldMessenger.maybeOf(ctx);
-        final resultMessage = _status;
         if (messenger != null) {
-          _showResultNotification(messenger, resultMessage);
+          _showResultNotification(
+            messenger,
+            'Fusion complete',
+            outcome.message,
+          );
         }
         _hide(true);
       } else {
@@ -937,8 +1042,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
             colorOf(wildCreature),
           );
           if (!mounted) return;
+        } else if (ctx.mounted) {
+          // No recoil in this host's scene, so nothing else would say it.
+          _notify(ctx, 'Fusion failed', 'The fusion destabilized. Try again.');
         }
-        setState(() => _status = 'Fusion destabilized. Try again.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -969,9 +1076,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       if (!ctx.mounted) return;
       ctx.sound(SoundCue.captureThrow, owner: this);
-      setState(
-        () => _status = '${selectedDevice.label} engaged — the field holds.',
-      );
 
       // CLEAR THE STAGE.
       //
@@ -1047,15 +1151,18 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       if (success) {
         HapticFeedback.heavyImpact();
-        const done = 'Extraction complete. Specimen sent to Cultivations.';
-        setState(() => _status = done);
 
         if (!ctx.mounted) return;
         // The panel is retracted on a success and the encounter closes right
-        // after, so the status line above is written onto something nobody
-        // can see. Say it where it will actually be read.
+        // after. Say it where it will actually be read.
         final messenger = ScaffoldMessenger.maybeOf(ctx);
-        if (messenger != null) _showResultNotification(messenger, done);
+        if (messenger != null) {
+          _showResultNotification(
+            messenger,
+            'Extraction complete',
+            'Specimen sent to Cultivations.',
+          );
+        }
 
         await _placeWildEgg(ctx, wildCreature);
         // Result tone can finish as the encounter closes; the attempt cannot.
@@ -1067,29 +1174,26 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       } else {
         HapticFeedback.lightImpact();
         if (ctx.mounted) ctx.sound(SoundCue.captureEscape, owner: this);
+        // The specimen breaking out is the message.
         widget.onAttemptFailed?.call();
-        setState(() => _status = 'Harvester failed to secure the specimen.');
-        // The panel slides back for a failure, so the status line is visible
-        // again — but only after the slide, which is exactly when the player
-        // is still looking at the creature that got away.
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _status = 'Encounter error: $e');
-      }
+      if (mounted && ctx.mounted) _notify(ctx, 'Encounter error', '$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   /// Breed owned instance with wild creature using BreedingServiceV2
-  Future<bool> _breedWithWild(
+  Future<_FusionOutcome> _breedWithWild(
     BuildContext ctx,
     db.CreatureInstance ownedParent,
     Creature? wildCreature,
     BreedingServiceV2 breedingService,
   ) async {
-    if (wildCreature == null) return false;
+    if (wildCreature == null) {
+      return (ok: false, message: 'Wild record lookup failed.');
+    }
 
     // Single call: service will randomize wild, breed, and compute analysis.
     final result = await breedingService.breedWithWild(
@@ -1100,38 +1204,42 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           : null,
       forcePrismatic: widget.encounter.voidBred,
       sourceOverride: widget.encounter.source,
+      fieldMutations: widget.fieldMutations,
     );
 
     if (!result.success) {
-      if (mounted) {
-        setState(() => _status = 'Fusion failed: ${result.message}');
-      }
-      return false;
+      return (ok: false, message: result.message ?? 'The fusion did not take.');
     }
 
-    if (mounted) {
-      setState(
-        () => _status = result.placement == EggPlacement.storage
-            ? 'Cultivation chambers were full — the specimen was moved to cold storage.'
-            : 'The new specimen was sent to a cultivation chamber.',
-      );
-    }
-
-    return true;
+    return (
+      ok: true,
+      message: result.placement == EggPlacement.storage
+          ? 'Cultivation chambers were full — the specimen was moved to cold storage.'
+          : 'The new specimen was sent to a cultivation chamber.',
+    );
   }
 
-  /// Lightweight, non-blocking result notification shown after a
-  /// successful fusion (the encounter has already closed).
-  /// The one piece of feedback that survives the panel getting out of the
-  /// way. Both the harvest and the fusion retract the sheet to clear the
-  /// stage, so a result written into [_status] is written onto something the
-  /// player cannot see — which is exactly what happened to "Extraction
-  /// complete" until this was wired to it too.
+  /// A setback nothing on screen would otherwise show — a failed lookup, a
+  /// missing catalyst. The rest the encounter says with the creatures and the
+  /// buttons; there is no status line to write it on.
+  void _notify(BuildContext ctx, String title, String message) {
+    final messenger = ScaffoldMessenger.maybeOf(ctx);
+    if (messenger == null) return;
+    _showResultNotification(messenger, title, message, failed: true);
+  }
+
+  /// Lightweight, non-blocking result notification. The one piece of
+  /// feedback that survives the panel getting out of the way: both the
+  /// harvest and the fusion retract the sheet to clear the stage, and the
+  /// encounter closes on a success. [failed] draws it in ember, for the
+  /// setbacks [_notify] reports.
   void _showResultNotification(
     ScaffoldMessengerState messenger,
-    String message,
-  ) {
-    const success = Color(0xFF22C55E);
+    String title,
+    String message, {
+    bool failed = false,
+  }) {
+    final accent = failed ? const Color(0xFFE0785A) : const Color(0xFF22C55E);
     messenger.clearSnackBars();
     messenger.showSnackBar(
       SnackBar(
@@ -1143,21 +1251,23 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         margin: const EdgeInsets.all(16),
         content: CustomPaint(
           painter: BracketFramePainter(
-            color: success.withValues(alpha: 0.85),
+            color: accent.withValues(alpha: 0.85),
             bracketSize: 9,
             strokeWidth: 1.2,
           ),
           child: Container(
             decoration: BoxDecoration(
               color: const Color(0xFF12161D),
-              border: const Border(left: BorderSide(color: success, width: 3)),
+              border: Border(left: BorderSide(color: accent, width: 3)),
             ),
             padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
             child: Row(
               children: [
-                const Icon(
-                  AppIcons.check_circle_rounded,
-                  color: success,
+                Icon(
+                  failed
+                      ? AppIcons.warning_amber_rounded
+                      : AppIcons.check_circle_rounded,
+                  color: accent,
                   size: 18,
                 ),
                 const SizedBox(width: 10),
@@ -1167,7 +1277,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Fusion complete',
+                        title,
                         style: bracketText(
                           messenger.context,
                           13,

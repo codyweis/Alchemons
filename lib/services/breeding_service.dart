@@ -11,6 +11,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
@@ -154,6 +155,9 @@ class BreedingServiceV2 {
   /// Wild breeding - breed instance with wild catalog creature
   ///
   /// Same pattern: only one breeding pass, then analysis on that result.
+  ///
+  /// [fieldMutations]: the fusion happened in the wilderness, where the child
+  /// can come out mutated ([AlchemonMutation]). Space fusions pass false.
   Future<EggCreationResult> breedWithWild(
     CreatureInstance ownedParent,
     Creature wildCreature, {
@@ -163,6 +167,8 @@ class BreedingServiceV2 {
     String? likelihoodAnalysisJson,
     bool forcePrismatic = false,
     String? sourceOverride,
+    bool fieldMutations = false,
+    Random? mutationRng,
   }) async {
     // ---- Cross-species gate (owned vs wild) ----
     final allowed = await _canCrossBreed(ownedParent.baseId, wildCreature.id);
@@ -210,12 +216,25 @@ class BreedingServiceV2 {
       parentCreatureB: randomizedWild,
     );
 
+    // Rolled here, not in the engine: it is the wilderness's, not breeding's,
+    // and nothing downstream inherits it. Kept secret until the hatch.
+    final mutation = fieldMutations
+        ? AlchemonMutation.roll(
+            mutationRng ?? Random(),
+            prismatic: offspring.isPrismaticSkin,
+          )
+        : null;
+    if (mutation != null) {
+      debugPrint('[Breeding] wild fusion mutation: ${mutation.id}');
+    }
+
     final payload = payloadFactory.fromWildBreeding(
       offspring,
       ownedParent,
       randomizedWild,
       likelihoodAnalysisJson: analysisJson,
       sourceOverride: sourceOverride,
+      mutation: mutation?.id,
     );
 
     // Fire perk: owned parent + wild both Fire?

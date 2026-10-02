@@ -49,6 +49,8 @@ import 'package:provider/provider.dart';
 
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/wild_fusion.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
 
 /// Both natures on one line. Two separate BEHAVIOR rows would read as a
 /// duplicate rather than as a pair.
@@ -947,6 +949,7 @@ class EggHatching {
     if (row.isPrismaticSkin == true) {
       out = out.copyWith(isPrismaticSkin: true);
     }
+    if (row.mutation != null) out = out.copyWith(wildMutation: row.mutation);
     if (row.natureId != null && row.natureId!.isNotEmpty) {
       final n = NatureCatalog.byId(row.natureId!);
       if (n != null) out = out.copyWith(nature: n);
@@ -1197,7 +1200,9 @@ class EggHatching {
                                                 ),
                                               ),
                                             ),
-                                          if (instance.isPrismaticSkin == true)
+                                          if (instance.isPrismaticSkin ==
+                                                  true ||
+                                              instance.mutation != null)
                                             Positioned(
                                               bottom: 8,
                                               left: 8,
@@ -1206,7 +1211,33 @@ class EggHatching {
                                                 duration: const Duration(
                                                   milliseconds: 300,
                                                 ),
-                                                child: _buildPrismaticBadge(),
+                                                // A mutation shares the corner:
+                                                // an Alchemized one can be
+                                                // prismatic too.
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    if (AlchemonMutation.byId(
+                                                          instance.mutation,
+                                                        )
+                                                        case final m?) ...[
+                                                      _buildBadge(
+                                                        m.label.toUpperCase(),
+                                                        mutationAccent(m),
+                                                      ),
+                                                      const SizedBox(
+                                                        height: 4,
+                                                      ),
+                                                    ],
+                                                    if (instance
+                                                            .isPrismaticSkin ==
+                                                        true)
+                                                      _buildPrismaticBadge(),
+                                                  ],
+                                                ),
                                               ),
                                             ),
                                           if (hasNotablePurity)
