@@ -72,16 +72,11 @@ class ElementalNexusScreen extends StatefulWidget {
   final String? resumeElement;
   final bool harvesterAlreadyAwarded;
 
-  /// DEVELOPER TOOL: the Kin species to offer instead of a random one of the
-  /// chosen element. The encounter is otherwise the real thing.
-  final String? debugSpeciesId;
-
   const ElementalNexusScreen({
     super.key,
     this.resumePhase = NexusPhase.outside,
     this.resumeElement,
     this.harvesterAlreadyAwarded = false,
-    this.debugSpeciesId,
   });
 
   @override
@@ -212,12 +207,7 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
     }
 
     final rng = Random();
-    final forced = widget.debugSpeciesId == null
-        ? null
-        : repo.creatures.where((c) => c.id == widget.debugSpeciesId);
-    final picked = forced != null && forced.isNotEmpty
-        ? forced.first
-        : pool[rng.nextInt(pool.length)];
+    final picked = pool[rng.nextInt(pool.length)];
 
     // Generate a guaranteed prismatic version; its Potential is assigned below.
     final gen = WildlifeGenerator(

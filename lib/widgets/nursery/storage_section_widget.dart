@@ -25,11 +25,16 @@ class StorageSection extends StatefulWidget {
   final Widget Function(String title, IconData icon, Color color)
   buildSectionHeader;
 
+  /// Offers the "move to empty chambers" bulk button (unlocked together
+  /// with batch extraction).
+  final bool canAutoMove;
+
   const StorageSection({
     super.key,
     required this.primaryColor,
     required this.quality,
     required this.buildSectionHeader,
+    this.canAutoMove = false,
   });
 
   @override
@@ -108,6 +113,7 @@ class _StorageSectionState extends State<StorageSection> {
                       theme: theme,
                       palette: palette,
                       storedCount: filteredItems.length,
+                      movable: filteredItems,
                     ),
                     if (allItems.isNotEmpty) ...[
                       const SizedBox(height: 12),
@@ -132,33 +138,78 @@ class _StorageSectionState extends State<StorageSection> {
     required FactionTheme theme,
     required BracketPalette palette,
     required int storedCount,
+    required List<Egg> movable,
   }) {
     final accent = theme.accentSoft;
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: palette.accentWash(accent),
-          border: Border(left: BorderSide(color: accent, width: 2)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(AppIcons.ac_unit_rounded, color: accent, size: 11),
-            const SizedBox(width: 5),
-            Text(
-              '$storedCount stored',
-              style: bracketText(
-                context,
-                11.5,
-                palette.ink,
-                weight: FontWeight.w700,
-                letterSpacing: 0.4,
-              ),
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: palette.accentWash(accent),
+        border: Border(left: BorderSide(color: accent, width: 2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(AppIcons.ac_unit_rounded, color: accent, size: 11),
+          const SizedBox(width: 5),
+          Text(
+            '$storedCount stored',
+            style: bracketText(
+              context,
+              11.5,
+              palette.ink,
+              weight: FontWeight.w700,
+              letterSpacing: 0.4,
             ),
+          ),
+        ],
+      ),
+    );
+
+    if (!widget.canAutoMove || movable.isEmpty) {
+      return Align(alignment: Alignment.centerRight, child: badge);
+    }
+
+    return StreamBuilder<List<IncubatorSlot>>(
+      stream: context.read<AlchemonsDatabase>().incubatorDao.watchSlots(),
+      builder: (context, snap) {
+        final emptyChambers = (snap.data ?? const <IncubatorSlot>[])
+            .where((s) => s.unlocked && s.eggId == null)
+            .length;
+        final moveCount = emptyChambers < movable.length
+            ? emptyChambers
+            : movable.length;
+        return Row(
+          children: [
+            if (moveCount > 0)
+              _AutoMoveButton(
+                count: moveCount,
+                onTap: () => _autoMoveToChambers(movable),
+              ),
+            const Spacer(),
+            badge,
           ],
+        );
+      },
+    );
+  }
+
+  Future<void> _autoMoveToChambers(List<Egg> items) async {
+    final db = context.read<AlchemonsDatabase>();
+    int moved = 0;
+    for (final egg in items) {
+      if (await placeStoredEggInChamber(db, egg) == null) break;
+      moved++;
+    }
+    if (!mounted || moved == 0) return;
+    HapticFeedback.lightImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 2),
+        content: Text(
+          '$moved specimen${moved == 1 ? '' : 's'} moved to chambers',
         ),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -324,6 +375,68 @@ class _StorageSectionState extends State<StorageSection> {
             quality: widget.quality,
             nowUtc: _nowUtc,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Moves one stored vial into the first free chamber, resuming cultivation
+/// from where cold storage left it. Returns the chamber id, or null when
+/// every unlocked chamber is occupied.
+Future<int?> placeStoredEggInChamber(AlchemonsDatabase db, Egg egg) async {
+  final freeSlot = await db.incubatorDao.firstFreeSlot();
+  if (freeSlot == null) return null;
+
+  final activeRemaining = ColdStorageService.activeRemainingFromEgg(egg);
+  final hatchAt = DateTime.now().toUtc().add(activeRemaining);
+
+  await db.incubatorDao.placeEgg(
+    slotId: freeSlot.id,
+    eggId: egg.eggId,
+    resultCreatureId: egg.resultCreatureId,
+    bonusVariantId: egg.bonusVariantId,
+    rarity: egg.rarity,
+    hatchAtUtc: hatchAt,
+    payloadJson: ColdStorageService.clearColdStoragePayload(egg.payloadJson),
+  );
+  await db.incubatorDao.removeFromInventory(egg.eggId);
+  return freeSlot.id;
+}
+
+class _AutoMoveButton extends StatelessWidget {
+  const _AutoMoveButton({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFF67E8F9);
+    return GestureDetector(
+      onTap: context.soundAction(onTap),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: accent.withValues(alpha: 0.65)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(AppIcons.bubble_chart_rounded, color: accent, size: 13),
+            const SizedBox(width: 5),
+            Text(
+              'AUTO MOVE TO EMPTY CHAMBERS ($count)',
+              style: const TextStyle(
+                color: accent,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1110,23 +1223,7 @@ class EggDetailsModal extends StatelessWidget {
       return;
     }
 
-    // Calculate hatch time from remaining duration
-    final activeRemaining = ColdStorageService.activeRemainingFromEgg(egg);
-    final hatchAt = DateTime.now().toUtc().add(activeRemaining);
-
-    // Place in incubator slot
-    await db.incubatorDao.placeEgg(
-      slotId: freeSlot.id,
-      eggId: egg.eggId,
-      resultCreatureId: egg.resultCreatureId,
-      bonusVariantId: egg.bonusVariantId,
-      rarity: egg.rarity,
-      hatchAtUtc: hatchAt,
-      payloadJson: ColdStorageService.clearColdStoragePayload(egg.payloadJson),
-    );
-
-    // Remove from storage
-    await db.incubatorDao.removeFromInventory(egg.eggId);
+    await placeStoredEggInChamber(db, egg);
 
     if (!context.mounted) return;
     HapticFeedback.lightImpact();

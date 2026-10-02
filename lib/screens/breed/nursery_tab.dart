@@ -337,6 +337,7 @@ class _NurseryTabState extends State<NurseryTab> {
                       primaryColor: theme.text,
                       buildSectionHeader: _buildSectionHeader,
                       quality: _cinematicQuality,
+                      canAutoMove: canBatchExtract,
                     ),
                   ),
                 ],

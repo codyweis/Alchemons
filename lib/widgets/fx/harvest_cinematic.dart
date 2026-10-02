@@ -284,9 +284,14 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
             resolving: _resolving,
           );
           final cut = _field.cutY(beat.collapse);
-          // A live specimen on the host's screen is cut there.
-          if (widget.liveTarget != null && _field.hasSpecimen) {
-            widget.liveTarget!.onCut(cut);
+          // A live specimen on the host's screen is cut there — after this
+          // frame, because the host's sprite is built by another widget and
+          // cannot be marked dirty from inside this build.
+          final live = widget.liveTarget;
+          if (live != null && _field.hasSpecimen) {
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => live.onCut(cut),
+            );
           }
           Widget field({required bool back}) => Positioned.fill(
             child: CustomPaint(
