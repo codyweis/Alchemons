@@ -1773,7 +1773,7 @@ class _AlchemicalPowerupFeedingScreenState
       _potentialSoulRoll = null;
       _frozenStatValues = frozenStats;
       _frozenPotentialValues = frozenPotentials;
-      _message = 'SOUL INFUSION: awakening ${type.statKey} Potential...';
+      _message = null;
     });
 
     // Resolve the atomic item/currency transaction first, but keep the old
@@ -1813,7 +1813,6 @@ class _AlchemicalPowerupFeedingScreenState
       _jackpotAnimation = reveal.isJackpot;
       _orbitEndProgress = reveal.orbitEndProgress;
       _potentialSoulRoll = result.rolledGain;
-      _message = 'SOUL RESONANCE: revealing ${type.statKey} Potential...';
     });
 
     await _orbController.forward(from: 0);
@@ -1828,9 +1827,6 @@ class _AlchemicalPowerupFeedingScreenState
       if (!mounted) return;
       HapticFeedback.heavyImpact();
     }
-    final cappedNote = result.appliedGain < result.rolledGain
-        ? ' (rolled +${result.rolledGain}, capped at 100)'
-        : '';
     setState(() {
       _busy = false;
       _animatingType = null;
@@ -1844,8 +1840,8 @@ class _AlchemicalPowerupFeedingScreenState
       _potentialSoulRoll = null;
       _soulArmed = false;
       _infusionBody = null;
-      _message =
-          'SOUL AWAKENED: +${result.appliedGain} ${type.statKey} Potential$cappedNote • ${result.newPotential}/100 • -${_formatSilver(result.silverCost)} Silver';
+      // No banner, as with the Orb: the reveal calls the roll and the
+      // Potential plate updates in place. Errors still use _message.
     });
   }
 
