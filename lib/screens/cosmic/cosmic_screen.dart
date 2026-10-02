@@ -4645,7 +4645,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     return true;
   }
 
-  static const int _relocateCost = 50;
+  static const int _relocateCost = kRelocateHomeCost;
   static const int _starDustScanCost = 50;
   static const int _planetScanCost = 50;
 
@@ -4962,6 +4962,24 @@ class _CosmicScreenState extends State<CosmicScreen>
                 color: canDeposit
                     ? CosmicScreenStyles.amber
                     : _cosmicMeterPalette.muted,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+        // The way down to the home biome under the planet. It sits on the
+        // rail with the base's other actions rather than popping up over
+        // the field whenever the ship comes home.
+        Tooltip(
+          message: 'Descend',
+          child: GestureDetector(
+            key: const ValueKey('cosmic.rail.descend'),
+            onTap: context.soundAction(() => unawaited(_descendHome())),
+            child: _CosmicSquareHudButton(
+              accent: const Color(0xFFE4C16A),
+              child: Icon(
+                Icons.south_rounded,
+                color: const Color(0xFFE4C16A).withValues(alpha: 0.9),
                 size: 20,
               ),
             ),
@@ -8105,41 +8123,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   ),
                 ),
 
-              // ── Home planet HUD ──
-              // Near home, the way down to the home biome — where a planet
-              // shows its own descent, and in the same plate. It steps aside
-              // for any landmark standing nearby, whose prompt sits under it.
-              if (showCosmicHud &&
-                  _isNearHome &&
-                  _homePlanet != null &&
-                  _nearCache == null &&
-                  _nearMarketPOI == null &&
-                  _nearContestArena == null &&
-                  _nearPocketPortalElement == null &&
-                  !_isNearRift &&
-                  !_isNearNexus &&
-                  !_isNearBloodRing &&
-                  !_showElementsCaptured &&
-                  !_showMiniMap &&
-                  !_anyOverlayOpen)
-                Positioned(
-                  bottom: 132,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(
-                    child: Center(
-                      child: _planetCta(
-                        label: 'DESCEND',
-                        accent: const Color(0xFFE4C16A),
-                        glow: _homePlanet!.blendedColor,
-                        icon: Icons.south_rounded,
-                        onTap: context.soundTap(
-                          () => unawaited(_descendHome()),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
               // ── Mini-map overlay (animated open/close) ──
               if (showCosmicHud && (_showMiniMap || _miniMapCtrl.isAnimating))
                 Positioned.fill(
@@ -8246,6 +8229,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                     homePlanet: _homePlanet!,
                     elementStorage: _elementStorage,
                     stats: _homeBaseStats,
+                    paintHome: _game?.paintHomeShowcase,
+                    wearing: _customizationState.activeIds,
                     onCustomize: () => _openSubPanel(_CosmicPanel.home, () {
                       _showHomeMenu = false;
                       _showCustomizationMenu = true;
@@ -9220,6 +9205,9 @@ class _CosmicScreenState extends State<CosmicScreen>
               if (showCosmicHud && _showShipMenu)
                 ShipMenuOverlay(
                   hasHomePlanet: _homePlanet != null,
+                  shipSkin: _customizationState.activeShipSkin,
+                  ammoName: _customizationState.activeAmmo?.name,
+                  elementStorage: _elementStorage,
                   meterFill: _game?.meter.fillPct ?? 0,
                   walletShards: _game?.shipWallet.shards ?? 0,
                   shipHealth: _game?.shipHealth ?? 0,

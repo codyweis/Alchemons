@@ -11,34 +11,19 @@
 // Locked things keep their names to themselves ("???"), as they always have;
 // the stage and the thumbnails show them, dimmed, so a craft is never blind.
 
-import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic/cosmic_game.dart' show ShipComponent;
 import 'package:alchemons/games/cosmic/ship_art.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 
-import 'cosmic_overlay_chrome.dart';
+import 'cosmic_panel_kit.dart';
 import 'cosmic_screen_styles.dart';
-
-/// Draws the home planet into [area] at [time], wearing [wearing] in
-/// [color] — see CosmicGame.paintHomeShowcase.
-typedef HomeShowcasePainter =
-    void Function(
-      Canvas canvas,
-      Rect area,
-      double time, {
-      required Set<String> wearing,
-      String? color,
-    });
 
 class CustomizationMenuOverlay extends StatefulWidget {
   const CustomizationMenuOverlay({
@@ -144,8 +129,7 @@ class _Pick {
 
 const _shipAccent = CosmicScreenStyles.teal;
 const _homeAccent = CosmicScreenStyles.amberBright;
-const _palette = BracketPalette.dark;
-const _mono = 'monospace';
+const _palette = panelPalette;
 
 const _hullIds = ['skin_phantom', 'skin_solar', 'skin_inferno', 'skin_crystal'];
 const _weaponIds = ['equip_machinegun', 'equip_missiles'];
@@ -173,19 +157,9 @@ HomeRecipe? _recipe(String id) {
   return null;
 }
 
-class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
-    with SingleTickerProviderStateMixin {
+class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
   late int _activeTab = widget.initialTab;
   _Pick? _pick;
-
-  /// The stage's clock, in seconds since the lab opened.
-  final ValueNotifier<double> _clock = ValueNotifier(0);
-  late final Ticker _ticker = createTicker(
-    (d) => _clock.value = d.inMicroseconds / 1e6,
-  );
-
-  /// The ship on the SHIP stage. Kept, so its wake runs on unbroken.
-  final ShipComponent _stageShip = ShipComponent(pos: Offset.zero);
 
   /// Pictures of the planet wearing each effect, by what they were drawn
   /// with (effect, colour, options).
@@ -195,15 +169,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
   int get activeTabForTest => _activeTab;
 
   @override
-  void initState() {
-    super.initState();
-    _ticker.start();
-  }
-
-  @override
   void dispose() {
-    _ticker.dispose();
-    _clock.dispose();
     for (final img in _thumbs.values) {
       img.dispose();
     }
@@ -277,39 +243,29 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
   }
 
   Widget _header() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 4, 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'CUSTOMIZATION LAB',
-              style: _label(13, _palette.ink, spacing: 2.6),
-            ),
-          ),
-          // What there is to spend, a tap from the full list.
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: context.soundAction(() => _showResourcesPopup(context)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Row(
-                children: [
-                  if (widget.homePlanet != null) ...[
-                    _ShardAmount(_shards, size: 12.5),
-                    const SizedBox(width: 10),
-                  ],
-                  Icon(
-                    AppIcons.inventory_2_rounded,
-                    size: 16,
-                    color: _palette.muted,
-                  ),
-                ],
+    return PanelHeader(
+      title: 'CUSTOMIZATION LAB',
+      onClose: widget.onClose,
+      // What there is to spend, a tap from the full list.
+      trailing: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: context.soundAction(() => _showResourcesPopup(context)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            children: [
+              if (widget.homePlanet != null) ...[
+                ShardAmount(_shards, size: 12.5),
+                const SizedBox(width: 10),
+              ],
+              Icon(
+                AppIcons.inventory_2_rounded,
+                size: 16,
+                color: _palette.muted,
               ),
-            ),
+            ],
           ),
-          CosmicCloseButton(onTap: widget.onClose),
-        ],
+        ),
       ),
     );
   }
@@ -341,7 +297,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
   Widget _stage(Color accent) {
     final pick = _pick;
     final cs = widget.customizationState;
-    final _StagePainter painter;
+    final Widget stage;
     String caption;
     if (_activeTab == 0) {
       // The hull on show: the one picked, else the one flying.
@@ -354,9 +310,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
       final id = pick?.kind == _PickKind.recipe ? pick!.id : null;
       final firing = _ammoIds.contains(id) || _weaponIds.contains(id);
       final ammo = _ammoIds.contains(id) ? id : cs.activeAmmo?.id;
-      painter = _ShipStagePainter(
-        clock: _clock,
-        ship: _stageShip,
+      stage = ShipStage(
         skin: skin,
         orbitals: cs.hasOrbitals || id == 'equip_orbitals',
         bolts: firing ? _ammoColor(ammo) : null,
@@ -377,8 +331,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
         wearing = {...wearing, pick.id!};
       }
       if (pick?.kind == _PickKind.color) color = pick!.id;
-      painter = _HomeStagePainter(
-        clock: _clock,
+      stage = HomeStage(
         paintHome: planet == null ? null : widget.paintHome,
         wearing: wearing,
         color: color,
@@ -389,13 +342,11 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
       height: 176,
       child: Stack(
         children: [
-          Positioned.fill(
-            child: RepaintBoundary(child: CustomPaint(painter: painter)),
-          ),
+          Positioned.fill(child: stage),
           Positioned(
             left: 16,
             bottom: 8,
-            child: Text(caption, style: _label(10.5, _palette.muted)),
+            child: Text(caption, style: panelLabel(10.5, _palette.muted)),
           ),
           if (_activeTab == 1 && widget.canPreview && widget.onPreview != null)
             Positioned(
@@ -565,7 +516,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
         spacing: 8,
         runSpacing: 2,
         children: [
-          for (final e in cost.entries) _CostChip(e.key, e.value, _stored),
+          for (final e in cost.entries) CostChip(e.key, e.value, _stored),
         ],
       ),
       buttonLabel: widget.isNearHome ? 'UPGRADE' : 'DOCK AT HOME',
@@ -591,7 +542,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
       value: value,
       accent: _shipAccent,
       maxed: maxed,
-      cost: _ShardAmount(next, size: 11.5, enabled: _shards >= next),
+      cost: ShardAmount(next, size: 11.5, enabled: _shards >= next),
       buttonLabel: 'LV ${level + 1}',
       enabled: _shards >= next,
       onUpgrade: () => _after(onUpgrade),
@@ -624,7 +575,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
                 accent: _homeAccent,
                 trailing: Text(
                   '${widget.garrisonStationed}/${widget.garrisonSlots}',
-                  style: _label(
+                  style: panelLabel(
                     11.5,
                     widget.garrisonSlots > 0 &&
                             widget.garrisonStationed >= widget.garrisonSlots
@@ -863,10 +814,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: _label(13.5, _palette.ink, spacing: 1.8)),
+              Text(title, style: panelLabel(13.5, _palette.ink, spacing: 1.8)),
               if (subtitle != null) ...[
                 const SizedBox(height: 3),
-                Text(subtitle, style: _label(10.5, _palette.muted)),
+                Text(subtitle, style: panelLabel(10.5, _palette.muted)),
               ],
             ],
           ),
@@ -901,7 +852,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
       runSpacing: 6,
       children: [
         for (final e in cost.entries)
-          _CostChip(e.key, e.value, _stored, size: 12.5),
+          CostChip(e.key, e.value, _stored, size: 12.5),
       ],
     ),
   );
@@ -1003,7 +954,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(param.label.toUpperCase(), style: _label(10.5, _palette.muted)),
+          Text(
+            param.label.toUpperCase(),
+            style: panelLabel(10.5, _palette.muted),
+          ),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
@@ -1077,7 +1031,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
         _dockTitle(HomePlanet.tierNames[tier].toUpperCase(), subtitle: 'SIZE'),
         Padding(
           padding: const EdgeInsets.only(top: 10),
-          child: _ShardAmount(cost, size: 13, enabled: _shards >= cost),
+          child: ShardAmount(cost, size: 13, enabled: _shards >= cost),
         ),
         _action(
           'UNLOCK',
@@ -1094,25 +1048,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
 
   // ── pieces ─────────────────────────────────────────────────────────────
 
-  Widget _section(String title, {String? trailing}) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 8),
-      child: Row(
-        children: [
-          Text(title, style: _label(10.5, _palette.muted, spacing: 1.8)),
-          const SizedBox(width: 10),
-          Expanded(child: Container(height: 1, color: _palette.lineSoft)),
-          if (trailing != null) ...[
-            const SizedBox(width: 10),
-            Text(
-              trailing.toUpperCase(),
-              style: _label(10.5, _palette.ink.withValues(alpha: 0.8)),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  Widget _section(String title, {String? trailing}) =>
+      PanelSectionHeader(title, trailing: trailing);
 
   /// [children] in rows of [columns].
   Widget _grid(int columns, List<Widget> children) {
@@ -1162,7 +1099,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
                         Expanded(
                           child: Text(
                             'RESOURCES',
-                            style: _label(12, _palette.ink, spacing: 2),
+                            style: panelLabel(12, _palette.ink, spacing: 2),
                           ),
                         ),
                         BracketIconButton(
@@ -1181,13 +1118,13 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
                         children: [
                           Text(
                             'ASTRAL SHARDS',
-                            style: _label(
+                            style: panelLabel(
                               11.5,
                               CosmicScreenStyles.astralShardColor,
                             ),
                           ),
                           const Spacer(),
-                          _ShardAmount(_shards, size: 12),
+                          ShardAmount(_shards, size: 12),
                         ],
                       ),
                     ),
@@ -1197,7 +1134,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
                       padding: const EdgeInsets.all(20),
                       child: Text(
                         'No elements collected yet',
-                        style: _label(11.5, _palette.muted),
+                        style: panelLabel(11.5, _palette.muted),
                       ),
                     )
                   else
@@ -1214,17 +1151,20 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
                               ),
                               child: Row(
                                 children: [
-                                  _Dot(elementInk(e.key)),
+                                  PanelDot(elementInk(e.key)),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       e.key.toUpperCase(),
-                                      style: _label(11.5, elementInk(e.key)),
+                                      style: panelLabel(
+                                        11.5,
+                                        elementInk(e.key),
+                                      ),
                                     ),
                                   ),
                                   Text(
-                                    _fmt(e.value),
-                                    style: _label(11.5, _palette.ink),
+                                    panelFmt(e.value),
+                                    style: panelLabel(11.5, _palette.ink),
                                   ),
                                 ],
                               ),
@@ -1237,11 +1177,11 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
                     padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
                     child: Row(
                       children: [
-                        Text('TOTAL', style: _label(11.5, _palette.muted)),
+                        Text('TOTAL', style: panelLabel(11.5, _palette.muted)),
                         const Spacer(),
                         Text(
-                          _fmt(widget.elementStorage.total),
-                          style: _label(11.5, _palette.ink),
+                          panelFmt(widget.elementStorage.total),
+                          style: panelLabel(11.5, _palette.ink),
                         ),
                       ],
                     ),
@@ -1257,91 +1197,6 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
 }
 
 // ── small widgets ───────────────────────────────────────────────────────────
-
-TextStyle _label(double size, Color color, {double spacing = 1.2}) => TextStyle(
-  fontFamily: _mono,
-  color: color,
-  fontSize: size,
-  fontWeight: FontWeight.w800,
-  letterSpacing: spacing,
-);
-
-/// Format a number with commas (e.g. 1234567 → "1,234,567").
-String _fmt(num n) {
-  final s = n.toStringAsFixed(0);
-  final buf = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0 && s[i] != '-') buf.write(',');
-    buf.write(s[i]);
-  }
-  return buf.toString();
-}
-
-class _Dot extends StatelessWidget {
-  const _Dot(this.color, {this.size = 7});
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-  );
-}
-
-class _ShardAmount extends StatelessWidget {
-  const _ShardAmount(this.amount, {this.size = 12, this.enabled = true});
-  final int amount;
-  final double size;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = enabled
-        ? CosmicScreenStyles.astralShardColor
-        : CosmicScreenStyles.textMuted;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(CosmicScreenStyles.astralShardIcon, size: size, color: color),
-        SizedBox(width: size * 0.3),
-        Text(_fmt(amount), style: _label(size, color, spacing: 0.4)),
-      ],
-    );
-  }
-}
-
-/// One element of a price: how much is held against how much it takes.
-class _CostChip extends StatelessWidget {
-  const _CostChip(this.element, this.need, this.stored, {this.size = 11});
-  final String element;
-  final int need;
-  final Map<String, double> stored;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final has = stored[element] ?? 0;
-    final enough = has >= need;
-    final ink = elementInk(element);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _Dot(enough ? ink : ink.withValues(alpha: 0.4), size: size * 0.6),
-        SizedBox(width: size * 0.4),
-        Text(
-          '$element ${_fmt(has)}/${_fmt(need)}',
-          style: _label(
-            size,
-            enough ? ink : CosmicScreenStyles.textMuted,
-            spacing: 0.3,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _OptionChip extends StatelessWidget {
   const _OptionChip({
@@ -1364,7 +1219,7 @@ class _OptionChip extends StatelessWidget {
           : _palette.surfaceMutedFill(),
       child: Text(
         label.toUpperCase(),
-        style: _label(10.5, selected ? _palette.ink : _palette.muted),
+        style: panelLabel(10.5, selected ? _palette.ink : _palette.muted),
       ),
     );
     return GestureDetector(
@@ -1443,7 +1298,7 @@ class _Tile extends StatelessWidget {
                         top: 1,
                         right: 1,
                         child: craftable
-                            ? const _Dot(
+                            ? const PanelDot(
                                 CosmicScreenStyles.amberBright,
                                 size: 6,
                               )
@@ -1465,7 +1320,7 @@ class _Tile extends StatelessWidget {
                           label!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: _label(
+                          style: panelLabel(
                             9,
                             equipped ? _palette.ink : _palette.muted,
                             spacing: 0.6,
@@ -1524,7 +1379,7 @@ class _SizeCell extends StatelessWidget {
               Text(
                 name,
                 maxLines: 1,
-                style: _label(
+                style: panelLabel(
                   10,
                   active
                       ? _palette.ink
@@ -1536,7 +1391,7 @@ class _SizeCell extends StatelessWidget {
               ),
               if (cost != null) ...[
                 const SizedBox(height: 3),
-                FittedBox(child: _ShardAmount(cost!, size: 9.5)),
+                FittedBox(child: ShardAmount(cost!, size: 9.5)),
               ] else if (!unlocked) ...[
                 const SizedBox(height: 3),
                 Icon(
@@ -1709,7 +1564,7 @@ class _EffectThumbPainter extends CustomPainter {
       );
       return;
     }
-    _plainPlanet(
+    paintPlainPlanet(
       canvas,
       size.center(Offset.zero),
       size.shortestSide * 0.2,
@@ -1720,24 +1575,6 @@ class _EffectThumbPainter extends CustomPainter {
   @override
   bool shouldRepaint(_EffectThumbPainter old) =>
       old.image != image || old.fallbackColor != fallbackColor;
-}
-
-void _plainPlanet(Canvas canvas, Offset c, double r, Color col) {
-  canvas.drawCircle(
-    c,
-    r,
-    Paint()
-      ..shader = ui.Gradient.radial(
-        c + Offset(-r * 0.35, -r * 0.4),
-        r * 1.4,
-        [
-          Color.lerp(col, Colors.white, 0.3)!,
-          col,
-          Color.lerp(col, Colors.black, 0.7)!,
-        ],
-        const [0.0, 0.4, 1.0],
-      ),
-  );
 }
 
 /// The picture on a ship-part tile: what it puts in the sky, in miniature.
@@ -1784,11 +1621,11 @@ class _GlyphPainter extends CustomPainter {
         );
       case 'equip_missiles':
         for (final dx in const [-6.0, 6.0]) {
-          _missile(canvas, c + Offset(dx * u, dx.sign * 3 * u), u);
+          paintMissileGlyph(canvas, c + Offset(dx * u, dx.sign * 3 * u), u);
         }
       case 'equip_machinegun':
         for (var i = 0; i < 3; i++) {
-          _bolt(
+          paintBoltGlyph(
             canvas,
             c + Offset(0, (i - 1) * 11 * u),
             u * 0.8,
@@ -1796,244 +1633,12 @@ class _GlyphPainter extends CustomPainter {
           );
         }
       default:
-        _bolt(canvas, c, u * 1.25, _ammoColor(id));
+        paintBoltGlyph(canvas, c, u * 1.25, _ammoColor(id));
     }
   }
 
   @override
   bool shouldRepaint(_GlyphPainter old) => old.id != id;
-}
-
-/// A bolt in flight, nose up: a hot head trailing its colour.
-void _bolt(Canvas canvas, Offset at, double u, Color col) {
-  final tail = Path()
-    ..moveTo(at.dx - 2.4 * u, at.dy - 2 * u)
-    ..quadraticBezierTo(at.dx - 1.2 * u, at.dy + 6 * u, at.dx, at.dy + 11 * u)
-    ..quadraticBezierTo(
-      at.dx + 1.2 * u,
-      at.dy + 6 * u,
-      at.dx + 2.4 * u,
-      at.dy - 2 * u,
-    )
-    ..close();
-  canvas.drawPath(
-    tail,
-    Paint()
-      ..shader = ui.Gradient.linear(at, at + Offset(0, 11 * u), [
-        col.withValues(alpha: 0.85),
-        col.withValues(alpha: 0),
-      ]),
-  );
-  canvas.drawCircle(
-    at - Offset(0, 1.2 * u),
-    3.4 * u,
-    Paint()
-      ..shader = ui.Gradient.radial(
-        at - Offset(0, 1.2 * u),
-        3.4 * u,
-        [Colors.white, col, col.withValues(alpha: 0)],
-        const [0.0, 0.45, 1.0],
-      ),
-  );
-}
-
-/// A seeker missile, nose up: a dark dart with its motor lit.
-void _missile(Canvas canvas, Offset at, double u) {
-  final body = Path()
-    ..moveTo(at.dx, at.dy - 9 * u)
-    ..lineTo(at.dx - 2.4 * u, at.dy + 4 * u)
-    ..lineTo(at.dx, at.dy + 2.6 * u)
-    ..lineTo(at.dx + 2.4 * u, at.dy + 4 * u)
-    ..close();
-  final flame = Path()
-    ..moveTo(at.dx - 1.4 * u, at.dy + 3.4 * u)
-    ..quadraticBezierTo(at.dx, at.dy + 13 * u, at.dx + 1.4 * u, at.dy + 3.4 * u)
-    ..close();
-  canvas.drawPath(
-    flame,
-    Paint()
-      ..shader = ui.Gradient.linear(
-        at + Offset(0, 3 * u),
-        at + Offset(0, 13 * u),
-        [const Color(0xFFFFE0B0), const Color(0x00FF8A3D)],
-      ),
-  );
-  canvas.drawPath(
-    body,
-    Paint()
-      ..shader = ui.Gradient.linear(
-        at + Offset(-2.4 * u, 0),
-        at + Offset(2.4 * u, 0),
-        [const Color(0xFF6A7488), const Color(0xFF1C2029)],
-      ),
-  );
-  canvas.drawCircle(
-    at - Offset(0, 4.5 * u),
-    1.1 * u,
-    Paint()..color = const Color(0xFFFFB74D),
-  );
-}
-
-/// The stage's backdrop: deep space with a few stars, the same each frame.
-abstract class _StagePainter extends CustomPainter {
-  _StagePainter(this.clock) : super(repaint: clock);
-  final ValueListenable<double> clock;
-
-  static final List<(double, double, double)> _stars = () {
-    final r = Random(11);
-    return [
-      for (var i = 0; i < 46; i++)
-        (r.nextDouble(), r.nextDouble(), 0.15 + r.nextDouble() * 0.45),
-    ];
-  }();
-
-  void paintBackdrop(Canvas canvas, Size size, Color tint) {
-    final rect = Offset.zero & size;
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = ui.Gradient.radial(rect.center, size.longestSide * 0.6, [
-          tint.withValues(alpha: 0.10),
-          tint.withValues(alpha: 0),
-        ]),
-    );
-    final p = Paint();
-    for (final (x, y, a) in _stars) {
-      p.color = Colors.white.withValues(alpha: a);
-      canvas.drawCircle(Offset(x * size.width, y * size.height), 0.7, p);
-    }
-  }
-}
-
-class _ShipStagePainter extends _StagePainter {
-  _ShipStagePainter({
-    required ValueListenable<double> clock,
-    required this.ship,
-    required this.skin,
-    required this.orbitals,
-    required this.bolts,
-    required this.repeater,
-    required this.missiles,
-  }) : super(clock);
-
-  final ShipComponent ship;
-  final String? skin;
-  final bool orbitals;
-
-  /// When ammo is on show, the colour its bolts fly in.
-  final Color? bolts;
-  final bool repeater, missiles;
-
-  static const double _speed = 150;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final t = clock.value;
-    final light = shipLight(skin);
-    paintBackdrop(canvas, size, light.essence);
-    canvas.save();
-    canvas.clipRect(Offset.zero & size);
-    // The ship climbs steadily with a gentle weave; the camera keeps it in
-    // the middle, so its wake streams away below it.
-    final weave = 16 * sin(t * 0.6);
-    final y = -t * _speed;
-    ship
-      ..pos = Offset(weave, y)
-      ..angle = atan2(-_speed, 16 * 0.6 * cos(t * 0.6));
-    const zoom = 1.75;
-    canvas.translate(size.width / 2, size.height * 0.64);
-    canvas.scale(zoom);
-    canvas.translate(0, -y);
-    if (bolts != null) _paintBolts(canvas, t, y);
-    ship.render(canvas, t, skin: skin);
-    if (orbitals) {
-      for (var i = 0; i < OrbitalSentinel.maxActive; i++) {
-        final a = t * OrbitalSentinel.orbitSpeed + i * 2 * pi / 3;
-        paintOrbitalSentinel(
-          canvas,
-          ship.pos + Offset(cos(a), sin(a)) * OrbitalSentinel.orbitRadius,
-          light,
-          time: t,
-          seed: i * 1.7,
-          radius: OrbitalSentinel.hitboxRadius * 0.6,
-        );
-      }
-    }
-    canvas.restore();
-  }
-
-  /// Fire on show: bolts (or missiles) leaving the nose at the weapon's
-  /// rate, laid out from when each was fired.
-  void _paintBolts(Canvas canvas, double t, double shipY) {
-    // Slower than in space, so the eye can follow them off the stage.
-    final period = missiles ? 0.6 : (repeater ? 0.16 : 0.34);
-    final speed = missiles ? 170.0 : 260.0;
-    final col = bolts!;
-    final last = (t / period).floor();
-    for (var k = 0; k < 8; k++) {
-      final fired = (last - k) * period;
-      if (fired < 0) break;
-      final age = t - fired;
-      final at = Offset(
-        16 * sin(fired * 0.6),
-        -fired * _speed - 30 - age * speed,
-      );
-      if (at.dy < shipY - 140) break;
-      if (missiles) {
-        _missile(canvas, at, 1.1);
-      } else {
-        _bolt(canvas, at, 0.9, col);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_ShipStagePainter old) =>
-      old.skin != skin ||
-      old.orbitals != orbitals ||
-      old.bolts != bolts ||
-      old.repeater != repeater ||
-      old.missiles != missiles;
-}
-
-class _HomeStagePainter extends _StagePainter {
-  _HomeStagePainter({
-    required ValueListenable<double> clock,
-    required this.paintHome,
-    required this.wearing,
-    required this.color,
-  }) : super(clock);
-
-  final HomeShowcasePainter? paintHome;
-  final Set<String> wearing;
-  final String? color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final swatch = homeColorSwatch(color);
-    paintBackdrop(canvas, size, swatch);
-    final area = Rect.fromCenter(
-      center: size.center(Offset.zero),
-      width: size.height * 1.15,
-      height: size.height * 1.15,
-    );
-    final paint = paintHome;
-    if (paint == null) {
-      _plainPlanet(canvas, area.center, size.height * 0.2, swatch);
-      return;
-    }
-    canvas.save();
-    canvas.clipRect(Offset.zero & size);
-    paint(canvas, area, 4 + clock.value, wearing: wearing, color: color);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_HomeStagePainter old) =>
-      old.paintHome != paintHome ||
-      old.color != color ||
-      old.wearing.length != wearing.length ||
-      !old.wearing.containsAll(wearing);
 }
 
 class _UpgradeRow extends StatelessWidget {
@@ -2072,7 +1677,7 @@ class _UpgradeRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(label, style: _label(11.5, _palette.ink)),
+              Text(label, style: panelLabel(11.5, _palette.ink)),
               const SizedBox(width: 10),
               for (var i = 0; i < max; i++)
                 Container(
@@ -2086,7 +1691,7 @@ class _UpgradeRow extends StatelessWidget {
               const Spacer(),
               Text(
                 value,
-                style: _label(
+                style: panelLabel(
                   11,
                   maxed ? CosmicScreenStyles.success : accent,
                   spacing: 0.6,
@@ -2096,7 +1701,7 @@ class _UpgradeRow extends StatelessWidget {
           ),
           const SizedBox(height: 7),
           if (maxed)
-            Text('MAX', style: _label(10.5, CosmicScreenStyles.success))
+            Text('MAX', style: panelLabel(10.5, CosmicScreenStyles.success))
           else
             Row(
               children: [
