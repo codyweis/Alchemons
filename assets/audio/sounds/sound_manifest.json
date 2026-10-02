@@ -320,18 +320,6 @@
     ]
   },
   {
-    "name": "sfx_combat_critical",
-    "category": "Shared combat",
-    "description": "Sharper sparkling impact; replaces normal hit",
-    "target": "0.25\u20130.55 s",
-    "path": "assets/audio/sounds/sfx_combat_critical.wav",
-    "duration": 0.4,
-    "loop": false,
-    "peak_db": -8.87,
-    "rms_db": -25.25,
-    "sha256": "12631f9c55ae4450c451f3b3780e7dcba74180315dd3eabec2c7adf01c105c46"
-  },
-  {
     "name": "sfx_combat_player_hurt",
     "category": "Shared combat",
     "description": "Distinct dull impact and downward energy tone",

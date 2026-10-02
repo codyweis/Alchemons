@@ -28,7 +28,6 @@ enum SoundCue {
   combatProjectile('assets/audio/sounds/sfx_combat_projectile.wav'),
   combatHitLight('assets/audio/sounds/sfx_combat_hit_light.wav'),
   combatHitHeavy('assets/audio/sounds/sfx_combat_hit_heavy.wav'),
-  combatCritical('assets/audio/sounds/sfx_combat_critical.wav'),
   combatPlayerHurt('assets/audio/sounds/sfx_combat_player_hurt.wav'),
   combatEnemyDefeat('assets/audio/sounds/sfx_combat_enemy_defeat.wav'),
   combatShieldHit('assets/audio/sounds/sfx_combat_shield_hit.wav'),

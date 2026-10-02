@@ -3941,7 +3941,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   // Effective stats = the companion's raw stat plus all powerup/keystone
-  // bonuses. Every derived combat value (HP, attack, defense, crit, range,
+  // bonuses. Every derived combat value (HP, attack, defense, range,
   // cooldown, movement, special-ability scaling) reads from these so a
   // "+Strength" pick flows consistently into everything Strength touches.
   double _effectiveStrength(int slotIndex) => max(

@@ -61,7 +61,6 @@ The first five rows already have cue definitions and calls in the app. Their gen
 | P1 | `sfx_combat_projectile.wav` | 0.10–0.25 s | Soft compact energy launch |
 | P1 | `sfx_combat_hit_light.wav` | 0.10–0.25 s | Small crisp impact |
 | P1 | `sfx_combat_hit_heavy.wav` | 0.25–0.50 s | Weightier impact with controlled bass |
-| P2 | `sfx_combat_critical.wav` | 0.25–0.55 s | Sharper sparkling impact; replaces normal hit |
 | P1 | `sfx_combat_player_hurt.wav` | 0.25–0.50 s | Distinct dull impact and downward energy tone |
 | P1 | `sfx_combat_enemy_defeat.wav` | 0.25–0.60 s | Quick dissolving energy puff |
 | P2 | `sfx_combat_shield_hit.wav` | 0.15–0.35 s | Resonant glass deflection |

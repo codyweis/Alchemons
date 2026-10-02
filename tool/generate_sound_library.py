@@ -145,7 +145,6 @@ recipe('cosmic_scan', .90, .22, lambda s: s.tone(740, decay=.10, attack=.012, me
 
 recipe('combat_hit_light', .18, .28, lambda s: s.impact(size=.65))
 recipe('combat_hit_heavy', .38, .38, lambda s: s.impact(size=1.65).debris(3, span=.065, high=1600, amp=.14))
-recipe('combat_critical', .40, .36, lambda s: s.impact(size=1.1).notes([1568, 2093], gap=.018, start=.01, decay=.035, amp=.20))
 recipe('combat_player_hurt', .38, .34, lambda s: s.impact(size=1.2).tone(360, decay=.065, end=145, glide=.033, amp=.40))
 recipe('combat_enemy_defeat', .45, .25, lambda s: s.noise(decay=.065, low=300, high=1500).tone(470, decay=.07, end=95, glide=.04, amp=.4))
 recipe('combat_shield_hit', .28, .26, lambda s: s.notes([622.25, 932.33, 1370], gap=0, decay=.044, amp=.35).noise(decay=.012, amp=.12, low=1800, high=6500))
@@ -449,7 +448,7 @@ def catalog():
             cells = [c.strip() for c in line.split('|')[1:-1]]
             rows.append({'name': match[1], 'category': section, 'description': cells[-1],
                          'target': cells[-2]})
-    assert len(rows) == 100, len(rows)
+    assert len(rows) == 99, len(rows)
     return rows
 
 
