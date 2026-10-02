@@ -35,8 +35,6 @@ Future<void> _pump(
         body: ConstellationSkillDialog(
           skill: skill,
           mode: mode,
-          primary: const Color(0xFF4DA3FF),
-          secondary: const Color(0xFFE8DCC8),
           pointsAvailable: points,
           prerequisiteStates: prereqStates,
           onUnlock: onUnlock,

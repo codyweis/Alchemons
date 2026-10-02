@@ -16,12 +16,14 @@
 //   * shows prerequisites as a checklist, not a bare list of names
 //
 // It takes plain data and callbacks so it can be rendered in a test.
-
-import 'dart:math' as math;
+//
+// It wears the chart's materials: the skill's own stone (StoneArt), its tree's
+// light as the accent, and the bracket frames the lab and the market use.
 
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/games/constellations/constellation_art.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
-import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 
 /// Which of the three states the tapped node is in.
@@ -41,8 +43,6 @@ class ConstellationSkillDialog extends StatelessWidget {
     super.key,
     required this.skill,
     required this.mode,
-    required this.primary,
-    required this.secondary,
     required this.pointsAvailable,
     this.prerequisiteStates = const {},
     this.onUnlock,
@@ -50,8 +50,6 @@ class ConstellationSkillDialog extends StatelessWidget {
 
   final ConstellationSkill skill;
   final SkillDialogMode mode;
-  final Color primary;
-  final Color secondary;
 
   /// The player's current skill-point balance, so the cost can be read as a
   /// ledger rather than a number in isolation.
@@ -65,17 +63,16 @@ class ConstellationSkillDialog extends StatelessWidget {
   bool get _affordable => pointsAvailable >= skill.pointsCost;
   bool get _canBuy => mode == SkillDialogMode.available && _affordable;
 
-  static const _bg = Color(0xFF0B0E14);
-  static const _bgRaised = Color(0xFF141A24);
-  static const _hairline = Color(0xFF232C3A);
-  static const _text = Color(0xFFE8DCC8);
-  static const _textSoft = Color(0xFFAFBDCC);
-  static const _textMuted = Color(0xFF7E8CA0);
+  static const _bg = Color(0xFF0E1117);
+  static const _bgRaised = Color(0xFF080A0E);
+  static const _hairline = Color(0xFF252D3A);
+  static const _text = kChartInk;
+  static const _textSoft = Color(0xFFCFC4B1);
+  static const _textMuted = kChartMuted;
 
   Color get _accent => switch (mode) {
-    SkillDialogMode.owned => primary,
-    SkillDialogMode.available => Color.lerp(primary, secondary, 0.35)!,
     SkillDialogMode.locked => _textMuted,
+    _ => treeLight(skill.tree).essence,
   };
 
   static const _tierNames = [
@@ -99,83 +96,77 @@ class ConstellationSkillDialog extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 380),
         child: Material(
           color: Colors.transparent,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
-            decoration: BoxDecoration(
-              color: _bg,
-              // Square corners throughout: the star chart is drawn from
-              // hexagons and straight connection lines, and rounded panels
-              // read as generic app chrome sitting on top of it.
-              borderRadius: BorderRadius.zero,
-              border: Border.all(color: accent.withValues(alpha: 0.30)),
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.10),
-                  blurRadius: 32,
-                  spreadRadius: 2,
-                ),
-                const BoxShadow(color: Color(0xCC000000), blurRadius: 24),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _Header(
-                  skill: skill,
-                  mode: mode,
-                  accent: accent,
-                  tierLabel: _tierLabel,
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        skill.description,
-                        style: const TextStyle(
-                          color: _textSoft,
-                          fontSize: 13.5,
-                          height: 1.55,
-                        ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: CustomPaint(
+              foregroundPainter: BracketFramePainter(
+                color: accent.withValues(alpha: 0.9),
+                bracketSize: 14,
+                strokeWidth: 1.3,
+              ),
+              child: ColoredBox(
+                color: _bg,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _Header(
+                      skill: skill,
+                      mode: mode,
+                      accent: accent,
+                      tierLabel: _tierLabel,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            skill.description,
+                            style: const TextStyle(
+                              color: _textSoft,
+                              fontSize: 13.5,
+                              height: 1.55,
+                            ),
+                          ),
+                          if (mode == SkillDialogMode.locked &&
+                              skill.prerequisites.isNotEmpty) ...[
+                            const SizedBox(height: 18),
+                            _PrerequisiteList(
+                              skill: skill,
+                              states: prerequisiteStates,
+                            ),
+                          ],
+                          // A locked skill shows its price for planning, but not
+                          // a balance and remainder — that framing implies you
+                          // could buy it, and prerequisites are the real blocker.
+                          if (mode == SkillDialogMode.locked) ...[
+                            const SizedBox(height: 16),
+                            _CostLine(cost: skill.pointsCost),
+                          ] else if (mode == SkillDialogMode.available) ...[
+                            const SizedBox(height: 18),
+                            _CostLedger(
+                              cost: skill.pointsCost,
+                              available: pointsAvailable,
+                              accent: accent,
+                              warn: !_affordable,
+                            ),
+                          ],
+                          const SizedBox(height: 18),
+                          _Actions(
+                            mode: mode,
+                            canBuy: _canBuy,
+                            accent: accent,
+                            cost: skill.pointsCost,
+                            shortfall: skill.pointsCost - pointsAvailable,
+                            onUnlock: onUnlock,
+                          ),
+                        ],
                       ),
-                      if (mode == SkillDialogMode.locked &&
-                          skill.prerequisites.isNotEmpty) ...[
-                        const SizedBox(height: 18),
-                        _PrerequisiteList(
-                          skill: skill,
-                          states: prerequisiteStates,
-                        ),
-                      ],
-                      // A locked skill shows its price for planning, but not
-                      // a balance and remainder — that framing implies you
-                      // could buy it, and prerequisites are the real blocker.
-                      if (mode == SkillDialogMode.locked) ...[
-                        const SizedBox(height: 16),
-                        _CostLine(cost: skill.pointsCost),
-                      ] else if (mode == SkillDialogMode.available) ...[
-                        const SizedBox(height: 18),
-                        _CostLedger(
-                          cost: skill.pointsCost,
-                          available: pointsAvailable,
-                          accent: accent,
-                          warn: !_affordable,
-                        ),
-                      ],
-                      const SizedBox(height: 18),
-                      _Actions(
-                        mode: mode,
-                        canBuy: _canBuy,
-                        accent: accent,
-                        cost: skill.pointsCost,
-                        shortfall: skill.pointsCost - pointsAvailable,
-                        onUnlock: onUnlock,
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -221,22 +212,17 @@ class _Header extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               SizedBox(
-                width: 54,
-                height: 54,
+                width: 60,
+                height: 60,
                 child: CustomPaint(
-                  painter: _NodeSigilPainter(
-                    accent: accent,
-                    filled: mode == SkillDialogMode.owned,
-                    dim: mode == SkillDialogMode.locked,
-                  ),
-                  child: Center(
-                    child: Icon(
-                      skill.identityIcon,
-                      size: 22,
-                      color: mode == SkillDialogMode.locked
-                          ? ConstellationSkillDialog._textMuted
-                          : accent,
-                    ),
+                  painter: _StonePainter(
+                    tree: skill.tree,
+                    sigil: sigilFor(skill),
+                    state: switch (mode) {
+                      SkillDialogMode.owned => StoneState.owned,
+                      SkillDialogMode.available => StoneState.open,
+                      SkillDialogMode.locked => StoneState.locked,
+                    },
                   ),
                 ),
               ),
@@ -285,11 +271,8 @@ class _Header extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 7),
-                              Icon(
-                                AppIcons.check_circle,
-                                size: 12,
-                                color: accent.withValues(alpha: 0.9),
-                              ),
+                              _Mark(color: accent.withValues(alpha: 0.9)),
+                              const SizedBox(width: 2),
                               const SizedBox(width: 3),
                               Text(
                                 'ATTUNED',
@@ -346,10 +329,10 @@ class _StarRulePainter extends CustomPainter {
     canvas.drawLine(Offset(0, y), Offset(mid - 9, y), line);
     canvas.drawLine(Offset(mid + 9, y), Offset(size.width, y), line);
 
-    final dot = Paint()..color = accent.withValues(alpha: 0.85);
-    canvas.drawCircle(Offset(mid, y), 2.4, dot);
-    final halo = Paint()..color = accent.withValues(alpha: 0.22);
-    canvas.drawCircle(Offset(mid, y), 5.0, halo);
+    canvas.drawPath(
+      costStarPath(Offset(mid, y), 5.5),
+      Paint()..color = accent.withValues(alpha: 0.85),
+    );
   }
 
   @override
@@ -366,75 +349,79 @@ Shader _ruleGradient(Size size, Color accent) {
   ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 }
 
-/// The same hexagon the star chart draws for a node.
-class _NodeSigilPainter extends CustomPainter {
-  const _NodeSigilPainter({
-    required this.accent,
-    required this.filled,
-    required this.dim,
+/// The skill's own stone, as the chart draws it, with its glyph.
+class _StonePainter extends CustomPainter {
+  const _StonePainter({
+    required this.tree,
+    required this.sigil,
+    required this.state,
   });
 
-  final Color accent;
-  final bool filled;
-  final bool dim;
-
-  Path _hex(Offset c, double r) {
-    final p = Path();
-    for (var i = 0; i < 6; i++) {
-      final a = (math.pi / 3) * i - math.pi / 6;
-      final x = c.dx + r * math.cos(a);
-      final y = c.dy + r * math.sin(a);
-      i == 0 ? p.moveTo(x, y) : p.lineTo(x, y);
-    }
-    return p..close();
-  }
+  final ConstellationTree tree;
+  final ChartSigil sigil;
+  final StoneState state;
 
   @override
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
-    final outer = _hex(c, size.width / 2 - 1);
-    final inner = _hex(c, size.width / 2 - 8);
-
-    if (filled) {
-      canvas.drawCircle(
-        c,
-        size.width / 2,
-        Paint()
-          ..shader = RadialGradient(
-            colors: [
-              accent.withValues(alpha: 0.28),
-              accent.withValues(alpha: 0.0),
-            ],
-          ).createShader(Rect.fromCircle(center: c, radius: size.width / 2)),
-      );
-    }
-
+    final r = size.width * 0.4;
+    final art = StoneArt.of(tree, state, r, c);
+    art.paint(canvas, halo: state == StoneState.open ? art.breath(6) : null);
     canvas.drawPath(
-      inner,
-      Paint()
-        ..color = filled
-            ? accent.withValues(alpha: 0.20)
-            : Colors.black.withValues(alpha: 0.45),
-    );
-    canvas.drawPath(
-      outer,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = accent.withValues(alpha: dim ? 0.30 : 0.85),
-    );
-    canvas.drawPath(
-      inner,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = accent.withValues(alpha: dim ? 0.16 : 0.40),
+      sigilPathAt(sigil, c, r * 0.33),
+      Paint()..color = art.sigilColor,
     );
   }
 
   @override
-  bool shouldRepaint(_NodeSigilPainter old) =>
-      old.accent != accent || old.filled != filled || old.dim != dim;
+  bool shouldRepaint(_StonePainter old) =>
+      old.tree != tree || old.sigil != sigil || old.state != state;
+}
+
+/// A small diamond: a done prerequisite, a mark beside a word.
+class _Mark extends StatelessWidget {
+  const _Mark({required this.color});
+  final Color color;
+  static const double size = 7;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: size + 4,
+    height: size + 4,
+    child: Center(
+      child: Transform.rotate(
+        angle: 0.785398,
+        child: Container(width: size, height: size, color: color),
+      ),
+    ),
+  );
+}
+
+/// The four-pointed star a price is counted in.
+class _CostStar extends StatelessWidget {
+  const _CostStar({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 12,
+    height: 12,
+    child: CustomPaint(painter: _CostStarPainter(color)),
+  );
+}
+
+class _CostStarPainter extends CustomPainter {
+  const _CostStarPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) => canvas.drawPath(
+    costStarPath(size.center(Offset.zero), size.width / 2),
+    Paint()..color = color,
+  );
+
+  @override
+  bool shouldRepaint(_CostStarPainter old) => old.color != color;
 }
 
 /// Cost, balance and remainder on one line each. The remainder is the number
@@ -458,28 +445,30 @@ class _CostLedger extends StatelessWidget {
   Widget build(BuildContext context) {
     final remainder = available - cost;
     final tone = warn ? _warnColor : accent;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: ConstellationSkillDialog._bgRaised,
-        borderRadius: BorderRadius.zero,
-        border: Border.all(color: tone.withValues(alpha: warn ? 0.45 : 0.22)),
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: tone.withValues(alpha: warn ? 0.7 : 0.45),
+        bracketSize: 8,
       ),
-      child: Column(
-        children: [
-          _row('COST', '$cost', tone, bold: true),
-          const SizedBox(height: 7),
-          _row('BALANCE', '$available', ConstellationSkillDialog._textSoft),
-          const SizedBox(height: 9),
-          Container(height: 1, color: ConstellationSkillDialog._hairline),
-          const SizedBox(height: 9),
-          _row(
-            warn ? 'SHORT BY' : 'REMAINING',
-            warn ? '${-remainder}' : '$remainder',
-            warn ? _warnColor : ConstellationSkillDialog._text,
-            bold: true,
-          ),
-        ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        color: ConstellationSkillDialog._bgRaised,
+        child: Column(
+          children: [
+            _row('COST', '$cost', tone, bold: true),
+            const SizedBox(height: 7),
+            _row('BALANCE', '$available', ConstellationSkillDialog._textSoft),
+            const SizedBox(height: 9),
+            Container(height: 1, color: ConstellationSkillDialog._hairline),
+            const SizedBox(height: 9),
+            _row(
+              warn ? 'SHORT BY' : 'REMAINING',
+              warn ? '${-remainder}' : '$remainder',
+              warn ? _warnColor : ConstellationSkillDialog._text,
+              bold: true,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -497,7 +486,7 @@ class _CostLedger extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        Icon(AppIcons.auto_awesome_rounded, size: 12, color: color),
+        _CostStar(color: color),
         const SizedBox(width: 5),
         Text(
           value,
@@ -531,11 +520,7 @@ class _CostLine extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        const Icon(
-          AppIcons.auto_awesome_rounded,
-          size: 12,
-          color: ConstellationSkillDialog._textSoft,
-        ),
+        const _CostStar(color: ConstellationSkillDialog._textSoft),
         const SizedBox(width: 5),
         Text(
           '$cost',
@@ -580,12 +565,12 @@ class _PrerequisiteList extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 7),
             child: Row(
               children: [
-                Icon(
-                  done ? AppIcons.check_circle : AppIcons.lock_outline,
-                  size: 14,
+                _Mark(
                   color: done
-                      ? const Color(0xFF6FD08C)
-                      : ConstellationSkillDialog._textMuted,
+                      ? treeLight(skill.tree).essence
+                      : ConstellationSkillDialog._textMuted.withValues(
+                          alpha: 0.45,
+                        ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -726,31 +711,35 @@ class _DialogButton extends StatelessWidget {
       label: label,
       child: GestureDetector(
         onTap: context.soundAction(live ? onTap : null),
-        child: Container(
-          width: double.infinity,
-          // 44pt tall: the old buttons were 11pt padding around a 12pt label,
-          // which lands under the minimum comfortable touch target.
-          height: 44,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
+        child: CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: filled
+                ? accent.withValues(alpha: live ? 0.95 : 0.3)
+                : ConstellationSkillDialog._hairline.withValues(alpha: 1),
+            bracketSize: 9,
+            strokeWidth: filled ? 1.3 : 1,
+          ),
+          child: Container(
+            width: double.infinity,
+            // 44pt tall: the old buttons were 11pt padding around a 12pt label,
+            // which lands under the minimum comfortable touch target.
+            height: 44,
+            alignment: Alignment.center,
             color: filled
                 ? accent.withValues(alpha: live ? 0.18 : 0.06)
                 : Colors.white.withValues(alpha: 0.03),
-            borderRadius: BorderRadius.zero,
-            border: Border.all(
-              color: filled
-                  ? accent.withValues(alpha: live ? 0.85 : 0.25)
-                  : ConstellationSkillDialog._hairline,
-            ),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: live ? accent : accent.withValues(alpha: 0.55),
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.2,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: live
+                    ? (filled ? ConstellationSkillDialog._text : accent)
+                    : accent.withValues(alpha: 0.55),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.4,
+              ),
             ),
           ),
         ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:alchemons/games/constellations/constellation_art.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
@@ -92,47 +93,11 @@ const List<String> kCombatStoryLines = [
 ];
 
 const Color _kStoryIvory = Color(0xFFE8DFC8);
-const Color _kStoryIvoryMuted = Color(0xFFB5A98A);
-
-RRect _storyBubbleRRect(Rect rect) =>
-    RRect.fromRectAndRadius(rect, const Radius.circular(10));
-
-void _drawStoryBracketFrame(
-  Canvas canvas,
-  Rect rect, {
-  required Color borderColor,
-  double bracketLength = 12,
-  double strokeWidth = 1.0,
-}) {
-  final paint = Paint()
-    ..color = borderColor
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = strokeWidth;
-  final l = bracketLength;
-  final path = Path()
-    ..moveTo(rect.left, rect.top + l)
-    ..lineTo(rect.left, rect.top)
-    ..lineTo(rect.left + l, rect.top)
-    ..moveTo(rect.right - l, rect.top)
-    ..lineTo(rect.right, rect.top)
-    ..lineTo(rect.right, rect.top + l)
-    ..moveTo(rect.left, rect.bottom - l)
-    ..lineTo(rect.left, rect.bottom)
-    ..lineTo(rect.left + l, rect.bottom)
-    ..moveTo(rect.right - l, rect.bottom)
-    ..lineTo(rect.right, rect.bottom)
-    ..lineTo(rect.right, rect.bottom - l);
-  canvas.drawPath(path, paint);
-}
 
 /// Below this zoom a node's fine detail is smaller than a few pixels, so it
 /// is not drawn. Sits under the overview zoom, so the framed overview still
 /// shows everything and only a deliberate pinch-out drops it.
 const double kConstellationDetailZoom = 0.38;
-
-/// The unlockable-node halo, by accent and pulse step. Nodes draw in their own
-/// local space, so every node of a given accent shares the same gradient.
-final Map<(int, int), Paint> _sharedHalo = {};
 
 class ConstellationGame extends FlameGame with ScaleDetector {
   ConstellationTree selectedTree;
@@ -146,6 +111,63 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   final Map<String, SkillNode> _nodes = {};
   final Map<String, ConnectionLine> _connections = {};
   final List<TreeStoryBlock> _storyBlocks = [];
+
+  Iterable<SkillNode> get nodes => _nodes.values;
+  Iterable<ConnectionLine> get connections => _connections.values;
+
+  /// Seconds the chart has been running — the clock every grain moves by.
+  double chartTime = 0;
+
+  /// How much of the screen, in logical pixels, the screen's own chrome
+  /// covers (header and tabs above, tree panel below). Framing centres a
+  /// tree in what is left, and verse is kept inside it.
+  EdgeInsets chartInsets = EdgeInsets.zero;
+
+  /// The world the camera sees this frame, refreshed in [update].
+  Rect _visibleWorld = Rect.zero;
+
+  /// Whether a thing at [at], [reach] across, is anywhere on screen. Off
+  /// screen things are not drawn — zoomed in, that is most of the chart.
+  bool isOnChart(Vector2 at, double reach) {
+    if (_visibleWorld.isEmpty) return true;
+    return at.x + reach >= _visibleWorld.left &&
+        at.x - reach <= _visibleWorld.right &&
+        at.y + reach >= _visibleWorld.top &&
+        at.y - reach <= _visibleWorld.bottom;
+  }
+
+  /// Whether any of the segment a→b, padded by [reach], is on screen.
+  bool segmentOnChart(Vector2 a, Vector2 b, double reach) {
+    if (_visibleWorld.isEmpty) return true;
+    return math.max(a.x, b.x) + reach >= _visibleWorld.left &&
+        math.min(a.x, b.x) - reach <= _visibleWorld.right &&
+        math.max(a.y, b.y) + reach >= _visibleWorld.top &&
+        math.min(a.y, b.y) - reach <= _visibleWorld.bottom;
+  }
+
+  /// [rect] (in world units) moved just far enough to sit wholly in the part
+  /// of the screen the chrome leaves clear, so a verse is never cut off by
+  /// the screen's edge or hidden under the header. Null when it is nowhere
+  /// near the screen, so another tree's verse is never dragged in.
+  Rect? keepOnChart(Rect rect) {
+    final view = _visibleWorld;
+    if (view.isEmpty) return rect;
+    if (!rect.overlaps(view)) return null;
+    final zoom = camera.viewfinder.zoom;
+    final clear = Rect.fromLTRB(
+      view.left + (chartInsets.left + 10) / zoom,
+      view.top + (chartInsets.top + 6) / zoom,
+      view.right - (chartInsets.right + 10) / zoom,
+      view.bottom - (chartInsets.bottom + 6) / zoom,
+    );
+    if (clear.width < rect.width || clear.height < rect.height) return rect;
+    var dx = 0.0, dy = 0.0;
+    if (rect.left < clear.left) dx = clear.left - rect.left;
+    if (rect.right > clear.right) dx = clear.right - rect.right;
+    if (rect.top < clear.top) dy = clear.top - rect.top;
+    if (rect.bottom > clear.bottom) dy = clear.bottom - rect.bottom;
+    return rect.shift(Offset(dx, dy));
+  }
 
   final Map<ConstellationTree, Vector2> _treePositions = {
     ConstellationTree.breeder: Vector2(0, -600),
@@ -257,6 +279,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     );
     _starfield = starfield;
     await world.add(starfield);
+    await world.add(ChartGrainLayer());
 
     await _buildAllSkillTrees();
     if (_pendingFocusSkillId != null) {
@@ -270,6 +293,8 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   @override
   void update(double dt) {
     super.update(dt);
+    chartTime += dt;
+    _visibleWorld = camera.visibleWorldRect;
 
     // Smooth screen shake in update loop
     if (_shakeDuration > 0 && _shakeOriginalPosition != null) {
@@ -511,13 +536,13 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     if (coda == null || coda.isEmpty) return;
 
     if (tree == ConstellationTree.breeder) {
+      // Between the rows, on the tree's spine: the two-column branches
+      // run at x = ±110, so a plate narrower than that sits in the gap
+      // between them rather than over their stones.
       final positions = <Vector2>[
-        // Tier 5 now contains the two established breeding branches plus the
-        // Wild Potential Scanner. Keep its story plaque beside that row so it
-        // cannot cover the center skill node.
-        Vector2(440.0, baseY - (5 * 180.0)),
-        Vector2(0.0, baseY - (6 * 180.0)),
-        Vector2(0.0, baseY - (7 * 180.0)),
+        Vector2(0.0, baseY - (5.5 * 180.0)),
+        Vector2(0.0, baseY - (6.5 * 180.0)),
+        Vector2(0.0, baseY - (7.5 * 180.0)),
       ];
 
       for (int i = 0; i < coda.length && i < positions.length; i++) {
@@ -528,7 +553,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
           isTreeVisible: _visibleTrees.contains(tree),
           primaryColor: primaryColor,
           text: coda[i],
-          maxWidth: 190,
+          maxWidth: 150,
           alignment: TextAlign.center,
           revealUnlocked: _isBreederStoryBlockUnlocked(
             kBreederCodaStoryIds[i],
@@ -542,11 +567,13 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     }
 
     if (tree == ConstellationTree.extraction) {
+      // Between the rows, like breeder's: the first beside the trunk, the
+      // rest in the gap between the two columns.
       final tierYs = <double>[
         baseY - (5.5 * 180.0),
-        baseY - (7 * 180.0),
-        baseY - (8 * 180.0),
-        baseY - (9 * 180.0),
+        baseY - (6.5 * 180.0),
+        baseY - (7.5 * 180.0),
+        baseY - (8.5 * 180.0),
       ];
 
       for (int i = 0; i < coda.length && i < tierYs.length; i++) {
@@ -558,7 +585,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
           isTreeVisible: _visibleTrees.contains(tree),
           primaryColor: primaryColor,
           text: coda[i],
-          maxWidth: 210,
+          maxWidth: 150,
           alignment: TextAlign.center,
           revealUnlocked: _isExtractionStoryBlockUnlocked(
             kExtractionCodaStoryIds[i],
@@ -705,28 +732,37 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     final width = (maxX - minX) + _overviewPadding;
     final height = (maxY - minY) + _overviewPadding;
-    final viewport = camera.viewport.size;
-    if (width <= 0 || height <= 0 || viewport.x <= 0 || viewport.y <= 0) {
+    // The part of the screen the chrome leaves clear.
+    final insets = chartInsets;
+    final clearW = camera.viewport.size.x - insets.horizontal;
+    final clearH = camera.viewport.size.y - insets.vertical;
+    if (width <= 0 || height <= 0 || clearW <= 0 || clearH <= 0) {
       camera.viewfinder.position = _treePositions[tree] ?? _constellationCentre;
       camera.viewfinder.zoom = _treeZoom;
       return;
     }
 
-    camera.viewfinder.position = Vector2((minX + maxX) / 2, (minY + maxY) / 2);
     // Whichever axis is tighter decides, floored so a very wide tree stays
     // readable rather than fitting at any cost.
-    camera.viewfinder.zoom = math
-        .min(viewport.x / width, viewport.y / height)
+    final zoom = math
+        .min(clearW / width, clearH / height)
         .clamp(_minFramingZoom, _treeZoom);
+    camera.viewfinder.zoom = zoom;
+    // Centred in the clear part, not the whole screen, so the header never
+    // sits over the top of the tree.
+    camera.viewfinder.position = Vector2(
+      (minX + maxX) / 2 - (insets.left - insets.right) / 2 / zoom,
+      (minY + maxY) / 2 - (insets.top - insets.bottom) / 2 / zoom,
+    );
   }
 
   /// The zoom that would frame [tree] — used so a transition lands on the
   /// same framing the screen opens with.
-  double _fitZoomFor(ConstellationTree tree) {
+  (Vector2, double) _framingFor(ConstellationTree tree) {
     final before = camera.viewfinder.zoom;
     final beforePos = camera.viewfinder.position.clone();
     frameTree(tree);
-    final fitted = camera.viewfinder.zoom;
+    final fitted = (camera.viewfinder.position.clone(), camera.viewfinder.zoom);
     camera.viewfinder.zoom = before;
     camera.viewfinder.position = beforePos;
     return fitted;
@@ -745,14 +781,13 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     _queuedTree = null;
     selectedTree = tree;
 
-    final targetPosition = _treePositions[tree]!;
     EffectController controller() =>
         EffectController(duration: 0.8, curve: Curves.easeInOutCubic);
 
-    camera.viewfinder.add(MoveEffect.to(targetPosition, controller()));
     // Land on the same framing the screen opens with, so switching trees and
     // arriving on one look identical.
-    final targetZoom = _fitZoomFor(tree);
+    final (targetPosition, targetZoom) = _framingFor(tree);
+    camera.viewfinder.add(MoveEffect.to(targetPosition, controller()));
     if ((camera.viewfinder.zoom - targetZoom).abs() > 0.01) {
       camera.viewfinder.add(
         ScaleEffect.to(Vector2.all(targetZoom), controller()),
@@ -843,7 +878,17 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       final isUnlocked = newUnlockedSkills.contains(skill.id);
       final canUnlock = skill.canUnlock(newUnlockedSkills) && !isUnlocked;
 
-      node.updateState(isUnlocked: isUnlocked, canUnlock: canUnlock);
+      // A skill reached by a link ignites when the pour arrives, not before.
+      final poured =
+          newlyUnlocked.contains(skill.id) &&
+          skill.prerequisites.any(
+            (p) => _connections.containsKey('${p}_${skill.id}'),
+          );
+      node.updateState(
+        isUnlocked: isUnlocked,
+        canUnlock: canUnlock,
+        igniteAfter: poured ? ConnectionLine.pourDuration : 0,
+      );
     }
 
     for (final skillId in newlyUnlocked) {
@@ -1069,140 +1114,57 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   }
 }
 
-class CombatStoryColumn extends PositionComponent {
-  final Color primaryColor;
-  final Color secondaryColor;
-  final int totalCombatSkills;
-  final List<String> segments;
+// ── story plates ────────────────────────────────────────────────────────────
 
-  bool isTreeVisible;
-  int unlockedCombatSkills;
+/// A plate of dark ink the chart's verse is written on: a soft-edged slab
+/// rather than a box with a hairline border, sealed with a grain of its
+/// tree's light. Solid fills only, so a plate costs four draws and no shader.
+class _StoryPlate {
+  static final Paint _feather = Paint();
+  static final Paint _slab = Paint();
+  static final Paint _seal = Paint();
 
-  late final List<String> _wrappedSegments;
-  late final List<List<String>> _wrappedSegmentLines;
-  late final List<int> _thresholds;
-  TextPaint? _textPaint;
-
-  final Paint _backdropPaint = Paint()..style = PaintingStyle.fill;
-  final Paint _borderPaint = Paint()..style = PaintingStyle.stroke;
-
-  static const double _bubbleWidth = 240.0;
-  static const double _lineHeight = 17.0;
-  static const double _bubblePadding = 18.0;
-  static const double _bubbleGap = 14.0;
-
-  CombatStoryColumn({
-    required Vector2 position,
-    required this.isTreeVisible,
-    required this.primaryColor,
-    required this.secondaryColor,
-    required this.totalCombatSkills,
-    required this.unlockedCombatSkills,
-    required this.segments,
-  }) : super(position: position, anchor: Anchor.bottomCenter, priority: 2) {
-    _wrappedSegments = segments
-        .map(
-          (segment) =>
-              ConnectionLine.wrapStoryText(segment, maxCharsPerLine: 30),
-        )
-        .toList();
-    _wrappedSegmentLines = _wrappedSegments
-        .map(
-          (segment) => segment.isEmpty ? const <String>[] : segment.split('\n'),
-        )
-        .toList();
-    _thresholds = _buildThresholds(totalCombatSkills, segments.length);
-  }
-
-  static List<int> _buildThresholds(int totalSkills, int segmentCount) {
-    if (segmentCount <= 0) return const <int>[];
-    if (segmentCount == 1) return [totalSkills];
-    if (totalSkills <= 1) {
-      return List<int>.generate(segmentCount, (_) => 1);
-    }
-
-    final thresholds = <int>[];
-    final span = totalSkills - 1;
-    for (int i = 0; i < segmentCount - 1; i++) {
-      final t = (1 + ((span * i) / (segmentCount - 1)).floor()).clamp(
-        1,
-        totalSkills,
-      );
-      thresholds.add(t);
-    }
-    thresholds.add(totalSkills);
-    return thresholds;
-  }
-
-  void updateUnlockedCombatSkills(int count) {
-    unlockedCombatSkills = count;
-  }
-
-  void setTreeVisible(bool visible) {
-    isTreeVisible = visible;
-  }
-
-  @override
-  void render(Canvas canvas) {
-    if (!isTreeVisible) return;
-    final revealedCount = _thresholds
-        .where((t) => unlockedCombatSkills >= t)
-        .length;
-    if (revealedCount <= 0) return;
-
-    _textPaint ??= TextPaint(
-      style: GoogleFonts.imFellGreatPrimer(
-        color: _kStoryIvory.withValues(alpha: 0.92),
-        fontSize: 13,
-        height: 1.28,
-      ),
+  static void paint(Canvas canvas, Rect rect, double alpha, Color light) {
+    if (alpha <= 0) return;
+    const ink = Color(0xFF0A0B0E);
+    _feather.color = ink.withValues(alpha: 0.22 * alpha);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect.inflate(7), const Radius.circular(11)),
+      _feather,
     );
-
-    double yOffset = 0.0;
-    for (int i = 0; i < revealedCount; i++) {
-      final lines = _wrappedSegmentLines[i];
-      final bubbleHeight = (lines.length * _lineHeight) + _bubblePadding;
-      final xOffset = (i.isEven ? -1.0 : 1.0) * (18.0 + (i % 3) * 8.0);
-      final rect = Rect.fromCenter(
-        center: Offset(xOffset, -(yOffset + bubbleHeight / 2)),
-        width: _bubbleWidth,
-        height: bubbleHeight,
-      );
-      final bubble = _storyBubbleRRect(rect);
-
-      final alpha = i == revealedCount - 1 ? 0.78 : 0.66;
-      _backdropPaint.color = Colors.black.withValues(alpha: alpha);
-      canvas.drawRRect(bubble, _backdropPaint);
-
-      _borderPaint
-        ..color = _kStoryIvoryMuted.withValues(
-          alpha: i == revealedCount - 1 ? 0.42 : 0.28,
-        )
-        ..strokeWidth = 0.8;
-      canvas.drawRRect(bubble, _borderPaint);
-      _drawStoryBracketFrame(
-        canvas,
-        rect,
-        borderColor: _kStoryIvoryMuted.withValues(
-          alpha: i == revealedCount - 1 ? 0.55 : 0.36,
-        ),
-        bracketLength: 10,
-        strokeWidth: 1.0,
-      );
-
-      _textPaint!.render(
-        canvas,
-        _wrappedSegments[i],
-        Vector2(xOffset, -(yOffset + bubbleHeight / 2)),
-        anchor: Anchor.center,
-      );
-
-      yOffset += bubbleHeight + _bubbleGap;
-    }
+    _feather.color = ink.withValues(alpha: 0.38 * alpha);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect.inflate(3), const Radius.circular(7)),
+      _feather,
+    );
+    _slab.color = ink.withValues(alpha: 0.8 * alpha);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(5)),
+      _slab,
+    );
+    _seal.color = light.withValues(alpha: 0.85 * alpha);
+    final s = Offset(rect.center.dx, rect.top);
+    canvas.drawPath(
+      Path()
+        ..moveTo(s.dx, s.dy - 3.5)
+        ..lineTo(s.dx + 2.4, s.dy)
+        ..lineTo(s.dx, s.dy + 3.5)
+        ..lineTo(s.dx - 2.4, s.dy)
+        ..close(),
+      _seal,
+    );
   }
+
+  static TextStyle style(double size, double alpha) =>
+      GoogleFonts.imFellGreatPrimer(
+        color: _kStoryIvory.withValues(alpha: alpha),
+        fontSize: size,
+        height: 1.34,
+      );
 }
 
-class TreeStoryBlock extends PositionComponent {
+class TreeStoryBlock extends PositionComponent
+    with HasGameReference<ConstellationGame> {
   final String? storyId;
   final ConstellationTree tree;
   final Color primaryColor;
@@ -1217,8 +1179,6 @@ class TreeStoryBlock extends PositionComponent {
 
   TextPainter? _textPainter;
   String _laidOutText = '';
-  final Paint _backdropPaint = Paint()..style = PaintingStyle.fill;
-  final Paint _borderPaint = Paint()..style = PaintingStyle.stroke;
 
   TreeStoryBlock({
     this.storyId,
@@ -1268,54 +1228,34 @@ class TreeStoryBlock extends PositionComponent {
     if (_textPainter == null || _laidOutText != displayText) {
       _laidOutText = displayText;
       _textPainter = TextPainter(
-        text: TextSpan(
-          text: displayText,
-          style: GoogleFonts.imFellGreatPrimer(
-            color: _kStoryIvory.withValues(alpha: 0.9),
-            fontSize: 14,
-            height: 1.34,
-          ),
-        ),
+        text: TextSpan(text: displayText, style: _StoryPlate.style(14, 0.9)),
         textAlign: alignment,
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: maxWidth);
     }
 
-    final width = _textPainter!.width + 34.0;
-    final height = _textPainter!.height + 28.0;
-    final rect = Rect.fromCenter(
+    final tp = _textPainter!;
+    final local = Rect.fromCenter(
       center: Offset.zero,
-      width: width,
-      height: height,
+      width: tp.width + 34.0,
+      height: tp.height + 28.0,
     );
-    final bubble = _storyBubbleRRect(rect);
-
-    _backdropPaint.color = Colors.black.withValues(alpha: 0.74);
-    canvas.drawRRect(bubble, _backdropPaint);
-
-    _borderPaint
-      ..color = _kStoryIvoryMuted.withValues(alpha: 0.28)
-      ..strokeWidth = 0.8;
-    canvas.drawRRect(bubble, _borderPaint);
-    _drawStoryBracketFrame(
-      canvas,
-      rect,
-      borderColor: _kStoryIvoryMuted.withValues(alpha: 0.4),
-      bracketLength: 10,
-      strokeWidth: 1.0,
-    );
+    final rect = game.keepOnChart(local.shift(position.toOffset()));
+    if (rect == null) return;
+    final drawn = rect.shift(-position.toOffset());
+    _StoryPlate.paint(canvas, drawn, 1, treeLight(tree).essence);
 
     final dx = alignment == TextAlign.left
-        ? rect.left + 18.0
-        : rect.left + ((rect.width - _textPainter!.width) / 2);
-    _textPainter!.paint(
-      canvas,
-      Offset(dx, rect.top + ((rect.height - _textPainter!.height) / 2)),
-    );
+        ? drawn.left + 18.0
+        : drawn.left + ((drawn.width - tp.width) / 2);
+    tp.paint(canvas, Offset(dx, drawn.top + ((drawn.height - tp.height) / 2)));
   }
 }
 
-/// Individual skill node with improved particle system
+// ── skill nodes ─────────────────────────────────────────────────────────────
+
+/// One skill: an obsidian stone (see [StoneArt]) with its glyph inked on the
+/// table and, until it is owned, its price on a chip beneath.
 class SkillNode extends PositionComponent
     with TapCallbacks, HasGameReference<ConstellationGame> {
   final ConstellationTree tree;
@@ -1329,172 +1269,34 @@ class SkillNode extends PositionComponent
   bool canUnlock;
   bool isTreeVisible;
 
-  late String _costLabel;
-  TextPaint? _costTextPaint;
-  TextPaint? _iconTextPaint;
-  late final IconData _identityIcon = skill.identityIcon;
+  late final ChartSigil _sigil = sigilFor(skill);
 
-  // Improved particle system - persistent particles with pooling
-  final List<_NodeParticle> _particles = [];
-  static const int _maxParticles = 12;
+  /// The stone's radius in world units. Every node's box is 80 across.
+  double get stoneRadius => isRootNode ? 37.0 : 31.0;
 
-  // Pulse animation state
-  double _pulseTime = 0.0;
+  static final Offset _c = const Offset(40, 40);
 
-  // Unlock celebration burst — negative when inactive, 0..1 when playing.
-  double _unlockBurstT = -1.0;
-  static const double _unlockBurstDuration = 0.85;
+  /// What the stone shows, which lags [isUnlocked] while the pour that
+  /// unlocks it is still on its way down the link.
+  StoneState _shown = StoneState.locked;
+  double _igniteIn = 0;
 
-  // ---- Cached geometry + paints ----
-  // These depend only on locked/unlocked state, not on per-frame animation,
-  // so we build them once (and rebuild on state change) instead of allocating
-  // fresh gradient shaders every frame in render().
-  // Every node is Vector2.all(80), so its centre is (40,40) and all of this
-  // geometry is byte-identical across the 43 instances. Building it per node
-  // dominated the screen's mount cost — 43 hexagon paths and 86 radial
-  // gradient shaders, all the same. Shared, keyed by colour where colour
-  // matters.
-  static final Map<double, Path> _sharedHexes = {};
-  static Paint? _sharedOrbit;
-  static final Map<int, Paint> _sharedGlow = {};
-  static final Map<int, Paint> _sharedAura = {};
+  /// Whether the stone is showing as owned — the grain layer orbits these.
+  bool get showsOwned => _shown == StoneState.owned;
 
-  Path? _hexPath;
-  Path? _coreHexPath;
-  Path? _keystoneHexPath;
-  Paint? _glowPaint;
-  Paint? _auraPaint;
-  Paint? _orbitPaint;
-  Paint? _keystonePaint;
-  Paint? _borderPaint;
-  Paint? _corePaint;
-  Paint? _readyPaint;
-  Paint? _readyOuterPaint;
+  double _breathTime = 0;
 
-  /// The six alchemical accent diamonds never move relative to the node, so
-  /// they are one static path built once — not six Paths and a Paint rebuilt
-  /// from trig every frame.
-  Path? _accentPath;
-  Paint? _accentPaint;
+  // Ignition — negative when inactive, 0..1 while playing.
+  double _igniteT = -1.0;
+  static const double _igniteDuration = 0.9;
 
-  /// Particle diamonds are batched into a handful of alpha buckets and drawn
-  /// through reused Path/Paint objects. Twelve particles used to mean 24 fresh
-  /// Path + 24 fresh Paint allocations per node per frame; across a filled
-  /// tree that was over two thousand allocations a frame, which is what the
-  /// stutter actually was.
-  static const int _particleAlphaBuckets = 4;
-  List<Path>? _particlePaths;
-  List<Paint>? _particlePaints;
+  TextPainter? _costPainter;
+  late Paint _chipPaint;
+  final Paint _sigilPaint = Paint();
+  final Paint _starPaint = Paint();
 
-  void _rebuildVisualPaints() {
-    final center = (size / 2).toOffset();
-    _hexPath ??= _hexFor(center, 35);
-    _coreHexPath ??= _hexFor(center, 28);
-
-    final ringColor = _getRingColor();
-    final coreColor = _getCoreColor();
-    final availableColor = _getAvailableAccentColor();
-
-    if (isUnlocked) {
-      // Identical for every node — the white glow takes no colour at all, and
-      // the aura only varies by the game's primary.
-      _glowPaint = _sharedGlow.putIfAbsent(
-        0,
-        () => Paint()
-          ..shader = ui.Gradient.radial(
-            center,
-            55.0,
-            [
-              Colors.white.withValues(alpha: 0.42),
-              Colors.white.withValues(alpha: 0.16),
-              Colors.transparent,
-            ],
-            [0.55, 0.78, 1.0],
-          ),
-      );
-      _auraPaint = _sharedAura.putIfAbsent(
-        primaryColor.toARGB32(),
-        () => Paint()
-          ..shader = ui.Gradient.radial(
-            center,
-            62.0,
-            [
-              primaryColor.withValues(alpha: 0.32),
-              primaryColor.withValues(alpha: 0.10),
-              Colors.transparent,
-            ],
-            [0.0, 0.6, 1.0],
-          ),
-      );
-      _orbitPaint = _sharedOrbit ??= (Paint()
-        ..color = Colors.white.withValues(alpha: 0.14)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0);
-    } else {
-      _glowPaint = null;
-      _auraPaint = null;
-      _orbitPaint = null;
-    }
-
-    if (isRootNode) {
-      _keystoneHexPath ??= _hexFor(center, 46);
-      _keystonePaint = Paint()
-        ..color =
-            (isUnlocked
-                    ? Color.lerp(primaryColor, Colors.white, 0.4) ??
-                          primaryColor
-                    : ringColor)
-                .withValues(alpha: isUnlocked ? 0.9 : 0.55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4;
-    }
-
-    _borderPaint = Paint()
-      ..shader = ui.Gradient.linear(
-        Offset(center.dx, center.dy - 35),
-        Offset(center.dx, center.dy + 35),
-        [ringColor, ringColor.withValues(alpha: 0.6)],
-      )
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = isRootNode ? 4.0 : 2.0;
-
-    if (isUnlocked || canUnlock) {
-      _corePaint = Paint()
-        ..shader = ui.Gradient.radial(
-          center,
-          28.0,
-          [
-            coreColor.withValues(alpha: isUnlocked ? 0.82 : 0.52),
-            coreColor.withValues(alpha: isUnlocked ? 0.38 : 0.18),
-            (canUnlock ? availableColor : coreColor).withValues(
-              alpha: isUnlocked ? 0.44 : 0.26,
-            ),
-          ],
-          [0.0, 0.5, 1.0],
-        )
-        ..style = PaintingStyle.fill;
-    } else {
-      _corePaint = null;
-    }
-
-    if (canUnlock && !isUnlocked) {
-      // Was a MaskFilter.blur stroke. Blur is a GPU filter pass per draw and
-      // its first use pays pipeline creation, which lands on the frame the
-      // screen appears — and no widget test can see it, because tests never
-      // rasterise. Two plain strokes read the same at this size.
-      _readyOuterPaint = Paint()
-        ..color = availableColor.withValues(alpha: 0.10)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 7.0;
-      _readyPaint = Paint()
-        ..color = availableColor.withValues(alpha: 0.30)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5;
-    } else {
-      _readyPaint = null;
-      _readyOuterPaint = null;
-    }
-  }
+  static final Map<double, Paint> _chipFills = {};
+  static final GrainBatch _burst = GrainBatch(2);
 
   SkillNode({
     required this.tree,
@@ -1512,403 +1314,172 @@ class SkillNode extends PositionComponent
          size: Vector2.all(80),
          anchor: Anchor.center,
          priority: 0,
-       );
-
-  @override
-  Future<void> onLoad() async {
-    await super.onLoad();
+       ) {
+    _shown = _stateFor(isUnlocked, canUnlock);
     _syncCostLabel();
-    _rebuildVisualPaints();
-
-    // Initialize particle pool
-    if (isUnlocked) {
-      _initializeParticles();
-    }
   }
 
-  void _initializeParticles() {
-    final random = math.Random();
-    for (int i = 0; i < _maxParticles; i++) {
-      _particles.add(
-        _NodeParticle(
-          angle: (i / _maxParticles) * math.pi * 2,
-          distance: 35.0 + random.nextDouble() * 15.0,
-          speed: 0.3 + random.nextDouble() * 0.4,
-          size: 2.0 + random.nextDouble() * 2.0,
-          phase: random.nextDouble() * math.pi * 2,
-        ),
-      );
-    }
-  }
+  static StoneState _stateFor(bool unlocked, bool open) => unlocked
+      ? StoneState.owned
+      : open
+      ? StoneState.open
+      : StoneState.locked;
 
   @override
   void update(double dt) {
     super.update(dt);
-
     if (!isTreeVisible) return;
 
-    // Update pulse animation (used by canUnlock breathing halo)
-    if (canUnlock && !isUnlocked) {
-      _pulseTime += dt;
-    }
+    if (_shown == StoneState.open) _breathTime += dt;
 
-    // Advance unlock celebration burst.
-    if (_unlockBurstT >= 0.0) {
-      _unlockBurstT += dt / _unlockBurstDuration;
-      if (_unlockBurstT >= 1.0) _unlockBurstT = -1.0;
+    if (_igniteIn > 0) {
+      _igniteIn -= dt;
+      if (_igniteIn <= 0) _ignite();
     }
-
-    // Update particles
-    if (isUnlocked) {
-      for (final particle in _particles) {
-        particle.update(dt);
-      }
+    if (_igniteT >= 0.0) {
+      _igniteT += dt / _igniteDuration;
+      if (_igniteT >= 1.0) _igniteT = -1.0;
     }
   }
+
+  void _ignite() {
+    _igniteIn = 0;
+    _shown = _stateFor(isUnlocked, canUnlock);
+    _igniteT = 0.0;
+    _syncCostLabel();
+  }
+
+  /// How much bigger the price chip is drawn than its world size, so it
+  /// stays readable at the framing a wide tree opens on.
+  static double chipScale(double zoom) => (0.72 / zoom).clamp(1.0, 2.1);
 
   @override
   void render(Canvas canvas) {
     if (!isTreeVisible) return;
-    super.render(canvas);
+    if (!game.isOnChart(position, 90)) return;
 
-    final center = size / 2;
-    final centerOffset = center.toOffset();
+    final r = stoneRadius;
+    final art = StoneArt.of(tree, _shown, r, _c);
 
-    // Animated glow for available nodes — strong, breathing, "click me".
-    // The halo pulses every frame (so its shader is rebuilt here), but it
-    // only applies to the handful of currently-unlockable nodes.
-    if (canUnlock && !isUnlocked) {
-      final pulseValue = (math.sin(_pulseTime * 2.5) + 1) / 2; // 0..1
-      final accent = _getAvailableAccentColor();
-
-      // Quantised, and cached per step.
-      //
-      // This built a Paint and a radial gradient shader every frame for every
-      // unlockable node. A gradient is not a cheap object — it is compiled and
-      // uploaded — and during a pinch every node repaints on every frame. The
-      // pulse is a slow breath, so a dozen steps is indistinguishable from a
-      // continuous one and reuses twelve shaders instead of allocating
-      // thousands.
-      const steps = 12;
-      final step = (pulseValue * (steps - 1)).round();
-      final quantised = step / (steps - 1);
-      final haloOuter = 60.0 + quantised * 8.0;
-      final haloAlpha = (0.22 + quantised * 0.30).clamp(0.0, 1.0);
-      final haloPaint = _sharedHalo.putIfAbsent(
-        (accent.toARGB32(), step),
-        () => Paint()
-          ..shader = ui.Gradient.radial(
-            centerOffset,
-            haloOuter,
-            [
-              accent.withValues(alpha: haloAlpha * 0.85),
-              accent.withValues(alpha: haloAlpha * 0.35),
-              Colors.transparent,
-            ],
-            [0.45, 0.7, 1.0],
-          ),
-      );
-      canvas.drawCircle(centerOffset, haloOuter, haloPaint);
-
-      // Inner crisp pulse ring on the hex itself
-      final ringPaint = Paint()
-        ..color = accent.withValues(
-          alpha: (0.55 + pulseValue * 0.35).clamp(0.0, 1.0),
-        )
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0;
-      canvas.drawPath(_hexPath!, ringPaint);
+    Paint? halo;
+    if (_shown == StoneState.open) {
+      final b = (math.sin(_breathTime * 2.2) + 1) / 2;
+      halo = art.breath((b * (StoneArt.breathSteps - 1)).round());
     }
+    art.paint(canvas, halo: halo);
 
-    // Outer glow + ambient orbit ring for unlocked nodes (cached paints).
-    if (isUnlocked) {
-      canvas.drawCircle(centerOffset, 55.0, _glowPaint!);
-      canvas.drawCircle(centerOffset, 62.0, _auraPaint!);
-      canvas.drawCircle(centerOffset, 48, _orbitPaint!);
-    }
+    _sigilPaint.color = art.sigilColor;
+    canvas.drawPath(sigilPathAt(_sigil, _c, r * 0.33), _sigilPaint);
 
-    // Root/keystone halo — outer double-ring marker (cached)
-    if (isRootNode) {
-      canvas.drawPath(_keystoneHexPath!, _keystonePaint!);
-    }
+    if (_shown != StoneState.owned) _paintChip(canvas, r);
 
-    // Main hexagon border (cached)
-    canvas.drawPath(_hexPath!, _borderPaint!);
-
-    // Inner hexagonal core (cached)
-    if (isUnlocked || canUnlock) {
-      canvas.drawPath(_coreHexPath!, _corePaint!);
-    }
-
-    if (canUnlock && !isUnlocked) {
-      canvas.drawPath(_coreHexPath!, _readyOuterPaint!);
-      canvas.drawPath(_coreHexPath!, _readyPaint!);
-    }
-
-    // Identity icon — centered when unlocked (the cost is hidden); stacked
-    // above the cost label when locked or unlockable.
-    if (_iconTextPaint != null) {
-      final iconGlyph = String.fromCharCode(_identityIcon.codePoint);
-      final iconCenter = isUnlocked ? center : center + Vector2(0, -10);
-      _iconTextPaint!.render(
-        canvas,
-        iconGlyph,
-        iconCenter,
-        anchor: Anchor.center,
-      );
-    }
-
-    if (_costLabel.isNotEmpty && _costTextPaint != null) {
-      _costTextPaint!.render(
-        canvas,
-        _costLabel,
-        center + Vector2(0, 11),
-        anchor: Anchor.center,
-      );
-    }
-
-    // Alchemical accents for unlocked nodes.
-    //
-    // Skipped when zoomed out. A node is about 30 world units across, so
-    // below this zoom its twelve motes and its sigil ring land inside a few
-    // pixels — invisible, but every unlocked node was still bucketing,
-    // pathing and drawing them on every frame. That is the pinch-out stutter:
-    // the further out you go the more nodes are on screen, each paying full
-    // price for detail nobody can resolve.
-    if (isUnlocked && game.camera.viewfinder.zoom >= kConstellationDetailZoom) {
-      _drawAlchemicalAccents(canvas, center.toOffset(), 35);
-      _renderParticles(canvas, center);
-    }
-
-    // Unlock celebration burst — expanding ring + center flash
-    if (_unlockBurstT >= 0.0 && _unlockBurstT <= 1.0) {
-      final t = _unlockBurstT;
-      final eased = Curves.easeOutCubic.transform(t);
-      final fade = (1.0 - t).clamp(0.0, 1.0);
-
-      // Expanding ring
-      final ringRadius = 30.0 + eased * 90.0;
-      final ringPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.30 * fade)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = (3.0 * fade + 1.0) * 2.6;
-      canvas.drawCircle(center.toOffset(), ringRadius, ringPaint);
-      ringPaint
-        ..color = Colors.white.withValues(alpha: 0.85 * fade)
-        ..strokeWidth = 3.0 * fade + 1.0;
-      canvas.drawCircle(center.toOffset(), ringRadius, ringPaint);
-
-      // Color-tinted secondary ring trailing slightly behind
-      final trailRadius = 18.0 + eased * 70.0;
-      final trailPaint = Paint()
-        ..color = primaryColor.withValues(alpha: 0.25 * fade)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 6.0;
-      canvas.drawCircle(center.toOffset(), trailRadius, trailPaint);
-      trailPaint
-        ..color = primaryColor.withValues(alpha: 0.7 * fade)
-        ..strokeWidth = 2.0;
-      canvas.drawCircle(center.toOffset(), trailRadius, trailPaint);
-
-      // Bright center flash — quick fade
-      final flashFade = math.max(0.0, 1.0 - t * 2.2);
-      if (flashFade > 0) {
-        final flashPaint = Paint()
-          ..shader = ui.Gradient.radial(
-            center.toOffset(),
-            32,
-            [
-              Colors.white.withValues(alpha: 0.9 * flashFade),
-              Colors.white.withValues(alpha: 0.25 * flashFade),
-              Colors.transparent,
-            ],
-            [0.0, 0.5, 1.0],
-          );
-        canvas.drawCircle(center.toOffset(), 32, flashPaint);
-      }
-    }
+    if (_igniteT >= 0) _paintIgnition(canvas, r, _igniteT);
   }
 
-  /// Particles are bucketed by opacity and batched into one path per bucket,
-  /// through Path/Paint objects that are reused frame to frame. Twelve
-  /// particles used to cost 24 Path + 24 Paint allocations per node per frame.
-  ///
-  /// The inner-glow diamond is folded into the same batch as a second, smaller
-  /// diamond in the bucket path rather than a separate draw with its own
-  /// colour — at these sizes the two read as one soft mote either way.
-  void _renderParticles(Canvas canvas, Vector2 center) {
-    if (_particles.isEmpty) return;
-    final paths = _particlePaths ??= List.generate(
-      _particleAlphaBuckets,
-      (_) => Path(),
-      growable: false,
+  void _paintChip(Canvas canvas, double r) {
+    final tp = _costPainter;
+    if (tp == null) return;
+    final s = chipScale(game.camera.viewfinder.zoom);
+    final w = tp.width + 25.0;
+    const h = 16.0;
+    canvas
+      ..save()
+      ..translate(_c.dx, _c.dy + r + 4 + h * s / 2)
+      ..scale(s);
+    final rect = Rect.fromCenter(center: Offset.zero, width: w, height: h);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+      _chipPaint,
     );
-    final paints = _particlePaints ??= List.generate(_particleAlphaBuckets, (
-      i,
-    ) {
-      // Bucket i represents the midpoint of its opacity band.
-      final band = (i + 0.5) / _particleAlphaBuckets;
-      return Paint()
-        ..color = Color.lerp(
-          primaryColor,
-          secondaryColor,
-          0.3,
-        )!.withValues(alpha: (band * 0.8).clamp(0.0, 1.0))
-        ..style = PaintingStyle.fill;
-    }, growable: false);
-
-    for (final path in paths) {
-      path.reset();
-    }
-
-    var any = false;
-    for (final particle in _particles) {
-      final pos = particle.getPosition(center);
-      final opacity = particle.getOpacity().clamp(0.0, 1.0);
-      var bucket = (opacity * _particleAlphaBuckets).floor();
-      if (bucket >= _particleAlphaBuckets) bucket = _particleAlphaBuckets - 1;
-      if (bucket < 0) bucket = 0;
-      final size = particle.size;
-      paths[bucket]
-        ..moveTo(pos.x, pos.y - size)
-        ..lineTo(pos.x + size * 0.6, pos.y)
-        ..lineTo(pos.x, pos.y + size)
-        ..lineTo(pos.x - size * 0.6, pos.y)
-        ..close();
-      any = true;
-    }
-    if (!any) return;
-
-    for (var i = 0; i < _particleAlphaBuckets; i++) {
-      canvas.drawPath(paths[i], paints[i]);
-    }
+    canvas.drawPath(costStarPath(Offset(rect.left + 9.5, 0), 4.6), _starPaint);
+    tp.paint(canvas, Offset(rect.left + 17, -tp.height / 2));
+    canvas.restore();
   }
 
-  /// Keyed by radius, since the centre is the same for every node — they are
-  /// all Vector2.all(80). Keying rather than a bare static so a node of a
-  /// different size could never silently pick up the wrong path.
-  Path _hexFor(Offset center, double radius) =>
-      _sharedHexes.putIfAbsent(radius, () => _createHexagon(center, radius));
-
-  Path _createHexagon(Offset center, double radius) {
-    final path = Path();
-    for (int i = 0; i < 6; i++) {
-      final angle = (math.pi / 3) * i - math.pi / 6;
-      final x = center.dx + radius * math.cos(angle);
-      final y = center.dy + radius * math.sin(angle);
-
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
+  void _paintIgnition(Canvas canvas, double r, double t) {
+    final l = treeLight(tree);
+    final eased = Curves.easeOutCubic.transform(t);
+    final fade = 1.0 - t;
+    final flashFade = math.max(0.0, 1.0 - t * 1.8);
+    if (flashFade > 0) {
+      canvas.drawCircle(_c, r * 1.6, igniteFlash(tree, _c, r, flashFade));
     }
-    path.close();
-    return path;
+    _burst.clear();
+    const n = 26;
+    for (var i = 0; i < n; i++) {
+      final jitter = math.sin(i * 12.9898) * 0.5;
+      final a = i * 2 * math.pi / n + jitter * 0.3;
+      final reach = r * 0.7 + eased * (48 + 30 * (0.5 + jitter));
+      _burst.add(
+        i % 4 == 0 ? 1 : 0,
+        _c.dx + math.cos(a) * reach,
+        _c.dy + math.sin(a) * reach,
+      );
+    }
+    final alpha = math.pow(fade, 1.4).toDouble();
+    _burst
+      ..glow(canvas, 0, 2.6, 3.0, l.essence.withValues(alpha: 0.9 * alpha))
+      ..glow(canvas, 1, 3.2, 3.0, l.hot.withValues(alpha: alpha));
   }
 
-  /// The accents are fixed relative to the node, so the whole six-diamond
-  /// figure is one path built once and drawn with one cached paint.
-  void _drawAlchemicalAccents(Canvas canvas, Offset center, double radius) {
-    var path = _accentPath;
-    if (path == null) {
-      path = Path();
-      const accentSize = 3.0;
-      for (int i = 0; i < 6; i++) {
-        final angle = (math.pi / 3) * i - math.pi / 6;
-        final x = center.dx + radius * math.cos(angle);
-        final y = center.dy + radius * math.sin(angle);
-        path
-          ..moveTo(x, y - accentSize)
-          ..lineTo(x + accentSize * 0.6, y)
-          ..lineTo(x, y + accentSize)
-          ..lineTo(x - accentSize * 0.6, y)
-          ..close();
-      }
-      _accentPath = path;
-      _accentPaint = Paint()
-        ..color = secondaryColor.withValues(alpha: 0.7)
-        ..style = PaintingStyle.fill;
-    }
-    canvas.drawPath(path, _accentPaint!);
-  }
-
-  Color _getRingColor() {
-    if (isUnlocked) {
-      return Color.lerp(primaryColor, Colors.white, 0.28) ?? primaryColor;
-    }
-    if (canUnlock) {
-      return _getAvailableAccentColor();
-    }
-    return primaryColor.withValues(alpha: 0.16);
-  }
-
-  Color _getCoreColor() {
-    if (isUnlocked) {
-      return Color.lerp(primaryColor, Colors.white, 0.08) ?? primaryColor;
-    }
-    if (canUnlock) return _getAvailableAccentColor().withValues(alpha: 0.34);
-    return Colors.black.withValues(alpha: 0.6);
-  }
-
-  Color _getAvailableAccentColor() {
-    return Color.lerp(primaryColor, secondaryColor, 0.35) ?? primaryColor;
-  }
-
-  void updateState({required bool isUnlocked, required bool canUnlock}) {
-    // The screen calls this for every node on every widget rebuild, and both
-    // stream builders above it tick often. Rebuilding unchanged state meant
-    // re-allocating radial gradient shaders and TextPaints for all 43 nodes
-    // on each of those rebuilds, which is a visible hitch — shaders are not
-    // cheap to construct. Only do the work when something actually moved.
+  /// Applies a new state. When [igniteAfter] is given and the skill has
+  /// just been unlocked, the stone keeps its old look until then — the time
+  /// the pour takes to reach it — and ignites on arrival.
+  void updateState({
+    required bool isUnlocked,
+    required bool canUnlock,
+    double igniteAfter = 0,
+  }) {
+    // The screen calls this for every node on every rebuild; only do work
+    // when something actually moved.
     if (this.isUnlocked == isUnlocked && this.canUnlock == canUnlock) return;
 
     final wasLocked = !this.isUnlocked;
     this.isUnlocked = isUnlocked;
     this.canUnlock = canUnlock;
-    _syncCostLabel();
-    _rebuildVisualPaints();
 
-    // Newly unlocked: fire celebration burst + spawn particles.
     if (isUnlocked && wasLocked) {
-      _unlockBurstT = 0.0;
-      if (_particles.isEmpty) _initializeParticles();
+      if (igniteAfter > 0) {
+        _igniteIn = igniteAfter;
+      } else {
+        _ignite();
+      }
+      return;
     }
+    if (_igniteIn > 0) return;
+    _shown = _stateFor(isUnlocked, canUnlock);
+    _syncCostLabel();
   }
 
   void _syncCostLabel() {
-    _costLabel = isUnlocked ? '' : '★ ${skill.pointsCost}';
-    _costTextPaint = TextPaint(
-      style: TextStyle(
-        color: isUnlocked
-            ? Colors.transparent
-            : canUnlock
-            ? Colors.white
-            : Colors.white.withValues(alpha: 0.42),
-        fontSize: 14,
-        fontWeight: FontWeight.w900,
-        letterSpacing: 0.4,
-        shadows: canUnlock
-            ? const [Shadow(color: Colors.black87, blurRadius: 12)]
-            : const [Shadow(color: Colors.black87, blurRadius: 6)],
+    if (_shown == StoneState.owned) {
+      _costPainter = null;
+      return;
+    }
+    final open = _shown == StoneState.open;
+    final l = treeLight(tree);
+    _costPainter = TextPainter(
+      text: TextSpan(
+        text: '${skill.pointsCost}',
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: open ? kChartInk : kChartMuted.withValues(alpha: 0.85),
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.6,
+        ),
       ),
-    );
-
-    // Identity icon — same MaterialIcons font Flutter ships, rendered as
-    // a single glyph in Flame's TextPaint.
-    final iconColor = isUnlocked
-        ? Color.lerp(primaryColor, Colors.white, 0.55) ?? primaryColor
-        : canUnlock
-        ? Colors.white
-        : Colors.white.withValues(alpha: 0.32);
-    _iconTextPaint = TextPaint(
-      style: TextStyle(
-        color: iconColor,
-        fontSize: isUnlocked ? 22 : 18,
-        fontFamily: _identityIcon.fontFamily,
-        package: _identityIcon.fontPackage,
-        shadows: const [Shadow(color: Colors.black87, blurRadius: 8)],
-      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    _starPaint.color = open ? l.essence : kChartMuted.withValues(alpha: 0.7);
+    final w = _costPainter!.width + 25.0;
+    _chipPaint = _chipFills.putIfAbsent(
+      w,
+      () => Paint()
+        ..shader = ui.Gradient.linear(const Offset(0, -8), const Offset(0, 8), [
+          const Color(0xF0171A20),
+          const Color(0xF007080B),
+        ]),
     );
   }
 
@@ -1923,49 +1494,13 @@ class SkillNode extends PositionComponent
   }
 }
 
-/// Lightweight particle for skill nodes
-class _NodeParticle {
-  double angle;
-  double distance;
-  double speed;
-  double size;
-  double phase;
-  double _time = 0.0;
+// ── links ───────────────────────────────────────────────────────────────────
 
-  _NodeParticle({
-    required this.angle,
-    required this.distance,
-    required this.speed,
-    required this.size,
-    required this.phase,
-  });
-
-  void update(double dt) {
-    _time += dt * speed;
-    angle += dt * 0.3; // Slow rotation
-  }
-
-  Vector2 getPosition(Vector2 center) {
-    // Gentle floating motion
-    final floatOffset = math.sin(_time * 2 + phase) * 8.0;
-    final currentDistance = distance + floatOffset;
-
-    return Vector2(
-      center.x + math.cos(angle) * currentDistance,
-      center.y +
-          math.sin(angle) * currentDistance -
-          math.sin(_time * 1.5 + phase) * 5.0,
-    );
-  }
-
-  double getOpacity() {
-    // Gentle pulsing - clamp to valid range
-    return (0.4 + math.sin(_time * 2 + phase) * 0.3).clamp(0.0, 1.0);
-  }
-}
-
-/// Connection line with smoother animations
-class ConnectionLine extends Component {
+/// A link between two skills. It holds the link's state and its verse; the
+/// grains along it are drawn, batched with every other link's, by
+/// [ChartGrainLayer].
+class ConnectionLine extends Component
+    with HasGameReference<ConstellationGame> {
   final ConstellationTree tree;
   final SkillNode from;
   final SkillNode to;
@@ -1976,51 +1511,19 @@ class ConnectionLine extends Component {
   final int connectionIndex;
   final String? storyText;
 
-  double _animationProgress = 1.0;
-  double _glowIntensity = 0.0;
-  bool _isAnimating = false;
-  double _animationTime = 0.0;
+  bool _isPouring = false;
+  double _pourTime = 0.0;
   double _storyOpacity = 0.0;
-
-  // Smoother timing
-  static const double _drawDuration = 1.05;
-  static const double _glowFadeTime = 0.95;
-  static const double _storyFadeInTime = 0.8;
-
-  // Traveling energy pulse (activation one-shot)
-  double _energyPulsePosition = 0.0;
-  bool _showEnergyPulse = false;
   double _storyFloatOffset = 10.0;
 
-  // Ambient state — continuous pulse along active lines + breathing for
-  // can-activate (preview) lines. Driven every frame from update().
-  double _ambientTime = 0.0;
+  /// How long the grains take to pour from parent to child.
+  static const double pourDuration = 1.05;
+  static const double _storyFadeInTime = 0.8;
 
   late final String _normalizedStoryText;
   TextPainter? _storyTextPainter;
   double _storyPaintAlpha = -1.0;
   double _storyLayoutWidth = -1.0;
-
-  final Paint _linePaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeCap = StrokeCap.round;
-
-  // The glow used to be a MaskFilter.blur stroke. Every blurred draw is its
-  // own GPU filter pass, and with a filled tree that was ~72 gaussian passes
-  // per frame — the single most expensive thing on screen. Two plain
-  // translucent strokes of decreasing width read the same at these sizes and
-  // cost nothing beyond ordinary fill rate.
-  final Paint _glowPaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeCap = StrokeCap.round;
-  final Paint _glowOuterPaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeCap = StrokeCap.round;
-  final Paint _pulsePaint = Paint()..style = PaintingStyle.fill;
-  final Paint _pulseGlowPaint = Paint()..style = PaintingStyle.fill;
-  final Paint _pulseGlowOuterPaint = Paint()..style = PaintingStyle.fill;
-  final Paint _storyBackdropPaint = Paint()..style = PaintingStyle.fill;
-  final Paint _storyBorderPaint = Paint()..style = PaintingStyle.stroke;
 
   ConnectionLine({
     required this.tree,
@@ -2034,7 +1537,18 @@ class ConnectionLine extends Component {
     this.storyText,
   }) : super(priority: -1) {
     _normalizedStoryText = normalizeStoryText(storyText);
+    if (isActive) _storyOpacity = 1.0;
+    _storyFloatOffset = isActive ? 0.0 : 10.0;
   }
+
+  /// While pouring, how far down the link the grains have reached (0..1).
+  double get pourProgress => _isPouring
+      ? Curves.easeInOutCubic.transform(
+          (_pourTime / pourDuration).clamp(0.0, 1.0),
+        )
+      : 1.0;
+
+  bool get isPouring => _isPouring && _pourTime < pourDuration;
 
   static String normalizeStoryText(String? text) {
     if (text == null) return '';
@@ -2077,70 +1591,30 @@ class ConnectionLine extends Component {
   }
 
   void animateActivation() {
-    if (_isAnimating || isActive) return;
-
-    _isAnimating = true;
+    if (_isPouring || isActive) return;
+    _isPouring = true;
     isActive = true;
-    _animationProgress = 0.0;
-    _glowIntensity = 0.0;
-    _animationTime = 0.0;
+    _pourTime = 0.0;
     _storyOpacity = 0.0;
-    _energyPulsePosition = 0.0;
-    _showEnergyPulse = true;
     _storyFloatOffset = 10.0;
   }
 
   @override
   void update(double dt) {
     super.update(dt);
+    if (!isTreeVisible || !_isPouring) return;
 
-    if (!isTreeVisible) return;
+    _pourTime += math.min(dt, 1 / 30);
 
-    // Ambient pulse drives continuous active/can-activate effects.
-    _ambientTime += dt;
-
-    if (!_isAnimating) return;
-
-    final frameDt = math.min(dt, 1 / 30);
-    _animationTime += frameDt;
-
-    // Line drawing with a smoother acceleration/deceleration curve.
-    if (_animationTime < _drawDuration) {
-      final t = (_animationTime / _drawDuration).clamp(0.0, 1.0);
-      _animationProgress = Curves.easeInOutCubic.transform(t);
-      _energyPulsePosition = Curves.easeOutCubic.transform(t);
-    } else {
-      _animationProgress = 1.0;
-      _showEnergyPulse = false;
+    // The verse fades in as the pour lands.
+    final storyStart = pourDuration * 0.75;
+    if (_pourTime > storyStart) {
+      final t = ((_pourTime - storyStart) / _storyFadeInTime).clamp(0.0, 1.0);
+      _storyOpacity = Curves.easeOutCubic.transform(t);
+      _storyFloatOffset = (1.0 - t) * 10.0;
     }
-
-    // Glow animation - smooth rise and fall
-    final glowStartTime = _drawDuration * 0.3;
-    final glowEndTime = _drawDuration + _glowFadeTime;
-
-    if (_animationTime > glowStartTime && _animationTime < glowEndTime) {
-      final glowT =
-          ((_animationTime - glowStartTime) / (glowEndTime - glowStartTime))
-              .clamp(0.0, 1.0);
-      final bell = math.sin(glowT * math.pi).clamp(0.0, 1.0);
-      _glowIntensity = math.pow(bell, 1.2).toDouble() * 0.85;
-    } else {
-      _glowIntensity = (_glowIntensity - frameDt * 2).clamp(0.0, 1.0);
-    }
-
-    // Story text fades in while drifting into place.
-    final storyStartTime = _drawDuration * 0.72;
-    if (_animationTime > storyStartTime) {
-      final storyT = ((_animationTime - storyStartTime) / _storyFadeInTime)
-          .clamp(0.0, 1.0);
-      _storyOpacity = Curves.easeOutCubic.transform(storyT);
-      _storyFloatOffset = (1.0 - storyT) * 10.0;
-    }
-
-    // End animation
-    if (_animationTime >
-        _drawDuration + _glowFadeTime + _storyFadeInTime + 0.7) {
-      _isAnimating = false;
+    if (_pourTime > storyStart + _storyFadeInTime) {
+      _isPouring = false;
       _storyOpacity = 1.0;
       _storyFloatOffset = 0.0;
     }
@@ -2148,126 +1622,13 @@ class ConnectionLine extends Component {
 
   @override
   void render(Canvas canvas) {
-    if (!isTreeVisible) return;
-    final fromPos = from.position;
-    final toPos = to.position;
-
-    if (!isActive && !canActivate) return;
-
-    final currentEnd = _isAnimating
-        ? fromPos + (toPos - fromPos) * _animationProgress
-        : toPos;
-
-    final glowBoost = (_glowIntensity * 0.3).clamp(0.0, 0.5);
-
-    if (canActivate && !isActive) {
-      // CAN-ACTIVATE: dim breathing accent line — "this path is open"
-      final breath = (math.sin(_ambientTime * 2.2) + 1) * 0.5; // 0..1
-      _linePaint
-        ..color = primaryColor.withValues(
-          alpha: (0.32 + breath * 0.22).clamp(0.0, 1.0),
-        )
-        ..strokeWidth = 1.6
-        ..maskFilter = null;
-      canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _linePaint);
-
-      _drawSoftLine(
-        canvas,
-        fromPos.toOffset(),
-        currentEnd.toOffset(),
-        primaryColor,
-        (0.18 + breath * 0.18).clamp(0.0, 1.0),
-        5.0,
-      );
-    } else {
-      // ACTIVE: bright steady line + glow
-      _linePaint
-        ..color = Colors.white.withValues(
-          alpha: (0.85 + glowBoost).clamp(0.0, 1.0),
-        )
-        ..strokeWidth = 2.0 + (_glowIntensity * 2.0)
-        ..maskFilter = null;
-      canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _linePaint);
-
-      _drawSoftLine(
-        canvas,
-        fromPos.toOffset(),
-        currentEnd.toOffset(),
-        primaryColor,
-        (0.35 + glowBoost * 0.5).clamp(0.0, 1.0),
-        7.0 + (_glowIntensity * 6.0),
-      );
+    if (!isTreeVisible || !isActive) return;
+    if (_storyOpacity > 0 && _normalizedStoryText.isNotEmpty) {
+      _drawStoryText(canvas, from.position, to.position);
     }
-
-    // Activation one-shot pulse (when line is being drawn)
-    if (_showEnergyPulse && _animationProgress > 0.05) {
-      final pulsePos = fromPos + (toPos - fromPos) * _energyPulsePosition;
-      _pulsePaint.color = primaryColor.withValues(alpha: 0.9);
-      canvas.drawCircle(
-        pulsePos.toOffset(),
-        4.0 + _glowIntensity * 3.0,
-        _pulsePaint,
-      );
-      _drawSoftDot(canvas, pulsePos.toOffset(), primaryColor, 0.4, 8.0);
-    }
-
-    // Ambient traveling sparkle on active lines — quiet "energy flowing"
-    if (isActive && !_isAnimating) {
-      final t = (_ambientTime * 0.18) % 1.0; // ~5.5s loop
-      final pulsePos = fromPos + (toPos - fromPos) * t;
-      // Fade in/out at the line endpoints so it doesn't pop.
-      final edgeFade = math.min(t, 1.0 - t) * 4.0;
-      final fade = edgeFade.clamp(0.0, 1.0);
-      _pulsePaint.color = primaryColor.withValues(alpha: 0.85 * fade);
-      canvas.drawCircle(pulsePos.toOffset(), 2.6, _pulsePaint);
-      _drawSoftDot(canvas, pulsePos.toOffset(), primaryColor, 0.38 * fade, 7.0);
-    }
-
-    // Story text
-    if (_storyOpacity > 0 && storyText != null) {
-      _drawStoryText(canvas, fromPos, toPos);
-    }
-  }
-
-  /// A blur-free soft line: a wide faint stroke under a narrower brighter one.
-  /// Replaces a MaskFilter.blur stroke, which cost a GPU filter pass each.
-  void _drawSoftLine(
-    Canvas canvas,
-    Offset a,
-    Offset b,
-    Color color,
-    double alpha,
-    double width,
-  ) {
-    _glowOuterPaint
-      ..color = color.withValues(alpha: (alpha * 0.45).clamp(0.0, 1.0))
-      ..strokeWidth = width * 1.9;
-    canvas.drawLine(a, b, _glowOuterPaint);
-    _glowPaint
-      ..color = color.withValues(alpha: alpha.clamp(0.0, 1.0))
-      ..strokeWidth = width;
-    canvas.drawLine(a, b, _glowPaint);
-  }
-
-  /// The dot equivalent of [_drawSoftLine].
-  void _drawSoftDot(
-    Canvas canvas,
-    Offset at,
-    Color color,
-    double alpha,
-    double radius,
-  ) {
-    _pulseGlowOuterPaint.color = color.withValues(
-      alpha: (alpha * 0.40).clamp(0.0, 1.0),
-    );
-    canvas.drawCircle(at, radius * 1.7, _pulseGlowOuterPaint);
-    _pulseGlowPaint.color = color.withValues(alpha: alpha.clamp(0.0, 1.0));
-    canvas.drawCircle(at, radius, _pulseGlowPaint);
   }
 
   void _drawStoryText(Canvas canvas, Vector2 from, Vector2 to) {
-    if (_normalizedStoryText.isEmpty) return;
-
     final midPoint = (from + to) / 2;
     final path = to - from;
     final lineLength = path.length;
@@ -2275,9 +1636,6 @@ class ConnectionLine extends Component {
 
     final direction = path / lineLength;
     var perpendicular = Vector2(-direction.y, direction.x);
-    if (perpendicular.length2 <= 0.001) {
-      perpendicular = Vector2(1, 0);
-    }
     final treeCenter = _treeCenterFor(tree);
     final radial = midPoint - treeCenter;
     if (radial.length2 > 0.001 && radial.dot(perpendicular) < 0) {
@@ -2285,7 +1643,6 @@ class ConnectionLine extends Component {
     }
 
     final maxTextWidth = (lineLength * 0.85).clamp(170.0, 240.0);
-
     final alpha = (_storyOpacity * 0.95).clamp(0.0, 1.0);
     if (_storyTextPainter == null ||
         (alpha - _storyPaintAlpha).abs() > 0.02 ||
@@ -2295,21 +1652,14 @@ class ConnectionLine extends Component {
       _storyTextPainter = TextPainter(
         text: TextSpan(
           text: _normalizedStoryText,
-          style: GoogleFonts.imFellGreatPrimer(
-            color: _kStoryIvory.withValues(alpha: alpha),
-            fontSize: 15,
-            height: 1.34,
-          ),
+          style: _StoryPlate.style(15, alpha),
         ),
-        textAlign: TextAlign.left,
+        textAlign: TextAlign.center,
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: maxTextWidth);
     }
 
-    final textPainter = _storyTextPainter!;
-    final textWidth = textPainter.width + 32.0;
-    final textHeight = textPainter.height + 24.0;
-
+    final tp = _storyTextPainter!;
     final sideSign = connectionIndex.isEven ? -1.0 : 1.0;
     final radialOffset = (64.0 + ((connectionIndex % 3) * 22.0)) * sideSign;
     final tangentNudge = ((connectionIndex % 4) - 1.5) * 12.0;
@@ -2319,39 +1669,20 @@ class ConnectionLine extends Component {
         direction * tangentNudge +
         Vector2(0, -_storyFloatOffset);
 
-    final rect = Rect.fromCenter(
-      center: storyPos.toOffset(),
-      width: textWidth,
-      height: textHeight,
-    );
-    final bubble = _storyBubbleRRect(rect);
-
-    _storyBackdropPaint.color = Colors.black.withValues(
-      alpha: (_storyOpacity * 0.82).clamp(0.0, 1.0),
-    );
-    canvas.drawRRect(bubble, _storyBackdropPaint);
-
-    _storyBorderPaint
-      ..color = _kStoryIvoryMuted.withValues(
-        alpha: (_storyOpacity * 0.28).clamp(0.0, 1.0),
-      )
-      ..strokeWidth = 0.8;
-    canvas.drawRRect(bubble, _storyBorderPaint);
-    _drawStoryBracketFrame(
-      canvas,
-      rect,
-      borderColor: _kStoryIvoryMuted.withValues(
-        alpha: (_storyOpacity * 0.44).clamp(0.0, 1.0),
+    final rect = game.keepOnChart(
+      Rect.fromCenter(
+        center: storyPos.toOffset(),
+        width: tp.width + 32.0,
+        height: tp.height + 24.0,
       ),
-      bracketLength: 10,
-      strokeWidth: 1.0,
     );
-
-    textPainter.paint(
+    if (rect == null) return;
+    _StoryPlate.paint(canvas, rect, _storyOpacity, treeLight(tree).essence);
+    tp.paint(
       canvas,
       Offset(
-        rect.left + ((rect.width - textPainter.width) / 2),
-        rect.top + ((rect.height - textPainter.height) / 2),
+        rect.left + ((rect.width - tp.width) / 2),
+        rect.top + ((rect.height - tp.height) / 2),
       ),
     );
   }
@@ -2372,49 +1703,223 @@ class ConnectionLine extends Component {
   }
 }
 
-/// Starfield with improved twinkling
-/// Soft radial glows positioned at each tree's center — gives each region
-/// of space its own "color signature" so the trees feel like distinct
-/// nebulae rather than three identical clusters on a flat starfield.
-class NebulaBackground extends Component
+/// Every grain on the chart in one pass: the dust tracing links not yet
+/// open, the drift along links that are, the stream along owned ones (and
+/// the pour that makes one owned), and the motes circling owned stones.
+///
+/// One layer instead of one draw per link: each grain goes into a class by
+/// tree and brightness, and the whole chart costs at most a couple of
+/// dozen point passes however many links are on screen.
+class ChartGrainLayer extends Component
     with HasGameReference<ConstellationGame> {
-  NebulaBackground() : super(priority: -11);
+  ChartGrainLayer() : super(priority: -1);
 
-  static const Map<ConstellationTree, Color> _tints = {
-    ConstellationTree.combat: Color(0xFFE63946), // crimson
-    ConstellationTree.breeder: Color(0xFF4DA3FF), // azure
-    ConstellationTree.extraction: Color(0xFF4ADE80), // verdant
-  };
+  static const int _dust = 0;
+  static int _cls(ConstellationTree t, int kind) => 1 + t.index * 5 + kind;
+  static const int _open = 0, _flow = 1, _hot = 2, _orbit = 3, _band = 4;
 
-  static const double _radius = 900.0;
-
-  // Pre-built (center, paint) pairs — shaders are expensive to construct,
-  // and nebula positions/colors never change, so we build them once.
-  late final List<(Offset, Paint)> _glows = _tints.entries.map((entry) {
-    final center = ConnectionLine._treeCenterFor(entry.key).toOffset();
-    final color = entry.value;
-    final paint = Paint()
-      ..shader = ui.Gradient.radial(
-        center,
-        _radius,
-        [
-          color.withValues(alpha: 0.18),
-          color.withValues(alpha: 0.07),
-          Colors.transparent,
-        ],
-        [0.0, 0.45, 1.0],
-      );
-    return (center, paint);
-  }).toList();
+  final GrainBatch _b = GrainBatch(1 + ConstellationTree.values.length * 5);
 
   @override
   void render(Canvas canvas) {
-    for (final (center, paint) in _glows) {
-      canvas.drawCircle(center, _radius, paint);
+    _b.clear();
+    final time = game.chartTime;
+    final zoom = game.camera.viewfinder.zoom;
+    final detail = zoom >= kConstellationDetailZoom;
+
+    for (final link in game.connections) {
+      if (!link.isTreeVisible) continue;
+      final f = link.from.position, t = link.to.position;
+      if (!game.segmentOnChart(f, t, 40)) continue;
+
+      final dx = t.x - f.x, dy = t.y - f.y;
+      final len = math.sqrt(dx * dx + dy * dy);
+      if (len < 1) continue;
+      final ux = dx / len, uy = dy / len;
+      final nx = -uy, ny = ux;
+      final u0 = (link.from.stoneRadius + 7) / len;
+      final u1 = 1 - (link.to.stoneRadius + 7) / len;
+      if (u1 <= u0) continue;
+      final span = u1 - u0;
+      final seed = link.connectionIndex * 0.37 + link.tree.index * 1.3;
+
+      if (!link.isActive && !link.canActivate) {
+        // Dust: the way the tree goes, before any of it is lit.
+        for (var u = u0; u <= u1; u += 18 / len) {
+          _b.add(_dust, f.x + dx * u, f.y + dy * u);
+        }
+        continue;
+      }
+
+      if (!link.isActive) {
+        // Open: the dust warmed, and a few grains drifting down it.
+        final open = _cls(link.tree, _open);
+        for (var u = u0; u <= u1; u += 18 / len) {
+          _b.add(open, f.x + dx * u, f.y + dy * u);
+        }
+        final flow = _cls(link.tree, _flow);
+        final k = math.max(2, (len / 70).round());
+        for (var i = 0; i < k; i++) {
+          final p = (i / k + time * 0.1 + seed) % 1.0;
+          final u = u0 + span * p;
+          _b.add(flow, f.x + dx * u, f.y + dy * u);
+        }
+        continue;
+      }
+
+      // Owned: a stream from parent to child.
+      final flow = _cls(link.tree, _flow), hot = _cls(link.tree, _hot);
+      final pouring = link.isPouring;
+      final reach = link.pourProgress;
+      final band = _cls(link.tree, _band);
+      final bandEnd = pouring ? u0 + span * reach : u1;
+      _b
+        ..add(band, f.x + dx * u0, f.y + dy * u0)
+        ..add(band, f.x + dx * bandEnd, f.y + dy * bandEnd);
+      final n = (len / 6.5).round();
+      final speed = 26 / len;
+      for (var i = 0; i < n; i++) {
+        final p = (i * 0.6180339 + time * speed + seed) % 1.0;
+        if (pouring && p > reach) continue;
+        final u = u0 + span * p;
+        final side = math.sin(p * len * 0.07 + i * 1.7 + time * 1.4) * 2.2;
+        _b.add(
+          i % 6 == 0 ? hot : flow,
+          f.x + dx * u + nx * side,
+          f.y + dy * u + ny * side,
+        );
+      }
+      if (pouring) {
+        // The head of the pour: a bright knot of grains leading it down.
+        for (var j = 0; j < 12; j++) {
+          final p = reach - j * 0.011;
+          if (p < 0) break;
+          final u = u0 + span * p;
+          final side = math.sin(j * 2.3 + time * 9) * 4.0 * (1 - j / 12);
+          _b.add(hot, f.x + dx * u + nx * side, f.y + dy * u + ny * side);
+        }
+      }
+    }
+
+    if (detail) {
+      for (final node in game.nodes) {
+        if (!node.isTreeVisible || !node.showsOwned) continue;
+        if (!game.isOnChart(node.position, 80)) continue;
+        final cls = _cls(node.tree, _orbit);
+        final r = node.stoneRadius;
+        final cx = node.position.x, cy = node.position.y;
+        final s = node.skill.id.hashCode % 97 / 97.0;
+        for (var k = 0; k < 7; k++) {
+          final dir = k.isEven ? 1.0 : -1.0;
+          final a = dir * time * (0.32 + 0.05 * k) + k * 0.9 + s * 6.28;
+          final rx = r * 1.42 + 4 * math.sin(time * 0.7 + k);
+          final ry = rx * 0.42;
+          final tilt = k * 0.45 + s;
+          final ex = math.cos(a) * rx, ey = math.sin(a) * ry;
+          _b.add(
+            cls,
+            cx + ex * math.cos(tilt) - ey * math.sin(tilt),
+            cy + ex * math.sin(tilt) + ey * math.cos(tilt),
+          );
+        }
+      }
+    }
+
+    _b.dots(canvas, _dust, 2.6, kChartMuted.withValues(alpha: 0.42));
+    for (final tree in ConstellationTree.values) {
+      final l = treeLight(tree);
+      final band = _cls(tree, _band);
+      if (detail) {
+        _b
+          ..lines(canvas, band, 11, l.essence.withValues(alpha: 0.05))
+          ..lines(canvas, band, 4, l.essence.withValues(alpha: 0.21));
+      } else {
+        _b.lines(canvas, band, 5, l.essence.withValues(alpha: 0.22));
+      }
+      _b.dots(
+        canvas,
+        _cls(tree, _open),
+        2.2,
+        l.essence.withValues(alpha: 0.34),
+      );
+      if (detail) {
+        _b
+          ..glow(
+            canvas,
+            _cls(tree, _flow),
+            2.4,
+            3.4,
+            l.essence.withValues(alpha: 0.8),
+          )
+          ..glow(
+            canvas,
+            _cls(tree, _hot),
+            2.9,
+            3.4,
+            l.hot.withValues(alpha: 0.95),
+          )
+          ..glow(
+            canvas,
+            _cls(tree, _orbit),
+            2.0,
+            3.2,
+            l.rim.withValues(alpha: 0.7),
+          );
+      } else {
+        _b
+          ..dots(
+            canvas,
+            _cls(tree, _flow),
+            3.0,
+            l.essence.withValues(alpha: 0.8),
+          )
+          ..dots(canvas, _cls(tree, _hot), 3.4, l.hot.withValues(alpha: 0.9));
+      }
     }
   }
 }
 
+// ── the sky ─────────────────────────────────────────────────────────────────
+
+/// Each tree's patch of sky, faintly in its own light: a wide pool and a
+/// tighter one at its heart. Built once.
+class NebulaBackground extends Component
+    with HasGameReference<ConstellationGame> {
+  NebulaBackground() : super(priority: -11);
+
+  late final List<(Offset, double, Paint)> _glows = [
+    for (final tree in ConstellationTree.values)
+      ...() {
+        final center = ConnectionLine._treeCenterFor(tree).toOffset();
+        final l = treeLight(tree);
+        Paint pool(double r, double a) => Paint()
+          ..shader = ui.Gradient.radial(
+            center,
+            r,
+            [
+              l.essence.withValues(alpha: a),
+              l.essence.withValues(alpha: a * 0.4),
+              l.essence.withValues(alpha: 0),
+            ],
+            const [0.0, 0.45, 1.0],
+          );
+        return [
+          (center, 950.0, pool(950, 0.075)),
+          (center, 420.0, pool(420, 0.05)),
+        ];
+      }(),
+  ];
+
+  @override
+  void render(Canvas canvas) {
+    for (final (center, r, paint) in _glows) {
+      canvas.drawCircle(center, r, paint);
+    }
+  }
+}
+
+/// The sky's grains: three depths of parallax, most of them parchment and
+/// a few warm, the nearest drifting slowly on a current.
 class StarfieldBackground extends Component
     with HasGameReference<ConstellationGame> {
   final Color primaryColor;
@@ -2425,6 +1930,9 @@ class StarfieldBackground extends Component
   static const int _farLayerCount = 1664;
   static const int _midLayerCount = 1216;
   static const int _nearLayerCount = 256;
+
+  static const Color _parchment = Color(0xFFE8DCC8);
+  static const Color _warm = Color(0xFFE9B860);
 
   StarfieldBackground({
     required this.primaryColor,
@@ -2437,57 +1945,64 @@ class StarfieldBackground extends Component
 
     final random = math.Random();
 
-    // Layered stars for depth
-    // Far layer - small, dim, slow, barely moves with camera
-    for (int i = 0; i < _farLayerCount; i++) {
-      stars.add(
-        Star(
-          position: Vector2(
-            random.nextDouble() * 6000 - 3000,
-            random.nextDouble() * 6000 - 3000,
+    void layer(
+      int count, {
+      required double minSize,
+      required double sizeRange,
+      required double minOpacity,
+      required double opacityRange,
+      required double minTwinkle,
+      required double twinkleRange,
+      required double depth,
+    }) {
+      for (int i = 0; i < count; i++) {
+        stars.add(
+          Star(
+            position: Vector2(
+              random.nextDouble() * 6000 - 3000,
+              random.nextDouble() * 6000 - 3000,
+            ),
+            size: minSize + random.nextDouble() * sizeRange,
+            baseOpacity: minOpacity + random.nextDouble() * opacityRange,
+            twinkleSpeed: minTwinkle + random.nextDouble() * twinkleRange,
+            twinklePhase: random.nextDouble() * math.pi * 2,
+            depthFactor: depth,
+            warm: random.nextDouble() < 0.16,
           ),
-          size: 0.5 + random.nextDouble() * 1.0,
-          baseOpacity: 0.15 + random.nextDouble() * 0.2,
-          twinkleSpeed: 0.3 + random.nextDouble() * 0.5,
-          twinklePhase: random.nextDouble() * math.pi * 2,
-          depthFactor: 0.35,
-        ),
-      );
+        );
+      }
     }
 
-    // Mid layer - medium, partial parallax
-    for (int i = 0; i < _midLayerCount; i++) {
-      stars.add(
-        Star(
-          position: Vector2(
-            random.nextDouble() * 6000 - 3000,
-            random.nextDouble() * 6000 - 3000,
-          ),
-          size: 1.0 + random.nextDouble() * 1.5,
-          baseOpacity: 0.3 + random.nextDouble() * 0.3,
-          twinkleSpeed: 0.5 + random.nextDouble() * 1.0,
-          twinklePhase: random.nextDouble() * math.pi * 2,
-          depthFactor: 0.7,
-        ),
-      );
-    }
-
-    // Near layer - bright, fast twinkle, full 1:1 with camera
-    for (int i = 0; i < _nearLayerCount; i++) {
-      stars.add(
-        Star(
-          position: Vector2(
-            random.nextDouble() * 6000 - 3000,
-            random.nextDouble() * 6000 - 3000,
-          ),
-          size: 2.0 + random.nextDouble() * 1.5,
-          baseOpacity: 0.5 + random.nextDouble() * 0.4,
-          twinkleSpeed: 1.0 + random.nextDouble() * 2.0,
-          twinklePhase: random.nextDouble() * math.pi * 2,
-          depthFactor: 1.0,
-        ),
-      );
-    }
+    layer(
+      _farLayerCount,
+      minSize: 0.5,
+      sizeRange: 1.0,
+      minOpacity: 0.15,
+      opacityRange: 0.2,
+      minTwinkle: 0.3,
+      twinkleRange: 0.5,
+      depth: 0.35,
+    );
+    layer(
+      _midLayerCount,
+      minSize: 1.0,
+      sizeRange: 1.4,
+      minOpacity: 0.28,
+      opacityRange: 0.3,
+      minTwinkle: 0.5,
+      twinkleRange: 1.0,
+      depth: 0.7,
+    );
+    layer(
+      _nearLayerCount,
+      minSize: 1.8,
+      sizeRange: 1.4,
+      minOpacity: 0.45,
+      opacityRange: 0.4,
+      minTwinkle: 1.0,
+      twinkleRange: 2.0,
+      depth: 1.0,
+    );
   }
 
   void startRapidBlink() {
@@ -2504,18 +2019,16 @@ class StarfieldBackground extends Component
 
   // ---- Batched drawing ----
   //
-  // Three thousand stars used to mean three thousand `drawCircle` calls and
-  // three thousand Vector2 allocations per frame, and zooming out (which shows
-  // ~25x the area) made it worse exactly when the player was moving. Stars are
-  // now bucketed by size and brightness and drawn with `drawRawPoints`, so the
-  // whole field costs at most `_sizeBuckets * _alphaBuckets` draw calls
-  // regardless of how many stars are on screen.
-  static const int _sizeBuckets = 4;
-  static const int _alphaBuckets = 6;
-  static const int _bucketCount = _sizeBuckets * _alphaBuckets;
-  static const double _maxStarSize = 3.5;
+  // Three thousand stars used to mean three thousand `drawCircle` calls. They
+  // are bucketed by size, brightness and colour and drawn with
+  // `drawRawPoints`, so the whole field costs at most `_bucketCount` draw
+  // calls however many stars are on screen.
+  static const int _sizeBuckets = 3;
+  static const int _alphaBuckets = 4;
+  static const int _colourBuckets = 2;
+  static const int _bucketCount = _sizeBuckets * _alphaBuckets * _colourBuckets;
+  static const double _maxStarSize = 3.2;
 
-  /// Reused per bucket across frames; `_bucketLengths` is the live extent.
   final List<Float32List> _bucketPoints = List.generate(
     _bucketCount,
     (_) => Float32List(512),
@@ -2523,14 +2036,16 @@ class StarfieldBackground extends Component
   );
   final Int32List _bucketLengths = Int32List(_bucketCount);
   final List<Paint> _bucketPaints = List.generate(_bucketCount, (i) {
-    final sizeIndex = i ~/ _alphaBuckets;
-    // Midpoint of each band, so quantisation error is symmetric. (Colour is
-    // set per frame in render; only the dot diameter is fixed per bucket.)
+    final colour = i ~/ (_sizeBuckets * _alphaBuckets);
+    final sizeIndex = (i ~/ _alphaBuckets) % _sizeBuckets;
+    final alphaIndex = i % _alphaBuckets;
     final diameter = ((sizeIndex + 0.5) / _sizeBuckets) * _maxStarSize * 2.0;
+    final alpha = ((alphaIndex + 0.5) / _alphaBuckets).clamp(0.0, 1.0);
     return Paint()
       ..strokeWidth = diameter
       ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
+      ..style = PaintingStyle.stroke
+      ..color = (colour == 0 ? _parchment : _warm).withValues(alpha: alpha);
   }, growable: false);
 
   void _push(int bucket, double x, double y) {
@@ -2552,7 +2067,6 @@ class StarfieldBackground extends Component
     final zoom = game.camera.viewfinder.zoom;
     final viewCenter = game.camera.viewfinder.position;
 
-    // Render only stars near the visible region (+margin) for better frame-time.
     final worldWidth = game.size.x / zoom;
     final worldHeight = game.size.y / zoom;
     final marginX = worldWidth * 0.4;
@@ -2562,8 +2076,6 @@ class StarfieldBackground extends Component
     final minY = viewCenter.y - worldHeight / 2 - marginY;
     final maxY = viewCenter.y + worldHeight / 2 + marginY;
 
-    // Parallax shift depends only on the layer, so it is hoisted out of the
-    // per-star loop (it used to allocate a Vector2 for every star).
     final cx = viewCenter.x;
     final cy = viewCenter.y;
 
@@ -2572,21 +2084,20 @@ class StarfieldBackground extends Component
     for (final star in stars) {
       // depthFactor 1.0 = no shift, 0.0 = locked to viewport.
       final inv = 1.0 - star.depthFactor;
-      final drawX = star.position.x + cx * inv;
-      final drawY = star.position.y + cy * inv;
+      var drawX = star.position.x + cx * inv;
+      var drawY = star.position.y + cy * inv;
+      if (star.depthFactor >= 1.0) {
+        // The nearest grains drift on a slow current.
+        drawX += math.sin(_time * 0.07 + star.twinklePhase) * 6.0;
+        drawY += math.cos(_time * 0.05 + star.twinklePhase * 1.3) * 4.0;
+      }
 
       if (drawX < minX || drawX > maxX || drawY < minY || drawY > maxY) {
         continue;
       }
 
-      // Sub-pixel stars are skipped before the twinkle is evaluated.
-      //
-      // There are over three thousand of these. Zoomed in the bounds test
-      // throws most away, but pinching out passes every one of them and each
-      // then pays for its own opacity curve and a bucket push. A star draws at
-      // size * zoom pixels, so below a third of a pixel it contributes nothing
-      // that can be seen — and that is exactly the far layer, which is more
-      // than half the field.
+      // Sub-pixel stars are skipped before the twinkle is evaluated — that
+      // is the far layer when zoomed out, more than half the field.
       if (star.size * zoom < 0.34) continue;
 
       final alpha = star.currentOpacityAt(_time);
@@ -2597,17 +2108,18 @@ class StarfieldBackground extends Component
       var sizeIndex = ((star.size / _maxStarSize) * _sizeBuckets).floor();
       if (sizeIndex >= _sizeBuckets) sizeIndex = _sizeBuckets - 1;
       if (sizeIndex < 0) sizeIndex = 0;
+      final colour = star.warm ? 1 : 0;
 
-      _push(sizeIndex * _alphaBuckets + alphaIndex, drawX, drawY);
+      _push(
+        (colour * _sizeBuckets + sizeIndex) * _alphaBuckets + alphaIndex,
+        drawX,
+        drawY,
+      );
     }
 
     for (var i = 0; i < _bucketCount; i++) {
       final n = _bucketLengths[i];
       if (n == 0) continue;
-      final alphaIndex = i % _alphaBuckets;
-      _bucketPaints[i].color = primaryColor.withValues(
-        alpha: ((alphaIndex + 0.5) / _alphaBuckets).clamp(0.0, 1.0),
-      );
       canvas.drawRawPoints(
         ui.PointMode.points,
         Float32List.sublistView(_bucketPoints[i], 0, n),
@@ -2629,6 +2141,7 @@ class Star {
   final double baseOpacity;
   final double twinkleSpeed;
   final double twinklePhase;
+  final bool warm;
 
   /// 0.0 = pure background (doesn't move with camera), 1.0 = foreground
   /// (moves 1:1 with the world). Used for parallax depth.
@@ -2642,11 +2155,11 @@ class Star {
     required this.twinkleSpeed,
     required this.twinklePhase,
     this.depthFactor = 1.0,
+    this.warm = false,
   });
 
   double currentOpacityAt(double time) {
     if (_rapidBlink) {
-      // More organic rapid blink with multiple frequencies
       final blink =
           (math.sin(time * 15 + twinklePhase) +
               math.sin(time * 23 + twinklePhase * 1.3) * 0.5) /
@@ -2654,7 +2167,6 @@ class Star {
       return (baseOpacity * (0.2 + 0.8 * ((blink + 1) / 2))).clamp(0.0, 1.0);
     }
 
-    // Smooth twinkling with slight variation
     final twinkle = math.sin(time * twinkleSpeed + twinklePhase);
     final variation =
         math.sin(time * twinkleSpeed * 0.7 + twinklePhase + 1.0) * 0.3;

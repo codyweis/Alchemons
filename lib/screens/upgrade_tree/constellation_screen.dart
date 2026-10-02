@@ -1,51 +1,49 @@
-import 'package:alchemons/services/onboarding_tasks.dart';
+// lib/screens/upgrade_tree/constellation_screen.dart
+//
+// The star chart's screen: the chart itself (ConstellationGame) under a thin
+// layer of chrome in the bracket language the lab and the market use — a
+// header with the points balance, a tab per tree with its count, and the
+// chosen tree's name at the foot. Each tree's colour is its light from
+// constellation_art.dart, so a tab, its stones and its sky always agree.
+
 import 'dart:async';
+
 import 'package:alchemons/audio/audio.dart';
-// lib/screens/constellation_screen.dart
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/constellations/constellation_art.dart';
 import 'package:alchemons/games/constellations/constellation_game.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/progress_overview_screen.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_skill_dialog.dart';
+import 'package:alchemons/services/constellation_service.dart';
+import 'package:alchemons/services/onboarding_tasks.dart';
+import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:alchemons/services/constellation_service.dart';
-import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/widgets/tutorial_step.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 
-class _ConstellationPalette {
-  static const bg0 = Color(0xFF080A0E);
-  static const bg1 = Color(0xFF0E1117);
-  static const bg2 = Color(0xFF141820);
-  static const border = Color(0xFF252D3A);
-  static const borderSoft = Color(0xFF3A3020);
-  static const text = Color(0xFFE8DCC8);
-  static const textSoft = Color(0xFFD7E1EA);
-  static const textMuted = Color(0xFFC2B39D);
-  static const teal = Color(0xFF0EA5E9);
-}
+const _palette = BracketPalette.dark;
+const _mono = 'monospace';
 
-TextStyle _constellationDisplay(
-  BuildContext context,
-  double size,
-  Color color, {
-  FontWeight weight = FontWeight.w500,
-  double letterSpacing = 0,
-  FontStyle fontStyle = FontStyle.normal,
-}) {
-  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
-  return base.copyWith(
-    color: color,
-    fontSize: size,
-    fontWeight: weight,
-    letterSpacing: letterSpacing,
-    fontStyle: fontStyle,
-  );
-}
+TextStyle _label(double size, Color color, {double spacing = 1.4}) => TextStyle(
+  fontFamily: _mono,
+  color: color,
+  fontSize: size,
+  fontWeight: FontWeight.w800,
+  letterSpacing: spacing,
+);
+
+/// How tall the chrome over the chart is, so the chart can frame its trees
+/// in what is left and keep its verse out from under it.
+const double _kHeaderHeight = 58;
+const double _kTabsHeight = 58;
+const double _kFooterHeight = 86;
 
 class ConstellationScreen extends StatefulWidget {
   const ConstellationScreen({super.key, this.revealReady});
@@ -96,6 +94,19 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     super.dispose();
   }
 
+  /// Runs [cover] — a dialog, a sheet, another screen — with the chart
+  /// paused underneath it. Nothing behind a barrier needs to move, and the
+  /// chart animates every frame it runs.
+  Future<T?> _whileCovered<T>(Future<T?> Function() cover) async {
+    final game = _game;
+    game?.pauseEngine();
+    try {
+      return await cover();
+    } finally {
+      if (mounted) game?.resumeEngine();
+    }
+  }
+
   void _selectTree(ConstellationTree tree) {
     if (!_gameInitialized) return;
     if (!_availableTrees.contains(tree) || tree == _selectedTree) return;
@@ -120,10 +131,12 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
       _showFirstUnlockLockedMessage();
       return;
     }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const ConstellationProgressOverviewScreen(),
+    _whileCovered(
+      () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ConstellationProgressOverviewScreen(),
+        ),
       ),
     );
   }
@@ -192,11 +205,10 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
 
   void _showFirstUnlockLockedMessage() {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Unlock Cross-Species Lineage to continue.'),
-        behavior: SnackBarBehavior.floating,
-      ),
+    showGameSnack(
+      context,
+      'Unlock Cross-Species Lineage to continue.',
+      accent: treeLight(ConstellationTree.breeder).essence,
     );
   }
 
@@ -211,85 +223,38 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     final hasSeen = await settings.hasSeenConstellationTutorial();
     if (hasSeen || !mounted) return;
 
-    final theme = context.read<FactionTheme>();
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: _ConstellationPalette.bg1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: const BorderSide(color: _ConstellationPalette.border),
-          ),
-          title: Row(
-            children: [
-              Icon(AppIcons.auto_awesome, color: theme.primary),
-              const SizedBox(width: 8),
-              Text(
-                'Constellations',
-                style: TextStyle(
-                  color: _ConstellationPalette.text,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Earn constellation points, spend them to unlock powerful skills, and reveal three trees in order: Alchemy, Explorer, then Combat.',
-                style: TextStyle(
-                  color: _ConstellationPalette.textSoft,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 10),
-              TutorialStep(
-                theme: theme,
-                icon: AppIcons.bolt,
-                title: 'Earn Points',
-                body: 'Fuse creatures and complete milestones to gain points.',
-              ),
-              const SizedBox(height: 6),
-              TutorialStep(
-                theme: theme,
-                icon: AppIcons.lock_open,
-                title: 'Unlock Skills',
-                body:
-                    'Spend points to unlock nodes that boost breeding, combat, or extraction.',
-              ),
-              const SizedBox(height: 6),
-              TutorialStep(
-                theme: theme,
-                icon: AppIcons.explore_rounded,
-                title: 'Explore Trees',
-                body:
-                    'Switch tabs to view each tree and plan your progression.',
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: context.soundAction(() async {
-                await settings.setConstellationTutorialSeen();
-                if (context.mounted) Navigator.of(context).pop();
-              }),
-              child: Text(
-                'Got it',
-                style: TextStyle(
-                  color: theme.primary,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+    await _showChartDialog(
+      title: 'CONSTELLATIONS',
+      accent: treeLight(ConstellationTree.breeder).essence,
+      dismissible: false,
+      body: const [
+        _ChartDialogText(
+          'Earn constellation points, spend them to unlock skills, and '
+          'reveal three trees in order: Alchemy, Explorer, then Combat.',
+        ),
+        SizedBox(height: 14),
+        _ChartDialogStep(
+          sigil: ChartSigil.star,
+          title: 'EARN POINTS',
+          body: 'Fuse creatures and complete milestones to gain points.',
+        ),
+        SizedBox(height: 10),
+        _ChartDialogStep(
+          sigil: ChartSigil.rise,
+          title: 'UNLOCK SKILLS',
+          body:
+              'Spend points to light stones that boost breeding, combat, '
+              'or extraction.',
+        ),
+        SizedBox(height: 10),
+        _ChartDialogStep(
+          sigil: ChartSigil.lineage,
+          title: 'EXPLORE TREES',
+          body: 'Switch tabs to view each tree and plan your progression.',
+        ),
+      ],
+      confirmLabel: 'GOT IT',
+      onConfirm: () => settings.setConstellationTutorialSeen(),
     );
 
     if (!mounted) return;
@@ -307,6 +272,60 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     if (canStartGuide) {
       _activateFirstUnlockGuidance();
     }
+  }
+
+  /// A dialog in the chart's own frame: brackets in [accent] round a dark
+  /// panel, the title in spaced monospace, one button.
+  Future<void> _showChartDialog({
+    required String title,
+    required Color accent,
+    required List<Widget> body,
+    required String confirmLabel,
+    bool dismissible = true,
+    Future<void> Function()? onConfirm,
+  }) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: dismissible,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        child: CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: accent.withValues(alpha: 0.9),
+            bracketSize: 14,
+            strokeWidth: 1.3,
+          ),
+          child: Container(
+            color: _palette.bg1,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(title, style: _label(14, _palette.ink, spacing: 1.8)),
+                const SizedBox(height: 12),
+                ...body,
+                const SizedBox(height: 18),
+                BracketButton(
+                  label: confirmLabel,
+                  height: 42,
+                  palette: _palette,
+                  accent: accent,
+                  onTap: () async {
+                    await onConfirm?.call();
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   String _getTreeName(ConstellationTree tree) {
@@ -331,27 +350,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     }
   }
 
-  IconData _getTreeIcon(ConstellationTree tree) {
-    switch (tree) {
-      case ConstellationTree.breeder:
-        return AppIcons.biotech_outlined;
-      case ConstellationTree.combat:
-        return AppIcons.shield_outlined;
-      case ConstellationTree.extraction:
-        return AppIcons.diamond_outlined;
-    }
-  }
-
-  Color _getTreeAccentColor(FactionTheme theme, ConstellationTree tree) {
-    switch (tree) {
-      case ConstellationTree.breeder:
-        return _ConstellationPalette.teal;
-      case ConstellationTree.combat:
-        return theme.primary;
-      case ConstellationTree.extraction:
-        return theme.secondary;
-    }
-  }
+  Color _treeAccent(ConstellationTree tree) => treeLight(tree).essence;
 
   (int unlocked, int total) _getTreeProgress(
     ConstellationTree tree,
@@ -435,16 +434,10 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     await _game?.playTreeRevealSequence(tree);
 
     if (mounted) {
-      final label = _getTreeName(tree);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$label tree revealed'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: _getTreeAccentColor(
-            context.read<FactionTheme>(),
-            tree,
-          ),
-        ),
+      showGameSnack(
+        context,
+        '${_getTreeName(tree)} tree revealed',
+        accent: _treeAccent(tree),
       );
     }
 
@@ -503,6 +496,9 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
   Widget _buildBody(BuildContext context) {
     final theme = context.watch<FactionTheme>();
     final constellationService = context.watch<ConstellationService>();
+    final safe = MediaQuery.paddingOf(context);
+    final topChrome = safe.top + _kHeaderHeight + _kTabsHeight;
+    final bottomChrome = safe.bottom + _kFooterHeight;
 
     return PopScope(
       canPop: !_isFirstUnlockLocked,
@@ -512,255 +508,221 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: _ConstellationPalette.bg0,
-        body: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                _ConstellationPalette.bg0,
-                _ConstellationPalette.bg1,
-                _ConstellationPalette.bg0,
-              ],
-            ),
-          ),
-          child: StreamBuilder<int>(
-            stream: constellationService.watchPointBalance(),
-            builder: (context, pointsSnapshot) {
-              final points = pointsSnapshot.data ?? 0;
-              _currentPoints = points;
+        backgroundColor: _palette.bg0,
+        body: StreamBuilder<int>(
+          stream: constellationService.watchPointBalance(),
+          builder: (context, pointsSnapshot) {
+            final points = pointsSnapshot.data ?? 0;
+            _currentPoints = points;
 
-              return StreamBuilder<Set<String>>(
-                stream: constellationService.watchUnlockedSkillIds(),
-                builder: (context, unlockedSnapshot) {
-                  final unlockedSkills = unlockedSnapshot.data ?? {};
-                  _currentUnlocked = unlockedSkills;
-                  if (unlockedSnapshot.hasData) {
-                    _syncTreeAvailability(unlockedSkills);
-                    if (_isFirstUnlockLocked &&
-                        unlockedSkills.contains(_firstUnlockSkillId)) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _completeFirstUnlockGuidance();
-                      });
-                    }
-                  }
-
-                  if (_game == null) {
-                    _game = ConstellationGame(
-                      selectedTree: _selectedTree,
-                      unlockedSkills: unlockedSkills,
-                      visibleTrees: _availableTrees,
-                      onSkillTapped: (skill) =>
-                          _handleSkillTap(context, skill, constellationService),
-                      primaryColor: theme.primary,
-                      secondaryColor: theme.secondary,
-                      tutorialLocked: _isFirstUnlockLocked,
-                    );
-                    _gameInitialized = true;
-                    if (_isFirstUnlockLocked) {
-                      _focusFirstUnlockNode();
-                    }
-
-                    Future.delayed(const Duration(milliseconds: 500), () {
-                      _checkAndHandleFinale(
-                        unlockedSkills,
-                        constellationService,
-                      );
+            return StreamBuilder<Set<String>>(
+              stream: constellationService.watchUnlockedSkillIds(),
+              builder: (context, unlockedSnapshot) {
+                final unlockedSkills = unlockedSnapshot.data ?? {};
+                _currentUnlocked = unlockedSkills;
+                if (unlockedSnapshot.hasData) {
+                  _syncTreeAvailability(unlockedSkills);
+                  if (_isFirstUnlockLocked &&
+                      unlockedSkills.contains(_firstUnlockSkillId)) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _completeFirstUnlockGuidance();
                     });
-                  } else {
-                    _game!.tutorialLocked = _isFirstUnlockLocked;
-                    _game!.updateUnlockedSkills(unlockedSkills);
-                    _game!.setVisibleTrees(_availableTrees);
-                    if (_isFirstUnlockLocked) {
-                      _focusFirstUnlockNode();
-                    }
-                    _checkAndHandleFinale(unlockedSkills, constellationService);
+                  }
+                }
+
+                // Build the chart from the saved unlocks, not from the empty
+                // set the stream starts on: built empty, every owned skill
+                // then arrived as a new unlock and poured in again on open.
+                if (_game == null && !unlockedSnapshot.hasData) {
+                  return const SizedBox.expand();
+                }
+
+                if (_game == null) {
+                  _game =
+                      ConstellationGame(
+                          selectedTree: _selectedTree,
+                          unlockedSkills: unlockedSkills,
+                          visibleTrees: _availableTrees,
+                          onSkillTapped: (skill) => _handleSkillTap(
+                            context,
+                            skill,
+                            constellationService,
+                          ),
+                          primaryColor: theme.primary,
+                          secondaryColor: theme.secondary,
+                          tutorialLocked: _isFirstUnlockLocked,
+                        )
+                        ..chartInsets = EdgeInsets.only(
+                          top: topChrome,
+                          bottom: bottomChrome,
+                        );
+                  _gameInitialized = true;
+                  if (_isFirstUnlockLocked) {
+                    _focusFirstUnlockNode();
                   }
 
-                  return Stack(
-                    children: [
-                      Positioned.fill(child: GameWidget(game: _game!)),
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  _ConstellationPalette.bg0.withValues(
-                                    alpha: 0.8,
-                                  ),
-                                  Colors.transparent,
-                                  Colors.transparent,
-                                  _ConstellationPalette.bg0.withValues(
-                                    alpha: 0.92,
-                                  ),
-                                ],
-                                stops: const [0.0, 0.18, 0.62, 1.0],
-                              ),
-                            ),
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    _checkAndHandleFinale(unlockedSkills, constellationService);
+                  });
+                } else {
+                  _game!.tutorialLocked = _isFirstUnlockLocked;
+                  _game!.updateUnlockedSkills(unlockedSkills);
+                  _game!.setVisibleTrees(_availableTrees);
+                  _checkAndHandleFinale(unlockedSkills, constellationService);
+                }
+
+                return Stack(
+                  children: [
+                    Positioned.fill(child: GameWidget(game: _game!)),
+                    // One scrim under each band of chrome, the full width
+                    // of the screen, so the chart fades out beneath it
+                    // rather than meeting a box's edge.
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: topChrome + 36,
+                      child: _Scrim(top: true),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: bottomChrome + 40,
+                      child: _Scrim(top: false),
+                    ),
+                    SafeArea(
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            height: _kHeaderHeight,
+                            child: _buildHeader(points, unlockedSkills),
                           ),
-                        ),
+                          SizedBox(
+                            height: _kTabsHeight,
+                            child: _buildTreeSelector(unlockedSkills),
+                          ),
+                          if (_isFirstUnlockLocked) _buildFirstUnlockBanner(),
+                          const Spacer(),
+                          SizedBox(
+                            height: _kFooterHeight,
+                            child: _buildTreeInfo(),
+                          ),
+                        ],
                       ),
-                      SafeArea(
-                        bottom: false,
-                        child: Column(
-                          children: [
-                            _buildHeader(theme, points, unlockedSkills),
-                            _buildTreeSelector(theme, unlockedSkills),
-                            if (_isFirstUnlockLocked)
-                              _buildFirstUnlockBanner(theme),
-                            const Spacer(),
-                            _buildTreeInfo(theme, unlockedSkills),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
-          ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildFirstUnlockBanner(FactionTheme theme) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: _ConstellationPalette.bg1.withValues(alpha: 0.98),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: theme.primary.withValues(alpha: 0.45)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(AppIcons.touch_app_rounded, color: theme.primary, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'FIRST UNLOCK',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: theme.primary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Tap Cross-Species Lineage and unlock it to continue.',
-                  style: TextStyle(
-                    color: _ConstellationPalette.textSoft,
-                    fontSize: 12,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(
-    FactionTheme theme,
-    int points,
-    Set<String> unlockedSkills,
-  ) {
-    final total = ConstellationCatalog.allSkills.length;
-    final unlocked = unlockedSkills.length;
-    final progress = total > 0 ? unlocked / total : 0.0;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            _ConstellationPalette.bg1.withValues(alpha: 0.75),
-            _ConstellationPalette.bg1.withValues(alpha: 0.0),
-          ],
+  Widget _buildFirstUnlockBanner() {
+    final accent = _treeAccent(ConstellationTree.breeder);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: accent.withValues(alpha: 0.85),
+          bracketSize: 9,
+          strokeWidth: 1.2,
         ),
-      ),
-      child: Column(
-        children: [
-          Row(
+        child: Container(
+          width: double.infinity,
+          color: _palette.bg1.withValues(alpha: 0.92),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Row(
             children: [
-              _ConstellationIconButton(
-                theme: theme,
-                icon: AppIcons.arrow_back_ios_new_rounded,
-                onTap: _isFirstUnlockLocked
-                    ? _showFirstUnlockLockedMessage
-                    : () => VoidPortal.pop(context),
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CustomPaint(
+                  painter: SigilPainter(ChartSigil.merge, accent),
+                ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text('FIRST UNLOCK', style: _label(11, accent)),
+                    const SizedBox(height: 4),
                     Text(
-                      'Constellation',
-                      style: _constellationDisplay(
-                        context,
-                        24,
-                        _ConstellationPalette.text,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                    Text(
-                      'Chart your line through the sky.',
-                      style: _constellationDisplay(
-                        context,
-                        12,
-                        _ConstellationPalette.textMuted,
-                        fontStyle: FontStyle.italic,
-                      ),
+                      'Tap Cross-Species Lineage and unlock it to continue.',
+                      style: bracketText(context, 12.5, _palette.ink),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              _ConstellationIconButton(
-                theme: theme,
-                icon: AppIcons.grid_view_rounded,
-                onTap: () =>
-                    _showUnlockedSkillsSheet(context, theme, unlockedSkills),
-              ),
-              const SizedBox(width: 6),
-              _ConstellationPointsButton(
-                points: points,
-                onTap: context.soundTap(_openProgressOverview),
-              ),
             ],
           ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 4,
-              backgroundColor: Colors.white.withValues(alpha: 0.08),
-              valueColor: AlwaysStoppedAnimation(theme.primary),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(int points, Set<String> unlockedSkills) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Row(
+        children: [
+          BracketIconButton(
+            icon: AppIcons.arrow_back_ios_new_rounded,
+            palette: _palette,
+            color: _palette.ink,
+            size: 40,
+            onTap: _isFirstUnlockLocked
+                ? _showFirstUnlockLockedMessage
+                : () => VoidPortal.pop(context),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'CONSTELLATION',
+                  style: _label(13, _palette.ink, spacing: 2.6),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Chart your line through the sky.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: bracketText(
+                    context,
+                    11.5,
+                    _palette.muted,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(width: 8),
+          BracketIconButton(
+            icon: AppIcons.grid_view_rounded,
+            palette: _palette,
+            color: _palette.ink,
+            size: 40,
+            onTap: () => _showUnlockedSkillsSheet(context, unlockedSkills),
+          ),
+          const SizedBox(width: 8),
+          _PointsReadout(
+            points: points,
+            onTap: context.soundTap(_openProgressOverview),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTreeSelector(FactionTheme theme, Set<String> unlockedSkills) {
+  Widget _buildTreeSelector(Set<String> unlockedSkills) {
     const allTrees = [
       ConstellationTree.combat,
       ConstellationTree.breeder,
@@ -769,95 +731,69 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     final trees = allTrees.where(_availableTrees.contains).toList();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       child: Row(
-        children: List.generate(trees.length, (index) {
-          final tree = trees[index];
-          final progress = _getTreeProgress(tree, unlockedSkills);
-          return Expanded(
-            child: _ConstellationTreeButton(
-              theme: theme,
-              label: _getTreeName(tree),
-              icon: _getTreeIcon(tree),
-              accent: _getTreeAccentColor(theme, tree),
-              progress: progress,
-              selected: _selectedTree == tree,
-              onTap: context.soundTap(() => _handleTreeTap(tree)),
+        children: [
+          for (var i = 0; i < trees.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Expanded(
+              child: _TreeTab(
+                label: _getTreeName(trees[i]),
+                accent: _treeAccent(trees[i]),
+                progress: _getTreeProgress(trees[i], unlockedSkills),
+                selected: _selectedTree == trees[i],
+                onTap: context.soundTap(() => _handleTreeTap(trees[i])),
+              ),
             ),
-          );
-        }),
+          ],
+        ],
       ),
     );
   }
 
-  Widget _buildTreeInfo(FactionTheme theme, Set<String> unlockedSkills) {
-    final accent = _getTreeAccentColor(theme, _selectedTree);
+  Widget _buildTreeInfo() {
+    final accent = _treeAccent(_selectedTree);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [
-            _ConstellationPalette.bg1.withValues(alpha: 0.85),
-            _ConstellationPalette.bg1.withValues(alpha: 0.0),
-          ],
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(
-            _getTreeName(_selectedTree),
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: accent,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            _getTreeDescription(_selectedTree),
-            style: TextStyle(
-              color: _ConstellationPalette.textMuted,
-              fontSize: 13,
-              height: 1.25,
-            ),
-          ),
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: context.soundAction(() => _showEarnPointsDialog(theme)),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: accent.withValues(alpha: 0.45)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    AppIcons.lightbulb_outline_rounded,
-                    size: 14,
-                    color: accent,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'How to Earn',
-                    style: TextStyle(
-                      color: accent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _Lozenge(color: accent),
+                    const SizedBox(width: 8),
+                    Text(
+                      _getTreeName(_selectedTree),
+                      style: _label(12.5, accent, spacing: 2.2),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  _getTreeDescription(_selectedTree),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: bracketText(context, 13, _palette.ink),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 138,
+            child: BracketButton(
+              label: 'HOW TO EARN',
+              primary: false,
+              height: 38,
+              palette: _palette,
+              accent: accent,
+              onTap: () => _showEarnPointsDialog(),
             ),
           ),
         ],
@@ -865,241 +801,142 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     );
   }
 
-  void _showEarnPointsDialog(FactionTheme theme) {
+  void _showEarnPointsDialog() {
     if (_isFirstUnlockLocked) {
       _showFirstUnlockLockedMessage();
       return;
     }
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: _ConstellationPalette.bg1,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _ConstellationPalette.borderSoft),
+    _whileCovered(
+      () => _showChartDialog(
+        title: 'EARN CONSTELLATION POINTS',
+        accent: _treeAccent(_selectedTree),
+        body: const [
+          _ChartDialogText(
+            'Fuse creatures and complete their milestone progress to earn '
+            'constellation points. Spend those points here to unlock '
+            'passive upgrades across the sky map.',
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'EARN CONSTELLATION POINTS',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: theme.primary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.0,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Container(height: 1, color: _ConstellationPalette.border),
-              const SizedBox(height: 16),
-              Text(
-                'Fuse creatures and complete their milestone progress to earn constellation points. Spend those points here to unlock passive upgrades across the sky map.',
-                style: TextStyle(
-                  color: _ConstellationPalette.textSoft,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _ConstellationInlineHint(
-                theme: theme,
-                icon: AppIcons.egg_alt_outlined,
-                label:
-                    'Fusion milestones award the points, not extraction taps.',
-              ),
-              const SizedBox(height: 20),
-              _ConstellationDialogButton(
-                theme: theme,
-                label: 'GOT IT',
-                onTap: context.soundTap(() => Navigator.pop(context)),
-              ),
-            ],
+          SizedBox(height: 14),
+          _ChartDialogStep(
+            sigil: ChartSigil.merge,
+            title: 'FUSION MILESTONES',
+            body: 'Fusion milestones award the points, not extraction taps.',
           ),
-        ),
+        ],
+        confirmLabel: 'GOT IT',
       ),
     );
   }
 
   void _showUnlockedSkillsSheet(
     BuildContext context,
-    FactionTheme theme,
     Set<String> unlockedSkills,
   ) {
     if (_isFirstUnlockLocked) {
       _showFirstUnlockLockedMessage();
       return;
     }
-    // Organize skills by tree
-    final breederSkills = <ConstellationSkill>[];
-    final combatSkills = <ConstellationSkill>[];
-    final extractionSkills = <ConstellationSkill>[];
-
+    final byTree = <ConstellationTree, List<ConstellationSkill>>{
+      for (final tree in ConstellationTree.values) tree: [],
+    };
     for (final skillId in unlockedSkills) {
       final skill = ConstellationCatalog.byId(skillId);
-      if (skill != null) {
-        switch (skill.tree) {
-          case ConstellationTree.breeder:
-            breederSkills.add(skill);
-            break;
-          case ConstellationTree.combat:
-            combatSkills.add(skill);
-            break;
-          case ConstellationTree.extraction:
-            extractionSkills.add(skill);
-            break;
-        }
-      }
+      if (skill != null) byTree[skill.tree]!.add(skill);
     }
+    final total = ConstellationCatalog.allSkills.length;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.82,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: _ConstellationPalette.bg1,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _ConstellationPalette.textMuted.withValues(
-                    alpha: 0.35,
+    _whileCovered(
+      () => showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withValues(alpha: 0.6),
+        builder: (sheetContext) => DraggableScrollableSheet(
+          initialChildSize: 0.82,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) => CustomPaint(
+            foregroundPainter: BracketFramePainter(
+              color: _palette.line.withValues(alpha: 0.9),
+              bracketSize: 14,
+            ),
+            child: Container(
+              color: _palette.bg1,
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    width: 36,
+                    height: 3,
+                    color: _palette.muted.withValues(alpha: 0.4),
                   ),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 12, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
                             'UNLOCKED SKILLS',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: _ConstellationPalette.text,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${unlockedSkills.length} of ${ConstellationCatalog.allSkills.length} total',
-                            style: TextStyle(
-                              color: _ConstellationPalette.textMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _ConstellationInlineBadge(
-                      label:
-                          '${unlockedSkills.length}/${ConstellationCatalog.allSkills.length}',
-                      color: theme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    _ConstellationIconButton(
-                      theme: theme,
-                      icon: AppIcons.close_rounded,
-                      onTap: context.soundTap(() => Navigator.pop(context)),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  children: [
-                    if (breederSkills.isNotEmpty) ...[
-                      _buildTreeSection(
-                        'ALCHEMY',
-                        'Genetics & Breeding Mastery',
-                        breederSkills,
-                        theme,
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    if (combatSkills.isNotEmpty) ...[
-                      _buildTreeSection(
-                        'COMBAT',
-                        'Combat & Boss Battles',
-                        combatSkills,
-                        theme,
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    if (extractionSkills.isNotEmpty) ...[
-                      _buildTreeSection(
-                        'EXPLORER',
-                        'Resources & Convenience',
-                        extractionSkills,
-                        theme,
-                      ),
-                    ],
-                    if (unlockedSkills.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: _ConstellationPalette.bg2,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: _ConstellationPalette.border,
+                            style: _label(13, _palette.ink, spacing: 2.4),
                           ),
                         ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              AppIcons.lock_outline_rounded,
-                              size: 42,
-                              color: _ConstellationPalette.textMuted,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No skills unlocked yet',
-                              style: TextStyle(
-                                color: _ConstellationPalette.text,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Unlock nodes in the constellation trees to see them listed here.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: _ConstellationPalette.textSoft,
-                                fontSize: 12,
-                                height: 1.4,
-                              ),
-                            ),
+                        Text(
+                          '${unlockedSkills.length} / $total',
+                          style: _label(12, _palette.muted),
+                        ),
+                        const SizedBox(width: 12),
+                        BracketIconButton(
+                          icon: AppIcons.close_rounded,
+                          palette: _palette,
+                          size: 36,
+                          onTap: () => Navigator.pop(sheetContext),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      children: [
+                        for (final tree in const [
+                          ConstellationTree.breeder,
+                          ConstellationTree.combat,
+                          ConstellationTree.extraction,
+                        ])
+                          if (byTree[tree]!.isNotEmpty) ...[
+                            _buildTreeSection(tree, byTree[tree]!),
+                            const SizedBox(height: 18),
                           ],
-                        ),
-                      ),
-                  ],
-                ),
+                        if (unlockedSkills.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'NO SKILLS UNLOCKED YET',
+                                  style: _label(12, _palette.ink),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Light stones on the chart to see them '
+                                  'listed here.',
+                                  textAlign: TextAlign.center,
+                                  style: bracketText(
+                                    context,
+                                    12.5,
+                                    _palette.muted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1107,111 +944,76 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
   }
 
   Widget _buildTreeSection(
-    String title,
-    String subtitle,
+    ConstellationTree tree,
     List<ConstellationSkill> skills,
-    FactionTheme theme,
   ) {
-    final sectionTree = switch (title) {
-      'COMBAT' => ConstellationTree.combat,
-      'EXPLORER' => ConstellationTree.extraction,
-      _ => ConstellationTree.breeder,
-    };
-    final accent = _getTreeAccentColor(theme, sectionTree);
+    final accent = _treeAccent(tree);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section header — accent stripe + title + count, no wrapping box.
         Row(
           children: [
-            Container(width: 3, height: 14, color: accent),
+            _Lozenge(color: accent),
             const SizedBox(width: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: accent,
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${skills.length}',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: _ConstellationPalette.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            Text(_getTreeName(tree), style: _label(11.5, accent, spacing: 1.8)),
+            const SizedBox(width: 10),
+            Expanded(child: Container(height: 1, color: _palette.lineSoft)),
+            const SizedBox(width: 10),
+            Text('${skills.length}', style: _label(11, _palette.muted)),
           ],
         ),
-        const SizedBox(height: 2),
-        Padding(
-          padding: const EdgeInsets.only(left: 11),
-          child: Text(
-            subtitle,
-            style: const TextStyle(
-              color: _ConstellationPalette.textMuted,
-              fontSize: 12,
-            ),
-          ),
+        const SizedBox(height: 4),
+        Text(
+          _getTreeDescription(tree),
+          style: bracketText(context, 12, _palette.muted),
         ),
         const SizedBox(height: 10),
-        // Flat skill rows — no per-row border, just an icon + name + description.
-        // A faint left accent line ties each row back to its tree.
-        ...skills.asMap().entries.map((entry) {
-          final isLast = entry.key == skills.length - 1;
-          final skill = entry.value;
-          return Padding(
-            padding: EdgeInsets.only(bottom: isLast ? 0 : 1),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(11, 10, 12, 10),
-              decoration: BoxDecoration(
-                border: Border(
-                  left: BorderSide(
-                    color: accent.withValues(alpha: 0.55),
-                    width: 2,
-                  ),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(skill.identityIcon, color: accent, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          skill.name,
-                          style: const TextStyle(
-                            color: _ConstellationPalette.text,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          skill.description,
-                          style: const TextStyle(
-                            color: _ConstellationPalette.textSoft,
-                            fontSize: 12,
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
+        for (final skill in skills)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CustomPaint(
+                      painter: SigilPainter(sigilFor(skill), accent),
                     ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        skill.name,
+                        style: bracketText(
+                          context,
+                          13.5,
+                          _palette.ink,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        skill.description,
+                        style: bracketText(
+                          context,
+                          12.5,
+                          _palette.ink.withValues(alpha: 0.72),
+                        ).copyWith(height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          );
-        }),
+          ),
       ],
     );
   }
@@ -1228,7 +1030,6 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
       return;
     }
 
-    final theme = context.read<FactionTheme>();
     final isUnlocked = await service.isSkillUnlocked(skill.id);
     final canUnlock = await service.canUnlockSkill(skill.id);
     if (!context.mounted) return;
@@ -1236,7 +1037,6 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     _showSkillDialog(
       context,
       skill,
-      theme,
       service,
       mode: isUnlocked
           ? SkillDialogMode.owned
@@ -1246,56 +1046,53 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     );
   }
 
-  /// One dialog for all three node states — see
-  /// [ConstellationSkillDialog]. Replaces the two near-identical Material
-  /// dialogs that used to live here.
+  /// One dialog for all three node states — see [ConstellationSkillDialog].
   void _showSkillDialog(
     BuildContext context,
     ConstellationSkill skill,
-    FactionTheme theme,
     ConstellationService service, {
     required SkillDialogMode mode,
   }) {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: skill.name,
-      // Dark enough to sit the dialog forward without hiding the star chart
-      // it belongs to.
-      barrierColor: const Color(0xC404060A),
-      transitionDuration: const Duration(milliseconds: 180),
-      pageBuilder: (dialogContext, _, _) => ConstellationSkillDialog(
-        skill: skill,
-        mode: mode,
-        primary: theme.primary,
-        secondary: theme.secondary,
-        pointsAvailable: _currentPoints,
-        prerequisiteStates: {
-          for (final id in skill.prerequisites)
-            id: _currentUnlocked.contains(id),
+    _whileCovered(
+      () => showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: skill.name,
+        // Dark enough to sit the dialog forward without hiding the star
+        // chart it belongs to.
+        barrierColor: const Color(0xC404060A),
+        transitionDuration: const Duration(milliseconds: 180),
+        pageBuilder: (dialogContext, _, _) => ConstellationSkillDialog(
+          skill: skill,
+          mode: mode,
+          pointsAvailable: _currentPoints,
+          prerequisiteStates: {
+            for (final id in skill.prerequisites)
+              id: _currentUnlocked.contains(id),
+          },
+          onUnlock: mode == SkillDialogMode.available
+              ? () => _performUnlock(dialogContext, skill, service)
+              : null,
+        ),
+        transitionBuilder: (context, anim, _, child) {
+          final curved = CurvedAnimation(
+            parent: anim,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            // A short rise, so it reads as the stone opening up rather than
+            // a system alert dropping in.
+            child: SlideTransition(
+              position: Tween(
+                begin: const Offset(0, 0.04),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
+          );
         },
-        onUnlock: mode == SkillDialogMode.available
-            ? () => _performUnlock(dialogContext, skill, service)
-            : null,
       ),
-      transitionBuilder: (context, anim, _, child) {
-        final curved = CurvedAnimation(
-          parent: anim,
-          curve: Curves.easeOutCubic,
-        );
-        return FadeTransition(
-          opacity: curved,
-          // A short rise, so it reads as the node opening up rather than a
-          // system alert dropping in.
-          child: SlideTransition(
-            position: Tween(
-              begin: const Offset(0, 0.04),
-              end: Offset.zero,
-            ).animate(curved),
-            child: child,
-          ),
-        );
-      },
     );
   }
 
@@ -1313,56 +1110,42 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
     Navigator.of(dialogContext).pop();
 
     if (success) {
-      // No confirmation toast: the node fires its unlock burst and the
-      // connection line animates in behind the dialog. Covering that with a
-      // SnackBar hid the only part of this the player wants to watch.
+      // No confirmation toast: closing the dialog resumes the chart, and the
+      // pour runs down the link and lights the stone. Covering that would
+      // hide the only part of this the player wants to watch.
       HapticFeedback.heavyImpact();
       return;
     }
     // The button is disabled when you cannot afford it, so this only fires on
     // a genuine race. Still needs to say something.
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Not enough skill points for ${skill.name}'),
-        backgroundColor: const Color(0xFF3A2418),
-        behavior: SnackBarBehavior.floating,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.zero,
-          side: BorderSide(color: Color(0xFFE0885A)),
-        ),
-      ),
+    showGameSnack(
+      context,
+      'Not enough skill points for ${skill.name}',
+      accent: const Color(0xFFE0885A),
     );
   }
 }
 
-class _ConstellationIconButton extends StatelessWidget {
-  final FactionTheme theme;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _ConstellationIconButton({
-    required this.theme,
-    required this.icon,
-    required this.onTap,
-  });
+/// The chart fading out under a band of chrome.
+class _Scrim extends StatelessWidget {
+  const _Scrim({required this.top});
+  final bool top;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: SizedBox(
-        width: 40,
-        height: 40,
-        child: CustomPaint(
-          painter: _ConstellationBracketPainter(
-            color: _ConstellationPalette.textMuted.withValues(alpha: 0.38),
-            bracketSize: 8,
-            strokeWidth: 1,
-          ),
-          child: Container(
-            color: Colors.white.withValues(alpha: 0.03),
-            child: Icon(icon, color: _ConstellationPalette.text, size: 20),
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: top ? Alignment.topCenter : Alignment.bottomCenter,
+            end: top ? Alignment.bottomCenter : Alignment.topCenter,
+            colors: [
+              _palette.bg0.withValues(alpha: 0.97),
+              _palette.bg0.withValues(alpha: 0.82),
+              _palette.bg0.withValues(alpha: 0),
+            ],
+            stops: const [0.0, 0.62, 1.0],
           ),
         ),
       ),
@@ -1370,56 +1153,66 @@ class _ConstellationIconButton extends StatelessWidget {
   }
 }
 
-class _ConstellationPointsButton extends StatelessWidget {
+/// A small diamond of a tree's light, beside its name.
+class _Lozenge extends StatelessWidget {
+  const _Lozenge({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Transform.rotate(
+    angle: 0.785398,
+    child: Container(width: 6, height: 6, color: color),
+  );
+}
+
+/// The balance, framed like the lab's readouts. Opens the progress overview.
+class _PointsReadout extends StatelessWidget {
+  const _PointsReadout({required this.points, required this.onTap});
   final int points;
   final VoidCallback onTap;
 
-  const _ConstellationPointsButton({required this.points, required this.onTap});
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: SizedBox(
-        width: 74,
-        height: 40,
-        child: CustomPaint(
-          painter: _ConstellationBracketPainter(
-            color: _ConstellationPalette.textMuted.withValues(alpha: 0.38),
-            bracketSize: 8,
-            strokeWidth: 1,
-          ),
-          child: Container(
-            color: Colors.white.withValues(alpha: 0.03),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Center(
-              child: RichText(
-                maxLines: 1,
-                overflow: TextOverflow.clip,
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: '$points ',
-                      style: _constellationDisplay(
-                        context,
-                        17,
-                        _ConstellationPalette.text,
-                        weight: FontWeight.w700,
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: _palette.line.withValues(alpha: 0.85),
+          bracketSize: 8,
+        ),
+        child: Container(
+          height: 40,
+          constraints: const BoxConstraints(minWidth: 68),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          color: _palette.chromeMutedFill(),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 10,
+                    height: 10,
+                    child: CustomPaint(
+                      painter: SigilPainter(
+                        ChartSigil.star,
+                        treeLight(ConstellationTree.extraction).essence,
                       ),
                     ),
-                    TextSpan(
-                      text: 'pts',
-                      style: _constellationDisplay(
-                        context,
-                        11,
-                        _ConstellationPalette.textMuted,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$points',
+                    style: _label(15, _palette.ink, spacing: 0.6),
+                  ),
+                ],
               ),
-            ),
+              const SizedBox(height: 2),
+              Text('POINTS', style: _label(8.5, _palette.muted, spacing: 1.4)),
+            ],
           ),
         ),
       ),
@@ -1427,176 +1220,62 @@ class _ConstellationPointsButton extends StatelessWidget {
   }
 }
 
-class _ConstellationBracketPainter extends CustomPainter {
-  const _ConstellationBracketPainter({
-    required this.color,
-    required this.bracketSize,
-    required this.strokeWidth,
-  });
-
-  final Color color;
-  final double bracketSize;
-  final double strokeWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-    final s = bracketSize;
-    final w = size.width;
-    final h = size.height;
-    final path = Path()
-      ..moveTo(0, s)
-      ..lineTo(0, 0)
-      ..lineTo(s, 0)
-      ..moveTo(w - s, 0)
-      ..lineTo(w, 0)
-      ..lineTo(w, s)
-      ..moveTo(0, h - s)
-      ..lineTo(0, h)
-      ..lineTo(s, h)
-      ..moveTo(w - s, h)
-      ..lineTo(w, h)
-      ..lineTo(w, h - s);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ConstellationBracketPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.bracketSize != bracketSize ||
-      oldDelegate.strokeWidth != strokeWidth;
-}
-
-class _ConstellationInlineBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _ConstellationInlineBadge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: _ConstellationPalette.bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.8,
-        ),
-      ),
-    );
-  }
-}
-
-class _ConstellationTreeButton extends StatelessWidget {
-  final FactionTheme theme;
-  final String label;
-  final IconData icon;
-  final Color accent;
-  final (int, int) progress;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ConstellationTreeButton({
-    required this.theme,
+/// One tree's tab: its name, and how much of it is lit. The chosen one is
+/// framed in the tree's light.
+class _TreeTab extends StatelessWidget {
+  const _TreeTab({
     required this.label,
-    required this.icon,
     required this.accent,
     required this.progress,
     required this.selected,
     required this.onTap,
   });
 
+  final String label;
+  final Color accent;
+  final (int, int) progress;
+  final bool selected;
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
     final (unlocked, total) = progress;
-    final value = total > 0 ? unlocked / total : 0.0;
-
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: context.soundAction(onTap),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? accent.withValues(alpha: 0.10) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: selected ? accent : _palette.line.withValues(alpha: 0.7),
+          bracketSize: 8,
+          strokeWidth: selected ? 1.3 : 1,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: selected ? accent : _ConstellationPalette.textMuted,
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.7,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          alignment: Alignment.center,
+          color: selected
+              ? _palette.accentWash(accent, darkAlpha: 0.16)
+              : _palette.chromeMutedFill(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: _label(
+                  12,
+                  selected ? _palette.ink : _palette.muted,
+                  spacing: 1.6,
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: LinearProgressIndicator(
-                value: value,
-                minHeight: 3,
-                backgroundColor: Colors.white.withValues(alpha: 0.06),
-                valueColor: AlwaysStoppedAnimation(accent),
+              const SizedBox(height: 4),
+              Text(
+                '$unlocked / $total',
+                style: _label(
+                  10,
+                  selected ? accent : _palette.muted.withValues(alpha: 0.8),
+                  spacing: 0.8,
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ConstellationDialogButton extends StatelessWidget {
-  final FactionTheme theme;
-  final String label;
-  final VoidCallback onTap;
-  const _ConstellationDialogButton({
-    required this.theme,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final buttonColor = theme.primary;
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        decoration: BoxDecoration(
-          color: buttonColor.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: buttonColor),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: buttonColor,
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.0,
+            ],
           ),
         ),
       ),
@@ -1604,43 +1283,66 @@ class _ConstellationDialogButton extends StatelessWidget {
   }
 }
 
-class _ConstellationInlineHint extends StatelessWidget {
-  final FactionTheme theme;
-  final IconData icon;
-  final String label;
+class _ChartDialogText extends StatelessWidget {
+  const _ChartDialogText(this.text);
+  final String text;
 
-  const _ConstellationInlineHint({
-    required this.theme,
-    required this.icon,
-    required this.label,
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: bracketText(
+      context,
+      13.5,
+      _palette.ink.withValues(alpha: 0.9),
+    ).copyWith(height: 1.45),
+  );
+}
+
+/// One line of a dialog's how-to: a glyph, a heading and a sentence.
+class _ChartDialogStep extends StatelessWidget {
+  const _ChartDialogStep({
+    required this.sigil,
+    required this.title,
+    required this.body,
   });
+
+  final ChartSigil sigil;
+  final String title;
+  final String body;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: _ConstellationPalette.bg2,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: _ConstellationPalette.border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: _ConstellationPalette.teal, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: _ConstellationPalette.textSoft,
-                fontSize: 12,
-                height: 1.35,
-              ),
-            ),
+    final accent = treeLight(ConstellationTree.breeder).essence;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: SizedBox(
+            width: 14,
+            height: 14,
+            child: CustomPaint(painter: SigilPainter(sigil, accent)),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: _label(11, _palette.ink)),
+              const SizedBox(height: 3),
+              Text(
+                body,
+                style: bracketText(
+                  context,
+                  12.5,
+                  _palette.muted,
+                ).copyWith(height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

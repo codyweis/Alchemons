@@ -124,8 +124,10 @@ void main() {
     expect(far.get('drawCircle'), lessThan(40));
     expect(
       far.get('drawRawPoints'),
-      lessThanOrEqualTo(24),
-      reason: 'stars are bucketed by size and brightness, at most 4*6 buckets',
+      lessThanOrEqualTo(24 + 16),
+      reason:
+          'stars are bucketed by size, brightness and colour (3*4*2), and '
+          'every grain on every link shares one layer of at most 16 classes',
     );
     // The whole point: far must not cost meaningfully more than near.
     final nearTotal = near.get('drawCircle') + near.get('drawRawPoints');
@@ -175,5 +177,33 @@ void main() {
     game.renderTree(after as Canvas);
     expect(after.get('drawPath'), closeTo(before.get('drawPath'), 60));
     expect(after.blurredDraws, before.blurredDraws);
+  });
+
+  testWidgets('links cost a few point passes, not a draw per link', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    // A filled chart has ~40 links. They used to be two or three drawLine
+    // calls each; their grains now go through one batched layer.
+    for (final zoom in [1.0, 0.2]) {
+      final c = await _census(tester, unlocked: allSkills, zoom: zoom);
+      expect(c.get('drawLine'), 0, reason: 'zoom $zoom');
+      expect(c.get('drawRawPoints'), lessThanOrEqualTo(24 + 16));
+    }
+  });
+
+  testWidgets('stones off screen are not drawn', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    // Zoomed in, most of the chart is off screen; it used to draw all 43
+    // stones regardless.
+    final close = await _census(tester, unlocked: allSkills, zoom: 2.0);
+    final whole = await _census(tester, unlocked: allSkills, zoom: 0.15);
+    expect(close.get('drawPath'), lessThan(whole.get('drawPath') / 3));
   });
 }
