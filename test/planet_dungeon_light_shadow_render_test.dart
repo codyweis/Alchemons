@@ -158,10 +158,27 @@ void main() {
       g = await _game('solarin_orbit', stars: 3);
       _place(g, {0: sq(7, 4), 1: sq(1, 3), 2: sq(1, 5)});
       await shoot('solarin', g);
-      // …and its flare gathering on a body left in its light.
+      // …its bolts in flight at Light out on the glass, burning in its light.
       g.guardianAwake = true;
-      g.creatures[2].position = shadowCentre(3, 6);
-      await shoot('solarin_flare', g, 230);
+      g.setActive(0);
+      g.update(1 / 60); // the arrival begins
+      for (var i = 0; i < 900 && g.guardianArriving; i++) {
+        g.update(1 / 60);
+      }
+      g.creatures[0].position = shadowCentre(6, 1);
+      g.archive
+        ..swingNext = 99
+        ..boltNext = 0;
+      await shoot('solarin_bolts', g, 50);
+      // …and gathering to swing: its next place, and the shadow it will cast.
+      g.creatures[0].position = shadowCentre(7, 4);
+      g.archive
+        ..swingNext = 0.5
+        ..boltNext = 99;
+      await shoot('solarin_warn', g, 10);
+      // …and halfway through its swing: the shadows mid-sweep.
+      g.archive.swingNext = 0;
+      await shoot('solarin_sweep', g, 90);
 
       // THE HALL — dark star, then the near spans set, then the whole bridge.
       g = await _game('light_hall');

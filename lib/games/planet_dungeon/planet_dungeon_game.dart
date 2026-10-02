@@ -4245,7 +4245,9 @@ class PlanetDungeonGame extends FlameGame {
         !(_isVault && room.sun?.grid == 'sun_heart')) {
       return;
     }
-    if (_roomCleared(room)) return;
+    // A debug rematch re-fights a guardian whose star is already banked; its
+    // fight (the lull cycle, each planet's own hook) still has to run.
+    if (_roomCleared(room) && !debugGuardianRematch) return;
     // §9.1 REWORK: conduits LATCH. Nothing decays here any more — the altar is
     // a question about the storm's route, not about how fast you can run.
     final aLive = (conduitEnergy['A'] ?? 0) > 0;
@@ -4324,8 +4326,9 @@ class PlanetDungeonGame extends FlameGame {
       // rods, Star 3's own vocabulary — forces a window the cycle never would.
       // Air-only, and raids have no rod field to rank.
       if (_isSpire) _applyRocDrag(room, dt);
-      // Solarin hangs where it hangs and swings round its orbit when struck;
-      // the lull is a PLACE — two squares off it, on floor that holds.
+      // Solarin swings round its orbit on its own rhythm and when struck; its
+      // light burns bare glass, and the lull is a PLACE — two squares off it,
+      // in its shadow.
       if (_isArchive && !isRaid) _applySolarinOrbit(room, dt);
       // Blightfang never opens a lull on a clock (§7): only the draught that
       // answers the strain it is WEARING forces the window, and it takes a
@@ -4363,8 +4366,11 @@ class PlanetDungeonGame extends FlameGame {
       }
       // GAMEPLAY (the hint audit, 2026-09-25): an out-of-phase Wraithord is
       // "harmless in BOTH directions" — its aura burned across the worlds.
+      // Solarin's harm is its light (its own hook burns bare glass), not a
+      // ring round its altar.
       if (!guardianVulnerable &&
           !_funeralHoldsGuardian &&
+          !(_isArchive && !isRaid) &&
           (a.position - stormCenter).distance < 90) {
         a.hp = max(0, a.hp - _guardianHazardDps * progressDmgMul * dt);
       }
@@ -9766,7 +9772,7 @@ class PlanetDungeonGame extends FlameGame {
         _isFuneral && !isRaid
             ? 'Its shadow shields it'
             : _isArchive && !isRaid
-            ? 'Out of reach. Two squares from Solarin, on floor that holds'
+            ? _solarinBlockedLine()
             : 'It can\'t be hit yet. Wait for the lull',
       );
       return true;

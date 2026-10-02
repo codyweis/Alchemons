@@ -196,6 +196,11 @@ class ShadowState {
   final int hits;
   final bool piped;
 
+  /// Where Solarin's light is actually coming from while it swings between
+  /// points of its orbit (grid units, fractional); null when it hangs still
+  /// at `orbit`. The shadows sweep with it.
+  final ({double x, double y})? sun;
+
   const ShadowState({
     required this.pos,
     required this.pins,
@@ -205,6 +210,7 @@ class ShadowState {
     this.orbit = 0,
     this.hits = 0,
     this.piped = false,
+    this.sun,
   });
 
   factory ShadowState.start(ShadowRoomDef d) => ShadowState(
@@ -224,6 +230,8 @@ class ShadowState {
     int? orbit,
     int? hits,
     bool? piped,
+    ({double x, double y})? sun,
+    bool still = false,
   }) => ShadowState(
     pos: pos ?? this.pos,
     pins: pins ?? this.pins,
@@ -233,6 +241,7 @@ class ShadowState {
     orbit: orbit ?? this.orbit,
     hits: hits ?? this.hits,
     piped: piped ?? this.piped,
+    sun: still ? null : (sun ?? this.sun),
   );
 
   ShadowState moved(String who, Sq to) => copyWith(pos: {...pos, who: to});
@@ -245,7 +254,12 @@ class ShadowState {
     b
       ..write('$pins|')
       ..write(veil == null ? '-' : '${veil!.x}.${veil!.y}')
-      ..write('|${piped ? 1 : 0}|$rail|$orbit|$hits|');
+      ..write('|${piped ? 1 : 0}|$rail|$orbit|$hits|')
+      ..write(
+        sun == null
+            ? '-|'
+            : '${sun!.x.toStringAsFixed(2)},${sun!.y.toStringAsFixed(2)}|',
+      );
     final p = pinned.toList()..sort();
     b.write(p.join(';'));
     return b.toString();
@@ -263,11 +277,18 @@ List<ShadowLamp> shadowLamps(ShadowRoomDef d, ShadowState s) {
     final n = d.rail![s.rail];
     out.add(ShadowLamp(n.x.toDouble(), n.y.toDouble(), kind: 'rail'));
   }
-  if (d.orbit != null && s.hits < 3) {
-    final o = d.orbit![s.orbit];
-    out.add(ShadowLamp(o.x.toDouble(), o.y.toDouble(), kind: 'solarin'));
-  }
+  final sol = shadowSolarinLamp(d, s);
+  if (sol != null) out.add(sol);
   return out;
+}
+
+/// Solarin's own light: where it hangs, or where it is mid-swing.
+ShadowLamp? shadowSolarinLamp(ShadowRoomDef d, ShadowState s) {
+  if (d.orbit == null || s.hits >= 3) return null;
+  final sun = s.sun;
+  if (sun != null) return ShadowLamp(sun.x, sun.y, kind: 'solarin');
+  final o = d.orbit![s.orbit];
+  return ShadowLamp(o.x.toDouble(), o.y.toDouble(), kind: 'solarin');
 }
 
 bool shadowSolid(ShadowRoomDef d, int x, int y, ShadowState s) {
@@ -479,11 +500,69 @@ List<int>? shadowPinCells(ShadowRoomDef d, ShadowState s) {
   return (state: s.copyWith(pos: pos), fell: fell);
 }
 
+// ── SOLARIN'S FIGHT (a real fight on the shadow floor) ───
+//
+// Its glass is all floor — nothing falls — but wherever its light reaches
+// bare glass, it burns. Solarin holds, shows where it goes next, and swings
+// on round its orbit; the shadows sweep with it, so the safe ground moves
+// and each approach is a new one. It fires slow bolts of light at the
+// party, which stop at the first pillar, body or veil in their way — so the
+// shadow is cover as well as safe ground. It is struck from its shadow, two
+// squares off.
+
+/// Seconds Solarin holds before it swings on (shorter once it is hurt).
+/// Slow on purpose: the party's other two fight on their own while you
+/// read the light.
+const double kSolarinHold = 8.0;
+const double kSolarinHoldHurt = 6.0;
+
+/// Seconds before a swing that its next place, and the floor it will cast,
+/// are shown.
+const double kSolarinWarn = 3.0;
+
+/// Seconds a swing takes. Its light comes from where it is along the way,
+/// so the shadows creep across the floor, slow enough to walk with.
+const double kSolarinSwing = 16.0;
+
+/// Health per second its light burns from the active body (of 100).
+const double kSolarinBurnDps = 42;
+
+/// Its bolts: one every few seconds (a fan of three once it is hurt), at
+/// each of the party in turn; slow enough to step out of the way of.
+const double kSolarinBoltEvery = 2.6;
+const double kSolarinBoltEveryHurt = 2.0;
+const double kSolarinBoltSpeed = 150;
+const double kSolarinBoltDamage = 14;
+const double kSolarinBoltRadius = 10;
+
+/// A bolt of Solarin's light in flight (world units).
+class SolarBolt {
+  Offset p;
+  final Offset v;
+  double age = 0;
+  SolarBolt(this.p, this.v);
+}
+
+/// Does Solarin's light burn [who] where it stands? Only on bare glass it
+/// reaches with nothing but [who] in the way — stone, shadow Dark has set
+/// into stone, and anything another caster shades are safe.
+bool shadowSolarinBurns(ShadowRoomDef d, ShadowState s, String who) {
+  final l = shadowSolarinLamp(d, s);
+  if (l == null) return false;
+  final q = s.pos[who]!;
+  if (!d.isGlass(q.x, q.y) || s.pinned.contains(sqKey(q.x, q.y))) {
+    return false;
+  }
+  if (!shadowLights(d, l, q.x, q.y)) return false;
+  return _holders(d, s, l, q.x, q.y, except: who).isEmpty;
+}
+
 /// Can [who] strike Solarin from where it stands? Two squares, no further.
 bool shadowSolarinReach(ShadowRoomDef d, ShadowState s, String who) {
-  if (d.orbit == null || s.hits >= 3) return false;
-  final o = d.orbit![s.orbit], p = s.pos[who]!;
-  final dx = (p.x - o.x).toDouble(), dy = (p.y - o.y).toDouble();
+  final l = shadowSolarinLamp(d, s);
+  if (l == null) return false;
+  final p = s.pos[who]!;
+  final dx = p.x - l.x, dy = p.y - l.y;
   return sqrt(dx * dx + dy * dy) <= 2.01;
 }
 
@@ -677,7 +756,7 @@ const ShadowRoomDef kRoomSolarin = ShadowRoomDef(
   map: [
     '~~~~~~~~~~~',
     '..~~~~~~~~~',
-    '..~~~P~~~~~',
+    '..~~~P~V~~~',
     '..~~~~~~~~~',
     '..~~~d~~P~~',
     '..~~~~~~~~~',
@@ -688,6 +767,7 @@ const ShadowRoomDef kRoomSolarin = ShadowRoomDef(
   orbit: [(x: 9, y: 4), (x: 5, y: 7), (x: 5, y: 1)],
   pillarR: 0.42,
   goal: 'hits',
+  pins: 1,
   start: {'Light': (x: 1, y: 3), 'Dark': (x: 1, y: 4), 'Steam': (x: 0, y: 5)},
 );
 
@@ -901,10 +981,17 @@ class ShadowRun {
   final Map<int, double> heldSince = {};
   String? heldRoom;
 
-  /// SOLARIN'S FLARE: when it began charging, and at whom; and the
-  /// last time one landed (visual).
-  double flareT = -9, flareHitT = -9, flareNext = 3;
-  String? flareAt;
+  /// SOLARIN'S FIGHT: seconds until it swings on by itself; its bolts in
+  /// flight, when it next fires and at whom (it takes the party in turn),
+  /// and where bolts last broke (visual); and when its light last burned
+  /// the active body (visual), and whether the room has said so yet.
+  double swingNext = kSolarinHold;
+  final List<SolarBolt> bolts = [];
+  double boltNext = kSolarinBoltEvery;
+  int boltTurn = 0;
+  final List<(Offset, double)> boltBursts = [];
+  double burnT = -9;
+  bool burnTold = false;
 
   /// What the floor will be once Solarin swings on (cached per floor).
   String? nextHeldKey;
@@ -942,6 +1029,11 @@ class ShadowRun {
     stoneSet.clear();
     stoneRoom = null;
     fellT.clear();
+    swingNext = kSolarinHold;
+    bolts.clear();
+    boltBursts.clear();
+    boltNext = kSolarinBoltEvery;
+    burnTold = false;
   }
 
   bool get bridgeWhole => kBridgeRooms.every(solved.contains);

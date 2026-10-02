@@ -9,14 +9,15 @@
 //     solver) replays move by move as LEGAL moves here and ends solved.
 //  2. DEEP — the tool each room is about is necessary: rooms I, III and IV
 //     cannot be crossed without the pin, Room IV not without the veil, the
-//     Room I habit (pin the first gap) is a dead end in Room IV, and no
-//     single creature can bring Solarin down alone.
+//     Room I habit (pin the first gap) is a dead end in Room IV.
 //  3. THE KEY — exactly one of the twenty-one studs lays the key's shadow in
 //     the lock.
 //  4. PLAYED — the rules as the real game object runs them: the entry rite,
 //     arrivals, a step onto bare light refused with a bare line, the pin,
 //     the pipe, a pair of rooms banking a star, the spans, the maxim, and
-//     Solarin's lull as a place.
+//     Solarin's fight: its glass all floor but burning in its light, its
+//     swing on its own rhythm, its bolts (stopped by whatever shades you),
+//     and blows only from its shadow.
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
@@ -185,24 +186,6 @@ const Map<String, List<String>> _plans = {
     'Steam>7,6',
     'Steam>7,7',
   ],
-  'solarin_orbit': [
-    'Dark>2,4',
-    'Dark>3,4',
-    'Dark>4,4',
-    'Dark>5,4',
-    'Dark>6,4',
-    'Dark>7,4',
-    'Steam>1,5',
-    'Steam>2,5',
-    'Steam>3,5',
-    'Steam>4,5',
-    'Steam>5,5',
-    'strike(Dark)',
-    'strike(Steam)',
-    'Steam>5,4',
-    'Steam>5,3',
-    'strike(Steam)',
-  ],
   'sunless_reliquary': [
     'Dark>0,3',
     'Light>0,2',
@@ -340,6 +323,28 @@ void _enter(PlanetDungeonGame g, String from, String to) {
   );
 }
 
+/// The party in Solarin's arena, the fight begun and Solarin settled.
+PlanetDungeonGame _arena() {
+  final g = _game()..entryDoorRevealed = true;
+  g.starMask = 0x3;
+  g.conduitEnergy['A'] = double.infinity;
+  g.conduitEnergy['B'] = double.infinity;
+  _enter(g, 'eclipse_walk', 'solarin_orbit');
+  g.guardianAwake = true;
+  g.setActive(0);
+  for (var i = 0; i < 30 || (i < 900 && g.guardianArriving); i++) {
+    g.update(1 / 60);
+  }
+  g.archive
+    ..swingNext = 99
+    ..boltNext = 99;
+  // Solarin's body shoots as well; these tests read only its light and bolts.
+  for (final c in g.combatCompanions) {
+    c.invincibleTimer = 999;
+  }
+  return g;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -465,16 +470,6 @@ void main() {
         isEmpty,
         reason: 'once only',
       );
-    });
-
-    test('no single creature can bring Solarin down', () {
-      for (final n in kShadowNames) {
-        expect(
-          solveShadowRoom(kRoomSolarin, actors: {n}).solvable,
-          isFalse,
-          reason: '$n alone',
-        );
-      }
     });
 
     test('the Door of Shadow opens only to the monolith\'s shadow', () {
@@ -713,24 +708,148 @@ void main() {
       expect(g.guardianHpFractionForTest, closeTo(2 / 3, .02));
     });
 
-    test('SOLARIN never strands you: the whole party home, it turns back', () {
+    test('SOLARIN swings on by itself, and shows where first', () {
+      final g = _arena();
+      final s0 = g.archive.state('solarin_orbit').orbit;
+      g.archive.swingNext = kSolarinWarn + .05;
+      g.update(1 / 60);
+      g.update(0.1);
+      expect(g.archive.swingNext, lessThan(kSolarinWarn), reason: 'warning');
+      expect(g.archive.state('solarin_orbit').orbit, s0, reason: 'not yet');
+      for (var i = 0; i < 180; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.archive.state('solarin_orbit').orbit, (s0 + 1) % 3);
+      // Mid-swing its light is on the way, not at either end: the shadows
+      // sweep.
+      final sun = g.archive.state('solarin_orbit').sun;
+      expect(sun, isNotNull, reason: 'still swinging');
+      final end = kRoomSolarin.orbit![(s0 + 1) % 3];
+      expect((sun!.x - end.x).abs() + (sun.y - end.y).abs(), greaterThan(.3));
+      for (var i = 0; i < 60 * kSolarinSwing + 30; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.archive.state('solarin_orbit').sun, isNull, reason: 'settled');
+    });
+
+    test('SOLARIN fights in a debug rematch, its star already banked', () {
       final g = _game()..entryDoorRevealed = true;
-      g.starMask = 0x3;
-      g.conduitEnergy['A'] = double.infinity;
-      g.conduitEnergy['B'] = double.infinity;
-      _enter(g, 'eclipse_walk', 'solarin_orbit');
-      g.setActive(0);
-      for (var i = 0; i < 30 || (i < 900 && g.guardianArriving); i++) {
+      g.starMask = 0x7;
+      g.debugSpawnGuardian();
+      for (var i = 0; i < 900 && g.guardianArriving; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.guardianArriving, isFalse);
+      final o = g.archive.state('solarin_orbit').orbit;
+      for (var i = 0; i < 60 * 11; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.archive.state('solarin_orbit').orbit, isNot(o), reason: 'moved');
+    });
+
+    test('SOLARIN\'s glass is all floor: its light burns, it never drops', () {
+      final g = _arena();
+      final light = g.creatures[0];
+      // (8,1) is bare glass in its light: walkable, and it burns.
+      light.position = shadowCentre(8, 1);
+      final hp = light.hp;
+      for (var i = 0; i < 30; i++) {
         g.update(1 / 60);
       }
       final s = g.archive.state('solarin_orbit');
-      g.archive.rooms['solarin_orbit'] = s.copyWith(orbit: 1);
-      g.archive.orbitT = -99;
-      g.creatures[0].position = shadowCentre(1, 3);
-      g.creatures[1].position = shadowCentre(1, 4);
-      g.creatures[2].position = shadowCentre(0, 5);
+      expect(s.pos['Light'], sq(8, 1), reason: 'nothing fell');
+      expect(light.hp, lessThan(hp - 10), reason: 'massive: ${light.hp}');
+      // The east pillar's shadow down row 4 is safe; so is the ledge.
+      for (final at in [sq(3, 4), sq(1, 3)]) {
+        light.position = shadowCentre(at.x, at.y);
+        g.update(1 / 60);
+        final h = light.hp;
+        for (var i = 0; i < 30; i++) {
+          g.update(1 / 60);
+        }
+        expect(light.hp, h, reason: 'safe at $at');
+      }
+    });
+
+    test('SOLARIN is struck only from its shadow: near in its light, no', () {
+      final g = _arena();
+      // (8,3): one square off, but in its light.
+      g.creatures[0].position = shadowCentre(8, 3);
       g.update(1 / 60);
-      expect(g.archive.state('solarin_orbit').orbit, 0);
+      expect(g.guardianVulnerable, isFalse);
+      g.activateAbility();
+      expect(g.guardianHpFractionForTest, closeTo(1, .02));
+    });
+
+    test('SOLARIN\'s bolts hit in the open, and break on a pillar', () {
+      final g = _arena();
+      final light = g.creatures[0];
+      // The vent island (7,2) is stone, so its light does not burn there,
+      // and nothing stands between it and Solarin at (9,4).
+      light.position = shadowCentre(7, 2);
+      g.archive.boltNext = 0;
+      g.update(1 / 60);
+      expect(g.archive.bolts, isNotEmpty, reason: 'it fired');
+      final hp = light.hp;
+      for (var i = 0; i < 120; i++) {
+        g.update(1 / 60);
+      }
+      expect(light.hp, closeTo(hp - kSolarinBoltDamage, .5));
+      // Behind the east pillar the bolt breaks on the stone.
+      light.position = shadowCentre(7, 4);
+      g.update(1 / 60);
+      g.archive.boltNext = 0;
+      g.update(1 / 60);
+      final hp2 = light.hp;
+      for (var i = 0; i < 120; i++) {
+        g.update(1 / 60);
+      }
+      expect(light.hp, hp2);
+      expect(g.archive.bolts, isEmpty);
+    });
+
+    test('SOLARIN brought down: nothing swings or fires any more', () {
+      final g = _arena();
+      g.creatures[0].position = shadowCentre(7, 2);
+      g.archive.boltNext = 0;
+      g.update(1 / 60);
+      expect(g.archive.bolts, isNotEmpty);
+      // Three blows from its shadow bring it down (a debug rematch keeps the
+      // fight hook running afterwards, which is where this showed).
+      g.debugGuardianRematch = true;
+      for (var hit = 0; hit < 3; hit++) {
+        final o = kRoomSolarin.orbit![g.archive.state('solarin_orbit').orbit];
+        final spot = {
+          (x: 9, y: 4): sq(7, 4),
+          (x: 5, y: 7): sq(5, 5),
+          (x: 5, y: 1): sq(5, 3),
+        }[o]!;
+        g.archive
+          ..orbitFrom = -1
+          ..swingNext = 99;
+        g.creatures[0].position = shadowCentre(spot.x, spot.y);
+        g.update(2.0); // the strike cooldown
+        expect(g.guardianVulnerable, isTrue, reason: 'blow ${hit + 1}');
+        g.activateAbility();
+      }
+      expect(g.guardianHpFractionForTest, lessThanOrEqualTo(0));
+      final o = g.archive.state('solarin_orbit').orbit;
+      g.archive
+        ..swingNext = 0
+        ..boltNext = 0;
+      for (var i = 0; i < 60 * 3; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.archive.bolts, isEmpty, reason: 'no bolts');
+      expect(g.archive.state('solarin_orbit').orbit, o, reason: 'no swing');
+      expect(g.archive.state('solarin_orbit').sun, isNull);
+    });
+
+    test('SOLARIN leaves the ledge by the door alone', () {
+      final g = _arena();
+      g.archive.boltNext = 0;
+      g.update(1 / 60);
+      expect(g.archive.bolts, isEmpty, reason: 'the party is all home');
     });
 
     test(

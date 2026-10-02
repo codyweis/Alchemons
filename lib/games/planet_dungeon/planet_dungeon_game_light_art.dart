@@ -488,18 +488,17 @@ extension ShadowFloorArt on PlanetDungeonGame {
 
   // ═══════════════════════════ THE STARLIGHT ════════════════════════════
 
-  /// A STARLIGHT: a shard of Solarin's star. [s] scales it; [big] is Solarin.
+  /// A STARLIGHT: a shard of Solarin's star. [s] scales it.
   void _drawStarlight(
     Canvas canvas,
     Offset at, {
     double s = 1,
     double? face,
     double half = 0,
-    bool big = false,
     double bloom = 1,
   }) {
     final tw = 0.92 + 0.08 * sin(_time * 5.3 + at.dx * .01);
-    final corona = (big ? 150.0 : 86.0) * s * bloom;
+    final corona = 86.0 * s * bloom;
     if (_fx.ready) {
       drawGlow(
         canvas,
@@ -516,9 +515,9 @@ extension ShadowFloorArt on PlanetDungeonGame {
         Colors.white.withValues(alpha: .9),
       );
     }
-    final spin = _time * (big ? .22 : .38);
+    final spin = _time * .38;
     // A starlight that shines one way fans many rays across its cone.
-    final n = big ? 12 : (face != null ? 18 : 8);
+    final n = face != null ? 18 : 8;
     final ray = Paint();
     for (var i = 0; i < n; i++) {
       final a = spin + i / n * pi * 2;
@@ -528,8 +527,8 @@ extension ShadowFloorArt on PlanetDungeonGame {
         d = atan2(sin(d), cos(d));
         long *= d.abs() <= half ? 1.5 : .35;
       }
-      final len = (big ? 80.0 : 44.0) * long * s * tw * bloom;
-      final w = (big ? 10.0 : 5.5) * s;
+      final len = 44.0 * long * s * tw * bloom;
+      final w = 5.5 * s;
       final ca = cos(a), sa = sin(a);
       ray.color = const Color(
         0xFFFFF0C4,
@@ -543,7 +542,7 @@ extension ShadowFloorArt on PlanetDungeonGame {
         ray,
       );
     }
-    final core = (big ? 26.0 : 12.0) * s * bloom;
+    final core = 12.0 * s * bloom;
     canvas.drawCircle(
       at,
       core,
@@ -829,10 +828,13 @@ extension ShadowFloorArt on PlanetDungeonGame {
         );
       }
     }
-    // SOLARIN'S NEXT MOVE, shown: a faint gold outline wherever the floor
-    // will be once it swings on — so placing someone ahead of it is a plan,
-    // not a guess.
-    if (def.orbit != null) {
+    // SOLARIN'S NEXT MOVE, shown as it gathers to swing: a gold outline
+    // wherever the shadow will be once it moves — so getting there ahead of
+    // it is a plan, not a guess.
+    final warn = def.orbit == null || !guardianAwake
+        ? 0.0
+        : (1 - archive.swingNext / kSolarinWarn).clamp(0.0, 1.0);
+    if (warn > 0) {
       final next = s.copyWith(orbit: (s.orbit + 1) % def.orbit!.length);
       final key = '${def.id}|${next.encoded}';
       if (archive.nextHeldKey != key) {
@@ -845,9 +847,11 @@ extension ShadowFloorArt on PlanetDungeonGame {
                   sqKey(x, y),
           };
       }
-      final pulse = .5 + .5 * sin(_time * 2.4);
+      final pulse = .5 + .5 * sin(_time * 6);
       final rim = Paint()
-        ..color = const Color(0xFFF2D68A).withValues(alpha: .22 + .18 * pulse);
+        ..color = const Color(
+          0xFFF2D68A,
+        ).withValues(alpha: (.3 + .25 * pulse) * (.35 + .65 * warn));
       for (final k in archive.nextHeld) {
         final q = sqOf(k);
         final r = Rect.fromLTWH(
@@ -1003,81 +1007,72 @@ extension ShadowFloorArt on PlanetDungeonGame {
       final a = ((_time - archive.veilT) / 1).clamp(0.0, 1.0);
       _drawVeil(canvas, shadowCentre(s.veil!.x, s.veil!.y), a < .01 ? 1 : a);
     }
-    // The starlights themselves (Solarin is its own, far larger).
+    // The starlights themselves. Solarin's light is Solarin: the creature
+    // is drawn by the guardian pass, with no star laid under it.
     for (final l in lamps) {
+      if (l.kind == 'solarin') continue;
       final at =
           shadowCentre(0, 0) + Offset(l.x * kShadowCell, l.y * kShadowCell);
-      final big = l.kind == 'solarin';
-      final flash = big
-          ? (1 + (guardianHitFlash / .3).clamp(0.0, 1.0) * .4)
-          : 1.0;
-      _drawStarlight(
-        canvas,
-        at,
-        face: l.face,
-        half: l.half,
-        big: big,
-        bloom: flash,
-      );
+      _drawStarlight(canvas, at, face: l.face, half: l.half);
     }
-    // SOLARIN: a ghost of it where it swings next, and its flare gathering
-    // on whoever stands in its light.
-    if (def.orbit != null) {
-      final nx = def.orbit![(s.orbit + 1) % def.orbit!.length];
-      final ghost = shadowCentre(nx.x, nx.y);
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          ghost,
-          70,
-          const Color(
-            0xFFFFE9A8,
-          ).withValues(alpha: .22 + .1 * sin(_time * 2.4)),
+    // SOLARIN: its bolts in flight, where they broke, and the burn on
+    // whoever its light catches on bare glass.
+    final solarinUp = _guardianEnemy != null && !_guardianEnemy!.isDead;
+    if (def.orbit != null && solarinUp) {
+      for (final b in archive.bolts) {
+        final v = b.v.distance;
+        if (v < 1) continue;
+        final dir = b.v / v;
+        final n = Offset(-dir.dy, dir.dx);
+        final tail = b.p - dir * 46;
+        // A tapered comet: a deep amber body so it reads on bright glass,
+        // white-hot at the head. Filled, not a line.
+        canvas.drawPath(
+          Path()
+            ..moveTo(b.p.dx + n.dx * 9, b.p.dy + n.dy * 9)
+            ..lineTo(tail.dx, tail.dy)
+            ..lineTo(b.p.dx - n.dx * 9, b.p.dy - n.dy * 9)
+            ..close(),
+          Paint()
+            ..shader = ui.Gradient.linear(b.p, tail, [
+              const Color(0xFFE0741E).withValues(alpha: .9),
+              const Color(0xFFB8501A).withValues(alpha: 0),
+            ]),
         );
-      }
-      canvas.drawCircle(
-        ghost,
-        10,
-        Paint()..color = Colors.white.withValues(alpha: .35),
-      );
-      final at = archive.flareAt;
-      final body = at == null ? null : _shadowBody(at);
-      if (body != null) {
-        final from = _solarinDrawn(def);
-        final t = ((_time - archive.flareT) / 1.1).clamp(0.0, 1.0);
-        final dir = body.position - from;
-        final len = dir.distance;
-        if (len > 1) {
-          final n = Offset(-dir.dy, dir.dx) / len;
-          final w = 4 + 16 * t;
-          canvas.drawPath(
-            Path()
-              ..moveTo(from.dx + n.dx * w, from.dy + n.dy * w)
-              ..lineTo(body.position.dx, body.position.dy)
-              ..lineTo(from.dx - n.dx * w, from.dy - n.dy * w)
-              ..close(),
-            Paint()
-              ..color = const Color(
-                0xFFFFF4D0,
-              ).withValues(alpha: .15 + .45 * t),
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            b.p,
+            40,
+            const Color(0xFFFF9A3C).withValues(alpha: .8),
           );
         }
-        canvas.drawCircle(
-          body.position,
-          26 - 10 * t,
-          Paint()
-            ..color = const Color(0xFFFFE08C).withValues(alpha: .25 + .35 * t),
-        );
+        canvas.drawCircle(b.p, 10, Paint()..color = const Color(0xFFD9661C));
+        canvas.drawCircle(b.p, 6, Paint()..color = const Color(0xFFFFF8E6));
       }
-      final hit = 1 - ((_time - archive.flareHitT) / .5).clamp(0.0, 1.0);
-      if (hit > 0 && _fx.ready) {
+      if (_fx.ready) {
+        for (final (p, t0) in archive.boltBursts) {
+          final f = 1 - ((_time - t0) / .5).clamp(0.0, 1.0);
+          if (f <= 0) continue;
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            p,
+            24 + 36 * (1 - f),
+            Colors.white.withValues(alpha: .6 * f),
+          );
+        }
+      }
+      final a1 = active;
+      final burn = 1 - ((_time - archive.burnT) / .25).clamp(0.0, 1.0);
+      if (a1 != null && burn > 0 && _fx.ready) {
         drawGlow(
           canvas,
           _fx.glow!,
-          _solarinDrawn(def),
-          260,
-          Colors.white.withValues(alpha: .5 * hit),
+          a1.position,
+          44 + 6 * sin(_time * 30),
+          const Color(0xFFFFB45A).withValues(alpha: .55 * burn),
         );
       }
     }
