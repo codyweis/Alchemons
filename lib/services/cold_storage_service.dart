@@ -162,19 +162,34 @@ class ColdStorageService {
     return Duration(milliseconds: remainingMs);
   }
 
-  static Duration coldStorageRemainingFromEgg(Egg egg, {DateTime? nowUtc}) {
-    final payload = _decodePayload(egg.payloadJson);
+  static Duration coldStorageRemainingFromEgg(Egg egg, {DateTime? nowUtc}) =>
+      coldStorageRemainingFromPayload(
+        _decodePayload(egg.payloadJson),
+        fallbackActiveRemaining: Duration(milliseconds: egg.remainingMs),
+        nowUtc: nowUtc,
+      );
+
+  /// [coldStorageRemainingFromEgg], for a payload already decoded (with
+  /// [decodePayload]).
+  static Duration coldStorageRemainingFromPayload(
+    Map<String, dynamic> payload, {
+    required Duration fallbackActiveRemaining,
+    DateTime? nowUtc,
+  }) {
     final factor = slowdownFactorFromPayload(payload);
     final activeRemaining = activeRemainingFromPayload(
       payload,
-      fallbackActiveRemaining: Duration(milliseconds: egg.remainingMs),
+      fallbackActiveRemaining: fallbackActiveRemaining,
       nowUtc: nowUtc,
     );
     return Duration(milliseconds: activeRemaining.inMilliseconds * factor);
   }
 
-  static int? totalDisplayDurationMs(Egg egg) {
-    final payload = _decodePayload(egg.payloadJson);
+  static int? totalDisplayDurationMs(Egg egg) =>
+      totalDisplayDurationMsFromPayload(_decodePayload(egg.payloadJson));
+
+  /// [totalDisplayDurationMs], for a payload already decoded.
+  static int? totalDisplayDurationMsFromPayload(Map<String, dynamic> payload) {
     final totalActiveMs = _extractTotalActiveDurationMs(payload);
     if (totalActiveMs == null) return null;
     return totalActiveMs * slowdownFactorFromPayload(payload);
@@ -189,6 +204,11 @@ class ColdStorageService {
   static bool isReady(Egg egg, {DateTime? nowUtc}) {
     return activeRemainingFromEgg(egg, nowUtc: nowUtc) <= Duration.zero;
   }
+
+  /// An egg's payload as the methods taking one expect it: decode it once
+  /// for a widget that asks several of them every second.
+  static Map<String, dynamic> decodePayload(String? payloadJson) =>
+      _decodePayload(payloadJson);
 
   static Map<String, dynamic> _decodePayload(String? payloadJson) {
     if (payloadJson == null || payloadJson.isEmpty) {

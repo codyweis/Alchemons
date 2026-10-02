@@ -50,11 +50,22 @@ class _StorageSectionState extends State<StorageSection> {
   void initState() {
     super.initState();
     _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
+      // Hidden (another tab, or a screen pushed over this one): no one sees
+      // the countdowns, and rebuilding every vial each second costs a frame.
+      if (!mounted || !TickerMode.valuesOf(context).enabled) return;
       setState(() {
         _nowUtc = DateTime.now().toUtc();
       });
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Shown again: catch the countdowns up at once.
+    if (TickerMode.valuesOf(context).enabled) {
+      _nowUtc = DateTime.now().toUtc();
+    }
   }
 
   @override
@@ -487,11 +498,33 @@ class _StorageEggCardState extends State<StorageEggCard>
     super.dispose();
   }
 
-  void _syncReadyAnimation() {
-    final isReady = ColdStorageService.isReady(
-      widget.egg,
+  // The egg's payload, decoded once per payload rather than several times
+  // a build: the countdown rebuilds every vial every second.
+  bool _decoded = false;
+  String? _payloadJson;
+  Map<String, dynamic> _payload = const {};
+  Map<String, dynamic> _coldPayload = const {};
+
+  void _decode() {
+    final json = widget.egg.payloadJson;
+    if (_decoded && json == _payloadJson) return;
+    _decoded = true;
+    _payloadJson = json;
+    _payload = parseEggPayload(widget.egg);
+    _coldPayload = ColdStorageService.decodePayload(json);
+  }
+
+  Duration get _activeRemaining {
+    _decode();
+    return ColdStorageService.activeRemainingFromPayload(
+      _coldPayload,
+      fallbackActiveRemaining: Duration(milliseconds: widget.egg.remainingMs),
       nowUtc: widget.nowUtc,
     );
+  }
+
+  void _syncReadyAnimation() {
+    final isReady = _activeRemaining <= Duration.zero;
     if (isReady) {
       if (!_pulseController.isAnimating) {
         _pulseController.repeat(reverse: true);
@@ -505,15 +538,17 @@ class _StorageEggCardState extends State<StorageEggCard>
   @override
   Widget build(BuildContext context) {
     final egg = widget.egg;
-    final payload = parseEggPayload(egg);
+    _decode();
+    final payload = _payload;
     final elementGroup = getElementalGroupFromPayload(payload);
     final media = MediaQuery.of(context);
     final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
-    final displayRemaining = ColdStorageService.coldStorageRemainingFromEgg(
-      egg,
+    final displayRemaining = ColdStorageService.coldStorageRemainingFromPayload(
+      _coldPayload,
+      fallbackActiveRemaining: Duration(milliseconds: egg.remainingMs),
       nowUtc: widget.nowUtc,
     );
-    final isReady = ColdStorageService.isReady(egg, nowUtc: widget.nowUtc);
+    final isReady = _activeRemaining <= Duration.zero;
 
     final shortestSide = media.size.shortestSide;
     int particleCount;
@@ -544,7 +579,7 @@ class _StorageEggCardState extends State<StorageEggCard>
         ? accent.withValues(alpha: 0.85)
         : Colors.white.withValues(alpha: 0.10);
 
-    final payloadMap = parseEggPayload(egg);
+    final payloadMap = payload;
     final rarityHatch =
         BreedConstants.rarityHatchTimes[egg.rarity.toLowerCase()];
     final factor = ColdStorageService.slowdownFactorFromPayload(payloadMap);
@@ -552,7 +587,8 @@ class _StorageEggCardState extends State<StorageEggCard>
         ? null
         : rarityHatch.inMilliseconds * factor;
     final totalMs =
-        ColdStorageService.totalDisplayDurationMs(egg) ?? fallbackTotalMs;
+        ColdStorageService.totalDisplayDurationMsFromPayload(_coldPayload) ??
+        fallbackTotalMs;
     final remainingMs = displayRemaining.inMilliseconds;
     final percentDone = (totalMs != null && totalMs > 0)
         ? (1 - (remainingMs / totalMs)).clamp(0.0, 1.0)
