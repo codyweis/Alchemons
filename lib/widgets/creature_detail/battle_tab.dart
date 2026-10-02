@@ -3,7 +3,7 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/purity_stat_bonus.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/stat_system.dart';
@@ -107,15 +107,24 @@ class _ExploreTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          _ExploreStatGrid(instance: instance, family: family),
+          _PowerSheet(instance: instance, family: family, element: element),
           const SizedBox(height: 18),
           const BracketSectionDivider(label: 'Auto Attack'),
           const SizedBox(height: 10),
           _BracketInfoCard(
             title: basic.name,
             subtitle: 'Automatic • Repeats while a target is in range',
-            description:
-                '${basic.description}\n\nStrength increases damage and also speeds up attacks. Speed makes attacks repeat sooner.',
+            description: basic.description,
+            extraLines: const [
+              CosmicAbilityDescriptionLine(
+                label: 'Power',
+                body: 'P-ATK per hit, from Strength.',
+              ),
+              CosmicAbilityDescriptionLine(
+                label: 'Rate',
+                body: 'Speed; Strength too, until P-ATK reaches 41.',
+              ),
+            ],
             icon: basic.icon,
           ),
           const SizedBox(height: 18),
@@ -126,8 +135,8 @@ class _ExploreTab extends StatelessWidget {
             subtitle: hasActiveSpecial
                 ? '${special.subtitle} • Activates when ready'
                 : special.subtitle,
-            description:
-                '${special.description}\n\n${family.toLowerCase() == 'mystic' ? 'World effects are available in Survival.\n\n' : ''}${_specialScalingLine(family)}',
+            description: special.description,
+            extraLines: _specialScalingLines(family),
             icon: special.icon,
             accent: _elementAccentColor(element),
             featured: true,
@@ -275,28 +284,69 @@ class _PreviewAbilitiesButton extends StatelessWidget {
   }
 }
 
-/// Special power is shared by both modes; the blended cooldown stat is
-/// currently used by Survival. Space uses Speed and special attack power.
-String _specialScalingLine(String family) {
-  final power = cosmicFamilyAbilityStatWeights(family);
-  final cadence = cosmicFamilySpecialCooldownWeights(family);
-  String pct(double w) => '${(w * 100).round()}%';
-  String join(List<(String, double)> parts) => parts
-      .where((p) => p.$2 > 0)
-      .map((p) => '${p.$1} ${pct(p.$2)}')
-      .join(' · ');
-  final powerLine = join([
-    ('Strength', power.strength),
-    ('Intelligence', power.intelligence),
-    ('Beauty', power.beauty),
-  ]);
-  final cadenceLine = join([
-    ('Speed', cadence.speed),
-    ('Intelligence', cadence.intelligence),
-    ('Strength', cadence.strength),
-  ]);
-  return 'Special power: $powerLine\nSurvival cooldown stat: $cadenceLine\nCosmic Space cooldown also scales with Speed and special power.';
+String _statName(AlchemonStat stat) => switch (stat) {
+  AlchemonStat.strength => 'Strength',
+  AlchemonStat.intelligence => 'Intelligence',
+  AlchemonStat.beauty => 'Beauty',
+  AlchemonStat.speed => 'Speed',
+};
+
+String _statAbbrev(AlchemonStat stat) => switch (stat) {
+  AlchemonStat.strength => 'STR',
+  AlchemonStat.intelligence => 'INT',
+  AlchemonStat.beauty => 'BEA',
+  AlchemonStat.speed => 'SPD',
+};
+
+/// The stats behind one combat number, strongest share first: 'STR·INT'.
+String _feedSource(Map<AlchemonStat, double?> feeds) {
+  final stats = feeds.keys.toList()
+    ..sort((a, b) => (feeds[b] ?? 0).compareTo(feeds[a] ?? 0));
+  return stats.map(_statAbbrev).join('·');
 }
+
+/// 'Strength 80% · Intelligence 20%', from the stats a blend names a share for.
+String _shareLine(Map<AlchemonStat, double?> feeds) {
+  final parts = feeds.entries.where((e) => e.value != null).toList()
+    ..sort((a, b) => b.value!.compareTo(a.value!));
+  return parts
+      .map((e) => '${_statName(e.key)} ${(e.value! * 100).round()}%')
+      .join(' · ');
+}
+
+/// How the family's special scales: what powers it and what brings it back.
+/// Read from the same contract the game runs on (alchemon_combat_stats.dart).
+List<CosmicAbilityDescriptionLine> _specialScalingLines(String family) {
+  final feeds = alchemonStatFeeds(family);
+  final power = _shareLine(feeds[AlchemonCombatOutput.special]!);
+  final recharge = _shareLine(feeds[AlchemonCombatOutput.specialInterval]!);
+  final f = family.toLowerCase();
+  return [
+    CosmicAbilityDescriptionLine(label: 'Power', body: 'SPECIAL, from $power.'),
+    CosmicAbilityDescriptionLine(
+      label: 'Recharge',
+      body: switch (f) {
+        'mask' => '$recharge.',
+        'mystic' => '$recharge. A stronger SPECIAL brings it down toward 60s.',
+        _ => '$recharge. A stronger SPECIAL also comes back sooner.',
+      },
+    ),
+    if (f == 'mystic')
+      const CosmicAbilityDescriptionLine(
+        label: 'Elsewhere',
+        body:
+            'Its world is a Survival ability: in Cosmic Space and the planet dungeons a Mystic fights with its auto attack.',
+      ),
+  ];
+}
+
+/// Seconds as the tab prints them: hundredths under a second, where a
+/// fast attacker's differences live.
+String _seconds(double s) => s < 1
+    ? '${s.toStringAsFixed(2)}s'
+    : s < 10
+    ? '${s.toStringAsFixed(1)}s'
+    : '${s.round()}s';
 
 // ──────────────────────────────────────────────────────────────────────────
 // Bracket-style content cards (shared by Cosmic + Boss tabs)
@@ -380,99 +430,35 @@ class _BracketStatTile extends StatelessWidget {
   }
 }
 
-class _ExploreStatGrid extends StatefulWidget {
-  const _ExploreStatGrid({required this.instance, required this.family});
+/// The creature's combat numbers — the same ones Survival, the planet
+/// dungeons and Cosmic Space build it from (alchemon_combat_stats.dart) — and
+/// which of its stats each one comes from.
+class _PowerSheet extends StatelessWidget {
+  const _PowerSheet({
+    required this.instance,
+    required this.family,
+    required this.element,
+  });
 
   final CreatureInstance instance;
   final String family;
-
-  @override
-  State<_ExploreStatGrid> createState() => _ExploreStatGridState();
-}
-
-class _ExploreStatGridState extends State<_ExploreStatGrid> {
-  bool survival = false;
+  final String element;
 
   @override
   Widget build(BuildContext context) {
-    final instance = widget.instance;
-    final family = widget.family;
     final combatBonuses = context.watch<ConstellationEffectsService>();
-    final strength = combatBonuses.applyCombatStatBonus(
-      'strength',
-      instance.statStrength,
-    );
-    final intelligence = combatBonuses.applyCombatStatBonus(
-      'intelligence',
-      instance.statIntelligence,
-    );
-    final beauty = combatBonuses.applyCombatStatBonus(
-      'beauty',
-      instance.statBeauty,
-    );
-    final speed = combatBonuses.applyCombatStatBonus(
-      'speed',
-      instance.statSpeed,
-    );
-    // The summoned companion is built with the family shape modifiers applied
-    // (see summonCompanion); reporting the unmodified figures here understated
-    // every Horn's HP by 30% and its defenses by 20%.
-    final hpMultiplier = CosmicBalance.familyHpMultiplier(family);
-    final defMultiplier = CosmicBalance.familyDefMultiplier(family);
-
-    final hp =
-        (CosmicBalance.companionMaxHp(
-                  level: instance.level,
-                  strength: strength,
-                  intelligence: intelligence,
-                ) *
-                hpMultiplier)
-            .round();
-    final physAtk = CosmicBalance.companionPhysAtk(
-      level: instance.level,
-      strength: strength,
-    );
-    final elemAtk = CosmicBalance.companionElemAtk(
-      level: instance.level,
-      beauty: beauty,
-    );
-    final physDef =
-        (CosmicBalance.companionPhysDef(
-                  level: instance.level,
-                  strength: strength,
-                  intelligence: intelligence,
-                ) *
-                defMultiplier)
-            .round();
-    final elemDef =
-        (CosmicBalance.companionElemDef(
-                  level: instance.level,
-                  beauty: beauty,
-                  intelligence: intelligence,
-                ) *
-                defMultiplier)
-            .round();
-    final cdr = CosmicBalance.companionCooldownReduction(speed);
-    final range = CosmicBalance.familyAttackRange(
-      family,
-      CosmicBalance.companionBaseRange(intelligence),
-    );
-
-    final ability = CosmicBalance.companionElemAtk(
-      level: instance.level,
-      beauty: cosmicFamilyAbilityRating(
-        family: family,
-        strength: strength,
-        intelligence: intelligence,
-        beauty: beauty,
-      ),
-    );
-    final survivalStats = deriveCosmicSurvivalCompanionStats(
+    double stat(String key, double value) =>
+        combatBonuses.applyCombatStatBonus(key, value);
+    final strength = stat('strength', instance.statStrength);
+    final intelligence = stat('intelligence', instance.statIntelligence);
+    final beauty = stat('beauty', instance.statBeauty);
+    final speed = stat('speed', instance.statSpeed);
+    final stats = deriveAlchemonCombatStats(
       member: CosmicPartyMember(
         instanceId: instance.instanceId,
         baseId: instance.baseId,
         displayName: instance.nickname ?? instance.baseId,
-        element: 'Normal',
+        element: element,
         family: family,
         level: instance.level,
         statStrength: strength,
@@ -484,87 +470,265 @@ class _ExploreStatGridState extends State<_ExploreStatGrid> {
         staminaMax: instance.staminaMax,
       ),
     );
-    final weights = cosmicFamilyAbilityStatWeights(family);
-    final abilitySource = [
-      if (weights.strength > 0) 'STR',
-      if (weights.intelligence > 0) 'INT',
-      if (weights.beauty > 0) 'BEA',
-    ].join('-');
-    final stats = <_StatEntry>[
-      _StatEntry('HP', '${survival ? survivalStats.maxHp : hp}', 'STR-INT'),
+    final attackEvery = alchemonBasicAttackInterval(
+      family: family,
+      element: element,
+      cooldownReduction: stats.cooldownReduction,
+      physAtk: stats.physAtk,
+    );
+    final passiveSpecial = isPassiveOnlyCosmicAbility(family, element);
+    final specialEvery = alchemonSpecialInterval(
+      family: family,
+      element: element,
+      specialCooldownReduction: stats.specialCooldownReduction,
+      abilityAtk: stats.abilityAtk,
+    );
+    final feeds = alchemonStatFeeds(family);
+    String src(AlchemonCombatOutput o) => _feedSource(feeds[o]!);
+
+    final tiles = <_StatEntry>[
+      _StatEntry('HP', '${stats.maxHp}', src(AlchemonCombatOutput.hp)),
       _StatEntry(
         'P-ATK',
-        '${survival ? survivalStats.physAtk : physAtk}',
-        'STR',
-      ),
-      _StatEntry(
-        'E-ATK',
-        '${survival ? survivalStats.elemAtk : elemAtk}',
-        'BEA',
-      ),
-      _StatEntry(
-        'RANGE',
-        '${(survival ? survivalStats.attackRange : range).round()}',
-        'INT',
-      ),
-      _StatEntry(
-        'P-DEF',
-        '${survival ? survivalStats.physDef : physDef}',
-        'STR-INT',
-      ),
-      _StatEntry(
-        'E-DEF',
-        '${survival ? survivalStats.elemDef : elemDef}',
-        'BEA-INT',
-      ),
-      _StatEntry(
-        'CD',
-        '×${(1 / (survival ? survivalStats.cooldownReduction : cdr)).toStringAsFixed(2)}',
-        'SPD',
+        '${stats.physAtk}',
+        src(AlchemonCombatOutput.physAtk),
       ),
       _StatEntry(
         'SPECIAL',
-        '${survival ? survivalStats.abilityAtk : ability}',
-        abilitySource,
+        '${stats.abilityAtk}',
+        src(AlchemonCombatOutput.special),
+      ),
+      _StatEntry(
+        'P-DEF',
+        '${stats.physDef}',
+        src(AlchemonCombatOutput.physDef),
+      ),
+      _StatEntry(
+        'E-DEF',
+        '${stats.elemDef}',
+        src(AlchemonCombatOutput.elemDef),
+      ),
+      _StatEntry(
+        'E-ATK',
+        '${stats.elemAtk}',
+        src(AlchemonCombatOutput.elemAtk),
+      ),
+      _StatEntry(
+        'ATTACKS',
+        'every ${_seconds(attackEvery)}',
+        src(AlchemonCombatOutput.attackInterval),
+      ),
+      _StatEntry(
+        'SPECIAL CD',
+        passiveSpecial ? 'passive' : _seconds(specialEvery),
+        passiveSpecial ? '—' : src(AlchemonCombatOutput.specialInterval),
+      ),
+      _StatEntry(
+        'RANGE',
+        '${stats.attackRange.round()}',
+        src(AlchemonCombatOutput.range),
       ),
     ];
 
+    final muted = BracketPalette.of(context).muted;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SegmentedButton<bool>(
-          segments: const [
-            ButtonSegment(value: false, label: Text('Cosmic Space')),
-            ButtonSegment(value: true, label: Text('Survival')),
-          ],
-          selected: {survival},
-          onSelectionChanged: (selection) =>
-              setState(() => survival = selection.single),
-        ),
-        const SizedBox(height: 10),
+        _StatGrid(stats: tiles),
+        const SizedBox(height: 8),
         Text(
-          survival
-              ? 'Survival base stats • before Guardian upgrades and run bonuses.'
-              : 'Cosmic Space base stats • before temporary combat effects.',
-          style: TextStyle(
-            fontSize: 12,
-            color: BracketPalette.of(context).muted,
-          ),
+          'The same numbers in Survival, planet dungeons and Cosmic Space. '
+          'Under each is the stat it comes from. Survival\'s Guardian '
+          'upgrades and run pickups add to them.',
+          style: TextStyle(fontSize: 12, color: muted),
         ),
-        const SizedBox(height: 10),
-        _StatGrid(stats: stats),
-        const SizedBox(height: 10),
-        Text(
-          'Power ratings are not damage: ${AlchemonStatSystem.displayRating(strength)} Strength gives '
-          '${survival ? survivalStats.physAtk : physAtk} base P-ATK in this mode. '
-          'SPECIAL uses your family’s stat mix; each ability changes the final damage or support effect. '
-          'CD is the Speed modifier, not the full attack or special interval.',
-          style: TextStyle(
-            fontSize: 12,
-            color: BracketPalette.of(context).muted,
-          ),
+        const SizedBox(height: 14),
+        _StatFeedsCard(
+          family: family,
+          ratings: {
+            AlchemonStat.strength: strength,
+            AlchemonStat.intelligence: intelligence,
+            AlchemonStat.beauty: beauty,
+            AlchemonStat.speed: speed,
+          },
+          stats: stats,
+          attackEvery: attackEvery,
         ),
       ],
+    );
+  }
+}
+
+/// What each of the creature's four stats does for it, in its family: the
+/// bridge from the ratings on the Stats tab to the numbers above.
+class _StatFeedsCard extends StatelessWidget {
+  const _StatFeedsCard({
+    required this.family,
+    required this.ratings,
+    required this.stats,
+    required this.attackEvery,
+  });
+
+  final String family;
+  final Map<AlchemonStat, double> ratings;
+  final AlchemonCombatStats stats;
+  final double attackEvery;
+
+  /// What [stat] feeds, in words, with this creature's numbers where one
+  /// number tells the story.
+  List<String> _feedsOf(
+    AlchemonStat stat,
+    Map<AlchemonCombatOutput, Map<AlchemonStat, double?>> feeds,
+  ) {
+    bool has(AlchemonCombatOutput o) => feeds[o]!.containsKey(stat);
+    String share(AlchemonCombatOutput o) {
+      final w = feeds[o]![stat];
+      return w == null ? '' : ' ${(w * 100).round()}%';
+    }
+
+    final strengthMaxed = alchemonBasicAttackPowerFactor(stats.physAtk) >= 3.0;
+    // Cadence counts from a weak creature's stat (kAbilityStatLow, 250):
+    // below it, raising these does not change the timing yet. A Mystic's
+    // recharge stats count only once they beat an average one (350).
+    final speedCounts = ratings[AlchemonStat.speed]! > kAbilityStatLow;
+    final rechargeFloor = family.toLowerCase() == 'mystic'
+        ? 3.5
+        : kAbilityStatLow;
+    final rechargeCounts =
+        cosmicFamilySpecialCooldownStat(
+          family: family,
+          speed: ratings[AlchemonStat.speed]!,
+          intelligence: ratings[AlchemonStat.intelligence]!,
+          strength: ratings[AlchemonStat.strength]!,
+        ) >
+        rechargeFloor;
+    // A Mystic's recharge bottoms out at 60s; once SPECIAL has taken it
+    // there, nothing else shortens it.
+    final rechargeMaxed =
+        family.toLowerCase() == 'mystic' &&
+        alchemonSpecialInterval(
+              family: family,
+              element: 'Fire',
+              specialCooldownReduction: stats.specialCooldownReduction,
+              abilityAtk: stats.abilityAtk,
+            ) <=
+            60.0 + 1e-9;
+    final rechargeNote = rechargeMaxed
+        ? ' (maxed)'
+        : rechargeCounts
+        ? ''
+        : ' (counts from ${AlchemonStatSystem.displayRating(rechargeFloor)})';
+    return [
+      if (has(AlchemonCombatOutput.physAtk))
+        'auto-attack damage (P-ATK ${stats.physAtk})',
+      if (has(AlchemonCombatOutput.elemAtk))
+        'elemental effects (E-ATK ${stats.elemAtk})',
+      if (has(AlchemonCombatOutput.special))
+        'special power${share(AlchemonCombatOutput.special)}',
+      if (has(AlchemonCombatOutput.hp)) 'HP',
+      if (has(AlchemonCombatOutput.physDef) &&
+          has(AlchemonCombatOutput.elemDef))
+        'both defences'
+      else if (has(AlchemonCombatOutput.physDef))
+        'P-DEF'
+      else if (has(AlchemonCombatOutput.elemDef))
+        'E-DEF',
+      if (has(AlchemonCombatOutput.range))
+        'reach (${stats.attackRange.round()})',
+      if (stat == AlchemonStat.speed)
+        'attack rate (every ${_seconds(attackEvery)}'
+            '${speedCounts ? '' : ', counts from 250'})'
+      else if (has(AlchemonCombatOutput.attackInterval))
+        strengthMaxed ? 'attack rate (maxed)' : 'attack rate',
+      if (feeds[AlchemonCombatOutput.specialInterval]![stat] != null)
+        'special recharge${share(AlchemonCombatOutput.specialInterval)}'
+            '$rechargeNote',
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final theme = context.read<FactionTheme>();
+    final accent = bracketReadableAccent(theme);
+    final feeds = alchemonStatFeeds(family);
+    final best = ratings.entries
+        .reduce((a, b) => b.value > a.value ? b : a)
+        .key;
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surfaceFill(),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: palette.line.withValues(alpha: 0.55)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'WHAT EACH STAT DOES',
+            style: bracketText(
+              context,
+              10.5,
+              palette.muted,
+              weight: FontWeight.w700,
+              letterSpacing: 0.9,
+            ),
+          ),
+          for (final stat in AlchemonStat.values) ...[
+            const SizedBox(height: 9),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 96,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _statName(stat).toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: bracketText(
+                          context,
+                          10.5,
+                          stat == best ? accent : palette.ink,
+                          weight: FontWeight.w800,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                      Text(
+                        stat == best
+                            ? '${AlchemonStatSystem.displayRating(ratings[stat]!)} · best'
+                            : '${AlchemonStatSystem.displayRating(ratings[stat]!)}',
+                        style: bracketText(
+                          context,
+                          12,
+                          stat == best ? accent : palette.muted,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _feedsOf(stat, feeds).join(' · '),
+                    style: bracketText(
+                      context,
+                      12,
+                      palette.muted,
+                      weight: FontWeight.w500,
+                    ),
+                    strutStyle: const StrutStyle(height: 1.35),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -580,7 +744,7 @@ class _StatGrid extends StatelessWidget {
   const _StatGrid({required this.stats});
 
   final List<_StatEntry> stats;
-  static const columns = 4;
+  static const columns = 3;
 
   @override
   Widget build(BuildContext context) {
@@ -709,15 +873,21 @@ class _CombatBoostsCard extends StatelessWidget {
       frameParts.add('$label ${_signedPercent(percent / 100)}');
     }
 
-    addFramePart('HP', CosmicBalance.familyHpMultiplier(family));
-    addFramePart('Defense', CosmicBalance.familyDefMultiplier(family));
-    addFramePart('Auto range', CosmicBalance.familyAttackRange(family, 1));
-    addFramePart('Special range', CosmicBalance.familySpecialRange(family, 1));
+    final frame = alchemonFamilyFrame(family);
+    addFramePart('HP', frame.hp);
+    addFramePart('P-ATK', frame.physAtk);
+    addFramePart('E-ATK & SPECIAL', frame.elemAtk);
+    addFramePart('P-DEF', frame.physDef);
+    addFramePart('E-DEF', frame.elemDef);
+    addFramePart('Auto range', frame.autoRange);
+    addFramePart('Special range', frame.specialRange);
+    addFramePart('Auto cooldown', frame.basicCooldown);
+    addFramePart('Special cooldown', frame.specialCooldown);
     if (frameParts.isNotEmpty) {
       entries.add(
         _BoostEntry(
           'Family Frame · ${family.toUpperCase()}',
-          'Cosmic Space: ${frameParts.join(' · ')}',
+          frameParts.join(' · '),
         ),
       );
     }
@@ -818,11 +988,15 @@ class _BracketInfoCard extends StatelessWidget {
     this.icon,
     this.accent,
     this.featured = false,
+    this.extraLines = const [],
   });
 
   final String title;
   final String? subtitle;
   final String description;
+
+  /// Labelled rows after the description: how the attack scales.
+  final List<CosmicAbilityDescriptionLine> extraLines;
   final IconData? icon;
   final Color? accent;
   final bool featured;
@@ -909,6 +1083,7 @@ class _BracketInfoCard extends StatelessWidget {
             const SizedBox(height: 10),
             _AbilityDescriptionText(
               description: description,
+              extraLines: extraLines,
               accent: activeAccent,
               textColor: palette.muted,
             ),
@@ -924,26 +1099,37 @@ class _AbilityDescriptionText extends StatelessWidget {
     required this.description,
     required this.accent,
     required this.textColor,
+    this.extraLines = const [],
   });
 
   final String description;
+  final List<CosmicAbilityDescriptionLine> extraLines;
   final Color accent;
   final Color textColor;
 
   @override
   Widget build(BuildContext context) {
-    final lines = cosmicAbilityDescriptionLines(description);
-    if (lines.length == 1 && lines.first.label.isEmpty) {
-      return Text(
-        lines.first.body,
-        style: bracketText(context, 12.5, textColor, weight: FontWeight.w500),
-        strutStyle: const StrutStyle(height: 1.45),
-      );
-    }
+    final parsed = cosmicAbilityDescriptionLines(description);
+    final plain = parsed.length == 1 && parsed.first.label.isEmpty;
+    final lines = [if (!plain) ...parsed, ...extraLines];
+    final plainText = plain
+        ? Text(
+            parsed.first.body,
+            style: bracketText(
+              context,
+              12.5,
+              textColor,
+              weight: FontWeight.w500,
+            ),
+            strutStyle: const StrutStyle(height: 1.45),
+          )
+        : null;
+    if (lines.isEmpty) return plainText!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (plainText != null) ...[plainText, const SizedBox(height: 10)],
         for (var i = 0; i < lines.length; i++) ...[
           if (i > 0) const SizedBox(height: 7),
           Row(

@@ -29,7 +29,7 @@
 
 import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
@@ -98,7 +98,7 @@ PlanetDungeonGame harness(
       ..position = game.layout.entranceSpawn
       ..lastSafe = game.layout.entranceSpawn;
     game.creatures.add(c);
-    final stats = deriveCosmicSurvivalCompanionStats(member: m);
+    final stats = deriveAlchemonCombatStats(member: m);
     game.combatCompanions.add(
       CosmicSurvivalCompanion(
         member: m,
@@ -113,7 +113,6 @@ PlanetDungeonGame harness(
         physDef: stats.physDef,
         elemDef: stats.elemDef,
         cooldownReduction: stats.cooldownReduction,
-        critChance: stats.critChance,
         attackRange: stats.attackRange,
         specialAbilityRange: stats.specialAbilityRange,
         tethered: false,

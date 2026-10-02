@@ -21,7 +21,7 @@ import 'package:alchemons/games/cosmic/planets/planet_art.dart'
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic/vfx_shapes.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
@@ -2419,6 +2419,14 @@ class PlanetDungeonGame extends FlameGame {
     return isPassiveOnlyCosmicAbility(c.member.family, c.member.element);
   }
 
+  /// True when the active specimen has no special here at all: a Mystic's
+  /// world is a Survival ability. Its button says so, like a passive's.
+  bool get abilityIsAbsent {
+    final c = activeCombat;
+    if (c == null) return false;
+    return !castsSpecialOutsideSurvival(c.member.family);
+  }
+
   /// The auto-attack control is live only when something can actually fire.
   bool get autoAttackReady {
     final c = activeCombat;
@@ -2429,7 +2437,7 @@ class PlanetDungeonGame extends FlameGame {
   /// The special control is live only when it is castable right now.
   bool get abilityReady {
     final c = activeCombat;
-    if (c == null || abilityIsPassive) return false;
+    if (c == null || abilityIsPassive || abilityIsAbsent) return false;
     return c.specialCooldown <= 0;
   }
 
@@ -2954,7 +2962,7 @@ class PlanetDungeonGame extends FlameGame {
     CosmicPartyMember member,
     Offset position,
   ) {
-    final stats = deriveCosmicSurvivalCompanionStats(member: member);
+    final stats = deriveAlchemonCombatStats(member: member);
     final companion = CosmicSurvivalCompanion(
       member: member,
       slotIndex: member.slotIndex,
@@ -2968,13 +2976,18 @@ class PlanetDungeonGame extends FlameGame {
       physDef: stats.physDef,
       elemDef: stats.elemDef,
       cooldownReduction: stats.cooldownReduction,
-      critChance: stats.critChance,
+      specialCooldownReduction: stats.specialCooldownReduction,
       attackRange: stats.attackRange,
       specialAbilityRange: stats.specialAbilityRange,
       tethered: false,
       invincibleTimer: 0,
     );
     companion.primeSpecialCooldown(cooldownMultiplier: 0.25);
+    // A Mystic's world is a Survival ability: here it has no special, so
+    // there is no cooldown to run.
+    if (!castsSpecialOutsideSurvival(member.family)) {
+      companion.specialCooldown = 0;
+    }
     return companion;
   }
 
@@ -6777,7 +6790,8 @@ class PlanetDungeonGame extends FlameGame {
     // CONTROL FEEDBACK, not speech (§5.6). A passive special reads as a
     // permanently-passive button; a cooling one as its ring plus a refusal
     // pulse. Neither evicts the room's line.
-    if (isPassiveOnlyCosmicAbility(comp.member.family, comp.member.element)) {
+    if (isPassiveOnlyCosmicAbility(comp.member.family, comp.member.element) ||
+        !castsSpecialOutsideSurvival(comp.member.family)) {
       _cue(SoundCue.uiDenied);
       abilityDeniedFlash = _deniedFlashSeconds;
       onChanged();
@@ -6813,9 +6827,7 @@ class PlanetDungeonGame extends FlameGame {
         : creature.angle;
     creature.angle = angle;
     comp.angle = angle;
-    comp.specialCooldown =
-        comp.effectiveSpecialCooldown *
-        cosmicSurvivalSpecialCooldownMultiplier(comp.member.family);
+    comp.specialCooldown = comp.effectiveSpecialCooldown;
     if (comp.member.family.toLowerCase() == 'pip' &&
         comp.member.element == 'Poison') {
       for (final existing in combatProjectiles) {

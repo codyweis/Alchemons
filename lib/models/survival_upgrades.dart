@@ -183,7 +183,9 @@ OrbBaseDef getOrbBaseDef(OrbBaseSkin skin) {
 // GUARDIAN STAT UPGRADES (5 levels each)
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum GuardianUpgrade { cooldown, defense, attack, critChance, range }
+// Precision Runes (critical-hit chance) was retired 2026-10-02: no attack
+// ever rolled a crit, so it sold nothing. SurvivalUpgradeService refunds it.
+enum GuardianUpgrade { cooldown, defense, attack, range }
 
 class GuardianUpgradeDef {
   final GuardianUpgrade upgrade;
@@ -215,8 +217,6 @@ class GuardianUpgradeDef {
       case GuardianUpgrade.defense:
         return '+${(v * 100).toStringAsFixed(0)}%';
       case GuardianUpgrade.attack:
-        return '+${(v * 100).toStringAsFixed(0)}%';
-      case GuardianUpgrade.critChance:
         return '+${(v * 100).toStringAsFixed(0)}%';
       case GuardianUpgrade.range:
         return '+${(v * 100).toStringAsFixed(0)}%';
@@ -251,15 +251,6 @@ const List<GuardianUpgradeDef> kGuardianUpgrades = [
     color: Color(0xFFEF4444),
     costPerLevel: [1000, 5000, 10000, 20000, 50000],
     valuePerLevel: [0.04, 0.08, 0.14, 0.20, 0.28],
-  ),
-  GuardianUpgradeDef(
-    upgrade: GuardianUpgrade.critChance,
-    name: 'Precision Runes',
-    description: 'Increases guardian critical hit chance.',
-    icon: AppIcons.gps_fixed_rounded,
-    color: Color(0xFFF59E0B),
-    costPerLevel: [1000, 5000, 10000, 20000, 50000],
-    valuePerLevel: [0.02, 0.04, 0.07, 0.10, 0.15],
   ),
   GuardianUpgradeDef(
     upgrade: GuardianUpgrade.range,
@@ -493,14 +484,6 @@ class SurvivalUpgradeState {
     if (level <= 0) return 0;
     return kGuardianUpgrades
         .firstWhere((d) => d.upgrade == GuardianUpgrade.attack)
-        .valuePerLevel[level - 1];
-  }
-
-  double get guardianCritBonus {
-    final level = getGuardianLevel(GuardianUpgrade.critChance);
-    if (level <= 0) return 0;
-    return kGuardianUpgrades
-        .firstWhere((d) => d.upgrade == GuardianUpgrade.critChance)
         .valuePerLevel[level - 1];
   }
 

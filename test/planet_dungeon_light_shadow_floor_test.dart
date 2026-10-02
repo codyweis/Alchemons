@@ -20,7 +20,7 @@
 //     and blows only from its shadow.
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
@@ -287,7 +287,7 @@ PlanetDungeonGame _game({int stars = 0, void Function(String)? onCloud}) {
       ..position = g.layout.entranceSpawn
       ..lastSafe = g.layout.entranceSpawn;
     g.creatures.add(c);
-    final st = deriveCosmicSurvivalCompanionStats(member: m);
+    final st = deriveAlchemonCombatStats(member: m);
     g.combatCompanions.add(
       CosmicSurvivalCompanion(
         member: m,
@@ -302,7 +302,6 @@ PlanetDungeonGame _game({int stars = 0, void Function(String)? onCloud}) {
         physDef: st.physDef,
         elemDef: st.elemDef,
         cooldownReduction: st.cooldownReduction,
-        critChance: st.critChance,
         attackRange: st.attackRange,
         specialAbilityRange: st.specialAbilityRange,
         tethered: false,

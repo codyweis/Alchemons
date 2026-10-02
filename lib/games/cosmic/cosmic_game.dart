@@ -36,6 +36,7 @@ import 'cosmic_cache_vfx.dart';
 import 'portal_tear_paint.dart';
 import 'planets/planet_art.dart';
 import 'ship_art.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/systems/effects/effect.dart';
 import 'package:alchemons/systems/effects/effect_loader.dart';
@@ -1149,12 +1150,6 @@ class CosmicGame extends FlameGame with PanDetector {
     return value.clamp(minValue, maxValue).toDouble();
   }
 
-  double _familyAttackRange(String family, double baseRange) =>
-      CosmicBalance.familyAttackRange(family, baseRange);
-
-  double _familySpecialRange(String family, double baseRange) =>
-      CosmicBalance.familySpecialRange(family, baseRange);
-
   double _combatAcquireRange({
     required String family,
     required double attackRange,
@@ -1286,7 +1281,10 @@ class CosmicGame extends FlameGame with PanDetector {
     return hash.isEven ? 1 : -1;
   }
 
-  static const double _duelDamageMultiplier = 1.35;
+  /// Creature-on-creature damage in a duel. Measured with the wild duel
+  /// harness so a duel lasts as long as it did before open space moved onto
+  /// the shared power model, whose hits outgrew its health pools.
+  static const double _duelDamageMultiplier = 0.5;
   static const double _duelDefenseScale = 0.68;
 
   int _duelDamageAfterDefense(double rawDamage, int defense) {
@@ -1505,9 +1503,6 @@ class CosmicGame extends FlameGame with PanDetector {
     if (_beamFx.length > 42) _beamFx.removeAt(0);
   }
 
-  bool _isDarkWingMember(CosmicPartyMember member) =>
-      member.family.toLowerCase() == 'wing' && member.element == 'Dark';
-
   bool _isPipMember(CosmicPartyMember member, String element) =>
       member.family.toLowerCase() == 'pip' && member.element == element;
 
@@ -1576,30 +1571,22 @@ class CosmicGame extends FlameGame with PanDetector {
     return null;
   }
 
-  double _openGarrisonBasicCooldown(_GarrisonCreature g) {
-    final familyMultiplier = switch (g.member.family.toLowerCase()) {
-      'let' => 1.12,
-      'pip' => 0.90,
-      'horn' => 1.12,
-      'mask' => 1.10,
-      'wing' => 0.90,
-      'mane' => 0.92,
-      _ => 1.0,
-    };
-    var multiplier = g.basicHasteTimer > 0
-        ? g.basicHasteMultiplier.clamp(0.45, 1.0)
-        : 1.0;
-    if (_isPipMember(g.member, 'Spirit') && g.pipSpiritEmpowerTimer > 0) {
-      multiplier = 0.10;
-    } else if (_isPipMember(g.member, 'Steam')) {
-      final progress =
-          (g.pipSteamWindowTimer / CosmicCompanion.pipSteamWindowDuration)
-              .clamp(0.0, 1.0);
-      multiplier = 0.667 + (0.25 - 0.667) * progress;
-    }
-    if (_isDarkWingMember(g.member)) multiplier *= 0.5;
-    return (1.2 * familyMultiplier * multiplier).clamp(0.30, 2.0);
-  }
+  /// A garrison Alchemon attacks on the same rule as a summoned one.
+  double _openGarrisonBasicCooldown(_GarrisonCreature g) =>
+      alchemonBasicAttackInterval(
+        family: g.member.family,
+        element: g.member.element,
+        cooldownReduction: g.stats.cooldownReduction,
+        physAtk: g.stats.physAtk,
+        haste: g.basicHasteTimer > 0 ? g.basicHasteMultiplier : 1.0,
+        elementPassive: pipElementBasicPassive(
+          family: g.member.family,
+          element: g.member.element,
+          spiritEmpowerTimer: g.pipSpiritEmpowerTimer,
+          steamWindowTimer: g.pipSteamWindowTimer,
+          steamWindowDuration: CosmicCompanion.pipSteamWindowDuration,
+        ),
+      );
 
   double _openGarrisonDamageAmp(_GarrisonCreature g) => g.damageAmpTimer > 0
       ? g.damageAmpMultiplier.clamp(1.0, 4.0).toDouble()
@@ -2937,7 +2924,7 @@ class CosmicGame extends FlameGame with PanDetector {
                   (OrbitalSentinel.hitboxRadius + e.radius)) {
             // Both take damage
             orbitals[i].health -= 0.4;
-            e.health -= 2.2;
+            e.health -= 2.2 * CosmicBalance.spaceWorldScale;
             _spawnHitSpark(oPos, const Color(0xFF42A5F5));
             if (!e.provoked &&
                 (e.behavior == EnemyBehavior.feeding ||
@@ -3328,11 +3315,10 @@ class CosmicGame extends FlameGame with PanDetector {
               final contactDmg = CosmicBalance.enemyCompanionContactDamage(
                 e.tier,
               );
-              final dmg = max(
-                1,
-                (contactDmg * 100 / (100 + comp.physDef)).round(),
+              _openCompanionIncomingDamage(
+                comp,
+                contactDmg * 100 / (100 + comp.physDef),
               );
-              _openCompanionIncomingDamage(comp, dmg);
               _spawnHitSpark(comp.position, elementColor(e.element));
             }
           }
@@ -3597,25 +3583,19 @@ class CosmicGame extends FlameGame with PanDetector {
           if (g.specialCooldown <= 0 &&
               toTarget.distance <= g.specialRange &&
               !isPassiveOnlyCosmicAbility(g.member.family, g.member.element)) {
-            final effectiveSpeed = AlchemonStatSystem.legacyGameplayRating(
-              g.member.statSpeed,
+            g.specialCooldown = alchemonSpecialInterval(
+              family: g.member.family,
+              element: g.member.element,
+              specialCooldownReduction: g.stats.specialCooldownReduction,
+              abilityAtk: g.stats.abilityAtk,
             );
-            final effectiveIntelligence =
-                AlchemonStatSystem.legacyGameplayRating(
-                  g.member.statIntelligence,
-                );
-            g.specialCooldown =
-                (14.0 - (effectiveSpeed * 0.6) - (effectiveIntelligence * 0.4))
-                    .clamp(6.0, 14.0) *
-                (_isDarkWingMember(g.member) ? 0.5 : 1.0) *
-                (_isKinMember(g.member) ? kKinSpecialCooldownStretch : 1.0);
             _clearPipPoisonWeb(g.member);
             final result = createCosmicSpecialAbility(
               origin: g.position,
               baseAngle: g.faceAngle,
               family: g.member.family,
               element: g.member.element,
-              damage: g.specialDamage * _openGarrisonDamageAmp(g),
+              damage: g.specialDamage * 0.8 * _openGarrisonDamageAmp(g),
               maxHp: g.maxHp,
               casterPower: g.member.statIntelligence.toDouble(),
               casterBeauty: g.member.statBeauty.toDouble(),
@@ -4088,8 +4068,10 @@ class CosmicGame extends FlameGame with PanDetector {
             charging: boss.type == BossType.charger && boss.charging,
           );
           final scaledDmg = rawDmg * 30.0;
-          final dmg = max(1, (scaledDmg * 100 / (100 + comp.physDef)).round());
-          _openCompanionIncomingDamage(comp, dmg);
+          _openCompanionIncomingDamage(
+            comp,
+            scaledDmg * 100 / (100 + comp.physDef),
+          );
           _spawnHitSpark(comp.position, elementColor(boss.element));
         }
       }

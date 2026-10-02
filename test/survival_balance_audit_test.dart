@@ -416,7 +416,7 @@ void main() {
         final cooldown =
             15.0 *
             familyMultiplier *
-            elementalSpecialCooldownMultiplier(family, element);
+            elementalSpecialCooldownMultiplierSurvival(family, element);
         rows.add((
           family: family,
           element: element,

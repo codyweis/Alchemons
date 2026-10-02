@@ -30,7 +30,7 @@ import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic/horn_runtime.dart';
 import 'package:alchemons/games/cosmic/kin_support_runtime.dart';
 import 'package:alchemons/games/cosmic/mane_runtime.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_horn.dart';
@@ -73,8 +73,8 @@ class CosmicSurvivalCompanion {
   int elemAtk;
 
   /// What this family's special hits for. See the ability stat contract in
-  /// cosmic_survival_companion_stats.dart — a Mane's catapult is paid for out
-  /// of Strength, not Beauty.
+  /// alchemon_combat_stats.dart — a Mane's catapult is paid for out of
+  /// Strength, not Beauty.
   int abilityAtk;
   int physDef;
   int elemDef;
@@ -83,7 +83,6 @@ class CosmicSurvivalCompanion {
   /// Special cadence, from this family's own stat blend. Basic attacks keep
   /// reading [cooldownReduction], which is Speed's alone.
   double specialCooldownReduction;
-  double critChance;
   double attackRange;
   double specialAbilityRange;
   double basicCooldown;
@@ -267,8 +266,8 @@ class CosmicSurvivalCompanion {
   // any further hits) before discharging the chain blast.
   double hornPostDashWindUpTimer = 0;
 
-  static const double baseSpecialCooldown = 12.5;
-  static const double baseBasicCooldown = 1.5;
+  static const double baseSpecialCooldown = kAlchemonBaseSpecialCooldown;
+  static const double baseBasicCooldown = kAlchemonBaseBasicCooldown;
   static const double chargeSpeed = 400.0;
   // Pip+Steam: length of one full +50%→+300% attack-speed ramp cycle.
   static const double pipSteamWindowDuration = 9.0;
@@ -287,7 +286,6 @@ class CosmicSurvivalCompanion {
     required this.elemDef,
     this.cooldownReduction = 1.0,
     this.specialCooldownReduction = 1.0,
-    this.critChance = 0.05,
     this.attackRange = 200,
     this.specialAbilityRange = 250,
     this.basicCooldown = 0,
@@ -329,141 +327,31 @@ class CosmicSurvivalCompanion {
   double get hpPercent =>
       maxHp > 0 ? (currentHp / maxHp).clamp(0, 1).toDouble() : 0;
 
-  double get effectiveBasicCooldown {
-    final base = baseBasicCooldown / cooldownReduction;
-    final factor = (1.0 + (physAtk - 1) * 0.05).clamp(0.5, 3.0);
-    final familyMultiplier = switch (member.family.toLowerCase()) {
-      'let' => 1.12,
-      'pip' => 0.90,
-      'horn' => 1.12,
-      'mask' => 1.10,
-      'wing' => 0.90,
-      _ => 1.0,
-    };
-    // Family/element basic-cooldown passives.
-    //   Wing+Dark: auto-attack and laser both pulse 2× as fast.
-    final familyL = member.family.toLowerCase();
-    final familyElementMul = (familyL == 'wing' && member.element == 'Dark')
-        ? 0.5
-        : 1.0;
-    // Pip element passives that drive attack speed directly. While one
-    // is active it is the sole speed driver — the shared haste system
-    // is ignored so these reach (and stay at) their design extremes
-    // instead of overshooting them by stacking.
-    var pipPassiveMul = 1.0;
-    var pipPassiveDrivesSpeed = false;
-    if (familyL == 'pip') {
-      if (member.element == 'Spirit' && pipSpiritEmpowerTimer > 0) {
-        // Empower window: ~10× attack speed.
-        pipPassiveMul = 0.10;
-        pipPassiveDrivesSpeed = true;
-      } else if (member.element == 'Steam') {
-        // Steam window ramps attack speed from +50% to +300%.
-        final progress = (pipSteamWindowTimer / pipSteamWindowDuration).clamp(
-          0.0,
-          1.0,
-        );
-        pipPassiveMul = 0.667 + (0.25 - 0.667) * progress;
-        pipPassiveDrivesSpeed = true;
-      }
-    }
-    final haste = (basicHasteTimer > 0 && !pipPassiveDrivesSpeed)
-        ? basicHasteMultiplier.clamp(0.45, 1.0)
-        : 1.0;
-    return (base / factor) *
-        familyMultiplier *
-        haste *
-        familyElementMul *
-        pipPassiveMul;
-  }
+  /// Seconds between auto attacks — the shared rule in
+  /// alchemon_combat_stats.dart, with this companion's live haste and Pip
+  /// element passive.
+  double get effectiveBasicCooldown => alchemonBasicAttackInterval(
+    family: member.family,
+    element: member.element,
+    cooldownReduction: cooldownReduction,
+    physAtk: physAtk,
+    haste: basicHasteTimer > 0 ? basicHasteMultiplier : 1.0,
+    elementPassive: pipElementBasicPassive(
+      family: member.family,
+      element: member.element,
+      spiritEmpowerTimer: pipSpiritEmpowerTimer,
+      steamWindowTimer: pipSteamWindowTimer,
+      steamWindowDuration: pipSteamWindowDuration,
+    ),
+  );
 
-  double get effectiveSpecialCooldown {
-    final family = member.family.toLowerCase();
-    if (family == 'mask') {
-      // A flat 22.5s meant no stat on the sheet changed how often a Mask laid
-      // a trap — Intelligence, its own cadence stat, did nothing at all. It
-      // divides by the family contract now, like every other family.
-      return 22.5 /
-          specialCooldownReduction *
-          elementalSpecialCooldownMultiplierSurvival(
-            member.family,
-            member.element,
-          );
-    }
-
-    final base = baseSpecialCooldown / specialCooldownReduction;
-    final isMystic = family == 'mystic';
-    // Mystics use a dedicated formula: every mystic descends *toward*
-    // 60s as the relevant stat scales up, instead of starting at a
-    // shared floor. Heavier elements have a larger gap to close.
-    if (isMystic) {
-      // statProgress: 0 at baseline, 1 once the stat that scales the
-      // ability has saturated. We blend the survival-specific elemAtk
-      // saturation with cooldownReduction stacking from upgrades.
-      // elemAtk caps at 36 (factor saturation point); cdr above 1.0
-      // counts proportionally.
-      final atkProgress = (elemAtk / 36.0).clamp(0.0, 1.0);
-      final cdrProgress = (specialCooldownReduction - 1.0).clamp(0.0, 1.0);
-      final statProgress = (atkProgress + cdrProgress).clamp(0.0, 1.0);
-      // Per-element "starting cooldown gap" above the 60s target. Bigger
-      // gap = slower at low stats. All elements meet at 60s when
-      // statProgress reaches 1.0.
-      final lowStatBonus = switch (member.element) {
-        'Air' || 'Dust' => 20.0,
-        'Poison' || 'Mud' || 'Water' => 35.0,
-        'Lightning' || 'Ice' || 'Steam' => 50.0,
-        'Blood' || 'Plant' || 'Fire' => 65.0,
-        'Lava' || 'Crystal' || 'Earth' => 80.0,
-        'Dark' || 'Light' || 'Spirit' => 100.0,
-        _ => 50.0,
-      };
-      // cd = 60 (max-stat target) + element-specific cushion that
-      // melts away as stats / cooldown upgrades scale up.
-      final cd = 60.0 + lowStatBonus * (1.0 - statProgress);
-      return cd;
-    }
-    // Non-mystic: original formula.
-    final factor = (1.0 + (elemAtk / 6.0) * 0.2).clamp(0.5, 6.0);
-    // Cadence is the lever that says what a family is FOR against a horde
-    // (docs/horde_stress/role_scorecard.md). A Mane clears waves, so its line
-    // comes round often. A Wing can answer anything, so it should not answer
-    // everything at once. Let and Pip pay less for reach and for picking a
-    // body out of a crowd than they used to.
-    final familyMultiplier = switch (family) {
-      'let' => 1.05,
-      'pip' => 0.95,
-      'mane' => 0.70,
-      'wing' => 1.22,
-      'horn' => 0.85,
-      _ => 1.0,
-    };
-    final elementMultiplier = elementalSpecialCooldownMultiplierSurvival(
-      member.family,
-      member.element,
-    );
-    // Wing+Dark's doubled rate applies to the LASER as well as the basic, per
-    // the design board: "both the laser and the dark wing's auto-attacks fire
-    // twice as fast".
-    //
-    // Deliberate, and its cost is known. Doubling a special is
-    // scenario-independent in a way no other wing rider is — every other
-    // element answers SOME part of survival, where Dark answers all of them by
-    // doing everything twice — and measured across a horde, a shooter screen,
-    // a siege and a boss it sits at about x4 of the damage median in every one
-    // of them, against roughly x2.6 for the other two-beam wings. Scoping it
-    // to the basic alone brings that to x2.9.
-    //
-    // That trade was looked at and Dark keeps both halves. What it buys them
-    // with is carrying no beam rider at all, which the conformance test pins:
-    // add one and Dark is silently the strongest wing twice over.
-    final familyElementMul = family == 'wing' && member.element == 'Dark'
-        ? 0.5
-        : 1.0;
-    return (base / factor) *
-        familyMultiplier *
-        elementMultiplier *
-        familyElementMul;
-  }
+  /// Seconds between specials — the shared rule in alchemon_combat_stats.dart.
+  double get effectiveSpecialCooldown => alchemonSpecialInterval(
+    family: member.family,
+    element: member.element,
+    specialCooldownReduction: specialCooldownReduction,
+    abilityAtk: abilityAtk,
+  );
 
   void primeSpecialCooldown({
     double? savedCooldown,
@@ -3221,12 +3109,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final bossBonus = (targetChoice?.isBoss ?? false)
           ? (activeBoss?.radius ?? 0) + 80
           : 0.0;
-      // Basic attack - family-specific projectiles (same as cosmic game)
-      // Wing+Dark passive: the dark wing pulses twice as fast — its
-      // basic attacks and special both fire on a halved cooldown.
-      final isDarkWing =
-          comp.member.family.toLowerCase() == 'wing' &&
-          comp.member.element == 'Dark';
+      // Basic attack - family-specific projectiles (same as cosmic game).
+      // Wing+Dark's doubled rate is part of the shared cadence rule.
       // Kin auto-attack: charged thin laser instead of regular basics.
       // Kin holds position for 1.5s charging, then fires a powerful
       // laser beam. Routed through a dedicated handler so it doesn't
@@ -3247,7 +3131,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                   bossBonus) {
         final cooldown =
             comp.effectiveBasicCooldown *
-            (isDarkWing ? 0.5 : 1.0) *
             _masteryBasicCooldownMultiplier(slotIndex);
         comp.basicCooldown = cooldown;
         _bankHornGuard(slotIndex, comp);
@@ -3340,11 +3223,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final thresholdBeauty = _effectiveBeauty(slotIndex);
         final thresholdIntelligence = _effectiveIntelligence(slotIndex);
         final thresholdStrength = _effectiveStrength(slotIndex);
-        final cooldown =
-            comp.effectiveSpecialCooldown *
-            _specialCooldownReductionMultiplier(slotIndex, comp.member.family) *
-            (isDarkWing ? 0.5 : 1.0);
-        comp.specialCooldown = _mysticCastCooldown(comp, cooldown);
+        comp.specialCooldown = _mysticCastCooldown(
+          comp,
+          comp.effectiveSpecialCooldown,
+        );
         // A SPECIAL WENT OFF. Survival played the same generic launch blip
         // for a basic and for a special, so the one thing a player most
         // needs to hear — the cooldown you were waiting on just spent
@@ -3686,19 +3568,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (comp.currentHp <= 0) comp.isDead = true;
       }
     }
-  }
-
-  // Special-ability cadence is now driven mostly by the companion's
-  // effective Speed stat (via CosmicBalance.companionCooldownReduction).
-  // Kin's build-defining utilities are too strong to fire as often as
-  // standard specials, so we stretch their cadence ~1.6×.
-  // Mystics already have a dedicated per-element cooldown formula in
-  // effectiveSpecialCooldown that scales from 60–160s with statProgress
-  // — no extra multiplier needed here.
-  double _specialCooldownReductionMultiplier(int slotIndex, String family) {
-    final f = family.toLowerCase();
-    if (f == 'kin') return kKinSpecialCooldownStretch;
-    return 1.0;
   }
 
   _CompanionTargetChoice? _pickCompanionTargetChoice(
@@ -4101,50 +3970,22 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   // Derives a companion's combat stats from its effective stats, family
-  // multipliers and permanent guardian upgrades. Used both when a companion
-  // is summoned and when a stat powerup is picked mid-run.
-  ({
-    int maxHp,
-    int physAtk,
-    int elemAtk,
-    int abilityAtk,
-    int physDef,
-    int elemDef,
-    double cooldownReduction,
-    double specialCooldownReduction,
-    double critChance,
-    double attackRange,
-    double specialAbilityRange,
-  })
-  _deriveCompanionStats(int slotIndex) {
-    final member = party[slotIndex];
+  // frame and permanent guardian upgrades. Used both when a companion is
+  // summoned and when a stat powerup is picked mid-run.
+  AlchemonCombatStats _deriveCompanionStats(int slotIndex) {
     double guardianUpgradeValue(GuardianUpgrade u) {
       final lvl = upgradeState.getGuardianLevel(u);
       if (lvl <= 0) return 0.0;
       return getGuardianUpgradeDef(u).valuePerLevel[lvl - 1];
     }
 
-    final stats = deriveCosmicSurvivalCompanionStats(
-      member: member,
+    return deriveAlchemonCombatStats(
+      member: party[slotIndex],
       strengthBonus: powerUps.strengthBonus(slotIndex),
       intelligenceBonus: powerUps.intelligenceBonus(slotIndex),
       beautyBonus: powerUps.beautyBonus(slotIndex),
       speedBonus: powerUps.speedBonus(slotIndex),
       guardianUpgradeValue: guardianUpgradeValue,
-    );
-
-    return (
-      maxHp: stats.maxHp,
-      physAtk: stats.physAtk,
-      elemAtk: stats.elemAtk,
-      abilityAtk: stats.abilityAtk,
-      physDef: stats.physDef,
-      elemDef: stats.elemDef,
-      cooldownReduction: stats.cooldownReduction,
-      specialCooldownReduction: stats.specialCooldownReduction,
-      critChance: stats.critChance,
-      attackRange: stats.attackRange,
-      specialAbilityRange: stats.specialAbilityRange,
     );
   }
 
@@ -4170,7 +4011,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       companion.elemDef = stats.elemDef;
       companion.cooldownReduction = stats.cooldownReduction;
       companion.specialCooldownReduction = stats.specialCooldownReduction;
-      companion.critChance = stats.critChance;
       companion.attackRange = stats.attackRange;
       companion.specialAbilityRange = stats.specialAbilityRange;
     }
@@ -4709,18 +4549,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       elemDef: stats.elemDef,
       cooldownReduction: stats.cooldownReduction,
       specialCooldownReduction: stats.specialCooldownReduction,
-      critChance: stats.critChance,
       attackRange: stats.attackRange,
       specialAbilityRange: stats.specialAbilityRange,
       tethered: tetherModeEnabled && tetheredCompanionSlot == null,
     );
-    companion.primeSpecialCooldown(
-      savedCooldown: savedSpecialCooldown,
-      cooldownMultiplier: _specialCooldownReductionMultiplier(
-        slotIndex,
-        member.family,
-      ),
-    );
+    companion.primeSpecialCooldown(savedCooldown: savedSpecialCooldown);
     // Same shortcut on the opening wait, or the first cast of a run still
     // costs the full Mystic cadence before anything can be judged.
     companion.specialCooldown = _mysticCastCooldown(
@@ -16217,7 +16050,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     double progress,
   ) {
     if (_vfx.length >= 130) return;
-    emitHornLavaChargeTelegraph(comp.position, progress, _rng, _emitVfxParticle);
+    emitHornLavaChargeTelegraph(
+      comp.position,
+      progress,
+      _rng,
+      _emitVfxParticle,
+    );
   }
 
   // Horn+Lava: explosion VFX on enemy kill — radial fire burst at
@@ -16448,7 +16286,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (comp.hornAirParticleTimer <= 0) {
       // ~12 particles/sec from each Air horn.
       comp.hornAirParticleTimer = HornRules.airParticleInterval;
-      emitHornAirWind(comp.position, innerRadius, auraRadius, _rng, _emitVfxParticle);
+      emitHornAirWind(
+        comp.position,
+        innerRadius,
+        auraRadius,
+        _rng,
+        _emitVfxParticle,
+      );
     }
   }
 

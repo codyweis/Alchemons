@@ -41,6 +41,11 @@ const double _kCombatBodySpeed = 100;
 /// the area; a duellist is only thrown back.
 const double _kCombatBodyMaxShove = 180;
 
+/// The fastest a knockback may carry a duellist (px/s). Knockback grows with
+/// the hit, and a creature's hits are big enough to throw a body clean out of
+/// the fight; a duellist is only thrown back.
+const double _kCombatBodyMaxKnockSpeed = 260;
+
 /// What an instant kill takes from an Alchemon, as a share of its health.
 const double _kExecuteShare = 0.25;
 
@@ -265,7 +270,12 @@ extension CosmicDuel on CosmicGame {
     cb.from = ship.pos;
     final side = _wildSide;
     if (taken > 0) {
-      side.shipCarry += taken * CosmicGame._duelDamageMultiplier / 45.0;
+      // Creature damage onto the ship's own small points: the ship is world,
+      // authored against the lighter hits of the old creature scale.
+      side.shipCarry +=
+          taken *
+          CosmicGame._duelDamageMultiplier /
+          (45.0 * CosmicBalance.spaceIncomingScale);
     }
     if (cb.executes > 0) {
       side.shipCarry += 0.9 * cb.executes;
@@ -291,12 +301,16 @@ extension CosmicDuel on CosmicGame {
 
   void _tickCombatBody(_CombatBody cb, CosmicCompanion? host, double dt) {
     final body = cb.body;
-    final v = body.knockbackVelocity;
+    var v = body.knockbackVelocity;
+    if (v.distance > _kCombatBodyMaxKnockSpeed) {
+      v = v / v.distance * _kCombatBodyMaxKnockSpeed;
+    }
     if (v != Offset.zero) {
       if (host != null) host.position += v * dt;
       final next = v * exp(-CosmicAbilityRuntime.knockbackDamping * dt);
       body.knockbackVelocity =
-          host == null || next.distance < CosmicAbilityRuntime.knockbackRestSpeed
+          host == null ||
+              next.distance < CosmicAbilityRuntime.knockbackRestSpeed
           ? Offset.zero
           : next;
     }

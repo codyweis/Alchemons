@@ -9,23 +9,32 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 
 void main() {
   const stat = 95.0;
 
   test('identical stats, and level alone still separates them', () {
-    int hp(int level) => CosmicBalance.companionMaxHp(
-      level: level,
-      strength: stat,
-      intelligence: stat,
+    AlchemonCombatStats at(int level) => deriveAlchemonCombatStats(
+      member: CosmicPartyMember(
+        instanceId: 'memory',
+        baseId: 'memory',
+        displayName: 'Memory',
+        element: 'Spirit',
+        family: 'Pip',
+        level: level,
+        statSpeed: stat,
+        statIntelligence: stat,
+        statStrength: stat,
+        statBeauty: stat,
+        slotIndex: 0,
+        staminaBars: 3,
+        staminaMax: 3,
+      ),
     );
-    int atk(int level) =>
-        CosmicBalance.companionPhysAtk(level: level, strength: stat);
-    int def(int level) => CosmicBalance.companionPhysDef(
-      level: level,
-      strength: stat,
-      intelligence: stat,
-    );
+    int hp(int level) => at(level).maxHp;
+    int atk(int level) => at(level).physAtk;
+    int def(int level) => at(level).physDef;
 
     const top = CosmicBalance.maxCompanionLevel;
     expect(

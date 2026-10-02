@@ -1,5 +1,4 @@
-import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,66 +37,32 @@ void main() {
     );
   });
 
-  test('level 10 catalog teams retain breeding gains in both combat modes', () {
-    var previousSpace = 0.0;
-    var previousSurvival = 0.0;
+  test('level 10 catalog teams retain breeding gains in every mode', () {
+    // Survival, the dungeons and open space all build a creature from the
+    // one power model, so one curve covers every mode.
+    var previousDps = 0.0;
     var previousHp = 0;
     for (final potential in [20, 35, 50, 70, 80, 90, 95, 100]) {
-      var spaceDps = 0.0;
-      var survivalDps = 0.0;
+      var dps = 0.0;
       var hp = 0;
       for (final member in potentialParty(potential)) {
-        final survival = deriveCosmicSurvivalCompanionStats(member: member);
-        final attack = CosmicBalance.companionPhysAtk(
-          level: 10,
-          strength: member.statStrength,
-        );
-        final companion = CosmicCompanion(
-          member: member,
-          position: Offset.zero,
-          maxHp: 100,
-          currentHp: 100,
-          physAtk: attack,
-          elemAtk: 1,
-          physDef: 1,
-          elemDef: 1,
-          cooldownReduction: CosmicBalance.companionCooldownReduction(
-            member.statSpeed,
-          ),
-          critChance: 0,
-          attackRange: 100,
-          specialAbilityRange: 100,
-        );
+        final stats = deriveAlchemonCombatStats(member: member);
         // One-hit cadence reference, excluding specials, multi-hit patterns,
-        // crits, ship weapons, and movement. This is not a win-rate estimate.
-        spaceDps += attack / companion.effectiveBasicCooldown;
-        final survivalCompanion = CosmicCompanion(
-          member: member,
-          position: Offset.zero,
-          maxHp: survival.maxHp,
-          currentHp: survival.maxHp,
-          physAtk: survival.physAtk,
-          elemAtk: survival.elemAtk,
-          physDef: survival.physDef,
-          elemDef: survival.elemDef,
-          cooldownReduction: survival.cooldownReduction,
-          critChance: survival.critChance,
-          attackRange: survival.attackRange,
-          specialAbilityRange: survival.specialAbilityRange,
-        );
-        survivalDps +=
-            survival.physAtk / survivalCompanion.effectiveBasicCooldown;
-        hp += survival.maxHp;
+        // ship weapons, and movement. This is not a win-rate estimate.
+        dps +=
+            stats.physAtk /
+            alchemonBasicAttackInterval(
+              family: member.family,
+              element: member.element,
+              cooldownReduction: stats.cooldownReduction,
+              physAtk: stats.physAtk,
+            );
+        hp += stats.maxHp;
       }
-      debugPrint(
-        'P$potential spaceCadence=${spaceDps.toStringAsFixed(1)} '
-        'survivalCadence=${survivalDps.toStringAsFixed(1)} survivalHP=$hp',
-      );
-      expect(spaceDps, greaterThan(previousSpace));
-      expect(survivalDps, greaterThan(previousSurvival));
+      debugPrint('P$potential cadence=${dps.toStringAsFixed(1)} HP=$hp');
+      expect(dps, greaterThan(previousDps));
       expect(hp, greaterThan(previousHp));
-      previousSpace = spaceDps;
-      previousSurvival = survivalDps;
+      previousDps = dps;
       previousHp = hp;
     }
   });

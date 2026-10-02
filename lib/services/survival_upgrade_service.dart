@@ -26,10 +26,22 @@ class SurvivalUpgradeService extends ChangeNotifier {
       'survival.guardian.${u.name}';
   static String _abilityKey(BaseAbility a) => 'survival.ability.${a.name}';
 
+  /// Precision Runes sold critical-hit chance, and no attack ever rolled a
+  /// crit. The upgrade is retired; what a player spent on it comes back once.
+  static const _kRetiredCritKey = 'survival.guardian.critChance';
+  static const _kRetiredCritCostPerLevel = [1000, 5000, 10000, 20000, 50000];
+
+  /// Silver owed for [level] levels of the retired Precision Runes.
+  @visibleForTesting
+  static int retiredCritRefund(int level) => _kRetiredCritCostPerLevel
+      .take(level.clamp(0, _kRetiredCritCostPerLevel.length))
+      .fold(0, (sum, cost) => sum + cost);
+
   // ── Load ───────────────────────────────────────────────────────────────────
 
   Future<void> load() async {
     final dao = _db.settingsDao;
+    await _refundRetiredCritUpgrade();
 
     // Equipped skin
     final skinStr = await dao.getSetting(_kEquippedSkin);
@@ -70,6 +82,19 @@ class SurvivalUpgradeService extends ChangeNotifier {
     );
 
     notifyListeners();
+  }
+
+  /// Pays back the retired Precision Runes and forgets them, in one step so
+  /// a crash between the two can neither pay twice nor lose the refund.
+  Future<void> _refundRetiredCritUpgrade() async {
+    final dao = _db.settingsDao;
+    final stored = await dao.getSetting(_kRetiredCritKey);
+    if (stored == null) return;
+    final refund = retiredCritRefund(int.tryParse(stored) ?? 0);
+    await _db.transaction(() async {
+      if (refund > 0) await _db.currencyDao.addSilver(refund);
+      await dao.deleteSetting(_kRetiredCritKey);
+    });
   }
 
   // ── Purchase Orb Skin ──────────────────────────────────────────────────────

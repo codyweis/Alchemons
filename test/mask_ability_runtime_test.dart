@@ -83,7 +83,7 @@ CosmicGame openArena() {
     physDef: 5,
     elemDef: 5,
     cooldownReduction: 1,
-    critChance: 0,
+    specialCooldownReduction: 1.0,
     attackRange: 180,
     specialAbilityRange: 220,
   );

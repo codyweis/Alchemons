@@ -2058,16 +2058,20 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
     Widget special(double w) {
       final passive = game.abilityIsPassive;
-      final cd = passive ? 0.0 : game.abilityCooldownFraction;
+      // A Mystic's world is a Survival ability; here it has no special.
+      final absent = game.abilityIsAbsent;
+      final cd = passive || absent ? 0.0 : game.abilityCooldownFraction;
       final cooling = cd > 0.02;
       return _padTile(
         width: w,
         height: cell,
         color: _C.amberBright,
-        spent: !offers || cooling || passive,
+        spent: !offers || cooling || passive || absent,
         charge: cooling ? 1 - cd : null,
         denied: game.abilityDeniedPulse,
-        semantics: passive ? 'Passive' : 'Special',
+        semantics: absent
+            ? 'No special here'
+            : (passive ? 'Passive' : 'Special'),
         onTap: offers
             ? context.soundAction(() {
                 _tapHaptic();
@@ -2075,11 +2079,15 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               })
             : null,
         child: _padGlyph(
-          passive ? Icons.all_inclusive_rounded : Icons.auto_awesome_rounded,
+          absent
+              ? Icons.block_rounded
+              : (passive
+                    ? Icons.all_inclusive_rounded
+                    : Icons.auto_awesome_rounded),
           cooling
               ? game.abilityCooldownLabel
-              : (passive ? 'PASSIVE' : 'SPECIAL'),
-          !offers || cooling || passive,
+              : (absent ? 'NONE' : (passive ? 'PASSIVE' : 'SPECIAL')),
+          !offers || cooling || passive || absent,
         ),
       );
     }

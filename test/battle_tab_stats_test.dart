@@ -2,7 +2,7 @@ library;
 
 import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -92,49 +92,80 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
-  testWidgets('the stat grid names the genetic stat behind every number', (
+  AlchemonCombatStats expectedStats(String family, db.CreatureInstance i) =>
+      deriveAlchemonCombatStats(
+        member: CosmicPartyMember(
+          instanceId: i.instanceId,
+          baseId: i.baseId,
+          displayName: 'Test',
+          family: family,
+          element: 'Fire',
+          level: i.level,
+          statStrength: i.statStrength,
+          statIntelligence: i.statIntelligence,
+          statSpeed: i.statSpeed,
+          statBeauty: i.statBeauty,
+          slotIndex: 0,
+          staminaBars: 3,
+          staminaMax: 3,
+        ),
+      );
+
+  testWidgets('one stat sheet, each number naming the stats behind it', (
     tester,
   ) async {
     await pumpBattleTab(tester, 'Pip');
 
-    // Every derived figure carries its source, and RANGE — intelligence's
-    // most legible contribution — is present rather than invisible.
-    for (final label in ['HP', 'P-ATK', 'E-ATK', 'RANGE', 'CD', 'SPECIAL']) {
+    for (final label in [
+      'HP',
+      'P-ATK',
+      'E-ATK',
+      'SPECIAL',
+      'P-DEF',
+      'E-DEF',
+      'ATTACKS',
+      'SPECIAL CD',
+      'RANGE',
+    ]) {
       expect(find.text(label), findsOneWidget, reason: 'missing $label tile');
     }
-    expect(find.text('STR-INT'), findsNWidgets(2)); // HP and P-DEF
-    expect(find.text('BEA-INT'), findsOneWidget); // E-DEF
-    expect(find.text('SPD'), findsOneWidget); // CD
-    expect(
-      find.text('CRIT'),
-      findsNothing,
-    ); // Neither mode rolls critical hits.
+    // Sources come from the shared stat contract, strongest share first.
+    expect(find.text('STR·INT'), findsNWidgets(2)); // HP and P-DEF
+    expect(find.text('BEA·INT'), findsOneWidget); // E-DEF
+    expect(find.text('SPD·STR'), findsOneWidget); // auto-attack rate
+    expect(find.text('STR·BEA'), findsOneWidget); // a Pip's SPECIAL
+    // Nothing rolls critical hits, and there is no longer a mode to pick:
+    // every mode builds the creature from the same numbers.
+    expect(find.text('CRIT'), findsNothing);
+    expect(find.text('Cosmic Space'), findsNothing);
+    expect(find.byType(SegmentedButton<bool>), findsNothing);
 
-    // Speed 2.1 gives a cooldown-reduction factor below 1.0, which divides
-    // the base cooldown — so the tile must read above x1.00, not below it.
-    final cdr = CosmicBalance.companionCooldownReduction(2.1);
-    expect(cdr, lessThan(1.0));
-    expect(find.text('×${(1 / cdr).toStringAsFixed(2)}'), findsOneWidget);
+    final stats = expectedStats('Pip', _instance());
+    expect(find.text('${stats.maxHp}'), findsOneWidget);
+    expect(find.text('${stats.physAtk}'), findsWidgets);
 
-    // The live preview sits over the grid.
+    // The bridge from ratings to roles: every stat says what it feeds.
+    expect(find.text('WHAT EACH STAT DOES'), findsOneWidget);
+    for (final stat in ['STRENGTH', 'INTELLIGENCE', 'BEAUTY', 'SPEED']) {
+      expect(find.text(stat), findsOneWidget);
+    }
+    // Strength 4.4 is this specimen's best stat.
+    expect(find.text('440 · best'), findsOneWidget);
+    expect(find.textContaining('special power 55%'), findsOneWidget);
+    expect(find.textContaining('special power 45%'), findsOneWidget);
+
     expect(find.text('PREVIEW ABILITIES'), findsOneWidget);
 
     // Persistent modifiers live in one bottom section, grouped by source, and
-    // only the boosts this specimen has are listed: no nature, no enhancement
-    // and no constellation rows for a specimen that has none of them.
+    // only the boosts this specimen has are listed.
     expect(find.text('Boosts'), findsOneWidget);
     expect(find.text('NATURE'), findsNothing);
-    expect(find.text('No Nature boost'), findsNothing);
     expect(find.text('ENHANCEMENT'), findsNothing);
     expect(find.text('PURITY · PURE'), findsOneWidget);
     expect(find.text('COMBAT CONSTELLATION'), findsNothing);
     expect(find.text('FAMILY FRAME · PIP'), findsOneWidget);
-    expect(find.textContaining('Ratings past 500'), findsNothing);
+    expect(find.textContaining('HP −20%'), findsOneWidget);
 
-    // The attack cards follow the grid before role and boost details.
-    expect(find.text('Auto Attack'), findsOneWidget);
-    expect(find.text('Special Ability'), findsOneWidget);
-    expect(find.text('Survival'), findsOneWidget);
     final visibleLabels = tester
         .widgetList<Text>(find.byType(Text))
         .map((text) => text.data)
@@ -154,104 +185,50 @@ void main() {
     );
   });
 
-  testWidgets(
-    '500 Strength shows mode-specific damage, not a 500 damage promise',
-    (tester) async {
-      final instance = _instance().copyWith(
-        level: 10,
-        statStrength: 5.0,
-        statIntelligence: 5.0,
-        statSpeed: 5.0,
-        statBeauty: 5.0,
-      );
-      await pumpBattleTab(tester, 'Pip', instance: instance);
-      expect(
-        find.textContaining('500 Strength gives 12 base P-ATK'),
-        findsOneWidget,
-      );
-      expect(find.text('SPECIAL'), findsOneWidget);
-
-      final expected = deriveCosmicSurvivalCompanionStats(
-        member: CosmicPartyMember(
-          instanceId: 'test',
-          baseId: 'test',
-          displayName: 'Test',
-          family: 'Pip',
-          element: 'Fire',
-          level: 10,
-          statStrength: 5,
-          statIntelligence: 5,
-          statSpeed: 5,
-          statBeauty: 5,
-          slotIndex: 0,
-          staminaBars: 3,
-          staminaMax: 3,
-        ),
-      );
-      expect(expected.physAtk, 64);
-      await tester.tap(find.text('Survival'));
-      await tester.pump();
-      expect(
-        find.textContaining('500 Strength gives 64 base P-ATK'),
-        findsOneWidget,
-      );
-      expect(find.text('${expected.maxHp}'), findsOneWidget);
-      expect(find.textContaining('before Guardian upgrades'), findsOneWidget);
-    },
-  );
-
   testWidgets('special power follows family stats instead of Beauty alone', (
     tester,
   ) async {
     await pumpBattleTab(tester, 'Mane');
-    final i = _instance();
-    final special = CosmicBalance.companionElemAtk(
-      level: i.level,
-      beauty: cosmicFamilyAbilityRating(
-        family: 'Mane',
-        strength: i.statStrength,
-        intelligence: i.statIntelligence,
-        beauty: i.statBeauty,
-      ),
-    );
-    final elemental = CosmicBalance.companionElemAtk(
-      level: i.level,
-      beauty: i.statBeauty,
-    );
-    expect(special, greaterThan(elemental));
+    final stats = expectedStats('Mane', _instance());
+    expect(stats.abilityAtk, greaterThan(stats.elemAtk));
     final tile = find
         .ancestor(of: find.text('SPECIAL'), matching: find.byType(Column))
         .first;
     expect(
-      find.descendant(of: tile, matching: find.text('$special')),
+      find.descendant(of: tile, matching: find.text('${stats.abilityAtk}')),
+      findsOneWidget,
+    );
+    expect(
+      find.text('SPECIAL, from Strength 80% · Intelligence 20%.'),
       findsOneWidget,
     );
   });
 
-  testWidgets('reported HP and DEF include the family shape modifiers', (
-    tester,
-  ) async {
+  testWidgets('reported HP and DEF include the family frame', (tester) async {
     final instance = _instance();
-    final baseHp = CosmicBalance.companionMaxHp(
-      level: instance.level,
-      strength: instance.statStrength,
-      intelligence: instance.statIntelligence,
-    );
-    final hornHp = (baseHp * CosmicBalance.familyHpMultiplier('Horn')).round();
-    expect(hornHp, greaterThan(baseHp), reason: 'horn multiplier is not 1.0');
+    final horn = expectedStats('Horn', instance);
+    final pip = expectedStats('Pip', instance);
+    expect(horn.maxHp, greaterThan(pip.maxHp));
 
-    // A Horn's summoned companion gets +30% HP and +20% DEF; the tab used to
-    // print the unmodified figures, understating every tank it described.
     await pumpBattleTab(tester, 'Horn');
-    expect(find.text('$hornHp'), findsOneWidget);
-    expect(find.text('$baseHp'), findsNothing);
+    expect(find.text('${horn.maxHp}'), findsOneWidget);
     expect(find.text('FAMILY FRAME · HORN'), findsOneWidget);
-    expect(find.textContaining('HP +30%'), findsOneWidget);
+    expect(find.textContaining('HP +40%'), findsOneWidget);
 
     await pumpBattleTab(tester, 'Pip');
-    expect(find.text('$baseHp'), findsOneWidget);
-    expect(find.text('FAMILY FRAME · PIP'), findsOneWidget);
-    expect(find.textContaining('Special range +20%'), findsOneWidget);
+    expect(find.text('${pip.maxHp}'), findsOneWidget);
+    expect(find.textContaining('Special range +5%'), findsOneWidget);
+  });
+
+  testWidgets('a Mystic says its world is a Survival ability only', (tester) async {
+    await pumpBattleTab(tester, 'Mystic');
+    expect(
+      find.textContaining(
+        'in Cosmic Space and the planet dungeons a Mystic fights with its '
+        'auto attack',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the stats block fits a 360pt-wide phone', (tester) async {
@@ -259,16 +236,21 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    for (final family in ['Horn', 'Wing', 'Let', 'Mask', 'Kin', 'Pip']) {
+    for (final family in [
+      'Horn',
+      'Wing',
+      'Let',
+      'Mask',
+      'Kin',
+      'Pip',
+      'Mystic',
+    ]) {
       await pumpBattleTab(tester, family);
       expect(
         tester.takeException(),
         isNull,
         reason: '$family overflowed at 360pt',
       );
-      await tester.tap(find.text('Survival'));
-      await tester.pump();
-      expect(tester.takeException(), isNull);
     }
   });
 }

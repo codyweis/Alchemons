@@ -1,11 +1,5 @@
 part of 'cosmic_game.dart';
 
-/// Horn family gets bonus HP and DEF since they're the tanks.
-double _familyHpMultiplier(String family) =>
-    CosmicBalance.familyHpMultiplier(family);
-double _familyDefMultiplier(String family) =>
-    CosmicBalance.familyDefMultiplier(family);
-
 extension CosmicGameCompanionsAndContests on CosmicGame {
   void summonCompanion(
     CosmicPartyMember member, {
@@ -25,60 +19,12 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       return;
     }
 
-    // Build compact companion stats for cosmic mode, where enemies have no DEF
-    // and every point of physAtk is raw damage.
-    final speed = member.statSpeed.toDouble();
-    final intel = member.statIntelligence.toDouble();
-    final strength = member.statStrength.toDouble();
-    final beauty = member.statBeauty.toDouble();
-
-    final level = CosmicBalance.clampCompanionLevel(member.level);
+    // The shared power model: the same numbers Survival, the dungeons and
+    // the Battle tab use. Space's world is tuned to them
+    // (CosmicBalance.spaceWorldScale).
+    final stats = deriveAlchemonCombatStats(member: member);
     final family = member.family.toLowerCase();
-
-    final maxHp =
-        (CosmicBalance.companionMaxHp(
-                  level: level,
-                  strength: strength,
-                  intelligence: intel,
-                ) *
-                _familyHpMultiplier(family))
-            .round();
-    final physAtk = CosmicBalance.companionPhysAtk(
-      level: level,
-      strength: strength,
-    );
-    final elemAtk = CosmicBalance.companionElemAtk(
-      level: level,
-      beauty: beauty,
-    );
-    final abilityAtk = CosmicBalance.companionElemAtk(
-      level: level,
-      beauty: cosmicFamilyAbilityRating(
-        family: family,
-        strength: strength,
-        intelligence: intel,
-        beauty: beauty,
-      ),
-    );
-    final physDef =
-        (CosmicBalance.companionPhysDef(
-                  level: level,
-                  strength: strength,
-                  intelligence: intel,
-                ) *
-                _familyDefMultiplier(family))
-            .round();
-    final elemDef =
-        (CosmicBalance.companionElemDef(
-                  level: level,
-                  beauty: beauty,
-                  intelligence: intel,
-                ) *
-                _familyDefMultiplier(family))
-            .round();
-    final cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
-    final critChance = CosmicBalance.companionCritChance(strength);
-    final baseRange = CosmicBalance.companionBaseRange(intel);
+    final maxHp = stats.maxHp;
 
     // Species-based scale
     final specScale = (CosmicGame._companionSpeciesScale[family] ?? 1.0) * 1.0;
@@ -97,22 +43,24 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       anchor: placePos,
       maxHp: maxHp,
       currentHp: startHp,
-      physAtk: physAtk,
-      elemAtk: elemAtk,
-      abilityAtk: abilityAtk,
-      physDef: physDef,
-      elemDef: elemDef,
-      cooldownReduction: cooldownReduction,
-      critChance: critChance,
-      attackRange: _familyAttackRange(family, baseRange),
-      specialAbilityRange: _familySpecialRange(family, baseRange),
+      physAtk: stats.physAtk,
+      elemAtk: stats.elemAtk,
+      abilityAtk: stats.abilityAtk,
+      physDef: stats.physDef,
+      elemDef: stats.elemDef,
+      cooldownReduction: stats.cooldownReduction,
+      specialCooldownReduction: stats.specialCooldownReduction,
+      attackRange: stats.attackRange,
+      specialAbilityRange: stats.specialAbilityRange,
       speciesScale: specScale,
     );
-    companion.primeSpecialCooldown(
-      savedCooldown: initialSpecialCooldown,
-      // A Kin's special waits longer, as survival stretches it.
-      cooldownMultiplier: family == 'kin' ? kKinSpecialCooldownStretch : 1.0,
-    );
+    if (!castsSpecialOutsideSurvival(member.family)) {
+      // A Mystic's world is a Survival ability; in open space it fights with
+      // its auto attack alone, so there is no cooldown to show.
+      companion.specialCooldown = 0;
+    } else {
+      companion.primeSpecialCooldown(savedCooldown: initialSpecialCooldown);
+    }
     // Its tear opens at its own place in the formation, not on the ship.
     if (!sandboxMode) {
       companion.position = _companionSummonPoint(companion);
@@ -268,58 +216,9 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
   /// Put an Alchemon on the field to fight the player's companion: a wild
   /// one that has been engaged, or a contest rival.
   void spawnDuelOpponent(CosmicPartyMember member) {
-    final speed = member.statSpeed.toDouble();
-    final intel = member.statIntelligence.toDouble();
-    final strength = member.statStrength.toDouble();
-    final beauty = member.statBeauty.toDouble();
-
-    final level = CosmicBalance.clampCompanionLevel(member.level);
+    final stats = deriveAlchemonCombatStats(member: member);
     final family = member.family.toLowerCase();
-
-    final maxHp =
-        (CosmicBalance.companionMaxHp(
-                  level: level,
-                  strength: strength,
-                  intelligence: intel,
-                ) *
-                _familyHpMultiplier(family))
-            .round();
-    final physAtk = CosmicBalance.companionPhysAtk(
-      level: level,
-      strength: strength,
-    );
-    final elemAtk = CosmicBalance.companionElemAtk(
-      level: level,
-      beauty: beauty,
-    );
-    final abilityAtk = CosmicBalance.companionElemAtk(
-      level: level,
-      beauty: cosmicFamilyAbilityRating(
-        family: family,
-        strength: strength,
-        intelligence: intel,
-        beauty: beauty,
-      ),
-    );
-    final physDef =
-        (CosmicBalance.companionPhysDef(
-                  level: level,
-                  strength: strength,
-                  intelligence: intel,
-                ) *
-                _familyDefMultiplier(family))
-            .round();
-    final elemDef =
-        (CosmicBalance.companionElemDef(
-                  level: level,
-                  beauty: beauty,
-                  intelligence: intel,
-                ) *
-                _familyDefMultiplier(family))
-            .round();
-    final cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
-    final critChance = CosmicBalance.companionCritChance(strength);
-    final baseRange = CosmicBalance.companionBaseRange(intel);
+    final maxHp = stats.maxHp;
 
     final specScale = (CosmicGame._companionSpeciesScale[family] ?? 1.0) * 1.0;
 
@@ -335,15 +234,15 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       anchor: placePos,
       maxHp: maxHp,
       currentHp: maxHp,
-      physAtk: physAtk,
-      elemAtk: elemAtk,
-      abilityAtk: abilityAtk,
-      physDef: physDef,
-      elemDef: elemDef,
-      cooldownReduction: cooldownReduction,
-      critChance: critChance,
-      attackRange: _familyAttackRange(family, baseRange),
-      specialAbilityRange: _familySpecialRange(family, baseRange),
+      physAtk: stats.physAtk,
+      elemAtk: stats.elemAtk,
+      abilityAtk: stats.abilityAtk,
+      physDef: stats.physDef,
+      elemDef: stats.elemDef,
+      cooldownReduction: stats.cooldownReduction,
+      specialCooldownReduction: stats.specialCooldownReduction,
+      attackRange: stats.attackRange,
+      specialAbilityRange: stats.specialAbilityRange,
       speciesScale: specScale,
       invincibleTimer: 1.5,
       visualVariant: member.visualVariant,
@@ -1569,24 +1468,6 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       final family = m.family.toLowerCase();
       final specScale =
           (CosmicGame._companionSpeciesScale[family] ?? 1.0) * 1.0;
-      // Derive combat stats from member
-      final atkDmg = 3.0 + m.statStrength * 0.3 + m.level * 0.5;
-      final specialDmg =
-          3.0 +
-          cosmicFamilyAbilityRating(
-                family: family,
-                strength: m.statStrength,
-                intelligence: m.statIntelligence,
-                beauty: m.statBeauty,
-              ) *
-              0.35 +
-          m.level * 0.45;
-      final baseRange =
-          CosmicBalance.companionBaseRange(m.statIntelligence) +
-          m.statSpeed * 12.0;
-      final range = _familyAttackRange(family, baseRange);
-      final specialRange = _familySpecialRange(family, baseRange);
-      final garrisonHp = (80 + m.statStrength * 3 + m.level * 5).round();
       _garrison.add(
         _GarrisonCreature(
           member: m,
@@ -1596,11 +1477,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
           guardRadius: dist,
           guardPhase: rng.nextDouble() * pi * 2 + layerIndex * 0.8,
           speciesScale: specScale,
-          attackDamage: atkDmg,
-          specialDamage: specialDmg,
-          attackRange: range,
-          specialRange: specialRange,
-          maxHp: garrisonHp,
+          stats: deriveAlchemonCombatStats(member: m),
         ),
       );
       // Load sprite

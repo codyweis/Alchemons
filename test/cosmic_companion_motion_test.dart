@@ -358,8 +358,12 @@ void main() {
     // Before the station swing cap, target commitment and fighting from its
     // own side near the ship: circling p90 ~240 px/s (counting the targets'
     // own darting), speed p90 ~250 and p99 ~380 px/s, ~75 switches a minute.
+    // Since open space fights at Survival's tempo (2026-10-02: the shared
+    // power model, specials about twice as often) the party moves more —
+    // speed p95 measured 190-250 over ten runs — so the speed bar sits at
+    // 270, still well under the band it guards against.
     expect(p(circling, .9), lessThan(170));
-    expect(p(speeds, .95), lessThan(250));
+    expect(p(speeds, .95), lessThan(270));
     expect(switches / minutes, lessThan(60));
   });
 

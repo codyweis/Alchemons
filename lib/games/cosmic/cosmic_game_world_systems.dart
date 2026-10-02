@@ -1869,7 +1869,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           for (final comp in _livingActiveCompanions) {
             final compDist = (comp.position - boss.position).distance;
             if (compDist <= pulseRadius + 14) {
-              _openCompanionIncomingDamage(comp, (pulseDamage * 1.1).round());
+              _openCompanionIncomingDamage(comp, pulseDamage * 1.1);
             }
           }
         }
@@ -2563,8 +2563,10 @@ extension CosmicGameWorldSystems on CosmicGame {
           // Boss projectile damage is ship-scale (~1-2). Scale up to
           // companion-scale so it's meaningful against companion defenses.
           final scaledDmg = bp.damage * 30.0;
-          final dmg = max(1, (scaledDmg * 100 / (100 + comp.elemDef)).round());
-          _openCompanionIncomingDamage(comp, dmg);
+          _openCompanionIncomingDamage(
+            comp,
+            scaledDmg * 100 / (100 + comp.elemDef),
+          );
           _spawnHitSpark(comp.position, elementColor(bp.element));
           bossProjectiles.removeAt(i);
           break;

@@ -21,7 +21,7 @@ import 'package:alchemons/games/cosmic_survival/components/mystic_graphx_overlay
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/family_combat_copy.dart';
 import 'package:alchemons/games/cosmic_survival/components/powerup_selection_overlay.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
@@ -4789,7 +4789,7 @@ class _PauseCompanionCard extends StatelessWidget {
     final slotIndex = member.slotIndex;
     final effSpeed = member.statSpeed + powerUps.speedBonus(slotIndex);
     final benchedStats = live == null
-        ? deriveCosmicSurvivalCompanionStats(
+        ? deriveAlchemonCombatStats(
             member: member,
             strengthBonus: powerUps.strengthBonus(slotIndex),
             intelligenceBonus: powerUps.intelligenceBonus(slotIndex),
@@ -4842,25 +4842,25 @@ class _PauseCompanionCard extends StatelessWidget {
               runSpacing: 7,
               children: [
                 _MiniReadout(
-                  label: 'ATK',
+                  label: 'P-ATK',
                   value: live != null
                       ? '${live.physAtk}'
                       : '${benchedStats!.physAtk}',
                 ),
                 _MiniReadout(
-                  label: 'ELEM',
+                  label: 'E-ATK',
                   value: live != null
                       ? '${live.elemAtk}'
                       : '${benchedStats!.elemAtk}',
                 ),
                 _MiniReadout(
-                  label: 'PDEF',
+                  label: 'P-DEF',
                   value: live != null
                       ? '${live.physDef}'
                       : '${benchedStats!.physDef}',
                 ),
                 _MiniReadout(
-                  label: 'EDEF',
+                  label: 'E-DEF',
                   value: live != null
                       ? '${live.elemDef}'
                       : '${benchedStats!.elemDef}',
@@ -4870,10 +4870,10 @@ class _PauseCompanionCard extends StatelessWidget {
                   value: AlchemonStatSystem.displayRating(effSpeed).toString(),
                 ),
                 _MiniReadout(
-                  label: 'CRIT',
+                  label: 'SPECIAL',
                   value: live != null
-                      ? '${(live.critChance * 100).round()}%'
-                      : '${(benchedStats!.critChance * 100).round()}%',
+                      ? '${live.abilityAtk}'
+                      : '${benchedStats!.abilityAtk}',
                 ),
               ],
             ),

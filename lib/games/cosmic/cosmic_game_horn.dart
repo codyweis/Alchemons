@@ -815,10 +815,12 @@ extension CosmicHornRuntime on CosmicGame {
   }
 
   /// A hit on a party companion from the world (contact, a boss), through
-  /// Horn's cover and the companion's grace window.
-  void _openCompanionIncomingDamage(CosmicCompanion comp, int damage) {
-    final scale = _hornIncomingScale(comp, damage.toDouble());
-    comp.takeDamage(max(1, (damage * scale).round()));
+  /// Horn's cover and the companion's grace window. [damage] is after the
+  /// companion's defence, in the world's authored units.
+  void _openCompanionIncomingDamage(CosmicCompanion comp, double damage) {
+    final hit = damage * CosmicBalance.spaceIncomingScale;
+    final scale = _hornIncomingScale(comp, hit);
+    comp.takeDamage(max(1, (hit * scale).round()));
   }
 
   // ── what it wears ───────────────────────────────────────────────────────

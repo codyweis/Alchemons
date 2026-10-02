@@ -22,8 +22,7 @@ extension CosmicCombatActions on CosmicGame {
 
   /// The family's basic attack, fired along [CosmicCompanion.angle].
   void _fireCompanionBasic(CosmicCompanion comp) {
-    final isDarkWing = _isDarkWingMember(comp.member);
-    comp.basicCooldown = comp.effectiveBasicCooldown * (isDarkWing ? 0.5 : 1.0);
+    comp.basicCooldown = comp.effectiveBasicCooldown;
     final basics = createFamilyBasicAttack(
       origin: comp.position,
       angle: comp.angle,
@@ -48,21 +47,17 @@ extension CosmicCombatActions on CosmicGame {
   }
 
   /// Whether the special is ready and is one that is cast at all (some are
-  /// passives only).
+  /// passives only, and a Mystic's world is a Survival ability).
   bool _companionSpecialReady(CosmicCompanion comp) =>
       comp.specialCooldown <= 0 &&
+      castsSpecialOutsideSurvival(comp.member.family) &&
       !isPassiveOnlyCosmicAbility(comp.member.family, comp.member.element);
 
   /// Casts the family+element special at [targetPos] and starts whatever
   /// the cast leaves running on the caster (a charge, a shield, a blessing,
   /// a Kin support).
   void _castCompanionSpecial(CosmicCompanion comp, Offset targetPos) {
-    final isDarkWing = _isDarkWingMember(comp.member);
-    // A Kin's special waits longer, as survival stretches it.
-    comp.specialCooldown =
-        comp.effectiveSpecialCooldown *
-        (isDarkWing ? 0.5 : 1.0) *
-        (_isKinMember(comp.member) ? kKinSpecialCooldownStretch : 1.0);
+    comp.specialCooldown = comp.effectiveSpecialCooldown;
     _clearPipPoisonWeb(comp.member);
     // Generate family+element special ability
     final result = createCosmicSpecialAbility(

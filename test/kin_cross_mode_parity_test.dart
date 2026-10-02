@@ -8,6 +8,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/cosmic/kin_support_runtime.dart';
 import 'package:flame/components.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _dt = 1 / 60;
@@ -58,7 +59,7 @@ Future<CosmicGame> _openKinArena(
     physDef: 5,
     elemDef: 5,
     cooldownReduction: 1,
-    critChance: 0,
+    specialCooldownReduction: 1.0,
     attackRange: 180,
     specialAbilityRange: 240,
     specialCooldown: 0,
@@ -126,10 +127,13 @@ void main() {
     final comp = game.activeCompanions[0]!;
     game.update(_dt);
     expect(comp.kinLavaPlateTimer, greaterThan(0));
+    // The stretch is part of the Kin family frame, so the cooldown every
+    // mode reads already carries it.
     expect(
-      comp.specialCooldown,
-      closeTo(comp.effectiveSpecialCooldown * kKinSpecialCooldownStretch, 1e-6),
+      alchemonFamilyFrame('Kin').specialCooldown,
+      kKinSpecialCooldownStretch,
     );
+    expect(comp.specialCooldown, closeTo(comp.effectiveSpecialCooldown, 1e-6));
   });
 
   test('the Kin basic is a charged laser, not a thrown orb', () async {

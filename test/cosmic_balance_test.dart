@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 CosmicPartyMember _testMember({
@@ -38,7 +39,7 @@ CosmicCompanion _testCompanion({
     physDef: 5,
     elemDef: 5,
     cooldownReduction: 1.0,
-    critChance: 0.1,
+    specialCooldownReduction: 1.0,
     attackRange: 180,
     specialAbilityRange: 220,
   );
@@ -46,76 +47,44 @@ CosmicCompanion _testCompanion({
 
 void main() {
   group('Cosmic balance', () {
-    test('companion combat still respects real level', () {
-      final lowLevelAtk = CosmicBalance.companionPhysAtk(
-        level: 1,
-        strength: 2.5,
-      );
-      final maxLevelAtk = CosmicBalance.companionPhysAtk(
-        level: 5,
-        strength: 2.5,
-      );
-      final lowLevelHp = CosmicBalance.companionMaxHp(
-        level: 1,
-        strength: 2.5,
-        intelligence: 2.5,
-      );
-      final maxLevelHp = CosmicBalance.companionMaxHp(
-        level: 5,
-        strength: 2.5,
-        intelligence: 2.5,
-      );
+    // Companions are built by the shared power model; these pin the shape
+    // open space relies on.
+    AlchemonCombatStats power(int level, double stat) =>
+        deriveAlchemonCombatStats(
+          member: CosmicPartyMember(
+            instanceId: 'curve',
+            baseId: 'curve',
+            displayName: 'Curve',
+            element: 'Light',
+            family: 'Mask',
+            level: level,
+            statSpeed: stat,
+            statIntelligence: stat,
+            statStrength: stat,
+            statBeauty: stat,
+            slotIndex: 0,
+            staminaBars: 5,
+            staminaMax: 5,
+          ),
+        );
 
-      expect(maxLevelAtk, greaterThan(lowLevelAtk));
-      expect(maxLevelHp, greaterThan(lowLevelHp));
+    test('companion combat still respects real level', () {
+      expect(power(5, 2.5).physAtk, greaterThan(power(1, 2.5).physAtk));
+      expect(power(5, 2.5).maxHp, greaterThan(power(1, 2.5).maxHp));
     });
 
     test('space combat is balanced around level 10 stat quality', () {
-      final averageAtk = CosmicBalance.companionPhysAtk(
-        level: 10,
-        strength: 2.5,
-      );
-      final exceptionalAtk = CosmicBalance.companionPhysAtk(
-        level: 10,
-        strength: 4.5,
-      );
-      final averageHp = CosmicBalance.companionMaxHp(
-        level: 10,
-        strength: 2.5,
-        intelligence: 2.5,
-      );
-      final exceptionalHp = CosmicBalance.companionMaxHp(
-        level: 10,
-        strength: 4.5,
-        intelligence: 4.5,
-      );
-
-      expect(exceptionalAtk - averageAtk, greaterThanOrEqualTo(5));
-      expect(exceptionalHp, greaterThan(averageHp * 1.5));
+      final average = power(10, 2.5);
+      final exceptional = power(10, 4.5);
+      expect(exceptional.physAtk - average.physAtk, greaterThanOrEqualTo(5));
+      expect(exceptional.maxHp, greaterThan(average.maxHp * 1.5));
     });
 
     test('stat quality is worth more than late-level progression', () {
-      final weakMaxLevelAtk = CosmicBalance.companionPhysAtk(
-        level: 5,
-        strength: 2.0,
-      );
-      final strongMidLevelAtk = CosmicBalance.companionPhysAtk(
-        level: 3,
-        strength: 4.0,
-      );
-      final weakMaxLevelHp = CosmicBalance.companionMaxHp(
-        level: 5,
-        strength: 2.0,
-        intelligence: 2.0,
-      );
-      final strongMidLevelHp = CosmicBalance.companionMaxHp(
-        level: 3,
-        strength: 4.0,
-        intelligence: 4.0,
-      );
-
-      expect(strongMidLevelAtk, greaterThan(weakMaxLevelAtk));
-      expect(strongMidLevelHp, greaterThan(weakMaxLevelHp));
+      final weakMaxLevel = power(5, 2.0);
+      final strongMidLevel = power(3, 4.0);
+      expect(strongMidLevel.physAtk, greaterThan(weakMaxLevel.physAtk));
+      expect(strongMidLevel.maxHp, greaterThan(weakMaxLevel.maxHp));
     });
 
     test('arena stat rolls stay inside the 1.0 to 5.0 combat band', () {
@@ -286,8 +255,8 @@ void main() {
       expect(crystal.damage, lessThan(fire.damage));
       expect(spirit.effectChance, inInclusiveRange(0.20, 0.38));
       expect(
-        elementalSpecialCooldownMultiplier('let', 'Dark'),
-        greaterThan(elementalSpecialCooldownMultiplier('let', 'Fire')),
+        elementalSpecialCooldownMultiplierSurvival('let', 'Dark'),
+        greaterThan(elementalSpecialCooldownMultiplierSurvival('let', 'Fire')),
       );
     });
 
@@ -653,7 +622,7 @@ void main() {
         greaterThan(earthPip.effectiveSpecialCooldown),
       );
       expect(
-        elementalSpecialCooldownMultiplier('wing', 'Lightning'),
+        elementalSpecialCooldownMultiplierSurvival('wing', 'Lightning'),
         greaterThan(1),
       );
     });
@@ -1722,7 +1691,7 @@ void main() {
         physDef: 5,
         elemDef: 5,
         cooldownReduction: 1.0,
-        critChance: 0.1,
+        specialCooldownReduction: 1.0,
         attackRange: 180,
         specialAbilityRange: 220,
       );
@@ -1736,7 +1705,7 @@ void main() {
         physDef: 5,
         elemDef: 5,
         cooldownReduction: 1.0,
-        critChance: 0.1,
+        specialCooldownReduction: 1.0,
         attackRange: 180,
         specialAbilityRange: 220,
       );
@@ -1759,7 +1728,7 @@ void main() {
         physDef: 5,
         elemDef: 5,
         cooldownReduction: 1.0,
-        critChance: 0.1,
+        specialCooldownReduction: 1.0,
         attackRange: 120,
         specialAbilityRange: 160,
       )..invincibleTimer = 0;

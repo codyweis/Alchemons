@@ -681,9 +681,14 @@ extension CosmicGameCompanionMotion on CosmicGame {
     // inside it, so a place never swings across the ship. Breathing only
     // ever draws them in, so it cannot carry them out of reach.
     final beat = _elapsed * 0.55 + (identityHashCode(e.target) % 628) / 100.0;
+    // The weave is a sway along the arc, so it is held to a length: a
+    // long-reach companion fighting from far out does not sweep round faster
+    // than one up close.
+    final familyWeave =
+        _companionWeave(family) * min(1.0, _weaveReferenceRadius / standoff);
     final weaveReach = shipGap > 0
-        ? min(_companionWeave(family), shipGap * 0.8)
-        : _companionWeave(family);
+        ? min(familyWeave, shipGap * 0.8)
+        : familyWeave;
     final weave = weaveReach * sin(beat);
     final breathe = 1.0 - 0.06 * (0.5 + 0.5 * sin(_elapsed * 1.3 + rank * 1.7));
     final a = baseAngle + fan + weave;
@@ -813,8 +818,57 @@ extension CosmicGameCompanionMotion on CosmicGame {
     final cap = goalVel.distance + cruise + dodge.distance + 360.0;
     final speed = comp.velocity.distance;
     if (speed > cap) comp.velocity = comp.velocity / speed * cap;
+    comp.velocity = _keepOutOfBody(comp, body, engagement, comp.velocity);
     // A wild Alchemon's slow or root holds it (cosmic_game_duel.dart).
     comp.position += comp.velocity * dt * comp.ccMoveFactor;
+  }
+
+  /// [velocity] with nothing left that carries the companion into the body
+  /// it is fighting, a live boss or a teammate: a sidestep from the boss's
+  /// fire, the way a ram left it going, a goal on the far side. A Horn ends a
+  /// ram against that body, and a dodge from there used to walk it inside, or
+  /// its walk back cut through whoever stood on the way. Once in (a charge
+  /// ran it through), it eases back out.
+  Offset _keepOutOfBody(
+    CosmicCompanion comp,
+    double body,
+    _CompanionEngagement? engagement,
+    Offset velocity,
+  ) {
+    var v = velocity;
+    void keepOut(Offset center, double radius, {double share = 0.6}) {
+      final away = comp.position - center;
+      final dist = away.distance;
+      if (dist < 0.1) return;
+      final keep = radius + body * share;
+      const margin = 24.0;
+      if (dist >= keep + margin) return;
+      final n = away / dist;
+      final inward = -(v.dx * n.dx + v.dy * n.dy);
+      if (inward > 0) {
+        // Full stop at the edge, fading out over the margin.
+        final hold = ((keep + margin - dist) / margin).clamp(0.0, 1.0);
+        v += n * inward * hold;
+      }
+      if (dist < keep) v += n * (keep - dist) * 6.0;
+    }
+
+    if (engagement != null) {
+      keepOut(engagement.position, engagement.bodyRadius);
+    }
+    final boss = activeBoss;
+    if (boss != null && !boss.dead && !identical(engagement?.target, boss)) {
+      keepOut(boss.position, boss.radius);
+    }
+    // A ramming Horn dashes past whatever is in the way by design; anyone
+    // else goes round it.
+    for (final other in activeCompanions.values) {
+      if (identical(other, comp) || !other.isAlive || other.isCharging) {
+        continue;
+      }
+      keepOut(other.position, _companionBodyRadius(other), share: 1.0);
+    }
+    return v;
   }
 
   /// A waypoint round a circular obstacle at [center] when the straight line
@@ -1035,6 +1089,10 @@ extension CosmicGameCompanionMotion on CosmicGame {
     'pip' => 7.0,
     _ => 5.0,
   };
+
+  /// The standoff at which [_companionWeave] is the full angle; farther out
+  /// it narrows to the same length of arc.
+  static const double _weaveReferenceRadius = 220.0;
 
   /// How far (radians) it weaves along its arc round a target. Skirmishers
   /// range wide, bruisers hold their line.

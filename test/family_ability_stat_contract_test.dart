@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 CosmicPartyMember _member({
@@ -85,13 +85,13 @@ void main() {
   test('each family special responds to the stats named in its contract', () {
     for (final family in kCosmicAuthoredAbilityFamilies) {
       final weights = cosmicFamilyAbilityStatWeights(family);
-      final base = deriveCosmicSurvivalCompanionStats(
+      final base = deriveAlchemonCombatStats(
         member: _member(family: family),
       ).abilityAtk;
 
       if (weights.strength > 0) {
         expect(
-          deriveCosmicSurvivalCompanionStats(
+          deriveAlchemonCombatStats(
             member: _member(family: family, strength: 5),
           ).abilityAtk,
           greaterThan(base),
@@ -100,7 +100,7 @@ void main() {
       }
       if (weights.intelligence > 0) {
         expect(
-          deriveCosmicSurvivalCompanionStats(
+          deriveAlchemonCombatStats(
             member: _member(family: family, intelligence: 5),
           ).abilityAtk,
           greaterThan(base),
@@ -109,7 +109,7 @@ void main() {
       }
       if (weights.beauty > 0) {
         expect(
-          deriveCosmicSurvivalCompanionStats(
+          deriveAlchemonCombatStats(
             member: _member(family: family, beauty: 5),
           ).abilityAtk,
           greaterThan(base),
@@ -120,11 +120,11 @@ void main() {
   });
 
   test('Speed changes cooldown, not family special power', () {
-    final slow = deriveCosmicSurvivalCompanionStats(
+    final slow = deriveAlchemonCombatStats(
       member: _member(family: 'mane'),
     );
     final fastMember = _member(family: 'mane');
-    final fast = deriveCosmicSurvivalCompanionStats(
+    final fast = deriveAlchemonCombatStats(
       member: CosmicPartyMember(
         instanceId: 'fast-mane',
         baseId: fastMember.baseId,

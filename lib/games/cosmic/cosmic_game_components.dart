@@ -206,12 +206,8 @@ class _GarrisonCreature with KinSupportFields {
     required this.guardRadius,
     required this.guardPhase,
     required this.speciesScale,
-    required this.attackDamage,
-    required this.specialDamage,
-    required this.attackRange,
-    required this.specialRange,
-    required this.maxHp,
-  }) : hp = maxHp;
+    required this.stats,
+  }) : hp = stats.maxHp;
 
   final CosmicPartyMember member;
   Offset position;
@@ -222,8 +218,11 @@ class _GarrisonCreature with KinSupportFields {
   double faceAngle = 0;
   final double speciesScale;
 
+  /// The shared power model's numbers, as a summoned companion gets them.
+  final AlchemonCombatStats stats;
+
   // Health (for abilities that heal/shield)
-  final int maxHp;
+  int get maxHp => stats.maxHp;
   int hp;
 
   // Sprite animation
@@ -233,10 +232,12 @@ class _GarrisonCreature with KinSupportFields {
   double spriteScale = 1.0;
 
   // Combat
-  final double attackDamage;
-  final double specialDamage;
-  final double attackRange;
-  final double specialRange;
+  double get attackDamage => stats.physAtk.toDouble();
+
+  /// Its SPECIAL; a cast deals 0.8 of it, as a companion's does.
+  double get specialDamage => stats.abilityAtk.toDouble();
+  double get attackRange => stats.attackRange;
+  double get specialRange => stats.specialAbilityRange;
   double attackCooldown = 0;
   double specialCooldown = 8.0;
 

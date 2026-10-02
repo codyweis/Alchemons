@@ -5,6 +5,7 @@
 
 import 'dart:math';
 import 'dart:ui';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/shared/enemy_movement.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -274,20 +275,6 @@ class CosmicBalance {
       stat.clamp(minCombatStat, maxCombatStat).toDouble();
 
   static double _levelT(int level) => (clampLevel(level) - 1) / 4.0;
-  static double _companionLevelT(int level) =>
-      (clampCompanionLevel(level) - 1) / 9.0;
-
-  // Exponent softened from 1.8 so mid-range genetic stats (the 2.0–3.0
-  // "average" band) land as a competent middle rather than bottom-quartile.
-  // Only affects raw attack/HP/def magnitudes — ability effect tiers
-  // (_guardianStatTier breakpoints) and cooldowns are independent of this.
-  static double statPower(double stat, {double exponent = 1.3}) {
-    final normalized =
-        (legacyStat(stat) - minCombatStat) / (maxCombatStat - minCombatStat);
-    final legacyPower = pow(normalized, exponent).toDouble();
-    final overcap = AlchemonStatSystem.combatOvercapProgress(stat);
-    return legacyPower * (1.0 + overcap * 0.30);
-  }
 
   static double arenaMinStat(int level) {
     final t = _levelT(level);
@@ -303,71 +290,6 @@ class CosmicBalance {
     final minStat = arenaMinStat(level);
     final maxStat = arenaMaxStat(level);
     return minStat + rng.nextDouble() * (maxStat - minStat);
-  }
-
-  static int companionMaxHp({
-    required int level,
-    required double strength,
-    required double intelligence,
-  }) {
-    final strengthPower = statPower(strength);
-    final intelligencePower = statPower(intelligence, exponent: 1.5);
-    // Weight shifted off the flat base into the stat-driven terms so a
-    // high-stat creature is meaningfully tougher, not just punchier.
-    return (40 +
-            clampCompanionLevel(level) * 10 +
-            230 * strengthPower +
-            95 * intelligencePower)
-        .round();
-  }
-
-  static double _offenseLevelFactor(int level) {
-    final t = _companionLevelT(level);
-    return 0.92 + pow(t, 0.9).toDouble() * 0.78;
-  }
-
-  static int companionPhysAtk({required int level, required double strength}) {
-    final strengthPower = statPower(strength);
-    return max(
-      1,
-      ((1.0 + 5.8 * strengthPower) * _offenseLevelFactor(level)).round(),
-    );
-  }
-
-  static int companionElemAtk({required int level, required double beauty}) {
-    final beautyPower = statPower(beauty);
-    return max(
-      1,
-      ((1.1 + 6.7 * beautyPower) * _offenseLevelFactor(level)).round(),
-    );
-  }
-
-  static int companionPhysDef({
-    required int level,
-    required double strength,
-    required double intelligence,
-  }) {
-    final strengthPower = statPower(strength);
-    final intelligencePower = statPower(intelligence, exponent: 1.5);
-    return (5 +
-            clampCompanionLevel(level) * 1.5 +
-            42 * strengthPower +
-            22 * intelligencePower)
-        .round();
-  }
-
-  static int companionElemDef({
-    required int level,
-    required double beauty,
-    required double intelligence,
-  }) {
-    final beautyPower = statPower(beauty);
-    final intelligencePower = statPower(intelligence, exponent: 1.5);
-    return (5 +
-            clampCompanionLevel(level) * 1.5 +
-            42 * beautyPower +
-            22 * intelligencePower)
-        .round();
   }
 
   /// How much faster this creature acts. Cooldowns are divided by it, so
@@ -387,49 +309,18 @@ class CosmicBalance {
   static double companionCooldownReduction(double speed) =>
       scaledAbilityValue(speed, atLow: 0.92, atAverage: 1.06, atPerfect: 1.55);
 
-  static double companionCritChance(double strength) {
-    return (0.04 + statPower(strength) * 0.24).clamp(0.04, 0.36).toDouble();
-  }
+  /// Open space's enemies, bosses and ship weapons were authored in small
+  /// units; its creatures use the shared power model
+  /// (alchemon_combat_stats.dart), whose damage runs about this many times
+  /// larger. Every health pool in the world and every weapon that is not a
+  /// creature's (the ship's guns, its missiles, its orbitals) is multiplied by
+  /// it, so a fight takes as long as it always did. Measured with the party
+  /// output harness at three stat bands; boss rewards divide it back out.
+  static const double spaceWorldScale = 14.0;
 
-  static double companionBaseRange(double intelligence) {
-    return 95.0 + AlchemonStatSystem.legacyGameplayRating(intelligence) * 30.0;
-  }
-
-  // Family shape modifiers. Horns trade reach for bulk; wings and casters buy
-  // reach back. These live here rather than in CosmicGame so the creature
-  // detail Battle tab reports the same numbers the summoned companion gets.
-  static double familyHpMultiplier(String family) =>
-      family.toLowerCase() == 'horn' ? 1.30 : 1.0;
-
-  static double familyDefMultiplier(String family) =>
-      family.toLowerCase() == 'horn' ? 1.20 : 1.0;
-
-  static double familyAttackRange(String family, double baseRange) {
-    return baseRange *
-        switch (family.toLowerCase()) {
-          'horn' => 0.58,
-          'mane' => 0.85,
-          'mask' => 0.95,
-          'kin' => 0.90,
-          'wing' => 1.05,
-          _ => 1.0,
-        };
-  }
-
-  static double familySpecialRange(String family, double baseRange) {
-    return baseRange *
-        switch (family.toLowerCase()) {
-          'horn' => 0.82,
-          'mane' => 1.05,
-          'mask' => 1.20,
-          'let' => 1.25,
-          'pip' => 1.20,
-          'wing' => 1.35,
-          'kin' => 1.10,
-          'mystic' => 1.45,
-          _ => 1.25,
-        };
-  }
+  /// The same for hits the world lands on a creature: they were authored
+  /// against smaller health pools and lighter defences.
+  static const double spaceIncomingScale = 3.0;
 
   static double shipDamageMultiplier(int level) {
     final safeLevel = level.clamp(0, HomeCustomizationState.maxUpgradeLevel);
@@ -444,7 +335,7 @@ class CosmicBalance {
   static double missileHitDamage({required int level, required bool vsBoss}) {
     // Rescaled ×3 to match the rescaled enemy/boss HP (see enemyBaseHealth).
     final baseDamage = vsBoss ? 3.6 : 6.6;
-    return baseDamage * missileDamageMultiplier(level);
+    return baseDamage * missileDamageMultiplier(level) * spaceWorldScale;
   }
 
   static double shipProjectileHitDamage({
@@ -453,7 +344,10 @@ class CosmicBalance {
   }) {
     // Rescaled ×3 to match the rescaled enemy/boss HP (see enemyBaseHealth).
     final baseDamage = machineGun ? 0.42 : 1.2;
-    return baseDamage * shipDamageMultiplier(level) * kDamageScale;
+    return baseDamage *
+        shipDamageMultiplier(level) *
+        kDamageScale *
+        spaceWorldScale;
   }
 
   static double shipProjectileAsteroidDamage({
@@ -468,14 +362,16 @@ class CosmicBalance {
   // ship-weapon-tuned values so companion attack-stat differences are
   // felt across all tiers (ship weapon damage is rescaled ×3 to match,
   // see shipProjectileHitDamage / missileHitDamage).
-  static double enemyBaseHealth(EnemyTier tier) => switch (tier) {
-    EnemyTier.drone => 2.25,
-    EnemyTier.wisp => 3.6,
-    EnemyTier.sentinel => 11.4,
-    EnemyTier.phantom => 15.0,
-    EnemyTier.brute => 30.0,
-    EnemyTier.colossus => 54.0,
-  };
+  static double enemyBaseHealth(EnemyTier tier) =>
+      spaceWorldScale *
+      switch (tier) {
+        EnemyTier.drone => 2.25,
+        EnemyTier.wisp => 3.6,
+        EnemyTier.sentinel => 11.4,
+        EnemyTier.phantom => 15.0,
+        EnemyTier.brute => 30.0,
+        EnemyTier.colossus => 54.0,
+      };
 
   // Authored against the legacy 6 HP ship pool. _damageShip rescales to
   // the current pool, so these stay the canonical relative-threat values.
@@ -509,7 +405,8 @@ class CosmicBalance {
   static double bossHealthScale(int level) {
     // More time for late bosses to use their patterns, without raising damage
     // against the fixed 100-HP ship. Typical template HP is 35.
-    return const [7.0, 11.0, 24.0, 42.0, 60.0][clampLevel(level) - 1];
+    return spaceWorldScale *
+        const [7.0, 11.0, 24.0, 42.0, 60.0][clampLevel(level) - 1];
   }
 
   static double bossSpeedScale(int level) {
@@ -524,7 +421,7 @@ class CosmicBalance {
   static double bossShieldHealth(int level) {
     // Lv: 1→4.5, 2→7.8, 3→14.4, 4→23.4, 5→34.5 (was 17.7…34.5 linear).
     // At Lv3 a ~8 DPS (stats ~2.0) loadout strips a shield cycle in ~2s.
-    return (1.5 + _bossT(level, 1.6) * 10.0) * 3.0;
+    return (1.5 + _bossT(level, 1.6) * 10.0) * 3.0 * spaceWorldScale;
   }
 
   /// Per-type damage eased from a gentle low-level floor to the SAME Lv5
@@ -1910,7 +1807,11 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Crystal': ['Mask', 'Horn', 'Pip'], // Crystalmask · Lightninghorn · Spiritpip
   'Plant': ['Mask', 'Kin', 'Mane'], // Crystalmask · Spiritkin · Watermane
   'Spirit': ['Mask', 'Pip', 'Wing'], // Spiritmask · Bloodpip · Dustwing
-  'Dark': ['Mask', 'Wing', 'Horn'], // Darkmask · Darkwing · Lighthorn (no gates)
+  'Dark': [
+    'Mask',
+    'Wing',
+    'Horn',
+  ], // Darkmask · Darkwing · Lighthorn (no gates)
   'Light': ['Horn', 'Wing', 'Pip'], // Lighthorn · Darkwing · Steampip
   'Blood': ['Mane', 'Mask', 'Mask'], // Bloodmane · Darkmask · Lightmask
 };
@@ -4046,11 +3947,12 @@ class CosmicBoss {
   Color get color => elementColor(element);
   double get healthPct => (health / maxHealth).clamp(0.0, 1.0);
 
-  /// Rewards for defeating this boss — scale with level.
-  // maxHealth coefficients divided by 3 so the ×3 boss-HP rescale
-  // (see bossHealthScale) leaves reward payouts unchanged.
-  int get shardReward => (8 + level * 4 + (maxHealth * 0.5)).round();
-  double get particleReward => 3.0 + level * 2.0 + maxHealth * 0.067;
+  /// Rewards for defeating this boss — scale with level and size. Health is
+  /// read in the world's authored units, so rescaling the world to the
+  /// shared power model (CosmicBalance.spaceWorldScale) pays the same.
+  double get _authoredHealth => maxHealth / CosmicBalance.spaceWorldScale;
+  int get shardReward => (8 + level * 4 + (_authoredHealth * 0.5)).round();
+  double get particleReward => 3.0 + level * 2.0 + _authoredHealth * 0.067;
 }
 
 /// A projectile fired by a boss.
@@ -5646,73 +5548,6 @@ double elementalSpecialCooldownMultiplierSurvival(
       'Poison' || 'Mud' || 'Water' => 1.10,
       'Air' || 'Dust' => 1.00,
       _ => 1.20,
-    },
-    _ => 1.0,
-  };
-}
-
-double elementalSpecialCooldownMultiplier(String family, String element) {
-  final f = family.toLowerCase();
-  return switch (f) {
-    'mask' => switch (element) {
-      'Light' => 2.60,
-      'Dark' => 2.25,
-      'Spirit' => 2.10,
-      'Blood' => 1.85,
-      'Ice' => 1.65,
-      'Lightning' => 1.45,
-      'Plant' || 'Earth' => 1.40,
-      'Lava' || 'Crystal' => 1.35,
-      'Poison' || 'Steam' => 1.25,
-      'Fire' => 1.20,
-      'Dust' => 1.15,
-      'Water' => 1.10,
-      'Mud' => 1.05,
-      'Air' => 0.95,
-      _ => 1.20,
-    },
-    'let' => switch (element) {
-      'Dark' => 1.90,
-      'Spirit' => 1.75,
-      'Blood' || 'Light' || 'Ice' => 1.65,
-      'Crystal' || 'Plant' || 'Lightning' => 1.35,
-      'Lava' || 'Earth' || 'Mud' || 'Steam' => 1.25,
-      'Water' || 'Poison' => 1.10,
-      'Fire' || 'Dust' || 'Air' => 1.00,
-      _ => 1.15,
-    },
-    'pip' => switch (element) {
-      'Dark' => 1.60,
-      'Blood' || 'Light' || 'Spirit' || 'Crystal' => 1.35,
-      'Fire' || 'Ice' || 'Mud' || 'Water' || 'Poison' || 'Steam' => 1.12,
-      'Air' || 'Dust' || 'Lightning' || 'Earth' || 'Plant' => 0.95,
-      _ => 1.00,
-    },
-    // 30% faster across the family, Lightning exempt — see the survival table.
-    'mane' => switch (element) {
-      'Lightning' => 1.05,
-      'Dark' || 'Light' || 'Spirit' || 'Crystal' => 1.09,
-      'Lava' ||
-      'Blood' ||
-      'Earth' ||
-      'Plant' ||
-      'Steam' ||
-      'Water' ||
-      'Mud' ||
-      'Ice' => 0.88,
-      _ => 0.74,
-    },
-    'wing' => switch (element) {
-      'Blood' || 'Light' || 'Lightning' => 1.55,
-      'Dark' => 1.35,
-      'Fire' ||
-      'Lava' ||
-      'Steam' ||
-      'Water' ||
-      'Plant' ||
-      'Crystal' ||
-      'Spirit' => 1.25,
-      _ => 1.05,
     },
     _ => 1.0,
   };
@@ -8665,7 +8500,7 @@ CosmicSpecialResult _maneSpecial(
   }
 
   // Mane's stat contract (see the ability stat table in
-  // cosmic_survival_companion_stats.dart): Strength with an Intelligence
+  // alchemon_combat_stats.dart): Strength with an Intelligence
   // minority decides how hard the catapult hits, and Beauty decides how much
   // of it there is. Beauty used to scale per-projectile damage as well as
   // count, which meant a Beauty build multiplied itself — Fire scaled 24x
@@ -12455,18 +12290,18 @@ class CosmicCompanion with HasEffects, KinSupportFields {
   /// Current angle (radians) — faces enemies / movement direction.
   double angle;
 
-  /// HP derived from cosmic companion combat stats.
+  /// HP from the shared power model (alchemon_combat_stats.dart).
   int maxHp;
   int currentHp;
 
-  /// Derived cosmic companion combat stats.
+  /// The shared power model's numbers, before timed effects.
   final int _basePhysAtk;
   final int _baseElemAtk;
   final int _baseAbilityAtk;
   final int _basePhysDef;
   final int _baseElemDef;
   final double _baseCooldownReduction;
-  final double _baseCritChance;
+  final double _baseSpecialCooldownReduction;
   final double _baseAttackRange;
   final double _baseSpecialAbilityRange;
 
@@ -12476,8 +12311,8 @@ class CosmicCompanion with HasEffects, KinSupportFields {
   /// Cooldown tracking.
   double basicCooldown;
   double specialCooldown;
-  static const double baseSpecialCooldown = 15.0; // 15s base
-  static const double baseBasicCooldown = 1.5;
+  static const double baseSpecialCooldown = kAlchemonBaseSpecialCooldown;
+  static const double baseBasicCooldown = kAlchemonBaseBasicCooldown;
 
   /// Wander state — meanders near anchor.
   static const double wanderRadius = 80.0;
@@ -12647,7 +12482,7 @@ class CosmicCompanion with HasEffects, KinSupportFields {
     required int physDef,
     required int elemDef,
     required double cooldownReduction,
-    required double critChance,
+    required double specialCooldownReduction,
     required double attackRange,
     required double specialAbilityRange,
     this.basicCooldown = 0,
@@ -12689,7 +12524,7 @@ class CosmicCompanion with HasEffects, KinSupportFields {
        _basePhysDef = physDef,
        _baseElemDef = elemDef,
        _baseCooldownReduction = cooldownReduction,
-       _baseCritChance = critChance,
+       _baseSpecialCooldownReduction = specialCooldownReduction,
        _baseAttackRange = attackRange,
        _baseSpecialAbilityRange = specialAbilityRange,
        anchorPosition = anchor ?? position;
@@ -12701,67 +12536,42 @@ class CosmicCompanion with HasEffects, KinSupportFields {
   int get elemDef => _maybeModifyStat('elemDef', _baseElemDef).round();
   double get cooldownReduction =>
       _maybeModifyStat('cooldownReduction', _baseCooldownReduction);
-  double get critChance => _maybeModifyStat('critChance', _baseCritChance);
+  double get specialCooldownReduction => _maybeModifyStat(
+    'specialCooldownReduction',
+    _baseSpecialCooldownReduction,
+  );
   double get attackRange => _maybeModifyStat('attackRange', _baseAttackRange);
   double get specialAbilityRange =>
       _maybeModifyStat('specialAbilityRange', _baseSpecialAbilityRange);
 
-  /// Effective cooldowns that factor in stats (speed via `cooldownReduction`,
-  /// and damage/strength so stronger alchemons get different timings).
-  double get effectiveBasicCooldown {
-    final base = CosmicCompanion.baseBasicCooldown / cooldownReduction;
-    final factor = (1.0 + (physAtk - 1) * 0.05).clamp(0.5, 3.0);
-    final familyMultiplier = switch (member.family.toLowerCase()) {
-      'let' => 1.12,
-      'pip' => 0.90,
-      'horn' => 1.12,
-      'mask' => 1.10,
-      'wing' => 0.90,
-      'mane' => 0.92,
-      _ => 1.0,
-    };
-    final familyL = member.family.toLowerCase();
-    var pipPassiveMul = 1.0;
-    var pipPassiveDrivesSpeed = false;
-    if (familyL == 'pip') {
-      if (member.element == 'Spirit' && pipSpiritEmpowerTimer > 0) {
-        pipPassiveMul = 0.10;
-        pipPassiveDrivesSpeed = true;
-      } else if (member.element == 'Steam') {
-        final progress = (pipSteamWindowTimer / pipSteamWindowDuration).clamp(
-          0.0,
-          1.0,
-        );
-        pipPassiveMul = 0.667 + (0.25 - 0.667) * progress;
-        pipPassiveDrivesSpeed = true;
-      }
-    }
-    final hasteMultiplier = (basicHasteTimer > 0 && !pipPassiveDrivesSpeed)
-        ? basicHasteMultiplier.clamp(0.45, 1.0)
-        : 1.0;
-    return (base / factor) * familyMultiplier * hasteMultiplier * pipPassiveMul;
-  }
+  /// Seconds between auto attacks — the shared rule in
+  /// alchemon_combat_stats.dart, with this companion's live haste and Pip
+  /// element passive.
+  double get effectiveBasicCooldown => alchemonBasicAttackInterval(
+    family: member.family,
+    element: member.element,
+    cooldownReduction: cooldownReduction,
+    physAtk: physAtk,
+    haste: basicHasteTimer > 0 ? basicHasteMultiplier : 1.0,
+    elementPassive: pipElementBasicPassive(
+      family: member.family,
+      element: member.element,
+      spiritEmpowerTimer: pipSpiritEmpowerTimer,
+      steamWindowTimer: pipSteamWindowTimer,
+      steamWindowDuration: pipSteamWindowDuration,
+    ),
+  );
 
   double get damageAmp =>
       damageAmpTimer > 0 ? damageAmpMultiplier.clamp(1.0, 4.0) : 1.0;
 
-  double get effectiveSpecialCooldown {
-    final base = CosmicCompanion.baseSpecialCooldown / cooldownReduction;
-    final factor = (1.0 + (abilityAtk / 6.0) * 0.2).clamp(0.5, 6.0);
-    final familyMultiplier = switch (member.family.toLowerCase()) {
-      'let' => 1.18,
-      'pip' => 0.92,
-      'mane' => 0.88,
-      'mask' => 1.05,
-      'mystic' => 1.90,
-      _ => 1.0,
-    };
-    final elementMultiplier = elementalSpecialCooldownMultiplier(
-      member.family,
-      member.element,
-    );
-    return (base / factor) * familyMultiplier * elementMultiplier;
-  }
+  /// Seconds between specials — the shared rule in alchemon_combat_stats.dart.
+  double get effectiveSpecialCooldown => alchemonSpecialInterval(
+    family: member.family,
+    element: member.element,
+    specialCooldownReduction: specialCooldownReduction,
+    abilityAtk: abilityAtk,
+  );
 
   void primeSpecialCooldown({
     double? savedCooldown,

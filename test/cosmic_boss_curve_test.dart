@@ -2,6 +2,7 @@
 // basic-attack timing checks, not simulated win rates or guaranteed clears.
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -17,7 +18,10 @@ void main() {
     });
 
     test('Lv5 has room for optimized level-10 team damage (60×)', () {
-      expect(CosmicBalance.bossHealthScale(5), closeTo(60.0, 0.001));
+      expect(
+        CosmicBalance.bossHealthScale(5),
+        closeTo(60.0 * CosmicBalance.spaceWorldScale, 0.001),
+      );
     });
 
     test('Lv3 fits a level-10 P70 trio basic-attack budget', () {
@@ -28,12 +32,31 @@ void main() {
         level: 10,
         potential: 70,
       );
-      final attack = CosmicBalance.companionPhysAtk(level: 10, strength: stat);
-      final cooldown =
-          CosmicCompanion.baseBasicCooldown /
-          CosmicBalance.companionCooldownReduction(stat) /
-          (1.0 + (attack - 1) * 0.05);
-      final lowStatDps = 3 * attack / cooldown;
+      // A family-neutral companion from the shared power model.
+      final stats = deriveAlchemonCombatStats(
+        member: CosmicPartyMember(
+          instanceId: 'p70',
+          baseId: 'p70',
+          displayName: 'P70',
+          element: 'Fire',
+          family: 'neutral',
+          level: 10,
+          statSpeed: stat,
+          statIntelligence: stat,
+          statStrength: stat,
+          statBeauty: stat,
+          slotIndex: 0,
+          staminaBars: 5,
+          staminaMax: 5,
+        ),
+      );
+      final cooldown = alchemonBasicAttackInterval(
+        family: 'neutral',
+        element: 'Fire',
+        cooldownReduction: stats.cooldownReduction,
+        physAtk: stats.physAtk,
+      );
+      final lowStatDps = 3 * stats.physAtk / cooldown;
       expect(
         lv3Hp / lowStatDps,
         lessThanOrEqualTo(45),
@@ -53,8 +76,12 @@ void main() {
 
   group('boss shield curve', () {
     test('Lv3 shield strips in ~2s at low-stat DPS; Lv5 preserved', () {
-      expect(CosmicBalance.bossShieldHealth(3) / 8.0, lessThanOrEqualTo(2.2));
-      expect(CosmicBalance.bossShieldHealth(5), closeTo(34.5, 0.001));
+      const s = CosmicBalance.spaceWorldScale;
+      expect(
+        CosmicBalance.bossShieldHealth(3) / (8.0 * s),
+        lessThanOrEqualTo(2.2),
+      );
+      expect(CosmicBalance.bossShieldHealth(5), closeTo(34.5 * s, 0.001));
     });
   });
 
