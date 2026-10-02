@@ -1358,7 +1358,7 @@ class _NightSidePainter extends CustomPainter {
         ..shader = ui.Gradient.linear(
           lit,
           dark,
-          [Colors.transparent, const Color(0xFF040509).withValues(alpha: 0.82)],
+          [Colors.transparent, const Color(0xFF040509).withValues(alpha: 0.6)],
           [0.18, 1.0],
         ),
     );

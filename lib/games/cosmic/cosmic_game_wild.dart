@@ -148,7 +148,7 @@ void _paintBackdropLayer(Canvas canvas, Color color, void Function() body) {
         c,
         sz / 2,
         [Colors.white, Colors.white, Colors.white.withValues(alpha: 0)],
-        [0.0, 0.62, 1.0],
+        [0.0, 0.8, 1.0],
       ),
   );
   canvas.restore();
@@ -239,8 +239,8 @@ class CosmicEncounterBackdrop {
   /// the side of the frame it really is on.
   final Offset direction;
 
-  static const double planetRadiusFraction = 0.19;
-  static const int imageSize = 1400;
+  static const double planetRadiusFraction = 0.34;
+  static const int imageSize = 2048;
 }
 
 extension CosmicGameWild on CosmicGame {
