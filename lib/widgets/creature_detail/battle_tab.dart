@@ -3,6 +3,7 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/purity_stat_bonus.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/stat_system.dart';
@@ -114,7 +115,7 @@ class _ExploreTab extends StatelessWidget {
             title: basic.name,
             subtitle: 'Automatic • Repeats while a target is in range',
             description:
-                '${basic.description}\n\nStrength increases damage. Speed makes it repeat sooner.',
+                '${basic.description}\n\nStrength increases damage and also speeds up attacks. Speed makes attacks repeat sooner.',
             icon: basic.icon,
           ),
           const SizedBox(height: 18),
@@ -126,7 +127,7 @@ class _ExploreTab extends StatelessWidget {
                 ? '${special.subtitle} • Activates when ready'
                 : special.subtitle,
             description:
-                '${special.description}\n\n${_specialScalingLine(family)}',
+                '${special.description}\n\n${family.toLowerCase() == 'mystic' ? 'World effects are available in Survival.\n\n' : ''}${_specialScalingLine(family)}',
             icon: special.icon,
             accent: _elementAccentColor(element),
             featured: true,
@@ -274,9 +275,8 @@ class _PreviewAbilitiesButton extends StatelessWidget {
   }
 }
 
-/// What the special actually scales off, as the game computes it: its power
-/// from [cosmicFamilyAbilityStatWeights], its cooldown from
-/// [cosmicFamilySpecialCooldownWeights].
+/// Special power is shared by both modes; the blended cooldown stat is
+/// currently used by Survival. Space uses Speed and special attack power.
 String _specialScalingLine(String family) {
   final power = cosmicFamilyAbilityStatWeights(family);
   final cadence = cosmicFamilySpecialCooldownWeights(family);
@@ -295,7 +295,7 @@ String _specialScalingLine(String family) {
     ('Intelligence', cadence.intelligence),
     ('Strength', cadence.strength),
   ]);
-  return 'Scales with $powerLine\nCooldown from $cadenceLine';
+  return 'Special power: $powerLine\nSurvival cooldown stat: $cadenceLine\nCosmic Space cooldown also scales with Speed and special power.';
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -380,14 +380,23 @@ class _BracketStatTile extends StatelessWidget {
   }
 }
 
-class _ExploreStatGrid extends StatelessWidget {
+class _ExploreStatGrid extends StatefulWidget {
   const _ExploreStatGrid({required this.instance, required this.family});
 
   final CreatureInstance instance;
   final String family;
 
   @override
+  State<_ExploreStatGrid> createState() => _ExploreStatGridState();
+}
+
+class _ExploreStatGridState extends State<_ExploreStatGrid> {
+  bool survival = false;
+
+  @override
   Widget build(BuildContext context) {
+    final instance = widget.instance;
+    final family = widget.family;
     final combatBonuses = context.watch<ConstellationEffectsService>();
     final strength = combatBonuses.applyCombatStatBonus(
       'strength',
@@ -444,27 +453,119 @@ class _ExploreStatGrid extends StatelessWidget {
                 defMultiplier)
             .round();
     final cdr = CosmicBalance.companionCooldownReduction(speed);
-    final crit = CosmicBalance.companionCritChance(strength);
     final range = CosmicBalance.familyAttackRange(
       family,
       CosmicBalance.companionBaseRange(intelligence),
     );
 
+    final ability = CosmicBalance.companionElemAtk(
+      level: instance.level,
+      beauty: cosmicFamilyAbilityRating(
+        family: family,
+        strength: strength,
+        intelligence: intelligence,
+        beauty: beauty,
+      ),
+    );
+    final survivalStats = deriveCosmicSurvivalCompanionStats(
+      member: CosmicPartyMember(
+        instanceId: instance.instanceId,
+        baseId: instance.baseId,
+        displayName: instance.nickname ?? instance.baseId,
+        element: 'Normal',
+        family: family,
+        level: instance.level,
+        statStrength: strength,
+        statIntelligence: intelligence,
+        statBeauty: beauty,
+        statSpeed: speed,
+        slotIndex: 0,
+        staminaBars: instance.staminaBars,
+        staminaMax: instance.staminaMax,
+      ),
+    );
+    final weights = cosmicFamilyAbilityStatWeights(family);
+    final abilitySource = [
+      if (weights.strength > 0) 'STR',
+      if (weights.intelligence > 0) 'INT',
+      if (weights.beauty > 0) 'BEA',
+    ].join('-');
     final stats = <_StatEntry>[
-      _StatEntry('HP', hp.toString(), 'STR-INT'),
-      _StatEntry('P-ATK', physAtk.toString(), 'STR'),
-      _StatEntry('E-ATK', elemAtk.toString(), 'BEA'),
-      _StatEntry('RANGE', range.round().toString(), 'INT'),
-      _StatEntry('P-DEF', physDef.toString(), 'STR-INT'),
-      _StatEntry('E-DEF', elemDef.toString(), 'BEA-INT'),
-      // cdr divides the base cooldown, so printing it raw read backwards:
-      // a '×0.89' specimen actually waits 13% longer between casts. Show the
-      // cooldown length itself, where lower is plainly better.
-      _StatEntry('CD', '×${(1 / cdr).toStringAsFixed(2)}', 'SPD'),
-      _StatEntry('CRIT', '${(crit * 100).round()}%', 'STR'),
+      _StatEntry('HP', '${survival ? survivalStats.maxHp : hp}', 'STR-INT'),
+      _StatEntry(
+        'P-ATK',
+        '${survival ? survivalStats.physAtk : physAtk}',
+        'STR',
+      ),
+      _StatEntry(
+        'E-ATK',
+        '${survival ? survivalStats.elemAtk : elemAtk}',
+        'BEA',
+      ),
+      _StatEntry(
+        'RANGE',
+        '${(survival ? survivalStats.attackRange : range).round()}',
+        'INT',
+      ),
+      _StatEntry(
+        'P-DEF',
+        '${survival ? survivalStats.physDef : physDef}',
+        'STR-INT',
+      ),
+      _StatEntry(
+        'E-DEF',
+        '${survival ? survivalStats.elemDef : elemDef}',
+        'BEA-INT',
+      ),
+      _StatEntry(
+        'CD',
+        '×${(1 / (survival ? survivalStats.cooldownReduction : cdr)).toStringAsFixed(2)}',
+        'SPD',
+      ),
+      _StatEntry(
+        'SPECIAL',
+        '${survival ? survivalStats.abilityAtk : ability}',
+        abilitySource,
+      ),
     ];
 
-    return _StatGrid(stats: stats);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment(value: false, label: Text('Cosmic Space')),
+            ButtonSegment(value: true, label: Text('Survival')),
+          ],
+          selected: {survival},
+          onSelectionChanged: (selection) =>
+              setState(() => survival = selection.single),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          survival
+              ? 'Survival base stats • before Guardian upgrades and run bonuses.'
+              : 'Cosmic Space base stats • before temporary combat effects.',
+          style: TextStyle(
+            fontSize: 12,
+            color: BracketPalette.of(context).muted,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _StatGrid(stats: stats),
+        const SizedBox(height: 10),
+        Text(
+          'Power ratings are not damage: ${AlchemonStatSystem.displayRating(strength)} Strength gives '
+          '${survival ? survivalStats.physAtk : physAtk} base P-ATK in this mode. '
+          'SPECIAL uses your family’s stat mix; each ability changes the final damage or support effect. '
+          'CD is the Speed modifier, not the full attack or special interval.',
+          style: TextStyle(
+            fontSize: 12,
+            color: BracketPalette.of(context).muted,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -616,7 +717,7 @@ class _CombatBoostsCard extends StatelessWidget {
       entries.add(
         _BoostEntry(
           'Family Frame · ${family.toUpperCase()}',
-          frameParts.join(' · '),
+          'Cosmic Space: ${frameParts.join(' · ')}',
         ),
       );
     }
@@ -1613,5 +1714,5 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
 // EXPLORE STAT EFFECTS CARD
 // ─────────────────────────────────────────────────────────────────────────────
 /// Stat chips for the COSMIC tab — shows actual derived combat numbers
-/// (HP, physical/elemental ATK + DEF, cooldown reduction, crit) the way
+/// (HP, physical/elemental ATK + DEF, special power, Speed modifier) the way
 /// Boss tab shows its stat chips, so both tabs read like the same UI.

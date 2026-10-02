@@ -42,38 +42,51 @@ void main() {
     }
   });
 
-  test('generated encounters respect campaign progress and rewards grow', () {
-    final world = CosmicWorld.generate(seed: 7);
-    for (final count in [0, 1, 4, 8, 12]) {
-      final ceiling = CosmicBalance.spaceLevel(count);
-      final whirls = GalaxyWhirl.generate(
-        seed: 7,
-        worldSize: world.worldSize,
-        planets: world.planets,
-        guardiansDefeated: count,
+  test(
+    'encounters scale with progress, particles grow, and shards stay flat',
+    () {
+      final world = CosmicWorld.generate(seed: 7);
+      for (final count in [0, 1, 4, 8, 12]) {
+        final ceiling = CosmicBalance.spaceLevel(count);
+        final whirls = GalaxyWhirl.generate(
+          seed: 7,
+          worldSize: world.worldSize,
+          planets: world.planets,
+          guardiansDefeated: count,
+        );
+        expect(
+          whirls.map((w) => w.level),
+          everyElement(inInclusiveRange(max(1, ceiling - 1), ceiling)),
+        );
+        final lair = BossLair.generate(
+          rng: Random(7),
+          worldSize: world.worldSize,
+          planets: world.planets,
+          whirls: whirls,
+          guardiansDefeated: count,
+        );
+        expect(lair.level, inInclusiveRange(max(1, ceiling - 1), ceiling));
+      }
+      final easy = GalaxyWhirl(
+        position: Offset.zero,
+        element: 'Fire',
+        level: 1,
       );
-      expect(
-        whirls.map((w) => w.level),
-        everyElement(inInclusiveRange(max(1, ceiling - 1), ceiling)),
+      final hard = GalaxyWhirl(
+        position: Offset.zero,
+        element: 'Fire',
+        level: 5,
       );
-      final lair = BossLair.generate(
-        rng: Random(7),
-        worldSize: world.worldSize,
-        planets: world.planets,
-        whirls: whirls,
-        guardiansDefeated: count,
-      );
-      expect(lair.level, inInclusiveRange(max(1, ceiling - 1), ceiling));
-    }
-    final easy = GalaxyWhirl(position: Offset.zero, element: 'Fire', level: 1);
-    final hard = GalaxyWhirl(position: Offset.zero, element: 'Fire', level: 5);
-    expect(hard.shardReward, greaterThan(easy.shardReward));
-    expect(hard.particleReward, greaterThan(easy.particleReward));
-    expect(hard.enemyHealthScale, closeTo(1.8, 0.001));
-    expect(easy.hordeType, HordeType.skirmish);
-    expect(hordeTypeForLevel(3), HordeType.siege);
-    expect(hard.hordeType, HordeType.onslaught);
-  });
+      // Whirls deliberately pay a flat shard reward; particles scale with difficulty.
+      expect(easy.shardReward, 50);
+      expect(hard.shardReward, 50);
+      expect(hard.particleReward, greaterThan(easy.particleReward));
+      expect(hard.enemyHealthScale, closeTo(1.8, 0.001));
+      expect(easy.hordeType, HordeType.skirmish);
+      expect(hordeTypeForLevel(3), HordeType.siege);
+      expect(hard.hordeType, HordeType.onslaught);
+    },
+  );
 
   test(
     'progress refresh upgrades idle encounters and preserves active fights',

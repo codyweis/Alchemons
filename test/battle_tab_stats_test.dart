@@ -2,6 +2,7 @@ library;
 
 import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -61,7 +62,11 @@ void main() {
     await database.close();
   });
 
-  Future<void> pumpBattleTab(WidgetTester tester, String family) async {
+  Future<void> pumpBattleTab(
+    WidgetTester tester,
+    String family, {
+    db.CreatureInstance? instance,
+  }) async {
     final theme = FactionTheme.scorchForge();
     await tester.pumpWidget(
       MultiProvider(
@@ -77,7 +82,7 @@ void main() {
             body: ImprovedBattleScrollArea(
               theme: theme,
               creature: _species(family),
-              instance: _instance(),
+              instance: instance ?? _instance(),
             ),
           ),
         ),
@@ -94,12 +99,16 @@ void main() {
 
     // Every derived figure carries its source, and RANGE — intelligence's
     // most legible contribution — is present rather than invisible.
-    for (final label in ['HP', 'P-ATK', 'E-ATK', 'RANGE', 'CD', 'CRIT']) {
+    for (final label in ['HP', 'P-ATK', 'E-ATK', 'RANGE', 'CD', 'SPECIAL']) {
       expect(find.text(label), findsOneWidget, reason: 'missing $label tile');
     }
     expect(find.text('STR-INT'), findsNWidgets(2)); // HP and P-DEF
     expect(find.text('BEA-INT'), findsOneWidget); // E-DEF
     expect(find.text('SPD'), findsOneWidget); // CD
+    expect(
+      find.text('CRIT'),
+      findsNothing,
+    ); // Neither mode rolls critical hits.
 
     // Speed 2.1 gives a cooldown-reduction factor below 1.0, which divides
     // the base cooldown — so the tile must read above x1.00, not below it.
@@ -125,7 +134,7 @@ void main() {
     // The attack cards follow the grid before role and boost details.
     expect(find.text('Auto Attack'), findsOneWidget);
     expect(find.text('Special Ability'), findsOneWidget);
-    expect(find.text('Survival'), findsNothing);
+    expect(find.text('Survival'), findsOneWidget);
     final visibleLabels = tester
         .widgetList<Text>(find.byType(Text))
         .map((text) => text.data)
@@ -142,6 +151,80 @@ void main() {
     expect(
       visibleLabels.indexOf('Role'),
       lessThan(visibleLabels.indexOf('Boosts')),
+    );
+  });
+
+  testWidgets(
+    '500 Strength shows mode-specific damage, not a 500 damage promise',
+    (tester) async {
+      final instance = _instance().copyWith(
+        level: 10,
+        statStrength: 5.0,
+        statIntelligence: 5.0,
+        statSpeed: 5.0,
+        statBeauty: 5.0,
+      );
+      await pumpBattleTab(tester, 'Pip', instance: instance);
+      expect(
+        find.textContaining('500 Strength gives 12 base P-ATK'),
+        findsOneWidget,
+      );
+      expect(find.text('SPECIAL'), findsOneWidget);
+
+      final expected = deriveCosmicSurvivalCompanionStats(
+        member: CosmicPartyMember(
+          instanceId: 'test',
+          baseId: 'test',
+          displayName: 'Test',
+          family: 'Pip',
+          element: 'Fire',
+          level: 10,
+          statStrength: 5,
+          statIntelligence: 5,
+          statSpeed: 5,
+          statBeauty: 5,
+          slotIndex: 0,
+          staminaBars: 3,
+          staminaMax: 3,
+        ),
+      );
+      expect(expected.physAtk, 64);
+      await tester.tap(find.text('Survival'));
+      await tester.pump();
+      expect(
+        find.textContaining('500 Strength gives 64 base P-ATK'),
+        findsOneWidget,
+      );
+      expect(find.text('${expected.maxHp}'), findsOneWidget);
+      expect(find.textContaining('before Guardian upgrades'), findsOneWidget);
+    },
+  );
+
+  testWidgets('special power follows family stats instead of Beauty alone', (
+    tester,
+  ) async {
+    await pumpBattleTab(tester, 'Mane');
+    final i = _instance();
+    final special = CosmicBalance.companionElemAtk(
+      level: i.level,
+      beauty: cosmicFamilyAbilityRating(
+        family: 'Mane',
+        strength: i.statStrength,
+        intelligence: i.statIntelligence,
+        beauty: i.statBeauty,
+      ),
+    );
+    final elemental = CosmicBalance.companionElemAtk(
+      level: i.level,
+      beauty: i.statBeauty,
+    );
+    expect(special, greaterThan(elemental));
+    final tile = find
+        .ancestor(of: find.text('SPECIAL'), matching: find.byType(Column))
+        .first;
+    expect(
+      find.descendant(of: tile, matching: find.text('$special')),
+      findsOneWidget,
     );
   });
 
@@ -183,6 +266,9 @@ void main() {
         isNull,
         reason: '$family overflowed at 360pt',
       );
+      await tester.tap(find.text('Survival'));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
     }
   });
 }
