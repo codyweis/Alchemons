@@ -1,121 +1,51 @@
-import 'package:alchemons/audio/audio.dart';
 // lib/screens/mystic_altar/boss_altar_detail_screen.dart
 //
-// Individual boss ritual screen.
-// Creature slots orbit on a spinning ellipse carousel — same mechanic as the
-// Mystic Altar hub. Drag to spin, tap a slot to snap it to the front and focus
-// it. Tap the focused slot a second time to place an Alchemon.
+// ONE MYSTIC'S ALTAR. The Mystic stands in the middle as a ghost of grains;
+// round it, a seat for every kind of its element. Tap a seat to give one of
+// that kind — it flies in, and its share of the Mystic fills with colour.
+// With every seat given (and, for Blood, every other Mystic awake), the rite
+// is held, and performed: the offerings and the relic pour into a knot, the
+// knot bursts, and the Mystic comes out of it as its element and gathers
+// into itself. Awake, it is sealed into a cultivation and the altar is left.
+//
+// The field (AltarRiteField) draws all of it; this screen owns the save, the
+// clock and the words.
 
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/data/mystic_altar_data.dart';
+import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/screens/mystic_altar/altar_chrome.dart';
+import 'package:alchemons/screens/mystic_altar/altar_grains.dart';
+import 'package:alchemons/screens/mystic_altar/altar_rite_field.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
+import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/mystic_ritual_service.dart';
-import 'package:alchemons/services/campaign_journal_service.dart';
-import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
-import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
+import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TOKENS
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _C {
-  static const bg = Color(0xFF060912);
-  static const surface = Color(0xFF111320);
-  static const border = Color(0xFF252840);
-  static const muted = Color(0xFF4A3F6B);
-  static const sub = Color(0xFF8C7BB5);
-  static const gold = Color(0xFFF59E0B);
-  static const success = Color(0xFF16A34A);
-  static const danger = Color(0xFFC0392B);
-
-  // Ivory rite palette — neutral chrome, element color only as accent.
-  static const ivory = Color(0xFFE8DFC8);
-  static const ivoryDim = Color(0xFFB5A98A);
-  static const ivoryMuted = Color(0xFF6B6050);
+/// One of the sixteen Mystics Blood's rite needs awake.
+class _Witness {
+  const _Witness(this.entry, this.awake);
+  final AltarEntry entry;
+  final bool awake;
 }
 
-TextStyle _titleStyle(
-  BuildContext context,
-  double size,
-  Color color, {
-  FontWeight weight = FontWeight.w500,
-  double letterSpacing = 0,
-  FontStyle fontStyle = FontStyle.normal,
-}) {
-  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
-  return base.copyWith(
-    color: color,
-    fontSize: size,
-    fontWeight: weight,
-    letterSpacing: letterSpacing,
-    fontStyle: fontStyle,
-  );
-}
-
-TextStyle _display(
-  BuildContext context,
-  double size,
-  Color color, {
-  FontWeight weight = FontWeight.w500,
-  double letterSpacing = 0,
-  FontStyle fontStyle = FontStyle.normal,
-}) => _titleStyle(
-  context,
-  size,
-  color,
-  weight: weight,
-  letterSpacing: letterSpacing,
-  fontStyle: fontStyle,
-);
-
-TextStyle _body(
-  BuildContext context,
-  double size,
-  Color color, {
-  double height = 1.5,
-  FontWeight weight = FontWeight.w400,
-  double letterSpacing = 0,
-}) {
-  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
-  return base.copyWith(
-    color: color,
-    fontSize: size,
-    fontWeight: weight,
-    height: height,
-    letterSpacing: letterSpacing,
-  );
-}
-
-class _WitnessRequirement {
-  const _WitnessRequirement({
-    required this.bossId,
-    required this.label,
-    required this.color,
-    required this.completed,
-  });
-
-  final String bossId;
-  final String label;
-  final Color color;
-  final bool completed;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SCREEN
-// ─────────────────────────────────────────────────────────────────────────────
+/// Where the rite is.
+enum _Rite { waiting, performing, awake, sealing }
 
 class BossAltarDetailScreen extends StatefulWidget {
   final AltarEntry boss;
@@ -126,120 +56,133 @@ class BossAltarDetailScreen extends StatefulWidget {
 }
 
 class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
-    with TickerProviderStateMixin {
-  // ── ambient pulse ─────────────────────────────────────────────────────────
-  late final AnimationController _pulse;
-  late final AnimationController _ritualCtrl;
+    with SingleTickerProviderStateMixin {
+  AltarRiteField? _field;
+  late final Ticker _ticker;
+  final ValueNotifier<double> _clock = ValueNotifier(0);
+  Duration _last = Duration.zero;
 
-  // ── carousel spin ─────────────────────────────────────────────────────────
-  double _wheelOffset = 0.0;
-  int _selectedIndex = 0;
-  late final AnimationController _snapCtrl;
-  late Animation<double> _snapAnim;
-  double _snapFrom = 0.0;
-
-  // ── placement data ────────────────────────────────────────────────────────
-  final Map<String, String?> _placed = {};
   List<Creature> _species = [];
   Creature? _mystic;
-  List<_WitnessRequirement> _bloodWitnesses = const [];
-  bool _hasKey = false;
+  final Map<String, String?> _placed = {};
+  List<_Witness> _witnesses = const [];
+  bool _hasRelic = false;
   bool _loading = true;
-  bool _summoning = false;
-  bool _showRitualAnimation = false;
   bool _storyCheckStarted = false;
 
-  // ─────────────────────────────────────────────────────────────────────────
+  _Rite _rite = _Rite.waiting;
+  bool _committing = false;
+
+  /// What the rite left: whether this was the Mystic's first waking, which
+  /// Mystics are now awake, and where its cultivation went.
+  bool _firstAwakening = true;
+  Set<String> _awakeAfter = {};
+  bool _inChamber = true;
+
+  /// The rite's haptic beats already felt.
+  int _beat = 0;
+
+  AltarEntry get _boss => widget.boss;
 
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    )..repeat(reverse: true);
-    _ritualCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2800),
-    );
-
-    _snapCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 480),
-    );
-    _snapAnim = AlwaysStoppedAnimation(_wheelOffset);
-
+    _ticker = createTicker(_tick)..start();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadState();
+      _loadState(first: true);
       _maybeShowBossRelicStoryIntro();
     });
   }
 
   @override
   void dispose() {
-    _pulse.dispose();
-    _ritualCtrl.dispose();
-    _snapCtrl.dispose();
+    _ticker.dispose();
+    _clock.dispose();
     super.dispose();
   }
 
   // ── data ──────────────────────────────────────────────────────────────────
 
-  Future<void> _loadState() async {
+  Future<void> _loadState({bool first = false}) async {
     if (!mounted) return;
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
 
-    final traitKey = BossLootKeys.traitKeyForElement(widget.boss.element);
+    final traitKey = BossLootKeys.traitKeyForElement(_boss.element);
     final qty = await db.inventoryDao.getItemQty(traitKey);
     final relicPlaced = (await db.altarDao.getRelicPlacedIds([
-      widget.boss.id,
-    ])).contains(widget.boss.id);
-    final placements = await db.altarDao.getPlacementsForBoss(widget.boss.id);
-    final mystic = catalog.mysticByElement(widget.boss.element);
+      _boss.id,
+    ])).contains(_boss.id);
+    final placements = await db.altarDao.getPlacementsForBoss(_boss.id);
+    final mystic = catalog.mysticByElement(_boss.element);
     final species = catalog
-        .byType(widget.boss.element)
+        .byType(_boss.element)
         .where((s) => s.id != mystic?.id)
         .toList();
-    final bloodWitnesses = <_WitnessRequirement>[];
-
+    final available = <String, int>{};
+    for (final sp in species) {
+      final all = await db.creatureDao.listInstancesBySpecies(sp.id);
+      available[sp.id] = all.where((i) => !i.locked).length;
+    }
+    final witnesses = <_Witness>[];
     if (_isBloodBoss) {
-      for (final boss in kAltarEntries.where((b) => b.order < 17)) {
-        final summonedValue = await db.settingsDao.getSetting(
-          'altar_summoned_${boss.id}',
-        );
-        final summoned =
-            summonedValue != null && summonedValue.trim().isNotEmpty;
-        bloodWitnesses.add(
-          _WitnessRequirement(
-            bossId: boss.id,
-            label: catalog.mysticByElement(boss.element)?.name ?? boss.name,
-            color: boss.elementColor,
-            completed: summoned,
-          ),
-        );
+      for (final e in kAltarEntries.where((b) => b.order < 17)) {
+        final v = await db.settingsDao.getSetting('altar_summoned_${e.id}');
+        witnesses.add(_Witness(e, v != null && v.trim().isNotEmpty));
       }
     }
-
-    final placed = <String, String?>{};
-    for (final sp in species) {
-      placed[sp.id] = null;
-    }
+    final placed = <String, String?>{for (final sp in species) sp.id: null};
     for (final p in placements) {
       placed[p.speciesId] = p.instanceId;
     }
+    if (!mounted) return;
 
-    if (mounted) {
-      setState(() {
-        _hasKey = relicPlaced || qty > 0;
-        _mystic = mystic;
-        _species = species;
-        _bloodWitnesses = bloodWitnesses;
-        _placed
-          ..clear()
-          ..addAll(placed);
-        _loading = false;
-      });
+    var field = _field;
+    if (first || field == null) {
+      field = AltarRiteField(
+        element: _boss.element,
+        offerings: [for (final sp in species) RiteOffering(sp)],
+      );
+      _readGrains(field, mystic);
+    }
+    for (final o in field.offerings) {
+      o
+        ..given = placed[o.species.id] != null
+        ..available = available[o.species.id] ?? 0;
+    }
+    field.relicSet = relicPlaced || qty > 0;
+
+    setState(() {
+      _field = field;
+      _hasRelic = relicPlaced || qty > 0;
+      _mystic = mystic;
+      _species = species;
+      _witnesses = witnesses;
+      _placed
+        ..clear()
+        ..addAll(placed);
+      _loading = false;
+    });
+  }
+
+  Future<void> _readGrains(AltarRiteField field, Creature? mystic) async {
+    final relic = AltarGrains.relic(_boss, width: 40);
+    if (mystic != null) {
+      field.mystic = await AltarGrains.creature(
+        mystic,
+        width: AltarRiteField.mysticWidth.round(),
+        maxGrains: 2600,
+        tones: 14,
+      );
+    }
+    field.relic = await relic;
+    for (final o in field.offerings) {
+      o.grains = await AltarGrains.creature(
+        o.species,
+        width: 72,
+        maxGrains: 620,
+        tones: 12,
+      );
     }
   }
 
@@ -289,169 +232,174 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     );
   }
 
-  // ── helpers ────────────────────────────────────────────────────────────────
+  // ── helpers ───────────────────────────────────────────────────────────────
 
-  bool get _isBloodBoss => widget.boss.element.toLowerCase() == 'blood';
+  bool get _isBloodBoss => _boss.element.toLowerCase() == 'blood';
 
-  bool get _allFilled =>
+  int get _givenCount => _placed.values.where((v) => v != null).length;
+
+  bool get _allGiven =>
       _species.isNotEmpty && _species.every((s) => _placed[s.id] != null);
+
+  int get _witnessesAwake => _witnesses.where((w) => w.awake).length;
 
   bool get _allWitnessed =>
       !_isBloodBoss ||
-      (_bloodWitnesses.isNotEmpty && _bloodWitnesses.every((w) => w.completed));
+      (_witnesses.isNotEmpty && _witnesses.every((w) => w.awake));
 
-  int get _witnessRemaining =>
-      _bloodWitnesses.where((w) => !w.completed).length;
+  bool get _canSummon =>
+      _hasRelic &&
+      _allGiven &&
+      _allWitnessed &&
+      _rite == _Rite.waiting &&
+      !_committing;
 
-  bool get _canSummon => _hasKey && _allFilled && _allWitnessed && !_summoning;
+  String get _relicName =>
+      BossLootKeys.elementRewards[_boss.element.toLowerCase()]?.traitName ??
+      'relic';
 
-  String _traitName() {
-    final meta = BossLootKeys.elementRewards[widget.boss.element.toLowerCase()];
-    return meta?.traitName ?? 'Key Item';
-  }
+  String get _mysticName => _mystic?.name ?? _boss.name;
+
+  /// A kind's name, with its rarity when another kind on this altar shares
+  /// it (Blood asks for two Bloodmasks).
+  String _kindName(Creature sp) =>
+      _species.where((s) => s.name == sp.name).length > 1
+      ? '${sp.name} · ${sp.rarity}'
+      : sp.name;
 
   void _snack(String msg) {
     if (!mounted) return;
-    final elColor = widget.boss.elementColor;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              AppIcons.error_outline_rounded,
-              color: elColor.withValues(alpha: 0.95),
-              size: 17,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                msg,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: _C.ivory,
-                  fontSize: 13,
-                  height: 1.35,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
+    final accent = altarAccent(_boss.element);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            msg,
+            style: altarBody(context, color: AltarTone.parchment),
+          ),
+          backgroundColor: const Color(0xFF0B0812),
+          behavior: SnackBarBehavior.floating,
+          elevation: 0,
+          margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          shape: Border(
+            left: BorderSide(color: accent.withValues(alpha: 0.75), width: 2),
+          ),
+          duration: const Duration(seconds: 3),
         ),
-        backgroundColor: const Color(0xFF0B0D14),
-        behavior: SnackBarBehavior.floating,
-        elevation: 0,
-        margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        shape: Border(
-          left: BorderSide(color: elColor.withValues(alpha: 0.72), width: 2),
-          top: BorderSide(color: elColor.withValues(alpha: 0.28), width: 1),
-          bottom: BorderSide(color: elColor.withValues(alpha: 0.20), width: 1),
-        ),
-        duration: const Duration(seconds: 3),
-      ),
-    );
+      );
   }
 
-  // ── carousel helpers ───────────────────────────────────────────────────────
+  // ── the clock ─────────────────────────────────────────────────────────────
 
-  int get _n => _species.length;
-
-  double _slotAngle(int i) {
-    final raw = _wheelOffset + (i / _n) * math.pi * 2;
-    return _norm(raw);
-  }
-
-  double _norm(double a) {
-    while (a > math.pi) {
-      a -= math.pi * 2;
-    }
-    while (a < -math.pi) {
-      a += math.pi * 2;
-    }
-    return a;
-  }
-
-  // depth 0 = back, 1 = front (angle near 0 = bottom of ellipse = front)
-  double _depth(int i) => (math.cos(_slotAngle(i)) + 1) / 2;
-
-  void _onPanUpdate(DragUpdateDetails d) {
-    _snapCtrl.stop();
-    setState(() {
-      _wheelOffset += d.delta.dx * 0.013;
-      _updateSelected();
-    });
-  }
-
-  void _onPanEnd(DragEndDetails _) => _snapToSelected();
-
-  void _updateSelected() {
-    double minD = double.infinity;
-    for (int i = 0; i < _n; i++) {
-      final d = _slotAngle(i).abs();
-      if (d < minD) {
-        minD = d;
-        _selectedIndex = i;
+  void _tick(Duration elapsed) {
+    final dt = ((elapsed - _last).inMicroseconds / 1e6).clamp(0.0, 0.05);
+    _last = elapsed;
+    final f = _field;
+    if (f == null) return;
+    f.time += dt;
+    for (final o in f.offerings) {
+      if (o.giving < 1) {
+        final was = o.giving;
+        o.giving = math.min(1, o.giving + dt / 1.9);
+        if (was < 0.72 && o.giving >= 0.72) {
+          // It lands in the Mystic.
+          HapticFeedback.mediumImpact();
+          context.sound(
+            SoundCue.forElement(_boss.element) ?? SoundCue.uiConfirm,
+          );
+        }
       }
     }
-  }
-
-  void _snapToSelected() {
-    double t = -(_selectedIndex / _n) * math.pi * 2;
-    while ((t - _wheelOffset) > math.pi) {
-      t -= math.pi * 2;
+    switch (_rite) {
+      case _Rite.waiting:
+        break;
+      case _Rite.performing:
+      case _Rite.awake:
+        f.summon += dt;
+        f.charge = math.max(0, f.charge - dt);
+        _riteBeats(f.summon);
+        if (_rite == _Rite.performing &&
+            f.summon >= AltarRiteField.formEnd + 0.15) {
+          setState(() => _rite = _Rite.awake);
+          HapticFeedback.heavyImpact();
+          context.sound(SoundCue.achievementUnlock);
+        }
+      case _Rite.sealing:
+        f.summon += dt;
+        f.seal = math.min(1, f.seal + dt / 1.35);
+        if (f.seal >= 1) _leave();
     }
-    while ((t - _wheelOffset) < -math.pi) {
-      t += math.pi * 2;
+    _clock.value = f.time;
+  }
+
+  /// The rite is felt: the knot's quickening pulse, then the burst.
+  void _riteBeats(double s) {
+    const beats = [0.0, 1.0, 1.6, 2.05, 2.4, AltarRiteField.knotEnd];
+    while (_beat < beats.length && s >= beats[_beat]) {
+      final last = _beat == beats.length - 1;
+      if (last) {
+        HapticFeedback.heavyImpact();
+        context.sound(SoundCue.extractionReactionBurst);
+      } else if (_beat == 0) {
+        HapticFeedback.mediumImpact();
+        context.sound(SoundCue.extractionReactionStart);
+      } else {
+        HapticFeedback.lightImpact();
+      }
+      _beat++;
     }
-
-    _snapFrom = _wheelOffset;
-    _snapCtrl.reset();
-    _snapAnim = Tween<double>(begin: _snapFrom, end: t).animate(
-      CurvedAnimation(parent: _snapCtrl, curve: Curves.easeOutBack),
-    )..addListener(() => setState(() => _wheelOffset = _snapAnim.value));
-    _snapCtrl.forward();
   }
 
-  void _snapToIndex(int idx) {
-    if (idx < 0 || idx >= _n) return;
-    setState(() => _selectedIndex = idx);
-    HapticFeedback.lightImpact();
-    _snapToSelected();
-  }
+  // ── giving an offering ────────────────────────────────────────────────────
 
-  // ── placement ──────────────────────────────────────────────────────────────
-
-  Future<void> _handlePlaceAlchemon(Creature sp) async {
-    if (_placed[sp.id] != null) return;
-    final db = context.read<AlchemonsDatabase>();
-
-    final all = await db.creatureDao.listInstancesBySpecies(sp.id);
-    final avail = all.where((i) => !i.locked).toList();
-    if (avail.isEmpty) {
-      _snack('No ${sp.name} available.');
+  void _onTapUp(TapUpDetails d) {
+    final f = _field;
+    if (f == null) return;
+    if (_rite == _Rite.performing && f.summon > AltarRiteField.knotEnd) {
+      // A tap hurries the waking along, once the knot has burst.
+      f.summon = math.max(f.summon, AltarRiteField.formEnd - 0.4);
       return;
     }
+    if (_rite != _Rite.waiting || _committing) return;
+    final i = f.seatAt(d.localPosition);
+    if (i == null) return;
+    final o = f.offerings[i];
+    if (o.given) {
+      _snack('${o.species.name} is given.');
+      return;
+    }
+    _give(o.species);
+  }
 
+  Future<void> _give(Creature sp) async {
+    if (_placed[sp.id] != null) return;
+    final db = context.read<AlchemonsDatabase>();
+    final all = await db.creatureDao.listInstancesBySpecies(sp.id);
+    final avail = all.where((i) => !i.locked).toList()
+      ..sort((a, b) => _potential(b).compareTo(_potential(a)));
+    if (avail.isEmpty) {
+      _snack('You have no unlocked ${sp.name} to give.');
+      return;
+    }
     if (!mounted) return;
     final picked = await showModalBottomSheet<CreatureInstance>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _InstancePickerSheet(
+      barrierColor: const Color(0x99000000),
+      builder: (_) => _OfferingSheet(
         species: sp,
+        title: _kindName(sp),
         instances: avail,
-        elColor: widget.boss.elementColor,
+        element: _boss.element,
+        mysticName: _mysticName,
       ),
     );
     if (picked == null || !mounted) return;
 
-    final ok = await _confirmPlace(sp, picked);
-    if (!ok || !mounted) return;
-
-    // Snapshot genetic Potential before the instance is deleted. Current
-    // Power, level, and Enhancement are individual training and never pass on.
+    // Genetic Potential and nature pass on; current Power, level and
+    // Enhancement are its own training and do not.
     final snapshot = jsonEncode({
       'natureId': picked.natureId,
       'natureId2': picked.natureId2,
@@ -462,101 +410,138 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       'beautyPotential': picked.statBeautyPotential,
     });
 
+    setState(() => _committing = true);
     try {
       await MysticRitualService(db).commit(
-        bossId: widget.boss.id,
+        bossId: _boss.id,
         speciesId: sp.id,
         instanceId: picked.instanceId,
         snapshotJson: snapshot,
       );
     } catch (_) {
       if (mounted) {
+        setState(() => _committing = false);
         _snack(
-          'The commitment could not be completed. Reopen the altar to check your specimen.',
+          'The offering could not be given. Reopen the altar to check your specimen.',
         );
       }
       return;
     }
     if (!mounted) return;
-
     HapticFeedback.mediumImpact();
-    setState(() => _placed[sp.id] = picked.instanceId);
+    final o = _field?.offerings.firstWhere((o) => o.species.id == sp.id);
+    setState(() {
+      _committing = false;
+      _placed[sp.id] = picked.instanceId;
+      if (o != null) {
+        o
+          ..given = true
+          ..giving = 0
+          ..available = math.max(0, o.available - 1);
+      }
+    });
   }
 
-  Future<bool> _confirmPlace(Creature sp, CreatureInstance inst) async =>
-      await showDialog<bool>(
-        context: context,
-        builder: (ctx) => _GameDialog(
-          elColor: widget.boss.elementColor,
-          icon: AppIcons.warning_amber_rounded,
-          iconColor: _C.gold,
-          title: 'COMMIT ALCHEMON?',
-          body:
-              'Committing ${inst.nickname ?? sp.name} removes this specimen from your collection immediately and permanently. Its pattern remains at the altar for the ritual.',
-          cancelLabel: 'CANCEL',
-          confirmLabel: 'COMMIT',
-          onCancel: () => Navigator.pop(ctx, false),
-          onConfirm: () => Navigator.pop(ctx, true),
-        ),
-      ) ??
-      false;
+  static double _potential(CreatureInstance i) =>
+      i.statSpeedPotential +
+      i.statIntelligencePotential +
+      i.statStrengthPotential +
+      i.statBeautyPotential;
 
-  // ── summon ─────────────────────────────────────────────────────────────────
+  // ── the rite ──────────────────────────────────────────────────────────────
 
-  Future<void> _handleSummon() async {
+  Future<void> _perform() async {
     if (!_canSummon) return;
-    final ok = await _confirmSummon();
-    if (!ok || !mounted) return;
-    setState(() => _summoning = true);
+    final f = _field;
+    final target = _mystic;
+    if (f == null || target == null) return;
+    setState(() => _committing = true);
     final db = context.read<AlchemonsDatabase>();
-    final catalog = context.read<CreatureCatalog>();
-    final boss = widget.boss;
-    final target = catalog.mysticByElement(boss.element);
-    var rewardSecured = false;
+    final before = await db.settingsDao.getSetting(
+      'altar_summoned_${_boss.id}',
+    );
+    final first = before == null || before.trim().isEmpty;
+    bool inChamber;
     try {
-      if (target == null) {
-        throw StateError('No Mystic is registered for this element.');
-      }
-      await MysticRitualService(db).summon(
-        bossId: boss.id,
-        element: boss.element,
+      inChamber = await MysticRitualService(db).summon(
+        bossId: _boss.id,
+        element: _boss.element,
         targetSpeciesId: target.id,
         requiredSpecies: _species.map((s) => s.id).toSet(),
         payload: (placements) =>
-            _payload(target, boss, _deriveFromSacrifices(placements)),
+            _payload(target, _boss, _deriveFromSacrifices(placements)),
       );
-      rewardSecured = true;
-      if (!mounted) return;
-      await _playRitualAnimation();
-      if (!mounted) return;
-      await _showSuccess(target, boss);
-      await _loadState();
     } catch (e) {
       debugPrint('Summon error: $e');
       if (mounted) {
+        setState(() => _committing = false);
+        f.charge = 0;
         _snack(
-          rewardSecured
-              ? 'Your Mystic Vial is secured. Check your Chamber or Cold Storage.'
-              : 'Summoning could not complete. Your commitments remain safe; reopen the altar and retry.',
+          'The rite could not be completed. Your offerings remain; reopen the altar and try again.',
         );
       }
-    } finally {
-      if (mounted) setState(() => _summoning = false);
+      return;
     }
+    final awake = <String>{};
+    for (final e in kAltarEntries) {
+      final v = await db.settingsDao.getSetting('altar_summoned_${e.id}');
+      if (v != null && v.trim().isNotEmpty) awake.add(e.id);
+    }
+    if (!mounted) return;
+    setState(() {
+      _committing = false;
+      _firstAwakening = first;
+      _awakeAfter = awake;
+      _inChamber = inChamber;
+      _rite = _Rite.performing;
+      _beat = 0;
+      f.summon = 0;
+    });
   }
 
-  Future<void> _playRitualAnimation() async {
+  void _depart() {
+    final f = _field;
+    if (f == null || _rite != _Rite.awake) return;
+    HapticFeedback.mediumImpact();
+    context.sound(SoundCue.extractionComplete);
+    setState(() => _rite = _Rite.sealing);
+  }
+
+  bool _leaving = false;
+
+  Future<void> _leave() async {
+    if (_leaving) return;
+    _leaving = true;
+    final db = context.read<AlchemonsDatabase>();
+    if (await db.settingsDao.getSetting('campaign_mystic_presence_seen_v1') !=
+            '1' &&
+        mounted) {
+      final entry = campaignEntries.firstWhere((e) => e.id == 'mystic');
+      await LandscapeDialog.show(
+        context,
+        title: entry.title,
+        message: entry.text,
+        typewriter: true,
+        barrierDismissible: false,
+      );
+      await db.settingsDao.setSetting('campaign_mystic_presence_seen_v1', '1');
+    }
     if (!mounted) return;
-    setState(() => _showRitualAnimation = true);
-    _ritualCtrl
-      ..stop()
-      ..value = 0;
-    await Future<void>.delayed(const Duration(milliseconds: 120));
-    if (!mounted) return;
-    HapticFeedback.heavyImpact();
-    await _ritualCtrl.forward();
-    if (!mounted) return;
-    setState(() => _showRitualAnimation = false);
+    if (_isBloodBoss &&
+        await db.settingsDao.getSetting('blood_mystic_space_hint_seen_v1') !=
+            '1' &&
+        mounted) {
+      await LandscapeDialog.show(
+        context,
+        title: 'Carry It Outward',
+        icon: AppIcons.public_rounded,
+        typewriter: true,
+        message:
+            'Do not keep it here.\n\nThe stars are not above this world. They are part of the seal. Bring the blood mystic outward, where the last offering can be witnessed.',
+      );
+      await db.settingsDao.setSetting('blood_mystic_space_hint_seen_v1', '1');
+    }
+    if (mounted) Navigator.of(context).pop(true);
   }
 
   /// Parses placement snapshots and returns the dominant nature plus averaged
@@ -663,2041 +648,653 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     },
   };
 
-  Future<bool> _confirmSummon() async =>
-      await showDialog<bool>(
-        context: context,
-        builder: (ctx) => _GameDialog(
-          elColor: widget.boss.elementColor,
-          icon: widget.boss.elementIcon,
-          iconColor: widget.boss.elementColor,
-          title: 'PERFORM RITUAL?',
-          body:
-              'Summoning ${_mystic?.name ?? widget.boss.name} uses the patterns you have already committed. The ${_traitName()} remains bound to the altar. Your Mystic Vial goes to a free Chamber or Cold Storage.',
-          cancelLabel: 'CANCEL',
-          confirmLabel: 'SUMMON',
-          onCancel: () => Navigator.pop(ctx, false),
-          onConfirm: () => Navigator.pop(ctx, true),
-        ),
-      ) ??
-      false;
-
-  Future<void> _showSuccess(Creature sp, AltarEntry boss) async {
-    final db = context.read<AlchemonsDatabase>();
-    if (await db.settingsDao.getSetting('campaign_mystic_presence_seen_v1') !=
-            '1' &&
-        mounted) {
-      final entry = campaignEntries.firstWhere((e) => e.id == 'mystic');
-      await LandscapeDialog.show(
-        context,
-        title: entry.title,
-        message: entry.text,
-        typewriter: true,
-        barrierDismissible: false,
-      );
-      await db.settingsDao.setSetting('campaign_mystic_presence_seen_v1', '1');
-    }
-    if (!mounted) return;
-    if (boss.element.toLowerCase() == 'blood') {
-      final db = context.read<AlchemonsDatabase>();
-      final seen =
-          await db.settingsDao.getSetting('blood_mystic_space_hint_seen_v1') ==
-          '1';
-      if (!seen && mounted) {
-        await LandscapeDialog.show(
-          context,
-          title: 'Carry It Outward',
-          icon: AppIcons.public_rounded,
-          typewriter: true,
-          message:
-              'Do not keep it here.\n\nThe stars are not above this world. They are part of the seal. Bring the blood mystic outward, where the last offering can be witnessed.',
-        );
-        if (mounted) {
-          await db.settingsDao.setSetting(
-            'blood_mystic_space_hint_seen_v1',
-            '1',
-          );
-        }
-      }
-    }
-
-    if (!mounted) return;
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => _SuccessDialog(
-        boss: boss,
-        species: sp,
-        onClose: () => Navigator.pop(ctx),
-      ),
-    );
-    if (mounted) Navigator.pop(context);
-  }
-
-  // ── build ──────────────────────────────────────────────────────────────────
+  // ── build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final boss = widget.boss;
-    final elColor = boss.elementColor;
-    final filled = _species.where((s) => _placed[s.id] != null).length;
-    final total = _species.length;
-
-    final selFilled =
-        _species.isNotEmpty && _placed[_species[_selectedIndex].id] != null;
-
-    return Scaffold(
-      backgroundColor: _C.bg,
-      body: Stack(
-        children: [
-          const Positioned.fill(
-            child: AlchemicalParticleBackground(backgroundColor: _C.bg),
-          ),
-          SafeArea(
-            child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF7C3AED),
-                      strokeWidth: 1.5,
+    final f = _field;
+    return PopScope(
+      canPop: _rite == _Rite.waiting && !_committing,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _rite == _Rite.awake) _depart();
+      },
+      child: Scaffold(
+        backgroundColor: AltarTone.void0,
+        body: LayoutBuilder(
+          builder: (context, box) {
+            final pad = MediaQuery.paddingOf(context);
+            final size = box.biggest;
+            const headerH = 62.0;
+            final panelH = (_isBloodBoss ? 262.0 : 200.0) + pad.bottom;
+            final stage = Rect.fromLTRB(
+              0,
+              pad.top + headerH,
+              size.width,
+              math.max(pad.top + headerH + 160, size.height - panelH),
+            );
+            f?.layout(stage);
+            f?.sealTo = Offset(size.width / 2, size.height + 60);
+            final calm = _rite == _Rite.waiting;
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapUp: _onTapUp,
+                    child: RepaintBoundary(
+                      child: f == null
+                          ? const SizedBox()
+                          : CustomPaint(
+                              painter: _RitePainter(f, stage, repaint: _clock),
+                            ),
                     ),
-                  )
-                : Column(
-                    children: [
-                      _TopBar(
-                        boss: boss,
-                        mystic: _mystic,
-                        hasKey: _hasKey,
-                        traitName: _traitName(),
+                  ),
+                ),
+                if (f != null && calm && !_loading) ..._seatLabels(f),
+                if (f != null && _mystic != null && !calm) _sprite(f),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: pad.top,
+                  height: headerH,
+                  child: _fade(calm, _header()),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: panelH,
+                  child: _fade(
+                    calm,
+                    _loading ? const SizedBox() : _panel(pad.bottom),
+                  ),
+                ),
+                if (_rite == _Rite.awake || _rite == _Rite.sealing)
+                  Positioned.fill(child: _awakeCard(stage, pad.bottom)),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _fade(bool shown, Widget child) => IgnorePointer(
+    ignoring: !shown,
+    child: AnimatedOpacity(
+      opacity: shown ? 1 : 0,
+      duration: const Duration(milliseconds: 380),
+      child: child,
+    ),
+  );
+
+  List<Widget> _seatLabels(AltarRiteField f) {
+    return [
+      for (var i = 0; i < f.offerings.length; i++)
+        Builder(
+          builder: (context) {
+            final o = f.offerings[i];
+            final at = f.seatCentre(i) + const Offset(0, 34);
+            final given = o.given;
+            final none = !given && o.available == 0;
+            final dup =
+                _species.where((s) => s.name == o.species.name).length > 1;
+            return Positioned(
+              left: at.dx - 60,
+              top: at.dy,
+              width: 120,
+              child: IgnorePointer(
+                child: Column(
+                  children: [
+                    Text(
+                      o.species.name.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: altarMono(
+                        9,
+                        given
+                            ? altarInk(_boss.element)
+                            : none
+                            ? AltarTone.muted.withValues(alpha: 0.7)
+                            : AltarTone.parchmentDim,
+                        spacing: 1.2,
                       ),
-                      Expanded(
-                        child: GestureDetector(
-                          onPanUpdate: _n > 1 ? _onPanUpdate : null,
-                          onPanEnd: _n > 1 ? _onPanEnd : null,
-                          behavior: HitTestBehavior.opaque,
-                          child: _CarouselArena(
-                            boss: boss,
-                            mystic: _mystic,
-                            species: _species,
-                            placed: _placed,
-                            pulse: _pulse,
-                            selectedIndex: _selectedIndex,
-                            depthOf: _depth,
-                            angleOf: _slotAngle,
-                            onTapSlot: (i) {
-                              if (i == _selectedIndex) {
-                                // already front → place
-                                _handlePlaceAlchemon(_species[i]);
-                              } else {
-                                _snapToIndex(i);
-                              }
-                            },
-                          ),
+                    ),
+                    if (dup)
+                      Text(
+                        o.species.rarity.toUpperCase(),
+                        style: altarMono(
+                          8,
+                          AltarTone.parchmentDim.withValues(alpha: 0.8),
+                          spacing: 1.2,
+                          weight: FontWeight.w600,
                         ),
                       ),
-                      _BottomBar(
-                        filled: filled,
-                        total: total,
-                        canSummon: _canSummon,
-                        hasKey: _hasKey,
-                        allFilled: _allFilled,
-                        witnesses: _bloodWitnesses,
-                        witnessRemaining: _witnessRemaining,
-                        summoning: _summoning,
-                        elColor: elColor,
-                        pulse: _pulse,
-                        selectedFilled: selFilled,
-                        selectedName: _species.isNotEmpty
-                            ? _species[_selectedIndex].name
-                            : '',
-                        onSummon: _handleSummon,
-                        onPlace: _species.isNotEmpty
-                            ? () =>
-                                  _handlePlaceAlchemon(_species[_selectedIndex])
-                            : null,
-                        onPrev: _n > 1
-                            ? () => _snapToIndex((_selectedIndex - 1 + _n) % _n)
-                            : null,
-                        onNext: _n > 1
-                            ? () => _snapToIndex((_selectedIndex + 1) % _n)
-                            : null,
+                    if (!given)
+                      Text(
+                        none ? 'NONE HELD' : '${o.available} HELD',
+                        style: altarMono(
+                          8,
+                          AltarTone.muted.withValues(alpha: none ? 0.6 : 0.9),
+                          spacing: 1.2,
+                          weight: FontWeight.w600,
+                        ),
                       ),
-                    ],
-                  ),
-          ),
-          if (_showRitualAnimation)
-            Positioned.fill(
-              child: _RitualSacrificeOverlay(
-                animation: _ritualCtrl,
-                boss: boss,
-                mystic: _mystic,
-                species: _species,
-                placed: _placed,
+                  ],
+                ),
               ),
+            );
+          },
+        ),
+    ];
+  }
+
+  Widget _sprite(AltarRiteField f) {
+    final m = _mystic!;
+    if (m.spriteData == null) return const SizedBox();
+    final sheet = sheetFromCreature(m);
+    final r = f.mysticRect;
+    return Positioned.fromRect(
+      rect: r,
+      child: IgnorePointer(
+        child: ValueListenableBuilder<double>(
+          valueListenable: _clock,
+          builder: (context, _, child) {
+            var o = AltarRiteField.spriteOpacity(f.summon);
+            if (f.seal > 0) o *= 1 - (f.seal / 0.12).clamp(0.0, 1.0);
+            // Below a hair it is not painted, and the sheet can still load.
+            return Opacity(opacity: o.clamp(0.01, 1.0), child: child);
+          },
+          child: CreatureSprite(
+            spritePath: sheet.path,
+            totalFrames: sheet.totalFrames,
+            rows: sheet.rows,
+            frameSize: sheet.frameSize,
+            stepTime: sheet.stepTime,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _header() {
+    final ink = altarInk(_boss.element);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 20, 10),
+      child: Row(
+        children: [
+          BracketIconButton(
+            icon: AppIcons.chevron_left_rounded,
+            palette: altarPalette,
+            onTap: () => Navigator.of(context).maybePop(),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              '${_boss.element.toUpperCase()} ALTAR',
+              style: altarMono(11.5, AltarTone.parchmentDim, spacing: 2.8),
             ),
+          ),
+          Text(
+            _hasRelic ? _relicName.toUpperCase() : 'NO RELIC',
+            style: altarMono(
+              10.5,
+              _hasRelic ? ink : AltarTone.muted,
+              spacing: 1.6,
+            ),
+          ),
         ],
       ),
     );
   }
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TOP BAR
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TopBar extends StatelessWidget {
-  final AltarEntry boss;
-  final Creature? mystic;
-  final bool hasKey;
-  final String traitName;
-  const _TopBar({
-    required this.boss,
-    this.mystic,
-    required this.hasKey,
-    required this.traitName,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-      child: Row(
-        children: [
-          _BackBracketButton(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.pop(context);
-            },
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _panel(double bottomInset) {
+    final accent = altarAccent(_boss.element);
+    final total = _species.length;
+    final given = _givenCount;
+    final status = !_hasRelic
+        ? 'The $_relicName is not on the altar.'
+        : !_allGiven
+        ? 'Tap a seat to give one of each kind: $given of $total given. '
+              'What is given passes its potential to $_mysticName.'
+        : !_allWitnessed
+        ? 'Every offering is given. The rite needs all sixteen Mystics '
+              'awake: $_witnessesAwake of 16.'
+        : 'Every offering is given. The rite can be performed.';
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [Color(0xF2040307), Color(0x00040307)],
+          stops: [0.62, 1.0],
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(24, 14, 24, 16 + bottomInset),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  mystic?.name ?? boss.name,
-                  style: _display(context, 24, _C.ivory, letterSpacing: 0.4),
+                Expanded(
+                  child: Text(_mysticName, style: altarName(context, 30)),
                 ),
-                const SizedBox(height: 2),
                 Text(
-                  '${boss.element} mystic ritual',
-                  style: _display(
-                    context,
-                    13,
-                    _C.ivoryMuted,
-                    fontStyle: FontStyle.italic,
+                  '$given / $total',
+                  style: altarMono(
+                    12,
+                    _allGiven ? altarInk(_boss.element) : AltarTone.muted,
                   ),
                 ),
               ],
             ),
-          ),
-          _RelicStatusChip(boss: boss, hasKey: hasKey, traitName: traitName),
-        ],
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 40,
+              child: Text(
+                status,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: altarBody(context),
+              ),
+            ),
+            if (_isBloodBoss) ...[
+              const SizedBox(height: 10),
+              _WitnessRow(witnesses: _witnesses),
+            ],
+            const SizedBox(height: 14),
+            AltarHoldButton(
+              label: 'HOLD TO PERFORM THE RITE',
+              holdingLabel: 'THE RITE BEGINS',
+              accent: accent,
+              seconds: 1.6,
+              enabled: _canSummon,
+              onProgress: (v) => _field?.charge = v,
+              onComplete: _perform,
+            ),
+          ],
+        ),
       ),
     );
   }
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CAROUSEL ARENA  — ellipse turntable with mystic in the center
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _CarouselArena extends StatelessWidget {
-  final AltarEntry boss;
-  final Creature? mystic;
-  final List<Creature> species;
-  final Map<String, String?> placed;
-  final Animation<double> pulse;
-  final int selectedIndex;
-  final double Function(int) depthOf;
-  final double Function(int) angleOf;
-  final void Function(int) onTapSlot;
-
-  const _CarouselArena({
-    required this.boss,
-    required this.mystic,
-    required this.species,
-    required this.placed,
-    required this.pulse,
-    required this.selectedIndex,
-    required this.depthOf,
-    required this.angleOf,
-    required this.onTapSlot,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (_, box) {
-        final w = box.maxWidth;
-        final h = box.maxHeight;
-        final cx = w / 2;
-        final cy = h * 0.46;
-
-        // Ellipse radii
-        final rx = w * 0.36;
-        final ry = h * 0.22;
-
-        final n = species.length;
-
-        // Depth-sort so closer nodes paint on top
-        final sorted = List.generate(n, (i) => i)
-          ..sort((a, b) => depthOf(a).compareTo(depthOf(b)));
-
-        final filledCount = placed.values.where((v) => v != null).length;
-
-        return Stack(
-          clipBehavior: Clip.none,
+  /// The waking, named: what woke, how many now are, and where it went.
+  Widget _awakeCard(Rect stage, double bottomInset) {
+    final ink = altarInk(_boss.element);
+    final count = _awakeAfter.length;
+    return IgnorePointer(
+      ignoring: _rite != _Rite.awake,
+      child: AnimatedOpacity(
+        opacity: _rite == _Rite.awake ? 1 : 0,
+        duration: Duration(milliseconds: _rite == _Rite.awake ? 900 : 300),
+        child: Column(
           children: [
-            // Orbit track + progress arc
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: pulse,
-                builder: (_, __) => CustomPaint(
-                  painter: _TrackPainter(
-                    color: boss.elementColor,
-                    cx: cx,
-                    cy: cy,
-                    rx: rx,
-                    ry: ry,
-                    pulse: pulse.value,
-                    placedCount: filledCount,
-                    total: n,
-                  ),
-                ),
-              ),
+            SizedBox(height: stage.top - 6),
+            Text(
+              _firstAwakening ? 'MYSTIC AWAKENED' : 'MYSTIC SUMMONED',
+              textAlign: TextAlign.center,
+              style: altarMono(12, ink, spacing: 4.2),
             ),
-
-            // Creature slot nodes
-            for (final i in sorted) _buildNode(i, cx, cy, rx, ry),
-
-            // Center mystic
-            Positioned(
-              left: cx - 54,
-              top: cy - 54,
-              child: AnimatedBuilder(
-                animation: pulse,
-                builder: (_, __) => _CenterMystic(
-                  mystic: mystic,
-                  boss: boss,
-                  pulse: pulse.value,
-                  size: 108,
-                ),
+            const Spacer(),
+            Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 16 + bottomInset),
+              child: Column(
+                children: [
+                  Text(
+                    _mysticName,
+                    textAlign: TextAlign.center,
+                    style: altarName(context, 40),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_boss.element.toUpperCase()} MYSTIC',
+                    style: altarMono(10.5, AltarTone.parchmentDim, spacing: 3),
+                  ),
+                  if (_firstAwakening) ...[
+                    const SizedBox(height: 18),
+                    _AwakeDots(awake: _awakeAfter, current: _boss.id),
+                    const SizedBox(height: 8),
+                    Text(
+                      '$count OF 17 AWAKE',
+                      style: altarMono(10.5, AltarTone.gold, spacing: 2.4),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Text(
+                    _inChamber
+                        ? 'Sealed as a cultivation in your Chamber. It is ready in an hour.'
+                        : 'Your Chamber is full, so its cultivation waits in Cold Storage. It cultivates for an hour.',
+                    textAlign: TextAlign.center,
+                    style: altarBody(context),
+                  ),
+                  const SizedBox(height: 18),
+                  BracketButton(
+                    label: 'SEAL AND DEPART',
+                    palette: altarPalette,
+                    accent: altarAccent(_boss.element),
+                    height: 50,
+                    onTap: _depart,
+                  ),
+                ],
               ),
             ),
           ],
-        );
-      },
-    );
-  }
-
-  Widget _buildNode(int i, double cx, double cy, double rx, double ry) {
-    final angle = angleOf(i);
-    final depth = depthOf(i);
-    final x = cx + rx * math.sin(angle);
-    final y = cy + ry * math.cos(angle);
-    final scale = 0.50 + 0.50 * depth;
-    final opacity = (0.20 + 0.80 * depth).clamp(0.0, 1.0);
-    const base = 64.0;
-    final nodeSize = base * scale;
-    final isSel = i == selectedIndex;
-    final isFilled = placed[species[i].id] != null;
-
-    return Positioned(
-      left: x - nodeSize / 2,
-      top: y - nodeSize / 2,
-      child: GestureDetector(
-        onTap: () => onTapSlot(i),
-        child: AnimatedBuilder(
-          animation: pulse,
-          builder: (_, __) => Opacity(
-            opacity: opacity,
-            child: _SlotNode(
-              key: ValueKey(species[i].id),
-              species: species[i],
-              size: nodeSize,
-              isFilled: isFilled,
-              isSelected: isSel,
-              elColor: boss.elementColor,
-              pulse: pulse.value,
-            ),
-          ),
         ),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SLOT NODE
-// ─────────────────────────────────────────────────────────────────────────────
+class _RitePainter extends CustomPainter {
+  _RitePainter(this.field, this.stage, {required super.repaint});
 
-class _SlotNode extends StatefulWidget {
-  final Creature species;
-  final double size, pulse;
-  final bool isFilled, isSelected;
-  final Color elColor;
-
-  const _SlotNode({
-    super.key,
-    required this.species,
-    required this.size,
-    required this.pulse,
-    required this.isFilled,
-    required this.isSelected,
-    required this.elColor,
-  });
+  final AltarRiteField field;
+  final Rect stage;
 
   @override
-  State<_SlotNode> createState() => _SlotNodeState();
+  void paint(Canvas canvas, Size size) => field.paint(canvas, size, stage);
+
+  @override
+  bool shouldRepaint(_RitePainter old) =>
+      old.field != field || old.stage != stage;
 }
 
-class _SlotNodeState extends State<_SlotNode>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _placeCtrl;
+/// Blood's witnesses: the sixteen, each a bead of its element, lit once its
+/// Mystic is awake.
+class _WitnessRow extends StatelessWidget {
+  const _WitnessRow({required this.witnesses});
 
-  @override
-  void initState() {
-    super.initState();
-    _placeCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-  }
-
-  @override
-  void didUpdateWidget(_SlotNode old) {
-    super.didUpdateWidget(old);
-    if (!old.isFilled && widget.isFilled) {
-      _placeCtrl.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _placeCtrl.dispose();
-    super.dispose();
-  }
+  final List<_Witness> witnesses;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _placeCtrl,
-      builder: (_, __) => _buildContent(_placeCtrl.value),
-    );
-  }
-
-  Widget _buildContent(double t) {
-    // t = 0..1 over 900ms; drives the placement burst
-    final scale = 1.0 + 0.28 * math.sin(t * math.pi);
-    final ringScale1 = 1.0 + t * 2.0;
-    final ringOpacity1 = widget.isFilled ? (1.0 - t).clamp(0.0, 1.0) : 0.0;
-    final t2 = ((t - 0.15) / 0.85).clamp(0.0, 1.0);
-    final ringScale2 = 1.0 + t2 * 1.6;
-    final ringOpacity2 = widget.isFilled
-        ? (1.0 - t2).clamp(0.0, 1.0) * 0.55
-        : 0.0;
-
-    return Stack(
-      alignment: Alignment.center,
-      clipBehavior: Clip.none,
+    final awake = witnesses.where((w) => w.awake).length;
+    return Row(
       children: [
-        // ── Burst ring 1 (placement animation) ──────────────────────────
-        if (ringOpacity1 > 0.01)
-          Transform.scale(
-            scale: ringScale1,
-            child: Container(
-              width: widget.size,
-              height: widget.size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: widget.elColor.withValues(alpha: ringOpacity1 * 0.90),
-                  width: 2.5,
-                ),
-              ),
-            ),
-          ),
-
-        // ── Burst ring 2 (delayed) ───────────────────────────────────────
-        if (ringOpacity2 > 0.01)
-          Transform.scale(
-            scale: ringScale2,
-            child: Container(
-              width: widget.size,
-              height: widget.size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: widget.elColor.withValues(alpha: ringOpacity2),
-                  width: 1.5,
-                ),
-              ),
-            ),
-          ),
-
-        // ── Main disc (scale pops on placement) ─────────────────────────
-        Transform.scale(
-          scale: scale,
-          child: Container(
-            width: widget.size,
-            height: widget.size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: (widget.isFilled || widget.isSelected)
-                  ? RadialGradient(
-                      colors: [
-                        widget.elColor.withValues(
-                          alpha: widget.isFilled ? 0.22 : 0.12,
-                        ),
-                        Colors.transparent,
-                      ],
-                    )
-                  : null,
-              color: (widget.isFilled || widget.isSelected)
-                  ? null
-                  : Colors.white.withValues(alpha: 0.03),
-              border: Border.all(
-                color: _C.ivoryDim.withValues(
-                  alpha: widget.isFilled
-                      ? 0.80
-                      : widget.isSelected
-                      ? 0.55
-                      : 0.25,
-                ),
-                width: widget.isFilled
-                    ? 1.6
-                    : widget.isSelected
-                    ? 1.4
-                    : 0.8,
-              ),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: widget.isFilled
-                // Full-color lit image
-                ? Image.asset(
-                    'assets/images/${widget.species.image}',
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Icon(
-                      AppIcons.auto_awesome,
-                      color: widget.elColor,
-                      size: widget.size * 0.42,
-                    ),
-                  )
-                // Dark element-tinted silhouette
-                : ColorFiltered(
-                    colorFilter: ColorFilter.mode(
-                      Color.lerp(
-                        const Color(0xFF06090F),
-                        widget.elColor,
-                        widget.isSelected ? 0.22 : 0.14,
-                      )!,
-                      BlendMode.srcIn,
-                    ),
-                    child: Opacity(
-                      opacity: widget.isSelected ? 0.68 : 0.42,
-                      child: Image.asset(
-                        'assets/images/${widget.species.image}',
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => Icon(
-                          AppIcons.auto_awesome,
-                          color: widget.elColor.withValues(alpha: 0.35),
-                          size: widget.size * 0.42,
-                        ),
-                      ),
+        Text('WITNESSES', style: altarMono(9.5, AltarTone.muted, spacing: 2)),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Wrap(
+            spacing: 5,
+            runSpacing: 5,
+            children: [
+              for (final w in witnesses)
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: w.awake
+                        ? altarAccent(w.entry.element)
+                        : const Color(0xFF231E2E),
+                    border: Border.all(
+                      color: w.awake
+                          ? altarRamp(w.entry.element)[3].withValues(alpha: 0.6)
+                          : AltarTone.ash.withValues(alpha: 0.5),
+                      width: 0.8,
                     ),
                   ),
+                ),
+            ],
           ),
         ),
-
-        // ── Filled check badge ───────────────────────────────────────────
-        if (widget.isFilled)
-          Positioned(
-            right: -1,
-            top: -1,
-            child: Container(
-              width: widget.size * 0.30,
-              height: widget.size * 0.30,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _C.success,
-                border: Border.all(color: _C.bg, width: 1.5),
-              ),
-              child: Icon(
-                AppIcons.check_rounded,
-                color: Colors.white,
-                size: widget.size * 0.14,
-              ),
-            ),
-          ),
-
-        // ── "Tap to place" badge when selected + empty ───────────────────
-        if (widget.isSelected && !widget.isFilled)
-          Positioned(
-            right: -1,
-            top: -1,
-            child: Container(
-              width: widget.size * 0.30,
-              height: widget.size * 0.30,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: widget.elColor,
-                border: Border.all(color: _C.bg, width: 1.5),
-              ),
-              child: Icon(
-                AppIcons.add_rounded,
-                color: Colors.white,
-                size: widget.size * 0.15,
-              ),
-            ),
-          ),
-
-        // ── Name label ───────────────────────────────────────────────────
-        Positioned(
-          bottom: -19,
-          child: SizedBox(
-            width: 76,
-            child: Text(
-              widget.species.name,
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: widget.isFilled
-                    ? _C.ivory
-                    : (widget.isSelected
-                          ? _C.ivory.withValues(alpha: 0.78)
-                          : _C.ivoryMuted),
-                fontSize: 12,
-                fontWeight: widget.isFilled ? FontWeight.w700 : FontWeight.w600,
-                letterSpacing: 0.4,
-              ),
-            ),
-          ),
+        Text(
+          '$awake / 16',
+          style: altarMono(11, awake >= 16 ? AltarTone.blood : AltarTone.muted),
         ),
       ],
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CENTER MYSTIC
-// ─────────────────────────────────────────────────────────────────────────────
+/// The seventeen, in altar order: the awake ones lit in their element, the
+/// one just woken brightest.
+class _AwakeDots extends StatelessWidget {
+  const _AwakeDots({required this.awake, required this.current});
 
-class _CenterMystic extends StatelessWidget {
-  final Creature? mystic;
-  final AltarEntry boss;
-  final double pulse, size;
-  const _CenterMystic({
-    required this.mystic,
-    required this.boss,
-    required this.pulse,
-    required this.size,
-  });
+  final Set<String> awake;
+  final String current;
 
   @override
   Widget build(BuildContext context) {
-    final elColor = boss.elementColor;
-    final sheet = mystic?.spriteData != null
-        ? sheetFromCreature(mystic!)
-        : null;
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: size + 16,
-            height: size + 16,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: _C.ivoryDim.withValues(alpha: 0.20),
-                width: 1.0,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (final e in kAltarEntries)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: Container(
+              width: e.id == current ? 11 : 8,
+              height: e.id == current ? 11 : 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: awake.contains(e.id)
+                    ? altarAccent(e.element)
+                    : const Color(0xFF231E2E),
+                border: Border.all(
+                  color: e.id == current
+                      ? AltarTone.parchment
+                      : awake.contains(e.id)
+                      ? altarRamp(e.element)[3].withValues(alpha: 0.5)
+                      : AltarTone.ash.withValues(alpha: 0.45),
+                  width: e.id == current ? 1.4 : 0.8,
+                ),
               ),
             ),
           ),
-          Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [elColor.withValues(alpha: 0.18), Colors.transparent],
-              ),
-              border: Border.all(
-                color: _C.ivoryDim.withValues(alpha: 0.65),
-                width: 1.2,
-              ),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: sheet != null
-                ? Center(
-                    child: SizedBox.square(
-                      dimension: size * 0.90,
-                      child: FittedBox(
-                        fit: BoxFit.contain,
-                        child: SizedBox.square(
-                          dimension: 69,
-                          child: CreatureSprite(
-                            spritePath: sheet.path,
-                            totalFrames: sheet.totalFrames,
-                            rows: sheet.rows,
-                            frameSize: sheet.frameSize,
-                            stepTime: sheet.stepTime,
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
-                : Icon(boss.elementIcon, color: elColor, size: size * 0.48),
-          ),
-          Positioned(
-            bottom: -22,
-            child: Text(
-              mystic?.name.toUpperCase() ?? 'MYSTIC',
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: _C.ivory.withValues(alpha: 0.78),
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RITUAL SACRIFICE OVERLAY
+// THE OFFERING SHEET
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _RitualSacrificeOverlay extends StatelessWidget {
-  const _RitualSacrificeOverlay({
-    required this.animation,
-    required this.boss,
-    required this.mystic,
+/// Choose which specimen to give, then hold to give it. Best potential first:
+/// the Mystic takes the average of what it is given.
+class _OfferingSheet extends StatefulWidget {
+  const _OfferingSheet({
     required this.species,
-    required this.placed,
-  });
-
-  final Animation<double> animation;
-  final AltarEntry boss;
-  final Creature? mystic;
-  final List<Creature> species;
-  final Map<String, String?> placed;
-
-  @override
-  Widget build(BuildContext context) {
-    final offerings = species.where((s) => placed[s.id] != null).toList();
-    final elColor = boss.elementColor;
-
-    return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: animation,
-        builder: (_, __) {
-          final t = Curves.easeInOutCubic.transform(animation.value);
-          final collapse = _ritualInterval(animation.value, 0.24, 0.74);
-          final vanish = _ritualInterval(animation.value, 0.50, 0.86);
-          final flash = _ritualInterval(animation.value, 0.70, 0.92);
-
-          return LayoutBuilder(
-            builder: (_, box) {
-              final w = box.maxWidth;
-              final h = box.maxHeight;
-              final cx = w / 2;
-              final cy = h * 0.48;
-              final rx = w * (0.38 - collapse * 0.30);
-              final ry = h * (0.20 - collapse * 0.17);
-              final spin = animation.value * math.pi * 7.5;
-              final n = math.max(offerings.length, 1);
-
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.54 + t * 0.42),
-                      ),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _RitualSacrificePainter(
-                        progress: animation.value,
-                        color: elColor,
-                      ),
-                    ),
-                  ),
-                  for (var i = 0; i < offerings.length; i++)
-                    _OfferingRitualSprite(
-                      species: offerings[i],
-                      left:
-                          cx + rx * math.sin((i / n) * math.pi * 2 + spin) - 34,
-                      top:
-                          cy + ry * math.cos((i / n) * math.pi * 2 + spin) - 34,
-                      size: 68,
-                      opacity: (1 - vanish).clamp(0.0, 1.0),
-                      scale:
-                          1.0 +
-                          math.sin(animation.value * math.pi * 18) * 0.07 -
-                          collapse * 0.34,
-                      color: elColor,
-                    ),
-                  Positioned(
-                    left: cx - 48 - flash * 16,
-                    top: cy - 48 - flash * 16,
-                    child: Transform.scale(
-                      scale: 1.0 + flash * 0.55,
-                      child: Opacity(
-                        opacity: (0.35 + flash * 0.65).clamp(0.0, 1.0),
-                        child: _RitualMysticCore(
-                          mystic: mystic,
-                          boss: boss,
-                          size: 96,
-                          progress: animation.value,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _OfferingRitualSprite extends StatelessWidget {
-  const _OfferingRitualSprite({
-    required this.species,
-    required this.left,
-    required this.top,
-    required this.size,
-    required this.opacity,
-    required this.scale,
-    required this.color,
-  });
-
-  final Creature species;
-  final double left;
-  final double top;
-  final double size;
-  final double opacity;
-  final double scale;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: left,
-      top: top,
-      child: Opacity(
-        opacity: opacity,
-        child: Transform.scale(
-          scale: scale.clamp(0.2, 1.35),
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF1A0507).withValues(alpha: 0.74),
-              border: Border.all(
-                color: color.withValues(alpha: 0.78),
-                width: 1.4,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF8A0F16).withValues(alpha: 0.28),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: ColorFiltered(
-              colorFilter: ColorFilter.mode(
-                const Color(0xFFB91C1C).withValues(alpha: 0.30),
-                BlendMode.srcATop,
-              ),
-              child: Image.asset(
-                'assets/images/${species.image}',
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => Icon(
-                  AppIcons.auto_awesome,
-                  color: color,
-                  size: size * 0.42,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RitualMysticCore extends StatelessWidget {
-  const _RitualMysticCore({
-    required this.mystic,
-    required this.boss,
-    required this.size,
-    required this.progress,
-  });
-
-  final Creature? mystic;
-  final AltarEntry boss;
-  final double size;
-  final double progress;
-
-  @override
-  Widget build(BuildContext context) {
-    final sheet = mystic?.spriteData != null
-        ? sheetFromCreature(mystic!)
-        : null;
-    final color = boss.elementColor;
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFF05020A).withValues(alpha: 0.84),
-        border: Border.all(
-          color: color.withValues(alpha: 0.62 + progress * 0.30),
-          width: 1.4,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.36 + progress * 0.24),
-            blurRadius: 34,
-            spreadRadius: 5,
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: sheet != null
-          ? FittedBox(
-              fit: BoxFit.contain,
-              child: SizedBox.square(
-                dimension: 69,
-                child: CreatureSprite(
-                  spritePath: sheet.path,
-                  totalFrames: sheet.totalFrames,
-                  rows: sheet.rows,
-                  frameSize: sheet.frameSize,
-                  stepTime: sheet.stepTime,
-                ),
-              ),
-            )
-          : Icon(boss.elementIcon, color: color, size: size * 0.46),
-    );
-  }
-}
-
-class _RitualSacrificePainter extends CustomPainter {
-  const _RitualSacrificePainter({required this.progress, required this.color});
-
-  final double progress;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height * 0.48);
-    final spin = progress * math.pi * 7.5;
-    final crack = _ritualInterval(progress, 0.02, 0.24);
-    final collapse = _ritualInterval(progress, 0.24, 0.74);
-    final burst = _ritualInterval(progress, 0.48, 0.80);
-    final fade = 1 - _ritualInterval(progress, 0.82, 1.0);
-    final stream = _ritualInterval(progress, 0.32, 0.98);
-    final radius = size.shortestSide * (0.33 - collapse * 0.24);
-
-    _paintAltarCracks(canvas, center, size, crack, spin);
-    _paintRisingWisps(canvas, size, stream, fade);
-
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    for (var i = 0; i < 4; i++) {
-      final r = radius + i * 18 + math.sin(progress * math.pi * 6 + i) * 4;
-      ringPaint
-        ..color = Color.lerp(
-          color,
-          const Color(0xFF8A0F16),
-          0.55,
-        )!.withValues(alpha: (0.22 + i * 0.06) * fade)
-        ..strokeWidth = 1.2 + i * 0.4;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: r.clamp(22.0, 260.0)),
-        spin + i * math.pi / 2,
-        math.pi * (0.95 + collapse * 0.8),
-        false,
-        ringPaint,
-      );
-    }
-
-    final beamPaint = Paint()
-      ..color = const Color(0xFFB91C1C).withValues(alpha: 0.16 * burst * fade)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-    for (var i = 0; i < 10; i++) {
-      final a = spin + i * math.pi * 2 / 10;
-      canvas.drawLine(
-        center,
-        center + Offset(math.cos(a), math.sin(a)) * (radius + burst * 120),
-        beamPaint,
-      );
-    }
-
-    final splatterPaint = Paint()..style = PaintingStyle.fill;
-    for (var i = 0; i < 42; i++) {
-      final seed = i * 12.9898;
-      final a = seed % (math.pi * 2) + spin * 0.18;
-      final d =
-          (24 + (i * 37 % 150).toDouble()) *
-          Curves.easeOutCubic.transform(burst);
-      final wobble = Offset(
-        math.sin(seed * 1.7) * 18,
-        math.cos(seed * 2.1) * 14,
-      );
-      final p = center + Offset(math.cos(a), math.sin(a)) * d + wobble;
-      final dot = 2.0 + (i % 5) * 1.3;
-      splatterPaint.color = Color.lerp(
-        const Color(0xFF5D0710),
-        const Color(0xFFE11D48),
-        (i % 7) / 7,
-      )!.withValues(alpha: (0.18 + (i % 4) * 0.06) * burst * fade);
-      canvas.drawCircle(p, dot * (0.6 + burst * 0.7), splatterPaint);
-
-      if (i % 6 == 0) {
-        final end = p + Offset(math.cos(a + 0.5), math.sin(a + 0.5)) * 16;
-        canvas.drawLine(
-          p,
-          end,
-          Paint()
-            ..color = splatterPaint.color.withValues(alpha: 0.35)
-            ..strokeWidth = 1.2
-            ..strokeCap = StrokeCap.round,
-        );
-      }
-    }
-
-    final flash = _ritualInterval(progress, 0.68, 0.90);
-    canvas.drawCircle(
-      center,
-      34 + flash * 140,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            color.withValues(alpha: 0.34 * flash * fade),
-            const Color(0xFFB91C1C).withValues(alpha: 0.18 * flash * fade),
-            Colors.transparent,
-          ],
-        ).createShader(Rect.fromCircle(center: center, radius: 180)),
-    );
-  }
-
-  void _paintAltarCracks(
-    Canvas canvas,
-    Offset center,
-    Size size,
-    double crack,
-    double spin,
-  ) {
-    if (crack <= 0) return;
-    final paint = Paint()
-      ..color = const Color(0xFF8A0F16).withValues(alpha: 0.34 * crack)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..strokeCap = StrokeCap.round;
-
-    for (var i = 0; i < 14; i++) {
-      final angle = spin * 0.08 + i * math.pi * 2 / 14;
-      final start = center + Offset(math.cos(angle), math.sin(angle)) * 34;
-      final length = (54 + (i % 5) * 24) * crack;
-      final path = Path()..moveTo(start.dx, start.dy);
-      var current = start;
-      for (var j = 0; j < 4; j++) {
-        final kink =
-            angle +
-            math.sin(i * 1.7 + j * 2.1) * 0.34 +
-            (j.isEven ? 0.18 : -0.12);
-        current +=
-            Offset(math.cos(kink), math.sin(kink)) *
-            (length / 4) *
-            (0.70 + j * 0.16);
-        path.lineTo(current.dx, current.dy);
-      }
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  void _paintRisingWisps(Canvas canvas, Size size, double stream, double fade) {
-    if (stream <= 0) return;
-    final paint = Paint()..style = PaintingStyle.stroke;
-    final blood = const Color(0xFF8A0F16);
-    final ember = Color.lerp(color, const Color(0xFFE8DFC8), 0.22) ?? color;
-
-    for (var i = 0; i < 24; i++) {
-      final lane = (i + 0.5) / 24;
-      final xBase = size.width * lane;
-      final rise = size.height * (0.12 + stream * (0.58 + (i % 5) * 0.045));
-      final yBase = size.height * (0.78 - stream * 0.34) + (i % 4) * 18;
-      final path = Path()..moveTo(xBase, yBase);
-
-      for (var j = 1; j <= 5; j++) {
-        final p = j / 5;
-        final wave =
-            math.sin(progress * math.pi * 5 + i * 0.81 + j * 0.9) *
-            (18 + (i % 4) * 4);
-        path.lineTo(xBase + wave * p, yBase - rise * p);
-      }
-
-      paint
-        ..color = Color.lerp(
-          blood,
-          ember,
-          (i % 6) / 6,
-        )!.withValues(alpha: (0.06 + (i % 4) * 0.025) * stream * fade)
-        ..strokeWidth = 0.8 + (i % 3) * 0.45;
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _RitualSacrificePainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.color != color;
-}
-
-double _ritualInterval(double value, double begin, double end) {
-  if (value <= begin) return 0;
-  if (value >= end) return 1;
-  return Curves.easeInOutCubic.transform((value - begin) / (end - begin));
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TRACK PAINTER  — orbit ellipse + progress arc
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TrackPainter extends CustomPainter {
-  final Color color;
-  final double cx, cy, rx, ry, pulse;
-  final int placedCount, total;
-
-  const _TrackPainter({
-    required this.color,
-    required this.cx,
-    required this.cy,
-    required this.rx,
-    required this.ry,
-    required this.pulse,
-    required this.placedCount,
-    required this.total,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Faint orbit ellipse
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy), width: rx * 2, height: ry * 2),
-      Paint()
-        ..color = color.withValues(alpha: 0.08)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8,
-    );
-
-    // Progress arc (drawn as a circular arc at the average radius)
-    final r = (rx + ry) / 2;
-    if (total > 0 && placedCount > 0) {
-      final fraction = placedCount / total;
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset(cx, cy), radius: r),
-        -math.pi / 2,
-        math.pi * 2 * fraction,
-        false,
-        Paint()
-          ..color = color.withValues(alpha: 0.35 + pulse * 0.25)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-
-    // Inner centre ring
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r * 0.44,
-      Paint()
-        ..color = color.withValues(alpha: 0.04 + pulse * 0.04)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.7,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_TrackPainter old) =>
-      old.pulse != pulse || old.placedCount != placedCount;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BOTTOM BAR
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _BottomBar extends StatelessWidget {
-  final int filled, total;
-  final bool canSummon, hasKey, allFilled, summoning, selectedFilled;
-  final List<_WitnessRequirement> witnesses;
-  final int witnessRemaining;
-  final String selectedName;
-  final Color elColor;
-  final Animation<double> pulse;
-  final VoidCallback onSummon;
-  final VoidCallback? onPlace, onPrev, onNext;
-
-  const _BottomBar({
-    required this.filled,
-    required this.total,
-    required this.canSummon,
-    required this.hasKey,
-    required this.allFilled,
-    required this.witnesses,
-    required this.witnessRemaining,
-    required this.summoning,
-    required this.selectedFilled,
-    required this.selectedName,
-    required this.elColor,
-    required this.pulse,
-    required this.onSummon,
-    required this.onPlace,
-    required this.onPrev,
-    required this.onNext,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        14,
-        16,
-        14,
-        MediaQuery.of(context).padding.bottom + 14,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [_C.bg.withValues(alpha: 0.95), _C.bg.withValues(alpha: 0.0)],
-        ),
-      ),
-      child: AnimatedBuilder(
-        animation: pulse,
-        builder: (_, __) => Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ── Pip progress track ───────────────────────────────────────
-            if (total > 0)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (int i = 0; i < total.clamp(0, 12); i++) ...[
-                      if (i > 0) const SizedBox(width: 3),
-                      Container(
-                        width: 28,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: i < filled
-                              ? _C.ivoryDim.withValues(alpha: 0.75)
-                              : _C.ivoryMuted.withValues(alpha: 0.20),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-
-            if (witnesses.isNotEmpty) ...[
-              _WitnessSection(witnesses: witnesses, pulse: pulse.value),
-              const SizedBox(height: 12),
-            ],
-
-            // ── Selected creature row: ‹ name › + place button ───────────
-            if (selectedName.isNotEmpty) ...[
-              Row(
-                children: [
-                  // Prev
-                  _NavBtn(icon: AppIcons.chevron_left_rounded, onTap: onPrev),
-                  const SizedBox(width: 8),
-                  // Place / filled button
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: context.soundAction(
-                        selectedFilled ? null : onPlace,
-                      ),
-                      child: _BracketActionButton(
-                        label: selectedFilled
-                            ? '$selectedName placed'
-                            : 'Place $selectedName',
-                        icon: selectedFilled
-                            ? AppIcons.check_circle_outline_rounded
-                            : AppIcons.add_circle_outline_rounded,
-                        color: selectedFilled ? _C.success : elColor,
-                        enabled: !selectedFilled,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Next
-                  _NavBtn(icon: AppIcons.chevron_right_rounded, onTap: onNext),
-                ],
-              ),
-              const SizedBox(height: 10),
-            ],
-
-            // ── Summon button ────────────────────────────────────────────
-            if (!hasKey || !allFilled || witnessRemaining > 0)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 7),
-                child: Text(
-                  !hasKey
-                      ? 'Relic required'
-                      : !allFilled
-                      ? '${total - filled} offering slots remain'
-                      : '$witnessRemaining witness${witnessRemaining == 1 ? '' : 'es'} remain',
-                  style: _body(
-                    context,
-                    12,
-                    _C.ivoryMuted,
-                    weight: FontWeight.w500,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ),
-
-            SizedBox(
-              width: double.infinity,
-              child: GestureDetector(
-                onTap: context.soundAction(
-                  canSummon
-                      ? () {
-                          HapticFeedback.mediumImpact();
-                          onSummon();
-                        }
-                      : null,
-                ),
-                child: Transform.scale(
-                  scale: canSummon ? 1.0 + pulse.value * 0.018 : 1.0,
-                  child: CustomPaint(
-                    painter: _CornerBracketPainter(
-                      color: (canSummon ? elColor : _C.ivoryMuted).withValues(
-                        alpha: canSummon ? 0.62 + pulse.value * 0.28 : 0.35,
-                      ),
-                      bracketSize: 12,
-                      strokeWidth: canSummon ? 1.2 : 1.1,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        color: canSummon
-                            ? elColor.withValues(
-                                alpha: 0.055 + pulse.value * 0.045,
-                              )
-                            : Colors.white.withValues(alpha: 0.03),
-                        boxShadow: canSummon
-                            ? [
-                                BoxShadow(
-                                  color: elColor.withValues(
-                                    alpha: 0.12 + pulse.value * 0.12,
-                                  ),
-                                  blurRadius: 18 + pulse.value * 12,
-                                  spreadRadius: 1 + pulse.value * 2,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Center(
-                        child: summoning
-                            ? SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  color: _C.ivory,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(
-                                'Perform ritual',
-                                style: _display(
-                                  context,
-                                  14,
-                                  canSummon ? _C.ivory : _C.ivoryMuted,
-                                  letterSpacing: 0.9,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WitnessSection extends StatelessWidget {
-  const _WitnessSection({required this.witnesses, required this.pulse});
-
-  final List<_WitnessRequirement> witnesses;
-  final double pulse;
-
-  @override
-  Widget build(BuildContext context) {
-    final completed = witnesses.where((w) => w.completed).length;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: _C.bg.withValues(alpha: 0.32),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _C.border, width: 0.7),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Witnesses  $completed / ${witnesses.length}',
-            style: _display(context, 13, _C.ivoryDim, letterSpacing: 0.8),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final witness in witnesses)
-                _WitnessChip(witness: witness, pulse: pulse),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WitnessChip extends StatelessWidget {
-  const _WitnessChip({required this.witness, required this.pulse});
-
-  final _WitnessRequirement witness;
-  final double pulse;
-
-  @override
-  Widget build(BuildContext context) {
-    final activeColor = witness.completed
-        ? witness.color.withValues(alpha: 0.24 + pulse * 0.06)
-        : _C.surface;
-    final borderColor = witness.completed
-        ? witness.color.withValues(alpha: 0.55 + pulse * 0.10)
-        : _C.muted.withValues(alpha: 0.24);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-      decoration: BoxDecoration(
-        color: activeColor,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: borderColor, width: 0.8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            witness.completed
-                ? AppIcons.check_circle_rounded
-                : AppIcons.radio_button_unchecked_rounded,
-            color: witness.completed ? witness.color : _C.muted,
-            size: 12,
-          ),
-          const SizedBox(width: 5),
-          Text(
-            witness.label.toUpperCase(),
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: witness.completed ? Colors.white : _C.sub,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NavBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-  const _NavBtn({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: context.soundAction(onTap),
-    child: SizedBox(
-      width: 40,
-      height: 40,
-      child: CustomPaint(
-        painter: _CornerBracketPainter(
-          color: _C.ivoryDim.withValues(alpha: onTap != null ? 0.42 : 0.18),
-          bracketSize: 8,
-          strokeWidth: 1.0,
-        ),
-        child: Icon(
-          icon,
-          color: _C.ivory.withValues(alpha: onTap != null ? 0.85 : 0.25),
-          size: 22,
-        ),
-      ),
-    ),
-  );
-}
-
-class _BackBracketButton extends StatelessWidget {
-  const _BackBracketButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: SizedBox(
-        width: 40,
-        height: 40,
-        child: CustomPaint(
-          painter: _CornerBracketPainter(
-            color: _C.ivoryMuted.withValues(alpha: 0.4),
-            bracketSize: 8,
-            strokeWidth: 1.0,
-          ),
-          child: const Icon(
-            AppIcons.chevron_left_rounded,
-            color: _C.ivoryDim,
-            size: 22,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RelicStatusChip extends StatelessWidget {
-  const _RelicStatusChip({
-    required this.boss,
-    required this.hasKey,
-    required this.traitName,
-  });
-
-  final AltarEntry boss;
-  final bool hasKey;
-  final String traitName;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _CornerBracketPainter(
-        color: _C.ivoryDim.withValues(alpha: hasKey ? 0.52 : 0.28),
-        bracketSize: 8,
-        strokeWidth: 1.0,
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        color: Colors.white.withValues(alpha: 0.03),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            hasKey
-                ? SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: Image.asset(
-                      boss.relicImagePath,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        AppIcons.key_rounded,
-                        color: _C.success,
-                        size: 12,
-                      ),
-                    ),
-                  )
-                : const Icon(
-                    AppIcons.lock_outline_rounded,
-                    color: _C.danger,
-                    size: 12,
-                  ),
-            const SizedBox(width: 6),
-            Text(
-              hasKey ? traitName : 'Relic missing',
-              style: _display(
-                context,
-                12,
-                _C.ivory.withValues(alpha: hasKey ? 0.95 : 0.55),
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BracketActionButton extends StatelessWidget {
-  const _BracketActionButton({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.enabled,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color color;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _CornerBracketPainter(
-        color: color.withValues(alpha: enabled ? 0.62 : 0.42),
-        bracketSize: 10,
-        strokeWidth: 1.1,
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 12),
-        color: Colors.white.withValues(alpha: 0.03),
-        child: Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 15),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _display(context, 13, color, letterSpacing: 0.4),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CornerBracketPainter extends CustomPainter {
-  const _CornerBracketPainter({
-    required this.color,
-    required this.bracketSize,
-    required this.strokeWidth,
-  });
-
-  final Color color;
-  final double bracketSize;
-  final double strokeWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-    final s = bracketSize;
-    final w = size.width;
-    final h = size.height;
-    final path = Path()
-      ..moveTo(0, s)
-      ..lineTo(0, 0)
-      ..lineTo(s, 0)
-      ..moveTo(w - s, 0)
-      ..lineTo(w, 0)
-      ..lineTo(w, s)
-      ..moveTo(0, h - s)
-      ..lineTo(0, h)
-      ..lineTo(s, h)
-      ..moveTo(w - s, h)
-      ..lineTo(w, h)
-      ..lineTo(w, h - s);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _CornerBracketPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.bracketSize != bracketSize ||
-      oldDelegate.strokeWidth != strokeWidth;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// INSTANCE PICKER SHEET
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _InstancePickerSheet extends StatelessWidget {
-  final Creature species;
-  final List<CreatureInstance> instances;
-  final Color elColor;
-  const _InstancePickerSheet({
-    required this.species,
+    required this.title,
     required this.instances,
-    required this.elColor,
+    required this.element,
+    required this.mysticName,
   });
+
+  final Creature species;
+  final String title;
+  final List<CreatureInstance> instances;
+  final String element;
+  final String mysticName;
+
+  @override
+  State<_OfferingSheet> createState() => _OfferingSheetState();
+}
+
+class _OfferingSheetState extends State<_OfferingSheet> {
+  CreatureInstance? _chosen;
 
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    final maxHeight = media.size.height * 0.68;
-    final sheetHeight = math.min(maxHeight, 154 + instances.length * 86.0);
-
-    return SafeArea(
-      top: false,
-      child: SizedBox(
-        height: sheetHeight,
-        child: _RitualDialogSurface(
-          accent: elColor,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              18,
-              16,
-              18,
-              math.max(14, media.padding.bottom + 10),
+    final accent = altarAccent(widget.element);
+    final chosen = _chosen;
+    final listH = math.min(
+      media.size.height * 0.46,
+      widget.instances.length * 78.0,
+    );
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: accent.withValues(alpha: 0.7),
+        bracketSize: 16,
+        strokeWidth: 1.2,
+      ),
+      child: Container(
+        color: const Color(0xFA0B0812),
+        padding: EdgeInsets.fromLTRB(20, 18, 20, 16 + media.padding.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'AN OFFERING',
+              style: altarMono(10.5, altarInk(widget.element), spacing: 2.4),
             ),
-            child: Column(
-              children: [
-                Container(
-                  width: 38,
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: _C.ivoryMuted.withValues(alpha: 0.56),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _SheetSpeciesMark(species: species, color: elColor),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Select ${species.name}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: _display(
-                              context,
-                              16,
-                              _C.ivory,
-                              weight: FontWeight.w600,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Choose the specimen to commit.',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: _body(
-                              context,
-                              12,
-                              _C.ivoryMuted,
-                              height: 1.2,
-                              letterSpacing: 0.1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: ListView.separated(
-                    padding: EdgeInsets.zero,
-                    itemCount: instances.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 9),
-                    itemBuilder: (ctx, i) {
-                      final inst = instances[i];
-                      return _SpecimenPickTile(
-                        species: species,
-                        instance: inst,
-                        color: elColor,
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          Navigator.pop(context, inst);
-                        },
-                      );
+            const SizedBox(height: 4),
+            Text(widget.title, style: altarName(context, 24)),
+            const SizedBox(height: 6),
+            Text(
+              'The one you give leaves your collection for good. '
+              '${widget.mysticName} takes the average potential of its '
+              'offerings, and their most common nature.',
+              style: altarBody(context, size: 12.5),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              height: listH,
+              child: ListView.separated(
+                padding: EdgeInsets.zero,
+                itemCount: widget.instances.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, i) {
+                  final inst = widget.instances[i];
+                  return _SpecimenTile(
+                    species: widget.species,
+                    instance: inst,
+                    accent: accent,
+                    chosen: identical(inst, chosen),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _chosen = inst);
                     },
-                  ),
-                ),
-              ],
+                  );
+                },
+              ),
             ),
-          ),
+            const SizedBox(height: 14),
+            AltarHoldButton(
+              label: chosen == null
+                  ? 'CHOOSE ONE TO GIVE'
+                  : 'HOLD TO GIVE ${(chosen.nickname ?? widget.species.name).toUpperCase()}',
+              holdingLabel: 'GIVING',
+              accent: accent,
+              seconds: 1.0,
+              enabled: chosen != null,
+              onComplete: () => Navigator.of(context).pop(chosen),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _SheetSpeciesMark extends StatelessWidget {
-  const _SheetSpeciesMark({required this.species, required this.color});
-
-  final Creature species;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 42,
-      height: 42,
-      child: CustomPaint(
-        painter: _CornerBracketPainter(
-          color: color.withValues(alpha: 0.50),
-          bracketSize: 8,
-          strokeWidth: 1.0,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Image.asset(
-            'assets/images/${species.image}',
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) =>
-                Icon(AppIcons.catching_pokemon_rounded, color: color, size: 20),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SpecimenPickTile extends StatelessWidget {
-  const _SpecimenPickTile({
+class _SpecimenTile extends StatelessWidget {
+  const _SpecimenTile({
     required this.species,
     required this.instance,
-    required this.color,
+    required this.accent,
+    required this.chosen,
     required this.onTap,
   });
 
   final Creature species;
   final CreatureInstance instance;
-  final Color color;
+  final Color accent;
+  final bool chosen;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final nature = instance.natureId;
+    final pots = [
+      ('SPD', instance.statSpeedPotential),
+      ('INT', instance.statIntelligencePotential),
+      ('STR', instance.statStrengthPotential),
+      ('BEA', instance.statBeautyPotential),
+    ];
     return GestureDetector(
-      onTap: context.soundAction(onTap),
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
       child: CustomPaint(
-        painter: _CornerBracketPainter(
-          color: color.withValues(alpha: 0.26),
-          bracketSize: 10,
-          strokeWidth: 0.9,
+        foregroundPainter: BracketFramePainter(
+          color: chosen ? accent : altarPalette.line.withValues(alpha: 0.6),
+          bracketSize: 9,
+          strokeWidth: chosen ? 1.3 : 1,
         ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(11),
-              color: Colors.black.withValues(alpha: 0.18),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.07),
-                      border: Border.all(
-                        color: color.withValues(alpha: 0.16),
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Image.asset(
-                        'assets/images/${species.image}',
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => Icon(
-                          AppIcons.catching_pokemon_rounded,
-                          color: color.withValues(alpha: 0.64),
-                          size: 24,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          instance.nickname ?? species.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: _display(
-                            context,
-                            14,
-                            _C.ivory,
-                            weight: FontWeight.w600,
-                            letterSpacing: 0.1,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          'Lv ${instance.level} · ${species.rarity}',
-                          style: _body(
-                            context,
-                            12,
-                            _C.ivoryMuted,
-                            height: 1.2,
-                            letterSpacing: 0.1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  CustomPaint(
-                    painter: _CornerBracketPainter(
-                      color: color.withValues(alpha: 0.54),
-                      bracketSize: 7,
-                      strokeWidth: 0.9,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
-                      ),
-                      child: Text(
-                        'Select',
-                        style: TextStyle(
-                          fontFamily: appFontFamily(context),
-                          color: color,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GAME DIALOG
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _GameDialog extends StatelessWidget {
-  final Color elColor, iconColor;
-  final IconData icon;
-  final String title, body, cancelLabel, confirmLabel;
-  final VoidCallback onCancel, onConfirm;
-
-  const _GameDialog({
-    required this.elColor,
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.body,
-    required this.cancelLabel,
-    required this.confirmLabel,
-    required this.onCancel,
-    required this.onConfirm,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-      backgroundColor: Colors.transparent,
-      child: _RitualDialogSurface(
-        accent: elColor,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: Container(
+          height: 70,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          color: chosen
+              ? accent.withValues(alpha: 0.1)
+              : altarPalette.surfaceMutedFill(),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  _DialogSigil(icon: icon, color: iconColor),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _sentenceCase(title),
-                      style: _display(
-                        context,
-                        15,
-                        _C.ivory,
-                        weight: FontWeight.w600,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                body,
-                style: _body(
-                  context,
-                  13,
-                  _C.ivoryDim,
-                  height: 1.55,
-                  letterSpacing: 0.1,
+              SizedBox(
+                width: 50,
+                height: 50,
+                child: Image.asset(
+                  'assets/images/${species.image}',
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => const SizedBox(),
                 ),
               ),
-              const SizedBox(height: 22),
-              Row(
-                children: [
-                  Expanded(
-                    child: _Btn(
-                      label: cancelLabel,
-                      color: _C.ivoryMuted,
-                      onTap: context.soundTap(onCancel),
-                      primary: false,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      instance.nickname ?? species.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: altarBody(
+                        context,
+                        color: AltarTone.parchment,
+                        size: 14,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _Btn(
-                      label: confirmLabel,
-                      color: elColor,
-                      onTap: context.soundTap(onConfirm),
-                      primary: true,
+                    Text(
+                      'LV ${instance.level}${nature == null ? '' : '  ·  ${nature.toUpperCase()}'}',
+                      style: altarMono(9.5, AltarTone.muted, spacing: 1.4),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              for (final (label, v) in pots)
+                SizedBox(
+                  width: 36,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        v.round().toString(),
+                        style: altarMono(
+                          13,
+                          v >= 80
+                              ? AltarTone.gold
+                              : AltarTone.parchment.withValues(alpha: 0.9),
+                          spacing: 0.5,
+                        ),
+                      ),
+                      Text(
+                        label,
+                        style: altarMono(
+                          7.5,
+                          AltarTone.muted,
+                          spacing: 1,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
@@ -2705,330 +1302,3 @@ class _GameDialog extends StatelessWidget {
     );
   }
 }
-
-class _RitualDialogSurface extends StatelessWidget {
-  const _RitualDialogSurface({required this.accent, required this.child});
-
-  final Color accent;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _CornerBracketPainter(
-        color: accent.withValues(alpha: 0.66),
-        bracketSize: 18,
-        strokeWidth: 1.2,
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0B0D14).withValues(alpha: 0.98),
-          border: Border(
-            top: BorderSide(color: accent.withValues(alpha: 0.42), width: 1),
-            bottom: BorderSide(color: accent.withValues(alpha: 0.24), width: 1),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.45),
-              blurRadius: 30,
-              offset: const Offset(0, 18),
-            ),
-            BoxShadow(
-              color: accent.withValues(alpha: 0.10),
-              blurRadius: 40,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: child,
-      ),
-    );
-  }
-}
-
-class _DialogSigil extends StatelessWidget {
-  const _DialogSigil({required this.icon, required this.color});
-
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 34,
-      height: 34,
-      child: CustomPaint(
-        painter: _CornerBracketPainter(
-          color: color.withValues(alpha: 0.54),
-          bracketSize: 7,
-          strokeWidth: 1.0,
-        ),
-        child: Icon(icon, color: color.withValues(alpha: 0.90), size: 18),
-      ),
-    );
-  }
-}
-
-class _Btn extends StatelessWidget {
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  final bool primary;
-  const _Btn({
-    required this.label,
-    required this.color,
-    required this.onTap,
-    this.primary = true,
-  });
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: context.soundAction(() {
-      HapticFeedback.lightImpact();
-      onTap();
-    }),
-    child: CustomPaint(
-      painter: _CornerBracketPainter(
-        color: color.withValues(alpha: primary ? 0.72 : 0.34),
-        bracketSize: 9,
-        strokeWidth: 1.0,
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-        color: primary
-            ? color.withValues(alpha: 0.10)
-            : Colors.white.withValues(alpha: 0.025),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: primary ? color : _C.ivoryDim,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.4,
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SUCCESS DIALOG
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SuccessDialog extends StatefulWidget {
-  final AltarEntry boss;
-  final Creature species;
-  final VoidCallback onClose;
-  const _SuccessDialog({
-    required this.boss,
-    required this.species,
-    required this.onClose,
-  });
-
-  @override
-  State<_SuccessDialog> createState() => _SuccessDialogState();
-}
-
-class _SuccessDialogState extends State<_SuccessDialog>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..forward();
-    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final el = widget.boss.elementColor;
-    final sheet = widget.species.spriteData != null
-        ? sheetFromCreature(widget.species)
-        : null;
-
-    return FadeTransition(
-      opacity: _anim,
-      child: Dialog(
-        elevation: 0,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-        backgroundColor: Colors.transparent,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.96, end: 1).animate(_anim),
-          child: _RitualDialogSurface(
-            accent: el,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      _DialogMysticPreview(
-                        sheet: sheet,
-                        fallbackIcon: widget.boss.elementIcon,
-                        color: el,
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Ritual complete',
-                              style: _display(
-                                context,
-                                18,
-                                _C.ivory,
-                                weight: FontWeight.w600,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '${widget.species.name} awaits extraction',
-                              style: _body(
-                                context,
-                                12,
-                                _C.ivoryMuted,
-                                height: 1.25,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.025),
-                      border: Border(
-                        left: BorderSide(
-                          color: el.withValues(alpha: 0.66),
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          AppIcons.science_outlined,
-                          color: el.withValues(alpha: 0.7),
-                          size: 18,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'A Mystic Vial awaits in your Chamber, or Cold Storage if the Chamber was full. Cultivation: 1 hour.',
-                            style: _body(
-                              context,
-                              12,
-                              _C.ivoryDim,
-                              height: 1.45,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _Btn(label: 'DEPART', color: el, onTap: widget.onClose),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DialogMysticPreview extends StatelessWidget {
-  const _DialogMysticPreview({
-    required this.sheet,
-    required this.fallbackIcon,
-    required this.color,
-  });
-
-  final SpriteSheetDef? sheet;
-  final IconData fallbackIcon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 66,
-      height: 66,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 66,
-            height: 66,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  color.withValues(alpha: 0.18),
-                  const Color(0xFF05060A).withValues(alpha: 0.92),
-                ],
-              ),
-              border: Border.all(color: color.withValues(alpha: 0.56)),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.24),
-                  blurRadius: 22,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-          ),
-          if (sheet != null)
-            FittedBox(
-              fit: BoxFit.contain,
-              child: SizedBox.square(
-                dimension: 69,
-                child: CreatureSprite(
-                  spritePath: sheet!.path,
-                  totalFrames: sheet!.totalFrames,
-                  rows: sheet!.rows,
-                  frameSize: sheet!.frameSize,
-                  stepTime: sheet!.stepTime,
-                ),
-              ),
-            )
-          else
-            Icon(fallbackIcon, color: color, size: 30),
-        ],
-      ),
-    );
-  }
-}
-
-String _sentenceCase(String value) {
-  final text = value.replaceAll('?', '').trim().toLowerCase();
-  if (text.isEmpty) return value;
-  return text[0].toUpperCase() + text.substring(1);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// EXTENSIONS
-// ─────────────────────────────────────────────────────────────────────────────

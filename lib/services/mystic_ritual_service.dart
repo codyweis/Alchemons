@@ -32,7 +32,8 @@ class MysticRitualService {
 
   /// Reward placement, consumed commitments, and witness record are atomic.
   /// A full chamber sends the vial to storage; it never purchases a slot.
-  Future<void> summon({
+  /// True when the vial went into a Chamber, false when to Cold Storage.
+  Future<bool> summon({
     required String bossId,
     required String element,
     required String targetSpeciesId,
@@ -91,5 +92,6 @@ class MysticRitualService {
       DateTime.now().toUtc().toIso8601String(),
     );
     await CampaignJournalService(db).record('mystic');
+    return slot != null;
   });
 }
