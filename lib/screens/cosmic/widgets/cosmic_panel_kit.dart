@@ -226,13 +226,17 @@ abstract class _StagePainter extends CustomPainter {
   _StagePainter(this.clock) : super(repaint: clock);
   final ValueListenable<double> clock;
 
-  static final List<(double, double, double)> _stars = () {
+  /// Stars in two brightnesses, each drawn as one batch of points.
+  static final List<Float32List> _stars = () {
     final r = Random(11);
     return [
-      for (var i = 0; i < 46; i++)
-        (r.nextDouble(), r.nextDouble(), 0.15 + r.nextDouble() * 0.45),
+      for (var k = 0; k < 2; k++)
+        Float32List.fromList([for (var i = 0; i < 46; i++) r.nextDouble()]),
     ];
   }();
+  static final Paint _starPaint = Paint()
+    ..strokeCap = StrokeCap.round
+    ..strokeWidth = 1.4;
 
   void paintBackdrop(Canvas canvas, Size size, Color tint) {
     final rect = Offset.zero & size;
@@ -244,10 +248,15 @@ abstract class _StagePainter extends CustomPainter {
           tint.withValues(alpha: 0),
         ]),
     );
-    final p = Paint();
-    for (final (x, y, a) in _stars) {
-      p.color = Colors.white.withValues(alpha: a);
-      canvas.drawCircle(Offset(x * size.width, y * size.height), 0.7, p);
+    for (var k = 0; k < 2; k++) {
+      final unit = _stars[k];
+      final pts = Float32List(unit.length);
+      for (var i = 0; i < unit.length; i += 2) {
+        pts[i] = unit[i] * size.width;
+        pts[i + 1] = unit[i + 1] * size.height;
+      }
+      _starPaint.color = Colors.white.withValues(alpha: k == 0 ? 0.2 : 0.42);
+      canvas.drawRawPoints(ui.PointMode.points, pts, _starPaint);
     }
   }
 }

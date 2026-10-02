@@ -9,6 +9,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart' show ShipComponent;
 import 'package:alchemons/games/cosmic/ship_art.dart' show shipLight;
+import 'package:alchemons/games/cosmic_survival/orb_art.dart' show paintOrbCore;
 import 'package:alchemons/games/cosmic_survival/components/family_mastery_panel.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_ship_loadout.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -1271,28 +1272,11 @@ class _OrbSkinCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            // Orb preview circle
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    def.glowColor.withValues(alpha: 0.6),
-                    def.primaryColor,
-                    def.secondaryColor,
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: def.glowColor.withValues(alpha: 0.4),
-                    blurRadius: 16,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
+            // The core itself, drawn by the painter the run uses.
+            SizedBox(
+              width: 64,
+              height: 64,
+              child: CustomPaint(painter: _OrbCorePreview(def.skin)),
             ),
             const SizedBox(width: 14),
             // Info
@@ -1506,6 +1490,30 @@ class _ShipHullCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A still of an orb's core, painted by the same code the run draws it with.
+class _OrbCorePreview extends CustomPainter {
+  const _OrbCorePreview(this.skin);
+  final OrbBaseSkin skin;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    canvas.translate(size.width / 2, size.height / 2);
+    paintOrbCore(
+      canvas,
+      skin,
+      2.5,
+      radius: size.shortestSide * 0.26,
+      reach: false,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_OrbCorePreview old) => old.skin != skin;
 }
 
 /// A still of the hull, painted by the same code that flies it.

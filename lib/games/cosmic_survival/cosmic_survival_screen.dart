@@ -50,6 +50,12 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/games/cosmic_survival/orb_art.dart';
+import 'package:alchemons/games/cosmic_survival/components/survival_lobby_stage.dart';
+import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
+    show PanelReadout, PanelRow, PanelSectionHeader, panelLabel, panelPalette;
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -265,148 +271,6 @@ class _HudPill extends StatelessWidget {
   }
 }
 
-class _ForgeButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback? onTap;
-  final bool loading;
-
-  const _ForgeButton({
-    required this.label,
-    required this.icon,
-    this.onTap,
-    this.loading = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDisabled = onTap == null || loading;
-    return GestureDetector(
-      onTap: isDisabled ? null : context.soundAction(onTap),
-      child: CustomPaint(
-        painter: _BracketFramePainter(
-          color: (isDisabled ? _C.borderDim : _C.amberBright).withValues(
-            alpha: 0.72,
-          ),
-          bracketSize: 10,
-          strokeWidth: 1.1,
-        ),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          height: 52,
-          color: isDisabled
-              ? _C.bg3.withValues(alpha: 0.55)
-              : _C.amber.withValues(alpha: 0.10),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (loading)
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: _C.amberBright,
-                  ),
-                )
-              else
-                Icon(
-                  icon,
-                  size: 18,
-                  color: isDisabled ? _C.textMuted : _C.amberBright,
-                ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _display(
-                    context,
-                    14,
-                    isDisabled ? _C.textMuted : _C.amberBright,
-                    weight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OrbSphere extends StatelessWidget {
-  const _OrbSphere({required this.def, required this.size});
-
-  final OrbBaseDef def;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: size,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            center: const Alignment(-0.3, -0.35),
-            colors: [
-              Color.lerp(def.glowColor, Colors.white, 0.55)!,
-              def.primaryColor,
-              def.secondaryColor,
-            ],
-            stops: const [0.0, 0.52, 1.0],
-          ),
-          border: Border.all(color: def.glowColor.withValues(alpha: 0.45)),
-        ),
-      ),
-    );
-  }
-}
-
-/// One guardian upgrade axis and what it is currently worth.
-class _BonusChip extends StatelessWidget {
-  const _BonusChip({required this.def, required this.level});
-
-  final GuardianUpgradeDef def;
-  final int level;
-
-  @override
-  Widget build(BuildContext context) {
-    final earned = level > 0;
-    final tint = earned ? def.color : _C.textMuted;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: tint.withValues(alpha: earned ? 0.14 : 0.05),
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: tint.withValues(alpha: earned ? 0.5 : 0.22)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(def.icon, size: 11, color: tint),
-          const SizedBox(width: 4),
-          Text(
-            def.bonusLabel(level),
-            style: _display(
-              context,
-              10,
-              tint,
-              weight: FontWeight.w800,
-              letterSpacing: 0.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // SCREEN STATE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -470,7 +334,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   /// The roster card in view. Only changes when a swipe settles past the
   /// halfway point; the per-frame swipe itself never rebuilds the lobby.
   final ValueNotifier<int> _familyIndex = ValueNotifier<int>(0);
-  final Set<String> _expandedFamilyCards = <String>{};
+
+  /// The roster cards opened to show everything. A notifier, so opening one
+  /// rebuilds the roster and not the whole lobby.
+  final ValueNotifier<Set<String>> _expandedFamilyCards =
+      ValueNotifier<Set<String>>(const {});
+
+  /// Every roster portrait decoded once, up front, so swiping to a family
+  /// never waits on its picture.
+  bool _portraitsCached = false;
   SurvivalHighScoreData? _highScore;
   int _silver = 0;
   int _gold = 0;
@@ -601,6 +473,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     _liveUiTick.dispose();
     _familyPageController.dispose();
     _familyIndex.dispose();
+    _expandedFamilyCards.dispose();
     super.dispose();
   }
 
@@ -2081,42 +1954,56 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   }
 
   Widget _buildFormationPrompt() {
+    if (!_portraitsCached) {
+      _portraitsCached = true;
+      for (final info in _cosmicFamilyInfos) {
+        unawaited(
+          precacheImage(
+            ResizeImage(AssetImage(info.assetPath), width: 256),
+            context,
+          ),
+        );
+      }
+    }
     return Scaffold(
       backgroundColor: _C.bg0,
       body: SafeArea(
         child: Column(
           children: [
             _buildMenuHeader(),
+            _buildLobbyStage(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 8),
-                    _buildSpeciesRoster(),
-                    const SizedBox(height: 22),
-                    _buildCommandHub(),
-                    if (_debugToolsEnabled) ...[
-                      const SizedBox(height: 22),
-                      const _EtchedDivider(label: 'TEST TEAMS'),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final preset in _testTeamPresets)
-                            _TestTeamChip(
-                              preset: preset,
-                              onTap: () => _startTestTeam(
-                                _buildFullElementTestTeam(preset.family),
-                                preset.key,
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                // Its own layer, so scrolling moves the page rather than
+                // re-recording every rule and readout on it each frame.
+                child: RepaintBoundary(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildSpeciesRoster(),
+                      const SizedBox(height: 18),
+                      _buildCommandHub(),
+                      if (_debugToolsEnabled) ...[
+                        const SizedBox(height: 18),
+                        const PanelSectionHeader('TEST TEAMS'),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final preset in _testTeamPresets)
+                              _TestTeamChip(
+                                preset: preset,
+                                onTap: () => _startTestTeam(
+                                  _buildFullElementTestTeam(preset.family),
+                                  preset.key,
+                                ),
                               ),
-                            ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -2127,143 +2014,143 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     );
   }
 
-  /// Assign Team, always in reach at the bottom of the lobby.
+  /// What there is to do, always in reach at the foot of the lobby: into
+  /// Base Command, or on to choosing the team.
   Widget _buildLobbyDock() {
     return Container(
       decoration: BoxDecoration(
         color: _C.bg1,
-        border: const Border(top: BorderSide(color: _C.borderDim, width: 1)),
-        boxShadow: [
-          BoxShadow(
-            color: _C.bg0.withValues(alpha: 0.85),
-            blurRadius: 18,
-            offset: const Offset(0, -6),
+        border: Border(
+          top: BorderSide(color: _C.amber.withValues(alpha: 0.4), width: 1.2),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: BracketButton(
+              key: const ValueKey('survival.baseCommand'),
+              label: 'BASE COMMAND',
+              icon: AppIcons.settings_rounded,
+              primary: false,
+              height: 48,
+              palette: panelPalette,
+              accent: _C.amber,
+              onTap: () => _openBaseCommand(),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 3,
+            child: BracketButton(
+              key: const ValueKey('survival.assignTeam'),
+              label: 'ASSIGN TEAM',
+              icon: AppIcons.groups_rounded,
+              height: 48,
+              palette: panelPalette,
+              accent: _C.amberBright,
+              onTap: _pickTeam,
+            ),
           ),
         ],
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-      child: _ForgeButton(
-        label: 'Assign Team',
-        icon: AppIcons.groups_rounded,
-        loading: false,
-        onTap: context.soundAction(_pickTeam),
       ),
     );
   }
 
   Widget _buildMenuHeader() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _C.borderDim, width: 1)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 16, 6),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: context.soundAction(_exit),
-            child: SizedBox(
-              width: 40,
-              height: 40,
-              child: CustomPaint(
-                painter: _BracketFramePainter(
-                  color: _C.textSecondary.withValues(alpha: 0.4),
-                  bracketSize: 8,
-                  strokeWidth: 1,
-                ),
-                child: const Icon(
-                  AppIcons.chevron_left_rounded,
-                  color: _C.textSecondary,
-                  size: 22,
-                ),
-              ),
-            ),
+          BracketIconButton(
+            icon: AppIcons.chevron_left_rounded,
+            size: 36,
+            palette: panelPalette,
+            onTap: _exit,
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
+                Text(
+                  'SURVIVAL',
+                  maxLines: 1,
+                  style: panelLabel(14, panelPalette.ink, spacing: 3),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'ENDLESS WAVES',
+                  maxLines: 1,
+                  style: panelLabel(9.5, panelPalette.muted, spacing: 1.6),
+                ),
+              ],
+            ),
+          ),
+          // What Base Command spends, shown where the decision to go in there
+          // is made.
+          CoinAmount(kind: CoinKind.gold, amount: _gold, size: 11.5),
+          const SizedBox(width: 12),
+          CoinAmount(kind: CoinKind.silver, amount: _silver, size: 11.5),
+        ],
+      ),
+    );
+  }
+
+  /// The core about to be defended, live, with the ship orbiting it; what it
+  /// does, and the best run so far.
+  Widget _buildLobbyStage() {
+    return Consumer<SurvivalUpgradeService>(
+      builder: (context, svc, _) {
+        final orb = getOrbBaseDef(svc.state.equippedSkin);
+        final best = _highScore;
+        return SizedBox(
+          height: 196,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: SurvivalLobbyStage(orb: orb.skin, shipSkin: _shipSkin),
+              ),
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 8,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const _HeaderPulseDot(),
-                    const SizedBox(width: 8),
                     Text(
-                      'Survival Mode',
-                      style: _display(
-                        context,
-                        23,
-                        _C.textPrimary,
-                        letterSpacing: 0.5,
+                      orb.name.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: panelLabel(
+                        11.5,
+                        orbLook(orb.skin).rim,
+                        spacing: 1.6,
                       ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      orb.ability,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _display(context, 12, _C.textSecondary),
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Endless wave defense',
-                  style: _display(
-                    context,
-                    13,
-                    _C.textSecondary,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // What Base Command spends. Shown here because the decision to go
-          // in there is made on this screen, and it was previously invisible
-          // until you were already inside.
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CoinIcon(kind: CoinKind.gold, size: 14),
-                const SizedBox(width: 5),
-                Text(
-                  _formatHighScoreNumber(_gold),
-                  style: _display(
-                    context,
-                    12,
-                    _C.textSecondary,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const CoinIcon(kind: CoinKind.silver, size: 14),
-                const SizedBox(width: 5),
-                Text(
-                  _formatHighScoreNumber(_silver),
-                  style: _display(
-                    context,
-                    12,
-                    _C.textSecondary,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_highScore != null && _highScore!.bestWave > 0)
-            GestureDetector(
-              onTap: context.soundAction(_showHighScoreDetails),
-              child: CustomPaint(
-                painter: _BracketFramePainter(
-                  color: _C.amberBright.withValues(alpha: 0.55),
-                  bracketSize: 10,
-                  strokeWidth: 1.1,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  color: _C.bg2.withValues(alpha: 0.65),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Row(
+              ),
+              if (best != null && best.bestWave > 0)
+                Positioned(
+                  right: 12,
+                  top: 6,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: context.soundAction(_showHighScoreDetails),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(
@@ -2271,52 +2158,35 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                             color: _C.amberBright,
                             size: 13,
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: 5),
                           Text(
-                            'W${_highScore!.bestWave}',
-                            style: _display(
-                              context,
-                              14,
-                              _C.amberBright,
-                              weight: FontWeight.w700,
-                            ),
+                            'BEST W${best.bestWave}',
+                            style: panelLabel(10.5, _C.amberBright),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _formatHighScoreNumber(best.bestScore),
+                            style: panelLabel(10.5, panelPalette.muted),
                           ),
                         ],
                       ),
-                      Text(
-                        _formatHighScoreNumber(_highScore!.bestScore),
-                        style: _display(
-                          context,
-                          11,
-                          _C.textSecondary,
-                          weight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        'Best',
-                        style: _display(
-                          context,
-                          11,
-                          _C.textSecondary,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-        ],
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
   Widget _buildSpeciesRoster() {
-    // Swiping rebuilt the entire lobby every frame, and faded each card
-    // through a translucent layer. Now the scroll position is read only by
-    // the transforms that need it, each card is its own repaint boundary so a
-    // swipe never repaints its contents, and the fade is a dark wash drawn on
-    // top instead of an offscreen layer.
+    // A swipe never rebuilds the lobby: the scroll position is read only by
+    // the transforms that need it, each card is its own repaint boundary,
+    // and the fade is a dark wash drawn on top instead of an offscreen
+    // layer. Opening a card rebuilds only the roster (a notifier, not
+    // setState), and the card is laid out at its full height while the
+    // frame round it grows, so it reveals rather than overflowing.
     return Consumer<FamilyMasteryService>(
       builder: (context, mastery, _) {
         Set<String> ownedFor(CreatureFamily? family) =>
@@ -2329,121 +2199,122 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             : mastery.selectedPathForFamily(family);
 
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _EtchedDivider(label: 'SPECIES ROSTER'),
-            const SizedBox(height: 14),
-            ValueListenableBuilder<int>(
-              valueListenable: _familyIndex,
-              builder: (context, currentIndex, pages) {
-                final active = _cosmicFamilyInfos[currentIndex];
-                final activeFamily = creatureFamilyFromStorage(active.id);
-                // The carousel shows each card at the controller's viewport
-                // fraction of the roster's width.
-                // The lobby column is capped, so the roster is too.
-                final rosterWidth =
-                    MediaQuery.sizeOf(context).width - _rosterHorizontalPadding;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOut,
-                  height: _SpeciesCard.heightFor(
+            const PanelSectionHeader('SPECIES ROSTER'),
+            ValueListenableBuilder<Set<String>>(
+              valueListenable: _expandedFamilyCards,
+              builder: (context, opened, _) => ValueListenableBuilder<int>(
+                valueListenable: _familyIndex,
+                builder: (context, currentIndex, _) {
+                  final active = _cosmicFamilyInfos[currentIndex];
+                  final activeFamily = creatureFamilyFromStorage(active.id);
+                  final rosterWidth =
+                      MediaQuery.sizeOf(context).width -
+                      _rosterHorizontalPadding;
+                  final height = _SpeciesCard.heightFor(
                     context,
                     info: active,
                     family: activeFamily,
                     owned: ownedFor(activeFamily),
                     selectedPathId: pathFor(activeFamily),
                     cardWidth: rosterWidth * _familyViewportFraction,
-                    expanded: _expandedFamilyCards.contains(active.id),
-                  ),
-                  child: pages,
-                );
-              },
-              child: PageView.builder(
-                controller: _familyPageController,
-                itemCount: _cosmicFamilyInfos.length,
-                itemBuilder: (context, index) {
-                  final info = _cosmicFamilyInfos[index];
-                  final family = creatureFamilyFromStorage(info.id);
-                  final expanded = _expandedFamilyCards.contains(info.id);
-                  final card = RepaintBoundary(
-                    child: _SpeciesCard(
-                      info: info,
-                      family: family,
-                      owned: ownedFor(family),
-                      selectedPathId: pathFor(family),
-                      expanded: expanded,
-                      onTap: context.soundAction(() {
-                        setState(() {
-                          if (expanded) {
-                            _expandedFamilyCards.remove(info.id);
-                          } else {
-                            _expandedFamilyCards.add(info.id);
-                          }
-                        });
-                      }),
-                      onOpenTree: context.soundAction(
-                        () => _openBaseCommand(family: family),
+                    expanded: opened.contains(active.id),
+                  );
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOut,
+                    height: height,
+                    child: ClipRect(
+                      child: OverflowBox(
+                        alignment: Alignment.topCenter,
+                        minHeight: height,
+                        maxHeight: height,
+                        child: _rosterPages(opened, ownedFor, pathFor),
                       ),
                     ),
-                  );
-                  return AnimatedBuilder(
-                    animation: _familyPageController,
-                    child: card,
-                    builder: (context, child) {
-                      final distance = (index - _familyPageValue()).abs().clamp(
-                        0.0,
-                        1.0,
-                      );
-                      return Transform.scale(
-                        scale: 1.0 - (0.06 * distance),
-                        child: Stack(
-                          children: [
-                            child!,
-                            if (distance > 0.01)
-                              Positioned.fill(
-                                child: IgnorePointer(
-                                  child: Container(
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 5,
-                                    ),
-                                    color: _C.bg0.withValues(
-                                      alpha: 0.55 * distance,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      );
-                    },
                   );
                 },
               ),
             ),
             const SizedBox(height: 10),
-            AnimatedBuilder(
-              animation: _familyPageController,
-              builder: (context, _) {
-                final page = _familyPageValue();
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(_cosmicFamilyInfos.length, (i) {
-                    final isActive = (i - page).abs() < 0.5;
-                    return AnimatedContainer(
+            // Settles with the page, so a swipe does not rebuild it.
+            ValueListenableBuilder<int>(
+              valueListenable: _familyIndex,
+              builder: (context, index, _) => Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < _cosmicFamilyInfos.length; i++)
+                    AnimatedContainer(
                       duration: const Duration(milliseconds: 180),
                       margin: const EdgeInsets.symmetric(horizontal: 3),
-                      height: 3,
-                      width: isActive ? 18 : 6,
-                      decoration: BoxDecoration(
-                        color: isActive ? _C.amber : _C.borderAccent,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    );
-                  }),
-                );
-              },
+                      height: 4,
+                      width: i == index ? 18 : 6,
+                      color: i == index
+                          ? _cosmicFamilyInfos[i].color
+                          : panelPalette.lineSoft,
+                    ),
+                ],
+              ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _rosterPages(
+    Set<String> opened,
+    Set<String> Function(CreatureFamily?) ownedFor,
+    String? Function(CreatureFamily?) pathFor,
+  ) {
+    return PageView.builder(
+      controller: _familyPageController,
+      itemCount: _cosmicFamilyInfos.length,
+      itemBuilder: (context, index) {
+        final info = _cosmicFamilyInfos[index];
+        final family = creatureFamilyFromStorage(info.id);
+        final expanded = opened.contains(info.id);
+        final card = RepaintBoundary(
+          child: _SpeciesCard(
+            info: info,
+            family: family,
+            owned: ownedFor(family),
+            selectedPathId: pathFor(family),
+            expanded: expanded,
+            onTap: context.soundAction(() {
+              final next = {..._expandedFamilyCards.value};
+              if (!next.remove(info.id)) next.add(info.id);
+              _expandedFamilyCards.value = next;
+            }),
+            onOpenTree: context.soundAction(
+              () => _openBaseCommand(family: family),
+            ),
+          ),
+        );
+        return AnimatedBuilder(
+          animation: _familyPageController,
+          child: card,
+          builder: (context, child) {
+            final distance = (index - _familyPageValue()).abs().clamp(0.0, 1.0);
+            return Transform.scale(
+              scale: 1.0 - (0.06 * distance),
+              child: Stack(
+                children: [
+                  child!,
+                  if (distance > 0.01)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 5),
+                          color: _C.bg0.withValues(alpha: 0.6 * distance),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -2477,178 +2348,65 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     await _loadShipSkin();
   }
 
-  /// The Command Hub: what you are about to deploy with — the orb you are
-  /// carrying and the guardian bonuses riding on it — and the way into Base
-  /// Command, with the silver it spends.
+  /// The guardian upgrades riding on this run, each axis a reading — dim at
+  /// zero, which on a fresh save is the point: they show what there is to go
+  /// and earn in Base Command.
   Widget _buildCommandHub() {
     return Consumer<SurvivalUpgradeService>(
       builder: (context, svc, _) {
-        final orb = getOrbBaseDef(svc.state.equippedSkin);
         final earned = kGuardianUpgrades
             .where((d) => svc.state.getGuardianLevel(d.upgrade) > 0)
             .length;
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _EtchedDivider(label: 'COMMAND HUB'),
-            const SizedBox(height: 14),
-            GestureDetector(
-              onTap: context.soundAction(() => _openBaseCommand()),
-              child: CustomPaint(
-                painter: _BracketFramePainter(
-                  color: orb.glowColor.withValues(alpha: 0.55),
-                  bracketSize: 12,
-                  strokeWidth: 1.2,
-                ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color.lerp(_C.bg2, orb.glowColor, 0.10)!,
-                        _C.bg2.withValues(alpha: 0.85),
-                      ],
-                    ),
+            PanelSectionHeader(
+              'GUARDIAN UPGRADES',
+              trailing: '$earned / ${kGuardianUpgrades.length}',
+            ),
+            PanelRow(
+              gap: 6,
+              children: [
+                for (final def in kGuardianUpgrades)
+                  _guardianReading(
+                    def,
+                    svc.state.getGuardianLevel(def.upgrade),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            _OrbSphere(def: orb, size: 78),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'EQUIPPED ORB',
-                                    style: _display(
-                                      context,
-                                      10,
-                                      _C.textMuted,
-                                      weight: FontWeight.w800,
-                                      letterSpacing: 1.8,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    orb.name.toUpperCase(),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: _display(
-                                      context,
-                                      16,
-                                      orb.glowColor,
-                                      weight: FontWeight.w900,
-                                      letterSpacing: 1.0,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    orb.ability,
-                                    style: _display(
-                                      context,
-                                      12,
-                                      _C.textSecondary,
-                                      weight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(height: 1, color: _C.borderDim),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'GUARDIAN UPGRADES',
-                                  style: _display(
-                                    context,
-                                    10,
-                                    _C.textMuted,
-                                    weight: FontWeight.w800,
-                                    letterSpacing: 1.8,
-                                  ),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  '$earned / ${kGuardianUpgrades.length} active',
-                                  style: _display(
-                                    context,
-                                    10,
-                                    earned > 0 ? _C.amber : _C.textMuted,
-                                    weight: FontWeight.w700,
-                                    letterSpacing: 0.6,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            // All five axes, dim at zero — the empty ones are
-                            // the point on a fresh save: they show what there
-                            // is to go and earn.
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: [
-                                for (final def in kGuardianUpgrades)
-                                  _BonusChip(
-                                    def: def,
-                                    level: svc.state.getGuardianLevel(
-                                      def.upgrade,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(height: 1, color: _C.borderDim),
-                      Container(
-                        color: _C.bg1.withValues(alpha: 0.55),
-                        padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Text(
-                              'OPEN BASE COMMAND',
-                              style: _display(
-                                context,
-                                11,
-                                _C.amberBright,
-                                weight: FontWeight.w800,
-                                letterSpacing: 1.4,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Icon(
-                              AppIcons.chevron_right_rounded,
-                              size: 16,
-                              color: _C.amberBright,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              ],
             ),
           ],
         );
       },
+    );
+  }
+
+  /// Short names for the guardian axes, for a reading's label. Anything
+  /// not named here goes by the last word of its name.
+  static const Map<GuardianUpgrade, String> _guardianLabels = {
+    GuardianUpgrade.cooldown: 'SPEED',
+    GuardianUpgrade.defense: 'DEFENSE',
+    GuardianUpgrade.attack: 'ATTACK',
+    GuardianUpgrade.range: 'RANGE',
+  };
+
+  Widget _guardianReading(GuardianUpgradeDef def, int level) {
+    final earned = level > 0;
+    final tint = earned ? def.color : panelPalette.muted;
+    return PanelReadout(
+      label:
+          _guardianLabels[def.upgrade] ??
+          def.name.split(' ').last.toUpperCase(),
+      value: def.bonusLabel(level),
+      color: earned ? null : panelPalette.muted,
+      leading: Icon(
+        // Range wore the same crosshair as another axis.
+        def.upgrade == GuardianUpgrade.range
+            ? AppIcons.zoom_out_map_rounded
+            : def.icon,
+        size: 12,
+        color: tint,
+      ),
+      onTap: () => _openBaseCommand(),
     );
   }
 
@@ -3998,19 +3756,6 @@ class _TestTeamChip extends StatelessWidget {
   }
 }
 
-class _ScanlinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.black.withValues(alpha: 0.08);
-    for (double y = 0; y < size.height; y += 3) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
-
 class _FamilyInfo {
   final String id;
   final String name;
@@ -4067,6 +3812,9 @@ class _SpeciesCard extends StatelessWidget {
   /// The expand chevron beside the name.
   static const double _chevronSize = 16;
 
+  static TextStyle _nameStyle(BuildContext context) =>
+      panelLabel(17, _C.textPrimary, spacing: 3);
+
   /// The name row: the family name wrapped in whatever width is left beside
   /// the chevron, and never shorter than the chevron itself.
   static double _nameRowHeight(
@@ -4074,21 +3822,15 @@ class _SpeciesCard extends StatelessWidget {
     String name,
     double width,
   ) {
-    final style = DefaultTextStyle.of(context).style.merge(
-      _display(
-        context,
-        20,
-        _C.textPrimary,
-        weight: FontWeight.w700,
-        letterSpacing: 0.5,
-      ),
-    );
+    final style = DefaultTextStyle.of(context).style.merge(_nameStyle(context));
     final painter = TextPainter(
-      text: TextSpan(text: name, style: style),
+      text: TextSpan(text: name.toUpperCase(), style: style),
       textDirection: TextDirection.ltr,
       textScaler: MediaQuery.textScalerOf(context),
     )..layout(maxWidth: max(20.0, width - _chevronSize));
-    return max(_chevronSize, painter.height.ceilToDouble());
+    final height = painter.height;
+    painter.dispose();
+    return max(_chevronSize, height.ceilToDouble());
   }
 
   /// The card's height at [cardWidth]. Everything that wraps — the facts and
@@ -4153,118 +3895,115 @@ class _SpeciesCard extends StatelessWidget {
         ? null
         : FamilyMasteryCatalog.treeFor(fam).chassis;
     final hasPath = selectedPathId != null;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 5),
-      decoration: BoxDecoration(
-        color: _C.bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: expanded || hasPath
-              ? info.color.withValues(alpha: expanded ? 0.6 : 0.3)
-              : _C.borderDim,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(3),
-        child: InkWell(
-          key: ValueKey('species-card-${info.id}'),
-          onTap: onTap,
-          child: Stack(
-            children: [
-              Positioned.fill(child: CustomPaint(painter: _ScanlinePainter())),
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: _portraitWidth,
-                child: _SpeciesPortrait(info: info),
-              ),
-              Positioned(
-                left: _portraitWidth,
-                top: 12,
-                bottom: 12,
-                child: Container(width: 1, color: _C.borderDim),
-              ),
-              Positioned(
-                left: _portraitWidth + 12,
-                right: 12,
-                top: 12,
-                bottom: 12,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            info.name,
-                            style: _display(
-                              context,
-                              20,
-                              _C.textPrimary,
-                              weight: FontWeight.w700,
-                              letterSpacing: 0.5,
+    final frame = expanded
+        ? info.color.withValues(alpha: 0.85)
+        : hasPath
+        ? info.color.withValues(alpha: 0.5)
+        : panelPalette.line.withValues(alpha: 0.6);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      child: GestureDetector(
+        key: ValueKey('species-card-${info.id}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: frame,
+            bracketSize: 10,
+            strokeWidth: expanded ? 1.3 : 1.05,
+          ),
+          child: Container(
+            color: Color.lerp(_C.bg1, info.color, 0.04),
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: _portraitWidth,
+                  child: _SpeciesPortrait(info: info),
+                ),
+                Positioned(
+                  left: _portraitWidth,
+                  top: 12,
+                  bottom: 12,
+                  child: Container(width: 1, color: panelPalette.lineSoft),
+                ),
+                Positioned(
+                  left: _portraitWidth + 12,
+                  right: 12,
+                  top: 12,
+                  bottom: 12,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              info.name.toUpperCase(),
+                              style: _nameStyle(context),
                             ),
                           ),
+                          Icon(
+                            expanded
+                                ? AppIcons.expand_less_rounded
+                                : AppIcons.expand_more_rounded,
+                            color: _C.textSecondary,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: _SpeciesFact.gap),
+                      if (chassis != null)
+                        _SpeciesFact(
+                          label: 'ATTACK',
+                          text: chassis,
+                          color: info.color,
+                          maxLines: expanded ? null : 2,
                         ),
-                        Icon(
-                          expanded
-                              ? AppIcons.expand_less_rounded
-                              : AppIcons.expand_more_rounded,
-                          color: _C.textSecondary,
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: _SpeciesFact.gap),
-                    if (chassis != null)
+                      const SizedBox(height: _SpeciesFact.gap),
                       _SpeciesFact(
-                        label: 'ATTACK',
-                        text: chassis,
+                        label: 'SPECIAL',
+                        text: info.special,
                         color: info.color,
                         maxLines: expanded ? null : 2,
                       ),
-                    const SizedBox(height: _SpeciesFact.gap),
-                    _SpeciesFact(
-                      label: 'SPECIAL',
-                      text: info.special,
-                      color: info.color,
-                      maxLines: expanded ? null : 2,
-                    ),
-                    if (expanded) ...[
-                      const SizedBox(height: _SpeciesFact.gap),
-                      _SpeciesFact(
-                        label: 'TARGETS',
-                        text: info.copy.targets,
-                        color: info.color,
-                        maxLines: null,
+                      if (expanded) ...[
+                        const SizedBox(height: _SpeciesFact.gap),
+                        _SpeciesFact(
+                          label: 'TARGETS',
+                          text: info.copy.targets,
+                          color: info.color,
+                          maxLines: null,
+                        ),
+                        const SizedBox(height: _SpeciesFact.gap),
+                        _SpeciesFact(
+                          label: 'POSITION',
+                          text: info.copy.position,
+                          color: info.color,
+                          maxLines: null,
+                        ),
+                      ],
+                      const SizedBox(height: 10 - _SpeciesFact.gap),
+                      Container(
+                        height: 1,
+                        color: info.color.withValues(alpha: 0.22),
                       ),
-                      const SizedBox(height: _SpeciesFact.gap),
-                      _SpeciesFact(
-                        label: 'POSITION',
-                        text: info.copy.position,
-                        color: info.color,
-                        maxLines: null,
-                      ),
+                      const SizedBox(height: 10),
+                      if (fam != null)
+                        FamilyMasteryRosterSummary(
+                          family: fam,
+                          owned: owned,
+                          selectedPathId: selectedPathId,
+                          expanded: expanded,
+                          onOpenTree: onOpenTree,
+                        ),
                     ],
-                    const SizedBox(height: 10 - _SpeciesFact.gap),
-                    Container(
-                      height: 1,
-                      color: info.color.withValues(alpha: 0.22),
-                    ),
-                    const SizedBox(height: 10),
-                    if (fam != null)
-                      FamilyMasteryRosterSummary(
-                        family: fam,
-                        owned: owned,
-                        selectedPathId: selectedPathId,
-                        expanded: expanded,
-                        onOpenTree: onOpenTree,
-                      ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -4285,20 +4024,17 @@ class _SpeciesPortrait extends StatelessWidget {
         Container(
           decoration: BoxDecoration(
             gradient: RadialGradient(
-              colors: [info.color.withValues(alpha: 0.25), Colors.transparent],
-              radius: 0.8,
+              colors: [info.color.withValues(alpha: 0.22), Colors.transparent],
+              radius: 0.75,
             ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
-          // Tinted in the image paint itself; a ColorFiltered wrapper cost an
-          // offscreen layer on every card, every swipe frame.
+          padding: const EdgeInsets.all(14),
+          // The creature itself, not a silhouette of it.
           child: Image.asset(
             info.assetPath,
             fit: BoxFit.contain,
-            color: info.color.withValues(alpha: 0.9),
-            colorBlendMode: BlendMode.srcATop,
             cacheWidth: 256,
           ),
         ),
@@ -4343,8 +4079,10 @@ class _SpeciesFact extends StatelessWidget {
       textScaler: MediaQuery.textScalerOf(context),
       maxLines: maxLines,
     )..layout(maxWidth: width);
+    final height = painter.height;
+    painter.dispose();
     // A few pixels of slack so a rounding difference never clips a line.
-    return _labelHeight + _labelGap + painter.height + 4;
+    return _labelHeight + _labelGap + height + 4;
   }
 
   @override
@@ -4359,8 +4097,8 @@ class _SpeciesFact extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: color,
-              fontSize: 9,
-              height: 1.2,
+              fontSize: 9.5,
+              height: 1.15,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.4,
             ),
@@ -4480,19 +4218,6 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     color: Color(0xFFA855F7),
   ),
 ];
-
-class _HeaderPulseDot extends StatelessWidget {
-  const _HeaderPulseDot();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 6,
-      height: 6,
-      decoration: const BoxDecoration(color: _C.accent, shape: BoxShape.circle),
-    );
-  }
-}
 
 class _HudIconButton extends StatelessWidget {
   final IconData icon;

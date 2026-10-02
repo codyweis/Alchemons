@@ -43,6 +43,7 @@ import 'package:alchemons/games/cosmic_survival/survival_mastery_payload.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_pip.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_runtime.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_wing.dart';
+import 'package:alchemons/games/cosmic_survival/orb_art.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -1383,12 +1384,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   static const double _alchemyMeterGainMultiplier = 0.96;
   static const double _arenaShipPadding = 32.0;
   static const double _orbCoreRadius = 72.0;
-  static const double _orbGlowRadius = 112.0;
-  static const double _orbInnerRuneRadius = 96.0;
-  static const double _orbOuterRuneRadius = 124.0;
   static const double _orbShieldRadius = 136.0;
-  static const double _orbHpRingRadius = 112.0;
-  static const double _orbAlchemyRingRadius = 160.0;
   static const double _orbGravityRadius = 720.0;
   static const double _orbShipOrbitRadius = 270.0;
   double _idleOrbitRadius = _orbShipOrbitRadius;
@@ -19715,26 +19711,34 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  /// The core, and its readings round it (orb_art.dart). Health and the
+  /// alchemy meter are rings of cells; a held shield is a glass bubble.
   void _renderOrb(Canvas canvas) {
-    final p = orb.position;
+    final center = orb.position;
     final elapsed = stats.timeElapsed;
-    final alchemyFrac = _alchemicalMeterDisplayFrac;
-    final center = p;
-
-    switch (orb.skin) {
-      case OrbBaseSkin.frozenNexusOrb:
-        _renderFrozenNexusOrb(canvas, center, elapsed);
-      case OrbBaseSkin.phantomWispOrb:
-        _renderPhantomWispOrb(canvas, center, elapsed);
-      case OrbBaseSkin.prismHeartOrb:
-        _renderPrismHeartOrb(canvas, center, elapsed);
-      case OrbBaseSkin.verdantBloomOrb:
-        _renderVerdantBloomOrb(canvas, center, elapsed);
-      default:
-        _renderDefaultOrb(canvas, center, elapsed);
-    }
-
-    _renderOrbAlchemyRing(canvas, center, alchemyFrac);
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    paintOrbCore(
+      canvas,
+      orb.skin,
+      elapsed,
+      radius: _orbCoreRadius,
+      beat: orb.skin == OrbBaseSkin.celestialOrb
+          ? (_celestialHealTimer / 8.0).clamp(0.0, 1.0)
+          : 1,
+    );
+    paintOrbReadings(
+      canvas,
+      orb.skin,
+      hpFrac: orb.hpPercent,
+      meterFrac: _alchemicalMeterDisplayFrac,
+      shield: orb.shieldHp > 0
+          ? (orb.shieldHp / max(orb.maxHp, 1) * 2).clamp(0.25, 1.0)
+          : 0,
+      shieldRadius: _orbShieldRadius,
+      time: elapsed,
+    );
+    canvas.restore();
 
     if (_isAnyKinDarkCloakActive()) {
       // The veil: the orb reads as hidden, a dark ring closing over it.
@@ -19755,72 +19759,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ..strokeWidth = 3.0,
       );
     }
-
-    if (orb.shieldHp > 0) {
-      final shieldAlpha = (0.22 + min(orb.shieldHp / max(orb.maxHp, 1), 0.3))
-          .clamp(0.18, 0.52);
-      canvas.drawCircle(
-        center,
-        _orbShieldRadius,
-        Paint()
-          ..color = const Color(0xFF7FDBFF).withValues(alpha: shieldAlpha)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 5.0,
-      );
-    }
-
-    final hpFrac = orb.hpPercent;
-    final hpColor = hpFrac > 0.5
-        ? const Color(0xFF00E676)
-        : hpFrac > 0.25
-        ? const Color(0xFFFFEA00)
-        : const Color(0xFFE53935);
-    canvas.drawArc(
-      Rect.fromCircle(center: p, radius: _orbHpRingRadius),
-      -pi / 2,
-      2 * pi * hpFrac,
-      false,
-      Paint()
-        ..color = hpColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5.5
-        ..strokeCap = StrokeCap.round,
-    );
   }
 
+  /// The field the ship orbits in: lanes of drifting dust (orb_art.dart),
+  /// the innermost on the ship's orbit.
   void _renderOrbGravityField(Canvas canvas) {
-    final center = orb.position;
-    final elapsed = stats.timeElapsed;
-    final fieldPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    for (var i = 0; i < 4; i++) {
-      final radius = _orbShipOrbitRadius + i * 92.0;
-      final alpha = max(0.035, 0.12 - i * 0.022);
-      final rotation = elapsed * (0.18 + i * 0.035) + i * pi / 5;
-      final sweep = pi * (0.28 + i * 0.035);
-      fieldPaint
-        ..color = orb.glowColor.withValues(alpha: alpha)
-        ..strokeWidth = max(1.0, 2.4 - i * 0.28);
-
-      for (var segment = 0; segment < 5; segment++) {
-        final start = rotation + segment * (2 * pi / 5);
-        canvas.drawArc(
-          Rect.fromCircle(center: center, radius: radius),
-          start,
-          sweep,
-          false,
-          fieldPaint,
-        );
-      }
-    }
-
-    final orbitPaint = Paint()
-      ..color = orb.secondaryColor.withValues(alpha: 0.16)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8;
-    canvas.drawCircle(center, _orbShipOrbitRadius, orbitPaint);
+    canvas.save();
+    canvas.translate(orb.position.dx, orb.position.dy);
+    paintOrbField(
+      canvas,
+      orb.skin,
+      stats.timeElapsed,
+      orbit: _orbShipOrbitRadius,
+    );
+    canvas.restore();
   }
 
   void _renderArenaBoundary(Canvas canvas) {
@@ -19859,329 +19811,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final outer = center + Offset(cos(angle), sin(angle)) * (radius + 12);
       canvas.drawLine(inner, outer, markerPaint);
     }
-  }
-
-  void _renderDefaultOrb(Canvas canvas, Offset center, double elapsed) {
-    _drawOrbLayeredGlow(
-      canvas,
-      center,
-      orb.glowColor,
-      radius: _orbGlowRadius,
-      alpha: 0.28,
-    );
-    _renderOrbRuneRing(
-      canvas,
-      center,
-      radius: _orbInnerRuneRadius,
-      speed: 0.5,
-      segments: 3,
-      color: orb.primaryColor.withValues(alpha: 0.52),
-    );
-    _renderOrbRuneRing(
-      canvas,
-      center,
-      radius: _orbOuterRuneRadius,
-      speed: -0.3,
-      segments: 5,
-      color: orb.secondaryColor.withValues(alpha: 0.44),
-    );
-    canvas.drawCircle(
-      center,
-      _orbCoreRadius,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          center,
-          _orbCoreRadius * 1.1,
-          [
-            Colors.white.withValues(alpha: 0.92),
-            orb.primaryColor.withValues(alpha: 0.88),
-            orb.secondaryColor.withValues(alpha: 0.72),
-          ],
-          const [0.08, 0.45, 1.0],
-        ),
-    );
-  }
-
-  void _renderFrozenNexusOrb(Canvas canvas, Offset center, double elapsed) {
-    _drawOrbLayeredGlow(
-      canvas,
-      center,
-      orb.glowColor,
-      radius: _orbGlowRadius * 1.08,
-      alpha: 0.22,
-    );
-    for (var i = 0; i < 6; i++) {
-      final angle = elapsed * 0.4 + (i * pi / 3);
-      final dist = _orbInnerRuneRadius + sin(elapsed * 1.5 + i) * 8;
-      final sx = center.dx + cos(angle) * dist;
-      final sy = center.dy + sin(angle) * dist;
-      final shard = Path()
-        ..moveTo(sx, sy - 16)
-        ..lineTo(sx + 8, sy + 3)
-        ..lineTo(sx, sy + 16)
-        ..lineTo(sx - 8, sy + 3)
-        ..close();
-      canvas.drawPath(
-        shard,
-        Paint()..color = const Color(0xFFB0EAFF).withValues(alpha: 0.75),
-      );
-    }
-    canvas.drawCircle(
-      center,
-      _orbCoreRadius,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          center,
-          _orbCoreRadius * 1.1,
-          [Colors.white, orb.primaryColor, orb.secondaryColor],
-          const [0.0, 0.35, 1.0],
-        ),
-    );
-  }
-
-  void _renderPhantomWispOrb(Canvas canvas, Offset center, double elapsed) {
-    final flicker = 0.5 + 0.3 * sin(elapsed * 3.0) + 0.2 * sin(elapsed * 7.1);
-    _drawOrbLayeredGlow(
-      canvas,
-      center,
-      orb.glowColor,
-      radius: _orbGlowRadius * 1.18,
-      alpha: 0.24 * flicker,
-    );
-    final drift1 = Offset(sin(elapsed * 2.0) * 10, cos(elapsed * 1.5) * 8);
-    final drift2 = Offset(cos(elapsed * 2.5) * 8, sin(elapsed * 1.8) * 10);
-    canvas.drawCircle(
-      center + drift1,
-      _orbCoreRadius * 0.94,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          center + drift1,
-          _orbCoreRadius,
-          [
-            Colors.white.withValues(alpha: flicker * 0.8),
-            orb.primaryColor.withValues(alpha: flicker * 0.6),
-            orb.secondaryColor.withValues(alpha: flicker * 0.2),
-          ],
-          const [0.0, 0.4, 1.0],
-        ),
-    );
-    canvas.drawCircle(
-      center + drift2,
-      _orbCoreRadius * 0.83,
-      Paint()..color = orb.glowColor.withValues(alpha: flicker * 0.22),
-    );
-    _renderOrbRuneRing(
-      canvas,
-      center,
-      radius: _orbOuterRuneRadius * 0.9,
-      speed: 0.2,
-      segments: 8,
-      color: orb.glowColor.withValues(alpha: 0.24 * flicker),
-      strokeWidth: 3.0,
-    );
-  }
-
-  void _renderPrismHeartOrb(Canvas canvas, Offset center, double elapsed) {
-    final hueShift = (elapsed * 30) % 360;
-    final sweepColors = List.generate(
-      7,
-      (i) => HSVColor.fromAHSV(
-        0.5,
-        (hueShift + i * 51.4) % 360,
-        0.9,
-        1.0,
-      ).toColor(),
-    );
-    final glowColors = sweepColors
-        .map((color) => color.withValues(alpha: 0.22))
-        .toList();
-    canvas.drawCircle(
-      center,
-      _orbGlowRadius,
-      Paint()
-        ..shader = ui.Gradient.sweep(
-          center,
-          [...glowColors, glowColors.first],
-          const [0.0, 0.14, 0.28, 0.42, 0.56, 0.70, 0.84, 1.0],
-          TileMode.clamp,
-          0,
-          2 * pi,
-        ),
-    );
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.rotate(elapsed * 0.3);
-    final path = Path();
-    const facets = 8;
-    const facetRadius = _orbCoreRadius;
-    for (var i = 0; i <= facets; i++) {
-      final a = (i / facets) * 2 * pi;
-      final r = i.isEven ? facetRadius : facetRadius * 0.75;
-      final x = cos(a) * r;
-      final y = sin(a) * r;
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    path.close();
-    canvas.drawPath(
-      path,
-      Paint()
-        ..shader = ui.Gradient.sweep(
-          const Offset(0, 0),
-          [...sweepColors, sweepColors.first],
-          const [0.0, 0.14, 0.28, 0.42, 0.56, 0.70, 0.84, 1.0],
-          TileMode.clamp,
-          0,
-          2 * pi,
-        ),
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.28)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
-    );
-    canvas.restore();
-  }
-
-  void _renderVerdantBloomOrb(Canvas canvas, Offset center, double elapsed) {
-    _drawOrbLayeredGlow(
-      canvas,
-      center,
-      orb.glowColor,
-      radius: _orbGlowRadius * 1.12,
-      alpha: 0.28 + 0.06 * sin(elapsed * 1.5),
-    );
-    for (var ring = 0; ring < 2; ring++) {
-      final baseRadius = ring == 0
-          ? _orbInnerRuneRadius * 0.92
-          : _orbOuterRuneRadius * 0.94;
-      final speed = ring == 0 ? 0.25 : -0.2;
-      final vinePath = Path();
-      const segments = 32;
-      for (var i = 0; i <= segments; i++) {
-        final a = (i / segments) * 2 * pi + elapsed * speed;
-        final wobble = sin(a * 4 + elapsed * 2) * 7.2;
-        final r = baseRadius + wobble;
-        final x = center.dx + cos(a) * r;
-        final y = center.dy + sin(a) * r;
-        if (i == 0) {
-          vinePath.moveTo(x, y);
-        } else {
-          vinePath.lineTo(x, y);
-        }
-      }
-      canvas.drawPath(
-        vinePath,
-        Paint()
-          ..color = const Color(0xFF228B22).withValues(alpha: 0.55)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3.4,
-      );
-    }
-    final coreRadius = _orbCoreRadius * (1.0 + 0.08 * sin(elapsed * 3.0));
-    canvas.drawCircle(
-      center,
-      coreRadius,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          center,
-          coreRadius,
-          [const Color(0xFFFFF8DC), orb.primaryColor, orb.secondaryColor],
-          const [0.0, 0.4, 1.0],
-        ),
-    );
-  }
-
-  void _drawOrbLayeredGlow(
-    Canvas canvas,
-    Offset center,
-    Color color, {
-    required double radius,
-    double alpha = 0.22,
-    int layers = 5,
-  }) {
-    for (var i = layers; i >= 1; i--) {
-      final t = i / layers;
-      final layerAlpha = alpha * (layers - i + 1) / layers * 0.35;
-      canvas.drawCircle(
-        center,
-        radius * t,
-        Paint()..color = color.withValues(alpha: layerAlpha),
-      );
-    }
-  }
-
-  void _renderOrbRuneRing(
-    Canvas canvas,
-    Offset center, {
-    required double radius,
-    required double speed,
-    required int segments,
-    required Color color,
-    double strokeWidth = 3.2,
-  }) {
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.rotate(stats.timeElapsed * speed);
-    final sweepAngle = (2 * pi / segments) - 0.2;
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < segments; i++) {
-      final startAngle = i * (2 * pi / segments);
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset.zero, radius: radius),
-        startAngle,
-        sweepAngle,
-        false,
-        paint,
-      );
-    }
-    canvas.restore();
-  }
-
-  void _renderOrbAlchemyRing(Canvas canvas, Offset center, double alchemyFrac) {
-    final rect = Rect.fromCircle(center: center, radius: _orbAlchemyRingRadius);
-    canvas.drawCircle(
-      center,
-      _orbAlchemyRingRadius,
-      Paint()
-        ..color = const Color(0xFF3A2E5A).withValues(alpha: 0.26)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 7,
-    );
-    final gradient = ui.Gradient.sweep(
-      center,
-      const [
-        Color(0xFF6C5CE7),
-        Color(0xFF9B59B6),
-        Color(0xFFE056FD),
-        Color(0xFF00D2FF),
-        Color(0xFF6C5CE7),
-      ],
-      const [0.0, 0.28, 0.56, 0.82, 1.0],
-      TileMode.clamp,
-      -pi / 2,
-      3 * pi / 2,
-    );
-    canvas.drawArc(
-      rect,
-      -pi / 2,
-      2 * pi * alchemyFrac,
-      false,
-      Paint()
-        ..shader = gradient
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 7
-        ..strokeCap = StrokeCap.round,
-    );
   }
 
   /// Enemy rendering: EXACT SAME visuals as cosmic game per tier.
