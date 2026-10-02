@@ -29,7 +29,7 @@ import 'package:provider/provider.dart';
 //
 // HOME_BIOME_SIZE=915x412 picks the screen (logical px), HOME_BIOME_ONLY=
 // valley,sky,… a subset of the sets (valley, sky, swamp, volcano, arcane,
-// weather, arrange, moved).
+// weather, arrange, essence, moved).
 void main() {
   final out = Platform.environment['HOME_BIOME_OUT'];
 
@@ -86,6 +86,8 @@ void main() {
       ('steam_let', 'LET05'),
     ];
     await tester.runAsync(() async {
+      // The Arcane is a home only once it is unlocked in the wild.
+      await db.settingsDao.setSetting('arcane_portal_unlocked', '1');
       for (final (id, base) in roster) {
         await db.creatureDao.insertInstance(
           instanceId: id,
@@ -203,6 +205,28 @@ void main() {
             await tester.tap(find.text('Arrange'));
             await settle(4);
             game().onResidentTap!('HOME_air_wing');
+          },
+        );
+      }
+    }
+    if (wants('essence')) {
+      // Each one tapped: mid-way through coming apart into its element.
+      for (final (realm, at) in const [
+        (HomeRealm.valley, 0.9),
+        (HomeRealm.valley, 1.4),
+        (HomeRealm.arcane, 1.2),
+      ]) {
+        await shoot(
+          'essence_${realm.name}_${(at * 10).round()}',
+          base.copyWith(realm: realm),
+          seconds: 1.5,
+          then: () async {
+            for (final r in household) {
+              game().playEssence(r.spawnId);
+            }
+            // The grains are read off the test clock.
+            await settle(3, ms: 1);
+            await settle((at * 1000 / 66).round() - 14);
           },
         );
       }

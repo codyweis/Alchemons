@@ -81,6 +81,10 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     with SingleTickerProviderStateMixin {
   HomeBiomeLayout _layout = const HomeBiomeLayout();
 
+  /// The realms this home can be: the Arcane only once it is unlocked in
+  /// the wild.
+  List<HomeRealm> _realms = HomeRealm.open(arcane: false);
+
   /// Each resident's look, by instance id.
   final Map<String, (Creature, CreatureInstance)> _looks = {};
 
@@ -135,7 +139,9 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   // ── Loading and saving ───────────────────────────────────────────────────
 
   Future<void> _load() async {
-    var layout = await HomeBiomeLayout.load(_db.settingsDao);
+    final arcane = await _db.settingsDao.isArcanePortalUnlocked();
+    _realms = HomeRealm.open(arcane: arcane);
+    var layout = (await HomeBiomeLayout.load(_db.settingsDao)).within(_realms);
     final kept = <HomeResident>[];
     for (final r in layout.residents) {
       final inst = await _db.creatureDao.getInstance(r.instanceId);
@@ -325,10 +331,15 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       ? null
       : _layout.residents.where((r) => r.instanceId == _selected).firstOrNull;
 
+  /// Looking, a tap plays its essence; arranging, it chooses it.
   void _onResidentTap(String spawnId) {
-    if (!_arranging) return;
     final r = _layout.resident(spawnId);
     if (r == null) return;
+    if (!_arranging) {
+      HapticFeedback.lightImpact();
+      _game?.playEssence(spawnId);
+      return;
+    }
     HapticFeedback.selectionClick();
     _select(r.instanceId);
   }
@@ -651,8 +662,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          for (final realm in HomeRealm.values) ...[
-            if (realm != HomeRealm.values.first) const SizedBox(width: 6),
+          for (final realm in _realms) ...[
+            if (realm != _realms.first) const SizedBox(width: 6),
             _Chip(
               label: realm.name.toUpperCase(),
               selected: realm == _layout.realm,

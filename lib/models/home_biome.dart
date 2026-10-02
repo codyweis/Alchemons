@@ -170,6 +170,13 @@ enum HomeRealm {
   static HomeRealm byName(String? name) =>
       HomeRealm.values.where((r) => r.name == name).firstOrNull ??
       HomeRealm.valley;
+
+  /// The realms a home can be made in: the Arcane only once its portal has
+  /// been opened in the wild ([arcane]), as the wild map shows it.
+  static List<HomeRealm> open({required bool arcane}) => [
+    for (final r in values)
+      if (r != HomeRealm.arcane || arcane) r,
+  ];
 }
 
 /// One of the player's Alchemons living in the home biome, and where.
@@ -272,6 +279,18 @@ class HomeBiomeLayout {
 
   HomeBiomeLayout withMood(String id) =>
       copyWith(moods: {...moods, realm.name: id});
+
+  /// This layout in a realm that is [open] — the first of them when its own
+  /// is not (an Arcane home before the Arcane is unlocked).
+  HomeBiomeLayout within(List<HomeRealm> open) =>
+      open.contains(realm) ? this : copyWith(realm: open.first);
+
+  /// The layout as the player may have it now, whether the Arcane is
+  /// unlocked read from [settings].
+  static Future<HomeBiomeLayout> loadOpen(SettingsDao settings) async {
+    final arcane = await settings.isArcanePortalUnlocked();
+    return (await load(settings)).within(HomeRealm.open(arcane: arcane));
+  }
 
   HomeResident? resident(String spawnId) =>
       residents.where((r) => r.spawnId == spawnId).firstOrNull;

@@ -6,9 +6,11 @@ import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart' show CreatureInstance;
 import 'package:alchemons/games/wilderness/creature_feet.dart';
 import 'package:alchemons/games/wilderness/field/field_art.dart';
+import 'package:alchemons/games/wilderness/field_essence.dart';
 import 'package:alchemons/games/wilderness/harvest_field.dart';
 import 'package:alchemons/games/wilderness/particle_fusion_effect.dart';
 import 'package:alchemons/games/wilderness/wild_summon.dart';
+import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
@@ -1357,6 +1359,7 @@ class SceneGame extends FlameGame with ScaleDetector {
         WildMonComponent(
             hydrated: creature,
             instance: instance,
+            tapOnRelease: true,
             speciesId: creature.id,
             rarityLabel: '',
             desiredSize: size,
@@ -1389,6 +1392,27 @@ class SceneGame extends FlameGame with ScaleDetector {
     _residentLooks.remove(spawnId);
     if (_held == spawnId) _held = null;
     _sendHome(_residents.remove(spawnId));
+  }
+
+  /// The resident at [spawnId] comes apart into its element and gathers
+  /// back, as its details screen plays it when it is tapped. Not while it
+  /// is already doing so, nor while it is still gathering in.
+  void playEssence(String spawnId) {
+    final c = _residents[spawnId];
+    final look = _residentLooks[spawnId];
+    final parent = c?.parent;
+    if (c == null || look == null || !c.isMounted || parent == null) return;
+    final busy = parent.children.any(
+      (x) => (x is FieldEssence && x.creature == c) || x is WildSummon,
+    );
+    if (busy) return;
+    parent.add(
+      FieldEssence(
+        c,
+        element: EssenceElement.of(look.$1.types.firstOrNull),
+        mirror: look.$3,
+      )..priority = 90,
+    );
   }
 
   /// Turns the resident at [spawnId] to face the other way.
@@ -2000,6 +2024,10 @@ class WildMonComponent extends PositionComponent
   /// The player's own creature this is, when it is one: drawn with what
   /// only the instance knows (its lineage tint, its alchemy effect).
   final CreatureInstance? instance;
+
+  /// Answers a tap as the finger lifts rather than as it lands, so a drag
+  /// that starts on it — panning the field past it — is no tap at all.
+  final bool tapOnRelease;
   final SpeciesSpriteResolver? resolver;
 
   WildMonComponent({
@@ -2009,6 +2037,7 @@ class WildMonComponent extends PositionComponent
     required this.desiredSize,
     this.hydrated,
     this.instance,
+    this.tapOnRelease = false,
     this.resolver,
     this.flipX = false,
     this.pulse = true,
@@ -2188,7 +2217,14 @@ class WildMonComponent extends PositionComponent
   }
 
   @override
-  void onTapDown(TapDownEvent event) => onTap();
+  void onTapDown(TapDownEvent event) {
+    if (!tapOnRelease) onTap();
+  }
+
+  @override
+  void onTapUp(TapUpEvent event) {
+    if (tapOnRelease) onTap();
+  }
 }
 
 /// A creature's image in still glass under its feet (see

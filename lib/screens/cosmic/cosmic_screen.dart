@@ -6123,7 +6123,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// landscape as the wild is, and back up to space the same way.
   Future<void> _descendHome() async {
     _game?.pauseEngine();
-    final layout = await HomeBiomeLayout.load(
+    final layout = await HomeBiomeLayout.loadOpen(
       context.read<AlchemonsDatabase>().settingsDao,
     );
     if (!mounted) return;

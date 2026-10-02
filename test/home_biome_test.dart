@@ -7,15 +7,18 @@
 
 import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/games/wilderness/field/grain_field.dart';
+import 'package:alchemons/games/wilderness/field_essence.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/home_biome.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
+import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,6 +66,25 @@ void main() {
     expect(layout.mood.id, 'aurora');
     expect(layout.copyWith(realm: HomeRealm.valley).mood.id, 'rain');
     expect(layout.copyWith(realm: HomeRealm.sky).mood.id, 'clear');
+  });
+
+  test('the Arcane is not a home until it is unlocked in the wild', () {
+    final locked = HomeRealm.open(arcane: false);
+    expect(locked, isNot(contains(HomeRealm.arcane)));
+    expect(locked.length, HomeRealm.values.length - 1);
+    expect(HomeRealm.open(arcane: true), HomeRealm.values);
+    // A home made in the Arcane comes back in the Valley while it is locked,
+    // residents and all, and as it was once it opens.
+    final arcaneHome = household.copyWith(realm: HomeRealm.arcane);
+    expect(arcaneHome.within(locked).realm, HomeRealm.valley);
+    expect(
+      arcaneHome.within(locked).residents.length,
+      household.residents.length,
+    );
+    expect(
+      arcaneHome.within(HomeRealm.open(arcane: true)).realm,
+      HomeRealm.arcane,
+    );
   });
 
   test('a broken or strange save is read as far as it makes sense', () {
@@ -364,6 +386,79 @@ void main() {
     await tester.pump(const Duration(milliseconds: 16));
     expect(dropped, isNull);
     expect(game.cameraX, greaterThan(camera + 20));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('looking, a tap plays its essence; a drag past it does not', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(915, 412) * 2;
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+    final json =
+        jsonDecode(
+              File('assets/data/alchemons_creatures.json').readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final horn = Creature.fromJson(
+      (json['creatures'] as List).cast<Map<String, dynamic>>().firstWhere(
+        (c) => c['id'] == 'HOR01',
+      ),
+    );
+    const layout = HomeBiomeLayout(
+      residents: [HomeResident(instanceId: 'h', x: 0.12)],
+    );
+    final game = SceneGame(scene: layout.scene((_) => false), showcase: true);
+    game.onResidentTap = game.playEssence;
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: GameWidget(game: game),
+      ),
+    );
+    Future<void> settle(int frames) async {
+      for (var i = 0; i < frames; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump(const Duration(milliseconds: 33));
+      }
+    }
+
+    for (var i = 0; i < 40 && !game.isLoaded; i++) {
+      await settle(1);
+    }
+    await game.showResident('HOME_h', horn);
+    await settle(20);
+    final resident = game.debugResidents['HOME_h']!;
+    final anchor = resident.parent! as PositionComponent;
+    bool playing() => anchor.children.any((c) => c is FieldEssence);
+    final at = Offset(game.screenXOf('HOME_h')!, anchor.position.y);
+
+    // Panning the field from on top of it is not a tap.
+    await tester.timedDragFrom(
+      at,
+      const Offset(-200, 0),
+      const Duration(milliseconds: 400),
+    );
+    await settle(2);
+    expect(playing(), isFalse);
+
+    final now = Offset(game.screenXOf('HOME_h')!, anchor.position.y);
+    await tester.tapAt(now);
+    await settle(2);
+    expect(playing(), isTrue);
+    // A second tap while it plays does not start another.
+    await tester.tapAt(now);
+    await settle(2);
+    expect(anchor.children.whereType<FieldEssence>().length, 1);
+
+    final sprite = resident.children.whereType<CreatureSpriteComponent>().first;
+    await settle(30);
+    expect(sprite.spriteOpacity, lessThan(0.5), reason: 'it is grains now');
+    await settle(70);
+    expect(playing(), isFalse);
+    expect(sprite.spriteOpacity, 1);
     await tester.pumpWidget(const SizedBox());
   });
 }

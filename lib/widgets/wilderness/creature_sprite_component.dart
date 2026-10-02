@@ -99,7 +99,11 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
   /// This frame of the creature, exactly as it is being drawn — its genetics
   /// colouring and size included — read into grains centred on this
   /// component's centre, in its local units. Null if it has not loaded.
-  Future<SpecimenGrains?> readGrains({required double pixelRatio}) async {
+  Future<SpecimenGrains?> readGrains({
+    required double pixelRatio,
+    int maxGrains = SpecimenGrains.maxGrains,
+    int tones = SpecimenGrains.toneCount,
+  }) async {
     if (!isLoaded || !_anim.isMounted) return null;
     final sprite = _anim.animationTicker?.getSprite();
     if (sprite == null) return null;
@@ -132,6 +136,8 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
         w,
         h,
         pixelRatio: pixelRatio,
+        maxGrains: maxGrains,
+        tones: tones,
       );
       return grains.length < 60 ? null : grains;
     } finally {
