@@ -6122,7 +6122,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// player's own Alchemons live. Through the glyph portal, turned to
   /// landscape as the wild is, and back up to space the same way.
   Future<void> _descendHome() async {
-    setState(() => _showHomeMenu = false);
     _game?.pauseEngine();
     final layout = await HomeBiomeLayout.load(
       context.read<AlchemonsDatabase>().settingsDao,
@@ -7984,6 +7983,40 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Home planet HUD ──
+              // Near home, the way down to the home biome — where a planet
+              // shows its own descent, and in the same plate. It steps aside
+              // for any landmark standing nearby, whose prompt sits under it.
+              if (showCosmicHud &&
+                  _isNearHome &&
+                  _homePlanet != null &&
+                  _nearCache == null &&
+                  _nearMarketPOI == null &&
+                  _nearContestArena == null &&
+                  _nearPocketPortalElement == null &&
+                  !_isNearRift &&
+                  !_isNearNexus &&
+                  !_isNearBloodRing &&
+                  !_showElementsCaptured &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  bottom: 132,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Center(
+                      child: _planetCta(
+                        label: 'DESCEND',
+                        accent: const Color(0xFFE4C16A),
+                        glow: _homePlanet!.blendedColor,
+                        icon: Icons.south_rounded,
+                        onTap: context.soundTap(
+                          () => unawaited(_descendHome()),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               // ── Mini-map overlay (animated open/close) ──
               if (showCosmicHud && (_showMiniMap || _miniMapCtrl.isAnimating))
                 Positioned.fill(
@@ -8095,7 +8128,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                       _showCustomizationMenu = true;
                     }),
                     onClose: () => setState(() => _showHomeMenu = false),
-                    onDescend: _descendHome,
                   ),
                 ),
 
