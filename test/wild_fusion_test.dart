@@ -12,11 +12,13 @@ import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // What a wild fusion gives that the chamber cannot: the wild parent's best
 // Potential always reaches the child, and a wilderness child can be mutated.
@@ -85,6 +87,24 @@ void main() {
       expect(AlchemonMutation.byId(null), isNull);
       expect(AlchemonMutation.byId('nonsense'), isNull);
     });
+  });
+
+  test('the debug mutation only works with the tools on, and clears', () async {
+    SharedPreferences.setMockInitialValues({});
+    final debug = DebugSettingsService();
+    await debug.setForcedWildMutation('transmuted');
+
+    await debug.setEnabled(false);
+    expect(await debug.pendingForcedWildMutation(), isNull);
+
+    await debug.setEnabled(true);
+    expect(await debug.pendingForcedWildMutation(), 'transmuted');
+
+    // What the encounter does once the fusion lands.
+    await debug.setForcedWildMutation(null);
+    expect(await debug.pendingForcedWildMutation(), isNull);
+    expect(DebugSettingsService.forcedWildMutationNotifier.value, isNull);
+    await debug.setEnabled(false);
   });
 
   test('a cultivation payload keeps its mutation', () {

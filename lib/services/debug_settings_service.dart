@@ -80,4 +80,42 @@ class DebugSettingsService {
   /// the shop's purchases that do not go through ShopService.
   static Map<String, int> priced(Map<String, int> cost) =>
       freeShop ? {for (final k in cost.keys) k: 0} : cost;
+
+  // ── forced wild mutation ───────────────────────────────────────────────
+
+  static const String _forcedMutationKey = 'debug.force_wild_mutation';
+  static bool _forcedMutationHydrated = false;
+
+  /// The mutation id ('alchemized', 'transmuted') the next successful
+  /// wilderness fusion is forced to, or null. One-shot: spent by that fusion,
+  /// so a debug choice never quietly mutates everything after it.
+  static final ValueNotifier<String?> forcedWildMutationNotifier =
+      ValueNotifier<String?>(null);
+
+  Future<String?> forcedWildMutation() async {
+    if (_forcedMutationHydrated) return forcedWildMutationNotifier.value;
+    final prefs = await SharedPreferences.getInstance();
+    _forcedMutationHydrated = true;
+    forcedWildMutationNotifier.value = prefs.getString(_forcedMutationKey);
+    return forcedWildMutationNotifier.value;
+  }
+
+  Future<void> setForcedWildMutation(String? id) async {
+    _forcedMutationHydrated = true;
+    forcedWildMutationNotifier.value = id;
+    final prefs = await SharedPreferences.getInstance();
+    if (id == null) {
+      await prefs.remove(_forcedMutationKey);
+    } else {
+      await prefs.setString(_forcedMutationKey, id);
+    }
+  }
+
+  /// The forced mutation for a fusion about to happen — only while the
+  /// developer tools are on. Clear it with [setForcedWildMutation] once the
+  /// fusion has landed.
+  Future<String?> pendingForcedWildMutation() async {
+    if (!await isEnabled()) return null;
+    return forcedWildMutation();
+  }
 }

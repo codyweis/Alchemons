@@ -127,6 +127,7 @@ class CreatureInstanceService {
     double? statIntelligencePotential,
     double? statStrengthPotential,
     double? statBeautyPotential,
+    String? dominantStats, // DominantStats.encode(); null = its best two
     int generationDepth = 0,
     Map<String, int>? factionLineage,
     bool isPure = false,
@@ -175,6 +176,7 @@ class CreatureInstanceService {
           statIntelligencePotential: statIntelligencePotential,
           statStrengthPotential: statStrengthPotential,
           statBeautyPotential: statBeautyPotential,
+          dominantStats: dominantStats,
           generationDepth: generationDepth,
           factionLineage: factionLineage,
           variantFaction: variantFaction,

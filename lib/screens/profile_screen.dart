@@ -50,6 +50,7 @@ import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // TYPOGRAPHY HELPERS  (colors resolved at runtime via ForgeTokens)
@@ -411,6 +412,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadDebugTools() async {
     final enabled = await _debugSettings.isEnabled();
     final freeShop = await _debugSettings.isFreeShop();
+    // Hydrates the notifier the WILD MUTATION row listens to.
+    await _debugSettings.forcedWildMutation();
     if (!mounted) return;
     setState(() {
       _debugToolsEnabled = enabled;
@@ -428,6 +431,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _freeShop = value);
     await _debugSettings.setFreeShop(value);
   }
+
+  Future<void> _setForcedMutation(String? id) =>
+      _debugSettings.setForcedWildMutation(id);
 
   Future<void> _reloadProfileState() async {
     if (!mounted) return;
@@ -1950,6 +1956,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 10),
                     _ForgePanel(
                       accentBar: t.teal,
+                      // Re-reads the setting when a fusion spends it, so the
+                      // row goes back to OFF on its own.
+                      child: ValueListenableBuilder<String?>(
+                        valueListenable:
+                            DebugSettingsService.forcedWildMutationNotifier,
+                        builder: (context, forced, _) => Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('WILD MUTATION', style: _label(t)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'The next successful wilderness fusion '
+                                    'comes out mutated, then this turns off',
+                                    style: _body(t).copyWith(fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            _WildMutationSelector(
+                              t: t,
+                              value: forced,
+                              enabled: _debugToolsLoaded,
+                              onChanged: _setForcedMutation,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
                       child: Row(
                         children: [
                           Expanded(
@@ -2273,6 +2314,73 @@ class _FontSelectorWidget extends StatelessWidget {
               ),
             );
           }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+/// OFF, or the mutation the next wilderness fusion is forced to.
+class _WildMutationSelector extends StatelessWidget {
+  final ForgeTokens t;
+  final String? value;
+  final bool enabled;
+  final Future<void> Function(String? id) onChanged;
+
+  const _WildMutationSelector({
+    required this.t,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  static const _off = 'off';
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <(String, String)>[
+      (_off, 'OFF'),
+      for (final m in AlchemonMutation.values) (m.id, m.label.toUpperCase()),
+    ];
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.45,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: t.bg3,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: t.borderDim),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: AlchemonMutation.byId(value)?.id ?? _off,
+            icon: Icon(AppIcons.arrow_drop_down, color: t.amber, size: 18),
+            dropdownColor: t.bg2,
+            isDense: true,
+            onChanged: enabled
+                ? (next) {
+                    if (next == null) return;
+                    HapticFeedback.selectionClick();
+                    onChanged(next == _off ? null : next);
+                  }
+                : null,
+            items: [
+              for (final (id, label) in items)
+                DropdownMenuItem<String>(
+                  value: id,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: t.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

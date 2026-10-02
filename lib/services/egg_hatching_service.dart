@@ -330,6 +330,9 @@ class EggHatching {
       statSpeedPotential: hp.potentials.speed,
       statIntelligencePotential: hp.potentials.intelligence,
       statStrengthPotential: hp.potentials.strength,
+      // The Dominants breeding inherited. Dropped here, every bred child was
+      // given its best two instead of what it was bred to carry.
+      dominantStats: hp.potentials.dominants?.encode(),
     );
 
     if (result.status == InstanceFinalizeStatus.speciesFull) {

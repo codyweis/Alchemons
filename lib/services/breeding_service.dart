@@ -169,6 +169,7 @@ class BreedingServiceV2 {
     String? sourceOverride,
     bool fieldMutations = false,
     Random? mutationRng,
+    AlchemonMutation? forcedMutation,
   }) async {
     // ---- Cross-species gate (owned vs wild) ----
     final allowed = await _canCrossBreed(ownedParent.baseId, wildCreature.id);
@@ -218,12 +219,20 @@ class BreedingServiceV2 {
 
     // Rolled here, not in the engine: it is the wilderness's, not breeding's,
     // and nothing downstream inherits it. Kept secret until the hatch.
-    final mutation = fieldMutations
-        ? AlchemonMutation.roll(
+    // [forcedMutation] (the debug tools) still obeys the rules: wilderness
+    // only, and never gold over a prismatic.
+    final forcedAllowed =
+        forcedMutation != null &&
+        !(forcedMutation == AlchemonMutation.transmuted &&
+            offspring.isPrismaticSkin);
+    final mutation = !fieldMutations
+        ? null
+        : forcedAllowed
+        ? forcedMutation
+        : AlchemonMutation.roll(
             mutationRng ?? Random(),
             prismatic: offspring.isPrismaticSkin,
-          )
-        : null;
+          );
     if (mutation != null) {
       debugPrint('[Breeding] wild fusion mutation: ${mutation.id}');
     }

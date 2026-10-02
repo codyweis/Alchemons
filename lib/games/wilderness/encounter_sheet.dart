@@ -50,6 +50,7 @@ import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
 import 'package:alchemons/models/wild_fusion.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/services/game_data_service.dart';
@@ -1195,6 +1196,12 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       return (ok: false, message: 'Wild record lookup failed.');
     }
 
+    // The debug tools can force this fusion's mutation (one-shot).
+    final debug = DebugSettingsService();
+    final forcedId = widget.fieldMutations
+        ? await debug.pendingForcedWildMutation()
+        : null;
+
     // Single call: service will randomize wild, breed, and compute analysis.
     final result = await breedingService.breedWithWild(
       ownedParent,
@@ -1205,7 +1212,11 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       forcePrismatic: widget.encounter.voidBred,
       sourceOverride: widget.encounter.source,
       fieldMutations: widget.fieldMutations,
+      forcedMutation: AlchemonMutation.byId(forcedId),
     );
+    if (result.success && forcedId != null) {
+      await debug.setForcedWildMutation(null);
+    }
 
     if (!result.success) {
       return (ok: false, message: result.message ?? 'The fusion did not take.');

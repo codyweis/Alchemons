@@ -1,5 +1,6 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/potential_genetics.dart';
+import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -87,6 +88,25 @@ void main() {
     expect(id, isNotNull);
     final stored = await db.creatureDao.getInstance(id!);
     // Its best two are Intelligence and Strength; what it inherited is not.
+    expect(DominantStats.decode(stored!.dominantStats), bred);
+  });
+
+  // The path every bred and wild-fusion cultivation takes on hatching. It used
+  // to drop the inherited Dominants, so the child got its best two instead.
+  test('a normal hatch keeps the Dominants it was bred with', () async {
+    final bred = DominantStats(StatKind.speed, StatKind.beauty);
+    final result = await CreatureInstanceService(db).finalizeInstance(
+      baseId: 'LET02',
+      rarity: 'Common',
+      source: 'breeding',
+      statSpeedPotential: 20,
+      statIntelligencePotential: 95,
+      statStrengthPotential: 90,
+      statBeautyPotential: 25,
+      dominantStats: bred.encode(),
+    );
+    expect(result.instanceId, isNotNull);
+    final stored = await db.creatureDao.getInstance(result.instanceId!);
     expect(DominantStats.decode(stored!.dominantStats), bred);
   });
 }
