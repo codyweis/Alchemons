@@ -8,6 +8,7 @@ import 'package:alchemons/audio/audio.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart' show ShipComponent;
+import 'package:alchemons/games/cosmic/ship_art.dart' show shipLight;
 import 'package:alchemons/games/cosmic_survival/components/family_mastery_panel.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_ship_loadout.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -1373,13 +1374,8 @@ class _OrbSkinCard extends StatelessWidget {
 
 // ── Ship Hull Card ─────────────────────────────────────────────────────────
 
-Color _shipAccent(String? skinId) => switch (skinId) {
-  'skin_phantom' => const Color(0xFFB56CFF),
-  'skin_solar' => const Color(0xFFFFC940),
-  'skin_inferno' => const Color(0xFFFF6A2B),
-  'skin_crystal' => const Color(0xFF7FE7FF),
-  _ => const Color(0xFF4FC3F7),
-};
+/// A hull's colour is the light inside it.
+Color _shipAccent(String? skinId) => shipLight(skinId).essence;
 
 class _ShipHullCard extends StatelessWidget {
   final String? skinId;
@@ -1523,6 +1519,8 @@ class _ShipPreviewPainter extends CustomPainter {
     // not the exhaust, sits in the middle of the frame.
     final scale = size.shortestSide / 64;
     canvas.save();
+    // The hull's wake runs out behind it; keep it inside the card.
+    canvas.clipRect(Offset.zero & size);
     canvas.translate(size.width / 2, size.height / 2 - 6 * scale);
     canvas.scale(scale * 1.15);
     // Unblurred, as survival flies it.

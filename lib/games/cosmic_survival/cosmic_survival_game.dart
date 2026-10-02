@@ -1418,9 +1418,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final SurvivalMasteryRuntime mastery;
 
   /// A cosmic ship design id ('skin_phantom', …); null flies the standard
-  /// survival hull.
+  /// hull.
   String? shipSkin;
-  final ShipComponent _skinnedShip = ShipComponent(pos: Offset.zero);
+  final ShipComponent _shipArt = ShipComponent(pos: Offset.zero);
 
   // Camera
   static const double _introZoomStart = 0.85;
@@ -21148,13 +21148,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Ship rendering: detailed ship design matching cosmic game
   void _renderShip(Canvas canvas) {
     final p = ship.position;
-    final a = ship.angle;
     final ghostMode = ship.isDead;
-    final flashColor = ship.hitFlash > 0
-        ? Color.lerp(const Color(0xFF00B8D4), Colors.white, ship.hitFlash)!
-        : ghostMode
-        ? const Color(0xFF9FE8FF)
-        : const Color(0xFF00B8D4);
     final elapsed = stats.timeElapsed;
 
     canvas.save();
@@ -21174,157 +21168,34 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       drawKinTeslaShip(canvas: canvas, time: elapsed, rng: _rng);
     }
 
-    if (shipSkin != null) {
-      _renderSkinnedHull(canvas, elapsed, ghostMode);
-      canvas.restore();
-      _renderShipHpBar(canvas, p);
-      return;
-    }
-
-    canvas.rotate(a + pi / 2);
-
-    final enginePulse = ghostMode
-        ? 0.55 + 0.18 * sin(elapsed * 4.5)
-        : 0.85 + 0.15 * sin(elapsed * 9);
-    if (ghostMode) {
-      canvas.drawCircle(
-        Offset.zero,
-        28,
-        Paint()
-          ..color = const Color(
-            0xFF7FDBFF,
-          ).withValues(alpha: 0.10 + 0.05 * sin(elapsed * 2.2))
-          ..maskFilter = null,
-      );
-    }
-
-    canvas.drawCircle(
-      const Offset(0, 18),
-      9,
-      Paint()
-        ..color =
-            (ghostMode ? const Color(0x808BE9FF) : const Color(0x7000CFFF))
-                .withValues(alpha: (ghostMode ? 0.34 : 0.55) * enginePulse)
-        ..maskFilter = null,
-    );
-
-    for (final x in const [-5.5, 5.5]) {
-      canvas.drawCircle(
-        Offset(x, 15.5),
-        3.2,
-        Paint()
-          ..color =
-              (ghostMode ? const Color(0xAAE0F7FF) : const Color(0xCC8AF7FF))
-                  .withValues(alpha: ghostMode ? 0.72 : 0.80),
-      );
-    }
-
-    for (var i = 1; i <= 4; i++) {
-      final wobble = sin(elapsed * 8 + i * 1.35) * (2.2 + i * 0.15);
-      canvas.drawCircle(
-        Offset(wobble, 18.0 + i * 7.5),
-        4.2 - i * 0.65,
-        Paint()
-          ..color =
-              (ghostMode ? const Color(0xFFA5EEFF) : const Color(0xFF5ED8FF))
-                  .withValues(alpha: (ghostMode ? 0.18 : 0.24) - i * 0.03),
-      );
-    }
-
-    final wingPath = Path()
-      ..moveTo(0, -21)
-      ..lineTo(-7, -13)
-      ..lineTo(-14, -5)
-      ..lineTo(-19, 10)
-      ..lineTo(-9, 8)
-      ..lineTo(-4, 18)
-      ..lineTo(0, 15)
-      ..lineTo(4, 18)
-      ..lineTo(9, 8)
-      ..lineTo(19, 10)
-      ..lineTo(14, -5)
-      ..lineTo(7, -13)
-      ..close();
-
-    final fuselagePath = Path()
-      ..moveTo(0, -24)
-      ..lineTo(-4.5, -11)
-      ..lineTo(-5.5, -1)
-      ..lineTo(-3.5, 13)
-      ..lineTo(0, 15)
-      ..lineTo(3.5, 13)
-      ..lineTo(5.5, -1)
-      ..lineTo(4.5, -11)
-      ..close();
-
-    canvas.drawPath(
-      wingPath,
-      Paint()
-        ..color = Color.lerp(
-          flashColor,
-          Colors.black,
-          ghostMode ? 0.15 : 0.4,
-        )!.withValues(alpha: ghostMode ? 0.44 : 0.9),
-    );
-    canvas.drawPath(
-      wingPath,
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.15)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8,
-    );
-
-    canvas.drawPath(
-      fuselagePath,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          const Offset(0, -24),
-          const Offset(0, 15),
-          [
-            Color.lerp(flashColor, Colors.white, 0.3)!.withValues(alpha: 0.95),
-            flashColor.withValues(alpha: 0.85),
-            Color.lerp(flashColor, Colors.black, 0.3)!.withValues(alpha: 0.75),
-          ],
-          [0.0, 0.5, 1.0],
-        ),
-    );
-
-    canvas.drawCircle(
-      const Offset(0, -12),
-      3,
-      Paint()..color = Colors.white.withValues(alpha: 0.7),
-    );
-    canvas.drawCircle(
-      const Offset(0, -12),
-      2,
-      Paint()..color = const Color(0xFF00E5FF).withValues(alpha: 0.5),
-    );
-
     canvas.restore();
+    _renderShipHull(canvas, elapsed, ghostMode);
     _renderShipHpBar(canvas, p);
   }
 
-  /// A forged cosmic design, drawn by the cosmic ship painter so the hull
-  /// looks the same in both modes — minus the blur, which survival cannot
-  /// afford every frame. Canvas is already translated to the ship.
-  void _renderSkinnedHull(Canvas canvas, double elapsed, bool ghostMode) {
-    _skinnedShip.angle = ship.angle;
+  /// The hull, drawn by the cosmic ship painter (ship_art.dart) so it looks
+  /// the same in both modes — minus the light pooled round it, which
+  /// survival leaves off. Its wake is laid in world space, so the hull is
+  /// drawn at the ship's position rather than on a translated canvas.
+  void _renderShipHull(Canvas canvas, double elapsed, bool ghostMode) {
+    _shipArt
+      ..pos = ship.position
+      ..angle = ship.angle;
     if (ghostMode) {
       // Only while respawning, so the layer is not an every-frame cost.
       canvas.saveLayer(
-        const Rect.fromLTRB(-40, -40, 40, 60),
+        Rect.fromCircle(center: ship.position, radius: 160),
         Paint()..color = Colors.white.withValues(alpha: 0.45),
       );
     }
-    _skinnedShip.render(canvas, elapsed, skin: shipSkin, glow: false);
+    _shipArt.render(
+      canvas,
+      elapsed,
+      skin: shipSkin,
+      glow: false,
+      flash: ship.hitFlash,
+    );
     if (ghostMode) canvas.restore();
-    if (ship.hitFlash > 0) {
-      canvas.drawCircle(
-        Offset.zero,
-        20,
-        Paint()..color = Colors.white.withValues(alpha: 0.45 * ship.hitFlash),
-      );
-    }
   }
 
   void _renderShipHpBar(Canvas canvas, Offset p) {

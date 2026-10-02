@@ -988,6 +988,42 @@ extension CosmicGameWild on CosmicGame {
     );
   }
 
+  /// The home planet as the customization lab shows it: fitted into [area]
+  /// whatever its size in the world, wearing [wearing] in [color], at
+  /// [time]. The same layers the world draws, so the lab shows the planet
+  /// the player will see; nothing about the real planet is changed.
+  void paintHomeShowcase(
+    Canvas canvas,
+    Rect area,
+    double time, {
+    required Set<String> wearing,
+    String? color,
+  }) {
+    final hp = homePlanet;
+    if (hp == null) return;
+    final savedWearing = activeCustomizations;
+    final savedColor = hp.activeColor;
+    final savedTime = _elapsed;
+    activeCustomizations = wearing;
+    hp.activeColor = color;
+    _elapsed = time;
+    final vr = hp.visualRadius;
+    // The widest things a planet wears (rings, the black hole's disk) reach
+    // about 2.6 radii.
+    final fit = min(area.width, area.height) / (vr * 2 * 2.6);
+    canvas.save();
+    canvas.translate(area.center.dx, area.center.dy);
+    canvas.scale(fit);
+    try {
+      _renderHomeBody(canvas, Offset.zero, vr);
+    } finally {
+      canvas.restore();
+      activeCustomizations = savedWearing;
+      hp.activeColor = savedColor;
+      _elapsed = savedTime;
+    }
+  }
+
   /// The home planet's body and cosmetics, without the garrison — the same
   /// layers the world render draws.
   void _renderHomeBody(Canvas canvas, Offset pos, double vr) {

@@ -1,10 +1,44 @@
+// The customization lab: the ship and the home planet, and everything that
+// can be made for them.
+//
+// Each tab opens on a live stage — the ship flying, or the planet turning —
+// and below it what can be made, as pictures: hulls and planet effects drawn
+// by the painters that draw them in space, so the player sees what they are
+// making before they make it. Tapping anything tries it on the stage and
+// docks its card at the foot of the lab: what it costs, its options, the one
+// thing to do with it. Upgrades are a short list of rows, not cards.
+//
+// Locked things keep their names to themselves ("???"), as they always have;
+// the stage and the thumbnails show them, dimmed, so a craft is never blind.
+
+import 'dart:math';
+import 'dart:ui' as ui;
+
 import 'package:alchemons/audio/audio.dart';
-import 'package:flutter/material.dart';
-import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/cosmic_game.dart' show ShipComponent;
+import 'package:alchemons/games/cosmic/ship_art.dart';
+import 'package:alchemons/utils/app_font_family.dart';
+import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+
 import 'cosmic_overlay_chrome.dart';
 import 'cosmic_screen_styles.dart';
-import 'package:alchemons/widgets/app_icons.dart';
+
+/// Draws the home planet into [area] at [time], wearing [wearing] in
+/// [color] — see CosmicGame.paintHomeShowcase.
+typedef HomeShowcasePainter =
+    void Function(
+      Canvas canvas,
+      Rect area,
+      double time, {
+      required Set<String> wearing,
+      String? color,
+    });
 
 class CustomizationMenuOverlay extends StatefulWidget {
   const CustomizationMenuOverlay({
@@ -33,6 +67,7 @@ class CustomizationMenuOverlay extends StatefulWidget {
     required this.onGarrison,
     this.garrisonStationed = 0,
     this.garrisonSlots = 0,
+    this.paintHome,
   });
 
   final HomeCustomizationState customizationState;
@@ -74,325 +109,207 @@ class CustomizationMenuOverlay extends StatefulWidget {
   final VoidCallback onChambers;
   final void Function(String type) onUpgradePowerUp;
 
-  /// Opens the garrison picker. The garrison moved in here from the home
-  /// planet's dock: who is stationed on the planet is part of how the planet
-  /// is set up, not a separate errand alongside it.
+  /// Opens the garrison picker. Who is stationed on the planet is part of
+  /// how the planet is set up, so it lives here.
   final VoidCallback onGarrison;
   final int garrisonStationed;
   final int garrisonSlots;
+
+  /// Draws the real home planet for the HOME stage and the effect pictures.
+  /// Without it (tests, previews) the lab draws a plain sphere.
+  final HomeShowcasePainter? paintHome;
 
   @override
   State<CustomizationMenuOverlay> createState() =>
       CustomizationMenuOverlayState();
 }
 
-class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
-  /// When non-null, shows the sub-customization detail view for this recipe.
-  String? _detailRecipeId;
+// ── what can be picked ──────────────────────────────────────────────────────
 
-  /// Which tab is active: 0 = SHIP, 1 = HOME
+enum _PickKind { recipe, standardHull, color, size }
+
+/// The thing the lab is showing on its stage and in its dock.
+class _Pick {
+  const _Pick(this.kind, [this.id]);
+  final _PickKind kind;
+  final String? id;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _Pick && other.kind == kind && other.id == id;
+
+  @override
+  int get hashCode => Object.hash(kind, id);
+}
+
+const _shipAccent = CosmicScreenStyles.teal;
+const _homeAccent = CosmicScreenStyles.amberBright;
+const _palette = BracketPalette.dark;
+const _mono = 'monospace';
+
+const _hullIds = ['skin_phantom', 'skin_solar', 'skin_inferno', 'skin_crystal'];
+const _weaponIds = ['equip_machinegun', 'equip_missiles'];
+const _systemIds = ['equip_orbitals', 'equip_matter_injector'];
+const _ammoIds = ['storm_bolts', 'plasma_bolts', 'ice_shards', 'void_cannon'];
+const _stationIds = ['refuel_station', 'missile_station', 'sentinel_station'];
+
+/// Only one of each of these can be fitted at a time.
+bool _isExclusive(String id) =>
+    _hullIds.contains(id) || _weaponIds.contains(id) || _ammoIds.contains(id);
+
+/// What a bolt of each ammo looks like in flight.
+Color _ammoColor(String? id) => switch (id) {
+  'storm_bolts' => const Color(0xFFFFEB3B),
+  'plasma_bolts' => const Color(0xFFFFFFFF),
+  'ice_shards' => const Color(0xFF00E5FF),
+  'void_cannon' => const Color(0xFF9C27B0),
+  _ => const Color(0xFF00E5FF),
+};
+
+HomeRecipe? _recipe(String id) {
+  for (final r in kHomeRecipes) {
+    if (r.id == id) return r;
+  }
+  return null;
+}
+
+class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay>
+    with SingleTickerProviderStateMixin {
   late int _activeTab = widget.initialTab;
-  late PageController _pageController = PageController(
-    initialPage: widget.initialTab,
+  _Pick? _pick;
+
+  /// The stage's clock, in seconds since the lab opened.
+  final ValueNotifier<double> _clock = ValueNotifier(0);
+  late final Ticker _ticker = createTicker(
+    (d) => _clock.value = d.inMicroseconds / 1e6,
   );
+
+  /// The ship on the SHIP stage. Kept, so its wake runs on unbroken.
+  final ShipComponent _stageShip = ShipComponent(pos: Offset.zero);
+
+  /// Pictures of the planet wearing each effect, by what they were drawn
+  /// with (effect, colour, options).
+  final Map<String, ui.Image> _thumbs = {};
 
   @visibleForTesting
   int get activeTabForTest => _activeTab;
 
-  void _setTab(int index) {
-    _activeTab = index;
-    widget.onTabChanged?.call(index);
+  @override
+  void initState() {
+    super.initState();
+    _ticker.start();
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _ticker.dispose();
+    _clock.dispose();
+    for (final img in _thumbs.values) {
+      img.dispose();
+    }
     super.dispose();
   }
 
-  Widget _shardCostLabel(
-    BuildContext context, {
-    required String label,
-    required int amount,
-    required bool enabled,
-    double fontSize = 12,
-    double iconSize = 12,
-    double letterSpacing = 0.5,
-  }) {
-    final color = enabled
-        ? CosmicScreenStyles.astralShardColor
-        : CosmicScreenStyles.textMuted;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: appFontFamily(context),
-            color: color,
-            fontSize: fontSize,
-            fontWeight: FontWeight.w800,
-            letterSpacing: letterSpacing,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Icon(CosmicScreenStyles.astralShardIcon, color: color, size: iconSize),
-        const SizedBox(width: 3),
-        Text(
-          _fmt(amount),
-          style: TextStyle(
-            fontFamily: appFontFamily(context),
-            color: color,
-            fontSize: fontSize,
-            fontWeight: FontWeight.w800,
-            letterSpacing: letterSpacing,
-          ),
-        ),
-      ],
-    );
+  void _setTab(int index) {
+    setState(() {
+      _activeTab = index;
+      _pick = null;
+    });
+    widget.onTabChanged?.call(index);
   }
+
+  void _select(_Pick pick) =>
+      setState(() => _pick = _pick == pick ? null : pick);
+
+  /// After any change the parent makes to the state objects it owns.
+  void _after(VoidCallback act) {
+    act();
+    setState(() {});
+  }
+
+  Map<String, double> get _stored => widget.elementStorage.stored;
+  int get _shards => widget.homePlanet?.astralBank ?? 0;
+
+  bool _canAfford(Map<String, int> cost) =>
+      cost.entries.every((e) => (_stored[e.key] ?? 0) >= e.value);
+
+  // ── build ──────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    // If showing a detail view, render that instead
-    if (_detailRecipeId != null) {
-      return _buildDetailView(_detailRecipeId!);
-    }
-
-    // Group recipes by category
-    final weapons = kHomeRecipes
-        .where(
-          (r) =>
-              r.category == HomeRecipeCategory.equipment &&
-              (r.id == 'equip_machinegun' || r.id == 'equip_missiles'),
-        )
-        .toList();
-    final systems = kHomeRecipes
-        .where(
-          (r) =>
-              r.category == HomeRecipeCategory.equipment &&
-              // The booster ships fitted; the sentinels and the injector
-              // are the systems still worth building.
-              (r.id == 'equip_orbitals' || r.id == 'equip_matter_injector'),
-        )
-        .toList();
-    final ammos = kHomeRecipes
-        .where((r) => r.category == HomeRecipeCategory.ammo)
-        .toList();
-    final skins = kHomeRecipes
-        .where(
-          (r) =>
-              r.category == HomeRecipeCategory.equipment &&
-              r.id.startsWith('skin_'),
-        )
-        .toList();
-    final visuals = kHomeRecipes
-        .where((r) => r.category == HomeRecipeCategory.visual)
-        .toList();
-    final stations = kHomeRecipes
-        .where((r) => r.category == HomeRecipeCategory.upgrade)
-        .toList();
-
-    final maxTier = widget.homePlanet?.sizeTierLevel ?? 0;
-    final activeTier = widget.homePlanet?.activeSizeTier ?? 0;
-    final nextCost = widget.homePlanet?.nextTierCost;
-    final canAffordUpgrade =
-        nextCost != null && (widget.homePlanet?.astralBank ?? 0) >= nextCost;
-    final bankBalance = widget.homePlanet?.astralBank ?? 0;
-
+    final accent = _activeTab == 0 ? _shipAccent : _homeAccent;
     return Material(
       color: Colors.transparent,
       child: Container(
-        color: CosmicScreenStyles.bg0.withValues(alpha: 0.95),
+        color: CosmicScreenStyles.bg0.withValues(alpha: 0.96),
         child: SafeArea(
           child: Column(
             children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 3,
-                      height: 14,
-                      color: CosmicScreenStyles.amber,
-                      margin: const EdgeInsets.only(right: 10),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'CUSTOMIZATION LAB',
-                        style: TextStyle(
-                          fontFamily: appFontFamily(context),
-                          color: CosmicScreenStyles.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 3.0,
-                        ),
-                      ),
-                    ),
-                    // X closes out entirely; the docked BACK steps up a level.
-                    CosmicCloseButton(onTap: widget.onClose),
-                  ],
-                ),
-              ),
-              _etchedDivider(),
-
-              // ── Preview ──
-              // Sits above everything else: once you have changed how the
-              // planet looks, the next thing you want is to go look at it.
-              if (widget.canPreview && widget.onPreview != null) ...[
-                const SizedBox(height: 10),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: GestureDetector(
-                    onTap: context.soundAction(widget.onPreview),
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      width: double.infinity,
-                      height: 38,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: CosmicScreenStyles.teal.withValues(alpha: 0.14),
-                        border: Border.all(
-                          color: CosmicScreenStyles.teal.withValues(
-                            alpha: 0.75,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            AppIcons.visibility_rounded,
-                            size: 15,
-                            color: CosmicScreenStyles.teal,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'PREVIEW ON PLANET',
-                            style: TextStyle(
-                              fontFamily: appFontFamily(context),
-                              color: CosmicScreenStyles.teal,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.8,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 10),
-
-              // Tab bar
+              _header(),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    _tabButton('SHIP', 0, CosmicScreenStyles.teal),
-                    const SizedBox(width: 6),
-                    _tabButton('HOME', 1, CosmicScreenStyles.amberBright),
+                child: BracketTabs(
+                  labels: const ['SHIP', 'HOME'],
+                  icons: const [
+                    AppIcons.rocket_launch_rounded,
+                    AppIcons.public_rounded,
                   ],
+                  selected: _activeTab,
+                  onSelect: _setTab,
+                  palette: _palette,
+                  accent: accent,
                 ),
               ),
               const SizedBox(height: 10),
-
-              // Storage summary button
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: GestureDetector(
-                  onTap: context.soundAction(
-                    () => _showResourcesPopup(context, bankBalance),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: CosmicScreenStyles.bg2,
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(color: CosmicScreenStyles.borderDim),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          AppIcons.inventory_2_rounded,
-                          color: CosmicScreenStyles.textSecondary,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'RESOURCES',
-                          style: TextStyle(
-                            fontFamily: appFontFamily(context),
-                            color: CosmicScreenStyles.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (widget.homePlanet != null) ...[
-                          const Icon(
-                            CosmicScreenStyles.astralShardIcon,
-                            color: CosmicScreenStyles.astralShardColor,
-                            size: 12,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _fmt(bankBalance),
-                            style: TextStyle(
-                              fontFamily: appFontFamily(context),
-                              color: CosmicScreenStyles.astralShardColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        const Icon(
-                          AppIcons.keyboard_arrow_down_rounded,
-                          color: CosmicScreenStyles.textMuted,
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Tab content
+              _stage(accent),
               Expanded(
-                child: PageView(
-                  controller: _pageController,
-                  onPageChanged: (i) => setState(() => _setTab(i)),
-                  children: [
-                    _buildShipTab(weapons, systems, ammos, skins),
-                    _buildHomeTab(
-                      maxTier,
-                      activeTier,
-                      nextCost,
-                      canAffordUpgrade,
-                      visuals,
-                      stations,
-                    ),
-                  ],
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: _activeTab == 0 ? _shipTab() : _homeTab(),
                 ),
               ),
-
-              // ── Docked BACK ──
-              _backDock(),
+              _pick == null ? _backDock() : _dock(_pick!, accent),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _header() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 4, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'CUSTOMIZATION LAB',
+              style: _label(13, _palette.ink, spacing: 2.6),
+            ),
+          ),
+          // What there is to spend, a tap from the full list.
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: context.soundAction(() => _showResourcesPopup(context)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                children: [
+                  if (widget.homePlanet != null) ...[
+                    _ShardAmount(_shards, size: 12.5),
+                    const SizedBox(width: 10),
+                  ],
+                  Icon(
+                    AppIcons.inventory_2_rounded,
+                    size: 16,
+                    color: _palette.muted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          CosmicCloseButton(onTap: widget.onClose),
+        ],
       ),
     );
   }
@@ -407,2151 +324,947 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           top: BorderSide(color: CosmicScreenStyles.borderMid, width: 1.2),
         ),
       ),
-      child: SafeArea(
-        top: false,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: context.soundAction(widget.onBack ?? widget.onClose),
-          child: Container(
-            width: double.infinity,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              border: Border.all(color: CosmicScreenStyles.borderMid),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  AppIcons.arrow_back,
-                  size: 15,
-                  color: CosmicScreenStyles.textSecondary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'BACK',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.textSecondary,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.8,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      child: BracketButton(
+        label: 'BACK',
+        icon: AppIcons.arrow_back,
+        primary: false,
+        height: 40,
+        palette: _palette,
+        accent: _shipAccent,
+        onTap: widget.onBack ?? widget.onClose,
       ),
     );
   }
 
-  static Widget _etchedDivider() {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(height: 1, color: CosmicScreenStyles.borderMid),
-        ),
-        const SizedBox(width: 6),
-        Container(
-          width: 4,
-          height: 4,
-          decoration: BoxDecoration(
-            color: CosmicScreenStyles.amber.withValues(alpha: 0.5),
-            shape: BoxShape.circle,
+  // ── the stage ──────────────────────────────────────────────────────────
+
+  Widget _stage(Color accent) {
+    final pick = _pick;
+    final cs = widget.customizationState;
+    final _StagePainter painter;
+    String caption;
+    if (_activeTab == 0) {
+      // The hull on show: the one picked, else the one flying.
+      var skin = cs.activeShipSkin;
+      if (pick?.kind == _PickKind.standardHull) skin = null;
+      if (pick?.kind == _PickKind.recipe && _hullIds.contains(pick!.id)) {
+        skin = pick.id;
+      }
+      // A weapon or an ammo on show fires, in the ammo it would carry.
+      final id = pick?.kind == _PickKind.recipe ? pick!.id : null;
+      final firing = _ammoIds.contains(id) || _weaponIds.contains(id);
+      final ammo = _ammoIds.contains(id) ? id : cs.activeAmmo?.id;
+      painter = _ShipStagePainter(
+        clock: _clock,
+        ship: _stageShip,
+        skin: skin,
+        orbitals: cs.hasOrbitals || id == 'equip_orbitals',
+        bolts: firing ? _ammoColor(ammo) : null,
+        repeater:
+            id == 'equip_machinegun' ||
+            (_ammoIds.contains(id) && cs.activeWeapon != null),
+        missiles: id == 'equip_missiles',
+      );
+      caption = skin == null ? 'STANDARD HULL' : (_named(skin) ?? '???');
+    } else {
+      final planet = widget.homePlanet;
+      var wearing = cs.activeIds
+          .where((id) => _recipe(id)?.category == HomeRecipeCategory.visual)
+          .toSet();
+      var color = planet?.activeColor;
+      if (pick?.kind == _PickKind.recipe &&
+          _recipe(pick!.id!)?.category == HomeRecipeCategory.visual) {
+        wearing = {...wearing, pick.id!};
+      }
+      if (pick?.kind == _PickKind.color) color = pick!.id;
+      painter = _HomeStagePainter(
+        clock: _clock,
+        paintHome: planet == null ? null : widget.paintHome,
+        wearing: wearing,
+        color: color,
+      );
+      caption = wearing.isEmpty ? 'YOUR PLANET' : 'WEARING ${wearing.length}';
+    }
+    return SizedBox(
+      height: 176,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: RepaintBoundary(child: CustomPaint(painter: painter)),
           ),
+          Positioned(
+            left: 16,
+            bottom: 8,
+            child: Text(caption, style: _label(10.5, _palette.muted)),
+          ),
+          if (_activeTab == 1 && widget.canPreview && widget.onPreview != null)
+            Positioned(
+              right: 16,
+              bottom: 4,
+              child: SizedBox(
+                height: 30,
+                child: BracketButton(
+                  label: 'PREVIEW ON PLANET',
+                  icon: AppIcons.visibility_rounded,
+                  height: 30,
+                  palette: _palette,
+                  accent: _homeAccent,
+                  onTap: widget.onPreview,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String? _named(String id) {
+    final r = _recipe(id);
+    if (r == null) return null;
+    return widget.customizationState.isUnlocked(id)
+        ? r.name.toUpperCase()
+        : null;
+  }
+
+  // ── SHIP ───────────────────────────────────────────────────────────────
+
+  Widget _shipTab() {
+    final cs = widget.customizationState;
+    return ListView(
+      key: const PageStorageKey<String>('cosmic.lab.ship'),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      children: [
+        _section('HULL'),
+        _grid(5, [_hullTile(null), for (final id in _hullIds) _hullTile(id)]),
+        const SizedBox(height: 14),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _section('WEAPON'),
+                  _grid(2, [for (final id in _weaponIds) _recipeTile(id)]),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _section('SYSTEMS'),
+                  _grid(2, [for (final id in _systemIds) _recipeTile(id)]),
+                ],
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Container(height: 1, color: CosmicScreenStyles.borderMid),
+        const SizedBox(height: 14),
+        _section('AMMO'),
+        _grid(4, [for (final id in _ammoIds) _recipeTile(id)]),
+        const SizedBox(height: 14),
+        _section('UPGRADES'),
+        _cargoRow(),
+        _powerRow(
+          label: 'AMMO POWER',
+          level: cs.ammoUpgradeLevel,
+          max: HomeCustomizationState.maxUpgradeLevel,
+          value:
+              '+${((HomeCustomizationState.damageMultiplier(cs.ammoUpgradeLevel) - 1) * 100).round()}%',
+          costs: HomeCustomizationState.upgradeCosts,
+          onUpgrade: () => widget.onUpgradePowerUp('ammo'),
+        ),
+        _powerRow(
+          label: 'MISSILE POWER',
+          level: cs.missileUpgradeLevel,
+          max: HomeCustomizationState.maxUpgradeLevel,
+          value:
+              '+${((HomeCustomizationState.missileDamageMultiplier(cs.missileUpgradeLevel) - 1) * 100).round()}%',
+          costs: HomeCustomizationState.upgradeCosts,
+          onUpgrade: () => widget.onUpgradePowerUp('missile'),
+        ),
+        _powerRow(
+          label: 'FUEL TANK',
+          level: cs.fuelUpgradeLevel,
+          max: HomeCustomizationState.maxFuelUpgradeLevel,
+          value:
+              '${ShipFuel.capacityForLevel(cs.fuelUpgradeLevel).toInt()} UNITS',
+          costs: HomeCustomizationState.fuelUpgradeCosts,
+          onUpgrade: () => widget.onUpgradePowerUp('fuel'),
         ),
       ],
     );
   }
 
-  void _showResourcesPopup(BuildContext context, int bankBalance) {
-    final stored = widget.elementStorage.stored;
-    // Sort by amount descending, drop zeroes, and drop keys the game no longer
-    // knows — stale saves carry elements that were renamed or removed, and
-    // `elementColor` renders those as flat grey so they read as real resources.
+  Widget _hullTile(String? id) {
+    final cs = widget.customizationState;
+    final owned = id == null || cs.isUnlocked(id);
+    final flying = cs.activeShipSkin == id;
+    final pick = id == null
+        ? const _Pick(_PickKind.standardHull)
+        : _Pick(_PickKind.recipe, id);
+    final recipe = id == null ? null : _recipe(id);
+    return _Tile(
+      key: ValueKey('lab.hull.${id ?? 'standard'}'),
+      accent: _shipAccent,
+      aspect: 0.82,
+      equipped: flying,
+      owned: owned,
+      craftable: !owned && _canAfford(recipe!.ingredients),
+      selected: _pick == pick,
+      label: owned ? (id == null ? 'STANDARD' : _short(recipe!.name)) : null,
+      onTap: () => _select(pick),
+      child: CustomPaint(painter: _HullThumbPainter(id)),
+    );
+  }
+
+  Widget _recipeTile(String id) {
+    final cs = widget.customizationState;
+    final recipe = _recipe(id)!;
+    final owned = cs.isUnlocked(id);
+    final pick = _Pick(_PickKind.recipe, id);
+    final isStation = _stationIds.contains(id);
+    final accent = _activeTab == 0 ? _shipAccent : _homeAccent;
+    return _Tile(
+      key: ValueKey('lab.recipe.$id'),
+      accent: accent,
+      equipped: owned && (isStation || cs.isActive(id)),
+      owned: owned,
+      craftable: !owned && _canAfford(recipe.ingredients),
+      selected: _pick == pick,
+      label: owned ? _short(recipe.name) : null,
+      onTap: () => _select(pick),
+      child: _RecipeGlyph(id: id, accent: accent),
+    );
+  }
+
+  /// A name short enough for a tile: its last word ("RINGS", "VIPER"),
+  /// or for a station, its first ("REFUEL").
+  static String _short(String name) {
+    final words = name.toUpperCase().split(' ');
+    if (words.length < 2 || name.length <= 11) return name.toUpperCase();
+    return words.last == 'STATION' ? words.first : words.last;
+  }
+
+  Widget _cargoRow() {
+    final level = widget.cargoLevel;
+    final maxed = level >= CargoUpgrade.maxLevel;
+    final cost = maxed
+        ? const <String, int>{}
+        : CargoUpgrade.costForNextLevel(level);
+    return _UpgradeRow(
+      label: 'CARGO HOLD',
+      level: level,
+      max: CargoUpgrade.maxLevel,
+      value: '${(CargoUpgrade.capacityForLevel(level) * 100).round()}% METER',
+      accent: _shipAccent,
+      maxed: maxed,
+      cost: Wrap(
+        spacing: 8,
+        runSpacing: 2,
+        children: [
+          for (final e in cost.entries) _CostChip(e.key, e.value, _stored),
+        ],
+      ),
+      buttonLabel: widget.isNearHome ? 'UPGRADE' : 'DOCK AT HOME',
+      enabled: widget.isNearHome && _canAfford(cost),
+      onUpgrade: () => _after(widget.onUpgradeCargo),
+    );
+  }
+
+  Widget _powerRow({
+    required String label,
+    required int level,
+    required int max,
+    required String value,
+    required List<int> costs,
+    required VoidCallback onUpgrade,
+  }) {
+    final maxed = level >= max;
+    final next = maxed ? 0 : costs[level];
+    return _UpgradeRow(
+      label: label,
+      level: level,
+      max: max,
+      value: value,
+      accent: _shipAccent,
+      maxed: maxed,
+      cost: _ShardAmount(next, size: 11.5, enabled: _shards >= next),
+      buttonLabel: 'LV ${level + 1}',
+      enabled: _shards >= next,
+      onUpgrade: () => _after(onUpgrade),
+    );
+  }
+
+  // ── HOME ───────────────────────────────────────────────────────────────
+
+  Widget _homeTab() {
+    final planet = widget.homePlanet;
+    final cs = widget.customizationState;
+    final visuals = [
+      for (final r in kHomeRecipes)
+        if (r.category == HomeRecipeCategory.visual) r.id,
+    ];
+    return ListView(
+      key: const PageStorageKey<String>('cosmic.lab.home'),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: BracketButton(
+                key: const ValueKey('lab.garrison'),
+                label: 'GARRISON',
+                icon: AppIcons.shield,
+                primary: false,
+                height: 38,
+                palette: _palette,
+                accent: _homeAccent,
+                trailing: Text(
+                  '${widget.garrisonStationed}/${widget.garrisonSlots}',
+                  style: _label(
+                    11.5,
+                    widget.garrisonSlots > 0 &&
+                            widget.garrisonStationed >= widget.garrisonSlots
+                        ? CosmicScreenStyles.success
+                        : _homeAccent,
+                  ),
+                ),
+                onTap: widget.onGarrison,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: BracketButton(
+                label: 'CHAMBERS',
+                icon: AppIcons.bubble_chart_rounded,
+                primary: false,
+                height: 38,
+                palette: _palette,
+                accent: _homeAccent,
+                onTap: widget.onChambers,
+              ),
+            ),
+          ],
+        ),
+        if (planet != null) ...[
+          const SizedBox(height: 14),
+          _section(
+            'SIZE',
+            trailing: HomePlanet.tierNames[planet.activeSizeTier],
+          ),
+          _sizeRow(planet),
+          const SizedBox(height: 14),
+          _section('COLOUR', trailing: _colorName(planet.activeColor)),
+          _colorSwatches(planet),
+        ],
+        const SizedBox(height: 14),
+        _section(
+          'EFFECTS',
+          trailing: '${visuals.where(cs.isUnlocked).length}/${visuals.length}',
+        ),
+        _grid(4, [for (final id in visuals) _effectTile(id)]),
+        const SizedBox(height: 14),
+        _section('STATIONS'),
+        _grid(4, [for (final id in _stationIds) _recipeTile(id)]),
+      ],
+    );
+  }
+
+  static String _colorName(String? id) =>
+      (premiumHomeColor(id)?.label ?? id ?? 'Default Gray');
+
+  Widget _sizeRow(HomePlanet planet) {
+    final next = planet.sizeTierLevel + 1;
+    final nextCost = planet.nextTierCost;
+    return Row(
+      children: [
+        for (var i = 0; i < HomePlanet.tierNames.length; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(
+            child: _SizeCell(
+              key: ValueKey('lab.size.$i'),
+              name: HomePlanet.tierNames[i].toUpperCase(),
+              active: planet.activeSizeTier == i,
+              unlocked: i <= planet.sizeTierLevel,
+              cost: i == next ? nextCost : null,
+              selected: _pick == _Pick(_PickKind.size, '$i'),
+              onTap: i <= planet.sizeTierLevel
+                  ? () => _after(() => widget.onSelectSize(i))
+                  : i == next && nextCost != null
+                  ? () => _select(_Pick(_PickKind.size, '$i'))
+                  : null,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _colorSwatches(HomePlanet planet) {
+    final ids = <String?>[
+      null,
+      ...kElementColors.keys,
+      for (final p in kPremiumHomeColors) p.id,
+    ];
+    return LayoutBuilder(
+      builder: (context, box) {
+        const gap = 6.0;
+        final cols = box.maxWidth >= 470 ? 10 : 7;
+        final cell = (box.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final id in ids)
+              SizedBox(
+                width: cell,
+                height: cell,
+                child: _Swatch(
+                  key: ValueKey('lab.color.${id ?? 'default'}'),
+                  id: id,
+                  active: planet.activeColor == id,
+                  owned: id == null || planet.unlockedColors.contains(id),
+                  craftable: id != null && _canAfford(_colorCost(id)),
+                  selected: _pick == _Pick(_PickKind.color, id),
+                  onTap: () {
+                    final owned =
+                        id == null || planet.unlockedColors.contains(id);
+                    if (owned) {
+                      // An owned colour is one tap: it is cheap to undo.
+                      setState(() => _pick = null);
+                      _after(() => widget.onSelectColor(id));
+                    } else {
+                      _select(_Pick(_PickKind.color, id));
+                    }
+                  },
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  static Map<String, int> _colorCost(String id) =>
+      premiumHomeColor(id)?.cost ?? {id: HomePlanet.colorUnlockCost};
+
+  Widget _effectTile(String id) {
+    final cs = widget.customizationState;
+    final recipe = _recipe(id)!;
+    final owned = cs.isUnlocked(id);
+    final pick = _Pick(_PickKind.recipe, id);
+    return _Tile(
+      key: ValueKey('lab.recipe.$id'),
+      accent: _homeAccent,
+      equipped: owned && cs.isActive(id),
+      owned: owned,
+      craftable: !owned && _canAfford(recipe.ingredients),
+      selected: _pick == pick,
+      label: owned ? _short(recipe.name) : null,
+      onTap: () => _select(pick),
+      child: CustomPaint(
+        painter: _EffectThumbPainter(
+          image: _thumbFor(id),
+          fallbackColor: widget.homePlanet?.blendedColor ?? Colors.blueGrey,
+        ),
+      ),
+    );
+  }
+
+  /// The planet wearing [id] alone, drawn once and kept until the colour or
+  /// the effect's options change.
+  ui.Image? _thumbFor(String id) {
+    final paint = widget.paintHome;
+    final planet = widget.homePlanet;
+    if (paint == null || planet == null) return null;
+    final cs = widget.customizationState;
+    final opts = [
+      for (final p in kRecipeParams[id] ?? const <CustomizationParam>[])
+        cs.getOption(id, p.key),
+    ].join(',');
+    final key = '$id|${planet.activeColor}|$opts';
+    final have = _thumbs[key];
+    if (have != null) return have;
+    _thumbs.removeWhere((k, img) {
+      if (!k.startsWith('$id|')) return false;
+      img.dispose();
+      return true;
+    });
+    const px = 192;
+    const frame = Rect.fromLTWH(0, 0, px + 0.0, px + 0.0);
+    final rec = ui.PictureRecorder();
+    final canvas = Canvas(rec, frame);
+    // Once per picture, so the layer costs nothing a frame.
+    canvas.saveLayer(frame, Paint());
+    // Drawn a size up, so the planet fills the tile; only the farthest
+    // reach of the widest effects falls off the edge.
+    paint(
+      canvas,
+      Rect.fromCenter(
+        center: frame.center,
+        width: px * 1.45,
+        height: px * 1.45,
+      ),
+      4.0,
+      wearing: {id},
+      color: planet.activeColor,
+    );
+    // Faded to nothing at the edge, so the picture has no corners.
+    canvas.drawRect(
+      frame,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = ui.Gradient.radial(
+          frame.center,
+          px / 2,
+          const [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+          const [0.0, 0.7, 1.0],
+        ),
+    );
+    canvas.restore();
+    return _thumbs[key] = rec.endRecording().toImageSync(px, px);
+  }
+
+  // ── the dock ───────────────────────────────────────────────────────────
+
+  Widget _dock(_Pick pick, Color accent) {
+    final content = switch (pick.kind) {
+      _PickKind.recipe => _recipeDock(pick.id!, accent),
+      _PickKind.standardHull => _standardHullDock(),
+      _PickKind.color => _colorDock(pick.id),
+      _PickKind.size => _sizeDock(int.parse(pick.id!)),
+    };
+    return Container(
+      key: const ValueKey('lab.dock'),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.46,
+      ),
+      decoration: BoxDecoration(
+        color: CosmicScreenStyles.bg1,
+        border: Border(
+          top: BorderSide(color: accent.withValues(alpha: 0.55), width: 1.2),
+        ),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: content,
+      ),
+    );
+  }
+
+  Widget _dockTitle(String title, {String? subtitle}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: _label(13.5, _palette.ink, spacing: 1.8)),
+              if (subtitle != null) ...[
+                const SizedBox(height: 3),
+                Text(subtitle, style: _label(10.5, _palette.muted)),
+              ],
+            ],
+          ),
+        ),
+        BracketIconButton(
+          icon: AppIcons.close_rounded,
+          size: 30,
+          palette: _palette,
+          onTap: () => setState(() => _pick = null),
+        ),
+      ],
+    );
+  }
+
+  Widget _prose(String text, {Color? color}) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Text(
+      text,
+      style: TextStyle(
+        fontFamily: appFontFamily(context),
+        color: color ?? CosmicScreenStyles.textSecondary,
+        fontSize: 13,
+        height: 1.3,
+      ),
+    ),
+  );
+
+  Widget _costs(Map<String, int> cost) => Padding(
+    padding: const EdgeInsets.only(top: 10),
+    child: Wrap(
+      spacing: 12,
+      runSpacing: 6,
+      children: [
+        for (final e in cost.entries)
+          _CostChip(e.key, e.value, _stored, size: 12.5),
+      ],
+    ),
+  );
+
+  Widget _action(
+    String label,
+    Color accent, {
+    VoidCallback? onTap,
+    bool enabled = true,
+    bool primary = true,
+  }) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: BracketButton(
+      key: const ValueKey('lab.dock.action'),
+      label: label,
+      height: 42,
+      palette: _palette,
+      accent: accent,
+      primary: primary,
+      enabled: enabled && onTap != null,
+      onTap: onTap,
+    ),
+  );
+
+  Widget _recipeDock(String id, Color accent) {
+    final cs = widget.customizationState;
+    final recipe = _recipe(id)!;
+    final owned = cs.isUnlocked(id);
+    final active = cs.isActive(id);
+    final isStation = _stationIds.contains(id);
+    final params = kRecipeParams[id] ?? const <CustomizationParam>[];
+    final planet = widget.homePlanet;
+    final needsBig =
+        id == 'orbiting_moon' && (planet == null || planet.sizeTierIndex < 3);
+
+    if (!owned) {
+      final affordable = _canAfford(recipe.ingredients);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _dockTitle('???', subtitle: _kindName(recipe)),
+          _costs(recipe.ingredients),
+          _action(
+            'CRAFT',
+            accent,
+            enabled: affordable,
+            onTap: () => _after(() => widget.onTryRecipe(id)),
+          ),
+        ],
+      );
+    }
+
+    final String label;
+    if (isStation) {
+      label = 'BUILT';
+    } else if (_isExclusive(id)) {
+      label = active ? 'UNEQUIP' : 'EQUIP';
+    } else {
+      label = active ? 'SWITCH OFF' : 'SWITCH ON';
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _dockTitle(
+          recipe.name.toUpperCase(),
+          subtitle: _kindName(recipe) + (active && !isStation ? ' · ON' : ''),
+        ),
+        _prose(recipe.description),
+        if (needsBig)
+          _prose('Shows on a Big planet.', color: CosmicScreenStyles.amber),
+        for (final p in params) _paramRow(id, p, accent),
+        _action(
+          label,
+          accent,
+          primary: !active,
+          onTap: isStation
+              ? null
+              : () => _after(() => widget.onToggleRecipe(id)),
+          enabled: !isStation,
+        ),
+      ],
+    );
+  }
+
+  static String _kindName(HomeRecipe r) {
+    final id = r.id;
+    if (_hullIds.contains(id)) return 'HULL';
+    if (_weaponIds.contains(id)) return 'WEAPON';
+    if (_systemIds.contains(id)) return 'SHIP SYSTEM';
+    if (_ammoIds.contains(id)) return 'AMMO';
+    if (_stationIds.contains(id)) return 'BASE STATION';
+    return 'PLANET EFFECT';
+  }
+
+  Widget _paramRow(String id, CustomizationParam param, Color accent) {
+    final current = widget.customizationState.getOption(id, param.key);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(param.label.toUpperCase(), style: _label(10.5, _palette.muted)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final opt in param.options)
+                _OptionChip(
+                  label: opt,
+                  selected: opt == current,
+                  accent: accent,
+                  onTap: () =>
+                      _after(() => widget.onOptionChanged(id, param.key, opt)),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _standardHullDock() {
+    final flying = widget.customizationState.activeShipSkin;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _dockTitle('STANDARD HULL', subtitle: 'HULL'),
+        _prose('The hull every ship leaves the yard with.'),
+        _action(
+          flying == null ? 'FLYING' : 'EQUIP',
+          _shipAccent,
+          enabled: flying != null,
+          onTap: flying == null
+              ? null
+              : () => _after(() => widget.onToggleRecipe(flying)),
+        ),
+      ],
+    );
+  }
+
+  Widget _colorDock(String? id) {
+    final premium = premiumHomeColor(id);
+    final cost = id == null ? const <String, int>{} : _colorCost(id);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _dockTitle(
+          _colorName(id).toUpperCase(),
+          subtitle: premium != null ? 'PREMIUM COLOUR' : 'COLOUR',
+        ),
+        _costs(cost),
+        _action(
+          'UNLOCK',
+          _homeAccent,
+          enabled: id != null && _canAfford(cost),
+          onTap: id == null
+              ? null
+              : () => _after(() {
+                  widget.onUnlockColor(id);
+                  _pick = null;
+                }),
+        ),
+      ],
+    );
+  }
+
+  Widget _sizeDock(int tier) {
+    final cost = widget.homePlanet?.nextTierCost ?? 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _dockTitle(HomePlanet.tierNames[tier].toUpperCase(), subtitle: 'SIZE'),
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: _ShardAmount(cost, size: 13, enabled: _shards >= cost),
+        ),
+        _action(
+          'UNLOCK',
+          _homeAccent,
+          enabled: _shards >= cost,
+          onTap: () => _after(() {
+            widget.onUpgradeSize();
+            _pick = null;
+          }),
+        ),
+      ],
+    );
+  }
+
+  // ── pieces ─────────────────────────────────────────────────────────────
+
+  Widget _section(String title, {String? trailing}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Row(
+        children: [
+          Text(title, style: _label(10.5, _palette.muted, spacing: 1.8)),
+          const SizedBox(width: 10),
+          Expanded(child: Container(height: 1, color: _palette.lineSoft)),
+          if (trailing != null) ...[
+            const SizedBox(width: 10),
+            Text(
+              trailing.toUpperCase(),
+              style: _label(10.5, _palette.ink.withValues(alpha: 0.8)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// [children] in rows of [columns].
+  Widget _grid(int columns, List<Widget> children) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        const gap = 8.0;
+        final w = (box.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [for (final c in children) SizedBox(width: w, child: c)],
+        );
+      },
+    );
+  }
+
+  void _showResourcesPopup(BuildContext context) {
     final entries =
-        stored.entries
+        _stored.entries
             .where((e) => e.value > 0 && isKnownElement(e.key))
             .toList()
           ..sort((a, b) => b.value.compareTo(a.value));
-
     showDialog(
       context: context,
       barrierColor: Colors.black54,
       builder: (ctx) => Center(
         child: Material(
           color: Colors.transparent,
-          child: Container(
-            width: 260,
-            constraints: const BoxConstraints(maxHeight: 420),
-            decoration: BoxDecoration(
-              color: CosmicScreenStyles.bg0,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: CosmicScreenStyles.borderMid),
+          child: CustomPaint(
+            foregroundPainter: BracketFramePainter(
+              color: _homeAccent.withValues(alpha: 0.8),
+              bracketSize: 12,
+              strokeWidth: 1.2,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: CosmicScreenStyles.borderMid),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 3,
-                        height: 12,
-                        color: CosmicScreenStyles.amber,
-                        margin: const EdgeInsets.only(right: 8),
-                      ),
-                      Expanded(
-                        child: Text(
-                          'RESOURCES',
-                          style: TextStyle(
-                            fontFamily: appFontFamily(context),
-                            color: CosmicScreenStyles.textPrimary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 2.0,
-                          ),
-                        ),
-                      ),
-                      _OverlayHeaderButton(
-                        icon: AppIcons.close_rounded,
-                        onTap: context.soundTap(() => Navigator.of(ctx).pop()),
-                        compact: true,
-                      ),
-                    ],
-                  ),
-                ),
-                // Astral shards
-                if (widget.homePlanet != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(color: CosmicScreenStyles.borderDim),
-                      ),
-                    ),
+            child: Container(
+              width: 270,
+              constraints: const BoxConstraints(maxHeight: 440),
+              color: _palette.bg1,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
                     child: Row(
                       children: [
-                        const Icon(
-                          CosmicScreenStyles.astralShardIcon,
-                          color: CosmicScreenStyles.astralShardColor,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'ASTRAL SHARDS',
-                          style: TextStyle(
-                            fontFamily: appFontFamily(context),
-                            color: CosmicScreenStyles.astralShardColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
+                        Expanded(
+                          child: Text(
+                            'RESOURCES',
+                            style: _label(12, _palette.ink, spacing: 2),
                           ),
                         ),
-                        const Spacer(),
-                        Text(
-                          _fmt(bankBalance),
-                          style: TextStyle(
-                            fontFamily: appFontFamily(context),
-                            color: CosmicScreenStyles.astralShardColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        BracketIconButton(
+                          icon: AppIcons.close_rounded,
+                          size: 28,
+                          palette: _palette,
+                          onTap: () => Navigator.of(ctx).pop(),
                         ),
                       ],
                     ),
                   ),
-                // Element list
-                if (entries.isEmpty)
-                  Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Text(
-                      'No elements collected yet',
-                      style: TextStyle(
-                        fontFamily: appFontFamily(context),
-                        color: CosmicScreenStyles.textMuted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  )
-                else
-                  Flexible(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      itemCount: entries.length,
-                      itemBuilder: (_, i) {
-                        final e = entries[i];
-                        final color =
-                            kElementColors[e.key] ?? const Color(0xFF9E9E9E);
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 3,
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  e.key.toUpperCase(),
-                                  style: TextStyle(
-                                    fontFamily: appFontFamily(context),
-                                    color: color.withValues(alpha: 0.85),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                _fmt(e.value),
-                                style: TextStyle(
-                                  fontFamily: appFontFamily(context),
-                                  color: CosmicScreenStyles.textPrimary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                // Total
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: CosmicScreenStyles.borderMid),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        AppIcons.science_rounded,
-                        color: CosmicScreenStyles.textSecondary,
-                        size: 12,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'TOTAL',
-                        style: TextStyle(
-                          fontFamily: appFontFamily(context),
-                          color: CosmicScreenStyles.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        _fmt(widget.elementStorage.total),
-                        style: TextStyle(
-                          fontFamily: appFontFamily(context),
-                          color: CosmicScreenStyles.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _tabButton(String label, int index, Color color) {
-    final active = _activeTab == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: context.soundAction(() {
-          setState(() => _setTab(index));
-          _pageController.animateToPage(
-            index,
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOutCubic,
-          );
-        }),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 7),
-          decoration: BoxDecoration(
-            color: active
-                ? color.withValues(alpha: 0.12)
-                : CosmicScreenStyles.bg2,
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(
-              color: active
-                  ? color.withValues(alpha: 0.45)
-                  : CosmicScreenStyles.borderDim,
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: active ? color : CosmicScreenStyles.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2.0,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildShipTab(
-    List<HomeRecipe> weapons,
-    List<HomeRecipe> systems,
-    List<HomeRecipe> ammos,
-    List<HomeRecipe> skins,
-  ) {
-    return ListView(
-      // The whole body is swapped out for the recipe detail view, so these
-      // ListViews unmount and lose their offset. A PageStorageKey parks the
-      // offset in the route's bucket and restores it on the way back.
-      key: const PageStorageKey<String>('cosmic.lab.ship'),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      children: [
-        _sectionHeader('CARGO UPGRADE'),
-        _buildCargoSection(),
-        const SizedBox(height: 12),
-        _sectionHeader('WEAPONS'),
-        ...weapons.map((r) => _recipeCard(r)),
-        const SizedBox(height: 12),
-        _sectionHeader('POWER-UPS', accent: CosmicScreenStyles.amberBright),
-        _buildPowerUpCard(
-          label: 'AMMO POWER',
-          description: 'Increase regular projectile damage.',
-          level: widget.customizationState.ammoUpgradeLevel,
-          bonusPercent:
-              ((HomeCustomizationState.damageMultiplier(
-                            widget.customizationState.ammoUpgradeLevel,
-                          ) -
-                          1.0) *
-                      100)
-                  .round(),
-          icon: AppIcons.bolt_rounded,
-          onUpgrade: () => widget.onUpgradePowerUp('ammo'),
-        ),
-        _buildPowerUpCard(
-          label: 'MISSILE POWER',
-          description: 'Increase homing missile damage.',
-          level: widget.customizationState.missileUpgradeLevel,
-          bonusPercent:
-              ((HomeCustomizationState.missileDamageMultiplier(
-                            widget.customizationState.missileUpgradeLevel,
-                          ) -
-                          1.0) *
-                      100)
-                  .round(),
-          icon: AppIcons.rocket_launch_rounded,
-          onUpgrade: () => widget.onUpgradePowerUp('missile'),
-        ),
-        _buildFuelUpgradeCard(),
-        const SizedBox(height: 12),
-        _sectionHeader('SHIP SYSTEMS'),
-        ...systems.map((r) => _recipeCard(r)),
-        const SizedBox(height: 12),
-        _sectionHeader('AMMO TYPES'),
-        ...ammos.map((r) => _recipeCard(r)),
-        const SizedBox(height: 12),
-        _sectionHeader('SHIP DESIGNS'),
-        ...skins.map((r) => _recipeCard(r)),
-      ],
-    );
-  }
-
-  Widget _buildHomeTab(
-    int maxTier,
-    int activeTier,
-    int? nextCost,
-    bool canAffordUpgrade,
-    List<HomeRecipe> visuals,
-    List<HomeRecipe> stations,
-  ) {
-    return ListView(
-      key: const PageStorageKey<String>('cosmic.lab.home'),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      children: [
-        // Who is stationed here. First, because it is the thing about the
-        // planet that changes most often.
-        _sectionHeader('GARRISON', accent: CosmicScreenStyles.teal),
-        _buildGarrisonCard(),
-        // Planet size
-        if (widget.homePlanet != null) ...[
-          _sectionHeader('PLANET SIZE', accent: CosmicScreenStyles.teal),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: CosmicScreenStyles.bg2,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: CosmicScreenStyles.borderDim),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  if (widget.homePlanet != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                      child: Row(
                         children: [
                           Text(
-                            'CURRENT SIZE',
-                            style: TextStyle(
-                              fontFamily: appFontFamily(context),
-                              color: CosmicScreenStyles.textMuted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.1,
+                            'ASTRAL SHARDS',
+                            style: _label(
+                              11.5,
+                              CosmicScreenStyles.astralShardColor,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            HomePlanet.tierNames[activeTier].toUpperCase(),
-                            style: TextStyle(
-                              fontFamily: appFontFamily(context),
-                              color: CosmicScreenStyles.teal,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
+                          const Spacer(),
+                          _ShardAmount(_shards, size: 12),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
+                  Container(height: 1, color: _palette.lineSoft),
+                  if (entries.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        'No elements collected yet',
+                        style: _label(11.5, _palette.muted),
                       ),
-                      decoration: BoxDecoration(
-                        color: nextCost == null
-                            ? CosmicScreenStyles.success.withValues(alpha: 0.12)
-                            : CosmicScreenStyles.astralShardColor.withValues(
-                                alpha: 0.12,
-                              ),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: nextCost == null
-                              ? CosmicScreenStyles.success.withValues(
-                                  alpha: 0.3,
-                                )
-                              : CosmicScreenStyles.astralShardColor.withValues(
-                                  alpha: 0.28,
-                                ),
-                        ),
-                      ),
-                      child: nextCost == null
-                          ? Text(
-                              'MAXED',
-                              style: TextStyle(
-                                fontFamily: appFontFamily(context),
-                                color: CosmicScreenStyles.success,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8,
-                              ),
-                            )
-                          : _shardCostLabel(
-                              context,
-                              label: 'NEXT',
-                              amount: nextCost,
-                              enabled: true,
-                              letterSpacing: 0.8,
-                            ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    const gap = 8.0;
-                    const columns = 3;
-                    final tileWidth =
-                        (constraints.maxWidth - gap * (columns - 1)) / columns;
-
-                    return Wrap(
-                      spacing: gap,
-                      runSpacing: gap,
-                      children: List.generate(5, (i) {
-                        final unlocked = i <= maxTier;
-                        final selected = i == activeTier;
-                        final name = HomePlanet.tierNames[i];
-
-                        return SizedBox(
-                          width: tileWidth,
-                          child: GestureDetector(
-                            onTap: context.soundAction(
-                              unlocked ? () => widget.onSelectSize(i) : null,
-                            ),
-                            child: Container(
+                    )
+                  else
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        children: [
+                          for (final e in entries)
+                            Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 10,
+                                horizontal: 14,
+                                vertical: 3,
                               ),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? CosmicScreenStyles.teal.withValues(
-                                        alpha: 0.16,
-                                      )
-                                    : unlocked
-                                    ? CosmicScreenStyles.bg3
-                                    : CosmicScreenStyles.bg1,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: selected
-                                      ? CosmicScreenStyles.teal.withValues(
-                                          alpha: 0.55,
-                                        )
-                                      : unlocked
-                                      ? CosmicScreenStyles.borderDim
-                                      : CosmicScreenStyles.borderDim.withValues(
-                                          alpha: 0.45,
-                                        ),
-                                ),
-                              ),
-                              child: Column(
+                              child: Row(
                                 children: [
-                                  Text(
-                                    name.toUpperCase(),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontFamily: appFontFamily(context),
-                                      color: selected
-                                          ? CosmicScreenStyles.teal
-                                          : unlocked
-                                          ? CosmicScreenStyles.textPrimary
-                                          : CosmicScreenStyles.textMuted,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.4,
+                                  _Dot(elementInk(e.key)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      e.key.toUpperCase(),
+                                      style: _label(11.5, elementInk(e.key)),
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
                                   Text(
-                                    selected
-                                        ? 'ACTIVE'
-                                        : unlocked
-                                        ? 'UNLOCKED'
-                                        : 'LOCKED',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontFamily: appFontFamily(context),
-                                      color: selected
-                                          ? CosmicScreenStyles.teal
-                                          : unlocked
-                                          ? CosmicScreenStyles.textSecondary
-                                          : CosmicScreenStyles.textMuted,
-                                      fontSize: 7.5,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.8,
-                                    ),
+                                    _fmt(e.value),
+                                    style: _label(11.5, _palette.ink),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                        );
-                      }),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                if (nextCost != null)
-                  GestureDetector(
-                    onTap: context.soundAction(
-                      canAffordUpgrade ? widget.onUpgradeSize : null,
-                    ),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: canAffordUpgrade
-                            ? CosmicScreenStyles.astralShardColor.withValues(
-                                alpha: 0.15,
-                              )
-                            : CosmicScreenStyles.bg3,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: canAffordUpgrade
-                              ? CosmicScreenStyles.astralShardColor.withValues(
-                                  alpha: 0.4,
-                                )
-                              : CosmicScreenStyles.borderDim,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: _shardCostLabel(
-                        context,
-                        label:
-                            'UNLOCK ${HomePlanet.tierNames[(maxTier + 1).clamp(0, 4)].toUpperCase()}',
-                        amount: nextCost,
-                        enabled: canAffordUpgrade,
-                        letterSpacing: 0.7,
-                      ),
-                    ),
-                  ),
-                if (nextCost == null)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      'ALL SIZES UNLOCKED',
-                      style: TextStyle(
-                        fontFamily: appFontFamily(context),
-                        color: CosmicScreenStyles.success,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        // Planet color
-        _sectionHeader('PLANET COLOR', accent: CosmicScreenStyles.amberBright),
-        _buildColorGrid(),
-        const SizedBox(height: 12),
-        // Base stations
-        _sectionHeader('BASE STATIONS', accent: CosmicScreenStyles.teal),
-        ...stations.map((r) => _recipeCard(r)),
-        const SizedBox(height: 12),
-        // Planet visuals
-        _sectionHeader(
-          'PLANET VISUALS',
-          accent: CosmicScreenStyles.amberBright,
-        ),
-        ...visuals.map((r) => _recipeCard(r)),
-        const SizedBox(height: 12),
-        // Chambers
-        _sectionHeader('ORBITAL CHAMBERS', accent: CosmicScreenStyles.teal),
-        GestureDetector(
-          onTap: context.soundAction(widget.onChambers),
-          child: Container(
-            width: double.infinity,
-            height: 42,
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(
-                color: CosmicScreenStyles.teal.withValues(alpha: 0.5),
-                width: 0.8,
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  AppIcons.bubble_chart_rounded,
-                  size: 16,
-                  color: CosmicScreenStyles.teal,
-                ),
-                SizedBox(width: 8),
-                Text(
-                  'CHAMBERS',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.6,
-                    color: CosmicScreenStyles.teal,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
-  Widget _buildColorGrid() {
-    final planet = widget.homePlanet;
-    final activeCol = planet?.activeColor;
-    final unlocked = planet?.unlockedColors ?? <String>{};
-    final elements = kElementColors.entries.toList();
-    const cost = HomePlanet.colorUnlockCost;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: CosmicScreenStyles.bg2,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: CosmicScreenStyles.borderDim),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'CURRENT COLOR',
-                      style: TextStyle(
-                        fontFamily: appFontFamily(context),
-                        color: CosmicScreenStyles.textMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          width: 18,
-                          height: 18,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: homeColorSwatch(activeCol),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          (premiumHomeColor(activeCol)?.label ??
-                                  activeCol ??
-                                  'Default Gray')
-                              .toUpperCase(),
-                          style: TextStyle(
-                            fontFamily: appFontFamily(context),
-                            color: activeCol == null
-                                ? CosmicScreenStyles.textSecondary
-                                : activeCol == 'Void'
-                                ? const Color(0xFFB08AF0)
-                                : homeColorSwatch(activeCol),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: CosmicScreenStyles.amberBright.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: CosmicScreenStyles.amberBright.withValues(
-                      alpha: 0.28,
-                    ),
-                  ),
-                ),
-                child: Text(
-                  '$cost EACH',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.amberBright,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Default gray
-          GestureDetector(
-            onTap: context.soundAction(() => widget.onSelectColor(null)),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: activeCol == null
-                    ? CosmicScreenStyles.teal.withValues(alpha: 0.12)
-                    : CosmicScreenStyles.bg3,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: activeCol == null
-                      ? CosmicScreenStyles.teal.withValues(alpha: 0.45)
-                      : CosmicScreenStyles.borderDim,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 20,
-                    height: 20,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(0xFF607D8B),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'DEFAULT GRAY',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: activeCol == null
-                          ? CosmicScreenStyles.teal
-                          : CosmicScreenStyles.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.7,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    activeCol == null ? 'ACTIVE' : 'DEFAULT',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: activeCol == null
-                          ? CosmicScreenStyles.teal
-                          : CosmicScreenStyles.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const gap = 8.0;
-              final columns = constraints.maxWidth >= 470 ? 5 : 4;
-              final tileWidth =
-                  (constraints.maxWidth - gap * (columns - 1)) / columns;
-
-              return Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: elements.map((e) {
-                  final isUnlocked = unlocked.contains(e.key);
-                  final isActive = activeCol == e.key;
-                  final canAfford =
-                      (widget.elementStorage.stored[e.key] ?? 0) >= cost;
-
-                  return SizedBox(
-                    width: tileWidth,
-                    child: GestureDetector(
-                      onTap: context.soundAction(
-                        isUnlocked
-                            ? () => widget.onSelectColor(e.key)
-                            : canAfford
-                            ? () => widget.onUnlockColor(e.key)
-                            : null,
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 9),
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? CosmicScreenStyles.teal.withValues(alpha: 0.15)
-                              : isUnlocked
-                              ? CosmicScreenStyles.bg3
-                              : CosmicScreenStyles.bg1,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: isActive
-                                ? CosmicScreenStyles.teal.withValues(alpha: 0.5)
-                                : isUnlocked
-                                ? CosmicScreenStyles.borderDim
-                                : CosmicScreenStyles.borderDim.withValues(
-                                    alpha: 0.4,
-                                  ),
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isUnlocked || canAfford
-                                    ? e.value
-                                    : e.value.withValues(alpha: 0.3),
-                                boxShadow: isActive
-                                    ? [
-                                        BoxShadow(
-                                          color: e.value.withValues(alpha: 0.5),
-                                          blurRadius: 6,
-                                        ),
-                                      ]
-                                    : null,
-                              ),
-                              child: !isUnlocked
-                                  ? const Icon(
-                                      AppIcons.lock,
-                                      size: 12,
-                                      color: Colors.white54,
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              e.key,
-                              style: TextStyle(
-                                fontFamily: appFontFamily(context),
-                                color: isUnlocked
-                                    ? CosmicScreenStyles.textSecondary
-                                    : CosmicScreenStyles.textMuted,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.2,
-                              ),
-                              textAlign: TextAlign.center,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              isActive
-                                  ? 'ACTIVE'
-                                  : isUnlocked
-                                  ? 'SELECT'
-                                  : canAfford
-                                  ? 'UNLOCK'
-                                  : '$cost',
-                              style: TextStyle(
-                                fontFamily: appFontFamily(context),
-                                color: isActive
-                                    ? CosmicScreenStyles.teal
-                                    : canAfford
-                                    ? CosmicScreenStyles.amberBright
-                                    : CosmicScreenStyles.textMuted,
-                                fontSize: 7,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.7,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'PREMIUM',
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: CosmicScreenStyles.amberBright,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.1,
-            ),
-          ),
-          const SizedBox(height: 8),
-          for (final premium in kPremiumHomeColors)
-            _buildPremiumColorTile(premium, activeCol, unlocked),
-        ],
-      ),
-    );
-  }
-
-  /// A premium colour: its own swatch (Void black ringed in violet, Radiant
-  /// glowing), and what it costs, element by element.
-  Widget _buildPremiumColorTile(
-    PremiumHomeColor premium,
-    String? activeCol,
-    Set<String> unlocked,
-  ) {
-    final isUnlocked = unlocked.contains(premium.id);
-    final isActive = activeCol == premium.id;
-    final canAfford = premium.cost.entries.every(
-      (e) => (widget.elementStorage.stored[e.key] ?? 0) >= e.value,
-    );
-    final isVoid = premium.id == 'Void';
-    return GestureDetector(
-      onTap: context.soundAction(
-        isUnlocked
-            ? () => widget.onSelectColor(premium.id)
-            : canAfford
-            ? () => widget.onUnlockColor(premium.id)
-            : null,
-      ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: isActive
-              ? CosmicScreenStyles.teal.withValues(alpha: 0.12)
-              : isUnlocked
-              ? CosmicScreenStyles.bg3
-              : CosmicScreenStyles.bg1,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isActive
-                ? CosmicScreenStyles.teal.withValues(alpha: 0.5)
-                : CosmicScreenStyles.amberBright.withValues(
-                    alpha: isUnlocked || canAfford ? 0.35 : 0.15,
-                  ),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: isVoid
-                      ? const [Color(0xFF020006), Color(0xFF140630)]
-                      : const [Color(0xFFFFFFFF), Color(0xFFFFE2A0)],
-                ),
-                border: Border.all(
-                  color: isVoid
-                      ? const Color(0xFF9A6AE0)
-                      : const Color(0xFFFFF4D6),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color:
-                        (isVoid
-                                ? const Color(0xFF7A3AD0)
-                                : const Color(0xFFFFF4D6))
-                            .withValues(alpha: 0.55),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-              child: !isUnlocked
-                  ? Icon(
-                      AppIcons.lock,
-                      size: 12,
-                      color: isVoid ? Colors.white54 : Colors.black45,
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    premium.label.toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: isUnlocked
-                          ? CosmicScreenStyles.textPrimary
-                          : CosmicScreenStyles.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.7,
-                    ),
-                  ),
-                  if (!isUnlocked) ...[
-                    const SizedBox(height: 3),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final e in premium.cost.entries)
-                          Text(
-                            '${e.value} ${e.key}',
-                            style: TextStyle(
-                              fontFamily: appFontFamily(context),
-                              color:
-                                  (widget.elementStorage.stored[e.key] ?? 0) >=
-                                      e.value
-                                  ? (kElementColors[e.key] ??
-                                        CosmicScreenStyles.textSecondary)
-                                  : CosmicScreenStyles.textMuted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Text(
-              isActive
-                  ? 'ACTIVE'
-                  : isUnlocked
-                  ? 'SELECT'
-                  : canAfford
-                  ? 'UNLOCK'
-                  : 'LOCKED',
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: isActive
-                    ? CosmicScreenStyles.teal
-                    : canAfford || isUnlocked
-                    ? CosmicScreenStyles.amberBright
-                    : CosmicScreenStyles.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCargoSection() {
-    final level = widget.cargoLevel;
-    final maxed = level >= CargoUpgrade.maxLevel;
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: CosmicScreenStyles.bg2,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: CosmicScreenStyles.borderDim),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${CargoUpgrade.nameForLevel(level)} (Lv $level/${CargoUpgrade.maxLevel})',
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: CosmicScreenStyles.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Teleport with ${(CargoUpgrade.capacityForLevel(level) * 100).round()}% meter',
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: CosmicScreenStyles.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (!maxed) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Next: ${CargoUpgrade.nextDescription(level)}',
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: CosmicScreenStyles.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 4,
-              runSpacing: 3,
-              children: CargoUpgrade.costForNextLevel(level).entries.map((e) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: CosmicScreenStyles.amber.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text(
-                    '${e.key}: ${_fmt(e.value)}',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: CosmicScreenStyles.amberBright,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: context.soundAction(
-                widget.isNearHome ? widget.onUpgradeCargo : null,
-              ),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                decoration: BoxDecoration(
-                  color: widget.isNearHome
-                      ? CosmicScreenStyles.amber.withValues(alpha: 0.15)
-                      : CosmicScreenStyles.bg2,
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(
-                    color: widget.isNearHome
-                        ? CosmicScreenStyles.amber.withValues(alpha: 0.4)
-                        : CosmicScreenStyles.borderDim,
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  widget.isNearHome
-                      ? 'UPGRADE CARGO'
-                      : 'DOCK AT HOME TO UPGRADE',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: widget.isNearHome
-                        ? CosmicScreenStyles.amberBright
-                        : CosmicScreenStyles.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ),
-          ] else
-            Padding(
-              padding: EdgeInsets.only(top: 4),
-              child: Text(
-                'MAX LEVEL REACHED',
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: CosmicScreenStyles.success,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGarrisonCard() {
-    final slots = widget.garrisonSlots;
-    final stationed = widget.garrisonStationed;
-    final full = slots > 0 && stationed >= slots;
-
-    return GestureDetector(
-      onTap: context.soundAction(widget.onGarrison),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: CosmicScreenStyles.bg2,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: CosmicScreenStyles.borderDim),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              AppIcons.shield,
-              color: CosmicScreenStyles.teal,
-              size: 14,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'STATIONED ALCHEMONS',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: CosmicScreenStyles.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    slots == 0
-                        ? 'Grow the planet to open garrison slots.'
-                        : 'Assign Alchemons to guard your home planet.',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: CosmicScreenStyles.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '$stationed/$slots',
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: full
-                    ? CosmicScreenStyles.success
-                    : CosmicScreenStyles.teal,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(width: 6),
-            const Icon(
-              AppIcons.chevron_right_rounded,
-              color: CosmicScreenStyles.textMuted,
-              size: 16,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _sectionHeader(String title, {Color? accent}) {
-    final a = accent ?? CosmicScreenStyles.amber;
-    return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 3,
-            height: 10,
-            color: a,
-            margin: const EdgeInsets.only(right: 8),
-          ),
-          Text(
-            title,
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: a,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2.0,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPowerUpCard({
-    required String label,
-    required String description,
-    required int level,
-    required int bonusPercent,
-    required IconData icon,
-    required VoidCallback onUpgrade,
-  }) {
-    final maxed = level >= HomeCustomizationState.maxUpgradeLevel;
-    final nextCost = maxed ? 0 : HomeCustomizationState.upgradeCosts[level];
-    final shards = widget.homePlanet?.astralBank ?? 0;
-    final canAfford = !maxed && shards >= nextCost;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: CosmicScreenStyles.bg2,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: CosmicScreenStyles.borderDim),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: CosmicScreenStyles.amberBright, size: 14),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              Text(
-                '+$bonusPercent%',
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: maxed
-                      ? CosmicScreenStyles.success
-                      : CosmicScreenStyles.amberBright,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            description,
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: CosmicScreenStyles.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Stage pips
-          Row(
-            children: List.generate(HomeCustomizationState.maxUpgradeLevel, (
-              i,
-            ) {
-              final filled = i < level;
-              return Expanded(
-                child: Container(
-                  height: 6,
-                  margin: EdgeInsets.only(
-                    right: i < HomeCustomizationState.maxUpgradeLevel - 1
-                        ? 3
-                        : 0,
-                  ),
-                  decoration: BoxDecoration(
-                    color: filled
-                        ? CosmicScreenStyles.amberBright.withValues(alpha: 0.7)
-                        : CosmicScreenStyles.bg1,
-                    borderRadius: BorderRadius.circular(2),
-                    border: Border.all(
-                      color: filled
-                          ? CosmicScreenStyles.amberBright.withValues(
-                              alpha: 0.5,
-                            )
-                          : CosmicScreenStyles.borderDim.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 8),
-          // Upgrade button
-          if (maxed)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                'MAX LEVEL',
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: CosmicScreenStyles.success,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            )
-          else
-            Align(
-              alignment: Alignment.centerRight,
-              child: GestureDetector(
-                onTap: context.soundAction(canAfford ? onUpgrade : null),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: canAfford
-                        ? CosmicScreenStyles.amberBright.withValues(alpha: 0.15)
-                        : CosmicScreenStyles.bg2,
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(
-                      color: canAfford
-                          ? CosmicScreenStyles.amberBright.withValues(
-                              alpha: 0.4,
-                            )
-                          : CosmicScreenStyles.borderDim,
-                    ),
-                  ),
-                  child: _shardCostLabel(
-                    context,
-                    label: 'UPGRADE LV${level + 1}',
-                    amount: nextCost,
-                    enabled: canAfford,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFuelUpgradeCard() {
-    final level = widget.customizationState.fuelUpgradeLevel;
-    const maxLevel = HomeCustomizationState.maxFuelUpgradeLevel;
-    final maxed = level >= maxLevel;
-    final nextCost = maxed ? 0 : HomeCustomizationState.fuelUpgradeCosts[level];
-    final shards = widget.homePlanet?.astralBank ?? 0;
-    final canAfford = !maxed && shards >= nextCost;
-    final currentCap = ShipFuel.capacityForLevel(level).toInt();
-    final nextCap = maxed
-        ? currentCap
-        : ShipFuel.capacityForLevel(level + 1).toInt();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: CosmicScreenStyles.bg2,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: CosmicScreenStyles.borderDim),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                AppIcons.local_gas_station_rounded,
-                color: Color(0xFFFF6F00),
-                size: 14,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'FUEL TANK',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              Text(
-                '$currentCap units',
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: maxed
-                      ? CosmicScreenStyles.success
-                      : const Color(0xFFFF6F00),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            maxed
-                ? 'Maximum capacity reached.'
-                : 'Upgrade to $nextCap unit capacity.',
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: CosmicScreenStyles.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Stage pips
-          Row(
-            children: List.generate(maxLevel, (i) {
-              final filled = i < level;
-              return Expanded(
-                child: Container(
-                  height: 6,
-                  margin: EdgeInsets.only(right: i < maxLevel - 1 ? 3 : 0),
-                  decoration: BoxDecoration(
-                    color: filled
-                        ? const Color(0xFFFF6F00).withValues(alpha: 0.7)
-                        : CosmicScreenStyles.bg1,
-                    borderRadius: BorderRadius.circular(2),
-                    border: Border.all(
-                      color: filled
-                          ? const Color(0xFFFF6F00).withValues(alpha: 0.5)
-                          : CosmicScreenStyles.borderDim.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 8),
-          if (maxed)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                'MAX LEVEL',
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: CosmicScreenStyles.success,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            )
-          else
-            Align(
-              alignment: Alignment.centerRight,
-              child: GestureDetector(
-                onTap: context.soundAction(
-                  canAfford ? () => widget.onUpgradePowerUp('fuel') : null,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: canAfford
-                        ? const Color(0xFFFF6F00).withValues(alpha: 0.15)
-                        : CosmicScreenStyles.bg2,
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(
-                      color: canAfford
-                          ? const Color(0xFFFF6F00).withValues(alpha: 0.4)
-                          : CosmicScreenStyles.borderDim,
-                    ),
-                  ),
-                  child: _shardCostLabel(
-                    context,
-                    label: 'UPGRADE LV${level + 1}',
-                    amount: nextCost,
-                    enabled: canAfford,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _recipeCard(HomeRecipe recipe) {
-    final unlocked = widget.customizationState.isUnlocked(recipe.id);
-    final active = widget.customizationState.isActive(recipe.id);
-    final hasParams = kRecipeParams.containsKey(recipe.id);
-
-    // Check if player can afford it
-    bool canAfford = true;
-    if (!unlocked) {
-      for (final e in recipe.ingredients.entries) {
-        if ((widget.elementStorage.stored[e.key] ?? 0) < e.value) {
-          canAfford = false;
-          break;
-        }
-      }
-    }
-
-    // Moon requires Big size
-    final needsBigPlanet = recipe.id == 'orbiting_moon';
-    final planetBigEnough =
-        widget.homePlanet != null && widget.homePlanet!.sizeTierIndex >= 3;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: unlocked
-            ? (active
-                  ? CosmicScreenStyles.teal.withValues(alpha: 0.08)
-                  : CosmicScreenStyles.bg2)
-            : CosmicScreenStyles.bg1,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(
-          color: unlocked
-              ? (active
-                    ? CosmicScreenStyles.teal.withValues(alpha: 0.4)
-                    : CosmicScreenStyles.borderDim)
-              : CosmicScreenStyles.borderDim.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  unlocked ? recipe.name : '???',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: unlocked
-                        ? CosmicScreenStyles.textPrimary
-                        : CosmicScreenStyles.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              if (unlocked && hasParams)
-                GestureDetector(
-                  onTap: context.soundAction(
-                    () => setState(() => _detailRecipeId = recipe.id),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    margin: const EdgeInsets.only(right: 6),
-                    decoration: BoxDecoration(
-                      color: CosmicScreenStyles.amber.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(
-                        color: CosmicScreenStyles.amber.withValues(alpha: 0.35),
-                      ),
-                    ),
-                    child: const Icon(
-                      AppIcons.settings_rounded,
-                      color: CosmicScreenStyles.amber,
-                      size: 12,
-                    ),
-                  ),
-                ),
-              if (unlocked)
-                GestureDetector(
-                  onTap: context.soundAction(
-                    () => widget.onToggleRecipe(recipe.id),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: active
-                          ? CosmicScreenStyles.teal.withValues(alpha: 0.15)
-                          : CosmicScreenStyles.bg3,
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(
-                        color: active
-                            ? CosmicScreenStyles.teal.withValues(alpha: 0.45)
-                            : CosmicScreenStyles.borderDim,
-                      ),
-                    ),
-                    child: Text(
-                      active ? 'ON' : 'OFF',
-                      style: TextStyle(
-                        fontFamily: appFontFamily(context),
-                        color: active
-                            ? CosmicScreenStyles.teal
-                            : CosmicScreenStyles.textMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          if (unlocked) ...[
-            const SizedBox(height: 4),
-            Text(
-              recipe.description,
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: CosmicScreenStyles.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            if (needsBigPlanet && !planetBigEnough) ...[
-              const SizedBox(height: 4),
-              Text(
-                '⚠ Requires Big planet size',
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: CosmicScreenStyles.amber,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ],
-          if (!unlocked) ...[
-            const SizedBox(height: 6),
-            // Ingredient hints
-            Wrap(
-              spacing: 4,
-              runSpacing: 3,
-              children: recipe.ingredients.entries.map((e) {
-                final has = (widget.elementStorage.stored[e.key] ?? 0);
-                final enough = has >= e.value;
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: elementInk(e.key).withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(
-                      color: enough
-                          ? elementInk(e.key).withValues(alpha: 0.45)
-                          : CosmicScreenStyles.borderDim,
-                    ),
-                  ),
-                  child: Text(
-                    '${e.key}: ${_fmt(has)}/${_fmt(e.value)}',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: enough
-                          ? elementInk(e.key)
-                          : CosmicScreenStyles.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 6),
-            GestureDetector(
-              onTap: context.soundAction(
-                canAfford ? () => widget.onTryRecipe(recipe.id) : null,
-              ),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                decoration: BoxDecoration(
-                  color: canAfford
-                      ? CosmicScreenStyles.amber.withValues(alpha: 0.15)
-                      : CosmicScreenStyles.bg2,
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(
-                    color: canAfford
-                        ? CosmicScreenStyles.amber.withValues(alpha: 0.4)
-                        : CosmicScreenStyles.borderDim,
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  canAfford ? 'CRAFT' : 'NEED MORE ELEMENTS',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: canAfford
-                        ? CosmicScreenStyles.amberBright
-                        : CosmicScreenStyles.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// Detail sub-customization view for a specific recipe.
-  Widget _buildDetailView(String recipeId) {
-    final recipe = kHomeRecipes.firstWhere((r) => r.id == recipeId);
-    final params = kRecipeParams[recipeId] ?? [];
-
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        color: CosmicScreenStyles.bg0.withValues(alpha: 0.95),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header with back button
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: context.soundAction(
-                        () => setState(() {
-                          _detailRecipeId = null;
-                          // The PageView unmounts while the detail view is up. A
-                          // reattached PageController restores to its
-                          // initialPage, which fires onPageChanged(0) and throws
-                          // the player back to the SHIP tab. Rebuild it pointing
-                          // at the tab they were actually on.
-                          _pageController.dispose();
-                          _pageController = PageController(
-                            initialPage: _activeTab,
-                          );
-                        }),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: CosmicScreenStyles.bg3,
-                          borderRadius: BorderRadius.circular(3),
-                          border: Border.all(
-                            color: CosmicScreenStyles.borderDim,
-                          ),
-                        ),
-                        child: const Icon(
-                          AppIcons.arrow_back,
-                          color: CosmicScreenStyles.textSecondary,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      width: 3,
-                      height: 14,
-                      color: CosmicScreenStyles.amber,
-                      margin: const EdgeInsets.only(right: 8),
-                    ),
-                    Expanded(
-                      child: Text(
-                        recipe.name.toUpperCase(),
-                        style: TextStyle(
-                          fontFamily: appFontFamily(context),
-                          color: CosmicScreenStyles.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2.0,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _etchedDivider(),
-
-              // Description
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                child: Text(
-                  recipe.description,
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-
-              // Parameters
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: params.map((param) {
-                    final current = widget.customizationState.getOption(
-                      recipeId,
-                      param.key,
-                    );
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      decoration: BoxDecoration(
-                        color: CosmicScreenStyles.bg2,
-                        borderRadius: BorderRadius.circular(3),
-                        border: Border.all(color: CosmicScreenStyles.borderDim),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Param header
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 7,
-                            ),
-                            decoration: const BoxDecoration(
-                              color: CosmicScreenStyles.bg3,
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(2),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 3,
-                                  height: 10,
-                                  color: CosmicScreenStyles.teal,
-                                  margin: const EdgeInsets.only(right: 8),
-                                ),
-                                Text(
-                                  param.label.toUpperCase(),
-                                  style: TextStyle(
-                                    fontFamily: appFontFamily(context),
-                                    color: CosmicScreenStyles.teal,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            height: 1,
-                            color: CosmicScreenStyles.borderDim,
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 5,
-                              children: param.options.map((opt) {
-                                final selected = current == opt;
-                                return GestureDetector(
-                                  onTap: context.soundAction(() {
-                                    widget.onOptionChanged(
-                                      recipeId,
-                                      param.key,
-                                      opt,
-                                    );
-                                    setState(() {});
-                                  }),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: selected
-                                          ? CosmicScreenStyles.teal.withValues(
-                                              alpha: 0.15,
-                                            )
-                                          : CosmicScreenStyles.bg3,
-                                      borderRadius: BorderRadius.circular(3),
-                                      border: Border.all(
-                                        color: selected
-                                            ? CosmicScreenStyles.teal
-                                                  .withValues(alpha: 0.5)
-                                            : CosmicScreenStyles.borderDim,
-                                        width: selected ? 1.5 : 1,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      opt,
-                                      style: TextStyle(
-                                        fontFamily: appFontFamily(context),
-                                        color: selected
-                                            ? CosmicScreenStyles.teal
-                                            : CosmicScreenStyles.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: selected
-                                            ? FontWeight.w800
-                                            : FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
                         ],
                       ),
-                    );
-                  }).toList(),
-                ),
+                    ),
+                  Container(height: 1, color: _palette.lineSoft),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+                    child: Row(
+                      children: [
+                        Text('TOTAL', style: _label(11.5, _palette.muted)),
+                        const Spacer(),
+                        Text(
+                          _fmt(widget.elementStorage.total),
+                          style: _label(11.5, _palette.ink),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OverlayHeaderButton extends StatelessWidget {
-  const _OverlayHeaderButton({
-    required this.icon,
-    required this.onTap,
-    this.compact = false,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final size = compact ? 34.0 : 44.0;
-    final iconSize = compact ? 18.0 : 22.0;
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withValues(alpha: 0.10),
-              CosmicScreenStyles.bg3.withValues(alpha: 0.92),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(compact ? 10 : 14),
-          border: Border.all(
-            color: CosmicScreenStyles.borderAccent.withValues(alpha: 0.55),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.22),
-              blurRadius: compact ? 8 : 12,
-              offset: const Offset(0, 3),
             ),
-          ],
-        ),
-        child: Icon(
-          icon,
-          color: CosmicScreenStyles.textPrimary.withValues(alpha: 0.9),
-          size: iconSize,
+          ),
         ),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────
-// SHIP MENU – SCORCHED FORGE DESIGN TOKENS
-// ─────────────────────────────────────────────────────────
+// ── small widgets ───────────────────────────────────────────────────────────
+
+TextStyle _label(double size, Color color, {double spacing = 1.2}) => TextStyle(
+  fontFamily: _mono,
+  color: color,
+  fontSize: size,
+  fontWeight: FontWeight.w800,
+  letterSpacing: spacing,
+);
 
 /// Format a number with commas (e.g. 1234567 → "1,234,567").
 String _fmt(num n) {
@@ -2562,4 +1275,848 @@ String _fmt(num n) {
     buf.write(s[i]);
   }
   return buf.toString();
+}
+
+class _Dot extends StatelessWidget {
+  const _Dot(this.color, {this.size = 7});
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
+}
+
+class _ShardAmount extends StatelessWidget {
+  const _ShardAmount(this.amount, {this.size = 12, this.enabled = true});
+  final int amount;
+  final double size;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = enabled
+        ? CosmicScreenStyles.astralShardColor
+        : CosmicScreenStyles.textMuted;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(CosmicScreenStyles.astralShardIcon, size: size, color: color),
+        SizedBox(width: size * 0.3),
+        Text(_fmt(amount), style: _label(size, color, spacing: 0.4)),
+      ],
+    );
+  }
+}
+
+/// One element of a price: how much is held against how much it takes.
+class _CostChip extends StatelessWidget {
+  const _CostChip(this.element, this.need, this.stored, {this.size = 11});
+  final String element;
+  final int need;
+  final Map<String, double> stored;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final has = stored[element] ?? 0;
+    final enough = has >= need;
+    final ink = elementInk(element);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _Dot(enough ? ink : ink.withValues(alpha: 0.4), size: size * 0.6),
+        SizedBox(width: size * 0.4),
+        Text(
+          '$element ${_fmt(has)}/${_fmt(need)}',
+          style: _label(
+            size,
+            enough ? ink : CosmicScreenStyles.textMuted,
+            spacing: 0.3,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OptionChip extends StatelessWidget {
+  const _OptionChip({
+    required this.label,
+    required this.selected,
+    required this.accent,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      color: selected
+          ? accent.withValues(alpha: 0.14)
+          : _palette.surfaceMutedFill(),
+      child: Text(
+        label.toUpperCase(),
+        style: _label(10.5, selected ? _palette.ink : _palette.muted),
+      ),
+    );
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: selected ? accent : _palette.line.withValues(alpha: 0.6),
+          bracketSize: 6,
+          strokeWidth: selected ? 1.2 : 1,
+        ),
+        child: content,
+      ),
+    );
+  }
+}
+
+/// One thing that can be made: its picture in a frame. Fitted, it wears the
+/// accent's brackets; locked, it is dimmed with a lock, or marked with a
+/// spark when everything it takes is already in the hold.
+class _Tile extends StatelessWidget {
+  const _Tile({
+    super.key,
+    required this.accent,
+    required this.child,
+    required this.onTap,
+    this.equipped = false,
+    this.owned = true,
+    this.craftable = false,
+    this.selected = false,
+    this.label,
+    this.aspect = 1,
+  });
+
+  final Color accent;
+  final Widget child;
+  final VoidCallback onTap;
+  final bool equipped, owned, craftable, selected;
+  final String? label;
+
+  /// Picture width over height.
+  final double aspect;
+
+  @override
+  Widget build(BuildContext context) {
+    final frame = selected
+        ? _palette.ink
+        : equipped
+        ? accent
+        : _palette.line.withValues(alpha: 0.55);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: frame,
+          bracketSize: 7,
+          strokeWidth: selected || equipped ? 1.3 : 1,
+        ),
+        child: Container(
+          color: equipped
+              ? accent.withValues(alpha: 0.1)
+              : _palette.bg1.withValues(alpha: 0.6),
+          padding: const EdgeInsets.fromLTRB(4, 4, 4, 5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AspectRatio(
+                aspectRatio: aspect,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Opacity(opacity: owned ? 1 : 0.5, child: child),
+                    if (!owned)
+                      Positioned(
+                        top: 1,
+                        right: 1,
+                        child: craftable
+                            ? const _Dot(
+                                CosmicScreenStyles.amberBright,
+                                size: 6,
+                              )
+                            : Icon(
+                                AppIcons.lock_rounded,
+                                size: 10,
+                                color: _palette.muted,
+                              ),
+                      ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                height: 14,
+                child: label == null
+                    ? null
+                    : Center(
+                        child: Text(
+                          label!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _label(
+                            9,
+                            equipped ? _palette.ink : _palette.muted,
+                            spacing: 0.6,
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SizeCell extends StatelessWidget {
+  const _SizeCell({
+    super.key,
+    required this.name,
+    required this.active,
+    required this.unlocked,
+    required this.selected,
+    required this.onTap,
+    this.cost,
+  });
+  final String name;
+  final bool active, unlocked, selected;
+  final int? cost;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final frame = selected
+        ? _palette.ink
+        : active
+        ? _homeAccent
+        : _palette.line.withValues(alpha: unlocked ? 0.55 : 0.25);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap == null ? null : context.soundAction(onTap),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: frame,
+          bracketSize: 6,
+          strokeWidth: active || selected ? 1.3 : 1,
+        ),
+        child: Container(
+          height: 46,
+          color: active
+              ? _homeAccent.withValues(alpha: 0.12)
+              : _palette.bg1.withValues(alpha: 0.6),
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                name,
+                maxLines: 1,
+                style: _label(
+                  10,
+                  active
+                      ? _palette.ink
+                      : unlocked
+                      ? _palette.ink.withValues(alpha: 0.75)
+                      : _palette.muted.withValues(alpha: 0.6),
+                  spacing: 0.6,
+                ),
+              ),
+              if (cost != null) ...[
+                const SizedBox(height: 3),
+                FittedBox(child: _ShardAmount(cost!, size: 9.5)),
+              ] else if (!unlocked) ...[
+                const SizedBox(height: 3),
+                Icon(
+                  AppIcons.lock_rounded,
+                  size: 9,
+                  color: _palette.muted.withValues(alpha: 0.6),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Swatch extends StatelessWidget {
+  const _Swatch({
+    super.key,
+    required this.id,
+    required this.active,
+    required this.owned,
+    required this.craftable,
+    required this.selected,
+    required this.onTap,
+  });
+  final String? id;
+  final bool active, owned, craftable, selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: CustomPaint(
+        foregroundPainter: active || selected
+            ? BracketFramePainter(
+                color: selected ? _palette.ink : _homeAccent,
+                bracketSize: 6,
+                strokeWidth: 1.3,
+              )
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: CustomPaint(
+            painter: _SwatchPainter(id, owned: owned, craftable: craftable),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── painters ────────────────────────────────────────────────────────────────
+
+/// A colour as a small lit sphere: owned ones full, locked ones a dim
+/// ghost of themselves.
+class _SwatchPainter extends CustomPainter {
+  _SwatchPainter(this.id, {required this.owned, required this.craftable});
+  final String? id;
+  final bool owned, craftable;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.shortestSide / 2;
+    final base = homeColorSwatch(id);
+    final a = owned ? 1.0 : (craftable ? 0.55 : 0.28);
+    final isVoid = id == 'Void';
+    final isRadiant = id == 'Radiant';
+    final lit = isVoid
+        ? const Color(0xFF3A1E66)
+        : Color.lerp(base, Colors.white, isRadiant ? 0.6 : 0.35)!;
+    final dark = isVoid
+        ? const Color(0xFF020006)
+        : Color.lerp(base, Colors.black, 0.55)!;
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          c + Offset(-r * 0.35, -r * 0.4),
+          r * 1.4,
+          [
+            lit.withValues(alpha: a),
+            base.withValues(alpha: a),
+            dark.withValues(alpha: a),
+          ],
+          const [0.0, 0.45, 1.0],
+        ),
+    );
+    if (isVoid) {
+      // Void black, rimmed in the violet it gives off.
+      canvas.drawCircle(
+        c,
+        r,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            c,
+            r,
+            [
+              const Color(0x00000000),
+              const Color(0x00000000),
+              const Color(0xFF9A6AE0).withValues(alpha: 0.85 * a),
+            ],
+            const [0.0, 0.72, 1.0],
+          ),
+      );
+    }
+    if (!owned && !craftable) {
+      final icon = AppIcons.lock_rounded;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(icon.codePoint),
+          style: TextStyle(
+            fontFamily: icon.fontFamily,
+            package: icon.fontPackage,
+            fontSize: r * 0.8,
+            color: Colors.white.withValues(alpha: 0.55),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SwatchPainter old) =>
+      old.id != id || old.owned != owned || old.craftable != craftable;
+}
+
+/// A hull, still, as it flies.
+class _HullThumbPainter extends CustomPainter {
+  _HullThumbPainter(this.skin);
+  final String? skin;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Hulls stand about 58 units from crest to flame.
+    final s = size.height / 64;
+    canvas.save();
+    canvas.translate(size.width / 2, size.height / 2 + 2 * s);
+    canvas.scale(s);
+    paintShipHull(canvas, skin, 1.2);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_HullThumbPainter old) => old.skin != skin;
+}
+
+/// A planet effect's picture, or a plain sphere when there is no planet
+/// painter to draw it with.
+class _EffectThumbPainter extends CustomPainter {
+  _EffectThumbPainter({required this.image, required this.fallbackColor});
+  final ui.Image? image;
+  final Color fallbackColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final img = image;
+    if (img != null) {
+      canvas.drawImageRect(
+        img,
+        Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+        Offset.zero & size,
+        Paint()..filterQuality = FilterQuality.medium,
+      );
+      return;
+    }
+    _plainPlanet(
+      canvas,
+      size.center(Offset.zero),
+      size.shortestSide * 0.2,
+      fallbackColor,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_EffectThumbPainter old) =>
+      old.image != image || old.fallbackColor != fallbackColor;
+}
+
+void _plainPlanet(Canvas canvas, Offset c, double r, Color col) {
+  canvas.drawCircle(
+    c,
+    r,
+    Paint()
+      ..shader = ui.Gradient.radial(
+        c + Offset(-r * 0.35, -r * 0.4),
+        r * 1.4,
+        [
+          Color.lerp(col, Colors.white, 0.3)!,
+          col,
+          Color.lerp(col, Colors.black, 0.7)!,
+        ],
+        const [0.0, 0.4, 1.0],
+      ),
+  );
+}
+
+/// The picture on a ship-part tile: what it puts in the sky, in miniature.
+class _RecipeGlyph extends StatelessWidget {
+  const _RecipeGlyph({required this.id, required this.accent});
+  final String id;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final IconData? icon = switch (id) {
+      'equip_matter_injector' => AppIcons.rocket_launch_rounded,
+      'refuel_station' => AppIcons.local_gas_station_rounded,
+      'missile_station' => AppIcons.gps_fixed,
+      'sentinel_station' => AppIcons.shield,
+      _ => null,
+    };
+    if (icon != null) {
+      return Center(
+        child: Icon(icon, size: 26, color: accent.withValues(alpha: 0.85)),
+      );
+    }
+    return CustomPaint(painter: _GlyphPainter(id));
+  }
+}
+
+class _GlyphPainter extends CustomPainter {
+  _GlyphPainter(this.id);
+  final String id;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final u = size.shortestSide / 40;
+    switch (id) {
+      case 'equip_orbitals':
+        paintOrbitalSentinel(
+          canvas,
+          c,
+          shipLight(null),
+          time: 1.3,
+          seed: 0.4,
+          radius: 9 * u,
+        );
+      case 'equip_missiles':
+        for (final dx in const [-6.0, 6.0]) {
+          _missile(canvas, c + Offset(dx * u, dx.sign * 3 * u), u);
+        }
+      case 'equip_machinegun':
+        for (var i = 0; i < 3; i++) {
+          _bolt(
+            canvas,
+            c + Offset(0, (i - 1) * 11 * u),
+            u * 0.8,
+            const Color(0xFF00E5FF),
+          );
+        }
+      default:
+        _bolt(canvas, c, u * 1.25, _ammoColor(id));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_GlyphPainter old) => old.id != id;
+}
+
+/// A bolt in flight, nose up: a hot head trailing its colour.
+void _bolt(Canvas canvas, Offset at, double u, Color col) {
+  final tail = Path()
+    ..moveTo(at.dx - 2.4 * u, at.dy - 2 * u)
+    ..quadraticBezierTo(at.dx - 1.2 * u, at.dy + 6 * u, at.dx, at.dy + 11 * u)
+    ..quadraticBezierTo(
+      at.dx + 1.2 * u,
+      at.dy + 6 * u,
+      at.dx + 2.4 * u,
+      at.dy - 2 * u,
+    )
+    ..close();
+  canvas.drawPath(
+    tail,
+    Paint()
+      ..shader = ui.Gradient.linear(at, at + Offset(0, 11 * u), [
+        col.withValues(alpha: 0.85),
+        col.withValues(alpha: 0),
+      ]),
+  );
+  canvas.drawCircle(
+    at - Offset(0, 1.2 * u),
+    3.4 * u,
+    Paint()
+      ..shader = ui.Gradient.radial(
+        at - Offset(0, 1.2 * u),
+        3.4 * u,
+        [Colors.white, col, col.withValues(alpha: 0)],
+        const [0.0, 0.45, 1.0],
+      ),
+  );
+}
+
+/// A seeker missile, nose up: a dark dart with its motor lit.
+void _missile(Canvas canvas, Offset at, double u) {
+  final body = Path()
+    ..moveTo(at.dx, at.dy - 9 * u)
+    ..lineTo(at.dx - 2.4 * u, at.dy + 4 * u)
+    ..lineTo(at.dx, at.dy + 2.6 * u)
+    ..lineTo(at.dx + 2.4 * u, at.dy + 4 * u)
+    ..close();
+  final flame = Path()
+    ..moveTo(at.dx - 1.4 * u, at.dy + 3.4 * u)
+    ..quadraticBezierTo(at.dx, at.dy + 13 * u, at.dx + 1.4 * u, at.dy + 3.4 * u)
+    ..close();
+  canvas.drawPath(
+    flame,
+    Paint()
+      ..shader = ui.Gradient.linear(
+        at + Offset(0, 3 * u),
+        at + Offset(0, 13 * u),
+        [const Color(0xFFFFE0B0), const Color(0x00FF8A3D)],
+      ),
+  );
+  canvas.drawPath(
+    body,
+    Paint()
+      ..shader = ui.Gradient.linear(
+        at + Offset(-2.4 * u, 0),
+        at + Offset(2.4 * u, 0),
+        [const Color(0xFF6A7488), const Color(0xFF1C2029)],
+      ),
+  );
+  canvas.drawCircle(
+    at - Offset(0, 4.5 * u),
+    1.1 * u,
+    Paint()..color = const Color(0xFFFFB74D),
+  );
+}
+
+/// The stage's backdrop: deep space with a few stars, the same each frame.
+abstract class _StagePainter extends CustomPainter {
+  _StagePainter(this.clock) : super(repaint: clock);
+  final ValueListenable<double> clock;
+
+  static final List<(double, double, double)> _stars = () {
+    final r = Random(11);
+    return [
+      for (var i = 0; i < 46; i++)
+        (r.nextDouble(), r.nextDouble(), 0.15 + r.nextDouble() * 0.45),
+    ];
+  }();
+
+  void paintBackdrop(Canvas canvas, Size size, Color tint) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = ui.Gradient.radial(rect.center, size.longestSide * 0.6, [
+          tint.withValues(alpha: 0.10),
+          tint.withValues(alpha: 0),
+        ]),
+    );
+    final p = Paint();
+    for (final (x, y, a) in _stars) {
+      p.color = Colors.white.withValues(alpha: a);
+      canvas.drawCircle(Offset(x * size.width, y * size.height), 0.7, p);
+    }
+  }
+}
+
+class _ShipStagePainter extends _StagePainter {
+  _ShipStagePainter({
+    required ValueListenable<double> clock,
+    required this.ship,
+    required this.skin,
+    required this.orbitals,
+    required this.bolts,
+    required this.repeater,
+    required this.missiles,
+  }) : super(clock);
+
+  final ShipComponent ship;
+  final String? skin;
+  final bool orbitals;
+
+  /// When ammo is on show, the colour its bolts fly in.
+  final Color? bolts;
+  final bool repeater, missiles;
+
+  static const double _speed = 150;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = clock.value;
+    final light = shipLight(skin);
+    paintBackdrop(canvas, size, light.essence);
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    // The ship climbs steadily with a gentle weave; the camera keeps it in
+    // the middle, so its wake streams away below it.
+    final weave = 16 * sin(t * 0.6);
+    final y = -t * _speed;
+    ship
+      ..pos = Offset(weave, y)
+      ..angle = atan2(-_speed, 16 * 0.6 * cos(t * 0.6));
+    const zoom = 1.75;
+    canvas.translate(size.width / 2, size.height * 0.64);
+    canvas.scale(zoom);
+    canvas.translate(0, -y);
+    if (bolts != null) _paintBolts(canvas, t, y);
+    ship.render(canvas, t, skin: skin);
+    if (orbitals) {
+      for (var i = 0; i < OrbitalSentinel.maxActive; i++) {
+        final a = t * OrbitalSentinel.orbitSpeed + i * 2 * pi / 3;
+        paintOrbitalSentinel(
+          canvas,
+          ship.pos + Offset(cos(a), sin(a)) * OrbitalSentinel.orbitRadius,
+          light,
+          time: t,
+          seed: i * 1.7,
+          radius: OrbitalSentinel.hitboxRadius * 0.6,
+        );
+      }
+    }
+    canvas.restore();
+  }
+
+  /// Fire on show: bolts (or missiles) leaving the nose at the weapon's
+  /// rate, laid out from when each was fired.
+  void _paintBolts(Canvas canvas, double t, double shipY) {
+    // Slower than in space, so the eye can follow them off the stage.
+    final period = missiles ? 0.6 : (repeater ? 0.16 : 0.34);
+    final speed = missiles ? 170.0 : 260.0;
+    final col = bolts!;
+    final last = (t / period).floor();
+    for (var k = 0; k < 8; k++) {
+      final fired = (last - k) * period;
+      if (fired < 0) break;
+      final age = t - fired;
+      final at = Offset(
+        16 * sin(fired * 0.6),
+        -fired * _speed - 30 - age * speed,
+      );
+      if (at.dy < shipY - 140) break;
+      if (missiles) {
+        _missile(canvas, at, 1.1);
+      } else {
+        _bolt(canvas, at, 0.9, col);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ShipStagePainter old) =>
+      old.skin != skin ||
+      old.orbitals != orbitals ||
+      old.bolts != bolts ||
+      old.repeater != repeater ||
+      old.missiles != missiles;
+}
+
+class _HomeStagePainter extends _StagePainter {
+  _HomeStagePainter({
+    required ValueListenable<double> clock,
+    required this.paintHome,
+    required this.wearing,
+    required this.color,
+  }) : super(clock);
+
+  final HomeShowcasePainter? paintHome;
+  final Set<String> wearing;
+  final String? color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final swatch = homeColorSwatch(color);
+    paintBackdrop(canvas, size, swatch);
+    final area = Rect.fromCenter(
+      center: size.center(Offset.zero),
+      width: size.height * 1.15,
+      height: size.height * 1.15,
+    );
+    final paint = paintHome;
+    if (paint == null) {
+      _plainPlanet(canvas, area.center, size.height * 0.2, swatch);
+      return;
+    }
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    paint(canvas, area, 4 + clock.value, wearing: wearing, color: color);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_HomeStagePainter old) =>
+      old.paintHome != paintHome ||
+      old.color != color ||
+      old.wearing.length != wearing.length ||
+      !old.wearing.containsAll(wearing);
+}
+
+class _UpgradeRow extends StatelessWidget {
+  const _UpgradeRow({
+    required this.label,
+    required this.level,
+    required this.max,
+    required this.value,
+    required this.accent,
+    required this.maxed,
+    required this.cost,
+    required this.buttonLabel,
+    required this.enabled,
+    required this.onUpgrade,
+  });
+
+  final String label;
+  final int level, max;
+  final String value;
+  final Color accent;
+  final bool maxed;
+  final Widget cost;
+  final String buttonLabel;
+  final bool enabled;
+  final VoidCallback onUpgrade;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: _palette.lineSoft)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(label, style: _label(11.5, _palette.ink)),
+              const SizedBox(width: 10),
+              for (var i = 0; i < max; i++)
+                Container(
+                  width: 10,
+                  height: 4,
+                  margin: const EdgeInsets.only(right: 3),
+                  color: i < level
+                      ? accent.withValues(alpha: 0.85)
+                      : _palette.lineSoft,
+                ),
+              const Spacer(),
+              Text(
+                value,
+                style: _label(
+                  11,
+                  maxed ? CosmicScreenStyles.success : accent,
+                  spacing: 0.6,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          if (maxed)
+            Text('MAX', style: _label(10.5, CosmicScreenStyles.success))
+          else
+            Row(
+              children: [
+                Expanded(child: cost),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 118,
+                  child: BracketButton(
+                    label: buttonLabel,
+                    height: 30,
+                    palette: _palette,
+                    accent: accent,
+                    enabled: enabled,
+                    onTap: onUpgrade,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
 }

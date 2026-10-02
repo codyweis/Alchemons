@@ -8293,6 +8293,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                         .whereType<CosmicPartyMember>()
                         .length,
                     garrisonSlots: _garrisonSlots,
+                    // The lab's stage and effect pictures are the real
+                    // home planet, drawn by the game.
+                    paintHome: _game?.paintHomeShowcase,
                   ),
                 ),
 

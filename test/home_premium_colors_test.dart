@@ -37,13 +37,29 @@ Widget _lab({
   ),
 );
 
-Future<void> _reveal(WidgetTester tester, String text) async {
+/// The lab's stage never stops turning, so it never settles: pump frames.
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 8; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
+/// Scrolls the swatch for [id] into view and taps it.
+Future<void> _tapSwatch(WidgetTester tester, String id) async {
+  final swatch = find.byKey(ValueKey('lab.color.$id'));
   await tester.scrollUntilVisible(
-    find.text(text),
+    swatch,
     200,
     scrollable: find.byType(Scrollable).first,
   );
-  await tester.pumpAndSettle();
+  await _settle(tester);
+  await tester.tap(swatch);
+  await _settle(tester);
+}
+
+Future<void> _tapDockAction(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('lab.dock.action')));
+  await _settle(tester);
 }
 
 void main() {
@@ -57,12 +73,14 @@ void main() {
     await tester.pumpWidget(
       _lab(planet: HomePlanet(position: Offset.zero), stored: const {}),
     );
-    await tester.pumpAndSettle();
-    await _reveal(tester, 'RADIANT LIGHT');
+    await _settle(tester);
+    await _tapSwatch(tester, 'Void');
     expect(find.text('VOID BLACK'), findsOneWidget);
-    expect(find.text('400 Dark'), findsOneWidget);
-    expect(find.text('400 Light'), findsOneWidget);
-    expect(find.text('LOCKED'), findsNWidgets(2));
+    expect(find.text('PREMIUM COLOUR'), findsOneWidget);
+    expect(find.text('Dark 0/400'), findsOneWidget);
+    await _tapSwatch(tester, 'Radiant');
+    expect(find.text('RADIANT LIGHT'), findsOneWidget);
+    expect(find.text('Light 0/400'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -80,12 +98,13 @@ void main() {
         onUnlock: asked.add,
       ),
     );
-    await tester.pumpAndSettle();
-    await _reveal(tester, 'VOID BLACK');
-    await tester.tap(find.text('VOID BLACK'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
+    await _tapSwatch(tester, 'Void');
+    await _tapDockAction(tester);
     expect(asked, isEmpty);
 
+    // A fresh lab, as reopening it would be.
+    await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(
       _lab(
         planet: HomePlanet(position: Offset.zero),
@@ -93,11 +112,10 @@ void main() {
         onUnlock: asked.add,
       ),
     );
-    await tester.pumpAndSettle();
-    await _reveal(tester, 'VOID BLACK');
-    expect(find.text('UNLOCK'), findsWidgets);
-    await tester.tap(find.text('VOID BLACK'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
+    await _tapSwatch(tester, 'Void');
+    expect(find.text('UNLOCK'), findsOneWidget);
+    await _tapDockAction(tester);
     expect(asked, ['Void']);
   });
 
@@ -120,12 +138,11 @@ void main() {
         onSelect: picked.add,
       ),
     );
-    await tester.pumpAndSettle();
+    await _settle(tester);
     // The current colour reads by its name, not a missing element.
     expect(find.text('RADIANT LIGHT'), findsWidgets);
-    await _reveal(tester, 'VOID BLACK');
-    await tester.tap(find.text('VOID BLACK'));
-    await tester.pumpAndSettle();
+    // Owned, a colour is one tap.
+    await _tapSwatch(tester, 'Void');
     expect(picked, ['Void']);
     expect(tester.takeException(), isNull);
   });

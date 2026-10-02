@@ -35,6 +35,7 @@ import 'cosmic_cache_data.dart';
 import 'cosmic_cache_vfx.dart';
 import 'portal_tear_paint.dart';
 import 'planets/planet_art.dart';
+import 'ship_art.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/systems/effects/effect.dart';
 import 'package:alchemons/systems/effects/effect_loader.dart';
@@ -7146,30 +7147,21 @@ class CosmicGame extends FlameGame with PanDetector {
       canvas.restore();
     }
 
-    // ── orbital sentinels ──
-    for (final o in orbitals) {
-      final op = o.positionAround(ship.pos);
-      final a = o.spawnOpacity; // fade-in alpha
-      // Outer glow
-      paintSoftCircle(
-        canvas,
-        op,
-        OrbitalSentinel.hitboxRadius,
-        const Color(0xFF42A5F5).withValues(alpha: 0.15 * a),
-        8,
-      );
-      // Core
-      canvas.drawCircle(
-        op,
-        OrbitalSentinel.hitboxRadius * 0.6,
-        Paint()..color = const Color(0xFF42A5F5).withValues(alpha: 0.7 * a),
-      );
-      // Inner bright dot
-      canvas.drawCircle(
-        op,
-        3,
-        Paint()..color = const Color(0xFFBBDEFB).withValues(alpha: a),
-      );
+    // ── orbital sentinels: beads of the hull's light held in glass ──
+    if (orbitals.isNotEmpty) {
+      final light = shipLight(activeShipSkin);
+      for (var i = 0; i < orbitals.length; i++) {
+        final o = orbitals[i];
+        paintOrbitalSentinel(
+          canvas,
+          o.positionAround(ship.pos),
+          light,
+          time: _elapsed,
+          seed: i * 1.7,
+          radius: OrbitalSentinel.hitboxRadius * 0.6,
+          opacity: o.spawnOpacity,
+        );
+      }
     }
 
     // ── incoming Let meteors: the ground they are committed to ──
@@ -7678,58 +7670,20 @@ class CosmicGame extends FlameGame with PanDetector {
           null,
           Paint()..color = Colors.white.withValues(alpha: flash),
         );
-        ship.render(canvas, _elapsed, skin: activeShipSkin);
+        ship.render(
+          canvas,
+          _elapsed,
+          skin: activeShipSkin,
+          boost: _boostTrailVisual,
+        );
         canvas.restore();
       } else {
-        ship.render(canvas, _elapsed, skin: activeShipSkin);
-      }
-
-      // Boost exhaust trail
-      if (_boostTrailVisual > 0.01) {
-        final exhaustDir = Offset(cos(ship.angle), sin(ship.angle));
-        final exhaustCenter = ship.pos - exhaustDir * 22;
-        final activeTrailUnits = _boostTrailVisual * 4;
-        for (var i = 0; i < 4; i++) {
-          final fill = (activeTrailUnits - i).clamp(0.0, 1.0);
-          if (fill <= 0) continue;
-          final trailCenter = exhaustCenter - exhaustDir * (i * 10.5);
-          final pulse = 0.88 + 0.12 * sin(_elapsed * 15 - i * 0.65);
-          final glowRadius = (8 - i * 1.15) * fill * pulse;
-          final coreRadius = (4.2 - i * 0.5) * (0.35 + 0.65 * fill);
-          final glowAlpha = (0.14 + 0.30 * fill) * pulse;
-          final coreAlpha = 0.24 + 0.62 * fill;
-          paintSoftCircle(
-            canvas,
-            trailCenter,
-            glowRadius,
-            const Color(0xFFFF6F00).withValues(alpha: glowAlpha),
-            10 - i.toDouble(),
-          );
-          canvas.drawCircle(
-            trailCenter,
-            coreRadius,
-            Paint()
-              ..color = const Color(0xFFFFD180).withValues(alpha: coreAlpha),
-          );
-        }
-
-        final corePulse = 0.92 + 0.18 * sin(_elapsed * 15);
-        paintSoftCircle(
+        // Boosting opens the engines up and thickens the wake.
+        ship.render(
           canvas,
-          exhaustCenter,
-          7.5 * corePulse,
-          const Color(
-            0xFFFF6F00,
-          ).withValues(alpha: isBoosting ? 0.5 : 0.28 * _boostTrailVisual),
-          10,
-        );
-        canvas.drawCircle(
-          exhaustCenter,
-          4,
-          Paint()
-            ..color = const Color(0xFFFFAB40).withValues(
-              alpha: isBoosting ? 0.82 : 0.32 + 0.3 * _boostTrailVisual,
-            ),
+          _elapsed,
+          skin: activeShipSkin,
+          boost: _boostTrailVisual,
         );
       }
 

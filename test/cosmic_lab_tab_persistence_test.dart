@@ -55,6 +55,13 @@ class _HostState extends State<_Host> {
   }
 }
 
+/// The lab's stage never stops turning, so it never settles: pump frames.
+Future<void> settle(WidgetTester tester) async {
+  for (var i = 0; i < 8; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
 void main() {
   testWidgets('the lab reopens on the tab you left it on', (tester) async {
     tester.view.physicalSize = const Size(880, 700);
@@ -62,24 +69,24 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(const _Host());
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     final host = tester.state<_HostState>(find.byType(_Host));
     expect(host.labTab, 0, reason: 'starts on SHIP');
 
     // Switch to HOME.
     await tester.tap(find.text('HOME'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(host.labTab, 1, reason: 'tab change must reach the host');
 
     // PREVIEW: the whole overlay is destroyed.
     await tester.tap(find.text('PREVIEW ON PLANET'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.byType(CustomizationMenuOverlay), findsNothing);
 
     // END PREVIEW: rebuilt from scratch.
     await tester.tap(find.text('END PREVIEW'));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(host.labTab, 1, reason: 'the host kept the tab');
     final state = tester.state<CustomizationMenuOverlayState>(
