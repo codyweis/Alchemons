@@ -287,8 +287,17 @@ void main() {
     for (final e in share.entries) {
       if (e.key != '10') expect(e.value, lessThan(dust), reason: e.key);
     }
-    for (final el in ['08', '03', '13', '02']) {
+    for (final el in ['08', '03', '13']) {
       expect(share[el], greaterThan(0.03), reason: el);
+    }
+    // Water is found only in the last pools.
+    expect(share['02'], isNull);
+    for (final id in ['SP_swamp_09']) {
+      expect(
+        swampDry.poolFor(id).entries.map((e) => e.speciesId),
+        everyElement(predicate<String>(speciesCanWade)),
+        reason: id,
+      );
     }
     // Only these can take the marsh pocket's open air.
     expect(
@@ -314,17 +323,26 @@ void main() {
     final s = await service(db, scenes);
     final dryIds = swampDry.pool.entries.map((e) => e.speciesId).toSet();
     final seen = <String, int>{};
-    var creatures = 0;
+    var creatures = 0, ponds = 0;
     for (var round = 0; round < 60; round++) {
       expect(await s.debugBringWeather('swamp', WeatherKind.dry), isTrue);
       expect(s.weatherIn('swamp'), same(swampDry));
       for (final id in s.getActiveSpawnPoints('swamp')) {
         final species = s.getSpawnAt('swamp', id)!.speciesId;
-        expect(dryIds, contains(species), reason: '$id: $species');
         final point = swampScene.spawnPoints.firstWhere((p) => p.id == id);
-        if (point.aloft) {
-          expect(speciesCanFloat(species), isTrue, reason: '$id: $species');
-        }
+        expect(
+          {...dryIds, ...swampDry.poolFor(id).entries.map((e) => e.speciesId)},
+          contains(species),
+          reason: '$id: $species',
+        );
+        expect(point.takes(species), isTrue, reason: '$id: $species');
+        // Water wades in the pools, and is found nowhere else.
+        expect(
+          speciesCanWade(species),
+          point.perch == SpawnPerch.wade,
+          reason: '$id: $species',
+        );
+        if (point.perch == SpawnPerch.wade) ponds++;
         seen[_element(species)] = (seen[_element(species)] ?? 0) + 1;
         creatures++;
       }
@@ -332,6 +350,7 @@ void main() {
     // ignore: avoid_print
     print('dry Swamp batches: $seen of $creatures');
     expect(seen.length, greaterThanOrEqualTo(4));
+    expect(ponds, greaterThan(0), reason: 'no Waterlet in a pool');
     expect(seen['10']! / creatures, inInclusiveRange(0.2, 0.6));
     expect(await db.settingsDao.getSetting('wild_weather_swamp'), 'dry');
 
@@ -342,6 +361,28 @@ void main() {
       await again.removeSpawn('swamp', id);
     }
     expect(again.hasWeather('swamp'), isFalse);
+  });
+
+  test('the Swamp\'s pools are only there when it has gone dry', () async {
+    final db = AlchemonsDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final s = await service(db, {'swamp': _swamp()});
+    final pools = {
+      for (final p in swampScene.spawnPoints)
+        if (p.onlyIn != null) p.id,
+    };
+    expect(pools, {'SP_swamp_09'});
+    var wet = 0;
+    for (var i = 0; i < 200; i++) {
+      await s.clearSceneSpawns('swamp');
+      await s.ensureSpawnsForScene('swamp');
+      if (s.hasWeather('swamp')) continue;
+      wet++;
+      for (final id in s.getActiveSpawnPoints('swamp')) {
+        expect(pools, isNot(contains(id)), reason: 'a pool in a wet batch');
+      }
+    }
+    expect(wet, greaterThan(50));
   });
 
   test('half the Swamp\'s batches find it dry', () async {

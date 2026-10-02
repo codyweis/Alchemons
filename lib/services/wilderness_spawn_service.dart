@@ -683,18 +683,39 @@ class WildernessSpawnService extends ChangeNotifier {
       return false;
     }
 
-    // A point in the open air only takes creatures that can float; one
-    // whose pool has none of those stays empty.
+    // Some batches come with weather, which brings creatures of its own:
+    // at least as many as it guarantees, on the points that can take them —
+    // those points are chosen first. It is rolled first, because a point
+    // can be there only in a weather (the Swamp's pools, when it is dry).
+    final forced = debugForceWeather.remove(sceneId);
+    final roll = _rng.nextDouble();
+    WildWeather? weather;
+    var below = 0.0;
+    for (final w in weathers[sceneId] ?? const <WildWeather>[]) {
+      if (forced != null ? w.kind == forced : roll < below + w.chance) {
+        weather = w;
+        break;
+      }
+      below += w.chance;
+    }
+
+    // A point only takes what can be shown there — in the open air what
+    // floats, in the water what wades; one whose pool has none of those
+    // stays empty, and so does one that is not there in this weather.
     EncounterPool poolAt(SpawnPoint point) {
+      if (point.onlyIn != null) {
+        if (weather == null || point.onlyIn != weather.kind) {
+          return const EncounterPool(entries: []);
+        }
+        return weather.poolFor(point.id).where((e) => point.takes(e.speciesId));
+      }
       final pool = poolForSpawn(
         spawnId: point.id,
         sceneWide: sceneWide,
         perSpawn: perSpawn,
         unique: true,
       );
-      return point.aloft
-          ? pool.where((e) => speciesCanFloat(e.speciesId))
-          : pool;
+      return pool.where((e) => point.takes(e.speciesId));
     }
 
     final freePoints = scene.spawnPoints
@@ -722,26 +743,12 @@ class WildernessSpawnService extends ChangeNotifier {
     // Shuffle to sample distinct points without repetition
     candidatePoints.shuffle(_rng);
 
-    // Some batches come with weather, which brings creatures of its own:
-    // at least as many as it guarantees, on the points that can take them —
-    // those points are chosen first.
-    final forced = debugForceWeather.remove(sceneId);
-    final roll = _rng.nextDouble();
-    WildWeather? weather;
-    var below = 0.0;
-    for (final w in weathers[sceneId] ?? const <WildWeather>[]) {
-      if (forced != null ? w.kind == forced : roll < below + w.chance) {
-        weather = w;
-        break;
-      }
-      below += w.chance;
-    }
     final withWeather = weather != null;
     EncounterPool? weatherPoolAt(SpawnPoint point) {
       if (weather == null) return null;
-      final pool = point.aloft
-          ? weather.pool.where((e) => speciesCanFloat(e.speciesId))
-          : weather.pool;
+      final pool = weather
+          .poolFor(point.id)
+          .where((e) => point.takes(e.speciesId));
       return pool.isEmpty ? null : pool;
     }
 

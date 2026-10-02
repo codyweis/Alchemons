@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:flame/components.dart';
 
@@ -10,6 +11,16 @@ enum SpawnPerch {
   /// In the open air. Only a creature that can fly or float may spawn here
   /// (see [speciesCanFloat]).
   air,
+
+  /// Wading in shallow water — the last pools of the Swamp gone dry. Only a
+  /// Water creature may spawn here (see [speciesCanWade]).
+  wade,
+}
+
+/// Whether a species belongs wading in shallow water: the Water element.
+bool speciesCanWade(String speciesId) {
+  final m = RegExp(r'^[A-Z]{3}(\d{2})').firstMatch(speciesId);
+  return m != null && int.parse(m.group(1)!) == 2;
 }
 
 /// Whether a species may be shown in the air rather than standing on
@@ -47,9 +58,22 @@ class SpawnPoint {
     this.enabled = true,
     this.battlePos,
     this.perch = SpawnPerch.ground,
+    this.onlyIn,
   });
 
+  /// The weather this point exists only in (the Swamp's pools, there only
+  /// when it has gone dry), or null for a point that is always there.
+  final WeatherKind? onlyIn;
+
   bool get aloft => perch == SpawnPerch.air;
+
+  /// Whether [speciesId] can be shown at this point: in the open air only
+  /// what floats, in the water only what wades.
+  bool takes(String speciesId) => switch (perch) {
+    SpawnPerch.ground => true,
+    SpawnPerch.air => speciesCanFloat(speciesId),
+    SpawnPerch.wade => speciesCanWade(speciesId),
+  };
 
   /// Which side of the wild creature its encounter partner stands in a
   /// field that loops: 1 to the right, -1 to the left.

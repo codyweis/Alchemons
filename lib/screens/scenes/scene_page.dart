@@ -697,6 +697,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       }
     } else {
       for (final sp in spawnPoints) {
+        // A point there only in some weather is not there in this one.
+        if (sp.onlyIn != null) continue;
         final roll = _encounters.roll(spawnId: sp.id);
         _encounters.forceSpawnAt(
           sp.id,

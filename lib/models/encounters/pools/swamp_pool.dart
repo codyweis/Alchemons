@@ -146,20 +146,28 @@ swampEncounterPools(SceneDefinition scene) {
   return (sceneWide: sceneWide, perSpawn: perSpawn);
 }
 
+/// The Swamp's last pool by the marsh pocket, when it has gone dry: the
+/// only place a Water creature is found then.
+const _swampPond = EncounterPool(
+  entries: [EncounterEntry(speciesId: 'LET02', rarity: EncounterRarity.common)],
+);
+
 /// The Swamp gone dry. Half of all Swamp batches find it so, day or night:
 /// the water drawn down to its last pools, the bog floor cracked and dusty.
 /// Every creature of a dry batch comes from here — a mix, not one element:
 /// Dust most of all (about two in five, and the only wild Dustpip, Dustmane,
 /// Dusthorn, Dustmask and Dustwing), with Mud and Earth on the cracked
-/// floor, a little Poison, and Waterlets hanging on by the last pools. Over
-/// the marsh pocket's open air only the floaters can come: Airlets on the
-/// dusty wind, now and then a Dustwing or a Mudwing.
+/// floor and a little Poison. Waterlets hang on only in the last pool by
+/// the marsh pocket (SP_swamp_09, there only when it is dry). Over the marsh
+/// pocket's open air only the floaters can come: Airlets on the dusty wind,
+/// now and then a Dustwing or a Mudwing.
 const swampDry = WildWeather(
   kind: WeatherKind.dry,
   label: 'DRY',
   chance: 0.5,
   guaranteed: 0,
   extra: 1,
+  perSpawn: {'SP_swamp_09': _swampPond},
   pool: EncounterPool(
     entries: [
       // Common
@@ -184,11 +192,6 @@ const swampDry = WildWeather(
       EncounterEntry(speciesId: 'MAN10', rarity: EncounterRarity.uncommon),
       EncounterEntry(
         speciesId: 'MAN03',
-        rarity: EncounterRarity.uncommon,
-        weightMul: 0.8,
-      ),
-      EncounterEntry(
-        speciesId: 'LET02',
         rarity: EncounterRarity.uncommon,
         weightMul: 0.8,
       ),

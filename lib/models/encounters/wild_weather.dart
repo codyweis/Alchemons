@@ -33,6 +33,7 @@ class WildWeather {
     this.guaranteed = 1,
     this.extra = 0.5,
     this.aftermath = false,
+    this.perSpawn = const {},
   });
 
   final WeatherKind kind;
@@ -42,6 +43,13 @@ class WildWeather {
 
   final double chance;
   final EncounterPool pool;
+
+  /// What some points take instead of [pool] while it lasts (the Swamp's
+  /// pools when it has gone dry), by spawn point id.
+  final Map<String, EncounterPool> perSpawn;
+
+  /// The weather's creatures for the point [spawnId].
+  EncounterPool poolFor(String spawnId) => perSpawn[spawnId] ?? pool;
   final int guaranteed;
   final double extra;
 

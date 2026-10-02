@@ -63,11 +63,12 @@ class EncounterService extends ChangeNotifier {
     final tables = _tableBuilder(scene);
     var table =
         (spawnId != null ? tables.perSpawn[spawnId] : null) ?? tables.sceneWide;
-    // A point in the open air only takes creatures that can float.
+    // A point only takes what can be shown there: in the open air what
+    // floats, in the water what wades.
     final point = scene.spawnPoints.where((p) => p.id == spawnId).firstOrNull;
-    if (point != null && point.aloft) {
-      final floaters = table.where((e) => speciesCanFloat(e.speciesId));
-      if (!floaters.isEmpty) table = floaters;
+    if (point != null && point.perch != SpawnPerch.ground) {
+      final fits = table.where((e) => point.takes(e.speciesId));
+      if (!fits.isEmpty) table = fits;
     }
 
     final now = DateTime.now();

@@ -294,12 +294,21 @@ class SwampField extends _GrainField {
 
   // On a bank there is no deeper ground to stand in, and off one there is
   // only water: anything over a bank that cannot float is stood on its top.
+  // When the Swamp has gone dry the floor between is ground as well.
   @override
   ({double top, double rest})? groundAt(SceneLayer layer, double x) {
     final at = _bankAt(layer, x, reach: 0.86);
-    if (at == null) return null;
-    final (b, lx) = at;
-    return (top: double.infinity, rest: _bStand(b, lx) + 1 * _u);
+    if (at != null) {
+      final (b, lx) = at;
+      return (top: double.infinity, rest: _bStand(b, lx) + 1 * _u);
+    }
+    // Gone dry, the floor is ground too — all but the last pools.
+    if (dry < 0.5 || (layer != near && layer != mid)) return null;
+    final (top, rest) = layer == near ? (0.79, 0.86) : (0.672, 0.71);
+    for (final p in _pools[layer] ?? const <_Pool>[]) {
+      if (_inPoolOf(p, x, p.$2, layer, grow: 1.1)) return null;
+    }
+    return (top: _h * top, rest: _h * rest);
   }
 
   /// The grass on a near bank a finger at [x], [y] is in, if any.
@@ -372,9 +381,13 @@ class SwampField extends _GrainField {
     }
 
     // Ground points in x order on the layer stand on stone and peat by
-    // turns, and each one's partner on the other.
-    final points = _spawns.where((p) => p.anchor == layer).toList()
-      ..sort((a, b) => _spawnX(a).compareTo(_spawnX(b)));
+    // turns, and each one's partner on the other. A point in a pool has
+    // no bank: it is in the water, its partner on the dry floor.
+    final points =
+        _spawns
+            .where((p) => p.anchor == layer && p.perch != SpawnPerch.wade)
+            .toList()
+          ..sort((a, b) => _spawnX(a).compareTo(_spawnX(b)));
     var ground = 0;
     for (final p in points) {
       final x = _spawnX(p);
@@ -676,8 +689,8 @@ class SwampField extends _GrainField {
 
   @override
   bool hasLive(SceneLayer layer, {required bool front}) => switch (layer) {
-    near => true,
-    mid || fore => !front,
+    near || mid => true,
+    fore => !front,
     _ => false,
   };
 
@@ -2453,7 +2466,8 @@ class SwampField extends _GrainField {
   }
 
   /// The last pools on [layer] when it has dried: (x, y, half width, half
-  /// height, seed), in the widest gaps between its banks.
+  /// height, seed) — one round each point that wades, the rest in the
+  /// widest gaps between its banks.
   final Map<SceneLayer, List<_Pool>> _pools = {};
 
   List<_Pool> _makePools(SceneLayer layer, double w, List<_Bank> banks) {
@@ -2469,22 +2483,44 @@ class SwampField extends _GrainField {
     }
     gaps.sort((a, b) => (b.$2 - b.$1).compareTo(a.$2 - a.$1));
     final near0 = layer == near;
-    return [
-      for (var k = 0; k < math.min(near0 ? 2 : 1, gaps.length); k++)
-        () {
-          final (from, to) = gaps[k];
-          final rx = math.min((to - from) * 0.36, (near0 ? 92 : 46) * _u);
-          final x = (from + to) / 2;
-          return (
-            x - w * (x / w).floorToDouble(),
-            _h * (near0 ? (k == 0 ? 0.875 : 0.9) : 0.705),
-            rx,
-            rx * 0.2,
-            401 + k + (near0 ? 0 : 10),
-          );
-        }(),
+    // A pool round each point that wades, its creature standing in the
+    // middle of it a little toward the near side.
+    final pools = <_Pool>[
+      for (final p in _spawns)
+        if (p.anchor == layer && p.perch == SpawnPerch.wade)
+          () {
+            final rx = p.size.x * 1.15;
+            return (_spawnX(p), _feet(p) - rx * 0.03, rx, rx * 0.2, 391);
+          }(),
     ];
+    // The rest in the widest gaps that have none.
+    var k = 0;
+    for (final (from, to) in gaps) {
+      if (pools.length >= (near0 ? 2 : 1)) break;
+      final taken = pools.any((q) {
+        final d = q.$1 - w * ((q.$1 - from) / w).floorToDouble();
+        return d >= from - q.$3 && d <= to + q.$3;
+      });
+      if (taken) continue;
+      final rx = math.min((to - from) * 0.36, (near0 ? 92 : 46) * _u);
+      final x = (from + to) / 2;
+      pools.add((
+        x - w * (x / w).floorToDouble(),
+        _h * (near0 ? 0.9 : 0.705),
+        rx,
+        rx * 0.2,
+        401 + k++ + (near0 ? 0 : 10),
+      ));
+    }
+    return pools;
   }
+
+  /// The last pools on [layer] as built: each one's span.
+  @visibleForTesting
+  List<Rect> debugPools(SceneLayer layer) => [
+    for (final (x, y, rx, ry, _) in _pools[layer] ?? const <_Pool>[])
+      Rect.fromCenter(center: Offset(x, y), width: rx * 2, height: ry * 2),
+  ];
 
   /// A pool's shore: an oval, uneven.
   List<Offset> _poolEdge(_Pool p, {double grow = 1}) {
@@ -2632,6 +2668,66 @@ class SwampField extends _GrainField {
       }
     }
     _paintPools(c, w, layer);
+  }
+
+  /// Gone dry, whatever wades in a last pool stands in it: the near part
+  /// of the pool's water drawn again over its feet, from a little above
+  /// where they stand, with the light catching the water round its legs.
+  void _paintWading(Canvas canvas, FieldView view, SceneLayer layer) {
+    final d = dry;
+    if (d < 0.01) return;
+    for (final p in _spawns) {
+      if (p.anchor != layer || p.perch != SpawnPerch.wade) continue;
+      final pool = (_pools[layer] ?? const <_Pool>[])
+          .where((q) => (q.$1 - _spawnX(p)).abs() < 1)
+          .firstOrNull;
+      if (pool == null) continue;
+      final (px, py, rx, ry, seed) = pool;
+      final line = _feet(p) - p.size.y * 0.07;
+      for (final shift in _shiftsFor(layer, view, rx * 1.3)) {
+        final x = px + shift;
+        if (x + rx < view.left || x - rx > view.right) continue;
+        final edge = _poolEdge((x, py, rx, ry, seed));
+        final top = py - ry, bottom = py + ry * 1.25;
+        canvas
+          ..save()
+          ..clipRect(
+            Rect.fromLTRB(x - rx * 1.3, line - 2 * _u, x + rx * 1.3, bottom),
+          )
+          ..drawPath(
+            Path()..addPolygon(edge, true),
+            Paint()
+              ..shader = Gradient.linear(Offset(0, top), Offset(0, py + ry), [
+                _mudAt(0.95, 0.22),
+                _mudAt(0.6, 0.62),
+              ])
+              ..color = const Color(0xFF000000).withValues(alpha: d),
+          )
+          ..restore();
+        // The water round its legs.
+        _rippleBatch.clear();
+        final t = view.time;
+        final half = p.size.x * 0.32;
+        for (var k = 0; k < 14; k++) {
+          final f = k / 13 * 2 - 1;
+          final shimmer = 0.5 + 0.5 * math.sin(t * 2.2 + k * 1.3);
+          if (shimmer < 0.35) continue;
+          _rippleBatch.add(
+            shimmer > 0.8 ? 1 : 0,
+            x + f * half,
+            line + (1 - f * f) * 1.6 * _u,
+          );
+        }
+        final col = Color.lerp(
+          _light.skyAt(0.47),
+          const Color(0xFFFFFFFF),
+          0.35,
+        )!.withValues(alpha: 0.5 * d);
+        _rippleBatch
+          ..draw(canvas, 0, 1.4 * _u, col)
+          ..draw(canvas, 1, 1.7 * _u, col.withValues(alpha: 0.8 * d));
+      }
+    }
   }
 
   /// The cracked floor of [layer] between [top] and [bottom]: one polygon
@@ -3160,8 +3256,12 @@ class SwampField extends _GrainField {
           (g.vx[i].abs() + g.vy[i].abs()) / (40 * _u),
         );
         var tone = math.min(3, g.tone[i] + (moving > 0.4 ? 1 : 0));
-        // Dried to a crust its shades all but merge: two will do.
-        if (dry > 0.5) tone = tone >> 1;
+        // Dried to a crust its shades all but merge: two will do; and none
+        // of it lies in the last pools.
+        if (dry > 0.5) {
+          tone = tone >> 1;
+          if (_inPool(g.x[i], g.y[i])) continue;
+        }
         _weedBatch.add(
           tone * 2 + g.size[i],
           x + g.dx[i] + bob,
@@ -3322,6 +3422,10 @@ class SwampField extends _GrainField {
   }) {
     switch (layer) {
       case mid:
+        if (front) {
+          _paintWading(canvas, view, mid);
+          return;
+        }
         _paintGlints(
           canvas,
           view,
@@ -3395,6 +3499,7 @@ class SwampField extends _GrainField {
           _drawHeads(canvas, 3.2);
         }
         if (front) {
+          _paintWading(canvas, view, near);
           _paintKicked(canvas, view);
           _paintDust(canvas, view);
         }

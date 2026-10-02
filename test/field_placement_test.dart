@@ -9,6 +9,7 @@ import 'dart:ui';
 import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
@@ -269,8 +270,10 @@ void main() {
       swampScene.worldWidth *
       (1 + swampScene.layers.firstWhere((l) => l.id == layer).parallaxFactor);
 
-  SwampField builtSwamp(double h) {
+  SwampField builtSwamp(double h, {bool dry = false}) {
     final field = SwampField()
+      ..weatherKind = dry ? WeatherKind.dry : null
+      ..weather = dry ? 1 : 0
       ..layout(
         swampScene.spawnPoints,
         swampScene.worldWidth,
@@ -296,7 +299,9 @@ void main() {
   for (final h in const [412.0, 475.0, 700.0]) {
     test('every Swamp standing point stands on its own bank at $h', () {
       final field = builtSwamp(h);
-      for (final p in swampScene.spawnPoints.where((p) => !p.aloft)) {
+      for (final p in swampScene.spawnPoints.where(
+        (p) => p.perch == SpawnPerch.ground,
+      )) {
         final x = p.normalizedPos.dx * swampPeriod(p.anchor);
         final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
         expect(field.perchFor(p.id), closeTo(feet, 1e-6), reason: p.id);
@@ -308,7 +313,9 @@ void main() {
 
     test('every Swamp encounter partner has a bank to stand on at $h', () {
       final field = builtSwamp(h);
-      for (final p in swampScene.spawnPoints) {
+      for (final p in swampScene.spawnPoints.where(
+        (p) => p.perch != SpawnPerch.wade,
+      )) {
         final x =
             p.normalizedPos.dx * swampPeriod(p.anchor) +
             p.partnerSide * kFieldPairGap;
@@ -387,6 +394,66 @@ void main() {
       }
     });
   }
+
+  for (final h in const [412.0, 475.0, 700.0]) {
+    test('gone dry, each pool point wades in its own pool and its partner '
+        'stands on the dry floor at $h', () {
+      final field = builtSwamp(h, dry: true);
+      final wade = swampScene.spawnPoints.where(
+        (p) => p.perch == SpawnPerch.wade,
+      );
+      expect(wade, isNotEmpty);
+      for (final p in wade) {
+        // There only when dry, and only for what wades.
+        expect(p.onlyIn, WeatherKind.dry, reason: p.id);
+        expect(p.takes('LET02'), isTrue);
+        expect(p.takes('LET10'), isFalse);
+        final period = swampPeriod(p.anchor);
+        final x = p.normalizedPos.dx * period;
+        final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
+        expect(field.perchFor(p.id), closeTo(feet, 1e-6), reason: p.id);
+        final pool = field
+            .debugPools(p.anchor)
+            .firstWhere(
+              (r) => (r.center.dx - x).abs() < 1,
+              orElse: () => fail('${p.id} has no pool'),
+            );
+        expect(feet, inInclusiveRange(pool.top, pool.bottom), reason: p.id);
+        // Nothing stands on a pool, and no pool runs into a bank.
+        expect(field.groundAt(p.anchor, x), isNull, reason: p.id);
+        for (final b in field.debugBanks(p.anchor)) {
+          var d = (pool.center.dx - b.center.dx) % period;
+          if (d > period / 2) d -= period;
+          expect(
+            d.abs() - (pool.width + b.width) / 2,
+            greaterThan(4),
+            reason: '${p.id} pool and a bank',
+          );
+        }
+        // Its partner, a pace off, on the floor (or a bank).
+        final px = x + p.partnerSide * kFieldPairGap;
+        final ground = field.groundAt(p.anchor, px);
+        expect(ground, isNotNull, reason: '${p.id} partner has no ground');
+        final partnerFeet = p.getBattlePos().dy * h + p.size.y * 0.42;
+        expect(
+          ground!.top,
+          lessThanOrEqualTo(partnerFeet),
+          reason: '${p.id} partner in the air',
+        );
+      }
+    });
+  }
+
+  test('the Swamp\'s floor is only ground when it has gone dry', () {
+    final wet = builtSwamp(475), dry = builtSwamp(475, dry: true);
+    final period = swampPeriod(SceneLayer.layer4);
+    var floor = 0;
+    for (var x = 0.0; x < period; x += period / 211) {
+      if (wet.groundAt(SceneLayer.layer4, x) != null) continue;
+      if (dry.groundAt(SceneLayer.layer4, x) != null) floor++;
+    }
+    expect(floor, greaterThan(50));
+  });
 
   test('the Swamp joins round its loop without a seam', () {
     final field = builtSwamp(475);

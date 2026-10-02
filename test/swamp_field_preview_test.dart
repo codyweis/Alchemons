@@ -95,6 +95,8 @@ void main() {
       'SP_swamp_06': ('uncommon/PIP13_poisonpip', 0.9),
       'SP_swamp_07': ('uncommon/MAN13_poisonmane', 0.9),
       'SP_swamp_08': ('uncommon/LET14_spiritlet', 0.7),
+      // The last pool, there only when it has gone dry.
+      'SP_swamp_09': ('common/LET02_waterlet', 0.7),
     };
 
     final json =
@@ -148,6 +150,7 @@ void main() {
       game.update(0);
 
       for (final p in scene.spawnPoints) {
+        if (p.onlyIn != null && game.fieldWeather != p.onlyIn) continue;
         final who = cast[p.id];
         final img = who == null ? null : sprites[who.$1];
         if (img == null) continue;
@@ -252,17 +255,18 @@ void main() {
       if (wants('encounters') &&
           Platform.environment['SWAMP_ENCOUNTERS'] == '1')
         for (final p in swampScene.spawnPoints)
-          (
-            'encounter_${p.id.substring(9)}',
-            await shoot(
-              swampScene,
-              t: 3.4,
-              hour: 17.6,
-              encounter: p.id,
-              // Mudlet cannot float: it must land on its bank.
-              partner: 'LET08',
+          if (p.onlyIn == null || dry)
+            (
+              'encounter_${p.id.substring(9)}',
+              await shoot(
+                swampScene,
+                t: 3.4,
+                hour: 17.6,
+                encounter: p.id,
+                // Mudlet cannot float: it must land on its bank.
+                partner: 'LET08',
+              ),
             ),
-          ),
       if (Platform.environment['SWAMP_BEFORE'] == '1')
         ('before', await shoot(_imageSwamp, t: 1.5)),
     ];

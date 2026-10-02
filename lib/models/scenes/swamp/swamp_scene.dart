@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:alchemons/games/wilderness/field/grain_field.dart';
+import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:flame/components.dart';
@@ -26,7 +27,10 @@ final swampScene = SceneDefinition(
   // stone or a bank of peat under each of the others, and one where each
   // point's encounter partner stands (a pace to the side its battle
   // position names), so a partner that cannot float has ground too. Nothing
-  // stands on the water.
+  // stands on the water. When the Swamp has gone dry its last pool by the
+  // marsh pocket is one more point, there only then: Water creatures wade
+  // in it (and are found nowhere else), their partners standing on the dry
+  // floor.
   //
   // x is a share of the point's own layer's loop.
   spawnPoints: [
@@ -94,6 +98,16 @@ final swampScene = SceneDefinition(
       anchor: SceneLayer.layer3,
       size: Vector2(66, 66),
       battlePos: const Offset(0.86, 0.57),
+    ),
+    // the last pool by the marsh pocket, when it has gone dry
+    SpawnPoint(
+      id: 'SP_swamp_09',
+      normalizedPos: const Offset(0.507, 0.80),
+      anchor: SceneLayer.layer4,
+      size: Vector2(80, 80),
+      battlePos: const Offset(0.6, 0.80),
+      perch: SpawnPerch.wade,
+      onlyIn: WeatherKind.dry,
     ),
   ],
 );
