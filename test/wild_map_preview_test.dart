@@ -137,7 +137,7 @@ void main() {
     await save('7_dry', shoot(fresh(weather: {'swamp': WeatherKind.dry})));
     await save(
       '8_ready_arcane',
-      shoot(fresh(ready: {'valley', 'volcano'}, arcane: true)),
+      shoot(fresh(ready: {'valley', 'volcano', 'arcane'}, arcane: true)),
     );
     // A storm between strikes: lit only from inside the cloud.
     final between = fresh(weather: {'sky': WeatherKind.storm});
@@ -154,6 +154,14 @@ void main() {
     await save(
       '12_volcano_erupting',
       shoot(fresh(volcano: WildVolcano.erupting)),
+    );
+    await save(
+      '13_arcane_meteors',
+      shoot(fresh(weather: {'arcane': WeatherKind.meteors}, arcane: true)),
+    );
+    await save(
+      '14_arcane_aurora',
+      shoot(fresh(weather: {'arcane': WeatherKind.aurora}, arcane: true)),
     );
     // The same states in ink, for the light theme.
     await save(
@@ -181,7 +189,24 @@ void main() {
         )..ink = true,
       ),
     );
-    await save('ink_3_rainbow_still', shoot(fresh(rainbow: true)..ink = true));
+    await save(
+      'ink_3_rainbow_still_aurora',
+      shoot(
+        fresh(
+          rainbow: true,
+          arcane: true,
+          ready: {'arcane'},
+          weather: {'arcane': WeatherKind.aurora},
+        )..ink = true,
+      ),
+    );
+    await save(
+      'ink_4_meteors',
+      shoot(
+        fresh(arcane: true, weather: {'arcane': WeatherKind.meteors})
+          ..ink = true,
+      ),
+    );
 
     // Every frame on one sheet, four to a row.
     await tester.runAsync(() async {

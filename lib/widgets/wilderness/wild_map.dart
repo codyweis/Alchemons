@@ -4,15 +4,16 @@
 // of grains on a faint circle of sand — snow-capped mountains for the
 // Valley, a cloud for the Sky, a volcano for the Volcano, a swamp tree on
 // brown ground for the Swamp — and a purple circle in the middle for
-// Arcane. A finger drawn through them stirs them like sand in water, and
-// they settle back. A realm with something waiting in it has its circle
-// pulse green.
+// Arcane, ringed by a fine violet line. A finger drawn through them stirs
+// them like sand in water, and they settle back. A realm (or Arcane) with
+// something waiting in it has a fine green rim that pulses.
 //
 // The state of each realm is shown, not announced: the Sky's cloud dark and
 // flickering with lightning in a storm; rain on the Valley's mountains, a
 // snowcap on them in snow and a rainbow behind them when rain has left one;
 // the Volcano quiet, smoking or erupting, as the next visit will find it;
-// the Swamp's tree gone dry.
+// the Swamp's tree gone dry; meteors streaking across Arcane's disc in a
+// shower, curtains of northern lights hung in it.
 //
 // Cheap at rest: grains that hold still are drawn once into a picture and
 // that picture drawn again each frame; the cloud's bob, the tree's sway and
@@ -55,21 +56,22 @@ const int _cloud = 3; // Sky
 const int _cone = 4, _lava = 5, _crater = 6, _lava2 = 17;
 const int _ground = 7, _pool = 8, _trunk = 9, _canopy = 10, _moss = 11;
 const int _sand = 12, _rim = 13; // each realm's circle
-const int _arcRing = 14, _arcFill = 15, _arcHaze = 16; // Arcane
+const int _arcRing = 14, _arcFill = 15; // Arcane
 
 // Groups, in the order they draw. Each is one picture at rest, and only
 // the ones a finger reaches go back to live grains.
 const int _gStill = 0; // 0..3: each realm's grains that never move
 const int _gRim = 4; // 4..7: each realm's rim, live while it pulses
 const int _gCloud = 8, _gTree = 9, _gLive = 10, _gArcane = 11;
-const int _groups = 12;
+const int _gArcRim = 12; // Arcane's rim, outside its own ring
+const int _groups = 13;
 
 int _groupOf(int part, int realm) => switch (part) {
-  _rim => _gRim + realm,
+  _rim => realm < 4 ? _gRim + realm : _gArcRim,
   _cloud => _gCloud,
   _canopy || _moss => _gTree,
   _meadow || _lava || _lava2 || _crater => _gLive,
-  _arcRing || _arcFill || _arcHaze => _gArcane,
+  _arcRing || _arcFill => _gArcane,
   _ => _gStill + realm,
 };
 
@@ -228,6 +230,10 @@ class WildMapField {
 
   /// Under a realm's circle.
   Offset labelAnchor(WildRealm r) => _centre[r.index] + Offset(0, _ringR + 2);
+
+  /// How far out Arcane's green rim sits, in its circle's radius: clear of
+  /// its own violet line.
+  static const double _arcRimAt = 1.1;
 
   /// Where Arcane's circle sits.
   Rect get riftRect => Rect.fromCircle(center: _mid, radius: _circleR);
@@ -565,12 +571,14 @@ class WildMapField {
       }
     }
 
-    // Arcane: a bright ring, faint dust filling its disc, a little more
-    // drifting just outside it.
+    // Arcane: a fine violet line round it, as fine as a realm's green
+    // rim, and faint dust filling its disc; outside the line, the green rim
+    // it takes while something waits in it.
     void arc(
       int part,
       int count,
       double Function() radius,
+      double Function() size,
       int Function(double r) argbOf,
     ) {
       for (var k = 0; k < count; k++) {
@@ -581,7 +589,7 @@ class WildMapField {
           _Seed(
             _mid.dx + math.cos(a) * _circleR * r,
             _mid.dy + math.sin(a) * _circleR * r,
-            grain * (part == _arcRing ? 0.0032 : 0.0026),
+            size(),
             argb,
             argb,
             part,
@@ -594,20 +602,27 @@ class WildMapField {
 
     arc(
       _arcRing,
-      1400,
-      () => 0.88 + 0.12 * rng.nextDouble(),
-      (r) => _argb(0.95, 0.72, 0.56, 1),
+      (_tau * _circleR / 0.7).round(),
+      () => 1 - 0.022 * rng.nextDouble(),
+      () => grain * (0.0022 + 0.001 * rng.nextDouble()),
+      (r) => _argb(0.8 + 0.2 * rng.nextDouble(), 0.74, 0.58, 1),
     );
     arc(
       _arcFill,
       2300,
-      () => math.sqrt(rng.nextDouble()) * 0.98,
+      () => math.sqrt(rng.nextDouble()) * 0.97,
+      () => grain * 0.0026,
       (r) => _argb(0.34 + 0.2 * r, 0.54, 0.36, 0.9),
     );
-    arc(_arcHaze, 500, () {
-      final u = rng.nextDouble();
-      return 1.0 + 0.25 * u * u;
-    }, (r) => _argb(0.4 * (1 - (r - 1) / 0.25), 0.56, 0.4, 0.9));
+    arc(
+      _rim,
+      (_tau * _circleR * _arcRimAt / 0.8).round(),
+      () => _arcRimAt * (1 - 0.018 * rng.nextDouble()),
+      () => grain * (0.002 + 0.001 * rng.nextDouble()),
+      (r) =>
+          ((((0.7 + 0.3 * rng.nextDouble()) * 255).round()) << 24) |
+          (_mix(0xFF5ED07A, 0xFFA6F0B0, rng.nextDouble()) & 0xFFFFFF),
+    );
 
     final all = <_Seed>[];
     for (var g = 0; g < _groups; g++) {
@@ -902,8 +917,8 @@ class WildMapField {
       _wash.add(
         _mid.dx,
         _mid.dy,
-        _circleR * 3,
-        _argb(0.16 + 0.04 * _fsin(t * 0.9), 0.5, 0.24, 0.95),
+        _circleR * 1.9,
+        _argb(0.12 + 0.03 * _fsin(t * 0.9), 0.5, 0.24, 0.95),
       );
     }
   }
@@ -985,6 +1000,201 @@ class WildMapField {
       _dots.add(_bowX[k], _bowY[k], _bowS[k], _scaleAlpha(_bowC[k], a));
     }
     debugRainbow = _dots.n;
+    _dots.draw(canvas, _atlas!, ink ? _inkOver : _add);
+  }
+
+  // ── Arcane's sky: a meteor shower, the northern lights ────────────────
+
+  double _shower = 0, _aurora = 0;
+
+  // Meteors in flight across Arcane's disc, out of one point beyond its
+  // upper left: where each started, its way (unit), when it began, how
+  // long it flies, its trail and its tint (0 white, 1 mint, 2 gold).
+  static const int _meteorCap = 10;
+  final Float64List _mtX = Float64List(_meteorCap),
+      _mtY = Float64List(_meteorCap);
+  final Float64List _mtUx = Float64List(_meteorCap),
+      _mtUy = Float64List(_meteorCap);
+  final Float64List _mtBorn = Float64List(_meteorCap)
+    ..fillRange(0, _meteorCap, -99);
+  final Float64List _mtLife = Float64List(_meteorCap),
+      _mtLen = Float64List(_meteorCap);
+  final Uint8List _mtTint = Uint8List(_meteorCap);
+  double _nextMeteor = 0;
+
+  void _stepMeteors(double dt) {
+    if (_shower < 0.3 || _size.isEmpty) return;
+    _nextMeteor -= dt;
+    if (_nextMeteor > 0) return;
+    _nextMeteor = (0.08 + _rng.nextDouble() * 0.22) / _shower;
+    var slot = -1;
+    for (var k = 0; k < _meteorCap; k++) {
+      if (time - _mtBorn[k] > _mtLife[k] + 0.8) {
+        slot = k;
+        break;
+      }
+    }
+    if (slot < 0) return;
+    final r = _circleR;
+    // Out of the radiant, first seen a little way into the disc.
+    final rad = _mid + Offset(-r * 0.95, -r * 1.05);
+    final a = math.pi * (0.12 + 0.26 * _rng.nextDouble());
+    final ux = math.cos(a), uy = math.sin(a);
+    final start = rad + Offset(ux, uy) * r * (0.4 + 0.7 * _rng.nextDouble());
+    _mtX[slot] = start.dx;
+    _mtY[slot] = start.dy;
+    _mtUx[slot] = ux;
+    _mtUy[slot] = uy;
+    _mtBorn[slot] = time;
+    _mtLife[slot] = 0.35 + 0.35 * _rng.nextDouble();
+    _mtLen[slot] = r * (0.5 + 0.45 * _rng.nextDouble());
+    _mtTint[slot] = _rng.nextDouble() < 0.7 ? 0 : 1 + _rng.nextInt(2);
+  }
+
+  /// How far inside Arcane's line (x, y) is: 1 well in, 0 at the line.
+  double _inArc(double x, double y) {
+    final dx = x - _mid.dx, dy = y - _mid.dy;
+    final d = math.sqrt(dx * dx + dy * dy) / _circleR;
+    return _clamp01((0.95 - d) / 0.15);
+  }
+
+  static const _meteorTints = [
+    (0.9, 0.93, 1.0),
+    (0.66, 0.96, 0.82),
+    (1.0, 0.9, 0.65),
+  ];
+
+  /// Lights drawn over Arcane's disc for its weather: each meteor a bright
+  /// head, a trail of grains tapering behind it and grains that glow on a
+  /// moment after it passes; the northern lights as two curtains of rays
+  /// standing on folded hems, green below and violet above.
+  void _paintArcaneSky(Canvas canvas) {
+    if (!arcane || (_shower <= 0 && _aurora <= 0)) return;
+    final grain = _size.width;
+    final t = time;
+    _dots.clear();
+
+    if (_aurora > 0) {
+      final r = _circleR;
+      const columns = 72;
+      for (final (base, tall, strength, seed) in const [
+        (0.34, 0.9, 1.0, 5.0),
+        (-0.06, 0.62, 0.6, 9.0),
+      ]) {
+        for (var i = 0; i < columns; i++) {
+          final u = i / (columns - 1);
+          final x0 = _mid.dx - r + 2 * r * u;
+          final hem =
+              _mid.dy +
+              r * base +
+              r * 0.1 * _fsin(u * 4.2 + t * 0.3 + seed) +
+              r * 0.035 * _fsin(u * 11 + t * 0.5 + seed * 2);
+          final rise = r * tall * (0.8 + 0.2 * _fsin(u * 9.3 + seed + t * 0.2));
+          final lean = r * 0.12 * _fsin(u * 6.5 + t * 0.25 + seed);
+          // Fine rays standing along it, drifting.
+          final ray =
+              0.25 +
+              0.75 *
+                  math.pow(
+                    0.5 +
+                        0.5 *
+                            _fsin(u * 73 + t * 0.9 + seed) *
+                            _fsin(u * 29 - t * 0.6),
+                    1.6,
+                  );
+          final pulse = 0.55 + 0.45 * _fsin(u * 8 - t * 1.3 + seed);
+          final a = _aurora * strength * ray * pulse;
+          if (a < 0.05) continue;
+          const n = 22;
+          for (var j = 0; j < n; j++) {
+            final s = j / (n - 1);
+            final x = x0 + lean * s + (_hash(i * 31 + j) - 0.5) * 1.1;
+            final y = hem - rise * s;
+            final m = _inArc(x, y);
+            if (m <= 0) continue;
+            // Green at the hem, through blue, to violet at the top.
+            final cr = s < 0.5 ? 0.32 + 0.3 * s : 0.47 + 0.2 * (s - 0.5);
+            final cg = s < 0.5 ? 0.94 - 0.7 * s : 0.59 - 0.4 * (s - 0.5);
+            final cb = s < 0.5 ? 0.7 + 0.3 * s : 0.85 + 0.1 * (s - 0.5);
+            // Brightest just above the hem, thinning upward.
+            final fade = s < 0.08 ? 0.5 + s * 6 : math.pow(1 - s, 0.55);
+            _dots.add(
+              x,
+              y,
+              grain * 0.0034,
+              _argb(math.min(1.0, 1.3 * a * fade) * m, cr, cg, cb),
+            );
+          }
+          if (i % 3 == 0) {
+            final m = _inArc(x0, hem - rise * 0.25);
+            if (m > 0) {
+              _glow.add(
+                x0 + lean * 0.25,
+                hem - rise * 0.25,
+                r * 0.55,
+                _argb(0.3 * a * m, 0.32, 0.94, 0.7),
+              );
+            }
+          }
+        }
+      }
+    }
+
+    if (_shower > 0) {
+      for (var k = 0; k < _meteorCap; k++) {
+        final age = t - _mtBorn[k], life = _mtLife[k];
+        if (age < 0 || age > life + 0.8) continue;
+        // White light shows nothing on the page: there, a deep violet ink.
+        final (cr, cg, cb) = ink ? (0.42, 0.3, 0.78) : _meteorTints[_mtTint[k]];
+        final head = ink ? 0.5 : 1.0;
+        final speed = _circleR * 2.4;
+        final went = speed * math.min(age, life);
+        final ux = _mtUx[k], uy = _mtUy[k];
+        final hx = _mtX[k] + ux * went, hy = _mtY[k] + uy * went;
+        if (age < life) {
+          final env = math.sqrt(math.sin(math.pi * age / life)) * _shower;
+          final len = math.min(went, _mtLen[k]);
+          final n = (len / 0.9).ceil();
+          for (var j = 1; j <= n; j++) {
+            final s = j / n;
+            final x = hx - ux * len * s, y = hy - uy * len * s;
+            final m = _inArc(x, y);
+            if (m <= 0) continue;
+            final f = env * m * math.pow(1 - s, 1.1).toDouble();
+            _dots.add(
+              x,
+              y,
+              grain * (0.0042 - 0.0018 * s),
+              _argb(f, cr, cg, cb),
+            );
+            if (j % 4 == 0) {
+              _glow.add(x, y, grain * 0.016, _argb(0.22 * f, cr, cg, cb));
+            }
+          }
+          final m = _inArc(hx, hy);
+          if (m > 0) {
+            _dots.add(hx, hy, grain * 0.006, _argb(env * m, head, head, 1));
+            _glow.add(hx, hy, grain * 0.04, _argb(0.45 * env * m, cr, cg, cb));
+          }
+        }
+        // What it leaves: grains that glow on a moment, scattering.
+        for (var j = 0; j < 14; j++) {
+          final at = went - _hash(j * 13 + k * 7) * _mtLen[k] * 1.4;
+          if (at <= 0) continue;
+          final since = age - at / speed;
+          if (since < 0.04) continue;
+          final glow = math.exp(-since * 3.4) * _shower * 0.8;
+          if (glow < 0.04) continue;
+          final side = (_hash(j * 5 + 3) - 0.5) * 3 * (1 + since * 5);
+          final x = _mtX[k] + ux * at - uy * side;
+          final y = _mtY[k] + uy * at + ux * side;
+          final m = _inArc(x, y);
+          if (m <= 0) continue;
+          _dots.add(x, y, grain * 0.003, _argb(glow * m, cr, cg, cb));
+        }
+      }
+    }
+    debugArcaneSky = _dots.n;
     _dots.draw(canvas, _atlas!, ink ? _inkOver : _add);
   }
 
@@ -1200,7 +1410,8 @@ class WildMapField {
   // on its mark, so a field at rest can keep its pictures.
   final Float64List _wx = Float64List(4);
   final Float64List _rain = Float64List(1);
-  final Float64List _ready = Float64List(4);
+  // Each realm's, and Arcane's (4).
+  final Float64List _ready = Float64List(5);
   // The Volcano: smoke over it (smoking or erupting), and erupting.
   double _smoke = 0, _erupt = 0, _bow = 0;
   double _flash = 0;
@@ -1235,12 +1446,21 @@ class WildMapField {
 
   bool get _raining => weather['valley'] == WeatherKind.rain;
 
+  double get _arcReadyTo => arcane && ready.contains('arcane') ? 1 : 0;
+  double get _showerTo =>
+      arcane && weather['arcane'] == WeatherKind.meteors ? 1 : 0;
+  double get _auroraTo =>
+      arcane && weather['arcane'] == WeatherKind.aurora ? 1 : 0;
+
   /// Snaps the weather and the realms' moods to what is asked, no easing.
   void settle() {
     for (final r in WildRealm.values) {
       _wx[r.index] = _target(r);
       _ready[r.index] = ready.contains(r.sceneId) ? 1 : 0;
     }
+    _ready[4] = _arcReadyTo;
+    _shower = _showerTo;
+    _aurora = _auroraTo;
     _rain[0] = _raining ? 1 : 0;
     _smoke = _smokeTo;
     _erupt = _eruptTo;
@@ -1260,12 +1480,16 @@ class WildMapField {
       final to = ready.contains(r.sceneId) ? 1.0 : 0.0;
       _ready[r.index] = _ease(_ready[r.index], to, k);
     }
+    _ready[4] = _ease(_ready[4], _arcReadyTo, k);
+    _shower = _ease(_shower, _showerTo, k);
+    _aurora = _ease(_aurora, _auroraTo, k);
     _rain[0] = _ease(_rain[0], _raining ? 1 : 0, k);
     _smoke = _ease(_smoke, _smokeTo, k);
     _erupt = _ease(_erupt, _eruptTo, k);
     _bow = _ease(_bow, _bowTo, k);
     _stepField(dt);
     _stepStorm(dt);
+    _stepMeteors(dt);
     _stepGrains(dt);
   }
 
@@ -1366,6 +1590,7 @@ class WildMapField {
     if (g == _gLive) return true;
     if (g == _gCloud && _flash > 0) return true;
     if (g >= _gRim && g < _gRim + 4) return _ready[g - _gRim] > 0;
+    if (g == _gArcRim) return _ready[4] > 0;
     return false;
   }
 
@@ -1568,6 +1793,20 @@ class WildMapField {
   /// Grains of the rainbow drawn in the last frame.
   int debugRainbow = 0;
 
+  /// Grains of Arcane's weather (meteors, northern lights) drawn in the
+  /// last frame.
+  int debugArcaneSky = 0;
+
+  /// Meteors flying across Arcane's disc now.
+  int get debugMeteors {
+    var n = 0;
+    for (var k = 0; k < _meteorCap; k++) {
+      final age = time - _mtBorn[k];
+      if (age >= 0 && age < _mtLife[k]) n++;
+    }
+    return n;
+  }
+
   /// The farthest any grain has been pushed from its place, px.
   double get debugDisplacement {
     var most = 0.0;
@@ -1610,7 +1849,7 @@ class WildMapField {
     _atlas ??= _buildAtlas();
     debugGrains = 0;
     debugPictures = 0;
-    debugBombs = debugSmoke = debugRainbow = 0;
+    debugBombs = debugSmoke = debugRainbow = debugArcaneSky = 0;
     final key = _key;
     if (!_sameKey(key, _picKey)) {
       _dropPictures();
@@ -1626,6 +1865,7 @@ class WildMapField {
     for (var g = 0; g < _groups; g++) {
       if (g == _gArcane && !arcane) continue;
       if (g >= _gRim && g < _gRim + 4 && _ready[g - _gRim] <= 0) continue;
+      if (g == _gArcRim && (!arcane || _ready[4] <= 0)) continue;
       if (_live(g)) {
         _dots.clear();
         _emit(g);
@@ -1650,6 +1890,7 @@ class WildMapField {
       _drawMoved(canvas, g, pic);
     }
     _paintRainbow(canvas);
+    _paintArcaneSky(canvas);
     _paintRimGlow();
     _glow.draw(canvas, _atlas!, ink ? _inkGlow : _add);
   }
@@ -1767,18 +2008,19 @@ class WildMapField {
   void _paintRimGlow() {
     final grain = _size.width;
     final t = time;
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < 5; i++) {
       final ready = _ready[i];
-      if (ready <= 0) continue;
+      if (ready <= 0 || (i == 4 && !arcane)) continue;
       final pulse = 0.5 + 0.5 * _fsin(t * 2.4 + i * 1.3);
-      final c = _centre[i];
-      const n = 96;
+      final c = i < 4 ? _centre[i] : _mid;
+      final r = i < 4 ? _ringR * 0.97 : _circleR * _arcRimAt * 0.99;
+      final n = i < 4 ? 96 : 56;
       for (var k = 0; k < n; k++) {
         final a = _tau * k / n;
         _glow.add(
-          c.dx + math.cos(a) * _ringR * 0.97,
-          c.dy + math.sin(a) * _ringR * 0.97,
-          grain * 0.024,
+          c.dx + math.cos(a) * r,
+          c.dy + math.sin(a) * r,
+          grain * (i < 4 ? 0.024 : 0.018),
           _argb(0.2 * ready * (0.45 + 0.55 * pulse), 0.42, 0.9, 0.5),
         );
       }

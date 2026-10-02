@@ -181,6 +181,59 @@ void main() {
     expect(erupting.smoke, greaterThan(50));
   });
 
+  test('Arcane takes a green rim when something waits in it', () {
+    int pictures(WildMapField f) {
+      f
+        ..step(1 / 60)
+        ..paint(_CensusCanvas());
+      return f.debugPictures;
+    }
+
+    final waiting = _field(arcane: true, ready: {'arcane'});
+    final quiet = _field(arcane: true);
+    final closed = _field(ready: {'arcane'});
+    // Its rim is the one group drawn live; quiet, there is none; closed,
+    // nothing of Arcane at all.
+    expect(pictures(quiet), 7);
+    expect(pictures(waiting), 7);
+    expect(waiting.debugGrains, greaterThan(quiet.debugGrains + 300));
+    expect(pictures(closed), 6);
+    expect(closed.debugGrains, quiet.debugGrains);
+  });
+
+  test(
+    "Arcane's sky: meteors in a shower, curtains in the northern lights",
+    () {
+      ({int meteors, int sky}) seen(WildMapField f) {
+        var meteors = 0, sky = 0;
+        for (var i = 0; i < 60 * 3; i++) {
+          f
+            ..step(1 / 60)
+            ..paint(_CensusCanvas());
+          meteors = math.max(meteors, f.debugMeteors);
+          sky = math.max(sky, f.debugArcaneSky);
+        }
+        return (meteors: meteors, sky: sky);
+      }
+
+      final clear = seen(_field(arcane: true));
+      expect(clear.meteors, 0);
+      expect(clear.sky, 0);
+      final shower = seen(
+        _field(arcane: true, weather: {'arcane': WeatherKind.meteors}),
+      );
+      expect(shower.meteors, greaterThanOrEqualTo(2), reason: 'a shower');
+      final aurora = seen(
+        _field(arcane: true, weather: {'arcane': WeatherKind.aurora}),
+      );
+      expect(aurora.meteors, 0);
+      expect(aurora.sky, greaterThan(400));
+      // Closed, its weather shows nowhere.
+      final closed = seen(_field(weather: {'arcane': WeatherKind.meteors}));
+      expect(closed.meteors + closed.sky, 0);
+    },
+  );
+
   test('the rainbow shows only while the Valley is clear', () {
     int bow(WildMapField f) {
       f
@@ -202,6 +255,8 @@ void main() {
     for (final (weather, ink, volcano, rainbow) in [
       (const <String, WeatherKind>{}, false, WildVolcano.still, true),
       ({'sky': WeatherKind.storm}, false, WildVolcano.erupting, false),
+      ({'arcane': WeatherKind.meteors}, false, WildVolcano.still, false),
+      ({'arcane': WeatherKind.aurora}, true, WildVolcano.smoking, true),
       ({'valley': WeatherKind.rain}, false, WildVolcano.smoking, false),
       ({'valley': WeatherKind.snow}, true, WildVolcano.erupting, false),
       ({'swamp': WeatherKind.dry}, true, WildVolcano.still, true),
@@ -209,7 +264,7 @@ void main() {
       final f =
           _field(
               weather: weather,
-              ready: {'valley'},
+              ready: {'valley', 'arcane'},
               arcane: true,
               volcano: volcano,
               rainbow: rainbow,
