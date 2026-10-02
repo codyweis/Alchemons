@@ -582,37 +582,46 @@ class _CooldownRingPainter extends CustomPainter {
 /// involves it), the meter never filling. Every attack and effect is the
 /// real one, drawn by the real renderer.
 class AbilityPreviewGame extends CosmicSurvivalGame {
-  AbilityPreviewGame({required CosmicPartyMember member})
-    : super(
-        party: [
-          CosmicPartyMember(
-            instanceId: member.instanceId,
-            baseId: member.baseId,
-            displayName: member.displayName,
-            imagePath: member.imagePath,
-            element: member.element,
-            family: member.family,
-            level: member.level,
-            statSpeed: member.statSpeed,
-            statIntelligence: member.statIntelligence,
-            statStrength: member.statStrength,
-            statBeauty: member.statBeauty,
-            statSpeedPotential: member.statSpeedPotential,
-            statIntelligencePotential: member.statIntelligencePotential,
-            statStrengthPotential: member.statStrengthPotential,
-            statBeautyPotential: member.statBeautyPotential,
-            slotIndex: 0,
-            staminaBars: 3,
-            staminaMax: 3,
-            spriteSheet: member.spriteSheet,
-            spriteVisuals: member.spriteVisuals,
-            visualVariant: member.visualVariant,
-          ),
-        ],
-        random: Random(7),
-        onGameOver: () {},
-        visualQuality: SurvivalVisualQuality.balanced,
-      );
+  /// [homeZoom] frames the practice ring: the full-screen preview sits close
+  /// in, the Battle tab's smaller stage pulls back to keep the ring in view.
+  ///
+  /// [followCompanion] centres the camera on the Alchemon instead of the orb,
+  /// eased so it does not jitter as it moves round its station: a small
+  /// stage is about the fighter, not the arena.
+  AbilityPreviewGame({
+    required CosmicPartyMember member,
+    this.homeZoom = 0.75,
+    this.followCompanion = false,
+  }) : super(
+         party: [
+           CosmicPartyMember(
+             instanceId: member.instanceId,
+             baseId: member.baseId,
+             displayName: member.displayName,
+             imagePath: member.imagePath,
+             element: member.element,
+             family: member.family,
+             level: member.level,
+             statSpeed: member.statSpeed,
+             statIntelligence: member.statIntelligence,
+             statStrength: member.statStrength,
+             statBeauty: member.statBeauty,
+             statSpeedPotential: member.statSpeedPotential,
+             statIntelligencePotential: member.statIntelligencePotential,
+             statStrengthPotential: member.statStrengthPotential,
+             statBeautyPotential: member.statBeautyPotential,
+             slotIndex: 0,
+             staminaBars: 3,
+             staminaMax: 3,
+             spriteSheet: member.spriteSheet,
+             spriteVisuals: member.spriteVisuals,
+             visualVariant: member.visualVariant,
+           ),
+         ],
+         random: Random(7),
+         onGameOver: () {},
+         visualQuality: SurvivalVisualQuality.balanced,
+       );
 
   static const int _ringCount = 8;
   static const double _ringRadius = 200;
@@ -620,7 +629,12 @@ class AbilityPreviewGame extends CosmicSurvivalGame {
   static const double _runnerSpawnRadius = 520;
   static const double _runnerInterval = 1.1;
   static const int _runnerCap = 10;
-  static const double _homeZoom = 0.75;
+  final double homeZoom;
+  final bool followCompanion;
+
+  /// Where the camera's eased follow of the Alchemon has got to, from the
+  /// orb.
+  Offset _follow = Offset.zero;
 
   @override
   double get cameraZoomMax => 1.6;
@@ -729,14 +743,14 @@ class AbilityPreviewGame extends CosmicSurvivalGame {
 
   void resetView() {
     _userPan = Offset.zero;
-    setCameraZoom(_homeZoom);
+    setCameraZoom(homeZoom);
     _applyCamera();
   }
 
   /// The camera follows the ship; this keeps the orb in the centre of the
   /// frame regardless of where the ship is seated, plus the user's pan.
   void _applyCamera() {
-    cameraPanOffset = _userPan - _shipSeat;
+    cameraPanOffset = _userPan - _shipSeat + _follow;
   }
 
   /// Posts that have fallen and are waiting to come back.
@@ -834,6 +848,11 @@ class AbilityPreviewGame extends CosmicSurvivalGame {
     enemies.removeWhere((e) => !_mine.contains(e));
     activeBoss = null;
     extraBosses.clear();
+    final followed = activeCompanions[0];
+    if (followCompanion && followed != null) {
+      final want = followed.position - orb.position;
+      _follow = Offset.lerp(_follow, want, (dt * 2.5).clamp(0.0, 1.0))!;
+    }
     _applyCamera();
     // Runners: a trickle from the edge, walking at the orb through whatever
     // the special has put in the way, dying on it or on the orb.

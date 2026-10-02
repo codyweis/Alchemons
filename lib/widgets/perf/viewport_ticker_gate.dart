@@ -20,9 +20,14 @@ class ViewportTickerGate extends StatefulWidget {
     super.key,
     required this.child,
     this.slack = 120.0,
+    this.onVisibilityChanged,
   });
 
   final Widget child;
+
+  /// Told when the section crosses the viewport edge, for what TickerMode
+  /// cannot reach: a Flame game runs its own loop and must be paused by hand.
+  final ValueChanged<bool>? onVisibilityChanged;
 
   /// Extra margin above/below the viewport that still counts as visible, so a
   /// section does not pop back to life mid-fling right at the edge.
@@ -65,6 +70,7 @@ class _ViewportTickerGateState extends State<ViewportTickerGate> {
       final visible = _computeVisible();
       if (visible != _visible) {
         setState(() => _visible = visible);
+        widget.onVisibilityChanged?.call(visible);
       }
     });
   }

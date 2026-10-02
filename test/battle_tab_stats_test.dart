@@ -7,7 +7,9 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
+import 'package:alchemons/screens/ability_preview_screen.dart';
 import 'package:drift/native.dart';
+import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -83,6 +85,7 @@ void main() {
               theme: theme,
               creature: _species(family),
               instance: instance ?? _instance(),
+              liveStage: false,
             ),
           ),
         ),
@@ -111,78 +114,85 @@ void main() {
         ),
       );
 
-  testWidgets('one stat sheet, each number naming the stats behind it', (
+  testWidgets('one sheet: the attacks, the stats and the gauges they feed', (
     tester,
   ) async {
     await pumpBattleTab(tester, 'Pip');
 
-    for (final label in [
-      'HP',
-      'P-ATK',
-      'E-ATK',
-      'SPECIAL',
-      'P-DEF',
-      'E-DEF',
-      'ATTACKS',
-      'SPECIAL CD',
-      'RANGE',
-    ]) {
-      expect(find.text(label), findsOneWidget, reason: 'missing $label tile');
+    // The two attacks, with how often each comes round.
+    expect(find.text('AUTO ATTACK'), findsOneWidget);
+    expect(find.text('SPECIAL'), findsNWidgets(2)); // the row and its gauge
+    expect(find.textContaining('every '), findsNWidgets(2));
+    // The stage's frame is there; the arena itself is off in tests.
+    expect(find.text('FULL VIEW'), findsOneWidget);
+    expect(find.byType(GameWidget<AbilityPreviewGame>), findsNothing);
+
+    // Every combat number as a gauge.
+    for (final label in ['HP', 'P-ATK', 'E-ATK', 'P-DEF', 'E-DEF', 'RANGE']) {
+      expect(find.text(label), findsOneWidget, reason: 'missing $label gauge');
     }
-    // Sources come from the shared stat contract, strongest share first.
-    expect(find.text('STR·INT'), findsNWidgets(2)); // HP and P-DEF
-    expect(find.text('BEA·INT'), findsOneWidget); // E-DEF
-    expect(find.text('SPD·STR'), findsOneWidget); // auto-attack rate
-    expect(find.text('STR·BEA'), findsOneWidget); // a Pip's SPECIAL
-    // Nothing rolls critical hits, and there is no longer a mode to pick:
-    // every mode builds the creature from the same numbers.
+    final stats = expectedStats('Pip', _instance());
+    for (final v in [
+      stats.maxHp,
+      stats.physAtk,
+      stats.abilityAtk,
+      stats.physDef,
+      stats.elemDef,
+    ]) {
+      expect(find.text('$v'), findsWidgets);
+    }
+
+    // Nothing rolls critical hits, and there is no mode to pick: every mode
+    // builds the creature from the same numbers.
     expect(find.text('CRIT'), findsNothing);
     expect(find.text('Cosmic Space'), findsNothing);
     expect(find.byType(SegmentedButton<bool>), findsNothing);
 
-    final stats = expectedStats('Pip', _instance());
-    expect(find.text('${stats.maxHp}'), findsOneWidget);
-    expect(find.text('${stats.physAtk}'), findsWidgets);
-
-    // The bridge from ratings to roles: every stat says what it feeds.
-    expect(find.text('WHAT EACH STAT DOES'), findsOneWidget);
-    for (final stat in ['STRENGTH', 'INTELLIGENCE', 'BEAUTY', 'SPEED']) {
-      expect(find.text(stat), findsOneWidget);
+    // The four stats as chips; Strength 4.4 is this specimen's best, so it
+    // starts picked and the gauges show its share of each.
+    for (final (abbrev, rating) in [
+      ('STR', '440'),
+      ('INT', '385'),
+      ('BEA', '160'),
+      ('SPD', '210'),
+    ]) {
+      expect(find.text(abbrev), findsWidgets); // chip, and a gauge source
+      expect(find.text(rating), findsWidgets);
     }
-    // Strength 4.4 is this specimen's best stat.
-    expect(find.text('440 · best'), findsOneWidget);
+    expect(find.text('BEST'), findsOneWidget);
+    expect(find.text('STRENGTH · 440 · BEST'), findsOneWidget);
+    expect(find.text('STR 68%'), findsOneWidget); // HP
+    expect(find.text('STR 55%'), findsOneWidget); // a Pip's SPECIAL
+    expect(find.text('STR 63%'), findsOneWidget); // P-DEF
+    expect(find.text('BEA·INT'), findsOneWidget); // E-DEF, not Strength's
     expect(find.textContaining('special power 55%'), findsOneWidget);
-    expect(find.textContaining('special power 45%'), findsOneWidget);
 
-    expect(find.text('PREVIEW ABILITIES'), findsOneWidget);
+    // Picking another stat moves the dock and the shares with it.
+    await tester.tap(find.text('385').first); // the INT chip
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('INTELLIGENCE · 385'), findsOneWidget);
+    expect(find.text('INT 32%'), findsOneWidget); // HP
+    expect(find.textContaining('reach ('), findsOneWidget);
 
-    // Persistent modifiers live in one bottom section, grouped by source, and
-    // only the boosts this specimen has are listed.
-    expect(find.text('Boosts'), findsOneWidget);
+    // Picking an attack explains it in the same dock.
+    await tester.tap(find.text('AUTO ATTACK'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('P-ATK per hit, from Strength.'), findsOneWidget);
+    await tester.tap(find.text('SPECIAL').first);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      find.text('SPECIAL, from Strength 55% · Beauty 45%.'),
+      findsOneWidget,
+    );
+
+    // Persistent modifiers at the foot, only the ones this specimen has.
+    expect(find.text('BOOSTS'), findsOneWidget);
     expect(find.text('NATURE'), findsNothing);
     expect(find.text('ENHANCEMENT'), findsNothing);
     expect(find.text('PURITY · PURE'), findsOneWidget);
     expect(find.text('COMBAT CONSTELLATION'), findsNothing);
     expect(find.text('FAMILY FRAME · PIP'), findsOneWidget);
     expect(find.textContaining('HP −20%'), findsOneWidget);
-
-    final visibleLabels = tester
-        .widgetList<Text>(find.byType(Text))
-        .map((text) => text.data)
-        .whereType<String>()
-        .toList(growable: false);
-    expect(
-      visibleLabels.indexOf('Auto Attack'),
-      lessThan(visibleLabels.indexOf('Special Ability')),
-    );
-    expect(
-      visibleLabels.indexOf('Special Ability'),
-      lessThan(visibleLabels.indexOf('Role')),
-    );
-    expect(
-      visibleLabels.indexOf('Role'),
-      lessThan(visibleLabels.indexOf('Boosts')),
-    );
   });
 
   testWidgets('special power follows family stats instead of Beauty alone', (
@@ -191,13 +201,9 @@ void main() {
     await pumpBattleTab(tester, 'Mane');
     final stats = expectedStats('Mane', _instance());
     expect(stats.abilityAtk, greaterThan(stats.elemAtk));
-    final tile = find
-        .ancestor(of: find.text('SPECIAL'), matching: find.byType(Column))
-        .first;
-    expect(
-      find.descendant(of: tile, matching: find.text('${stats.abilityAtk}')),
-      findsOneWidget,
-    );
+    expect(find.text('${stats.abilityAtk}'), findsOneWidget);
+    await tester.tap(find.text('SPECIAL').first);
+    await tester.pump(const Duration(milliseconds: 300));
     expect(
       find.text('SPECIAL, from Strength 80% · Intelligence 20%.'),
       findsOneWidget,
@@ -220,8 +226,12 @@ void main() {
     expect(find.textContaining('Special range +5%'), findsOneWidget);
   });
 
-  testWidgets('a Mystic says its world is a Survival ability only', (tester) async {
+  testWidgets('a Mystic says its world is a Survival ability only', (
+    tester,
+  ) async {
     await pumpBattleTab(tester, 'Mystic');
+    await tester.tap(find.text('SPECIAL').first);
+    await tester.pump(const Duration(milliseconds: 300));
     expect(
       find.textContaining(
         'in Cosmic Space and the planet dungeons a Mystic fights with its '
@@ -231,7 +241,7 @@ void main() {
     );
   });
 
-  testWidgets('the stats block fits a 360pt-wide phone', (tester) async {
+  testWidgets('the sheet fits a 360pt-wide phone', (tester) async {
     tester.view.physicalSize = const Size(360, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -243,6 +253,7 @@ void main() {
       'Mask',
       'Kin',
       'Pip',
+      'Mane',
       'Mystic',
     ]) {
       await pumpBattleTab(tester, family);
@@ -251,6 +262,9 @@ void main() {
         isNull,
         reason: '$family overflowed at 360pt',
       );
+      await tester.tap(find.text('SPECIAL').first);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull, reason: '$family special dock');
     }
   });
 }
