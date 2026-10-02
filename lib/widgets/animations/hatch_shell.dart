@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/models/wild_fusion.dart' show AlchemonMutation;
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 import 'package:flutter/material.dart';
 
@@ -491,6 +492,44 @@ class ShellElementBehavior {
 
 enum ShellRarity { normal, variant, prismatic }
 
+/// A wild-fusion mutation rides on top of the rarity, the way it rides on top
+/// of the sprite sheet (see mutation_sheets.dart):
+///   * Transmuted — every strand re-read from its own lightness into a bronze
+///     to pale-gold ramp, with a polished glint sweeping across the shell.
+///   * Alchemized — the strands are strings of grains: each tube dims to a
+///     faint thread with a grain on every segment, the grains flowing along
+///     it, never settling into a solid tube. Colours kept.
+/// The two never meet (a prismatic is never Transmuted; a child carries at
+/// most one), so each is a single branch.
+class ShellMutationLook {
+  ShellMutationLook._();
+
+  /// Transmuted's ramp, darkest first: dark bronze -> gold -> pale gold.
+  static const Color bronze = Color(0xFF5A3A12);
+  static const Color gold = Color(0xFFD9A441);
+  static const Color paleGold = Color(0xFFFFE9A8);
+
+  /// Re-reads [c] by its lightness into the gold ramp. [shade] (0..1, a
+  /// strand's own) spreads strands between bronze and bright gold: one even
+  /// tone across hundreds of strands reads as straw, not metal.
+  static Color gilt(Color c, {bool accent = false, double shade = 0.5}) {
+    if (accent) return paleGold;
+    final l = (0.299 * c.r + 0.587 * c.g + 0.114 * c.b + (shade - 0.5) * 0.7)
+        .clamp(0.0, 1.0);
+    // Lifted so a dark element still reads as metal, not as mud, and capped
+    // short of pale: the tube's lit core already adds the shine, and a ramp
+    // that ran all the way up washed a bright element out to beige.
+    final v = 0.15 + 0.6 * l;
+    return v < 0.5
+        ? Color.lerp(bronze, gold, v / 0.5)!
+        : Color.lerp(gold, paleGold, (v - 0.5) / 0.5)!;
+  }
+
+  /// How long the polish takes to cross the shell, and the gap before the
+  /// next pass, in the shell's own seconds.
+  static const double sweepPeriod = 2.2;
+}
+
 // ===========================================================================
 // Timeline + tuned constants (mirror of the prototype's export block)
 // ===========================================================================
@@ -741,6 +780,7 @@ class HatchShellPainter extends CustomPainter {
   final ShellElementBehavior behaviorResult;
   final ShellRarity rarity;
   final Color? variantColor;
+  final AlchemonMutation? mutation;
   final bool reduced;
 
   /// Fades the whole shell out (used by the cinematic's whiteout).
@@ -758,6 +798,7 @@ class HatchShellPainter extends CustomPainter {
     required this.behaviorResult,
     this.rarity = ShellRarity.normal,
     this.variantColor,
+    this.mutation,
     this.reduced = false,
     this.opacity = 1.0,
   });
@@ -786,6 +827,11 @@ class HatchShellPainter extends CustomPainter {
   /// The roots' nodes: a bright particle at each strand's root while its
   /// line grows out of it, fading as it converges into the shell.
   static final GrainBatch _nodes = GrainBatch(8);
+
+  /// Alchemized strands' grains: 9 colours (4 hue steps per parent, and the
+  /// accent) x 3 brightness levels. A strand's colour is snapped to its
+  /// step, which the eye cannot tell from its own at grain size.
+  static final GrainBatch _beads = GrainBatch(27);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -817,6 +863,19 @@ class HatchShellPainter extends CustomPainter {
     final accMix = rarity == ShellRarity.variant
         ? max(HatchShellTuning.accentMix, 0.32)
         : HatchShellTuning.accentMix;
+
+    final gilded = mutation == AlchemonMutation.transmuted;
+    final beaded = mutation == AlchemonMutation.alchemized;
+    if (beaded) _beads.clear();
+    // The polish: a diagonal band crossing the shell, then a rest before the
+    // next pass. [sweepAt] runs -0.3 -> 1.3 across the shell's own width, so
+    // it enters and leaves fully off it; past 1.3 is the rest.
+    final sweepAt = gilded
+        ? (clock % ShellMutationLook.sweepPeriod) /
+                  ShellMutationLook.sweepPeriod *
+                  2.4 -
+              0.3
+        : 0.0;
 
     // ---- the two clusters HOLD their separation --------------------------
     // Nothing walks them together: an approach drift is a rigid-body
@@ -982,6 +1041,9 @@ class HatchShellPainter extends CustomPainter {
       if (rarity == ShellRarity.prismatic) {
         c = _hueRotate(c, st.hue + clock * HatchShellTuning.prismRate);
       }
+      if (gilded) {
+        c = ShellMutationLook.gilt(c, accent: isAcc, shade: st.accent);
+      }
 
       final flick = b.flick > 0
           ? 1 - b.flick * 0.5 * (0.5 + 0.5 * sin(clock * 7 + st.wob * 3))
@@ -1037,6 +1099,9 @@ class HatchShellPainter extends CustomPainter {
             ty = 0;
           }
           final d = m._pd[j];
+          // Alchemized: once a mote has drawn out into a string, the tube
+          // fades to a thread and its light moves into the grains below.
+          final thread = beaded ? _lerp(1, 0.28, grow) : 1.0;
           final w =
               _lerp(
                 HatchShellTuning.tubeWidthMin,
@@ -1052,13 +1117,53 @@ class HatchShellPainter extends CustomPainter {
                         d,
                       ) *
                       fade *
+                      thread *
                       255)
                   .clamp(0, 255)
                   .toInt();
           final edge =
               (alpha * 0.85).toInt() << 24 | dkR << 16 | dkG << 8 | dkB;
-          final hi = alpha << 24 | hiR << 16 | hiG << 8 | hiB;
+          var hi = alpha << 24 | hiR << 16 | hiG << 8 | hiB;
+          if (gilded) {
+            // Where the polish band crosses this vertex, the lit core goes
+            // to near-white: a highlight moving over metal.
+            final u =
+                ((m._px[j] - cx) * 0.8 + (m._py[j] - cy) * 0.6) / span + 0.5;
+            final sheen = 1 - ((u - sweepAt).abs() / 0.09);
+            if (sheen > 0) {
+              final s2 = sheen * sheen;
+              final a2 = min(255, alpha + (s2 * 90 * fade).round());
+              hi =
+                  a2 << 24 |
+                  (hiR + ((255 - hiR) * s2 * 0.85).round()) << 16 |
+                  (hiG + ((255 - hiG) * s2 * 0.85).round()) << 8 |
+                  (hiB + ((255 - hiB) * s2 * 0.85).round());
+            }
+          }
           final px = m._px[j], py = m._py[j];
+          if (beaded && grow > 0.3 && j < M - 1) {
+            // One grain per segment, sliding down it on the strand's own
+            // clock, so the string flows rather than sits.
+            final ga =
+                _lerp(
+                  HatchShellTuning.tubeAlphaBack,
+                  HatchShellTuning.tubeAlphaFront,
+                  d,
+                ) *
+                fade *
+                grow;
+            if (ga > 0.06) {
+              final f = (clock * 1.3 + st.wob * 5 + j * 0.37) % 1.0;
+              final col = isAcc
+                  ? 8
+                  : (st.grp == 1 ? 4 : 0) + (st.hue * 4).floor().clamp(0, 3);
+              _beads.add(
+                col * 3 + (ga > 0.6 ? 2 : (ga > 0.3 ? 1 : 0)),
+                px + (m._px[j + 1] - px) * f,
+                py + (m._py[j + 1] - py) * f,
+              );
+            }
+          }
           final v0 = vertCursor;
           void put(int i, double o, int c) {
             m.positions[(v0 + i) * 2] = px + nx * o;
@@ -1181,13 +1286,42 @@ class HatchShellPainter extends CustomPainter {
     canvas.drawVertices(verts, BlendMode.srcOver, Paint());
     verts.dispose();
 
+    if (beaded) {
+      final gd = max(1.6, span * 0.0042);
+      for (var col = 0; col < 9; col++) {
+        Color c;
+        if (col == 8) {
+          c = accent;
+        } else {
+          final q = ((col % 4) + 0.5) / 4;
+          c = col < 4 ? Color.lerp(pA0, pA1, q)! : Color.lerp(pB0, pB1, q)!;
+          if (rarity == ShellRarity.prismatic) {
+            c = _hueRotate(c, q + clock * HatchShellTuning.prismRate);
+          }
+        }
+        c = Color.lerp(c, Colors.white, 0.4)!;
+        for (var l = 0; l < 3; l++) {
+          _beads.draw(
+            canvas,
+            col * 3 + l,
+            gd,
+            c.withValues(alpha: 0.4 + 0.3 * l),
+          );
+        }
+      }
+    }
+
     if (m.tubes) {
-      _paintRoots(
-        canvas,
-        span,
-        Color.lerp(Color.lerp(pA0, pA1, 0.5)!, Colors.white, 0.45)!,
-        Color.lerp(Color.lerp(pB0, pB1, 0.5)!, Colors.white, 0.45)!,
-      );
+      Color node(Color c0, Color c1) {
+        final c = Color.lerp(c0, c1, 0.5)!;
+        return Color.lerp(
+          gilded ? ShellMutationLook.gilt(c) : c,
+          Colors.white,
+          0.45,
+        )!;
+      }
+
+      _paintRoots(canvas, span, node(pA0, pA1), node(pB0, pB1));
     }
   }
 
@@ -1463,6 +1597,7 @@ class HatchShellPainter extends CustomPainter {
       old.clock != clock ||
       old.opacity != opacity ||
       old.rarity != rarity ||
+      old.mutation != mutation ||
       old.paletteResult != paletteResult;
 }
 

@@ -132,6 +132,7 @@ class HatchCeremonyParams {
     required this.variantColor,
     required this.pureElementTypeId,
     required this.mutationFamily,
+    this.mutation,
   });
 
   final String parentATypeId;
@@ -143,6 +144,7 @@ class HatchCeremonyParams {
   final Color? variantColor;
   final String? pureElementTypeId;
   final String? mutationFamily;
+  final AlchemonMutation? mutation;
 }
 
 class EggHatching {
@@ -215,6 +217,7 @@ class EggHatching {
       variantColor: variantColor,
       pureElementTypeId: pureElementTypeId,
       mutationFamily: offspring.mutationFamily,
+      mutation: AlchemonMutation.byId(instance.mutation),
     );
   }
 
@@ -815,6 +818,7 @@ class EggHatching {
         pureElementTypeId: pureElementTypeId,
         // Drives which shell architecture the ceremony builds.
         mutationFamily: family,
+        mutation: AlchemonMutation.byId(instance?.mutation),
         quality: cinematicQuality,
       );
     } catch (e) {
@@ -1231,9 +1235,7 @@ class EggHatching {
                                                         m.label.toUpperCase(),
                                                         mutationAccent(m),
                                                       ),
-                                                      const SizedBox(
-                                                        height: 4,
-                                                      ),
+                                                      const SizedBox(height: 4),
                                                     ],
                                                     if (instance
                                                             .isPrismaticSkin ==
@@ -1516,6 +1518,20 @@ class EggHatching {
                                                                 primaryColor,
                                                                 fc: fc,
                                                               ),
+                                                              if (AlchemonMutation.byId(
+                                                                    instance
+                                                                        .mutation,
+                                                                  )
+                                                                  case final m?)
+                                                                _buildTypingAnalysisRow(
+                                                                  'MUTATION',
+                                                                  _mutationReading(
+                                                                    m,
+                                                                  ),
+                                                                  scanComplete,
+                                                                  primaryColor,
+                                                                  fc: fc,
+                                                                ),
                                                               if (hasNotablePurity)
                                                                 _buildTypingAnalysisRow(
                                                                   'PURITY',
@@ -2382,6 +2398,14 @@ class EggHatching {
     if (trimmed.toLowerCase() == 'bloodborn') return 'Bloodborn';
     return trimmed[0].toUpperCase() + trimmed.substring(1);
   }
+
+  /// What the analysis reads off a mutated specimen: the name, and what it
+  /// means to look at.
+  static String _mutationReading(AlchemonMutation m) => switch (m) {
+    AlchemonMutation.alchemized =>
+      'Alchemized — made of grains that never settle',
+    AlchemonMutation.transmuted => 'Transmuted — turned to gold',
+  };
 
   static String _getSizeName(Creature c) =>
       sizeLabels[c.genetics?.get('size') ?? 'normal'] ?? 'Standard';

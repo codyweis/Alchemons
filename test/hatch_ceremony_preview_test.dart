@@ -4,6 +4,7 @@ library;
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/widgets/animations/hatching_cinematic.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -14,8 +15,21 @@ import 'package:flutter_test/flutter_test.dart';
 //
 //   CEREMONY_OUT=/tmp/ceremony.png flutter test \
 //     test/hatch_ceremony_preview_test.dart --tags preview
+//
+// CEREMONY_MUTATION=alchemized|transmuted dresses it as a mutated hatch,
+// CEREMONY_PRISMATIC=1 as a prismatic one. CEREMONY_AT=4200,5600 picks the
+// frames (ms) and CEREMONY_RATIO=1 renders them larger.
 void main() {
   final out = Platform.environment['CEREMONY_OUT'];
+  final mutation = AlchemonMutation.byId(
+    Platform.environment['CEREMONY_MUTATION'],
+  );
+  final prismatic = Platform.environment['CEREMONY_PRISMATIC'] == '1';
+  final frameTimes = Platform.environment['CEREMONY_AT']
+      ?.split(',')
+      .map(int.parse)
+      .toList();
+  final ratio = double.tryParse(Platform.environment['CEREMONY_RATIO'] ?? '');
 
   testWidgets('hatch ceremony preview', (tester) async {
     if (out == null) return;
@@ -37,6 +51,10 @@ void main() {
               'assets/images/creatures/rare/HOR01_firehorn.png',
             ),
             mutationFamily: 'horn',
+            mutation: mutation,
+            hintType: prismatic
+                ? HatchHintType.prismatic
+                : HatchHintType.normal,
             playSound: false,
             showSkip: false,
             onComplete: () {},
@@ -53,23 +71,16 @@ void main() {
     }
     final frames = <ui.Image>[];
     var elapsed = 0;
-    for (final at in [
-      400,
-      1400,
-      2600,
-      4200,
-      5000,
-      5250,
-      5450,
-      5650,
-      5800,
-      5950,
-    ]) {
+    for (final at
+        in frameTimes ??
+            [400, 1400, 2600, 4200, 5000, 5250, 5450, 5650, 5800, 5950]) {
       await tester.pump(Duration(milliseconds: at - elapsed));
       elapsed = at;
       final b =
           key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-      frames.add((await tester.runAsync(() => b.toImage(pixelRatio: 0.6)))!);
+      frames.add(
+        (await tester.runAsync(() => b.toImage(pixelRatio: ratio ?? 0.6)))!,
+      );
     }
     await tester.runAsync(() async {
       final w = frames.first.width.toDouble(),

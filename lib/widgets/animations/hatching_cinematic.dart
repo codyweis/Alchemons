@@ -2,10 +2,12 @@ import 'dart:math' as math;
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/models/wild_fusion.dart' show AlchemonMutation;
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
@@ -94,6 +96,10 @@ Future<void> playHatchingCinematicAlchemy({
   String? pureElementTypeId, // Elementally pure lineage -> purity treatment
   String?
   mutationFamily, // Drives the shell's architecture (7 families + mystic)
+  /// A wild-fusion mutation: Transmuted turns the shell and the newborn to
+  /// gold, Alchemized strings the shell as grains and leaves the newborn's
+  /// grains never settling.
+  AlchemonMutation? mutation,
   CinematicQuality quality = CinematicQuality.cinematic,
 }) async {
   await Navigator.of(context).push(
@@ -118,6 +124,7 @@ Future<void> playHatchingCinematicAlchemy({
         variantColor: variantColor,
         pureElementTypeId: pureElementTypeId,
         mutationFamily: mutationFamily,
+        mutation: mutation,
         quality: quality,
       ),
     ),
@@ -142,6 +149,7 @@ class HatchingCeremonyView extends StatefulWidget {
   final Color? variantColor;
   final String? pureElementTypeId;
   final String? mutationFamily;
+  final AlchemonMutation? mutation;
   final CinematicQuality quality;
 
   /// Called at the handover instead of popping the route. Null means this is a
@@ -166,6 +174,7 @@ class HatchingCeremonyView extends StatefulWidget {
     this.variantColor,
     this.pureElementTypeId,
     this.mutationFamily,
+    this.mutation,
     this.quality = CinematicQuality.cinematic,
     this.onComplete,
     this.playSound = true,
@@ -598,11 +607,14 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                           painter: HatchShellAmbientPainter(
                             t: t,
                             clock: shellClock,
-                            tint: widget.paletteMain,
-                            accent:
-                                widget.variantColor ??
-                                _pureColor ??
-                                widget.paletteMain,
+                            tint: widget.mutation == AlchemonMutation.transmuted
+                                ? ShellMutationLook.gold
+                                : widget.paletteMain,
+                            accent: widget.mutation != null
+                                ? mutationAccent(widget.mutation!)
+                                : widget.variantColor ??
+                                      _pureColor ??
+                                      widget.paletteMain,
                             reduced: _reducedEffects,
                             opacity: 1.0 - whiteout,
                           ),
@@ -652,6 +664,7 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                                   widget.parentATypeId,
                             ),
                             rarity: _shellRarity,
+                            mutation: widget.mutation,
                             reduced:
                                 widget.quality == CinematicQuality.performance,
                             opacity: (1.0 - whiteout) * _shellFadeIn,
@@ -708,6 +721,7 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                         glow: widget.paletteMain,
                         hintType: widget.hintType,
                         variantColor: widget.variantColor,
+                        mutation: widget.mutation,
                       ),
                     ),
                   ),
@@ -728,6 +742,7 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                             glowColor: widget.paletteMain,
                             hintType: widget.hintType,
                             variantColor: widget.variantColor,
+                            mutation: widget.mutation,
                           ),
                         ),
                       ),
@@ -817,12 +832,14 @@ class _SilhouetteReveal extends StatelessWidget {
   final Color glowColor;
   final HatchHintType hintType;
   final Color? variantColor;
+  final AlchemonMutation? mutation;
 
   const _SilhouetteReveal({
     required this.image,
     required this.glowColor,
     this.hintType = HatchHintType.normal,
     this.variantColor,
+    this.mutation,
   });
 
   @override
@@ -841,6 +858,14 @@ class _SilhouetteReveal extends StatelessWidget {
       case HatchHintType.normal:
         silhouetteColor = Colors.white.withValues(alpha: 0.95);
         break;
+    }
+    if (mutation == AlchemonMutation.alchemized &&
+        hintType != HatchHintType.prismatic) {
+      silhouetteColor = Color.lerp(
+        Colors.white,
+        mutationAccent(AlchemonMutation.alchemized),
+        0.4,
+      )!;
     }
 
     Widget child = Image(
@@ -877,9 +902,38 @@ class _SilhouetteReveal extends StatelessWidget {
       );
     }
 
+    // Gold replaces the colour, as it does on the sheet.
+    if (mutation == AlchemonMutation.transmuted) {
+      child = ShaderMask(
+        shaderCallback: (bounds) => const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            ShellMutationLook.bronze,
+            ShellMutationLook.gold,
+            ShellMutationLook.paleGold,
+            ShellMutationLook.gold,
+            ShellMutationLook.bronze,
+          ],
+          stops: [0.0, 0.35, 0.5, 0.65, 1.0],
+        ).createShader(bounds),
+        blendMode: BlendMode.srcATop,
+        child: Image(
+          image: image,
+          width: size,
+          color: Colors.white,
+          colorBlendMode: BlendMode.srcATop,
+          filterQuality: FilterQuality.low,
+          isAntiAlias: true,
+        ),
+      );
+    }
+
     // Soft aura behind the silhouette so it emerges out of light instead of
     // floating on flat black (gradient, not blur — no saveLayer cost).
-    final haloColor = hintType == HatchHintType.variant
+    final haloColor = mutation != null
+        ? mutationAccent(mutation!)
+        : hintType == HatchHintType.variant
         ? (variantColor ?? glowColor)
         : glowColor;
     return Stack(
@@ -1078,6 +1132,7 @@ class _SilhouetteGrainsPainter extends CustomPainter {
     required this.glow,
     required this.hintType,
     this.variantColor,
+    this.mutation,
   });
 
   final SpecimenGrains grains;
@@ -1089,12 +1144,26 @@ class _SilhouetteGrainsPainter extends CustomPainter {
   final Color glow;
   final HatchHintType hintType;
   final Color? variantColor;
+  final AlchemonMutation? mutation;
 
   // Glow; the core in three steps of arrival (faint as a grain leaves the
   // shell, full once it is most of the way home); glints; prismatic hues
-  // in the same three steps.
-  static final GrainBatch _batch = GrainBatch(2 + 3 + 18);
+  // in the same three steps; Transmuted's four tones of gold in the same
+  // three steps.
+  static final GrainBatch _batch = GrainBatch(2 + 3 + 18 + 12);
   static const int _glowB = 0, _glintB = 1, _coreB = 2, _prismB = 5;
+  static const int _goldB = 23;
+
+  /// Transmuted's ramp for the newborn's own light and shade, darkest first.
+  static const _goldTones = [
+    ShellMutationLook.bronze,
+    Color(0xFFA87A34),
+    ShellMutationLook.gold,
+    ShellMutationLook.paleGold,
+  ];
+
+  /// Ceremony seconds, for motion that runs on after a grain has landed.
+  static const double _secs = kHatchCeremonyMs / 1000;
 
   static double _h(int i, int salt) {
     final v = math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
@@ -1127,6 +1196,13 @@ class _SilhouetteGrainsPainter extends CustomPainter {
     final ySpan = math.max(1.0, maxY - minY),
         xSpan = math.max(1.0, maxX - minX);
     var landed = 0.0;
+    final gilded = mutation == AlchemonMutation.transmuted;
+    final loose = mutation == AlchemonMutation.alchemized;
+    final sec = t * _secs;
+    // Transmuted's polish: one bright band wiped across the newborn, head to
+    // foot, as the last of it lands.
+    final sweep = (t - 0.800) / (0.858 - 0.800) * 1.5 - 0.25;
+    final toneScale = 4 / math.max(1, grains.tones.length);
     for (var i = 0; i < n; i++) {
       // Head first, each on its own clock.
       final delay = 0.6 * _h(i, 1) + 0.4 * (grains.hy[i] - minY) / ySpan;
@@ -1141,8 +1217,22 @@ class _SilhouetteGrainsPainter extends CustomPainter {
       final dx = home.dx - src.dx, dy = home.dy - src.dy;
       final len = math.sqrt(dx * dx + dy * dy) + 1e-3;
       final bend = math.sin(math.pi * p) * span * 0.07 * (_h(i, 4) - 0.5);
-      final x = src.dx + dx * e - dy / len * bend;
-      final y = src.dy + dy * e + dx / len * bend;
+      var x = src.dx + dx * e - dy / len * bend;
+      var y = src.dy + dy * e + dx / len * bend;
+      if (loose) {
+        // Alchemized: home is only where a grain hovers. Each keeps circling
+        // its place on its own clock, and one in ten never comes in at all,
+        // looping wide around the body -- the particles never settle back
+        // into a creature.
+        final ph = _h(i, 6) * math.pi * 2;
+        final spd = 2.0 + 2.5 * _h(i, 7);
+        final wide = _h(i, 8) < 0.1;
+        final r = wide
+            ? span * (0.025 + 0.05 * _h(i, 9))
+            : grains.step * k * (0.6 + 0.8 * _h(i, 9));
+        x += math.cos(sec * spd + ph) * r * e;
+        y += math.sin(sec * spd * 0.8 + ph * 1.3) * r * e;
+      }
       if (p >= 1) landed++;
       if (i % 4 == 0) b.add(_glowB, x, y);
       // A few glint as they land; most just arrive.
@@ -1151,7 +1241,19 @@ class _SilhouetteGrainsPainter extends CustomPainter {
         continue;
       }
       final step = p < 0.2 ? 0 : (p < 0.5 ? 1 : 2);
-      if (hintType == HatchHintType.prismatic) {
+      if (gilded) {
+        if (p >= 1) {
+          final u =
+              0.7 * (grains.hy[i] - minY) / ySpan +
+              0.3 * (grains.hx[i] - minX) / xSpan;
+          if ((u - sweep).abs() < 0.06) {
+            b.add(_glintB, x, y);
+            continue;
+          }
+        }
+        final tone = (grains.tone[i] * toneScale).floor().clamp(0, 3);
+        b.add(_goldB + tone * 3 + step, x, y);
+      } else if (hintType == HatchHintType.prismatic) {
         final hue = ((grains.hx[i] - minX) / xSpan * 6).floor().clamp(0, 5);
         b.add(_prismB + hue * 3 + step, x, y);
       } else {
@@ -1162,7 +1264,9 @@ class _SilhouetteGrainsPainter extends CustomPainter {
     final home = landed / n;
 
     // The light it arrives in, coming up as it gathers.
-    final pool = hintType == HatchHintType.variant
+    final pool = mutation != null
+        ? mutationAccent(mutation!)
+        : hintType == HatchHintType.variant
         ? (variantColor ?? glow)
         : glow;
     final r = display * 0.8 * math.max(1.0, drift);
@@ -1182,9 +1286,15 @@ class _SilhouetteGrainsPainter extends CustomPainter {
     // Grains, not a fill: smaller than their spacing, so the shape is read
     // through the gaps between them the way the title's letters are.
     final d = (grains.step * k * 0.78).clamp(1.2, 2.6);
-    b.draw(canvas, _glowB, d * 3.4, glow.withValues(alpha: 0.07));
+    b.draw(
+      canvas,
+      _glowB,
+      d * 3.4,
+      pool.withValues(alpha: loose ? 0.12 : 0.07),
+    );
     const steps = [0.3, 0.6, 0.9];
     final core = switch (hintType) {
+      _ when loose => const Color(0xFFE6DEFF),
       HatchHintType.variant => variantColor ?? const Color(0xFFFFF6E8),
       _ => const Color(0xFFFFF6E8),
     };
@@ -1209,12 +1319,25 @@ class _SilhouetteGrainsPainter extends CustomPainter {
         );
       }
     }
-    const glint = Color(0xFFFFFBEA);
+    for (var g = 0; g < 4; g++) {
+      for (var s = 0; s < 3; s++) {
+        b.draw(
+          canvas,
+          _goldB + g * 3 + s,
+          d,
+          _goldTones[g].withValues(alpha: steps[s] + 0.1),
+        );
+      }
+    }
+    final glint = gilded ? const Color(0xFFFFF4D2) : const Color(0xFFFFFBEA);
     b.draw(canvas, _glintB, d * 2.0, glint.withValues(alpha: 0.2));
     b.draw(canvas, _glintB, d * 1.1, glint);
   }
 
   @override
   bool shouldRepaint(_SilhouetteGrainsPainter old) =>
-      old.t != t || old.drift != drift || old.grains != grains;
+      old.t != t ||
+      old.drift != drift ||
+      old.grains != grains ||
+      old.mutation != mutation;
 }

@@ -356,6 +356,7 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony>
                             variantColor: r.params.variantColor,
                             pureElementTypeId: r.params.pureElementTypeId,
                             mutationFamily: r.params.mutationFamily,
+                            mutation: r.params.mutation,
                             quality: CinematicQuality.performance,
                             // One cue for the batch, not one per cell.
                             playSound: i == 0,
