@@ -84,7 +84,25 @@ class FieldSheet {
     this.grade = 0,
     this.light = false,
     this.opacity,
-  });
+  }) : live = null;
+
+  /// A sheet that is not baked but drawn every frame by [live], in its
+  /// place among the baked ones — for something that moves but must lie
+  /// under what is baked over it (the Volcano's lava flow, under its
+  /// rocks). [live] draws every repeat of itself it needs; it is called
+  /// once a frame with the layer's view.
+  const FieldSheet.live({required this.bounds, required this.live})
+    : paint = _paintNothing,
+      drift = 0,
+      resolution = 1,
+      grade = 0,
+      light = false,
+      opacity = null;
+
+  static void _paintNothing(Canvas canvas) {}
+
+  /// Draws a live sheet (see [FieldSheet.live]); null for a baked one.
+  final void Function(Canvas canvas, FieldView view)? live;
 
   /// The area that holds content, in layer-local units. Only this is baked.
   final Rect bounds;
@@ -151,6 +169,11 @@ abstract class FieldArt {
   /// How much of what the weather leaves behind is showing (the Valley's
   /// rainbow), 0 to 1, eased in by the game.
   double aftermath = 0;
+
+  /// Which stage of its own cycle the field is in this visit (see
+  /// [SceneDefinition.stages]) — the Volcano still, smoking or erupting.
+  /// Set before the first frame and held for the visit.
+  int stage = 0;
 
   /// Called once a frame before anything is drawn, with the hour and the
   /// field's clock (seconds).

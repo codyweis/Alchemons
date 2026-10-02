@@ -42,7 +42,10 @@ import 'package:alchemons/widgets/theme_switch_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:alchemons/games/wilderness/field/grain_field.dart'
+    show VolcanoField;
 import 'package:alchemons/models/encounters/wild_weather.dart';
+import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -306,6 +309,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       came ? '$what has come' : 'No $what — that region is not open yet',
       icon: AppIcons.bolt_rounded,
+    );
+  }
+
+  Future<void> _advanceVolcano() async {
+    HapticFeedback.mediumImpact();
+    final next = await context
+        .read<WildernessSpawnService>()
+        .debugAdvanceFieldStage('volcano', volcanoScene);
+    if (!mounted) return;
+    final mood = switch (next) {
+      VolcanoField.smoking => 'smoking',
+      VolcanoField.erupting => 'erupting',
+      _ => 'quiet',
+    };
+    showGameSnack(
+      context,
+      'The next visit finds the Volcano $mood',
+      icon: AppIcons.local_fire_department_rounded,
     );
   }
 
@@ -2115,6 +2136,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 'The dry spell',
                               ),
                             ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('VOLCANO STAGE', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Move the Volcano on a visit: quiet twice, '
+                                  'smoking twice, then erupting',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'NEXT',
+                            icon: AppIcons.local_fire_department_rounded,
+                            onTap: context.soundAction(_advanceVolcano),
                           ),
                         ],
                       ),

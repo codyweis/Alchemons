@@ -23,6 +23,11 @@ class SceneDefinition {
   /// x is `normalizedPos.dx` of its layer's loop. Needs [art].
   final bool loop;
 
+  /// The stages of the field's own cycle, in the order successive visits
+  /// find it (empty: it has none). Each visit shows the next; after the
+  /// last, the first again. Handed to the field as [FieldArt.stage].
+  final List<int> stages;
+
   const SceneDefinition({
     required this.worldWidth,
     required this.worldHeight,
@@ -34,6 +39,7 @@ class SceneDefinition {
     this.encounterMaxZoom = 1.55,
     this.art,
     this.loop = false,
+    this.stages = const [],
   });
 
   SceneDefinition copyWith({
@@ -47,6 +53,7 @@ class SceneDefinition {
     double? encounterMaxZoom,
     FieldArt Function()? art,
     bool? loop,
+    List<int>? stages,
   }) {
     return SceneDefinition(
       worldWidth: worldWidth ?? this.worldWidth,
@@ -59,6 +66,7 @@ class SceneDefinition {
       encounterMaxZoom: encounterMaxZoom ?? this.encounterMaxZoom,
       art: art ?? this.art,
       loop: loop ?? this.loop,
+      stages: stages ?? this.stages,
     );
   }
 }

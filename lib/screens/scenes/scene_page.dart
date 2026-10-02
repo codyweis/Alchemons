@@ -233,6 +233,16 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
         if (!widget.isTutorial && (land?.settled ?? false)) {
           _game.fieldWeather = land;
         }
+        // So does the stage of a field's own cycle (the Volcano still,
+        // smoking or erupting); the visit is counted once the scene is open,
+        // so the next one finds the next stage. The tutorial's visit is
+        // not counted.
+        if (!widget.isTutorial) {
+          _game.fieldStage = _spawnService.fieldStageFor(
+            widget.sceneId,
+            widget.scene,
+          );
+        }
 
         WidgetsBinding.instance.addPostFrameCallback((_) async {
           await _db
@@ -246,6 +256,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
           // Track visited biomes and possibly create the cosmic ship in-world
           await _registerVisitedBiome();
+          if (!widget.isTutorial && widget.scene.stages.isNotEmpty) {
+            await _spawnService.noteFieldVisit(widget.sceneId);
+          }
 
           final isCaptureTutorialScene =
               await OpeningWildernessService.isCaptureTutorialScene(

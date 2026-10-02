@@ -60,6 +60,36 @@ class WildernessSpawnService extends ChangeNotifier {
   /// (see [WildWeather.aftermath]).
   static String _afterKey(String sceneId) => 'wild_after_$sceneId';
 
+  /// How many times each field with stages of its own (see
+  /// [SceneDefinition.stages]) has been visited: each visit finds the next
+  /// stage.
+  final Map<String, int> _visits = {};
+  static String _visitsKey(String sceneId) => 'wild_visits_$sceneId';
+
+  /// The stage of [scene]'s cycle the visit now beginning finds it in.
+  int fieldStageFor(String sceneId, SceneDefinition scene) {
+    final stages = scene.stages;
+    if (stages.isEmpty) return 0;
+    return stages[(_visits[sceneId] ?? 0) % stages.length];
+  }
+
+  /// A visit to [sceneId] has begun: the next one finds the next stage.
+  Future<void> noteFieldVisit(String sceneId) async {
+    final n = (_visits[sceneId] ?? 0) + 1;
+    _visits[sceneId] = n;
+    await _db.settingsDao.setSetting(_visitsKey(sceneId), '$n');
+  }
+
+  /// Moves [sceneId]'s cycle on by one stage without a visit — for the
+  /// debug tools. Answers the stage the next visit will find.
+  Future<int> debugAdvanceFieldStage(
+    String sceneId,
+    SceneDefinition scene,
+  ) async {
+    await noteFieldVisit(sceneId);
+    return fieldStageFor(sceneId, scene);
+  }
+
   /// The next batch in a scene comes with this weather for certain — for
   /// debugging.
   final Map<String, WeatherKind> debugForceWeather = {};
@@ -462,6 +492,13 @@ class WildernessSpawnService extends ChangeNotifier {
       } else if (stored != null) {
         await _db.settingsDao.deleteSetting(_weatherKey(sceneId));
       }
+    }
+
+    // 3d) How far round its own cycle each field with stages has come.
+    for (final entry in scenes.entries) {
+      if (entry.value.scene.stages.isEmpty) continue;
+      final stored = await _db.settingsDao.getSetting(_visitsKey(entry.key));
+      _visits[entry.key] = int.tryParse(stored ?? '') ?? 0;
     }
     await _clearLegacyScheduledNotifications();
 

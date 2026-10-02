@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 part 'sky_field.dart';
 part 'swamp_field.dart';
 part 'valley_field.dart';
+part 'volcano_field.dart';
 
 // What every field drawn in grains shares: the hour and its light, the sun
 // and the moon (in its real phase) on the phone's clock, the loop, glints
@@ -49,6 +50,13 @@ abstract class _GrainField extends FieldArt {
 
   /// How much harder than usual the wind blows.
   double get _windScale => 1;
+
+  /// The sun's disc, high in the sky (0) to on the horizon (1).
+  Color _sunDisc(double low) =>
+      Color.lerp(const Color(0xFFFFFBEF), const Color(0xFFFFE6B4), low)!;
+
+  /// The moon's lit face; ash or haze in the air can tint it.
+  Color get _moonFace => const Color(0xFFEAF0FC);
 
   /// Where the sun and moon meet the horizon, as a fraction of the height.
   double get _horizon => 0.56;
@@ -285,11 +293,7 @@ abstract class _GrainField extends FieldArt {
     final veil = _veil;
     if (_sunUp > -0.08 && veil < 0.98) {
       final low = (1 - _sunUp * 2.5).clamp(0.0, 1.0);
-      final disc = Color.lerp(
-        const Color(0xFFFFFBEF),
-        const Color(0xFFFFE6B4),
-        low,
-      )!;
+      final disc = _sunDisc(low);
       // Behind weather the disc goes first; a soft brightness stays.
       final clear = 1 - veil;
       final soft = math.pow(clear, 3).toDouble();
@@ -327,10 +331,7 @@ abstract class _GrainField extends FieldArt {
         ..save()
         ..translate(moon.dx, moon.dy)
         ..scale(r)
-        ..drawPath(
-          _moonLit!,
-          Paint()..color = const Color(0xFFEAF0FC).withValues(alpha: vis),
-        )
+        ..drawPath(_moonLit!, Paint()..color = _moonFace.withValues(alpha: vis))
         ..restore();
     }
   }

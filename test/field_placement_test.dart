@@ -1,8 +1,8 @@
 // Creatures in a field must make sense where they are: only those that can
 // fly or float are ever put in the open air, and anything standing has
 // something under its feet. These pin that for each field drawn in code —
-// the Valley, the Sky and the Swamp — and the rule every redesigned field
-// follows.
+// the Valley, the Sky, the Swamp and the Volcano — and the rule every
+// redesigned field follows.
 
 import 'dart:ui';
 
@@ -13,11 +13,13 @@ import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
+import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
+import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -77,6 +79,7 @@ void main() {
   onlyFloatersAloft('Valley', valleySceneCorrected, valleyEncounterPools);
   onlyFloatersAloft('Sky', skyScene, skyEncounterPools);
   onlyFloatersAloft('Swamp', swampScene, swampEncounterPools);
+  onlyFloatersAloft('Volcano', volcanoScene, volcanoEncounterPools);
 
   test('sky points sit on a layer with ground, for a partner who cannot '
       'float', () {
@@ -467,6 +470,153 @@ void main() {
         if (here != null) banks++;
       }
       expect(banks, greaterThan(0), reason: '$layer has no banks');
+    }
+  });
+
+  // ── The Volcano: shelves of rock standing in the lava ───────────────────
+
+  double volcanoPeriod(SceneLayer layer) =>
+      volcanoScene.worldWidth *
+      (1 + volcanoScene.layers.firstWhere((l) => l.id == layer).parallaxFactor);
+
+  VolcanoField builtVolcano(double h) {
+    final field = VolcanoField()
+      ..layout(
+        volcanoScene.spawnPoints,
+        volcanoScene.worldWidth,
+        loop: volcanoScene.loop,
+      );
+    final screen = Size(h * 1.6, h);
+    for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+      field.build(layer, Size(volcanoPeriod(layer), h), screen);
+    }
+    return field;
+  }
+
+  test('every Volcano point is on the near or back shelves\' layer, and '
+      'sits where the spawn service keeps its camera safe', () {
+    final ids = volcanoScene.spawnPoints.map((p) => p.id).toSet();
+    // The old points keep their ids; the tutorial's is among them.
+    for (final id in ['01', '02', '03', '04', '05']) {
+      expect(ids, contains('SP_volcano_$id'));
+    }
+    for (final p in volcanoScene.spawnPoints) {
+      expect(
+        p.anchor,
+        anyOf(SceneLayer.layer3, SceneLayer.layer4),
+        reason: p.id,
+      );
+      expect(p.normalizedPos.dx, inInclusiveRange(0.10, 0.90), reason: p.id);
+    }
+  });
+
+  for (final h in const [412.0, 475.0, 700.0]) {
+    test('every Volcano standing point stands on its own shelf at $h', () {
+      final field = builtVolcano(h);
+      for (final p in volcanoScene.spawnPoints.where((p) => !p.aloft)) {
+        final x = p.normalizedPos.dx * volcanoPeriod(p.anchor);
+        final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
+        expect(field.perchFor(p.id), closeTo(feet, 1e-6), reason: p.id);
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} has no shelf');
+        expect(ground!.rest, closeTo(feet, 2 * h / 475), reason: p.id);
+      }
+    });
+
+    test('every Volcano encounter partner has a shelf to stand on at $h', () {
+      final field = builtVolcano(h);
+      for (final p in volcanoScene.spawnPoints) {
+        final x =
+            p.normalizedPos.dx * volcanoPeriod(p.anchor) +
+            p.partnerSide * kFieldPairGap;
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} partner has no shelf');
+        // A partner that cannot float is stood on it, whatever its height;
+        // one that can hangs at its battle position, just over it.
+        expect(ground!.top, double.infinity, reason: p.id);
+        final hang = p.getBattlePos().dy * h + p.size.y * 0.42;
+        expect(ground.rest, greaterThan(hang), reason: '${p.id} hangs in it');
+        expect(
+          ground.rest - hang,
+          lessThan(p.size.y * 0.2),
+          reason: '${p.id} hangs too high over it',
+        );
+      }
+    });
+
+    test('the Volcano\'s lava is not ground at $h', () {
+      final field = builtVolcano(h);
+      for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+        final shelves = field.debugShelves(layer);
+        final period = volcanoPeriod(layer);
+        var lava = 0;
+        for (var x = 0.0; x < period; x += period / 401) {
+          final onShelf = shelves.any((b) {
+            var d = (x - b.center.dx) % period;
+            if (d > period / 2) d -= period;
+            return d.abs() < b.width / 2;
+          });
+          if (onShelf) continue;
+          expect(field.groundAt(layer, x), isNull, reason: '$layer at $x');
+          lava++;
+        }
+        expect(lava, greaterThan(100), reason: '$layer is all rock');
+      }
+    });
+
+    test('no Volcano shelf overlaps another or an open-air point at $h', () {
+      final field = builtVolcano(h);
+      for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+        final period = volcanoPeriod(layer);
+        final shelves = field.debugShelves(layer);
+        double gap(Rect a, Rect b) {
+          var d = (a.center.dx - b.center.dx) % period;
+          if (d > period / 2) d -= period;
+          return d.abs() - (a.width + b.width) / 2;
+        }
+
+        for (var i = 0; i < shelves.length; i++) {
+          for (var j = i + 1; j < shelves.length; j++) {
+            expect(
+              gap(shelves[i], shelves[j]),
+              greaterThan(8),
+              reason: '$layer shelves $i and $j',
+            );
+          }
+        }
+        for (final p in volcanoScene.spawnPoints.where(
+          (p) => p.aloft && p.anchor == layer,
+        )) {
+          final body = Rect.fromCenter(
+            center: Offset(p.normalizedPos.dx * period, p.normalizedPos.dy * h),
+            width: p.size.x,
+            height: p.size.y,
+          );
+          for (final shelf in shelves) {
+            final overlapsX = gap(body, shelf) < 0;
+            expect(
+              overlapsX && body.bottom > shelf.top && body.top < shelf.bottom,
+              isFalse,
+              reason: '${p.id} hangs inside a shelf',
+            );
+          }
+        }
+      }
+    });
+  }
+
+  test('the Volcano joins round its loop without a seam', () {
+    final field = builtVolcano(475);
+    for (final layer in [SceneLayer.layer3, SceneLayer.layer4]) {
+      final p = volcanoPeriod(layer);
+      var shelves = 0;
+      for (var x = 0.0; x < p; x += p / 211) {
+        final here = field.groundAt(layer, x);
+        final round = field.groundAt(layer, x + p);
+        expect(round?.rest, here == null ? isNull : closeTo(here.rest, 1e-6));
+        if (here != null) shelves++;
+      }
+      expect(shelves, greaterThan(0), reason: '$layer has no shelves');
     }
   });
 }

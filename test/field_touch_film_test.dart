@@ -10,6 +10,7 @@ import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
+import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,7 +23,7 @@ import 'package:flutter_test/flutter_test.dart';
 //   FILM_OUT=/tmp/film FILM_SCENE=sky flutter test \
 //     test/field_touch_film_test.dart --tags preview
 //
-// FILM_SCENE is valley, sky or swamp; FILM_GESTURES picks gestures by name
+// FILM_SCENE is valley, sky, swamp or volcano; FILM_GESTURES picks gestures by name
 // (comma separated) from the scene's list below; FILM_WEATHER=dry (or rain,
 // snow, storm) films it in that weather.
 void main() {
@@ -43,6 +44,7 @@ void main() {
     final SceneDefinition scene = switch (sceneName) {
       'valley' => valleySceneCorrected,
       'swamp' => swampScene,
+      'volcano' => volcanoScene,
       _ => skyScene,
     };
     // name → (camera x, path of the finger as screen fractions over its
@@ -65,6 +67,51 @@ void main() {
               false,
               const Rect.fromLTRB(0.2, 0.62, 0.7, 1),
               11,
+            ),
+          } else if (sceneName == 'volcano') ...{
+            // Through the dry grass on the tutorial's basalt shelf.
+            'drag': (
+              0,
+              const [Offset(0.4, 0.765), Offset(0.58, 0.77)],
+              0.55,
+              true,
+              const Rect.fromLTRB(0.25, 0.5, 0.85, 0.95),
+              11,
+            ),
+            'tap': (
+              0,
+              const [Offset(0.5, 0.765)],
+              0,
+              false,
+              const Rect.fromLTRB(0.3, 0.5, 0.75, 0.95),
+              11,
+            ),
+            // Across the crust in front of the shelves, and a tap on the
+            // river at the right, at night.
+            'lava': (
+              0,
+              const [Offset(0.15, 0.93), Offset(0.4, 0.94)],
+              0.6,
+              true,
+              const Rect.fromLTRB(0, 0.68, 0.6, 1),
+              11,
+            ),
+            'lavatap': (
+              0,
+              const [Offset(0.69, 0.9)],
+              0,
+              false,
+              const Rect.fromLTRB(0.45, 0.66, 0.95, 1),
+              23,
+            ),
+            // Over the cinder bank the partner stands on.
+            'cinder': (
+              0,
+              const [Offset(0.76, 0.78), Offset(0.92, 0.78)],
+              0.45,
+              true,
+              const Rect.fromLTRB(0.55, 0.55, 1, 0.95),
+              17.6,
             ),
           } else if (sceneName == 'swamp') ...{
             // Through the sedge on the peat bank by the first great tree.

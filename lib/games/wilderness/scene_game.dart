@@ -120,6 +120,9 @@ class SceneGame extends FlameGame with ScaleDetector {
   bool fieldAftermath = false;
   double _aftermath = 0;
 
+  /// The stage of the field's own cycle this visit (see [FieldArt.stage]).
+  int fieldStage = 0;
+
   /// The field drawn in code, if this scene has one — for previews.
   @visibleForTesting
   FieldArt? get debugField => _art;
@@ -1284,6 +1287,7 @@ class SceneGame extends FlameGame with ScaleDetector {
         ..weatherKind = fieldWeather ?? art.weatherKind
         ..weather = _weather
         ..aftermath = _aftermath
+        ..stage = fieldStage
         ..prepare(fieldHourOverride ?? _fieldHour, time: _fieldTime);
     }
 
@@ -2253,6 +2257,10 @@ class _ArtLayer extends _ParallaxLayer {
     for (final sheet in art.build(id, size, screen)) {
       final b = sheet.bounds;
       if (b.width <= 0 || b.height <= 0) continue;
+      if (sheet.live != null) {
+        baked.add(_BakedSheet(null, sheet));
+        continue;
+      }
       // Never past 2x (no one sees the difference in a backdrop) nor past
       // the widest texture every GPU can hold.
       final scale = min(
@@ -2291,7 +2299,9 @@ class _ArtLayer extends _ParallaxLayer {
 
 class _BakedSheet {
   _BakedSheet(this.image, this.sheet);
-  final ui.Image image;
+
+  /// Null for a live sheet, which draws itself each frame.
+  final ui.Image? image;
   final FieldSheet sheet;
   final Paint paint = Paint()..filterQuality = FilterQuality.medium;
 }
@@ -2312,7 +2322,7 @@ class _FieldSheetsComponent extends Component with HasGameReference<SceneGame> {
 
   void replace(List<_BakedSheet> sheets) {
     for (final s in _sheets) {
-      s.image.dispose();
+      s.image?.dispose();
     }
     _sheets = sheets;
   }
@@ -2326,6 +2336,12 @@ class _FieldSheetsComponent extends Component with HasGameReference<SceneGame> {
     final period = game._loops ? layer.totalWidth : 0.0;
     for (final s in _sheets) {
       final sheet = s.sheet;
+      final live = sheet.live;
+      if (live != null) {
+        live(canvas, view);
+        continue;
+      }
+      final image = s.image!;
       final shown = sheet.opacity?.call() ?? 1.0;
       if (shown <= 0.004) continue;
       final b = sheet.bounds;
@@ -2350,12 +2366,12 @@ class _FieldSheetsComponent extends Component with HasGameReference<SceneGame> {
           _drawLight(canvas, s, art, view, shift, shown);
         } else {
           canvas.drawImageRect(
-            s.image,
+            image,
             Rect.fromLTWH(
               0,
               0,
-              s.image.width.toDouble(),
-              s.image.height.toDouble(),
+              image.width.toDouble(),
+              image.height.toDouble(),
             ),
             b.shift(Offset(shift, 0)),
             s.paint,
@@ -2375,10 +2391,11 @@ class _FieldSheetsComponent extends Component with HasGameReference<SceneGame> {
     double shift,
     double shown,
   ) {
+    final image = s.image!;
     final b = s.sheet.bounds.shift(Offset(shift, 0));
     final left = max(b.left, v.left), right = min(b.right, v.right);
     if (right <= left) return;
-    final scale = s.image.width / b.width;
+    final scale = image.width / b.width;
     final step = (v.right - v.left) / (_columns - 2);
     var n = 0;
     var any = false;
@@ -2396,12 +2413,12 @@ class _FieldSheetsComponent extends Component with HasGameReference<SceneGame> {
         ..[n * 4] = (x - b.left) * scale
         ..[n * 4 + 1] = 0
         ..[n * 4 + 2] = (x1 - b.left) * scale
-        ..[n * 4 + 3] = s.image.height.toDouble();
+        ..[n * 4 + 3] = image.height.toDouble();
       _colors[n] = color.toARGB32();
     }
     if (!any || n == 0) return;
     canvas.drawRawAtlas(
-      s.image,
+      image,
       Float32List.sublistView(_xforms, 0, n * 4),
       Float32List.sublistView(_rects, 0, n * 4),
       Int32List.sublistView(_colors, 0, n),

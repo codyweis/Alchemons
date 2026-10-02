@@ -1,7 +1,7 @@
-// The fields drawn in code — the Valley, the Sky and the Swamp — draw
-// every frame, under the encounter, the harvest and the fusion. Their still
-// parts are baked once; what is left per frame is the sky, the baked sheets
-// and the live grass, motes, glints and water. These pin that it stays that
+// The fields drawn in code — the Valley, the Sky, the Swamp and the
+// Volcano — draw every frame, under the encounter, the harvest and the
+// fusion. Their still parts are baked once; what is left per frame is the
+// sky, the baked sheets and the live grass, motes, glints, water and lava. These pin that it stays that
 // way for each: no blur passes, a handful of draws, and a ceiling on the
 // grains a frame walks.
 
@@ -15,6 +15,7 @@ import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
+import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +62,12 @@ final _fields = <_Field>[
   ),
   (name: 'sky', scene: skyScene, encounter: 'SP_sky_01', strokeY: 0.655),
   (name: 'swamp', scene: swampScene, encounter: 'SP_swamp_01', strokeY: 0.745),
+  (
+    name: 'volcano',
+    scene: volcanoScene,
+    encounter: 'SP_volcano_02',
+    strokeY: 0.765,
+  ),
 ];
 
 void main() {
@@ -259,6 +266,93 @@ void main() {
       expect(worst.draws, lessThan(120));
       expect(worst.points, lessThan(18000));
     });
+  }
+
+  // The Volcano at night, with fingers breaking its crust and tapping a
+  // river: every break glows and throws sparks.
+  for (final screen in const [Size(751, 475), Size(915, 412)]) {
+    testWidgets('volcano lava touch budget at $screen', (tester) async {
+      final game = await mount(tester, volcanoScene, screen)
+        ..fieldHourOverride = 23;
+      var worst = _CensusCanvas();
+      for (var i = 0; i < 60; i++) {
+        game
+          ..debugTouch(
+            screen.width * (0.1 + i * 0.006),
+            screen.height * 0.93,
+            6,
+            0,
+          )
+          ..debugTouch(screen.width * 0.69, screen.height * 0.9, 0, 0);
+        game.update(1 / 30);
+        final c = census(game);
+        expect(c.blurredDraws, 0);
+        if (c.draws > worst.draws) worst = c;
+      }
+      // ignore: avoid_print
+      print(
+        'volcano lava $screen worst: ${worst.draws} draws, '
+        '${worst.points} grains ${worst.counts}',
+      );
+      expect(worst.draws, lessThan(120));
+      expect(worst.points, lessThan(18000));
+    });
+  }
+
+  // The Volcano smoking, and erupting with its flow all the way across the
+  // near field, at night, with fingers on the lava.
+  for (final screen in const [Size(751, 475), Size(915, 412)]) {
+    for (final (name, stage, settle) in const [
+      ('smoking', 1, 6.0),
+      ('erupting', 2, 70.0),
+    ]) {
+      testWidgets('volcano $name budget at $screen', (tester) async {
+        final game = await mount(tester, volcanoScene, screen)
+          ..fieldHourOverride = 23
+          ..fieldStage = stage;
+        // Let the eruption run until its flow has come all the way; the
+        // field learns where the camera is from its frames.
+        for (var i = 0; i < (settle * 30).round(); i++) {
+          game.update(1 / 30);
+          if (i % 15 == 0) census(game);
+        }
+        var worst = _CensusCanvas();
+        for (var i = 0; i < 60; i++) {
+          game
+            ..debugTouch(
+              screen.width * (0.1 + i * 0.006),
+              screen.height * 0.93,
+              6,
+              0,
+            )
+            ..debugTouch(screen.width * 0.69, screen.height * 0.9, 0, 0);
+          game.update(1 / 30);
+          final c = census(game);
+          expect(c.blurredDraws, 0);
+          if (c.draws > worst.draws) worst = c;
+        }
+        // ignore: avoid_print
+        print(
+          'volcano $name $screen worst: ${worst.draws} draws, '
+          '${worst.points} grains ${worst.counts}',
+        );
+        expect(worst.draws, lessThan(120));
+        expect(worst.points, lessThan(18000));
+        // Sanity on raw recording cost (JIT; a ceiling, not a target).
+        final sw = Stopwatch()..start();
+        for (var i = 0; i < 60; i++) {
+          game.update(1 / 60);
+          final rec = ui.PictureRecorder();
+          game.render(Canvas(rec));
+          rec.endRecording().dispose();
+        }
+        // ignore: avoid_print
+        print(
+          'volcano $name record: ${(sw.elapsedMicroseconds / 60).round()} '
+          'µs/frame (JIT)',
+        );
+      });
+    }
   }
 
   // The Valley in rain, and under its rainbow, with a finger in the grass.
