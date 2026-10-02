@@ -117,6 +117,48 @@ void main() {
     expect(f.debugPictures, 7, reason: 'settled, it goes back to pictures');
   });
 
+  test(
+    'a short stroke redraws only the chunks it pushed, the same as whole',
+    () {
+      // A stroke across one corner of the Valley: the rest of the realm's
+      // grains stay in their chunks' pictures.
+      final f = _field(arcane: true);
+      final v = _centreOf(WildRealm.valley);
+      f.step(1 / 60);
+      for (var i = 0; i < 4; i++) {
+        f
+          ..stir(v + Offset(-60 + i * 6.0, -50), const Offset(6, 0), 1 / 60)
+          ..step(1 / 60);
+      }
+      f.paint(_CensusCanvas());
+      expect(f.debugChunkPictures, greaterThan(0));
+      final pushed = f.debugGrains;
+
+      // The same stroke on a twin field, then that field stirred everywhere:
+      // a corner costs far less than the whole.
+      final whole = _field(arcane: true)..step(1 / 60);
+      for (var i = 0; i < 40; i++) {
+        whole
+          ..stir(
+            Offset(10 + i * 9.0, 40 + i * 13.0),
+            const Offset(9, 13),
+            1 / 60,
+          )
+          ..step(1 / 60);
+      }
+      whole.paint(_CensusCanvas());
+      expect(pushed * 2, lessThan(whole.debugGrains));
+
+      // Settled, every chunk is back in its picture and the group too.
+      for (var i = 0; i < 300; i++) {
+        f.step(1 / 60);
+      }
+      f.paint(_CensusCanvas());
+      expect(f.debugPictures, 7);
+      expect(f.debugChunkPictures, 0);
+    },
+  );
+
   test('a realm with something waiting has its rim drawn live, to pulse', () {
     final f = _field(ready: {'swamp'});
     f

@@ -222,6 +222,14 @@ class WildMapField {
   final List<Rect> _box = List.filled(4, Rect.zero);
   double _ringR = 1, _side = 1, _circleR = 1;
 
+  /// The width the map is drawn to: the screen's on a phone; on a wider one
+  /// what its circles would have on a phone. Grains, lights and weather are
+  /// all sized from it.
+  double _unit = 1;
+
+  /// The biggest a realm's circle grows, on a tablet.
+  static const double _maxRing = 130;
+
   Offset get _mid => Offset(_size.width / 2, _size.height / 2);
 
   /// Where a realm's circle sits.
@@ -248,10 +256,22 @@ class WildMapField {
   void layout(Size size) {
     if (size == _size || size.isEmpty) return;
     _size = size;
-    _ringR = math.min(size.width * 0.24, size.height * 0.215);
+    _ringR = math.min(
+      _maxRing,
+      math.min(size.width * 0.24, size.height * 0.215),
+    );
     _side = _ringR * 1.42;
+    // Everything is sized from the circles, as on the phone it was made
+    // for: on a wider screen the four keep together in the middle, and a
+    // grain stays as fine against its realm, never blown up with the
+    // screen.
+    _unit = _ringR / 0.24;
+    final spanX = _unit, spanY = math.min(size.height, _unit * 1.7);
     for (final r in WildRealm.values) {
-      final c = Offset(size.width * r.x, size.height * r.y);
+      final c = Offset(
+        size.width / 2 + (r.x - 0.5) * spanX,
+        size.height / 2 + (r.y - 0.5) * spanY,
+      );
       _centre[r.index] = c;
       _box[r.index] = Rect.fromCenter(
         center: c - Offset(0, _side * 0.02),
@@ -264,8 +284,8 @@ class WildMapField {
     final reach =
         (_centre[0] - Offset(size.width / 2, size.height / 2)).distance;
     _circleR = math.min(
-      size.width * 0.135,
-      math.max(size.width * 0.06, (reach - _ringR) * 0.88),
+      _unit * 0.135,
+      math.max(_unit * 0.06, (reach - _ringR) * 0.88),
     );
     final rng = math.Random(_seed);
     _buildShapes();
@@ -281,6 +301,23 @@ class WildMapField {
     _ft = Float32List(_fieldW * _fieldH);
     _fieldOn = false;
     _dropPictures();
+    final cull = Rect.fromLTRB(
+      -size.width,
+      -size.height,
+      size.width * 2,
+      size.height * 2,
+    );
+    for (final b in [
+      _dots,
+      _wash,
+      _glow,
+      _litGlow,
+      _swayGlow,
+      ..._rest,
+      ..._liveB,
+    ]) {
+      b.cull = cull;
+    }
   }
 
   /// How far inside realm [i]'s circle (x, y) is: 1 at its middle, 0 out.
@@ -487,7 +524,7 @@ class WildMapField {
   void _buildGrains(math.Random rng) {
     final groups = List.generate(_groups, (_) => <_Seed>[]);
     void add(_Seed s) => groups[_groupOf(s.part, s.realm)].add(s);
-    final grain = _size.width;
+    final grain = _unit;
 
     // Each realm's circle of sand: a faint disc, a little thicker at its
     // rim.
@@ -625,9 +662,42 @@ class WildMapField {
     );
 
     final all = <_Seed>[];
+    final chunkFrom = <int>[];
     for (var g = 0; g < _groups; g++) {
       _from[g] = all.length;
-      all.addAll(groups[g]);
+      _chunk0[g] = chunkFrom.length;
+      if (_chunked(g)) {
+        // Into chunks, each a square of the map, so a stir redraws only
+        // the ones it pushed. Each layer (the sand, the ring) stays under
+        // what was drawn over it; within a chunk grains keep their order.
+        final seeds = groups[g];
+        int keyOf(_Seed s) {
+          final under = s.part == _sand || s.part == _arcRing ? 0 : 1;
+          final cx = (s.x / _chunkSide).floor().clamp(0, 255);
+          final cy = (s.y / _chunkSide).floor().clamp(0, 255);
+          return (under << 16) | (cy << 8) | cx;
+        }
+
+        final keys = [for (final s in seeds) keyOf(s)];
+        final order = List.generate(seeds.length, (i) => i)
+          ..sort((a, b) {
+            final d = keys[a] - keys[b];
+            return d != 0 ? d : a - b;
+          });
+        var last = -1;
+        for (final i in order) {
+          if (keys[i] != last) {
+            chunkFrom.add(all.length);
+            last = keys[i];
+          }
+          all.add(seeds[i]);
+        }
+      } else {
+        // A rim pulses whole, so it is one chunk, never a picture.
+        if (_isRim(g) && groups[g].isNotEmpty) chunkFrom.add(all.length);
+        all.addAll(groups[g]);
+      }
+      _chunk1[g] = chunkFrom.length;
       _to[g] = all.length;
       var l = double.infinity, t = double.infinity;
       var r = -double.infinity, b = -double.infinity;
@@ -644,6 +714,23 @@ class WildMapField {
           : Rect.fromLTRB(l, t, r, b).inflate(8);
     }
     _n = all.length;
+    final nc = chunkFrom.length;
+    _chunkFrom = Int32List(nc)..setAll(0, chunkFrom);
+    // Each ends where the next of its group begins, or where its group
+    // does: groups not cut into chunks lie between.
+    _chunkTo = Int32List(nc);
+    for (var g = 0; g < _groups; g++) {
+      for (var c = _chunk0[g]; c < _chunk1[g]; c++) {
+        _chunkTo[c] = c + 1 < _chunk1[g] ? chunkFrom[c + 1] : _to[g];
+      }
+    }
+    _chunkS0 = Int32List(nc);
+    _chunkS1 = Int32List(nc);
+    _chunkBusy = Uint8List(nc);
+    for (final p in _chunkPics) {
+      p?.dispose();
+    }
+    _chunkPics = List.filled(nc, null);
     _hx = Float32List(_n);
     _hy = Float32List(_n);
     _size2 = Float32List(_n);
@@ -686,6 +773,90 @@ class WildMapField {
     _py = Float32List.fromList(_hy);
     _watched = null;
     _moved.fillRange(0, _groups, false);
+    // The tile each rests in, for asking whether the flow reaches it.
+    _tw = (_size.width / _tileSide).ceil() + 1;
+    _th = (_size.height / _tileSide).ceil() + 1;
+    _tileFlow = Uint8List(_tw * _th);
+    _tile = Int32List(_n);
+    for (var k = 0; k < _n; k++) {
+      _tile[k] = _tileAt(_hx[k], _hy[k]);
+    }
+    _busy = Uint8List(_n);
+    _slot = Int32List(_n)..fillRange(0, _n, -1);
+  }
+
+  // ── Which grains the flow reaches ─────────────────────────────────────
+
+  // Tiles two flow cells wide. A grain does any work only while its tile
+  // has flow in it or it is still pushed off its place; the rest of a
+  // stirred group stays as it was drawn at rest.
+  static const double _tileSide = _cell * 2;
+  int _tw = 0, _th = 0;
+  Uint8List _tileFlow = Uint8List(0);
+  Int32List _tile = Int32List(0);
+  // Each grain: still pushed off its place (or moving).
+  Uint8List _busy = Uint8List(0);
+  // Each grain's place in its group's batch at rest, or -1 if not in it.
+  Int32List _slot = Int32List(0);
+
+  // The groups that only ever move whole are cut into chunks: squares of
+  // the map, each one picture at rest. While a finger stirs the group,
+  // only the chunks with a grain off its place are drawn grain by grain.
+  static const double _chunkSide = 40;
+  static bool _chunked(int g) =>
+      g < _gStill + 4 || g == _gCloud || g == _gTree || g == _gArcane;
+  final Int32List _chunk0 = Int32List(_groups), _chunk1 = Int32List(_groups);
+  // Each chunk's grains (_chunkFrom[c].._chunkTo[c]), its sprites in
+  // its group's batch (_chunkS0[c].._chunkS1[c]), whether any grain of it
+  // is pushed off its place, and its picture.
+  Int32List _chunkFrom = Int32List(0), _chunkTo = Int32List(0);
+  Int32List _chunkS0 = Int32List(0), _chunkS1 = Int32List(0);
+  Uint8List _chunkBusy = Uint8List(0);
+  List<ui.Picture?> _chunkPics = const [];
+
+  int _tileAt(double x, double y) {
+    final tx = (x / _tileSide).floor().clamp(0, _tw - 1);
+    final ty = (y / _tileSide).floor().clamp(0, _th - 1);
+    return ty * _tw + tx;
+  }
+
+  /// Marks every tile with a grain that could feel the flow: one whose
+  /// samples touch a cell moving faster than barely, with a tile to spare
+  /// for the cloud's bob and the crown's lean.
+  void _markTiles() {
+    _tileFlow.fillRange(0, _tileFlow.length, 0);
+    _markCells(0, _fieldW - 1, 0, _fieldH - 1);
+  }
+
+  void _markCells(int cx0, int cx1, int cy0, int cy1) {
+    for (var gy = cy0; gy <= cy1; gy++) {
+      for (var gx = cx0; gx <= cx1; gx++) {
+        final i = gy * _fieldW + gx;
+        if (_fu[i].abs() + _fv[i].abs() <= 3) continue;
+        final x0 = math.max(0, ((gx - 1) >> 1) - 1);
+        final x1 = math.min(_tw - 1, (gx >> 1) + 1);
+        final y0 = math.max(0, ((gy - 1) >> 1) - 1);
+        final y1 = math.min(_th - 1, (gy >> 1) + 1);
+        for (var ty = y0; ty <= y1; ty++) {
+          for (var tx = x0; tx <= x1; tx++) {
+            _tileFlow[ty * _tw + tx] = 1;
+          }
+        }
+      }
+    }
+  }
+
+  /// Whether group [g] is drawn whole, grain by grain: every grain of it
+  /// moves or changes colour this frame.
+  bool _whole(int g) => g == _gLive || (g == _gCloud && _flash > 0);
+
+  static bool _isRim(int g) => (g >= _gRim && g < _gRim + 4) || g == _gArcRim;
+
+  /// How bright rim group [g] is now: as ready as its realm, pulsing.
+  double _rimAlpha(int g) {
+    final i = g == _gArcRim ? 4 : g - _gRim;
+    final pulse = 0.5 + 0.5 * _fsin(time * 2.4 + i * 1.3);
+    return _ready[i] * (0.6 + 0.4 * pulse);
   }
 
   /// A grain's colour in [part] at (u, v) of its square, the colour its
@@ -961,7 +1132,7 @@ class WildMapField {
         if (m < 0.05) continue;
         xs.add(x);
         ys.add(y);
-        ss.add(_size.width * (0.0018 + 0.0012 * rng.nextDouble()));
+        ss.add(_unit * (0.0018 + 0.0012 * rng.nextDouble()));
         final al = ((0.3 + 0.24 * rng.nextDouble()) * m * 255).round();
         cs.add((al << 24) | (col & 0xFFFFFF));
       }
@@ -1068,9 +1239,45 @@ class WildMapField {
   /// head, a trail of grains tapering behind it and grains that glow on a
   /// moment after it passes; the northern lights as two curtains of rays
   /// standing on folded hems, green below and violet above.
+  // The northern lights' columns, each [_auroraRise] grains tall: what
+  // never changes along one, worked out once. Each grain's sideways
+  // scatter; and by height, its colour (green at the hem, through blue, to
+  // violet at the top) and how bright (brightest just above the hem,
+  // thinning upward).
+  static const int _auroraRise = 22;
+  static final Float64List _auroraJitter = Float64List.fromList([
+    for (var i = 0; i < 72; i++)
+      for (var j = 0; j < _auroraRise; j++) (_hash(i * 31 + j) - 0.5) * 1.1,
+  ]);
+  static double _auroraAt(int j) => j / (_auroraRise - 1);
+  static final Float64List _auroraR = Float64List.fromList([
+    for (var j = 0; j < _auroraRise; j++)
+      _auroraAt(j) < 0.5
+          ? 0.32 + 0.3 * _auroraAt(j)
+          : 0.47 + 0.2 * (_auroraAt(j) - 0.5),
+  ]);
+  static final Float64List _auroraG = Float64List.fromList([
+    for (var j = 0; j < _auroraRise; j++)
+      _auroraAt(j) < 0.5
+          ? 0.94 - 0.7 * _auroraAt(j)
+          : 0.59 - 0.4 * (_auroraAt(j) - 0.5),
+  ]);
+  static final Float64List _auroraB = Float64List.fromList([
+    for (var j = 0; j < _auroraRise; j++)
+      _auroraAt(j) < 0.5
+          ? 0.7 + 0.3 * _auroraAt(j)
+          : 0.85 + 0.1 * (_auroraAt(j) - 0.5),
+  ]);
+  static final Float64List _auroraFade = Float64List.fromList([
+    for (var j = 0; j < _auroraRise; j++)
+      _auroraAt(j) < 0.08
+          ? 0.5 + _auroraAt(j) * 6
+          : math.pow(1 - _auroraAt(j), 0.55).toDouble(),
+  ]);
+
   void _paintArcaneSky(Canvas canvas) {
     if (!arcane || (_shower <= 0 && _aurora <= 0)) return;
-    final grain = _size.width;
+    final grain = _unit;
     final t = time;
     _dots.clear();
 
@@ -1105,24 +1312,23 @@ class WildMapField {
           final pulse = 0.55 + 0.45 * _fsin(u * 8 - t * 1.3 + seed);
           final a = _aurora * strength * ray * pulse;
           if (a < 0.05) continue;
-          const n = 22;
+          const n = _auroraRise;
           for (var j = 0; j < n; j++) {
             final s = j / (n - 1);
-            final x = x0 + lean * s + (_hash(i * 31 + j) - 0.5) * 1.1;
+            final x = x0 + lean * s + _auroraJitter[i * n + j];
             final y = hem - rise * s;
             final m = _inArc(x, y);
             if (m <= 0) continue;
-            // Green at the hem, through blue, to violet at the top.
-            final cr = s < 0.5 ? 0.32 + 0.3 * s : 0.47 + 0.2 * (s - 0.5);
-            final cg = s < 0.5 ? 0.94 - 0.7 * s : 0.59 - 0.4 * (s - 0.5);
-            final cb = s < 0.5 ? 0.7 + 0.3 * s : 0.85 + 0.1 * (s - 0.5);
-            // Brightest just above the hem, thinning upward.
-            final fade = s < 0.08 ? 0.5 + s * 6 : math.pow(1 - s, 0.55);
             _dots.add(
               x,
               y,
               grain * 0.0034,
-              _argb(math.min(1.0, 1.3 * a * fade) * m, cr, cg, cb),
+              _argb(
+                math.min(1.0, 1.3 * a * _auroraFade[j]) * m,
+                _auroraR[j],
+                _auroraG[j],
+                _auroraB[j],
+              ),
             );
           }
           if (i % 3 == 0) {
@@ -1322,6 +1528,9 @@ class WildMapField {
     final box = Rect.fromCircle(center: at, radius: reach + _cell);
     _flowBox = _fieldOn ? _flowBox.expandToInclude(box) : box;
     _fieldOn = true;
+    // Felt from the next grain step, even one later in this same step (a
+    // strike of lightning).
+    _markCells(g0x, g1x, g0y, g1y);
   }
 
   void _stepField(double dt) {
@@ -1383,6 +1592,7 @@ class WildMapField {
       _fv.fillRange(0, _fv.length, 0);
       _fieldOn = false;
     }
+    _markTiles();
   }
 
   // Sets [_su], [_sv] to the flow at (x, y).
@@ -1609,12 +1819,25 @@ class WildMapField {
     final warm = _wx[WildRealm.volcano.index];
     final mid = _mid;
 
+    _syncKey();
+    _litGlow.clear();
     for (var grp = 0; grp < _groups; grp++) {
       if (!_live(grp)) continue;
       final on = _fieldOn && _reach[grp].overlaps(_flowBox);
+      if (grp == _gLive) {
+        _stepSwaying(dt, on);
+        continue;
+      }
+      if (!_whole(grp)) {
+        _stepWorked(grp, dt, on, _isRim(grp) ? _rimAlpha(grp) : 1.0);
+        continue;
+      }
+      // Drawn whole this frame: its batch no longer follows it.
+      _liveOk[grp] = false;
       var moved = false;
       for (var k = _from[grp]; k < _to[grp]; k++) {
         final hx = _hx[k], hy = _hy[k];
+        final here = on;
         var bx = hx, by = hy;
         switch (grp) {
           case _gCloud:
@@ -1641,9 +1864,9 @@ class WildMapField {
             break;
         }
         var ox = _ox[k], oy = _oy[k], vx = _vx[k], vy = _vy[k];
-        if (on || ox != 0 || oy != 0 || vx != 0 || vy != 0) {
+        if (here || ox != 0 || oy != 0 || vx != 0 || vy != 0) {
           var fu = 0.0, fv = 0.0;
-          if (on) {
+          if (here) {
             _sample(bx + ox, by + oy);
             fu = _su;
             fv = _sv;
@@ -1652,14 +1875,16 @@ class WildMapField {
           vy += (drag * (fv - vy) - spring * oy) * dt;
           ox += vx * dt;
           oy += vy * dt;
-          if (!on &&
+          if (!here &&
               ox.abs() < 0.05 &&
               oy.abs() < 0.05 &&
               vx.abs() < 0.5 &&
               vy.abs() < 0.5) {
             ox = oy = vx = vy = 0;
+            _busy[k] = 0;
           } else {
             moved = true;
+            _busy[k] = 1;
           }
           _ox[k] = ox;
           _oy[k] = oy;
@@ -1696,6 +1921,284 @@ class WildMapField {
         _mvy[k] = vy;
       }
     }
+  }
+
+  /// Steps group [g], one that moves (if at all) only as a whole: only its
+  /// grains in the flow or still pushed off their places do any work, and
+  /// each writes itself straight into the group's batch.
+  /// Steps the grains that sway every frame (the meadow, the lava and the
+  /// crater), writing each into the group's batch, and their light into
+  /// [_swayGlow].
+  void _stepSwaying(double dt, bool on) {
+    const drag = 5.0, spring = 14.0;
+    const g = _gLive;
+    final live = _liveOf(g), rest = _rest[g];
+    final t = time;
+    final warm = _wx[WildRealm.volcano.index];
+    final erupt = _erupt;
+    final pulse = 0.75 + 0.25 * _fsin(t * 1.6);
+    final hxs = _hx, hys = _hy, oxs = _ox, oys = _oy, vxs = _vx, vys = _vy;
+    final pxs = _px, pys = _py, sizes = _size2, phs = _ph, parts = _part;
+    final busy = _busy, slots = _slot;
+    final lxf = live._xf, rxf = rest._xf;
+    final lcol = live._colors, rcol = rest._colors;
+    final glow = _swayGlow..clear();
+    var moved = false;
+    for (var k = _from[g], end = _to[g]; k < end; k++) {
+      final hx = hxs[k], hy = hys[k];
+      final ph = phs[k];
+      final part = parts[k];
+      var bx = hx, by = hy;
+      if (part == _meadow) {
+        // Grass in the wind, in waves crossing it.
+        bx += 1.2 * _fsin(1.3 * t - hx * 0.05 + ph * 0.3);
+      } else {
+        // Heat shimmer over the lava, as warm as it is.
+        final heat = part == _lava2 ? erupt : warm;
+        bx += 0.4 * heat * _fsin(2.6 * t + ph);
+        by += 0.5 * heat * _fsin(3.1 * t + ph * 1.7);
+      }
+      var ox = oxs[k], oy = oys[k], vx = vxs[k], vy = vys[k];
+      if (on || ox != 0 || oy != 0 || vx != 0 || vy != 0) {
+        var fu = 0.0, fv = 0.0;
+        if (on) {
+          _sample(bx + ox, by + oy);
+          fu = _su;
+          fv = _sv;
+        }
+        vx += (drag * (fu - vx) - spring * ox) * dt;
+        vy += (drag * (fv - vy) - spring * oy) * dt;
+        ox += vx * dt;
+        oy += vy * dt;
+        if (!on &&
+            ox < 0.05 &&
+            ox > -0.05 &&
+            oy < 0.05 &&
+            oy > -0.05 &&
+            vx < 0.5 &&
+            vx > -0.5 &&
+            vy < 0.5 &&
+            vy > -0.5) {
+          ox = oy = vx = vy = 0;
+          busy[k] = 0;
+        } else {
+          moved = true;
+          busy[k] = 1;
+        }
+        oxs[k] = ox;
+        oys[k] = oy;
+        vxs[k] = vx;
+        vys[k] = vy;
+      }
+      final x = bx + ox, y = by + oy;
+      pxs[k] = x;
+      pys[k] = y;
+
+      final s = slots[k];
+      if (s < 0) continue;
+      final j = s * 4;
+      lxf[j + 2] = rxf[j + 2] + (x - hx);
+      lxf[j + 3] = rxf[j + 3] + (y - hy);
+      // Catching the light when pushed fast; lava and the crater glowing,
+      // breathing, as warm as they are.
+      final sp = (vx < 0 ? -vx : vx) + (vy < 0 ? -vy : vy);
+      final rc = rcol[s];
+      final hot = part == _lava || part == _lava2 || part == _crater;
+      final heat = !hot ? 0.0 : (part == _lava2 ? erupt : warm);
+      if (sp <= 30) {
+        lcol[s] = rc;
+        if (heat > 0.02) {
+          glow.add(
+            x,
+            y,
+            sizes[k] * 3.2,
+            (_byte(0.2 * pulse * heat) << 24) | (rc & 0xFFFFFF),
+          );
+        }
+        continue;
+      }
+      final lit = math.min(1.0, (sp - 30) / 400);
+      final r0 = ((rc >> 16) & 0xFF) / 255, g0 = ((rc >> 8) & 0xFF) / 255;
+      final b0 = (rc & 0xFF) / 255;
+      final r = r0 + (1 - r0) * lit * 0.6;
+      final gg = g0 + (1 - g0) * lit * 0.6;
+      final bb = b0 + (1 - b0) * lit * 0.55;
+      lcol[s] =
+          (rc & 0xFF000000) | (_byte(r) << 16) | (_byte(gg) << 8) | _byte(bb);
+      if (lit > 0.5) {
+        glow.add(x, y, sizes[k] * 3, _argb(0.25 * lit, r, gg, bb));
+      }
+      if (heat > 0.02) {
+        glow.add(x, y, sizes[k] * 3.2, _argb(0.2 * pulse * heat, r, gg, bb));
+      }
+    }
+    _moved[g] = moved;
+  }
+
+  // The hottest loop on the map: every pushed grain, every frame.
+  @pragma('vm:unsafe:no-bounds-checks')
+  void _stepWorked(int g, double dt, bool on, double fade) {
+    const drag = 5.0, spring = 14.0;
+    final live = _liveOf(g), rest = _rest[g];
+    // The group's one move: (x, y) at rest is drawn at
+    // (a·x + b·y + c, d·x + e·y + f). The batch is drawn under that move,
+    // so a push goes into it turned back by the inverse (ia ib / id ie).
+    var a = 1.0, b = 0.0, c = 0.0, d = 0.0, e = 1.0, f = 0.0;
+    switch (g) {
+      case _gCloud:
+        c = _cloudDx;
+        f = _cloudDy;
+      case _gTree:
+        b = _treeShear;
+        c = -_treeShear * _treeBase;
+      case _gArcane:
+        final ac = _fcos(_arcTurn), as = _fsin(_arcTurn);
+        final mx = _mid.dx, my = _mid.dy;
+        a = ac;
+        b = -as;
+        d = as;
+        e = ac;
+        c = mx - mx * ac + my * as;
+        f = my - mx * as - my * ac;
+      default:
+        break;
+    }
+    final det = a * e - b * d;
+    final ia = e / det, ib = -b / det, id = -d / det, ie = a / det;
+    final spin = g == _gArcane;
+
+    final hxs = _hx, hys = _hy, oxs = _ox, oys = _oy, vxs = _vx, vys = _vy;
+    final pxs = _px, pys = _py, sizes = _size2;
+    final busy = _busy, tiles = _tile, flowAt = _tileFlow, slots = _slot;
+    final lxf = live._xf, rxf = rest._xf;
+    final lcol = live._colors, rcol = rest._colors;
+    final fus = _fu, fvs = _fv, fw = _fieldW, fh = _fieldH;
+    const inv = 1 / _cell, invTile = 1 / _tileSide;
+    final tw = _tw, th = _th;
+    final chunkFrom = _chunkFrom, chunkTo = _chunkTo, chunkBusy = _chunkBusy;
+    final alphas = _alpha;
+    // Each grain's colour at rest, at this group's brightness now.
+    final faded = fade != 1.0;
+    if (faded) {
+      for (var k = _from[g], end = _to[g]; k < end; k++) {
+        final s = slots[k];
+        if (s >= 0) {
+          lcol[s] = (_byte(alphas[k] * fade) << 24) | (rcol[s] & 0xFFFFFF);
+        }
+      }
+    }
+    var moved = false;
+    for (var ch = _chunk0[g], ce = _chunk1[g]; ch < ce; ch++) {
+      var off = false;
+      for (var k = chunkFrom[ch], end = chunkTo[ch]; k < end; k++) {
+        var here = false;
+        if (on) {
+          final int ti;
+          if (spin) {
+            final hx = hxs[k], hy = hys[k];
+            var tx = ((a * hx + b * hy + c) * invTile).toInt();
+            var ty = ((d * hx + e * hy + f) * invTile).toInt();
+            if (tx < 0) tx = 0;
+            if (tx >= tw) tx = tw - 1;
+            if (ty < 0) ty = 0;
+            if (ty >= th) ty = th - 1;
+            ti = ty * tw + tx;
+          } else {
+            ti = tiles[k];
+          }
+          here = flowAt[ti] != 0;
+        }
+        // Out of the flow and at rest: as at rest, no work.
+        if (!here && busy[k] == 0) continue;
+        final hx = hxs[k], hy = hys[k];
+        final bx = a * hx + b * hy + c, by = d * hx + e * hy + f;
+        var ox = oxs[k], oy = oys[k], vx = vxs[k], vy = vys[k];
+        var fu = 0.0, fv = 0.0;
+        if (here) {
+          // The flow at the grain, as [_sample] has it.
+          final fx = (bx + ox) * inv, fy = (by + oy) * inv;
+          final gx = fx.floor(), gy = fy.floor();
+          if (gx >= 0 && gy >= 0 && gx < fw - 1 && gy < fh - 1) {
+            final tx = fx - gx, ty = fy - gy;
+            final i = gy * fw + gx;
+            final u0 = fus[i], u1 = fus[i + 1], u2 = fus[i + fw];
+            final u3 = fus[i + fw + 1];
+            fu =
+                u0 +
+                (u1 - u0) * tx +
+                (u2 - u0) * ty +
+                (u0 - u1 - u2 + u3) * tx * ty;
+            final v0 = fvs[i], v1 = fvs[i + 1], v2 = fvs[i + fw];
+            final v3 = fvs[i + fw + 1];
+            fv =
+                v0 +
+                (v1 - v0) * tx +
+                (v2 - v0) * ty +
+                (v0 - v1 - v2 + v3) * tx * ty;
+          }
+        }
+        vx += (drag * (fu - vx) - spring * ox) * dt;
+        vy += (drag * (fv - vy) - spring * oy) * dt;
+        ox += vx * dt;
+        oy += vy * dt;
+        if (!here &&
+            ox < 0.05 &&
+            ox > -0.05 &&
+            oy < 0.05 &&
+            oy > -0.05 &&
+            vx < 0.5 &&
+            vx > -0.5 &&
+            vy < 0.5 &&
+            vy > -0.5) {
+          ox = oy = vx = vy = 0;
+          busy[k] = 0;
+        } else {
+          moved = true;
+          off = true;
+          busy[k] = 1;
+        }
+        oxs[k] = ox;
+        oys[k] = oy;
+        vxs[k] = vx;
+        vys[k] = vy;
+        pxs[k] = bx + ox;
+        pys[k] = by + oy;
+
+        final s = slots[k];
+        if (s < 0) continue;
+        final j = s * 4;
+        lxf[j + 2] = rxf[j + 2] + ia * ox + ib * oy;
+        lxf[j + 3] = rxf[j + 3] + id * ox + ie * oy;
+        // Catching the light when pushed fast.
+        final sp = (vx < 0 ? -vx : vx) + (vy < 0 ? -vy : vy);
+        final rc = faded
+            ? (_byte(alphas[k] * fade) << 24) | (rcol[s] & 0xFFFFFF)
+            : rcol[s];
+        if (sp <= 30) {
+          lcol[s] = rc;
+          continue;
+        }
+        final lit = math.min(1.0, (sp - 30) / 400);
+        final r0 = ((rc >> 16) & 0xFF) / 255, g0 = ((rc >> 8) & 0xFF) / 255;
+        final b0 = (rc & 0xFF) / 255;
+        final r = r0 + (1 - r0) * lit * 0.6;
+        final gg = g0 + (1 - g0) * lit * 0.6;
+        final bb = b0 + (1 - b0) * lit * 0.55;
+        lcol[s] =
+            (rc & 0xFF000000) | (_byte(r) << 16) | (_byte(gg) << 8) | _byte(bb);
+        // (A rim not showing gives no light either.)
+        if (lit > 0.5 && fade > 0) {
+          _litGlow.add(
+            bx + ox,
+            by + oy,
+            sizes[k] * 3,
+            _argb(0.25 * lit, r, gg, bb),
+          );
+        }
+      }
+      chunkBusy[ch] = off ? 1 : 0;
+    }
+    _moved[g] = moved;
   }
 
   /// Where mover [k] is on its own path, before any push.
@@ -1757,14 +2260,29 @@ class WildMapField {
   final _Batch _wash = _Batch(_soft);
   final _Batch _glow = _Batch(_soft);
 
-  // Each group's picture at rest, and what it was drawn for.
+  // Each group's picture at rest, the batch it was drawn from, and what
+  // they were drawn for.
   final List<ui.Picture?> _pics = List.filled(_groups, null);
+  final List<_Batch> _rest = List.generate(_groups, (_) => _Batch(_solid));
+  final List<bool> _restOk = List.filled(_groups, false);
+  final List<_Batch> _liveB = List.generate(_groups, (_) => _Batch(_solid));
+  final List<bool> _liveOk = List.filled(_groups, false);
+  // Light off grains pushed fast, in the groups [_stepWorked] keeps.
+  final _Batch _litGlow = _Batch(_soft);
+  // Light off the swaying grains: the lava's, and any pushed fast.
+  final _Batch _swayGlow = _Batch(_soft);
   List<double>? _picKey;
 
   void _dropPictures() {
     for (var g = 0; g < _groups; g++) {
       _pics[g]?.dispose();
       _pics[g] = null;
+      _restOk[g] = false;
+      _liveOk[g] = false;
+    }
+    for (var c = 0; c < _chunkPics.length; c++) {
+      _chunkPics[c]?.dispose();
+      _chunkPics[c] = null;
     }
     _picKey = null;
   }
@@ -1778,6 +2296,8 @@ class WildMapField {
     _wx[2],
     _wx[3],
     _rain[0],
+    // The left run of lava's colour.
+    _erupt,
     ink ? 1 : 0,
   ];
 
@@ -1786,6 +2306,9 @@ class WildMapField {
 
   /// Groups drawn from their picture in the last frame.
   int debugPictures = 0;
+
+  /// Chunks of stirred groups drawn from their picture in the last frame.
+  int debugChunkPictures = 0;
 
   /// Lava thrown and smoke risen off the Volcano in the last frame.
   int debugBombs = 0, debugSmoke = 0;
@@ -1849,12 +2372,9 @@ class WildMapField {
     _atlas ??= _buildAtlas();
     debugGrains = 0;
     debugPictures = 0;
+    debugChunkPictures = 0;
     debugBombs = debugSmoke = debugRainbow = debugArcaneSky = 0;
-    final key = _key;
-    if (!_sameKey(key, _picKey)) {
-      _dropPictures();
-      _picKey = key;
-    }
+    if (_syncKey()) _restepBatches();
     final dots = ink ? _inkOver : _over;
 
     _wash.clear();
@@ -1867,62 +2387,159 @@ class WildMapField {
       if (g >= _gRim && g < _gRim + 4 && _ready[g - _gRim] <= 0) continue;
       if (g == _gArcRim && (!arcane || _ready[4] <= 0)) continue;
       if (_live(g)) {
-        _dots.clear();
-        _emit(g);
         if (g == _gLive) {
-          // Movers and weather draw with the live grains.
+          // As stepped, then the movers and weather with them.
+          _dots.copyFrom(_liveOf(g));
+          _glow.appendFrom(_swayGlow);
           _paintMovers();
           _paintWeather();
+          debugGrains += _dots.n;
+          _dots.draw(canvas, _atlas!, dots);
+        } else if (_whole(g)) {
+          _dots.clear();
+          _emit(g);
+          if (g == _gLive) {
+            // Movers and weather draw with the live grains.
+            _paintMovers();
+            _paintWeather();
+          }
+          debugGrains += _dots.n;
+          _dots.draw(canvas, _atlas!, dots);
+        } else {
+          // Its batch: as at rest, with each grain the flow has pushed
+          // where it is now.
+          if (_isRim(g)) {
+            final b = _liveOf(g);
+            debugGrains += b.n;
+            b.draw(canvas, _atlas!, dots);
+          } else {
+            _drawMoved(canvas, g, () => _drawChunks(canvas, g, dots));
+          }
         }
-        debugGrains += _dots.n;
-        _dots.draw(canvas, _atlas!, dots);
         continue;
       }
       var pic = _pics[g];
       if (pic == null) {
         final rec = ui.PictureRecorder();
-        _dots.clear();
-        _emitAtRest(g);
-        _dots.draw(Canvas(rec), _atlas!, dots);
+        _restOf(g).draw(Canvas(rec), _atlas!, dots);
         pic = _pics[g] = rec.endRecording();
       }
       debugPictures++;
-      _drawMoved(canvas, g, pic);
+      _drawMoved(canvas, g, () => canvas.drawPicture(pic!));
     }
     _paintRainbow(canvas);
     _paintArcaneSky(canvas);
     _paintRimGlow();
+    _litGlow.draw(canvas, _atlas!, ink ? _inkGlow : _add);
     _glow.draw(canvas, _atlas!, ink ? _inkGlow : _add);
   }
 
-  /// [pic] drawn with its group's one move this frame.
-  void _drawMoved(Canvas canvas, int g, ui.Picture pic) {
+  /// Drops what was drawn for other weather (or ink); whether it did.
+  bool _syncKey() {
+    final key = _key;
+    if (_sameKey(key, _picKey)) return false;
+    _dropPictures();
+    _picKey = key;
+    return true;
+  }
+
+  /// The batches rebuilt at rest in new colours, with every grain put back
+  /// where the last step left it (no time passing).
+  void _restepBatches() {
+    _litGlow.clear();
+    for (var g = 0; g < _groups; g++) {
+      if (!_live(g)) continue;
+      if (g == _gLive) {
+        _stepSwaying(0, false);
+      } else if (!_whole(g)) {
+        _stepWorked(g, 0, false, _isRim(g) ? _rimAlpha(g) : 1.0);
+      }
+    }
+  }
+
+  /// [draw] done with group [g]'s one move this frame.
+  void _drawMoved(Canvas canvas, int g, void Function() draw) {
     switch (g) {
       case _gCloud:
         canvas
           ..save()
-          ..translate(_cloudDx, _cloudDy)
-          ..drawPicture(pic)
-          ..restore();
+          ..translate(_cloudDx, _cloudDy);
       case _gTree:
         canvas
           ..save()
           ..translate(0, _treeBase)
           ..skew(_treeShear, 0)
-          ..translate(0, -_treeBase)
-          ..drawPicture(pic)
-          ..restore();
+          ..translate(0, -_treeBase);
       case _gArcane:
         canvas
           ..save()
           ..translate(_mid.dx, _mid.dy)
           ..rotate(_arcTurn)
-          ..translate(-_mid.dx, -_mid.dy)
-          ..drawPicture(pic)
-          ..restore();
+          ..translate(-_mid.dx, -_mid.dy);
       default:
-        canvas.drawPicture(pic);
+        draw();
+        return;
     }
+    draw();
+    canvas.restore();
+  }
+
+  /// Stirred group [g], chunk by chunk: each one at rest from its picture,
+  /// each run of pushed ones from the group's batch in one go.
+  void _drawChunks(Canvas canvas, int g, Paint dots) {
+    final live = _liveOf(g), rest = _rest[g];
+    final atlas = _atlas!;
+    var run = -1, end = 0;
+    void flush() {
+      if (run < 0) return;
+      live.draw(canvas, atlas, dots, from: run, to: end);
+      debugGrains += end - run;
+      run = -1;
+    }
+
+    for (var c = _chunk0[g]; c < _chunk1[g]; c++) {
+      final s0 = _chunkS0[c], s1 = _chunkS1[c];
+      if (s1 == s0) continue;
+      if (_chunkBusy[c] != 0) {
+        if (run < 0) run = s0;
+        end = s1;
+        continue;
+      }
+      flush();
+      var pic = _chunkPics[c];
+      if (pic == null) {
+        final rec = ui.PictureRecorder();
+        rest.draw(Canvas(rec), atlas, dots, from: s0, to: s1);
+        pic = _chunkPics[c] = rec.endRecording();
+      }
+      canvas.drawPicture(pic);
+      debugChunkPictures++;
+    }
+    flush();
+  }
+
+  /// Group [g]'s grains at their places, in one batch: what its picture
+  /// draws, and what a stirred frame starts from.
+  _Batch _restOf(int g) {
+    final b = _rest[g];
+    if (!_restOk[g]) {
+      b.clear();
+      _emitAtRest(g, b);
+      _restOk[g] = true;
+    }
+    return b;
+  }
+
+  /// Group [g]'s batch as it is now: at rest, but for the grains the flow
+  /// has pushed, which [_stepWorked] keeps up to date in it.
+  _Batch _liveOf(int g) {
+    final rest = _restOf(g);
+    final b = _liveB[g];
+    if (!_liveOk[g]) {
+      b.copyFrom(rest);
+      _liveOk[g] = true;
+    }
+    return b;
   }
 
   static bool _sameKey(List<double> a, List<double>? b) {
@@ -1951,11 +2568,31 @@ class WildMapField {
     }
   }
 
-  /// Group [g]'s grains at their places, for its picture.
-  void _emitAtRest(int g) {
+  /// Group [g]'s grains at their places, into [into], each noting its
+  /// place there.
+  void _emitAtRest(int g, _Batch into) {
+    for (var c = _chunk0[g]; c < _chunk1[g]; c++) {
+      _chunkS0[c] = into.n;
+      for (var k = _chunkFrom[c]; k < _chunkTo[c]; k++) {
+        _colour(k);
+        _slot[k] = into.add(
+          _hx[k],
+          _hy[k],
+          _size2[k],
+          _argb(_alpha[k], _cr, _cg, _cb),
+        );
+      }
+      _chunkS1[c] = into.n;
+    }
+    if (_chunk1[g] > _chunk0[g]) return;
     for (var k = _from[g]; k < _to[g]; k++) {
       _colour(k);
-      _dots.add(_hx[k], _hy[k], _size2[k], _argb(_alpha[k], _cr, _cg, _cb));
+      _slot[k] = into.add(
+        _hx[k],
+        _hy[k],
+        _size2[k],
+        _argb(_alpha[k], _cr, _cg, _cb),
+      );
     }
   }
 
@@ -2006,7 +2643,7 @@ class WildMapField {
 
   /// Soft green light along each waiting realm's rim, pulsing with it.
   void _paintRimGlow() {
-    final grain = _size.width;
+    final grain = _unit;
     final t = time;
     for (var i = 0; i < 5; i++) {
       final ready = _ready[i];
@@ -2030,7 +2667,7 @@ class WildMapField {
   static const double _bombLife = 2.0;
 
   void _paintMovers() {
-    final grain = _size.width;
+    final grain = _unit;
     final storm = _wx[WildRealm.sky.index];
     final dry = _wx[WildRealm.swamp.index];
     final o = WildRealm.volcano.index;
@@ -2102,7 +2739,7 @@ class WildMapField {
   }
 
   void _paintWeather() {
-    final grain = _size.width;
+    final grain = _unit;
     final v = WildRealm.valley.index;
     final box = _box[v];
     final top = box.top - _side * 0.12, height = _side * 1.1;
@@ -2315,14 +2952,20 @@ class _Batch {
   _Batch(this._src);
 
   final Rect _src;
+
+  /// Somewhere every sprite lies within, so drawing need not measure each
+  /// one; for a field, generously round it, to hold under its groups'
+  /// moves and any push.
+  Rect? cull;
   Float32List _xf = Float32List(0), _rects = Float32List(0);
   Int32List _colors = Int32List(0);
   int n = 0;
 
   void clear() => n = 0;
 
-  void add(double x, double y, double size, int argb) {
-    if ((argb >>> 24) < 3 || size <= 0) return;
+  /// Adds a sprite; its place in the batch, or -1 if too faint to draw.
+  int add(double x, double y, double size, int argb) {
+    if ((argb >>> 24) < 3 || size <= 0) return -1;
     if (n >= _colors.length) _grow();
     final cell = _src.width;
     final s = size / cell;
@@ -2332,7 +2975,27 @@ class _Batch {
     _xf[i + 2] = x - s * cell / 2;
     _xf[i + 3] = y - s * cell / 2;
     _colors[n] = argb;
-    n++;
+    return n++;
+  }
+
+  /// Adds every sprite of [other] (of the same sprite).
+  void appendFrom(_Batch other) {
+    while (_colors.length < n + other.n) {
+      _grow();
+    }
+    _xf.setRange(n * 4, (n + other.n) * 4, other._xf);
+    _colors.setRange(n, n + other.n, other._colors);
+    n += other.n;
+  }
+
+  /// Becomes a copy of [other] (of the same sprite).
+  void copyFrom(_Batch other) {
+    while (_colors.length < other.n) {
+      _grow();
+    }
+    _xf.setRange(0, other.n * 4, other._xf);
+    _colors.setRange(0, other.n, other._colors);
+    n = other.n;
   }
 
   void _grow() {
@@ -2349,15 +3012,17 @@ class _Batch {
     _colors = Int32List(cap)..setAll(0, _colors);
   }
 
-  void draw(Canvas c, ui.Image atlas, Paint paint) {
-    if (n == 0) return;
+  /// Draws sprites [from]..[to] (all of them by default).
+  void draw(Canvas c, ui.Image atlas, Paint paint, {int from = 0, int? to}) {
+    final end = to ?? n;
+    if (end <= from) return;
     c.drawRawAtlas(
       atlas,
-      Float32List.sublistView(_xf, 0, n * 4),
-      Float32List.sublistView(_rects, 0, n * 4),
-      Int32List.sublistView(_colors, 0, n),
+      Float32List.sublistView(_xf, from * 4, end * 4),
+      Float32List.sublistView(_rects, from * 4, end * 4),
+      Int32List.sublistView(_colors, from, end),
       BlendMode.modulate,
-      null,
+      cull,
       paint,
     );
   }
@@ -2366,8 +3031,10 @@ class _Batch {
 int _scaleAlpha(int argb, double t) =>
     (((argb >>> 24) * t).round().clamp(0, 255) << 24) | (argb & 0xFFFFFF);
 
+@pragma('vm:prefer-inline')
 int _byte(double v) => v <= 0 ? 0 : (v >= 1 ? 255 : (v * 255).toInt());
 
+@pragma('vm:prefer-inline')
 int _argb(double a, double r, double g, double b) =>
     (_byte(a) << 24) | (_byte(r) << 16) | (_byte(g) << 8) | _byte(b);
 
