@@ -106,8 +106,11 @@ class _CosmicSurvivalBaseCommandScreenState
   bool _purchasing = false;
   SurvivalShipLoadout? _shipLoadout;
 
-  /// Scrolling a tab's content down tucks the header and tab bar away and
+  /// Scrolling the Mastery tree down tucks the header and tab bar away and
   /// drops a slim balance bar into their place; scrolling up restores them.
+  /// Only Mastery does this — the tree is the one view that needs the room.
+  /// The other tabs are short lists, and on them the header (and the way to
+  /// the other tabs) stays put.
   bool _chromeCollapsed = false;
 
   /// Whether the scroll gesture in progress started with the content already
@@ -159,6 +162,10 @@ class _CosmicSurvivalBaseCommandScreenState
     // The TabBarView's own horizontal paging reports here too; ignore it.
     final metrics = notification.metrics;
     if (metrics.axis != Axis.vertical) return false;
+    // Only the Mastery tree tucks the header away.
+    if (_tabController.index != 0 || _tabController.indexIsChanging) {
+      return false;
+    }
     final atTop = metrics.pixels <= metrics.minScrollExtent;
     if (notification is ScrollStartNotification) {
       // Remembered per gesture: only a pull that *begins* at the top may

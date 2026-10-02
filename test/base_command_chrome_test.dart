@@ -173,4 +173,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(heightOf(tester, 'base-command-chrome'), greaterThan(0));
   });
+
+  testWidgets('only the Mastery tree hides the header', (tester) async {
+    await pumpScreen(tester, height: 640);
+    await tester.tap(find.text('ORB').first);
+    await tester.pumpAndSettle();
+
+    // Scroll the orb list well down: the header and tabs stay.
+    final list = find.text('ORB BASE SKINS');
+    await tester.drag(list, const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(heightOf(tester, 'base-command-chrome'), greaterThan(0));
+    expect(heightOf(tester, 'base-command-balance-bar'), 0);
+  });
 }
