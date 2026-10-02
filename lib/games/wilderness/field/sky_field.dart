@@ -222,6 +222,7 @@ class SkyField extends _GrainField {
         isles.add(isle(x + side * hw * 0.16, hw, _feet(p), seatX: x));
       }
       // Under where its encounter partner stands.
+      if (!_partners) continue;
       final bp = p.getBattlePos();
       final px = x + side * kFieldPairGap;
       final hw = p.size.x * 0.85;

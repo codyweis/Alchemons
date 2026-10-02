@@ -138,14 +138,24 @@ abstract class _GrainField extends FieldArt {
 
   bool _loop = false;
 
+  /// Whether ground is built where each point's encounter partner stands
+  /// (see [FieldArt.layout]).
+  bool _partners = true;
+
   /// Each layer's width as built — in a looping field, one loop of it.
   final Map<SceneLayer, double> _widths = {};
 
   @override
-  void layout(List<SpawnPoint> spawns, double worldWidth, {bool loop = false}) {
+  void layout(
+    List<SpawnPoint> spawns,
+    double worldWidth, {
+    bool loop = false,
+    bool partners = true,
+  }) {
     _spawns = spawns;
     _worldWidth = worldWidth;
     _loop = loop;
+    _partners = partners;
   }
 
   /// How far [layer] runs before it repeats (0 if it never does).

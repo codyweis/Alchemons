@@ -80,6 +80,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
     required this.stats,
     required this.onCustomize,
     required this.onClose,
+    this.onDescend,
   });
 
   final HomePlanet homePlanet;
@@ -87,6 +88,9 @@ class HomePlanetMenuOverlay extends StatelessWidget {
   final HomeBaseStats stats;
   final VoidCallback onCustomize;
   final VoidCallback onClose;
+
+  /// Down to the home biome, the field under the planet.
+  final VoidCallback? onDescend;
 
   @override
   Widget build(BuildContext context) {
@@ -613,16 +617,33 @@ class HomePlanetMenuOverlay extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // The one thing you came here to do, across the whole dock.
-            // The garrison used to sit beside it competing for the row; it
+            // What you came here to do: change the planet, or go down to
+            // the biome under it. The garrison used to sit beside them; it
             // now lives inside the lab's HOME tab, where the rest of what
             // the planet holds is already edited.
-            _action(
-              context: context,
-              icon: AppIcons.auto_awesome,
-              label: 'CUSTOMIZE',
-              onTap: context.soundTap(onCustomize),
-              primary: true,
+            Row(
+              children: [
+                if (onDescend != null) ...[
+                  Expanded(
+                    child: _action(
+                      context: context,
+                      icon: AppIcons.landscape_rounded,
+                      label: 'DESCEND',
+                      onTap: context.soundTap(onDescend!),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: _action(
+                    context: context,
+                    icon: AppIcons.auto_awesome,
+                    label: 'CUSTOMIZE',
+                    onTap: context.soundTap(onCustomize),
+                    primary: true,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             // ...and leaving, stacked underneath so it never competes with

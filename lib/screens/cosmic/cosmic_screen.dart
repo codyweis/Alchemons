@@ -10,6 +10,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kDebugMode;
 
 import 'package:alchemons/navigation/world_transition.dart';
+import 'package:alchemons/models/home_biome.dart';
+import 'package:alchemons/screens/home_biome/home_biome_screen.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
@@ -6116,6 +6118,42 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// Enter a gated planet's dungeon with every carried creature whose element
   /// the planet requires. Stars are persisted inside the dungeon (instant
   /// bank); we just reload star state on return.
+  /// Down to the home biome: the field under the home planet, where the
+  /// player's own Alchemons live. Through the glyph portal, turned to
+  /// landscape as the wild is, and back up to space the same way.
+  Future<void> _descendHome() async {
+    setState(() => _showHomeMenu = false);
+    _game?.pauseEngine();
+    final layout = await HomeBiomeLayout.load(
+      context.read<AlchemonsDatabase>().settingsDao,
+    );
+    if (!mounted) return;
+    _playCosmicSfx(SoundCue.cosmicPortalOpen);
+    final ready = ValueNotifier<bool>(false);
+    await VoidPortal.pushThroughGlyphs<void>(
+      context,
+      page: HomeBiomeScreen(revealReady: ready),
+      title: 'Home',
+      label: 'DESCENDING',
+      // The realm it is now borrows the portal of the wild one.
+      element: layout.realm.portalElement,
+      ready: ready,
+      orientation: const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ],
+      returnOrientation: const [
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ],
+    );
+    if (!mounted) return;
+    unawaited(
+      context.read<AudioController>().playCosmicExplorationMusic(cycle: false),
+    );
+    if (!_anyOverlayOpen && !_showMiniMap) _game?.resumeEngine();
+  }
+
   Future<void> _enterDungeon(CosmicPlanet planet) async {
     final req = kCosmicPlanetEntry[planet.element];
     if (req == null || !kPlanetDungeonLayouts.containsKey(planet.element)) {
@@ -8057,6 +8095,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                       _showCustomizationMenu = true;
                     }),
                     onClose: () => setState(() => _showHomeMenu = false),
+                    onDescend: _descendHome,
                   ),
                 ),
 

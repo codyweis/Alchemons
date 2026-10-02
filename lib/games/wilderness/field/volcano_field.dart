@@ -430,6 +430,7 @@ class VolcanoField extends _GrainField {
         );
       }
       // Under where its encounter partner stands.
+      if (!_partners) continue;
       final hw = size * (basalt ? 0.8 : 0.85);
       shelves.add(
         shelf(

@@ -413,6 +413,7 @@ class SwampField extends _GrainField {
         );
       }
       // Under where its encounter partner stands.
+      if (!_partners) continue;
       final hw = size * (stone ? 0.85 : 0.75);
       banks.add(
         bank(

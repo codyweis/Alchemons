@@ -139,11 +139,14 @@ abstract class FieldArt {
   /// Spawn x is `normalizedPos.dx * worldWidth`, in its layer's units.
   /// With [loop], each layer's sheets are built one loop wide and must join
   /// seamlessly end to end, and a spawn's x is `normalizedPos.dx` of its
-  /// layer's loop instead.
+  /// layer's loop instead. Without [partners], nothing is built for an
+  /// encounter partner beside each point (the home biome, where there are
+  /// no encounters — only the player's own creatures, standing for show).
   void layout(
     List<SpawnPoint> spawns,
     double worldWidth, {
     bool loop = false,
+    bool partners = true,
   }) {}
 
   /// Where the feet of a creature at [spawnId] go, when the field built it

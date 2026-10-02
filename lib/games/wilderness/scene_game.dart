@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/database/alchemons_db.dart' show CreatureInstance;
 import 'package:alchemons/games/wilderness/creature_feet.dart';
 import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/games/wilderness/harvest_field.dart';
@@ -51,9 +52,18 @@ typedef WildVisualResolver =
 enum SceneMode { exploration, encounter }
 
 class SceneGame extends FlameGame with ScaleDetector {
-  SceneGame({required this.scene, this.transparentBackground = false});
+  SceneGame({
+    required SceneDefinition scene,
+    this.transparentBackground = false,
+    this.showcase = false,
+  }) : _scene = scene;
 
   final bool transparentBackground;
+
+  /// A field shown for its own sake — the home biome. No wild creatures and
+  /// no encounters: the player's own creatures stand at its points for show
+  /// (see [showResident]), and no ground is built for encounter partners.
+  final bool showcase;
 
   @override
   Color backgroundColor() {
@@ -69,7 +79,8 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   bool showSpawnDebug = true; // toggle at runtime
 
-  final SceneDefinition scene;
+  SceneDefinition _scene;
+  SceneDefinition get scene => _scene;
   final CameraComponent cam = CameraComponent();
 
   // Injected at runtime by ScenePage
@@ -325,7 +336,12 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     // Build parallax layers
     final art = _art = scene.art?.call();
-    art?.layout(scene.spawnPoints, scene.worldWidth, loop: scene.loop);
+    art?.layout(
+      scene.spawnPoints,
+      scene.worldWidth,
+      loop: scene.loop,
+      partners: !showcase,
+    );
     for (final layerDef in scene.layers) {
       if (art != null) {
         _layers[layerDef.id] = _ArtLayer(
@@ -1228,10 +1244,15 @@ class SceneGame extends FlameGame with ScaleDetector {
     // Disable gestures during encounter
     if (_mode == SceneMode.encounter) return;
     _pinchStartZoom = cam.viewfinder.zoom;
+    if (arranging && _pickUpAt(info.eventPosition.widget)) return;
   }
 
   @override
   void onScaleUpdate(ScaleUpdateInfo info) {
+    if (_held != null) {
+      _heldFinger.setFrom(info.eventPosition.widget);
+      return;
+    }
     _touch(info.eventPosition.widget, info.delta.global);
     if (_mode == SceneMode.encounter) return;
 
@@ -1268,8 +1289,335 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   @override
   void onScaleEnd(ScaleEndInfo info) {
+    if (_held != null) {
+      _putDown();
+      return;
+    }
     if (_mode == SceneMode.encounter) return;
     _pinchStartZoom = null;
+  }
+
+  // ------------------------------------------------------------
+  // Residents: the player's own creatures, in a showcase field
+  // ------------------------------------------------------------
+
+  /// A resident tapped, by its point's id.
+  void Function(String spawnId)? onResidentTap;
+
+  /// A resident picked up to be moved, by its point's id.
+  void Function(String spawnId)? onResidentPicked;
+
+  /// A resident put down after being moved: its point's id, where it now
+  /// stands as a share of its layer's loop, and how high as a share of the
+  /// field's height (the anchor's — its middle, not its feet). The owner
+  /// decides where it ends up and calls [relayout].
+  void Function(String spawnId, double share, double height)? onResidentDropped;
+
+  /// Whether a resident can be picked up and moved with a finger. A drag
+  /// that starts on nothing still pans the field.
+  bool arranging = false;
+
+  final Map<String, WildMonComponent> _residents = {};
+  final Map<String, (Creature, CreatureInstance?, bool)> _residentLooks = {};
+  ScaleEffect? _marking;
+  String? _markedId;
+
+  /// The resident being moved, the finger moving it (screen px), and where
+  /// on the creature it was taken hold of (layer units, from its anchor).
+  String? _held;
+  final Vector2 _heldFinger = Vector2.zero();
+  final Vector2 _heldGrip = Vector2.zero();
+
+  /// The residents by point id, for previews.
+  @visibleForTesting
+  Map<String, WildMonComponent> get debugResidents => _residents;
+
+  /// Completes once every resident shown so far has loaded its sprite.
+  Future<void> residentsLoaded() =>
+      Future.wait([for (final c in _residents.values) c.loaded]);
+
+  /// Stands [creature] at [spawnId] as one of the player's own — drawn as
+  /// [instance] is (its tint, its effect), facing the other way with
+  /// [flip]; with [gather], it comes together out of grains of itself as a
+  /// summoned creature does.
+  Future<void> showResident(
+    String spawnId,
+    Creature creature, {
+    CreatureInstance? instance,
+    bool flip = false,
+    bool gather = false,
+  }) async {
+    final sp = scene.spawnPoints.where((s) => s.id == spawnId).firstOrNull;
+    final anchor = _spawnPointComps[spawnId];
+    if (sp == null || anchor == null) return;
+    _residents.remove(spawnId)?.removeFromParent();
+    _residentLooks[spawnId] = (creature, instance, flip);
+    final size = _sizeForSpecies(sp.size, creature);
+    final comp =
+        WildMonComponent(
+            hydrated: creature,
+            instance: instance,
+            speciesId: creature.id,
+            rarityLabel: '',
+            desiredSize: size,
+            flipX: flip,
+            pulse: false,
+            onTap: () => onResidentTap?.call(spawnId),
+            resolver: speciesSpriteResolver,
+          )
+          ..anchor = Anchor.center
+          ..position = Vector2.zero();
+    _residents[spawnId] = comp;
+    _standDrop[spawnId] = _feetBelow(creature.id, creature, size);
+    anchor.position.y = _anchorY(sp, sp.normalizedPos.dy * _viewportH);
+    anchor.add(comp);
+    // Glass gives back what stands on it, not what flies over it.
+    if (!sp.aloft) {
+      _mirrorOnGlass(anchor, comp, sp.anchor, _standDrop[spawnId]!);
+    }
+    if (_markedId == spawnId) markResident(spawnId);
+    if (gather) {
+      anchor.add(
+        WildSummon.gather(comp, accent: _accentOf(comp), mirror: flip)
+          ..priority = 90,
+      );
+    }
+  }
+
+  /// Sends the resident at [spawnId] away: it comes apart into grains.
+  void removeResident(String spawnId) {
+    _residentLooks.remove(spawnId);
+    if (_held == spawnId) _held = null;
+    _sendHome(_residents.remove(spawnId));
+  }
+
+  /// Turns the resident at [spawnId] to face the other way.
+  void turnResident(String spawnId) {
+    final look = _residentLooks[spawnId];
+    if (look == null) return;
+    showResident(spawnId, look.$1, instance: look.$2, flip: !look.$3);
+  }
+
+  /// The resident being looked at (arranging, the one chosen), breathing
+  /// gently as a wild creature does to be tapped; null for none.
+  void markResident(String? spawnId) {
+    _markedId = spawnId;
+    final was = _marking;
+    _marking = null;
+    if (was != null) {
+      final c = was.parent;
+      was.removeFromParent();
+      if (c is PositionComponent) c.scale = Vector2.all(1);
+    }
+    final c = spawnId == null ? null : _residents[spawnId];
+    if (c == null) return;
+    c.add(
+      _marking = ScaleEffect.to(
+        Vector2.all(1.07),
+        EffectController(
+          duration: 0.55,
+          reverseDuration: 0.55,
+          infinite: true,
+          curve: Curves.easeInOut,
+        ),
+      ),
+    );
+  }
+
+  /// Where on its row, as a share of the row's loop, a resident put down at
+  /// the screen's [screenX] on [layer] would stand.
+  double shareAtScreen(SceneLayer layer, double screenX) {
+    final container = _layers[layer]?.container;
+    final period = _loops ? _periodOf(layer) : scene.worldWidth.toDouble();
+    final local = _fieldViewFor(container?.position.x ?? 0).local(screenX, 0);
+    return (local.dx / period) % 1.0;
+  }
+
+  /// Where the resident at [spawnId] is on the screen, across; null when it
+  /// has no anchor.
+  double? screenXOf(String spawnId) {
+    final anchor = _spawnPointComps[spawnId];
+    final container = anchor?.parent;
+    if (anchor == null || container is! PositionComponent) return null;
+    final view = _fieldViewFor(container.position.x);
+    return (anchor.position.x - view.left) * view.zoom;
+  }
+
+  /// Puts the scene's points where [spawns] says — the home biome after a
+  /// resident comes, moves or goes. The field lays its ground out again
+  /// under them, only the layers whose points changed are rebuilt, and
+  /// every resident is seated on its new perch (shown again where its
+  /// point changed size).
+  void relayout(List<SpawnPoint> spawns) {
+    final before = {for (final p in scene.spawnPoints) p.id: p};
+    final changed = <SceneLayer>{};
+    final resized = <String>[];
+    for (final p in spawns) {
+      final was = before.remove(p.id);
+      if (was == null) {
+        changed.add(p.anchor);
+        continue;
+      }
+      if (was.anchor != p.anchor ||
+          was.normalizedPos != p.normalizedPos ||
+          was.perch != p.perch ||
+          was.size != p.size) {
+        changed
+          ..add(p.anchor)
+          ..add(was.anchor);
+      }
+      // Shown again where it changed size, or took to the air or came
+      // down (glass mirrors only what stands on it).
+      if (was.anchor != p.anchor ||
+          was.size != p.size ||
+          was.perch != p.perch) {
+        resized.add(p.id);
+      }
+    }
+    for (final gone in before.values) {
+      changed.add(gone.anchor);
+      _spawnPointComps.remove(gone.id)?.removeFromParent();
+      _standDrop.remove(gone.id);
+      _residents.remove(gone.id);
+      _residentLooks.remove(gone.id);
+    }
+    _scene = _scene.copyWith(spawnPoints: spawns);
+
+    final art = _art;
+    if (art != null) {
+      art.layout(
+        spawns,
+        scene.worldWidth,
+        loop: scene.loop,
+        partners: !showcase,
+      );
+      for (final id in changed) {
+        final layer = _layers[id];
+        if (layer is _ArtLayer) layer.invalidate();
+      }
+    }
+
+    // Every point an anchor, on its own layer.
+    for (final p in spawns) {
+      final parent = _layers[p.anchor]?.container ?? layersRoot;
+      final anchor = _spawnPointComps[p.id];
+      if (anchor == null) {
+        final a = PositionComponent(
+          size: Vector2.all(1),
+          priority: 10,
+          anchor: Anchor.center,
+        );
+        parent.add(a);
+        _spawnPointComps[p.id] = a;
+      } else if (anchor.parent != parent) {
+        anchor.parent = parent;
+      }
+    }
+
+    _layoutLayersForScreen();
+    for (final id in resized) {
+      final look = _residentLooks[id];
+      if (look != null) {
+        showResident(id, look.$1, instance: look.$2, flip: look.$3);
+      }
+    }
+  }
+
+  /// The resident under the screen point [at], nearest first: the near
+  /// layer is in front of the hills.
+  String? _residentAt(Vector2 at) {
+    for (final layer in const [
+      SceneLayer.layer5,
+      SceneLayer.layer4,
+      SceneLayer.layer3,
+      SceneLayer.layer2,
+    ]) {
+      final container = _layers[layer]?.container;
+      if (container == null) continue;
+      final local = _fieldViewFor(container.position.x).local(at.x, at.y);
+      String? best;
+      var bestD = double.infinity;
+      for (final e in _residents.entries) {
+        final anchor = _spawnPointComps[e.key];
+        if (anchor == null || anchor.parent != container) continue;
+        final half = e.value.size * 0.6;
+        final dx = local.dx - anchor.position.x;
+        final dy = local.dy - anchor.position.y;
+        if (dx.abs() > half.x || dy.abs() > half.y) continue;
+        final d = dx * dx + dy * dy;
+        if (d < bestD) {
+          bestD = d;
+          best = e.key;
+        }
+      }
+      if (best != null) return best;
+    }
+    return null;
+  }
+
+  bool _pickUpAt(Vector2 at) {
+    final id = _residentAt(at);
+    final anchor = id == null ? null : _spawnPointComps[id];
+    final container = anchor?.parent;
+    if (id == null || anchor == null || container is! PositionComponent) {
+      return false;
+    }
+    final local = _fieldViewFor(container.position.x).local(at.x, at.y);
+    _held = id;
+    _heldFinger.setFrom(at);
+    _heldGrip.setValues(
+      local.dx - anchor.position.x,
+      local.dy - anchor.position.y,
+    );
+    anchor.priority = 40;
+    onResidentPicked?.call(id);
+    return true;
+  }
+
+  /// Keeps the held resident under the finger, and pans the field when the
+  /// finger is near either edge, so a creature can be carried round.
+  void _carry(double dt) {
+    final id = _held;
+    final anchor = id == null ? null : _spawnPointComps[id];
+    final container = anchor?.parent;
+    if (id == null || anchor == null || container is! PositionComponent) {
+      return;
+    }
+    const edge = 64.0;
+    final f = _heldFinger.x;
+    final push = f < edge
+        ? -(edge - f) / edge
+        : (f > size.x - edge ? (f - (size.x - edge)) / edge : 0.0);
+    if (push != 0) {
+      _cameraX += push * 360 * dt / cam.viewfinder.zoom;
+      _targetCameraX = _cameraX;
+    }
+    final local = _fieldViewFor(
+      container.position.x,
+    ).local(_heldFinger.x, _heldFinger.y);
+    final sp = scene.spawnPoints.where((s) => s.id == id).firstOrNull;
+    if (sp == null) return;
+    anchor.position.x = local.dx - _heldGrip.x;
+    // What cannot float stays on the ground, lifted a little in the hand.
+    anchor.position.y = speciesCanFloat(_residentLooks[id]?.$1.id ?? '')
+        ? (local.dy - _heldGrip.y).clamp(_viewportH * 0.1, _viewportH * 0.92)
+        : _anchorY(sp, sp.normalizedPos.dy * _viewportH) - 10;
+  }
+
+  void _putDown() {
+    final id = _held;
+    _held = null;
+    final anchor = id == null ? null : _spawnPointComps[id];
+    final sp = id == null
+        ? null
+        : scene.spawnPoints.where((s) => s.id == id).firstOrNull;
+    if (id == null || anchor == null || sp == null) return;
+    anchor.priority = 10;
+    final period = _loops ? _periodOf(sp.anchor) : scene.worldWidth.toDouble();
+    final share = (anchor.position.x / period) % 1.0;
+    onResidentDropped?.call(id, share, anchor.position.y / _viewportH);
+    // Back where its point says, unless the owner moved the point.
+    _repositionSpawnPoints();
   }
 
   // ------------------------------------------------------------
@@ -1395,6 +1743,7 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     _applyCamera();
     _updateParallaxLayers();
+    if (_held != null) _carry(dt);
   }
   // ------------------------------------------------------------
   // Resize / relayout
@@ -1620,7 +1969,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     final viewportW = size.x / (layersRoot.scale.x * cam.viewfinder.zoom);
     for (final p in scene.spawnPoints) {
       final comp = _spawnPointComps[p.id];
-      if (comp == null) continue;
+      if (comp == null || p.id == _held) continue;
 
       // ✅ Same coordinate system as above
       final base = _spawnBaseX(p);
@@ -1647,6 +1996,10 @@ class WildMonComponent extends PositionComponent
   final bool pulse;
 
   final Creature? hydrated;
+
+  /// The player's own creature this is, when it is one: drawn with what
+  /// only the instance knows (its lineage tint, its alchemy effect).
+  final CreatureInstance? instance;
   final SpeciesSpriteResolver? resolver;
 
   WildMonComponent({
@@ -1655,6 +2008,7 @@ class WildMonComponent extends PositionComponent
     required this.onTap,
     required this.desiredSize,
     this.hydrated,
+    this.instance,
     this.resolver,
     this.flipX = false,
     this.pulse = true,
@@ -1670,7 +2024,7 @@ class WildMonComponent extends PositionComponent
     size = desiredSize;
 
     if (hydrated?.spriteData != null) {
-      final visuals = visualsFromInstance(hydrated!, null);
+      final visuals = visualsFromInstance(hydrated!, instance);
       // An ally's mutation is its sheet: baked once, then drawn as any other.
       final sheet = sheetForVisuals(sheetFromCreature(hydrated!), visuals)!;
 
@@ -2334,6 +2688,10 @@ class _ArtLayer extends _ParallaxLayer {
   Size? _screen;
   _FieldSheetsComponent? _sheets;
   bool _liveMounted = false;
+
+  /// Bakes the layer again at its next [build], whatever its size — its
+  /// field has laid its ground out again.
+  void invalidate() => _size = null;
 
   void build(Size size, Size screen, double pixelRatio) {
     if (size == _size && screen == _screen) return;
