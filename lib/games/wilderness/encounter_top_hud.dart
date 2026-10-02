@@ -36,7 +36,7 @@ const double kEncounterHudLeftGutter = 74;
 const double kEncounterHudGap = 12;
 
 /// Below this the identity is not worth reading beside the party strip, so it
-/// goes under it instead. A rarity chip plus four potential cells needs it.
+/// goes under it instead. A rarity chip and the Potential plate need it.
 const double kEncounterIdentityMinWidth = 220;
 
 /// The identity never spreads wider than this even on a tablet — a name
@@ -299,23 +299,42 @@ class _EncounterIdentity extends StatelessWidget {
           ? CrossAxisAlignment.start
           : CrossAxisAlignment.center,
       children: [
-        if (showRarityBadge) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(
-              color: _rarityColor.withValues(alpha: 0.16),
-              border: Border(left: BorderSide(color: _rarityColor, width: 2)),
-            ),
-            child: Text(
-              rarity.toUpperCase(),
-              style: bracketText(
-                context,
-                11,
-                _rarityColor,
-                weight: FontWeight.w800,
-                letterSpacing: 1.0,
-              ),
-            ),
+        // Rarity and the Potential plate share one line: the chip left most
+        // of it empty, and a full row of four spread-out cells inside the
+        // slate cost the band a whole extra line. On a lane too narrow for
+        // both the plate wraps under the chip rather than squeezing it.
+        if (showRarityBadge || readings != null) ...[
+          Wrap(
+            alignment: dossier ? WrapAlignment.start : WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              if (showRarityBadge)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _rarityColor.withValues(alpha: 0.16),
+                    border: Border(
+                      left: BorderSide(color: _rarityColor, width: 2),
+                    ),
+                  ),
+                  child: Text(
+                    rarity.toUpperCase(),
+                    style: bracketText(
+                      context,
+                      11,
+                      _rarityColor,
+                      weight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ),
+              if (readings != null) _PotentialReadout(readings: readings),
+            ],
           ),
           const SizedBox(height: 4),
         ],
@@ -340,10 +359,10 @@ class _EncounterIdentity extends StatelessWidget {
             ],
           ),
         ),
-        // The slate only when it has something to say: a reading, a
-        // stability, or a status. An empty one was a box asking the player
-        // to "choose a protocol".
-        if (readings != null || breedChance != null || status.isNotEmpty) ...[
+        // The slate only when it has something to say: a stability or a
+        // status. An empty one was a box asking the player to "choose a
+        // protocol".
+        if (breedChance != null || status.isNotEmpty) ...[
           SizedBox(height: dossier ? 6 : AppSpace.sm),
           DecoratedBox(
             // Opaque, not a wash: this reads against open sky.
@@ -360,24 +379,10 @@ class _EncounterIdentity extends StatelessWidget {
                 horizontal: AppSpace.sm + 2,
                 vertical: 7,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (readings != null) ...[
-                    _PotentialReadout(readings: readings),
-                    if (status.isNotEmpty || breedChance != null) ...[
-                      const SizedBox(height: 5),
-                      Container(height: 1, color: _kPalette.lineSoft),
-                      const SizedBox(height: 5),
-                    ],
-                  ],
-                  if (status.isNotEmpty || breedChance != null)
-                    _StatusLine(
-                      style: statusStyle,
-                      status: status,
-                      breedChance: breedChance,
-                    ),
-                ],
+              child: _StatusLine(
+                style: statusStyle,
+                status: status,
+                breedChance: breedChance,
               ),
             ),
           ),
@@ -387,60 +392,52 @@ class _EncounterIdentity extends StatelessWidget {
   }
 }
 
-/// The four Potential ratings, in equal columns so the numbers line up
-/// however wide the slate is.
+/// The four Potential ratings as one tight plate beside the rarity chip —
+/// sized to its figures, not stretched across the slate.
 class _PotentialReadout extends StatelessWidget {
   const _PotentialReadout({required this.readings});
 
   final List<WildPotentialReading> readings;
 
+  static const _accent = Color(0xFF60A5FA);
+
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFF60A5FA);
-    return Row(
-      children: [
-        for (var i = 0; i < readings.length; i++) ...[
-          if (i > 0)
-            Container(
-              width: 1,
-              height: 14,
-              color: _kPalette.lineSoft,
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-            ),
-          Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    readings[i].label,
-                    style: bracketText(
-                      context,
-                      9,
-                      _kPalette.muted,
-                      weight: FontWeight.w700,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    readings[i].value.round().clamp(1, 100).toString(),
-                    style: bracketText(
-                      context,
-                      12,
-                      accent,
-                      weight: FontWeight.w900,
-                    ),
-                  ),
-                ],
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
+      // Opaque like the slate: the figures read against open sky. No accent
+      // edge — the rarity chip beside it owns the line's colour.
+      color: _kPalette.bg0.withValues(alpha: 0.86),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          for (var i = 0; i < readings.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Text(
+              readings[i].label,
+              style: bracketText(
+                context,
+                8.5,
+                _kPalette.muted,
+                weight: FontWeight.w700,
+                letterSpacing: 0.5,
               ),
             ),
-          ),
+            const SizedBox(width: 3),
+            Text(
+              readings[i].value.round().clamp(1, 100).toString(),
+              style: bracketText(
+                context,
+                11,
+                _accent,
+                weight: FontWeight.w900,
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

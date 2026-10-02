@@ -13,7 +13,42 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
-/// Condensed inventory overlay for in-game use - items only, no vials
+/// What a field can use, in the order a player reaches for it.
+///
+/// The pack used to list everything that was not a vial — boss relics, loot
+/// boxes, enhancement and cosmetic items — and none of that can be used from
+/// a field, so it only buried the gear that can. Those stay in the main
+/// inventory. Mirrors what the ship's hold shows in space.
+const List<String> kFieldGearOrder = [
+  InvKeys.wildFusion,
+  InvKeys.wildlifeLure,
+  InvKeys.harvesterGuaranteed,
+  InvKeys.harvesterStdVolcanic,
+  InvKeys.harvesterStdOceanic,
+  InvKeys.harvesterStdVerdant,
+  InvKeys.harvesterStdEarthen,
+  InvKeys.harvesterStdArcane,
+  InvKeys.portalKeyVolcanic,
+  InvKeys.portalKeyOceanic,
+  InvKeys.portalKeyVerdant,
+  InvKeys.portalKeyEarthen,
+  InvKeys.portalKeyArcane,
+  InvKeys.staminaPotion,
+];
+
+/// The field gear in [items], in [kFieldGearOrder].
+List<InventoryItem> fieldGearIn(List<InventoryItem> items) {
+  final held = {
+    for (final item in items)
+      if (item.qty > 0) item.key: item,
+  };
+  return [
+    for (final key in kFieldGearOrder)
+      if (held[key] case final item?) item,
+  ];
+}
+
+/// The wilderness Items panel: the field gear only, in a panel sized to it.
 class GameInventoryOverlay extends StatefulWidget {
   const GameInventoryOverlay({super.key});
 
@@ -22,12 +57,6 @@ class GameInventoryOverlay extends StatefulWidget {
 }
 
 class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
-  static const Set<String> _spaceOnlyInventoryKeys = {
-    'wallet_astral_shards',
-    'item.astral_shard',
-    'item.astral_shards',
-  };
-
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
@@ -37,21 +66,18 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
     return StreamBuilder<List<InventoryItem>>(
       stream: db.inventoryDao.watchItemInventory(),
       builder: (context, snapshot) {
-        final allItems = snapshot.data ?? [];
-        final items = allItems
-            .where(
-              (item) =>
-                  !item.key.startsWith('vial.') &&
-                  !shouldHideInventoryItem(item.key) &&
-                  !_isSpaceOnlyInventoryItem(item.key),
-            )
-            .toList();
+        final items = fieldGearIn(
+          snapshot.data ?? const [],
+        ).where((item) => registry.containsKey(item.key)).toList();
 
         if (items.isEmpty) {
           return _buildEmptyState(t);
         }
 
+        // Sized to the gear, not the screen: a dozen items used to sit at
+        // the top of a full-height panel of nothing.
         return Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             _InventoryPanelHeader(
               title: 'Field Inventory',
@@ -62,9 +88,9 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
               },
             ),
             Container(height: 1, color: t.borderAccent.withValues(alpha: 0.4)),
-            // Grid
-            Expanded(
+            Flexible(
               child: GridView.builder(
+                shrinkWrap: true,
                 padding: const EdgeInsets.all(10),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 5,
@@ -75,9 +101,9 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                 itemCount: items.length,
                 itemBuilder: (context, index) {
                   final item = items[index];
-                  final def = registry[item.key];
-                  if (def == null) return const SizedBox.shrink();
+                  final def = registry[item.key]!;
                   return _CompactItemCard(
+                    key: ValueKey('field-item-$index'),
                     item: item,
                     def: def,
                     t: t,
@@ -94,14 +120,9 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
     );
   }
 
-  bool _isSpaceOnlyInventoryItem(String key) {
-    final normalized = key.toLowerCase();
-    return _spaceOnlyInventoryKeys.contains(normalized) ||
-        normalized.contains('astral_shard');
-  }
-
   Widget _buildEmptyState(ForgeTokens t) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         _InventoryPanelHeader(
           title: 'Field Inventory',
@@ -111,10 +132,11 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
           },
         ),
         Container(height: 1, color: t.borderAccent.withValues(alpha: 0.4)),
-        Expanded(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
           child: Center(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   AppIcons.inventory_2_outlined,
@@ -629,6 +651,7 @@ class _CompactItemCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const _CompactItemCard({
+    super.key,
     required this.item,
     required this.def,
     required this.t,

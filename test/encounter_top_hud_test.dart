@@ -28,6 +28,7 @@ Future<void> _pump(
   List<WildPotentialReading>? potentials,
   double? breedChance = 0.95,
   String status = 'Select a party ally to begin fusion.',
+  String rarity = 'common',
 }) async {
   tester.view.physicalSize = surface;
   tester.view.devicePixelRatio = 1.0;
@@ -56,7 +57,7 @@ Future<void> _pump(
                   child: WildEncounterTopHud(
                     key: _identityKey,
                     name: 'AIRLET',
-                    rarity: 'common',
+                    rarity: rarity,
                     status: status,
                     breedChance: breedChance,
                     potentials: potentials,
@@ -77,6 +78,13 @@ Future<void> _pump(
   );
   await tester.pump();
 }
+
+const List<WildPotentialReading> _readings = [
+  (label: 'SPD', value: 76),
+  (label: 'INT', value: 34),
+  (label: 'STR', value: 45),
+  (label: 'BEA', value: 67),
+];
 
 /// The identity block is the only thing in the band carrying the name.
 Rect _identityRect(WidgetTester tester) =>
@@ -182,21 +190,21 @@ void main() {
       }
     });
 
-    testWidgets('four aligned cells once it is unlocked', (tester) async {
+    testWidgets('one line beside the rarity chip once it is unlocked', (
+      tester,
+    ) async {
+      // The test font draws every glyph full-width, so a short rarity keeps
+      // this case on one line; the wrap is pinned separately below.
       await _pump(
         tester,
         surface: const Size(915, 412),
-        potentials: const [
-          (label: 'SPD', value: 76),
-          (label: 'INT', value: 34),
-          (label: 'STR', value: 45),
-          (label: 'BEA', value: 67),
-        ],
+        rarity: 'rare',
+        potentials: _readings,
       );
 
       expect(find.text('SPD'), findsOneWidget);
       expect(find.text('76'), findsOneWidget);
-      // Equal columns: the four cells share one baseline and one bar.
+      // One tight line, not a second row inside the slate.
       final tops = [
         'SPD',
         'INT',
@@ -204,11 +212,40 @@ void main() {
         'BEA',
       ].map((l) => tester.getRect(find.text(l)).top).toSet();
       expect(tops.length, 1, reason: 'the four cells must sit on one line');
-      // And the readout sits above the status line, inside the same slate.
+      // On the rarity chip's line, above the name — so unlocking the
+      // scanner costs the band no height at all.
+      final rarity = tester.getRect(find.text('RARE'));
+      expect(tester.getRect(find.text('SPD')).left, greaterThan(rarity.right));
       expect(
         tester.getRect(find.text('SPD')).bottom,
-        lessThan(tester.getRect(find.text('95.0%')).top),
+        lessThan(_identityRect(tester).top),
       );
+      final locked = tester.getRect(find.byType(WildEncounterTopHud)).height;
+      await _pump(tester, surface: const Size(915, 412), rarity: 'rare');
+      expect(
+        tester.getRect(find.byType(WildEncounterTopHud)).height,
+        locked,
+        reason: 'the Potential readout must not add a row to the band',
+      );
+    });
+
+    testWidgets('wraps under the chip rather than overflowing it', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        surface: const Size(915, 412),
+        rarity: 'legendary',
+        potentials: _readings,
+      );
+
+      // No overflow was reported, and the plate dropped to its own line
+      // still above the name.
+      expect(tester.takeException(), isNull);
+      final chip = tester.getRect(find.text('LEGENDARY'));
+      final plate = tester.getRect(find.text('SPD'));
+      expect(plate.top, greaterThanOrEqualTo(chip.bottom));
+      expect(plate.bottom, lessThan(_identityRect(tester).top));
     });
   });
 
