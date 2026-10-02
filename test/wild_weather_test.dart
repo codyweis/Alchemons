@@ -245,12 +245,19 @@ void main() {
 
     // A clear visit with nothing owed: no rainbow.
     expect(await s.takeAftermath('valley'), isNull);
+    expect(s.owesAftermath('valley'), isFalse);
 
     // A rainy visit: no rainbow yet — it is still raining.
     await s.debugBringWeather('valley');
     await s.noteWeatherVisit('valley');
+    expect(s.owesAftermath('valley'), isFalse, reason: 'still raining');
     expect(await s.takeAftermath('valley'), isNull);
     await s.clearSceneSpawns('valley');
+    // The rain gone, the map shows the rainbow waiting — after a restart
+    // too.
+    expect(s.owesAftermath('valley'), isTrue);
+    final again = await service(db, {'valley': _valley()});
+    expect(again.owesAftermath('valley'), isTrue);
 
     // Rain again before any clear visit: still owed, not spent.
     await s.debugBringWeather('valley');
@@ -265,6 +272,7 @@ void main() {
       s.debugForceWeather.clear();
     }
     expect(await s.takeAftermath('valley'), same(valleyRain));
+    expect(s.owesAftermath('valley'), isFalse);
     expect(await s.takeAftermath('valley'), isNull);
   });
 

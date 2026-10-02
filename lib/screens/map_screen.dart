@@ -21,6 +21,7 @@ import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
+import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
@@ -33,6 +34,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/wilderness/wild_map.dart';
 import 'package:alchemons/widgets/wilderness/wild_map_view.dart';
 
 TextStyle _display(
@@ -1085,6 +1087,14 @@ class _WildMap extends StatelessWidget {
       for (final id in _scenes.keys)
         if (spawnService.getSceneSpawnCount(id) > 0) id,
     };
+    final volcano = switch (spawnService.fieldStageFor(
+      'volcano',
+      volcanoScene,
+    )) {
+      VolcanoField.erupting => WildVolcano.erupting,
+      VolcanoField.smoking => WildVolcano.smoking,
+      _ => WildVolcano.still,
+    };
 
     return Padding(
       // Clear of the docked close button.
@@ -1093,6 +1103,8 @@ class _WildMap extends StatelessWidget {
         weather: weather,
         ready: ready,
         arcane: arcaneUnlocked,
+        volcano: volcano,
+        rainbow: spawnService.owesAftermath('valley'),
         ink: theme.brightness == Brightness.light,
         onEnter: (id) {
           final scene = _scenes[id];

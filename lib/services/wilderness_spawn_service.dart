@@ -60,6 +60,15 @@ class WildernessSpawnService extends ChangeNotifier {
   /// (see [WildWeather.aftermath]).
   static String _afterKey(String sceneId) => 'wild_after_$sceneId';
 
+  /// The scenes owed an aftermath, as [_afterKey] has them: kept in step
+  /// with it so the map can show one without asking the database.
+  final Set<String> _owed = {};
+
+  /// Whether [sceneId]'s next visit finds what its weather left behind
+  /// (the Valley's rainbow): owed one, and clear now.
+  bool owesAftermath(String sceneId) =>
+      _owed.contains(sceneId) && !hasWeather(sceneId);
+
   /// How many times each field with stages of its own (see
   /// [SceneDefinition.stages]) has been visited: each visit finds the next
   /// stage.
@@ -78,6 +87,8 @@ class WildernessSpawnService extends ChangeNotifier {
     final n = (_visits[sceneId] ?? 0) + 1;
     _visits[sceneId] = n;
     await _db.settingsDao.setSetting(_visitsKey(sceneId), '$n');
+    // The map shows the stage the next visit will find.
+    notifyListeners();
   }
 
   /// Moves [sceneId]'s cycle on by one stage without a visit — for the
@@ -120,6 +131,8 @@ class WildernessSpawnService extends ChangeNotifier {
     for (final w in weathers[sceneId] ?? const <WildWeather>[]) {
       if (!w.aftermath) continue;
       await _db.settingsDao.setSetting(_afterKey(sceneId), w.kind.name);
+      _owed.add(sceneId);
+      notifyListeners();
       return;
     }
   }
@@ -136,6 +149,7 @@ class WildernessSpawnService extends ChangeNotifier {
     final w = weatherIn(sceneId);
     if (w == null || !w.aftermath) return;
     await _db.settingsDao.setSetting(_afterKey(sceneId), w.kind.name);
+    if (_owed.add(sceneId)) notifyListeners();
   }
 
   /// On a clear visit to [sceneId]: the weather whose aftermath it is owed,
@@ -152,6 +166,7 @@ class WildernessSpawnService extends ChangeNotifier {
             .where((w) => w.aftermath)
             .firstOrNull;
     await _db.settingsDao.deleteSetting(_afterKey(sceneId));
+    if (_owed.remove(sceneId)) notifyListeners();
     return w != null && w.aftermath ? w : null;
   }
 
@@ -491,6 +506,9 @@ class WildernessSpawnService extends ChangeNotifier {
         _withWeather[sceneId] = w;
       } else if (stored != null) {
         await _db.settingsDao.deleteSetting(_weatherKey(sceneId));
+      }
+      if (await _db.settingsDao.getSetting(_afterKey(sceneId)) != null) {
+        _owed.add(sceneId);
       }
     }
 

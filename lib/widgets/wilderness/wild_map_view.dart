@@ -18,6 +18,8 @@ class WildMapView extends StatefulWidget {
     this.weather = const {},
     this.ready = const {},
     this.arcane = false,
+    this.volcano = WildVolcano.still,
+    this.rainbow = false,
     this.ink = false,
     this.labelFor,
     this.field,
@@ -33,6 +35,12 @@ class WildMapView extends StatefulWidget {
   /// The realms with something waiting in them.
   final Set<String> ready;
   final bool arcane;
+
+  /// How the Volcano's next visit will find it.
+  final WildVolcano volcano;
+
+  /// Whether the Valley's next clear visit finds a rainbow.
+  final bool rainbow;
 
   /// Drawn in ink, for a light page.
   final bool ink;
@@ -74,6 +82,8 @@ class _WildMapViewState extends State<WildMapView>
       ..weather = widget.weather
       ..ready = widget.ready
       ..arcane = widget.arcane
+      ..volcano = widget.volcano
+      ..rainbow = widget.rainbow
       ..ink = widget.ink;
   }
 

@@ -8,8 +8,11 @@
 // they settle back. A realm with something waiting in it has its circle
 // pulse green.
 //
-// Weather is shown, not announced: lightning out of the Sky's cloud, rain
-// or snow on the Valley's mountains, the Swamp's tree gone dry.
+// The state of each realm is shown, not announced: the Sky's cloud dark and
+// flickering with lightning in a storm; rain on the Valley's mountains, a
+// snowcap on them in snow and a rainbow behind them when rain has left one;
+// the Volcano quiet, smoking or erupting, as the next visit will find it;
+// the Swamp's tree gone dry.
 //
 // Cheap at rest: grains that hold still are drawn once into a picture and
 // that picture drawn again each frame; the cloud's bob, the tree's sway and
@@ -40,11 +43,16 @@ enum WildRealm {
   final double x, y;
 }
 
+/// The Volcano's mood, as the next visit will find it.
+enum WildVolcano { still, smoking, erupting }
+
 // The parts the map is made of. A grain remembers its part: it decides its
 // colour, how it moves and what the weather does to it.
-const int _rock = 0, _snowcap = 1, _meadow = 2; // Valley
+const int _rock = 0, _farRock = 1, _meadow = 2; // Valley
 const int _cloud = 3; // Sky
-const int _cone = 4, _lava = 5, _crater = 6; // Volcano
+// Volcano: the cone, the lava down its right face (glowing whenever it is
+// warm) and down its left (only in eruption), and the crater.
+const int _cone = 4, _lava = 5, _crater = 6, _lava2 = 17;
 const int _ground = 7, _pool = 8, _trunk = 9, _canopy = 10, _moss = 11;
 const int _sand = 12, _rim = 13; // each realm's circle
 const int _arcRing = 14, _arcFill = 15, _arcHaze = 16; // Arcane
@@ -60,7 +68,7 @@ int _groupOf(int part, int realm) => switch (part) {
   _rim => _gRim + realm,
   _cloud => _gCloud,
   _canopy || _moss => _gTree,
-  _meadow || _lava || _crater => _gLive,
+  _meadow || _lava || _lava2 || _crater => _gLive,
   _arcRing || _arcFill || _arcHaze => _gArcane,
   _ => _gStill + realm,
 };
@@ -68,23 +76,78 @@ int _groupOf(int part, int realm) => switch (part) {
 /// A circle in a shape's unit square: centre and radius.
 typedef _Lobe = (double, double, double);
 
-// The Valley's two peaks, as the top edge of the range (unit square).
-const _ridge = <(double, double)>[
-  (0.02, 0.88),
-  (0.2, 0.6),
-  (0.28, 0.5),
-  (0.36, 0.36),
-  (0.44, 0.2),
-  (0.5, 0.11),
-  (0.56, 0.21),
-  (0.62, 0.32),
-  (0.66, 0.38),
-  (0.74, 0.3),
-  (0.8, 0.25),
-  (0.86, 0.35),
-  (0.92, 0.52),
-  (0.98, 0.88),
+// The Valley's two peaks, each from its foot on the left over its summit to
+// its foot on the right (unit square): the near one, and the far one behind
+// it to the right.
+const _nearPeak = <(double, double)>[
+  (0.06, 0.885),
+  (0.13, 0.74),
+  (0.19, 0.63),
+  (0.24, 0.55),
+  (0.28, 0.49),
+  (0.32, 0.4),
+  (0.36, 0.31),
+  (0.4, 0.21),
+  (0.44, 0.12),
+  (0.47, 0.155),
+  (0.5, 0.2),
+  (0.54, 0.25),
+  (0.57, 0.27),
+  (0.61, 0.35),
+  (0.66, 0.45),
+  (0.72, 0.57),
+  (0.79, 0.69),
+  (0.86, 0.8),
+  (0.9, 0.885),
 ];
+const _farPeak = <(double, double)>[
+  (0.42, 0.885),
+  (0.5, 0.58),
+  (0.57, 0.44),
+  (0.62, 0.36),
+  (0.66, 0.31),
+  (0.71, 0.24),
+  (0.74, 0.265),
+  (0.78, 0.31),
+  (0.82, 0.37),
+  (0.86, 0.46),
+  (0.9, 0.58),
+  (0.93, 0.7),
+  (0.955, 0.885),
+];
+
+/// A peak: its summit, the spine its lit and shaded faces meet along
+/// (leaning [lean] in u for each unit down), a lesser spine down off a
+/// shoulder on each side (where it starts, and its lean), how far down its
+/// snowcap comes in snow, and where its forest starts.
+typedef _Peak = ({
+  double u,
+  double v,
+  double lean,
+  (double, double, double) left,
+  (double, double, double) right,
+  double cap,
+  double trees,
+});
+
+const _Peak _near = (
+  u: 0.44,
+  v: 0.12,
+  lean: 0.11,
+  left: (0.3, 0.43, 0.06),
+  right: (0.57, 0.27, 0.2),
+  cap: 0.27,
+  trees: 0.68,
+);
+const _Peak _far = (
+  u: 0.71,
+  v: 0.24,
+  lean: 0.07,
+  left: (0.6, 0.38, 0.05),
+  right: (0.82, 0.37, 0.14),
+  cap: 0.19,
+  trees: 0.7,
+);
 
 const _cloudLobes = <_Lobe>[
   (0.15, 0.62, 0.11),
@@ -138,6 +201,12 @@ class WildMapField {
 
   /// Whether Arcane has opened: its purple circle shows in the middle.
   bool arcane = false;
+
+  /// How the Volcano's next visit will find it.
+  WildVolcano volcano = WildVolcano.still;
+
+  /// Whether the Valley's next clear visit finds the rainbow its rain left.
+  bool rainbow = false;
 
   /// Drawn in ink on a light page instead of light on the dark: light
   /// adding up shows nothing on parchment.
@@ -198,6 +267,7 @@ class WildMapField {
     _buildGrains(rng);
     _buildMovers(rng);
     _buildWashes(rng);
+    _buildRainbow(rng);
     _fieldW = (size.width / _cell).ceil() + 1;
     _fieldH = (size.height / _cell).ceil() + 1;
     _fu = Float32List(_fieldW * _fieldH);
@@ -258,21 +328,28 @@ class WildMapField {
         ),
       );
 
-    // The Valley: a range of two peaks over a meadow.
+    // The Valley: two peaks, the far one behind, their feet in a mound of
+    // meadow that rolls a little along its top and thins to nothing at its
+    // ends.
     final v = WildRealm.valley.index;
-    final meadow = Path()..moveTo(_at(v, 0, 0.94).dx, _at(v, 0, 0.94).dy);
-    for (var k = 0; k <= 20; k++) {
-      final u = k / 20;
-      final o = _at(v, u, 0.84 + 0.035 * math.sin(u * 7 + 0.6));
+    final meadow = Path();
+    for (var k = 0; k <= 32; k++) {
+      final u = 0.03 + 0.94 * k / 32;
+      final e = math.sqrt(math.max(0, 1 - math.pow((u - 0.5) / 0.47, 2)));
+      final o = _at(v, u, 0.89 - e * (0.07 + 0.012 * math.sin(u * 15 + 0.6)));
+      k == 0 ? meadow.moveTo(o.dx, o.dy) : meadow.lineTo(o.dx, o.dy);
+    }
+    for (var k = 32; k >= 0; k--) {
+      final u = 0.03 + 0.94 * k / 32;
+      final e = math.sqrt(math.max(0, 1 - math.pow((u - 0.5) / 0.47, 2)));
+      final o = _at(v, u, 0.89 + e * 0.035);
       meadow.lineTo(o.dx, o.dy);
     }
-    meadow
-      ..lineTo(_at(v, 1, 0.98).dx, _at(v, 1, 0.98).dy)
-      ..lineTo(_at(v, 0, 0.98).dx, _at(v, 0, 0.98).dy)
-      ..close();
+    meadow.close();
     _parts[v]
       ..clear()
-      ..add((poly(v, _ridge), _rock))
+      ..add((poly(v, _farPeak), _farRock))
+      ..add((poly(v, _nearPeak), _rock))
       ..add((meadow, _meadow));
 
     // The Sky: one cloud, puffed on top, flat underneath.
@@ -609,25 +686,70 @@ class WildMapField {
   ) {
     final n = _fbm(x * 0.05, y * 0.05, 40 + part);
     switch (part) {
-      case _rock:
-        // Lit on the faces left of each peak, in shade right of them.
-        final peak = u < 0.66 ? 0.5 : 0.8;
-        final lit = _smooth(_clamp01((peak - u) / 0.06 + 0.5));
-        final below = v - _ridgeAt(u);
-        final white = _mix(0xFFB8C2D6, 0xFFF4F6FA, lit);
-        if (below < 0.11 + 0.05 * n && v < 0.62) {
-          return (white, white, _snowcap);
+      case _rock || _farRock:
+        final far = part == _farRock;
+        final pk = far ? _far : _near;
+        // Two faces, meeting along a line down from the summit: the one
+        // to its left in the light, the one to its right in shade. The far
+        // peak is dimmer and bluer, a little lost in the air.
+        final drop = v - pk.v;
+        final crest = pk.u + drop * pk.lean + 0.012 * math.sin(v * 31);
+        final lit = _smooth(_clamp01((crest - u) / 0.025 + 0.5));
+        // Each face broken by its lesser spine: the lit face's outer part a
+        // step darker, the shaded face's outer part catching a little light
+        // back.
+        final (lu, lv, ll) = pk.left;
+        final (ru, rv, rl) = pk.right;
+        final jag = 0.01 * math.sin(v * 27 + u * 9);
+        final outerLit = v > lv && u < lu + (v - lv) * ll + jag;
+        final outerShade = v > rv && u > ru + (v - rv) * rl + jag;
+        final tone = lit * (outerLit ? 0.68 : 1) + (outerShade ? 0.2 : 0);
+        final high = _clamp01(1 - drop / 0.7);
+        // Gullies running down off the summit.
+        final gully = _fbm(
+          (u - pk.u) / (drop + 0.06) * 2.2,
+          v * 2.5,
+          far ? 61 : 60,
+        );
+        final shade = far
+            ? _mix(0xFF1C2030, 0xFF2C3044, high)
+            : _mix(0xFF242836, 0xFF3E4256, high);
+        final light = far
+            ? _mix(0xFF50566C, 0xFF8A90A6, high)
+            : _mix(0xFF6A6E80, 0xFFC0C4D0, high);
+        var col = _mix(shade, light, tone);
+        col = _mix(col, 0xFF1A1E2A, 0.35 * _clamp01(gully * 1.6 - 0.6));
+        col = _mix(col, 0xFF22262F, 0.15 * n);
+        // Snow lies from the summit down, deeper in the gullies, its edge
+        // ragged; below it the rock takes the lightest dusting.
+        final cap = pk.cap + 0.08 * gully + (rng.nextDouble() - 0.5) * 0.03;
+        final snow = drop < cap
+            ? _mix(
+                far ? 0xFF7E8AA6 : 0xFF98A6C2,
+                far ? 0xFFD0D6E2 : 0xFFF6F8FB,
+                lit,
+              )
+            : _mix(col, 0xFFD6DEEA, 0.06);
+        // Forest on the lower slopes, its top edge ragged like treetops.
+        // Higher up the gullies, and in crowns.
+        final treeline =
+            pk.trees +
+            0.12 * (_fbm(x * 0.1, 3, 70) - 0.5) -
+            0.06 * gully +
+            0.012 * math.sin(x * 0.9).abs() +
+            (rng.nextDouble() - 0.5) * 0.03;
+        if (v > treeline) {
+          var tree = _mix(0xFF18301E, 0xFF3A6834, lit * 0.85);
+          tree = _mix(tree, 0xFF0E1C12, 0.3 * n);
+          if (far) tree = _mix(tree, 0xFF1A2632, 0.35);
+          return (tree, _mix(tree, 0xFFD6DEEA, 0.3), part);
         }
-        var col = _mix(0xFF464A5C, 0xFF8C8FA0, lit);
-        col = _mix(col, 0xFF2E3242, 0.25 * n);
-        // Deep snow comes much further down the faces.
-        final deep = below < 0.3 + 0.06 * n;
-        return (col, deep ? white : _mix(col, 0xFFDCE4EE, 0.55), _rock);
+        return (col, snow, part);
       case _meadow:
         var col = _mix(0xFF2E5022, 0xFF6E9A3A, _clamp01(n * 1.4 - 0.2));
         if (rng.nextDouble() < 0.07) col = _mix(0xFFC8B45C, 0xFFE8D890, n);
         if (rng.nextDouble() < 0.05) col = 0xFF1C3418;
-        return (col, _mix(col, 0xFFE6EDF4, 0.82), _meadow);
+        return (col, _mix(col, 0xFFDCE6EE, 0.5), _meadow);
       case _cloud:
         // Each puff lit on its upper left, shaded beneath; the whole cloud
         // darker toward its flat base.
@@ -635,26 +757,43 @@ class WildMapField {
         final base = _smooth(_clamp01((v - 0.52) / 0.22));
         final lit = _clamp01(shade * (1 - 0.6 * base));
         final col = _mix(0xFF8A98BE, 0xFFF6F7FA, lit);
-        return (col, _mix(0xFF2E3248, 0xFF6E7290, lit), _cloud);
+        return (col, _mix(0xFF24283A, 0xFF5E6280, lit), _cloud);
       case _cone:
-        // Lava down the face from the crater.
+        final lit = _smooth(_clamp01((0.5 - u) / 0.12 + 0.5));
+        var col = _mix(0xFF2A1C1C, 0xFF84645A, lit);
+        col = _mix(col, 0xFF120C0C, 0.3 * _clamp01((v - 0.6) / 0.3));
+        col = _mix(col, 0xFF2A2224, 0.3 * n);
+        // Lava down the right face from the crater: a dark crust while the
+        // mountain is quiet, glowing as it wakes.
         if (v > 0.27 && v < 0.84) {
           final lx = 0.53 + 0.035 * math.sin(v * 11) + (v - 0.27) * 0.2;
           final lw = 0.012 + 0.022 * (v - 0.27);
           if ((u - lx).abs() < lw) {
             final hot = 1 - (u - lx).abs() / lw;
-            final col = _mix(0xFFB8401A, 0xFFFF9A3A, hot);
-            return (col, col, _lava);
+            final crust = _mix(0xFF3E1C14, 0xFF6A2C1A, hot);
+            return (crust, _mix(0xFFB8401A, 0xFFFF9A3A, hot), _lava);
           }
         }
-        final lit = _smooth(_clamp01((0.5 - u) / 0.12 + 0.5));
-        var col = _mix(0xFF2A1C1C, 0xFF84645A, lit);
-        col = _mix(col, 0xFF120C0C, 0.3 * _clamp01((v - 0.6) / 0.3));
-        col = _mix(col, 0xFF2A2224, 0.3 * n);
-        return (col, col, _cone);
+        // And down the left, only when it erupts: rock until then.
+        if (v > 0.28 && v < 0.74) {
+          final lx = 0.46 - 0.03 * math.sin(v * 9 + 1) - (v - 0.28) * 0.24;
+          final lw = 0.01 + 0.018 * (v - 0.28);
+          if ((u - lx).abs() < lw) {
+            final hot = 1 - (u - lx).abs() / lw;
+            return (col, _mix(0xFFB8401A, 0xFFFF9A3A, hot), _lava2);
+          }
+        }
+        // Lit red from the crater as it wakes.
+        final near = _clamp01(1 - ((u - 0.5).abs() + (v - 0.24)) / 0.45);
+        return (col, _mix(col, 0xFF7A2E1C, 0.5 * near), _cone);
       case _crater:
-        final col = _mix(0xFFFF7A2A, 0xFFFFD27A, 1 - (v - 0.21) / 0.07);
-        return (col, col, _crater);
+        final hot = 1 - (v - 0.21) / 0.07;
+        return (
+          // Even asleep the crater keeps an ember in it.
+          _mix(0xFF6E2814, 0xFFA8461C, hot),
+          _mix(0xFFFF7A2A, 0xFFFFD27A, hot),
+          _crater,
+        );
       case _ground:
         final col = _mix(0xFF3E2A1A, 0xFF7A5634, _clamp01((0.95 - v) / 0.08));
         return (
@@ -680,16 +819,6 @@ class WildMapField {
           _canopy,
         );
     }
-  }
-
-  /// The top edge of the Valley's range at [u].
-  static double _ridgeAt(double u) {
-    for (var k = 1; k < _ridge.length; k++) {
-      final (u0, v0) = _ridge[k - 1];
-      final (u1, v1) = _ridge[k];
-      if (u <= u1) return v0 + (v1 - v0) * _clamp01((u - u0) / (u1 - u0));
-    }
-    return _ridge.last.$2;
   }
 
   /// How lit (0–1) a point in a cluster of puffs is: by the puff it is
@@ -742,14 +871,33 @@ class WildMapField {
       if (i == WildRealm.sky.index) a += 0.14 * _flash * _wx[i];
       _wash.add(x, y, r * 2, (_byte(a) << 24) | (c & 0xFFFFFF));
     }
-    // The Volcano's crater, glowing.
-    final crater = _at(WildRealm.volcano.index, 0.5, 0.25);
+    // The Volcano's crater: a faint warmth while it sleeps, a glow as it
+    // smokes, and in eruption a red light over the whole cone.
+    final o = WildRealm.volcano.index;
+    final heat = _wx[o];
+    final crater = _at(o, 0.5, 0.25);
     _wash.add(
       crater.dx,
       crater.dy,
-      _side * 0.5,
-      _argb(0.28 + 0.06 * _fsin(t * 1.7), 1, 0.48, 0.16),
+      _side * (0.3 + 0.25 * heat),
+      _argb((0.08 + 0.24 * heat) * (0.9 + 0.1 * _fsin(t * 1.7)), 1, 0.48, 0.16),
     );
+    if (_erupt > 0) {
+      final up = _at(o, 0.5, 0.42);
+      _wash.add(
+        up.dx,
+        up.dy,
+        _side * 1.1,
+        _argb(0.14 * _erupt * (0.85 + 0.15 * _fsin(t * 2.3)), 0.9, 0.3, 0.12),
+      );
+      final plume = _at(o, 0.5, 0.0);
+      _wash.add(
+        plume.dx,
+        plume.dy,
+        _side * 0.6,
+        _argb(0.08 * _erupt, 1, 0.42, 0.18),
+      );
+    }
     if (arcane) {
       _wash.add(
         _mid.dx,
@@ -760,11 +908,92 @@ class WildMapField {
     }
   }
 
+  // ── The rainbow rain leaves ───────────────────────────────────────────
+
+  // Its grains, arching over the Valley's range in the air before it:
+  // place, size and colour (alpha already faded toward the circle's edge);
+  // and a few soft lights along each band.
+  Float32List _bowX = Float32List(0), _bowY = Float32List(0);
+  Float32List _bowS = Float32List(0);
+  Int32List _bowC = Int32List(0);
+  final List<(double, double, double, int)> _bowLanes = [];
+
+  static const _bowBands = [
+    0xFFE8604E,
+    0xFFF0A048,
+    0xFFF2DE74,
+    0xFF72D486,
+    0xFF5E9CEA,
+    0xFF9A78E2,
+  ];
+
+  void _buildRainbow(math.Random rng) {
+    final v = WildRealm.valley.index;
+    final c = _at(v, 0.5, 0.97);
+    final width = _side * 0.016;
+    final xs = <double>[], ys = <double>[], ss = <double>[];
+    final cs = <int>[];
+    _bowLanes.clear();
+    for (var b = 0; b < _bowBands.length; b++) {
+      final r = _side * 0.6 - b * width;
+      final col = _bowBands[b];
+      final count = (math.pi * r / 1.4).round();
+      for (var k = 0; k < count; k++) {
+        final a = math.pi + math.pi * rng.nextDouble();
+        final rr = r + (rng.nextDouble() - 0.5) * width * 1.1;
+        final x = c.dx + math.cos(a) * rr, y = c.dy + math.sin(a) * rr;
+        final m = math.min(1.0, _zone(v, x, y) * 2.2);
+        if (m < 0.05) continue;
+        xs.add(x);
+        ys.add(y);
+        ss.add(_size.width * (0.0018 + 0.0012 * rng.nextDouble()));
+        final al = ((0.3 + 0.24 * rng.nextDouble()) * m * 255).round();
+        cs.add((al << 24) | (col & 0xFFFFFF));
+      }
+      for (var k = 0; k <= 20; k++) {
+        final a = math.pi + math.pi * k / 20;
+        final x = c.dx + math.cos(a) * r, y = c.dy + math.sin(a) * r;
+        final m = _zone(v, x, y);
+        if (m < 0.05) continue;
+        _bowLanes.add((
+          x,
+          y,
+          width * 6,
+          (((0.06 * m) * 255).round() << 24) | (col & 0xFFFFFF),
+        ));
+      }
+    }
+    _bowX = Float32List.fromList(xs);
+    _bowY = Float32List.fromList(ys);
+    _bowS = Float32List.fromList(ss);
+    _bowC = Int32List.fromList(cs);
+  }
+
+  void _paintRainbow(Canvas canvas) {
+    if (_bow <= 0) return;
+    if (!ink) {
+      _wash.clear();
+      for (final (x, y, r, c) in _bowLanes) {
+        _wash.add(x, y, r, _scaleAlpha(c, _bow));
+      }
+      _wash.draw(canvas, _atlas!, _add);
+    }
+    // Ink on the page has no light behind it: it needs more of itself.
+    final a = ink ? _bow * 1.8 : _bow;
+    _dots.clear();
+    for (var k = 0; k < _bowX.length; k++) {
+      _dots.add(_bowX[k], _bowY[k], _bowS[k], _scaleAlpha(_bowC[k], a));
+    }
+    debugRainbow = _dots.n;
+    _dots.draw(canvas, _atlas!, ink ? _inkOver : _add);
+  }
+
   // ── Movers: grains that travel ────────────────────────────────────────
 
-  // Kinds: 0 wind through the cloud, 1 ember off the crater, 2 smoke off
-  // the crater, 3 dust off the dry Swamp.
+  // Kinds: 0 wind through the cloud, 1 lava thrown out of the crater in
+  // eruption, 2 smoke off the crater, 3 dust off the dry Swamp.
   int _m = 0;
+  Offset _craterAt = Offset.zero;
   late Float32List _mx, _my, _mph, _mspd, _mox, _moy, _mvx, _mvy;
   late Uint8List _mkind;
 
@@ -787,21 +1016,21 @@ class WildMapField {
         _side * (0.12 + 0.12 * rng.nextDouble()),
       );
     }
-    final crater = _at(WildRealm.volcano.index, 0.5, 0.24);
+    final crater = _craterAt = _at(WildRealm.volcano.index, 0.5, 0.24);
     for (var k = 0; k < 220; k++) {
       add(
         1,
-        crater.dx + (rng.nextDouble() - 0.5) * _side * 0.12,
+        crater.dx + (rng.nextDouble() - 0.5) * _side * 0.1,
         crater.dy,
-        _side * (0.16 + 0.14 * rng.nextDouble()),
+        _side * (0.5 + 0.45 * rng.nextDouble()),
       );
     }
-    for (var k = 0; k < 200; k++) {
+    for (var k = 0; k < 260; k++) {
       add(
         2,
-        crater.dx + (rng.nextDouble() - 0.5) * _side * 0.08,
+        crater.dx + (rng.nextDouble() - 0.5) * _side * 0.1,
         crater.dy,
-        _side * (0.08 + 0.06 * rng.nextDouble()),
+        _side * (0.05 + 0.035 * rng.nextDouble()),
       );
     }
     final w = WildRealm.swamp.index;
@@ -972,10 +1201,17 @@ class WildMapField {
   final Float64List _wx = Float64List(4);
   final Float64List _rain = Float64List(1);
   final Float64List _ready = Float64List(4);
+  // The Volcano: smoke over it (smoking or erupting), and erupting.
+  double _smoke = 0, _erupt = 0, _bow = 0;
   double _flash = 0;
   double _nextStrike = 2;
   final List<Offset> _bolt = [], _fork = [];
   double _boltAge = 9;
+  // Lightning inside the cloud: where it lit, the crack it ran along (both
+  // at rest, before the cloud's bob), and how long ago.
+  Offset _flickAt = Offset.zero;
+  final List<Offset> _flickPath = [];
+  double _flickAge = 9, _nextFlick = 0.3, _flickR = 0;
   final math.Random _rng = math.Random(11);
 
   double _target(WildRealm r) {
@@ -984,9 +1220,18 @@ class WildMapField {
       WildRealm.valley => w == WeatherKind.snow ? 1 : 0,
       WildRealm.sky => w == WeatherKind.storm ? 1 : 0,
       WildRealm.swamp => w == WeatherKind.dry ? 1 : 0,
-      WildRealm.volcano => 0,
+      // How warm the mountain is.
+      WildRealm.volcano => switch (volcano) {
+        WildVolcano.still => 0,
+        WildVolcano.smoking => 0.45,
+        WildVolcano.erupting => 1,
+      },
     };
   }
+
+  double get _smokeTo => volcano == WildVolcano.still ? 0 : 1;
+  double get _eruptTo => volcano == WildVolcano.erupting ? 1 : 0;
+  double get _bowTo => rainbow && weather['valley'] == null ? 1 : 0;
 
   bool get _raining => weather['valley'] == WeatherKind.rain;
 
@@ -997,6 +1242,9 @@ class WildMapField {
       _ready[r.index] = ready.contains(r.sceneId) ? 1 : 0;
     }
     _rain[0] = _raining ? 1 : 0;
+    _smoke = _smokeTo;
+    _erupt = _eruptTo;
+    _bow = _bowTo;
   }
 
   static double _ease(double v, double to, double k) {
@@ -1013,6 +1261,9 @@ class WildMapField {
       _ready[r.index] = _ease(_ready[r.index], to, k);
     }
     _rain[0] = _ease(_rain[0], _raining ? 1 : 0, k);
+    _smoke = _ease(_smoke, _smokeTo, k);
+    _erupt = _ease(_erupt, _eruptTo, k);
+    _bow = _ease(_bow, _bowTo, k);
     _stepField(dt);
     _stepStorm(dt);
     _stepGrains(dt);
@@ -1025,8 +1276,10 @@ class WildMapField {
     _flash *= math.exp(-dt / 0.22);
     if (_flash < 0.01) _flash = 0;
     _boltAge += dt;
+    _flickAge += dt;
     final storm = _wx[WildRealm.sky.index];
     if (storm < 0.3 || _size.isEmpty) return;
+    _stepFlicker(dt);
     _nextStrike -= dt;
     if (_nextStrike > 0) return;
     _nextStrike = 1.6 + _rng.nextDouble() * 2.8;
@@ -1059,6 +1312,37 @@ class WildMapField {
     _boltAge = 0;
     _flash = 1;
     ripple(from, strength: 240 * storm, reach: 70);
+  }
+
+  /// Lightning that stays in the cloud, often: one puff lit from inside
+  /// and a short crack running across it.
+  void _stepFlicker(double dt) {
+    _nextFlick -= dt;
+    if (_nextFlick > 0) return;
+    _nextFlick = 0.35 + _rng.nextDouble() * 1.1;
+    final i = WildRealm.sky.index;
+    // The three big puffs in the middle, mostly: light in the small ones
+    // at the ends spills out past them.
+    final (u, v, r) = _cloudLobes[1 + _rng.nextInt(3)];
+    final a = _rng.nextDouble() * _tau;
+    var p = _at(i, u + math.cos(a) * r * 0.35, v + math.sin(a) * r * 0.3);
+    _flickAt = p;
+    _flickR = r * _side;
+    _flickPath
+      ..clear()
+      ..add(p);
+    final lean = _rng.nextBool() ? 1.0 : -1.0;
+    for (var k = 0; k < 4 + _rng.nextInt(3); k++) {
+      final next =
+          p +
+          Offset(
+            lean * (3 + _rng.nextDouble() * 5),
+            (_rng.nextDouble() - 0.4) * 5,
+          );
+      if (!_inCloud(next.dx, next.dy)) break;
+      _flickPath.add(p = next);
+    }
+    _flickAge = 0;
   }
 
   // ── Motion ────────────────────────────────────────────────────────────
@@ -1097,6 +1381,7 @@ class WildMapField {
     _treeShear = -(1 - 0.3 * dry) * 0.032 * _fsin(0.9 * t);
     _arcTurn = t * 0.32;
     final ac = _fcos(_arcTurn), as = _fsin(_arcTurn);
+    final warm = _wx[WildRealm.volcano.index];
     final mid = _mid;
 
     for (var grp = 0; grp < _groups; grp++) {
@@ -1122,9 +1407,10 @@ class WildMapField {
               // Grass in the wind, in waves crossing it.
               bx += 1.2 * _fsin(1.3 * t - hx * 0.05 + ph * 0.3);
             } else {
-              // Heat shimmer over the lava.
-              bx += 0.4 * _fsin(2.6 * t + ph);
-              by += 0.5 * _fsin(3.1 * t + ph * 1.7);
+              // Heat shimmer over the lava, as warm as it is.
+              final heat = _part[k] == _lava2 ? _erupt : warm;
+              bx += 0.4 * heat * _fsin(2.6 * t + ph);
+              by += 0.5 * heat * _fsin(3.1 * t + ph * 1.7);
             }
           default:
             break;
@@ -1196,16 +1482,19 @@ class WildMapField {
         final b = _box[WildRealm.sky.index];
         final x = b.left + ((x0 - b.left + sp * t) % _side);
         return (x + _cloudDx, y0 + _cloudDy + 2 * _fsin(t * 0.7 + ph * _tau));
-      case 1: // Embers up off the crater.
-        const life = 3.6;
-        final a = (t / life + ph) % 1.0;
-        return (x0 + _side * 0.08 * a * _fsin(ph * 40 + t), y0 - a * sp * life);
-      case 2: // Smoke off the crater, leaning away on the wind.
+      case 1: // Lava thrown up out of the crater, falling back on the cone.
+        final s = (t / _bombLife + ph) % 1.0 * _bombLife;
+        return (
+          x0 + (x0 - _craterAt.dx) * 2.6 * s,
+          y0 - sp * s + 0.5 * _side * 1.1 * s * s,
+        );
+      case 2: // Smoke off the crater, leaning away on the wind; faster and
+        // taller in eruption.
         const life = 6.0;
         final a = (t / life + ph) % 1.0;
         return (
-          x0 + _side * (0.22 * a * a + 0.05 * a * _fsin(ph * 30)),
-          y0 - a * sp * life,
+          x0 + _side * (0.2 * a * a + 0.09 * a * _fsin(ph * 30 + t * 0.4)),
+          y0 - a * sp * life * (1 + 0.5 * _erupt),
         );
       default: // Dust lifting off the dried Swamp.
         const life = 5.0;
@@ -1273,6 +1562,12 @@ class WildMapField {
   /// Groups drawn from their picture in the last frame.
   int debugPictures = 0;
 
+  /// Lava thrown and smoke risen off the Volcano in the last frame.
+  int debugBombs = 0, debugSmoke = 0;
+
+  /// Grains of the rainbow drawn in the last frame.
+  int debugRainbow = 0;
+
   /// The farthest any grain has been pushed from its place, px.
   double get debugDisplacement {
     var most = 0.0;
@@ -1307,11 +1602,15 @@ class WildMapField {
   /// Whether a bolt of lightning is showing.
   bool get debugStriking => _boltAge < 0.4 && _bolt.isNotEmpty;
 
+  /// Whether lightning is lighting the cloud from inside.
+  bool get debugFlickering => _flickAge < 0.05 && _flickPath.isNotEmpty;
+
   void paint(Canvas canvas) {
     if (_size.isEmpty) return;
     _atlas ??= _buildAtlas();
     debugGrains = 0;
     debugPictures = 0;
+    debugBombs = debugSmoke = debugRainbow = 0;
     final key = _key;
     if (!_sameKey(key, _picKey)) {
       _dropPictures();
@@ -1350,6 +1649,7 @@ class WildMapField {
       debugPictures++;
       _drawMoved(canvas, g, pic);
     }
+    _paintRainbow(canvas);
     _paintRimGlow();
     _glow.draw(canvas, _atlas!, ink ? _inkGlow : _add);
   }
@@ -1396,7 +1696,8 @@ class WildMapField {
   double _cr = 0, _cg = 0, _cb = 0;
   void _colour(int k) {
     final ri = _realm[k];
-    final w = ri < 4 ? _wx[ri] : 0.0;
+    // The left run of lava wakes only in eruption.
+    final w = ri >= 4 ? 0.0 : (_part[k] == _lava2 ? _erupt : _wx[ri]);
     _cr = _r[k] + (_ar[k] - _r[k]) * w;
     _cg = _g[k] + (_ag[k] - _g[k]) * w;
     _cb = _b[k] + (_ab[k] - _b[k]) * w;
@@ -1450,10 +1751,14 @@ class WildMapField {
       if (lit > 0.5) {
         _glow.add(x, y, _size2[k] * 3, _argb(0.25 * lit, r, gg, b));
       }
-      if (_part[k] == _lava || _part[k] == _crater) {
-        // Lava and the crater glow, breathing.
-        final pulse = 0.75 + 0.25 * _fsin(t * 1.6);
-        _glow.add(x, y, _size2[k] * 3.2, _argb(0.2 * pulse, r, gg, b));
+      final p = _part[k];
+      if (p == _lava || p == _lava2 || p == _crater) {
+        // Lava and the crater glow, breathing, as warm as they are.
+        final heat = p == _lava2 ? _erupt : _wx[WildRealm.volcano.index];
+        if (heat > 0.02) {
+          final pulse = 0.75 + 0.25 * _fsin(t * 1.6);
+          _glow.add(x, y, _size2[k] * 3.2, _argb(0.2 * pulse * heat, r, gg, b));
+        }
       }
     }
   }
@@ -1480,13 +1785,18 @@ class WildMapField {
     }
   }
 
+  static const double _bombLife = 2.0;
+
   void _paintMovers() {
     final grain = _size.width;
     final storm = _wx[WildRealm.sky.index];
     final dry = _wx[WildRealm.swamp.index];
+    final o = WildRealm.volcano.index;
     for (var k = 0; k < _m; k++) {
       final kind = _mkind[k];
       if (kind == 3 && dry < 0.05) continue;
+      if (kind == 1 && _erupt < 0.02) continue;
+      if (kind == 2 && _smoke < 0.02) continue;
       final (x0, y0) = _moverAt(k);
       final x = x0 + _mox[k], y = y0 + _moy[k];
       switch (kind) {
@@ -1499,23 +1809,47 @@ class WildMapField {
             storm > 0.5 ? _argb(0.5, 0.56, 0.58, 0.72) : _argb(0.6, 1, 1, 1),
           );
         case 1:
-          final a = (time / 3.6 + _mph[k]) % 1.0;
-          final fade = a < 0.1 ? a / 0.1 : 1 - a;
-          // Gold off the crater, cooling to red as it rises.
-          _glow.add(
-            x,
-            y,
-            grain * (0.011 - 0.005 * a),
-            _argb(0.75 * fade, 1, 0.82 - 0.5 * a, 0.36 - 0.3 * a),
-          );
-        case 2:
-          final a = (time / 6 + _mph[k]) % 1.0;
-          final fade = (a < 0.12 ? a / 0.12 : 1 - a) * 0.5;
+          final a = (time / _bombLife + _mph[k]) % 1.0;
+          // Gold out of the crater, cooling to red as it flies; gone once
+          // it has come down a way onto the cone.
+          final below = (y0 - _craterAt.dy) / _side;
+          final fade =
+              (a < 0.04 ? a / 0.04 : 1.0) * _clamp01(1 - below / 0.3) * _erupt;
+          if (fade <= 0) continue;
+          debugBombs++;
           _dots.add(
             x,
             y,
-            grain * (0.0028 + 0.0045 * a),
-            _argb(fade, 0.42, 0.38, 0.38),
+            grain * 0.0036,
+            _argb(fade, 1, 0.9 - 0.45 * a, 0.5 - 0.4 * a),
+          );
+          _glow.add(
+            x,
+            y,
+            grain * 0.012,
+            _argb(0.4 * fade, 1, 0.6 - 0.3 * a, 0.2),
+          );
+        case 2:
+          final a = (time / 6 + _mph[k]) % 1.0;
+          // Thinning out before the edge of the Volcano's circle.
+          final fade =
+              (a < 0.12 ? a / 0.12 : 1 - a) *
+              math.min(1.0, _zone(o, x, y) * 2.5) *
+              _smoke;
+          if (fade <= 0.01) continue;
+          debugSmoke++;
+          // Grey smoke; in eruption darker ash, lit red from beneath.
+          final under = _erupt * _clamp01(1 - a * 3);
+          _dots.add(
+            x,
+            y,
+            grain * (0.003 + (0.005 + 0.003 * _erupt) * a),
+            _argb(
+              fade * (0.55 + 0.15 * _erupt),
+              0.46 - 0.12 * _erupt + 0.4 * under,
+              0.42 - 0.14 * _erupt + 0.08 * under,
+              0.42 - 0.14 * _erupt,
+            ),
           );
         default:
           final a = (time / 5 + _mph[k]) % 1.0;
@@ -1531,25 +1865,48 @@ class WildMapField {
     final box = _box[v];
     final top = box.top - _side * 0.12, height = _side * 1.1;
 
-    // Rain over the mountains: short falling streaks of grains.
+    // Rain over the mountains: falling streaks of grains, and drops
+    // splashing on the meadow.
     final rain = _rain[0];
     if (rain > 0) {
-      for (var k = 0; k < 260; k++) {
+      for (var k = 0; k < 240; k++) {
         final ph = _hash(k * 3 + 1), ph2 = _hash(k * 3 + 2);
         final fall = (time * (1.1 + 0.4 * ph2) + ph) % 1.0;
         final y = top + fall * height;
         final x =
             box.left + ((_hash(k * 3) * _side + fall * height * 0.18) % _side);
-        final m = _zone(v, x, y);
+        final m = math.min(1.0, _zone(v, x, y) * 1.8);
         if (m < 0.05) continue;
-        for (var j = 0; j < 6; j++) {
+        for (var j = 0; j < 7; j++) {
           _dots.add(
-            x - j * 0.55,
-            y - j * 2.6,
-            grain * 0.003,
-            _argb(rain * m * (0.85 - j * 0.13), 0.8, 0.88, 0.98),
+            x - j * 0.5,
+            y - j * 2.3,
+            grain * 0.0032,
+            _argb(rain * m * (0.8 - j * 0.1), 0.82, 0.9, 1),
           );
         }
+      }
+      for (var k = 0; k < 40; k++) {
+        final a = (time * 2.2 + _hash(k * 7 + 5)) % 1.0;
+        if (a > 0.25) continue;
+        final u = 0.08 + 0.84 * _hash(k * 7 + 6);
+        final e = math.sqrt(math.max(0, 1 - math.pow((u - 0.5) / 0.47, 2)));
+        final p = _at(v, u, 0.9 - e * 0.05 * _hash(k * 7 + 4));
+        final f = rain * (1 - a / 0.25);
+        final spread = 1 + a * 14;
+        _dots.add(p.dx, p.dy, grain * 0.0034, _argb(0.8 * f, 0.86, 0.92, 1));
+        _dots.add(
+          p.dx - spread,
+          p.dy - 1,
+          grain * 0.0026,
+          _argb(0.6 * f, 0.86, 0.92, 1),
+        );
+        _dots.add(
+          p.dx + spread,
+          p.dy - 1,
+          grain * 0.0026,
+          _argb(0.6 * f, 0.86, 0.92, 1),
+        );
       }
     }
     // Snow: soft flakes drifting down.
@@ -1565,12 +1922,68 @@ class WildMapField {
             7 * _fsin(time * 0.9 + ph * 30);
         final m = _zone(v, x, y);
         if (m < 0.05) continue;
-        _glow.add(x, y, grain * 0.014, _argb(0.7 * snow * m, 0.95, 0.97, 1));
+        _dots.add(x, y, grain * 0.004, _argb(0.9 * snow * m, 0.95, 0.97, 1));
+        _glow.add(x, y, grain * 0.01, _argb(0.35 * snow * m, 0.95, 0.97, 1));
       }
     }
+    final storm = _wx[WildRealm.sky.index];
+    if (storm > 0) {
+      final s = WildRealm.sky.index;
+      final d = Offset(_cloudDx, _cloudDy);
+      // Rain out of the storm cloud's base.
+      for (var k = 0; k < 110; k++) {
+        final ph = _hash(k * 3 + 41), ph2 = _hash(k * 3 + 42);
+        final fall = (time * (1.3 + 0.4 * ph2) + ph) % 1.0;
+        final u = 0.16 + 0.68 * _hash(k * 3 + 40) + fall * 0.04;
+        final p = _at(s, u, 0.7 + fall * 0.3) + d;
+        final m = math.min(1.0, _zone(s, p.dx, p.dy) * 2) * (1 - fall * 0.6);
+        if (m < 0.05) continue;
+        for (var j = 0; j < 5; j++) {
+          _dots.add(
+            p.dx - j * 0.4,
+            p.dy - j * 2.3,
+            grain * 0.003,
+            _argb(storm * m * (0.7 - j * 0.12), 0.6, 0.66, 0.82),
+          );
+        }
+      }
+      // Lightning inside the cloud: a puff lit from within, twice in
+      // quick succession, and the crack it ran along.
+      if (_flickAge < 0.3) {
+        final age = _flickAge;
+        final f =
+            (age < 0.05
+                ? 1.0
+                : age < 0.09
+                ? 0.25
+                : age < 0.14
+                ? 0.85
+                : math.exp(-(age - 0.14) * 22)) *
+            storm;
+        final c = _flickAt + d;
+        _glow.add(c.dx, c.dy, _flickR * 2.6, _argb(0.5 * f, 0.62, 0.64, 1));
+        _glow.add(c.dx, c.dy, _flickR * 1.3, _argb(0.6 * f, 0.86, 0.86, 1));
+        for (var j = 1; j < _flickPath.length; j++) {
+          final a = _flickPath[j - 1] + d, b = _flickPath[j] + d;
+          final steps = ((b - a).distance / 0.9).ceil();
+          for (var q = 0; q < steps; q++) {
+            final p = Offset.lerp(a, b, q / steps)!;
+            _dots.add(p.dx, p.dy, grain * 0.004, _argb(0.9 * f, 1, 1, 1));
+            if (q % 3 == 0) {
+              _glow.add(
+                p.dx,
+                p.dy,
+                grain * 0.022,
+                _argb(0.22 * f, 0.76, 0.74, 1),
+              );
+            }
+          }
+        }
+      }
+    }
+
     // Lightning: the bolt, as grains, flickering out.
     if (_boltAge < 0.4 && _bolt.length > 1) {
-      final storm = _wx[WildRealm.sky.index];
       final flick =
           (_boltAge < 0.05 ? 1.0 : math.exp(-(_boltAge - 0.05) * 9)) *
           (0.8 + 0.2 * math.sin(_boltAge * 90)) *
@@ -1707,6 +2120,9 @@ class _Batch {
     );
   }
 }
+
+int _scaleAlpha(int argb, double t) =>
+    (((argb >>> 24) * t).round().clamp(0, 255) << 24) | (argb & 0xFFFFFF);
 
 int _byte(double v) => v <= 0 ? 0 : (v >= 1 ? 255 : (v * 255).toInt());
 

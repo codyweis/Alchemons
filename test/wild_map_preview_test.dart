@@ -74,7 +74,11 @@ void main() {
     ui.Image shoot(WildMapField f) {
       final rec = ui.PictureRecorder();
       final c = Canvas(rec)..scale(scale);
-      c.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF07070A));
+      c.drawRect(
+        Offset.zero & size,
+        Paint()
+          ..color = f.ink ? const Color(0xFFF7F4EE) : const Color(0xFF07070A),
+      );
       f.paint(c);
       return rec.endRecording().toImageSync(
         (size.width * scale).round(),
@@ -86,11 +90,15 @@ void main() {
       Map<String, WeatherKind> weather = const {},
       Set<String> ready = const {},
       bool arcane = false,
+      WildVolcano volcano = WildVolcano.still,
+      bool rainbow = false,
     }) {
       final f = WildMapField()
         ..weather = weather
         ..ready = ready
         ..arcane = arcane
+        ..volcano = volcano
+        ..rainbow = rainbow
         ..layout(size)
         ..settle();
       for (var i = 0; i < 90; i++) {
@@ -131,6 +139,49 @@ void main() {
       '8_ready_arcane',
       shoot(fresh(ready: {'valley', 'volcano'}, arcane: true)),
     );
+    // A storm between strikes: lit only from inside the cloud.
+    final between = fresh(weather: {'sky': WeatherKind.storm});
+    for (var i = 0; i < 400; i++) {
+      between.step(1 / 60);
+      if (between.debugFlickering && !between.debugStriking) break;
+    }
+    await save('9_storm_flicker', shoot(between));
+    await save('10_rainbow', shoot(fresh(rainbow: true)));
+    await save(
+      '11_volcano_smoking',
+      shoot(fresh(volcano: WildVolcano.smoking)),
+    );
+    await save(
+      '12_volcano_erupting',
+      shoot(fresh(volcano: WildVolcano.erupting)),
+    );
+    // The same states in ink, for the light theme.
+    await save(
+      'ink_1_storm_snow_dry_erupting',
+      shoot(
+        fresh(
+            weather: {
+              'sky': WeatherKind.storm,
+              'valley': WeatherKind.snow,
+              'swamp': WeatherKind.dry,
+            },
+            volcano: WildVolcano.erupting,
+          )
+          ..ink = true
+          ..debugStrike()
+          ..step(1 / 60),
+      ),
+    );
+    await save(
+      'ink_2_rain_smoking',
+      shoot(
+        fresh(
+          weather: {'valley': WeatherKind.rain},
+          volcano: WildVolcano.smoking,
+        )..ink = true,
+      ),
+    );
+    await save('ink_3_rainbow_still', shoot(fresh(rainbow: true)..ink = true));
 
     // Every frame on one sheet, four to a row.
     await tester.runAsync(() async {
@@ -178,10 +229,28 @@ void main() {
       rec.endRecording().dispose();
     }
     final stirUs = t0.elapsedMicroseconds / 60;
+    // And at rest with every realm showing a state at once.
+    final busy = fresh(
+      weather: {
+        'sky': WeatherKind.storm,
+        'valley': WeatherKind.rain,
+        'swamp': WeatherKind.dry,
+      },
+      volcano: WildVolcano.erupting,
+    );
+    t0 = Stopwatch()..start();
+    for (var i = 0; i < 120; i++) {
+      busy.step(1 / 60);
+      final rec = ui.PictureRecorder();
+      busy.paint(Canvas(rec));
+      rec.endRecording().dispose();
+    }
+    final busyUs = t0.elapsedMicroseconds / 120;
     // ignore: avoid_print
     print(
       'built in ${sw.elapsedMilliseconds} ms; ${rest.debugGrains} grains; '
-      '${restUs.round()} µs/frame at rest, ${stirUs.round()} µs stirred',
+      '${restUs.round()} µs/frame at rest, ${stirUs.round()} µs stirred, '
+      '${busyUs.round()} µs with every realm showing a state',
     );
   });
 

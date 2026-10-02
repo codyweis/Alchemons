@@ -1,6 +1,9 @@
 // The wild map: a field of grains a finger stirs. Taps find the realm they
 // land on, a swipe moves the grains and they settle back where they were,
-// lightning comes with a storm, and a frame stays a few blur-free draws.
+// each realm shows its state (lightning in a storm, the Volcano's mood, the
+// rainbow rain leaves), and a frame stays a few blur-free draws.
+
+import 'dart:math' as math;
 
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/widgets/wilderness/wild_map.dart';
@@ -36,10 +39,14 @@ WildMapField _field({
   Map<String, WeatherKind> weather = const {},
   Set<String> ready = const {},
   bool arcane = false,
+  WildVolcano volcano = WildVolcano.still,
+  bool rainbow = false,
 }) => WildMapField()
   ..weather = weather
   ..ready = ready
   ..arcane = arcane
+  ..volcano = volcano
+  ..rainbow = rainbow
   ..layout(_size)
   ..settle();
 
@@ -134,17 +141,81 @@ void main() {
     expect(struck, isTrue);
   });
 
+  test('a storm flickers inside its cloud between strikes, often', () {
+    final clear = _field();
+    final storm = _field(weather: {'sky': WeatherKind.storm});
+    var flickers = 0, lit = false;
+    for (var i = 0; i < 60 * 6; i++) {
+      clear.step(1 / 60);
+      storm.step(1 / 60);
+      expect(clear.debugFlickering, isFalse);
+      if (storm.debugFlickering && !lit) flickers++;
+      lit = storm.debugFlickering;
+    }
+    // One every 0.35–1.45 s: a storm cloud is never long dark.
+    expect(flickers, greaterThanOrEqualTo(4));
+  });
+
+  test("the Volcano shows its mood: still, smoking or erupting", () {
+    ({int bombs, int smoke}) seen(WildVolcano v) {
+      final f = _field(volcano: v);
+      var bombs = 0, smoke = 0;
+      for (var i = 0; i < 60 * 3; i++) {
+        f
+          ..step(1 / 60)
+          ..paint(_CensusCanvas());
+        bombs = math.max(bombs, f.debugBombs);
+        smoke = math.max(smoke, f.debugSmoke);
+      }
+      return (bombs: bombs, smoke: smoke);
+    }
+
+    final still = seen(WildVolcano.still);
+    expect(still.bombs, 0);
+    expect(still.smoke, 0);
+    final smoking = seen(WildVolcano.smoking);
+    expect(smoking.bombs, 0, reason: 'smoke, but nothing thrown');
+    expect(smoking.smoke, greaterThan(50));
+    final erupting = seen(WildVolcano.erupting);
+    expect(erupting.bombs, greaterThan(50));
+    expect(erupting.smoke, greaterThan(50));
+  });
+
+  test('the rainbow shows only while the Valley is clear', () {
+    int bow(WildMapField f) {
+      f
+        ..step(1 / 60)
+        ..paint(_CensusCanvas());
+      return f.debugRainbow;
+    }
+
+    expect(bow(_field()), 0);
+    expect(bow(_field(rainbow: true)), greaterThan(300));
+    // Owed, but raining again: it waits for the rain to pass.
+    expect(
+      bow(_field(rainbow: true, weather: {'valley': WeatherKind.rain})),
+      0,
+    );
+  });
+
   test('a frame is a handful of draws and never a blur', () {
-    for (final (weather, ink) in [
-      (const <String, WeatherKind>{}, false),
-      ({'sky': WeatherKind.storm}, false),
-      ({'valley': WeatherKind.rain}, false),
-      ({'valley': WeatherKind.snow}, true),
-      ({'swamp': WeatherKind.dry}, true),
+    for (final (weather, ink, volcano, rainbow) in [
+      (const <String, WeatherKind>{}, false, WildVolcano.still, true),
+      ({'sky': WeatherKind.storm}, false, WildVolcano.erupting, false),
+      ({'valley': WeatherKind.rain}, false, WildVolcano.smoking, false),
+      ({'valley': WeatherKind.snow}, true, WildVolcano.erupting, false),
+      ({'swamp': WeatherKind.dry}, true, WildVolcano.still, true),
     ]) {
-      final f = _field(weather: weather, ready: {'valley'}, arcane: true)
-        ..ink = ink
-        ..debugStrike();
+      final f =
+          _field(
+              weather: weather,
+              ready: {'valley'},
+              arcane: true,
+              volcano: volcano,
+              rainbow: rainbow,
+            )
+            ..ink = ink
+            ..debugStrike();
       for (var i = 0; i < 10; i++) {
         f.step(1 / 60);
       }
