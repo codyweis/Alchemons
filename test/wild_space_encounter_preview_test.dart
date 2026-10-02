@@ -11,6 +11,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/screens/cosmic/wild_space_encounter_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
+import 'package:alchemons/widgets/fx/grain_assembly.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -397,6 +398,97 @@ void main() {
       summonFrames.add(await grab(tester, key));
     }
     await writeStrip(tester, 'summon', summonFrames);
+
+    // The ally picked to fuse gathering out of grains of itself, as in the
+    // field — read through its veil as the screen reads it — then swapped
+    // for another, the first coming apart as the second gathers.
+    Future<GrainAssembly> readAlly(Creature who) async {
+      final key = GlobalKey(), boundaryKey = GlobalKey();
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: RepaintBoundary(
+            key: key,
+            child: WildSpaceBackdrop(
+              creature: creature,
+              backdrop: backdrop,
+              partyCreature: who,
+              allyVeiled: true,
+              allyCaptureKey: boundaryKey,
+            ),
+          ),
+        ),
+      );
+      await grab(tester, key);
+      final boundary =
+          boundaryKey.currentContext!.findRenderObject()!
+              as RenderRepaintBoundary;
+      final grains = await tester.runAsync(() async {
+        final image = await boundary.toImage(pixelRatio: 2);
+        final data = await image.toByteData(
+          format: ui.ImageByteFormat.rawStraightRgba,
+        );
+        return SpecimenGrains.fromRgba(
+          data!.buffer.asUint8List(),
+          image.width,
+          image.height,
+          pixelRatio: 2,
+          tones: 16,
+        );
+      });
+      return GrainAssembly(grains!, accent: specimenAccent(who));
+    }
+
+    final allyGrains = await readAlly(ally);
+    final gatherFrames = <ui.Image>[];
+    for (final t in const [0.1, 0.3, 0.5, 0.7, 0.85, 0.95, 1.0]) {
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: RepaintBoundary(
+            key: key,
+            child: WildSpaceBackdrop(
+              creature: creature,
+              backdrop: backdrop,
+              partyCreature: ally,
+              allyGrains: allyGrains,
+              allySummon: AlwaysStoppedAnimation(t),
+            ),
+          ),
+        ),
+      );
+      gatherFrames.add(await grab(tester, key));
+    }
+    await writeStrip(tester, 'ally_gather', gatherFrames);
+
+    final second = catalog.creatures.firstWhere(
+      (c) => c.types.contains('Water') && c.mutationFamily == 'Horn',
+    );
+    final secondGrains = await readAlly(second);
+    final swapFrames = <ui.Image>[];
+    for (final t in const [0.1, 0.3, 0.5, 0.7, 0.9]) {
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: RepaintBoundary(
+            key: key,
+            child: WildSpaceBackdrop(
+              creature: creature,
+              backdrop: backdrop,
+              partyCreature: second,
+              allyGrains: secondGrains,
+              allySummon: AlwaysStoppedAnimation(t),
+              leavingAllyGrains: allyGrains,
+              allyRecall: AlwaysStoppedAnimation(t * 0.95 / 0.75),
+            ),
+          ),
+        ),
+      );
+      swapFrames.add(await grab(tester, key));
+    }
+    await writeStrip(tester, 'ally_swap', swapFrames);
     addTearDown(tester.view.reset);
   });
 }

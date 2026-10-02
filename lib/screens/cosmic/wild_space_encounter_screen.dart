@@ -17,6 +17,8 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart'
     show CosmicEncounterBackdrop, CosmicGame;
+import 'package:alchemons/games/cosmic/planets/planet_art.dart'
+    show paintSoftCircle;
 import 'package:alchemons/games/cosmic/portal_tear_paint.dart';
 import 'package:alchemons/games/wilderness/disintegration.dart';
 import 'package:alchemons/games/wilderness/encounter_sheet.dart';
@@ -27,6 +29,7 @@ import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
+import 'package:alchemons/widgets/fx/grain_assembly.dart';
 import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:flutter/material.dart';
@@ -121,12 +124,28 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
     duration: const Duration(milliseconds: 700),
   );
 
-  /// The ally picked for fusion steps out of a summon tear, as a companion
-  /// does in space.
+  /// The ally picked for fusion gathers out of grains of itself where it
+  /// will stand, as a party Alchemon does in the field; one it replaces
+  /// comes apart and drifts off. Timings are the field's ([WildSummon]).
   late final AnimationController _allySummon = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
+    duration: const Duration(milliseconds: 950),
   );
+  late final AnimationController _allyRecall = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 750),
+  );
+
+  /// The ally, read into grains once its sprite has drawn. Until then it is
+  /// [_allyVeiled]: drawn, so it can be read, but too faintly to see, so
+  /// nothing of it shows before it gathers.
+  GrainAssembly? _allyGrains;
+  bool _allyVeiled = false;
+  int _allyPick = 0, _allyReadingPick = -1;
+  Timer? _allyVeilTimeout;
+
+  /// The ally it replaced, coming apart.
+  GrainAssembly? _leavingGrains;
 
   /// A harvest that held: the specimen is drawn in and gone.
   late final AnimationController _taken = AnimationController(
@@ -161,7 +180,90 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
     _breakFree.dispose();
     _taken.dispose();
     _allySummon.dispose();
+    _allyRecall.dispose();
+    _allyVeilTimeout?.cancel();
     super.dispose();
+  }
+
+  void _pickAlly(Creature ally) {
+    final leaving = _allyVeiled ? null : _allyGrains;
+    _allyPick++;
+    _allyVeilTimeout?.cancel();
+    // One that never says it has drawn (or cannot be read) simply appears.
+    _allyVeilTimeout = Timer(const Duration(milliseconds: 1500), _unveilAlly);
+    _allySummon.value = 0;
+    setState(() {
+      _partyCreature = ally;
+      _allyGrains = null;
+      _allyVeiled = true;
+      _leavingGrains = leaving;
+    });
+    if (leaving != null) _allyRecall.forward(from: 0);
+  }
+
+  void _unveilAlly() {
+    _allyVeilTimeout?.cancel();
+    if (!mounted || !_allyVeiled) return;
+    _allySummon.value = 1;
+    setState(() => _allyVeiled = false);
+  }
+
+  /// The ally's sprite has drawn, faintly: read it into grains and gather.
+  Future<void> _allyDrawn() async {
+    final pick = _allyPick;
+    final ally = _partyCreature;
+    if (!_allyVeiled || ally == null || _allyReadingPick == pick) return;
+    _allyReadingPick = pick;
+    // Between frames, so nothing in the box is waiting to be repainted.
+    // Asked for outright: a still sprite would not schedule one.
+    WidgetsBinding.instance.scheduleFrame();
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || pick != _allyPick) return;
+    final grains = await _readAlly();
+    if (!mounted || pick != _allyPick || !_allyVeiled) return;
+    if (grains == null) {
+      _unveilAlly();
+      return;
+    }
+    _allyVeilTimeout?.cancel();
+    setState(() {
+      _allyGrains = GrainAssembly(grains, accent: specimenAccent(ally));
+      _allyVeiled = false;
+    });
+    _allySummon.forward(from: 0);
+  }
+
+  /// The ally as it is drawn now, read into grains centred on its box.
+  Future<SpecimenGrains?> _readAlly() async {
+    final boundary = _allyCaptureKey.currentContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary || !boundary.attached) return null;
+    final ratio = min(
+      MediaQuery.devicePixelRatioOf(context),
+      600 / (_stage().allySize * 1.8),
+    );
+    try {
+      final image = await boundary.toImage(pixelRatio: ratio);
+      try {
+        final data = await image.toByteData(
+          format: ui.ImageByteFormat.rawStraightRgba,
+        );
+        if (data == null) return null;
+        final grains = SpecimenGrains.fromRgba(
+          data.buffer.asUint8List(),
+          image.width,
+          image.height,
+          pixelRatio: ratio,
+          // A [GrainAssembly] draws at most 16 tones.
+          tones: 16,
+        );
+        return grains.length < 60 ? null : grains;
+      } finally {
+        image.dispose();
+      }
+    } catch (e) {
+      debugPrint('summon: could not read the ally into grains: $e');
+      return null;
+    }
   }
 
   void _revealHud() {
@@ -372,6 +474,11 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
               breakFree: _breakFree,
               taken: _taken,
               allySummon: _allySummon,
+              allyRecall: _allyRecall,
+              allyGrains: _allyGrains,
+              allyVeiled: _allyVeiled,
+              leavingAllyGrains: _leavingGrains,
+              onAllyDrawn: _allyDrawn,
               partyLargestScale: widget.partyLargestScale,
               mergeColors: _mergeColors,
               fusionField: _fusionField,
@@ -413,8 +520,7 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
                       _partyCreature?.genetics == c.genetics) {
                     return;
                   }
-                  setState(() => _partyCreature = c);
-                  _allySummon.forward(from: 0);
+                  _pickAlly(c);
                 },
                 onAttemptFailed: () => setState(() => _failedOnce = true),
                 onClosedWithResult: (success) {
@@ -472,6 +578,11 @@ class WildSpaceBackdrop extends StatefulWidget {
     this.breakFree = kAlwaysDismissedAnimation,
     this.taken = kAlwaysDismissedAnimation,
     this.allySummon = kAlwaysCompleteAnimation,
+    this.allyRecall = kAlwaysCompleteAnimation,
+    this.allyGrains,
+    this.allyVeiled = false,
+    this.leavingAllyGrains,
+    this.onAllyDrawn,
     this.partyLargestScale = 1,
     this.behindSpecimen,
     this.fusionField,
@@ -509,8 +620,21 @@ class WildSpaceBackdrop extends StatefulWidget {
   final Animation<double> breakFree;
   final Animation<double> taken;
 
-  /// 0→1 as the ally steps out of its summon tear.
+  /// 0→1 as the ally gathers out of [allyGrains].
   final Animation<double> allySummon;
+
+  /// 0→1 as the ally it replaced comes apart into [leavingAllyGrains].
+  final Animation<double> allyRecall;
+
+  /// The ally in grains, for its gathering. Without them it simply shows.
+  final GrainAssembly? allyGrains;
+  final GrainAssembly? leavingAllyGrains;
+
+  /// The ally is drawn too faintly to see, while it is read into grains.
+  final bool allyVeiled;
+
+  /// The ally's sprite has loaded and drawn.
+  final VoidCallback? onAllyDrawn;
 
   /// See [WildSpaceEncounterScreen.partyLargestScale].
   final double partyLargestScale;
@@ -601,6 +725,11 @@ class _WildSpaceBackdropState extends State<WildSpaceBackdrop>
             breakFree: widget.breakFree,
             taken: widget.taken,
             allySummon: widget.allySummon,
+            allyRecall: widget.allyRecall,
+            allyGrains: widget.allyGrains,
+            allyVeiled: widget.allyVeiled,
+            leavingAllyGrains: widget.leavingAllyGrains,
+            onAllyDrawn: widget.onAllyDrawn,
             field: widget.fusionField,
             allyCaptureKey: widget.allyCaptureKey,
             wildCaptureKey: widget.wildCaptureKey,
@@ -682,6 +811,11 @@ class _Stage extends StatelessWidget {
     required this.breakFree,
     required this.taken,
     required this.allySummon,
+    required this.allyRecall,
+    this.allyGrains,
+    this.allyVeiled = false,
+    this.leavingAllyGrains,
+    this.onAllyDrawn,
     this.field,
     this.allyCaptureKey,
     this.wildCaptureKey,
@@ -697,8 +831,13 @@ class _Stage extends StatelessWidget {
   final Animation<double> breakFree;
   final Animation<double> taken;
 
-  /// 0→1 as the ally steps out of its summon tear.
+  /// See [WildSpaceBackdrop.allySummon] and the rest.
   final Animation<double> allySummon;
+  final Animation<double> allyRecall;
+  final GrainAssembly? allyGrains;
+  final bool allyVeiled;
+  final GrainAssembly? leavingAllyGrains;
+  final VoidCallback? onAllyDrawn;
   final WildSpaceStage stage;
   final Creature creature;
   final Creature? party;
@@ -720,6 +859,7 @@ class _Stage extends StatelessWidget {
         breakFree,
         taken,
         allySummon,
+        allyRecall,
       ]),
       builder: (context, _) {
         // Seconds into the merge (see [FusionParticleField]).
@@ -733,13 +873,18 @@ class _Stage extends StatelessWidget {
         final shake = loose ? sin(b * 70) * 16 * (1 - b) : 0.0;
         final pop = loose ? 1 + 0.22 * sin(pi * b) : 1.0;
         final k = Curves.easeIn.transform(taken.value);
-        // The ally grows out of its tear, as a companion does in space.
+        // The ally gathers out of grains of itself, as it does in the
+        // field; until they are read it is held too faint to see — never
+        // quite nothing, or it would not be drawn to be read.
         final st = allySummon.value;
-        final summoning = st < 1;
-        final allyEmerge = summoning
-            ? Curves.easeOutBack.transform(((st - 0.18) / 0.55).clamp(0.0, 1.0))
+        final gathering = allyGrains != null && st < 1;
+        final allyIn = allyVeiled
+            ? 0.01
+            : gathering
+            ? max(0.01, GrainAssembly.spriteOpacityGathering(st))
             : 1.0;
-        final allyIn = summoning ? ((st - 0.15) / 0.3).clamp(0.0, 1.0) : 1.0;
+        final rt = allyRecall.value;
+        final leaving = leavingAllyGrains != null && rt > 0 && rt < 1;
 
         final allyShift = Offset(-48 * knock, 0);
         final wildShift = Offset(48 * knock + shake, 0);
@@ -805,33 +950,48 @@ class _Stage extends StatelessWidget {
                 ),
               ),
 
-            if (ally != null && summoning)
+            // Its element's light where it gathers or comes apart.
+            if (gathering || leaving)
               CustomPaint(
                 size: Size.infinite,
-                painter: _SlotPainter(
-                  (canvas, _) => paintSummonTear(
-                    canvas,
-                    centre: allyAt,
-                    height: stage.allySize * 1.35,
-                    t: st,
-                    color: specimenAccent(ally),
-                  ),
-                ),
+                painter: _SlotPainter((canvas, _) {
+                  void light(GrainAssembly a, double u) {
+                    final k = sin(pi * u);
+                    if (k <= 0) return;
+                    paintSoftCircle(
+                      canvas,
+                      allyAt,
+                      a.reach * 1.6,
+                      a.accent.withValues(alpha: 0.26 * k),
+                      14,
+                    );
+                  }
+
+                  if (leaving) light(leavingAllyGrains!, rt);
+                  if (gathering) light(allyGrains!, st);
+                }),
               ),
 
-            if (ally != null && allyIn > 0)
+            if (ally != null)
               place(
                 allyAt,
                 stage.allySize * 1.8,
-                readable(
-                  allyCaptureKey,
-                  _Fading(
+                NotificationListener<SpriteReadyNotification>(
+                  onNotification: (_) {
+                    onAllyDrawn?.call();
+                    return false;
+                  },
+                  // Faded outside what is read, so it reads whole.
+                  child: _Fading(
                     opacity: allyIn,
-                    child: Transform.scale(
-                      scale: 0.25 + 0.75 * allyEmerge,
-                      child: Transform.flip(
+                    child: readable(
+                      allyCaptureKey,
+                      Transform.flip(
                         flipX: true,
+                        // A fresh sprite for each ally, so each says when
+                        // it has drawn.
                         child: _FloatingSpecimen(
+                          key: ObjectKey(ally),
                           creature: ally,
                           accent: mergeColors.$1 == Colors.white
                               ? specimenAccent(ally)
@@ -845,6 +1005,28 @@ class _Stage extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
+              ),
+
+            // The grains it gathers out of (read from the flipped sprite,
+            // so already facing the specimen), and the one it replaced
+            // streaming off.
+            if (gathering || leaving)
+              IgnorePointer(
+                child: CustomPaint(
+                  size: Size.infinite,
+                  painter: _SlotPainter((canvas, _) {
+                    if (leaving) {
+                      final a = leavingAllyGrains!;
+                      a.paintScatter(
+                        canvas,
+                        allyAt,
+                        rt,
+                        to: Offset(0, -a.reach * 2.4),
+                      );
+                    }
+                    if (gathering) allyGrains!.paintGather(canvas, allyAt, st);
+                  }),
                 ),
               ),
 
@@ -1190,6 +1372,7 @@ class _NightSidePainter extends CustomPainter {
 
 class _FloatingSpecimen extends StatelessWidget {
   const _FloatingSpecimen({
+    super.key,
     required this.creature,
     required this.accent,
     required this.clock,
