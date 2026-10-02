@@ -26,6 +26,7 @@ import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/portal_harvest.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/services.dart';
@@ -71,11 +72,16 @@ class ElementalNexusScreen extends StatefulWidget {
   final String? resumeElement;
   final bool harvesterAlreadyAwarded;
 
+  /// DEVELOPER TOOL: the Kin species to offer instead of a random one of the
+  /// chosen element. The encounter is otherwise the real thing.
+  final String? debugSpeciesId;
+
   const ElementalNexusScreen({
     super.key,
     this.resumePhase = NexusPhase.outside,
     this.resumeElement,
     this.harvesterAlreadyAwarded = false,
+    this.debugSpeciesId,
   });
 
   @override
@@ -98,6 +104,9 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
   Creature? _encounterCreature;
   bool _encounterActive = false;
   Creature? _selectedPartyCreature;
+
+  /// Takes the Kin standing there, as grains, rather than a copy on a card.
+  final PortalHarvest _harvest = PortalHarvest();
 
   @override
   void initState() {
@@ -203,7 +212,12 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
     }
 
     final rng = Random();
-    final picked = pool[rng.nextInt(pool.length)];
+    final forced = widget.debugSpeciesId == null
+        ? null
+        : repo.creatures.where((c) => c.id == widget.debugSpeciesId);
+    final picked = forced != null && forced.isNotEmpty
+        ? forced.first
+        : pool[rng.nextInt(pool.length)];
 
     // Generate a guaranteed prismatic version; its Potential is assigned below.
     final gen = WildlifeGenerator(
@@ -240,6 +254,7 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
     _introCtrl.dispose();
     _portalRevealCtrl.dispose();
     _encounterCtrl.dispose();
+    _harvest.dispose();
     super.dispose();
   }
 
@@ -347,11 +362,13 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
           // ── Encounter creature display ──
           if (_encounterCreature != null && _encounterActive)
             Center(
-              child: _VoidSprite(
-                creature: _encounterCreature!,
-                size: 170,
-                isPrismatic: true,
-                flipHorizontal: false,
+              child: _harvest.wrap(
+                _VoidSprite(
+                  creature: _encounterCreature!,
+                  size: 170,
+                  isPrismatic: true,
+                  flipHorizontal: false,
+                ),
               ),
             ),
 
@@ -391,6 +408,10 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
               showFusionAction: false,
               warnOnRun: true,
               onPreRollShake: () {},
+              // The harvest is taken from the Kin standing here — read into
+              // grains and cut away behind the crest — not from a copy.
+              onHarvestInScene: (accent, task, profile) =>
+                  _harvest.run(context, accent, task, profile),
               onPartyCreatureSelected: (c) {
                 setState(() => _selectedPartyCreature = c);
               },

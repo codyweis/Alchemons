@@ -4431,6 +4431,129 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (mounted) _initCosmicParty();
   }
 
+  /// DEVELOPER TOOL — open the Elemental Nexus's Kin encounter on a prismatic
+  /// Kin of your choosing. It is the real encounter (random Potential and all),
+  /// so it grants a Stabilized Harvester first — there is nothing to harvest
+  /// with otherwise — and a take really lands in cultivations.
+  Future<void> _debugKinPortal() async {
+    if (!mounted) return;
+    final catalog = context.read<CreatureCatalog>();
+    final kin =
+        catalog.creatures
+            .where((c) => c.mutationFamily?.toLowerCase() == 'kin')
+            .toList()
+          ..sort((a, b) {
+            final byType = (a.types.firstOrNull ?? '').compareTo(
+              b.types.firstOrNull ?? '',
+            );
+            return byType != 0 ? byType : a.name.compareTo(b.name);
+          });
+    if (kin.isEmpty) {
+      _showQuote('No Kin in the catalog.');
+      return;
+    }
+
+    final picked = await showDialog<Creature>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: CosmicScreenStyles.bg1,
+        insetPadding: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(6),
+          side: BorderSide(
+            color: CosmicScreenStyles.borderAccent.withValues(alpha: 0.7),
+          ),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360, maxHeight: 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                child: Text(
+                  'PRISMATIC KIN TO HARVEST',
+                  style: TextStyle(
+                    fontFamily: appFontFamily(ctx),
+                    color: const Color(0xFF7BE88C),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final c in kin)
+                      ListTile(
+                        dense: true,
+                        leading: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: elementColor(c.types.firstOrNull ?? ''),
+                          ),
+                        ),
+                        title: Text(
+                          c.name,
+                          style: TextStyle(
+                            fontFamily: appFontFamily(ctx),
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        subtitle: Text(
+                          c.types.join(' · '),
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                          ),
+                        ),
+                        onTap: () => Navigator.of(ctx).pop(c),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+
+    final db = context.read<AlchemonsDatabase>();
+    await db.inventoryDao.addItemQty(InvKeys.harvesterGuaranteed, 1);
+    if (!mounted) return;
+
+    final game = _game;
+    game?.pauseEngine();
+    try {
+      await Navigator.of(context).push<NexusResult>(
+        MaterialPageRoute(
+          builder: (_) => ElementalNexusScreen(
+            resumePhase: NexusPhase.inEncounter,
+            resumeElement: picked.types.first,
+            harvesterAlreadyAwarded: true,
+            debugSpeciesId: picked.id,
+          ),
+          fullscreenDialog: true,
+        ),
+      );
+    } finally {
+      if (mounted &&
+          identical(_game, game) &&
+          !_showMiniMap &&
+          !_anyOverlayOpen) {
+        game?.resumeEngine();
+      }
+    }
+    if (mounted) _initCosmicParty();
+  }
+
   Future<void> _maybeRunCosmicIntro() async {
     if (_runningCosmicIntro || !mounted || _game == null) return;
 
@@ -9200,6 +9323,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                     setState(() => _showSettingsMenu = false);
                     unawaited(_debugReplayPrologue());
                   },
+                  onKinPortal: () {
+                    setState(() => _showSettingsMenu = false);
+                    unawaited(_debugKinPortal());
+                  },
                 ),
 
               if (showCosmicHud && _showSandboxPanel)
@@ -10417,6 +10544,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
     required this.onToggleAutoFireMissiles,
     required this.onToggleBoostToggle,
     required this.onReplayPrologue,
+    required this.onKinPortal,
   });
 
   final bool joystickEnabled;
@@ -10434,6 +10562,9 @@ class _CosmicSettingsOverlay extends StatelessWidget {
 
   /// Developer tool: replay THE FIRST CROSSING from here.
   final VoidCallback onReplayPrologue;
+
+  /// Developer tool: harvest a chosen prismatic Kin through the Nexus.
+  final VoidCallback onKinPortal;
 
   @override
   Widget build(BuildContext context) {
@@ -10644,6 +10775,49 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                               const SizedBox(width: 8),
                               Text(
                                 'REPLAY: THE FIRST CROSSING',
+                                style: TextStyle(
+                                  fontFamily: appFontFamily(context),
+                                  color: const Color(0xFF7BE88C),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: GestureDetector(
+                        onTap: context.soundAction(onKinPortal),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF7BE88C,
+                            ).withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(
+                              color: const Color(
+                                0xFF7BE88C,
+                              ).withValues(alpha: 0.7),
+                              width: 1.3,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                AppIcons.auto_awesome_rounded,
+                                color: Color(0xFF7BE88C),
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'KIN PORTAL: PICK A PRISMATIC KIN',
                                 style: TextStyle(
                                   fontFamily: appFontFamily(context),
                                   color: const Color(0xFF7BE88C),

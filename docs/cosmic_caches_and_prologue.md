@@ -246,11 +246,16 @@ DEVELOPER section with **REPLAY: THE FIRST CROSSING**. It runs the real flow
 regardless of whether this save already spent it, so each replay genuinely
 grants another Stabilized Harvester and another catchable prismatic Let.
 
+Beneath it, **KIN PORTAL: PICK A PRISMATIC KIN** lists every Kin species and
+opens the Elemental Nexus encounter on the one chosen (`debugSpeciesId`). It
+grants a Stabilized Harvester first, and the take is real.
+
 ### Files
 
 * `lib/screens/cosmic/cosmic_prologue_screen.dart` — the screen
 * `lib/screens/cosmic/widgets/trippy_cosmos_painter.dart` — the deep field
-* `lib/screens/cosmic/widgets/element_portal_painter.dart` — the four gateways
+* `lib/widgets/fx/rift_vortex.dart` — the four gateways (the same grain rift as the wilderness and space; the old spiral-arm painter is gone)
+* `lib/widgets/fx/portal_harvest.dart` — harvests the live Let/Kin standing in the screen, as grains, not a copy
 
 Both painters are plain `CustomPainter`s taking no app state, so either can be
 rendered to a PNG on a bare canvas for review.

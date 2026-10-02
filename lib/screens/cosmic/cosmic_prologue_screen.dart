@@ -26,14 +26,16 @@ import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/services/wilderness_service.dart';
-import 'package:alchemons/screens/cosmic/widgets/element_portal_painter.dart';
 import 'package:alchemons/screens/cosmic/widgets/trippy_cosmos_painter.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/fx/portal_harvest.dart';
+import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -167,6 +169,12 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
   Creature? _encounterCreature;
   Creature? _partyCreature;
 
+  /// Takes the Let that is standing there, as grains, rather than a copy.
+  final PortalHarvest _harvest = PortalHarvest();
+
+  /// The tapped gate's rift, carried on into the fall.
+  RiftVortexField? _takeoverField;
+
   @override
   void initState() {
     super.initState();
@@ -218,6 +226,7 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
     _claimFlash.dispose();
     _warp.dispose();
     _enter.dispose();
+    _harvest.dispose();
     super.dispose();
   }
 
@@ -277,6 +286,11 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
     setState(() {
       _chosenElement = element;
       _portalOrigin = origin;
+      _takeoverField = RiftVortexField(
+        grains: 900,
+        ringGrains: 140,
+        motes: 40,
+      )..open = 1;
       _phase = _ProloguePhase.entering;
     });
 
@@ -505,7 +519,6 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
       animation: Listenable.merge([_reveal, _cosmos]),
       builder: (context, _) {
         final r = _reveal.value;
-        final t = _cosmos.value;
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -522,7 +535,7 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
                         key: _portalKeys[i],
                         element: kPrologueElements[i],
                         revealT: ((r - i * 0.13) / 0.5).clamp(0.0, 1.0),
-                        t: t,
+                        clock: _cosmos,
                         onTap: context.soundTap(
                           () => _chooseElement(kPrologueElements[i], i),
                         ),
@@ -542,7 +555,7 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
 
   Widget _enteringLayer() {
     final origin = _portalOrigin;
-    final color = elementColor(_chosenElement ?? 'Fire');
+    final color = _portalColor(_chosenElement ?? 'Fire');
     return AnimatedBuilder(
       animation: Listenable.merge([_enter, _cosmos]),
       builder: (context, _) {
@@ -550,6 +563,7 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
           size: Size.infinite,
           painter: _PortalTakeoverPainter(
             origin: origin,
+            field: _takeoverField!,
             color: color,
             t: _cosmos.value,
             progress: _enter.value,
@@ -567,11 +581,13 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
 
     return [
       Center(
-        child: _PrologueSprite(
-          creature: creature,
-          size: 170,
-          isPrismatic: true,
-          flipHorizontal: false,
+        child: _harvest.wrap(
+          _PrologueSprite(
+            creature: creature,
+            size: 170,
+            isPrismatic: true,
+            flipHorizontal: false,
+          ),
         ),
       ),
       if (_partyCreature != null)
@@ -611,6 +627,10 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
         showRarityBadge: false,
         warnOnRun: true,
         onPreRollShake: () {},
+        // The harvest is taken from the Let standing here — read into grains
+        // and cut away behind the crest — not from a copy on a card.
+        onHarvestInScene: (accent, task, profile) =>
+            _harvest.run(context, accent, task, profile),
         onPartyCreatureSelected: (c) => setState(() => _partyCreature = c),
         onClosedWithResult: (success) => _finish(caught: success),
       ),
@@ -667,38 +687,55 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
 // ELEMENT STAR CARD
 // ─────────────────────────────────────────────────────────
 
-class _ElementPortal extends StatelessWidget {
+class _ElementPortal extends StatefulWidget {
   const _ElementPortal({
     super.key,
     required this.element,
     required this.revealT,
-    required this.t,
+    required this.clock,
     required this.onTap,
   });
 
   final String element;
   final double revealT;
-  final double t;
+
+  /// The crossing's monotonic clock (cosmos units, ~0.5 per second).
+  final ValueListenable<double> clock;
   final VoidCallback onTap;
 
   @override
+  State<_ElementPortal> createState() => _ElementPortalState();
+}
+
+class _ElementPortalState extends State<_ElementPortal> {
+  // The same grain rift the wilderness and space use, small: a tipped disk
+  // falling into a black core. Built once; the painter advances it.
+  final RiftVortexField _field = RiftVortexField(
+    grains: 520,
+    ringGrains: 90,
+    motes: 22,
+    grainSize: 1.5,
+  );
+
+  @override
   Widget build(BuildContext context) {
-    if (revealT <= 0) return const SizedBox.shrink();
+    if (widget.revealT <= 0) return const SizedBox.shrink();
 
     return Opacity(
-      opacity: revealT.clamp(0.0, 1.0),
+      opacity: widget.revealT.clamp(0.0, 1.0),
       child: GestureDetector(
-        onTap: context.soundAction(onTap),
+        onTap: context.soundAction(widget.onTap),
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
           width: 132,
           height: 132,
           child: CustomPaint(
             // No name, no icon — the colour is the whole label.
-            painter: ElementPortalPainter(
-              color: elementColor(element),
-              t: t,
-              open: Curves.easeOutCubic.transform(revealT),
+            painter: _VortexPortalPainter(
+              field: _field,
+              color: _portalColor(widget.element),
+              clock: widget.clock,
+              open: widget.revealT,
             ),
           ),
         ),
@@ -707,60 +744,99 @@ class _ElementPortal extends StatelessWidget {
   }
 }
 
+/// The element's colour lifted toward white so muddy ones still read against
+/// near-black.
+Color _portalColor(String element) =>
+    Color.lerp(elementColor(element), Colors.white, 0.22)!;
+
+/// Where on the crossing's clock each rift was last stepped, so a field that
+/// starts mid-clock advances by real elapsed time rather than racing to catch
+/// up.
+final Expando<double> _steppedAt = Expando<double>('portal rift');
+
+void _stepToClock(RiftVortexField field, double cosmos) {
+  // Cosmos units run at ~0.5 per second; the field wants seconds.
+  final now = cosmos * 2;
+  final last = _steppedAt[field] ?? now;
+  _steppedAt[field] = now;
+  field.step((now - last).clamp(0.0, 0.1));
+}
+
+/// Steps [field] to the clock and draws it, the rift's own way.
+class _VortexPortalPainter extends CustomPainter {
+  _VortexPortalPainter({
+    required this.field,
+    required this.color,
+    required this.clock,
+    required this.open,
+  }) : super(repaint: clock);
+
+  final RiftVortexField field;
+  final Color color;
+  final ValueListenable<double> clock;
+  final double open;
+
+  static const double radius = 60;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _stepToClock(field, clock.value);
+    field.open = Curves.easeOutCubic.transform(open.clamp(0.0, 1.0));
+    field.paint(
+      canvas,
+      size,
+      size.center(Offset.zero),
+      radius,
+      RiftPalette(color),
+      backdrop: false,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_VortexPortalPainter old) =>
+      old.open != open || old.color != color || old.field != field;
+}
+
 /// The chosen gate rushing up to swallow the screen.
 ///
-/// It reuses [ElementPortalPainter] under a scale transform rather than
-/// re-drawing the artwork, so what expands is exactly the portal that was
-/// tapped — stroke weights and all.
+/// It is the same rift, carried on: spun up and falling in. The field's own
+/// dive zooms the grains past and ends black, so the encounter cuts in from
+/// the dark rather than from a wash of the element colour.
 class _PortalTakeoverPainter extends CustomPainter {
   const _PortalTakeoverPainter({
     required this.origin,
+    required this.field,
     required this.color,
     required this.t,
     required this.progress,
   });
 
   final Offset? origin;
+  final RiftVortexField field;
   final Color color;
   final double t;
   final double progress;
-
-  static const double _box = 132.0;
 
   @override
   void paint(Canvas canvas, Size size) {
     final from = origin ?? size.center(Offset.zero);
     final p = Curves.easeInCubic.transform(progress.clamp(0.0, 1.0));
 
-    // Drift the portal to centre as it grows, so we fall straight into it.
+    // Drift the rift to centre as it grows, so we fall straight into it.
     final centre = Offset.lerp(from, size.center(Offset.zero), p * 0.85)!;
-    final scale = 1 + p * 30;
 
-    canvas.save();
-    canvas.translate(centre.dx, centre.dy);
-    canvas.scale(scale);
-    canvas.translate(-_box / 2, -_box / 2);
-    ElementPortalPainter(
-      color: color,
-      // Spin up hard as we fall in.
-      t: t + p * 7,
-      open: 1.0,
-    ).paint(canvas, const Size(_box, _box));
-    canvas.restore();
-
-    // Fall into the dark rather than into a flat wash of the element colour:
-    // once the gate is bigger than the screen its outer glow is all that is
-    // left, and that reads as a blue plate. Closing from 0.45 lets the event
-    // horizon take over, and the encounter then cuts in from black.
-    final close = Curves.easeInCubic.transform(
-      ((progress - 0.45) / 0.40).clamp(0.0, 1.0),
+    _stepToClock(field, t);
+    field
+      ..charge = p
+      ..dive = p;
+    field.paint(
+      canvas,
+      size,
+      centre,
+      _VortexPortalPainter.radius * (1 + p * 3),
+      RiftPalette(color),
+      backdrop: false,
     );
-    if (close > 0) {
-      canvas.drawRect(
-        Offset.zero & size,
-        Paint()..color = const Color(0xFF04030B).withValues(alpha: close),
-      );
-    }
   }
 
   @override
