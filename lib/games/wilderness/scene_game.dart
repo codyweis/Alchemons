@@ -15,6 +15,7 @@ import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
+import 'package:alchemons/games/wilderness/ship_landing.dart';
 import 'package:alchemons/models/rift_state.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
@@ -160,11 +161,12 @@ class SceneGame extends FlameGame with ScaleDetector {
   final Map<String, WildMonComponent> _wildBySpawnId = {};
   final Map<String, int> _wildRenderVersionBySpawnId = {};
   String? _currentEncounterSpawnId; // keep this to track which one is engaged
-  _ShipBeaconComponent? _shipBeacon;
+  ShipLandingComponent? _shipBeacon;
   String? _pendingShipSpawnId;
   VoidCallback? _pendingShipTap;
   bool _pendingShipFlyIn = false;
   VoidCallback? _pendingShipCrash;
+  VoidCallback? _pendingShipBurn;
 
   // Party creature during encounter
   WildMonComponent? _partyCreature;
@@ -405,6 +407,7 @@ class SceneGame extends FlameGame with ScaleDetector {
         _pendingShipSpawnId!,
         onTap: _pendingShipTap!,
         flyIn: _pendingShipFlyIn,
+        onBurn: _pendingShipBurn,
         onCrashLanded: _pendingShipCrash,
       );
     }
@@ -719,10 +722,15 @@ class SceneGame extends FlameGame with ScaleDetector {
     _wildBySpawnId.remove(spawnId)?.removeFromParent();
   }
 
+  /// Puts the cosmic ship at [spawnId], seated in the grass there. With
+  /// [flyIn] it first comes down out of the sky (see ship_landing.dart);
+  /// [onBurn] fires as it brakes near the ground, [onCrashLanded] as it
+  /// touches down. Either way the camera turns to it.
   void placeShipBeaconAt(
     String spawnId, {
     required VoidCallback onTap,
     bool flyIn = false,
+    VoidCallback? onBurn,
     VoidCallback? onCrashLanded,
   }) {
     clearShipBeacon();
@@ -732,26 +740,70 @@ class SceneGame extends FlameGame with ScaleDetector {
       _pendingShipSpawnId = spawnId;
       _pendingShipTap = onTap;
       _pendingShipFlyIn = flyIn;
+      _pendingShipBurn = onBurn;
       _pendingShipCrash = onCrashLanded;
       return;
     }
+    final sp = scene.spawnPoints.firstWhere((p) => p.id == spawnId);
 
-    final comp =
-        _ShipBeaconComponent(
-            onTap: onTap,
-            flyIn: flyIn,
-            onCrashLanded: onCrashLanded,
-          )
-          ..anchor = Anchor.center
-          ..position = Vector2.zero()
-          ..priority = 200;
+    final comp = ShipLandingComponent(
+      onTap: onTap,
+      flyIn: flyIn,
+      onBurn: onBurn,
+      onCrashLanded: onCrashLanded,
+      // The grass line under the anchor, wherever the loop has put it.
+      ground: () {
+        final g = _art?.groundAt(sp.anchor, anchor.position.x);
+        if (g == null) return null;
+        final y = anchor.position.y;
+        return (top: g.top - y, rest: g.rest - y);
+      },
+      stir: (world, dx) => _touch(cam.localToGlobal(world), Vector2(dx, 0)),
+    )..priority = 200;
     anchor.add(comp);
     _shipBeacon = comp;
     _pendingShipSpawnId = null;
     _pendingShipTap = null;
     _pendingShipFlyIn = false;
+    _pendingShipBurn = null;
     _pendingShipCrash = null;
+    _lookAtShip(sp, anchor);
   }
+
+  /// Eases the camera round to the ship's landing, a little right of the
+  /// middle so the glide in from the left is in view. A drag takes the
+  /// camera back at once.
+  void _lookAtShip(SpawnPoint sp, PositionComponent anchor) {
+    if (_mode != SceneMode.exploration) return;
+    final pf = scene.layers
+        .firstWhere((l) => l.id == sp.anchor, orElse: () => scene.layers.first)
+        .parallaxFactor;
+    final vw = size.x / (layersRoot.scale.x * cam.viewfinder.zoom);
+    _targetCameraX = _clampCamX(
+      (anchor.position.x - vw * 0.58) / (1 + pf),
+      _maxCamXExploration,
+    );
+  }
+
+  /// The ship has been claimed: it takes off and leaves, and is cleared
+  /// once it has gone; then [onGone].
+  void launchShipBeacon({VoidCallback? onGone}) {
+    final ship = _shipBeacon;
+    if (ship == null) {
+      onGone?.call();
+      return;
+    }
+    ship.launch(
+      onGone: () {
+        if (identical(_shipBeacon, ship)) clearShipBeacon();
+        onGone?.call();
+      },
+    );
+  }
+
+  /// The ship in the field, if there is one.
+  @visibleForTesting
+  ShipLandingComponent? get debugShipBeacon => _shipBeacon;
 
   void clearShipBeacon() {
     _shipBeacon?.removeFromParent();
@@ -759,6 +811,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     _pendingShipSpawnId = null;
     _pendingShipTap = null;
     _pendingShipFlyIn = false;
+    _pendingShipBurn = null;
     _pendingShipCrash = null;
   }
 
@@ -2311,291 +2364,6 @@ class _CreatureBacklightComponent extends PositionComponent {
   @override
   void render(Canvas canvas) {
     canvas.drawCircle(Offset(radius, radius), radius, _paint);
-  }
-}
-
-class _ShipBeaconComponent extends PositionComponent with TapCallbacks {
-  _ShipBeaconComponent({
-    required this.onTap,
-    this.flyIn = false,
-    this.onCrashLanded,
-  }) : super(size: Vector2(132, 132), anchor: Anchor.center);
-
-  final VoidCallback onTap;
-
-  /// When true, the ship streaks in from above and crash-lands before it
-  /// becomes tappable. When false, it simply renders at rest (restored state).
-  final bool flyIn;
-
-  /// Fired once, the moment the ship touches down (for the impact shake).
-  final VoidCallback? onCrashLanded;
-
-  static const double _entryDuration = 1.5;
-
-  double _elapsed = 0.0;
-  double _entryT = 0.0;
-  double _postLand = 0.0;
-  bool _landed = false;
-  bool _crashFired = false;
-
-  @override
-  void onMount() {
-    super.onMount();
-    if (!flyIn) {
-      _landed = true;
-      _entryT = _entryDuration;
-    }
-  }
-
-  @override
-  void update(double dt) {
-    super.update(dt);
-    _elapsed += dt;
-    if (flyIn && !_landed) {
-      _entryT += dt;
-      if (_entryT >= _entryDuration) {
-        _entryT = _entryDuration;
-        _landed = true;
-        if (!_crashFired) {
-          _crashFired = true;
-          onCrashLanded?.call();
-        }
-      }
-    } else if (_landed && _postLand < 1.3) {
-      _postLand += dt;
-    }
-  }
-
-  @override
-  void onTapDown(TapDownEvent event) {
-    // Ignore taps until the crash-landing cinematic finishes.
-    if (!_landed) return;
-    onTap();
-  }
-
-  @override
-  void render(Canvas canvas) {
-    super.render(canvas);
-    final c = Offset(size.x * 0.5, size.y * 0.5);
-
-    final p = flyIn ? (_entryT / _entryDuration).clamp(0.0, 1.0) : 1.0;
-    final descending = p < 1.0;
-
-    // Entry transform: dive in from the upper-right and straighten on landing.
-    double dx = 0, dy = 0, tilt = 0;
-    if (descending) {
-      final eIn = p * p; // accelerate downward
-      final eOut = 1 - (1 - p) * (1 - p); // ease horizontal drift
-      dx = 150 * (1 - eOut);
-      dy = -880 * (1 - eIn);
-      tilt = -0.4 * (1 - p);
-    }
-
-    // Post-impact squash bounce.
-    double bounceY = 0, sq = 0;
-    if (flyIn && _landed && _postLand < 0.55) {
-      final b = _postLand / 0.55;
-      bounceY = -sin(b * pi) * 6 * (1 - b);
-      sq = 0.18 * sin(b * pi) * (1 - b);
-    }
-
-    // Impact dust ring.
-    if (flyIn && _landed && _postLand < 0.85) {
-      final dp = _postLand / 0.85;
-      final dustPaint = Paint()
-        ..color = const Color(0xFFCFF3FF).withValues(alpha: 0.55 * (1 - dp))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5 * (1 - dp)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
-      canvas.drawCircle(Offset(c.dx, c.dy + 22), 22 + 92 * dp, dustPaint);
-    }
-
-    final glowPulse = 0.78 + 0.22 * sin(_elapsed * 2.8);
-
-    // Idle beacon aura — only once the ship is fully landed.
-    if (!descending) {
-      final auraPaint = Paint()
-        ..shader = ui.Gradient.radial(
-          c,
-          56,
-          [
-            const Color(0xFF5BEBFF).withValues(alpha: 0.46 * glowPulse),
-            const Color(0xFF5BEBFF).withValues(alpha: 0.20 * glowPulse),
-            Colors.transparent,
-          ],
-          const [0.0, 0.62, 1.0],
-        )
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
-      canvas.drawCircle(c, 56, auraPaint);
-
-      final ringRadius = 42 + (2.5 * sin(_elapsed * 3.4));
-      final ringPaint = Paint()
-        ..color = const Color(0xFF7BF1FF).withValues(alpha: 0.58 * glowPulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-      canvas.drawCircle(c, ringRadius, ringPaint);
-    }
-
-    canvas.save();
-    canvas.translate(c.dx + dx, c.dy + dy + bounceY);
-    canvas.rotate(tilt);
-    final pulse = descending ? 1.0 : 1.0 + 0.06 * sin(_elapsed * 3.6);
-    canvas.scale(pulse * (1 + sq), pulse * (1 - sq));
-
-    // Re-entry streak trailing up behind the diving ship.
-    if (descending) {
-      final streakLen = 60 + 170 * p;
-      final streakPaint = Paint()
-        ..shader = ui.Gradient.linear(
-          const Offset(0, -38),
-          Offset(0, -38 - streakLen),
-          [
-            const Color(0xFF9BF3FF).withValues(alpha: 0.6),
-            const Color(0x005BEBFF),
-          ],
-        )
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 10
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-      canvas.drawLine(
-        const Offset(0, -38),
-        Offset(0, -38 - streakLen),
-        streakPaint,
-      );
-    }
-
-    final enginePulse = descending ? 1.0 : 0.85 + 0.15 * sin(_elapsed * 9);
-
-    // Engine glow
-    final glowPaint = Paint()
-      ..color = const Color(0xAA00E5FF).withValues(alpha: 0.62 * enginePulse)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
-    canvas.drawCircle(const Offset(0, 28), 13, glowPaint);
-
-    for (final x in const [-7.5, 7.5]) {
-      canvas.drawCircle(
-        Offset(x, 23),
-        4.5,
-        Paint()..color = const Color(0xCC8AF7FF),
-      );
-    }
-
-    // Trail particles — idle hover wisps, suppressed during the dive.
-    for (var i = 1; !descending && i <= 4; i++) {
-      final wobble = sin(_elapsed * 8 + i * 1.35) * (2.8 + i * 0.25);
-      final trailPaint = Paint()
-        ..color = const Color(0xFF5ED8FF).withValues(alpha: 0.24 - i * 0.04);
-      canvas.drawCircle(
-        Offset(wobble, 28.0 + i * 9),
-        5.1 - i * 0.7,
-        trailPaint,
-      );
-    }
-
-    final wingPath = Path()
-      ..moveTo(0, -34)
-      ..lineTo(-8, -22)
-      ..lineTo(-18, -8)
-      ..lineTo(-24, 16)
-      ..lineTo(-11, 12)
-      ..lineTo(-5, 26)
-      ..lineTo(0, 21)
-      ..lineTo(5, 26)
-      ..lineTo(11, 12)
-      ..lineTo(24, 16)
-      ..lineTo(18, -8)
-      ..lineTo(8, -22)
-      ..close();
-
-    final fuselagePath = Path()
-      ..moveTo(0, -38)
-      ..lineTo(-5.5, -18)
-      ..lineTo(-6.5, -4)
-      ..lineTo(-4.2, 19)
-      ..lineTo(0, 25)
-      ..lineTo(4.2, 19)
-      ..lineTo(6.5, -4)
-      ..lineTo(5.5, -18)
-      ..close();
-
-    final wingPaint = Paint()
-      ..shader = ui.Gradient.linear(const Offset(0, -34), const Offset(0, 26), [
-        const Color(0xFF4FC3F7),
-        const Color(0xFF0C5C86),
-      ]);
-    canvas.drawPath(wingPath, wingPaint);
-
-    final fuselagePaint = Paint()
-      ..shader = ui.Gradient.linear(
-        const Offset(0, -38),
-        const Offset(0, 25),
-        [
-          const Color(0xFFDDFBFF),
-          const Color(0xFF90E8FF),
-          const Color(0xFF0D79AB),
-        ],
-        const [0.0, 0.42, 1.0],
-      );
-    canvas.drawPath(fuselagePath, fuselagePaint);
-
-    final canopyPath = Path()
-      ..moveTo(0, -22)
-      ..quadraticBezierTo(7, -18, 5.5, -5)
-      ..quadraticBezierTo(0, 1, -5.5, -5)
-      ..quadraticBezierTo(-7, -18, 0, -22)
-      ..close();
-    final canopyPaint = Paint()
-      ..shader = ui.Gradient.linear(
-        const Offset(0, -22),
-        const Offset(0, 1),
-        [
-          const Color(0xFFF6FEFF),
-          const Color(0xFF6FE8FF),
-          const Color(0xFF007EA7),
-        ],
-        const [0.0, 0.48, 1.0],
-      );
-    canvas.drawPath(canopyPath, canopyPaint);
-
-    final intakePaint = Paint()
-      ..color = const Color(0x6615334A)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    canvas.drawLine(const Offset(-11, -5), const Offset(-15, 12), intakePaint);
-    canvas.drawLine(const Offset(11, -5), const Offset(15, 12), intakePaint);
-
-    final hullHighlight = Paint()
-      ..color = const Color(0x99FFFFFF)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    canvas.drawLine(const Offset(0, -29), const Offset(0, 16), hullHighlight);
-
-    final outlinePaint = Paint()
-      ..color = const Color(0xAA00E5FF)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    canvas.drawPath(wingPath, outlinePaint);
-    canvas.drawPath(fuselagePath, outlinePaint);
-
-    canvas.drawCircle(
-      const Offset(-13, 5),
-      2.1,
-      Paint()..color = const Color(0x99A8FFFF),
-    );
-    canvas.drawCircle(
-      const Offset(13, 5),
-      2.1,
-      Paint()..color = const Color(0x9959D8FF),
-    );
-
-    canvas.drawCircle(
-      const Offset(0, -8),
-      5.5,
-      Paint()..color = const Color(0xCC00E5FF),
-    );
-
-    canvas.restore();
   }
 }
 

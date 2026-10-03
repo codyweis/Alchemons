@@ -366,21 +366,40 @@ abstract class _Hull {
     double width = 2.3,
     double length = 8,
   }) {
+    final k = _engineLevel;
+    if (k <= 0.01) return;
     final pulse = 0.85 + 0.15 * sin(t * 9);
     for (final n in nozzles) {
-      _disc(c, light.pool, n, 10 + 4 * boost, 1.6 + 0.6 * boost);
+      _disc(
+        c,
+        light.pool,
+        n,
+        (10 + 4 * boost) * (0.6 + 0.4 * k),
+        (1.6 + 0.6 * boost) * k,
+      );
       c.save();
       c.translate(n.dx, n.dy);
-      c.scale(width * (1 + 0.25 * boost), length * pulse * (1 + 1.4 * boost));
-      _path(c, _plumePath, light.plume, 0.85);
+      c.scale(
+        width * (1 + 0.25 * boost),
+        length * pulse * (1 + 1.4 * boost) * (0.3 + 0.7 * k),
+      );
+      _path(c, _plumePath, light.plume, 0.85 * k);
       c.restore();
     }
   }
 
   void nozzleSparks(Canvas c, double t, double boost, [double radius = 2.8]) {
+    // Cold engines keep an ember in each nozzle.
+    final k = 0.4 + 0.6 * _engineLevel;
     for (var i = 0; i < nozzles.length; i++) {
       final flick = 0.88 + 0.12 * sin(t * 13 + i * 2.1);
-      _disc(c, light.spark, nozzles[i], radius * flick * (1 + 0.3 * boost));
+      _disc(
+        c,
+        light.spark,
+        nozzles[i],
+        radius * flick * (1 + 0.3 * boost) * k,
+        0.35 + 0.65 * _engineLevel,
+      );
     }
   }
 
@@ -925,7 +944,6 @@ class _CrystalHull extends _Hull {
     [light.rim, Color.lerp(light.face, light.essence, 0.3)!],
   );
 
-
   /// Shards of the hull's glass held in orbit round it: a dark face and a
   /// lit one each, all the shards on one side of the hull in two paths.
   void _shards(Canvas c, double t, bool front) {
@@ -991,6 +1009,9 @@ class _CrystalHull extends _Hull {
 
 final Map<String?, _Hull> _hulls = {};
 
+/// How lit the engines of the hull being painted are (see [paintShipHull]).
+double _engineLevel = 1;
+
 _Hull _hull(String? skin) => _hulls[skin] ??= switch (skin) {
   'skin_phantom' => _PhantomHull(shipLight(skin)),
   'skin_solar' => _SolarHull(shipLight(skin)),
@@ -1003,6 +1024,8 @@ _Hull _hull(String? skin) => _hulls[skin] ??= switch (skin) {
 /// up, in hull units. [glow] adds the light pooled round it — survival
 /// leaves it off. [boost] (0..1) opens the engines up; [flash] (0..1)
 /// blanches the hull from the inside out, the way an enemy shows a hit.
+/// [engines] (0..1) is how lit the engines are: 1 in flight, 0 for a hull
+/// at rest on the ground, its nozzles down to embers.
 void paintShipHull(
   Canvas c,
   String? skin,
@@ -1010,8 +1033,11 @@ void paintShipHull(
   bool glow = true,
   double boost = 0,
   double flash = 0,
+  double engines = 1,
 }) {
+  _engineLevel = engines.clamp(0.0, 1.0);
   _hull(skin).paint(c, time, glow, boost.clamp(0.0, 1.0));
+  _engineLevel = 1;
   if (flash > 0.02) {
     _disc(c, _flash, const Offset(0, -2), 24, 0.75 * flash.clamp(0.0, 1.0));
   }
@@ -1039,6 +1065,7 @@ class ShipWake {
   double _carry = 0, _emberCarry = 0;
   String? _skin;
   double _boost = 0;
+  double _emit = 1, _lifeScale = 1;
   int _seed = 0x2545F491;
 
   double _rand() {
@@ -1071,15 +1098,23 @@ class ShipWake {
   /// (radians, 0 = +x). The first call lays down the wake a ship cruising
   /// in a straight line would have, so a still picture of the hull shows
   /// one too.
+  ///
+  /// [emit] (0..1) scales how many new grains the engines throw — 0 lets
+  /// the wake there is die away behind a ship whose engines are off — and
+  /// [life] stretches how long new grains last, for a longer trail.
   void update(
     double time,
     Offset pos,
     double angle,
     String? skin, {
     double boost = 0,
+    double emit = 1,
+    double life = 1,
   }) {
     _skin = skin;
     _boost = boost.clamp(0.0, 1.0);
+    _emit = emit.clamp(0.0, 1.0);
+    _lifeScale = life;
     final hull = _hull(skin);
     final last = _t;
     if (last == null || time < last || time - last > 1.0) {
@@ -1139,7 +1174,7 @@ class ShipWake {
     final side = Offset(-back.dy, back.dx);
     final boost = _boost;
 
-    _carry += dt * w.rate * (1 + 1.6 * boost);
+    _carry += dt * w.rate * (1 + 1.6 * boost) * _emit;
     while (_carry >= 1) {
       _carry -= 1;
       if (_n >= _cap) continue;
@@ -1154,7 +1189,7 @@ class ShipWake {
       _spawn(
         at,
         v,
-        w.life * (0.7 + 0.6 * _rand()) * (1 + 0.35 * boost),
+        w.life * (0.7 + 0.6 * _rand()) * (1 + 0.35 * boost) * _lifeScale,
         dt,
         false,
       );
@@ -1162,7 +1197,7 @@ class ShipWake {
 
     final embers = hull.emberPoints;
     if (embers.isNotEmpty) {
-      _emberCarry += dt * 16 * (1 + boost);
+      _emberCarry += dt * 16 * (1 + boost) * _emit;
       while (_emberCarry >= 1) {
         _emberCarry -= 1;
         if (_n >= _cap) continue;
@@ -1197,7 +1232,8 @@ class ShipWake {
   static final List<int> _bucketN = List.filled(5, 0);
 
   /// Draws the wake. World space: call before the canvas moves to the hull.
-  void paint(Canvas c, {double opacity = 1}) {
+  /// [grain] scales the grains, for a wake drawn on a scaled canvas.
+  void paint(Canvas c, {double opacity = 1, double grain = 1}) {
     if (_n == 0 || opacity <= 0.01) return;
     final hull = _hull(_skin);
     final w = hull.wake;
@@ -1218,7 +1254,7 @@ class ShipWake {
       _buckets[b][k] = _x[i];
       _buckets[b][k + 1] = _y[i];
     }
-    final s = w.size * (1 + 0.3 * _boost);
+    final s = w.size * (1 + 0.3 * _boost) * grain;
     final a = w.alpha * opacity;
     void pass(int b, double d, Color col, double alpha) {
       final n = _bucketN[b];

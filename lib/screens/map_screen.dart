@@ -113,6 +113,10 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen>
     with SingleTickerProviderStateMixin {
   bool _arcaneUnlocked = false;
+
+  /// The cosmic ship has come down in the Valley and waits to be claimed:
+  /// the Valley's rim pulses, as for anything else waiting there.
+  bool _shipWaitsInValley = false;
   late final AnimationController _mapController;
   late final Animation<double> _mapScale;
   late final Animation<double> _mapOpacity;
@@ -142,6 +146,12 @@ class _MapScreenState extends State<MapScreen>
       final db = context.read<AlchemonsDatabase>();
       final v = await db.settingsDao.getSetting('arcane_portal_unlocked');
       if (mounted && v == '1') setState(() => _arcaneUnlocked = true);
+      final ship = await db.settingsDao.getSetting('cosmic_ship_scene');
+      final claimed =
+          await db.settingsDao.getSetting('cosmic_ship_claimed') == '1';
+      if (mounted && ship == 'valley' && !claimed) {
+        setState(() => _shipWaitsInValley = true);
+      }
       await Future.delayed(const Duration(milliseconds: 150));
       if (mounted) _mapController.forward();
     });
@@ -297,6 +307,7 @@ class _MapScreenState extends State<MapScreen>
                     child: _WildMap(
                       theme: theme,
                       arcaneUnlocked: _arcaneUnlocked,
+                      shipWaitsInValley: _shipWaitsInValley,
                       onSelectRegion: (biomeId, scene) {
                         _handleRegionTap(context, biomeId, scene);
                       },
@@ -323,7 +334,8 @@ class _MapScreenState extends State<MapScreen>
       beats: const [
         StoryBeat(
           title: 'Not yet',
-          message: 'Finish your first expedition in the realm circled in green.',
+          message:
+              'Finish your first expedition in the realm circled in green.',
         ),
       ],
     );
@@ -990,12 +1002,14 @@ class _WildMap extends StatelessWidget {
     required this.onSelectRegion,
     this.onPeekRegion,
     this.arcaneUnlocked = false,
+    this.shipWaitsInValley = false,
   });
 
   final FactionTheme theme;
   final void Function(String biomeId, SceneDefinition scene) onSelectRegion;
   final void Function(String biomeId)? onPeekRegion;
   final bool arcaneUnlocked;
+  final bool shipWaitsInValley;
 
   static final Map<String, SceneDefinition> _scenes = {
     'valley': valleySceneCorrected,
@@ -1015,6 +1029,7 @@ class _WildMap extends StatelessWidget {
     final ready = <String>{
       for (final id in _scenes.keys)
         if (spawnService.getSceneSpawnCount(id) > 0) id,
+      if (shipWaitsInValley) 'valley',
     };
     final volcano = switch (spawnService.fieldStageFor(
       'volcano',

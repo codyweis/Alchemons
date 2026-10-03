@@ -140,6 +140,10 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   bool _shipPresent = false;
   String? _shipSceneId;
   bool _shipBeaconPlaced = false;
+
+  /// The ship has just been armed in the Valley while the player is
+  /// elsewhere; they hear of it once this scene has opened.
+  bool _shipNewsPending = false;
   late final AnimationController _biomeAmbienceCtrl;
   bool get _isCosmicPlanetMode => widget.isCosmicPlanetEntry;
 
@@ -314,6 +318,16 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
           if (mounted && !widget.isTutorial && !_isCaptureTutorialScene) {
             await _maybeShowFirstVisitWildernessStoryDialog();
+          }
+
+          if (_shipNewsPending && mounted) {
+            _shipNewsPending = false;
+            showGameSnack(
+              context,
+              'Something has come down in the Valley.',
+              icon: AppIcons.auto_awesome_rounded,
+              duration: const Duration(seconds: 5),
+            );
           }
 
           if (!widget.isTutorial &&
@@ -834,6 +848,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
         await settings.setSetting('cosmic_ship_scene', 'valley');
         // Arm the crash-landing cinematic for the next time Valley renders.
         await settings.setSetting('cosmic_ship_arrival_pending', '1');
+        // Away from the Valley, nothing would tell the player to go back:
+        // they are told once, after this realm's own story has had its say.
+        _shipNewsPending = widget.sceneId != 'valley';
         if (mounted) {
           setState(() {
             _shipSceneId = 'valley';
@@ -871,7 +888,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   Future<void> _onShipTapped() async {
     if (!mounted) return;
     HapticFeedback.heavyImpact();
-    _game.shake(duration: const Duration(milliseconds: 900), amplitude: 18);
+    _game.shake(duration: const Duration(milliseconds: 600), amplitude: 6);
 
     await LandscapeDialog.show(
       context,
@@ -899,10 +916,17 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       setState(() {
         _shipPresent = false;
         _shipSceneId = null;
-        _shipSpawnId = null;
         _shipBeaconPlaced = false;
       });
-      _game.clearShipBeacon();
+      // It takes off and leaves with its new pilot; its spot in the meadow
+      // stays clear until it has gone.
+      HapticFeedback.mediumImpact();
+      _game.shake(duration: const Duration(milliseconds: 1400), amplitude: 3);
+      _game.launchShipBeacon(
+        onGone: () {
+          if (mounted) setState(() => _shipSpawnId = null);
+        },
+      );
     }
   }
 
@@ -964,21 +988,24 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       // _onShipTapped already fires its own heavier haptic.
       onTap: _onShipTapped,
       flyIn: flyIn,
+      onBurn: _onShipBurn,
       onCrashLanded: _onShipCrashLanded,
     );
     _shipBeaconPlaced = true;
+  }
 
-    if (flyIn) {
-      HapticFeedback.mediumImpact();
-      // Low rumble while the ship descends; the impact shake fires on landing.
-      _game.shake(duration: const Duration(milliseconds: 1500), amplitude: 6);
-    }
+  /// The ship's engines open up to brake over the meadow: a low rumble.
+  void _onShipBurn() {
+    if (!mounted) return;
+    HapticFeedback.mediumImpact();
+    _game.shake(duration: const Duration(milliseconds: 1100), amplitude: 3);
   }
 
   void _onShipCrashLanded() {
     if (!mounted) return;
     HapticFeedback.heavyImpact();
-    _game.shake(duration: const Duration(milliseconds: 700), amplitude: 24);
+    // Kept modest: the camera has only just come round to it.
+    _game.shake(duration: const Duration(milliseconds: 600), amplitude: 10);
   }
 
   void _showShipBeckoning() {
