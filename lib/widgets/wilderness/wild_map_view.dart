@@ -67,7 +67,8 @@ class _WildMapViewState extends State<WildMapView>
   void initState() {
     super.initState();
     _apply();
-    _field.settle();
+    // Every realm opens as dust; those with something waiting gather.
+    _field.settle(gather: true);
     _ticker.start();
   }
 

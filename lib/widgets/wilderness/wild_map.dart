@@ -8,6 +8,11 @@
 // them like sand in water, and they settle back. A realm (or Arcane) with
 // something waiting in it has a fine green rim that pulses.
 //
+// A realm takes its shape only while something waits in it. Until then its
+// grains are loose dust scattered over its circle, drifting round in a few
+// layers that turn against each other; when something arrives they gather
+// into the shape, and when it is gone they come apart again.
+//
 // The state of each realm is shown, not announced: the Sky's cloud dark and
 // flickering with lightning in a storm; rain on the Valley's mountains, a
 // snowcap on them in snow and a rainbow behind them when rain has left one;
@@ -16,10 +21,11 @@
 // shower, curtains of northern lights hung in it.
 //
 // Cheap at rest: grains that hold still are drawn once into a picture and
-// that picture drawn again each frame; the cloud's bob, the tree's sway and
-// Arcane's turn are one move of their picture rather than a move of every
-// grain. A finger through the field turns it back into live grains until
-// they settle. No blur.
+// that picture drawn again each frame; the cloud's bob, the tree's sway,
+// Arcane's turn and each layer of a realm's dust drifting round are one move
+// of their picture rather than a move of every grain. A finger through the
+// field, or a realm gathering, turns it back into live grains until they
+// settle. No blur.
 
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -60,13 +66,27 @@ const int _arcRing = 14, _arcFill = 15; // Arcane
 
 // Groups, in the order they draw. Each is one picture at rest, and only
 // the ones a finger reaches go back to live grains.
-const int _gStill = 0; // 0..3: each realm's grains that never move
-const int _gRim = 4; // 4..7: each realm's rim, live while it pulses
-const int _gCloud = 8, _gTree = 9, _gLive = 10, _gArcane = 11;
-const int _gArcRim = 12; // Arcane's rim, outside its own ring
-const int _groups = 13;
+const int _gSand = 0; // every realm's circle of sand
+const int _gStill = 1; // 1..4: each realm's grains that never move
+const int _gRim = 5; // 5..8: each realm's rim, live while it pulses
+const int _gCloud = 9, _gTree = 10, _gLive = 11, _gArcane = 12;
+const int _gArcRim = 13; // Arcane's rim, outside its own ring
+const int _groups = 14;
+
+/// How many layers a realm's dust drifts round in, each turning its own
+/// way at its own pace.
+const int _layers = 3;
+
+/// Each layer's turn, radians a second (alternate realms turn the other
+/// way).
+const _layerTurn = [0.1, -0.075, 0.05];
+
+/// Whether [part] is one of a realm's shape: scattered as dust until
+/// something waits in it.
+bool _isShape(int part) => part < _sand || part == _lava2;
 
 int _groupOf(int part, int realm) => switch (part) {
+  _sand => _gSand,
   _rim => realm < 4 ? _gRim + realm : _gArcRim,
   _cloud => _gCloud,
   _canopy || _moss => _gTree,
@@ -169,7 +189,9 @@ const _canopyLobes = <_Lobe>[
   (0.58, 0.4, 0.12),
 ];
 
-/// A grain as it is built.
+/// A grain as it is built: where it rests in its realm's shape, and (a
+/// shape's grain) where in the dust it rests until the shape is called, and
+/// the layer of dust it drifts in.
 class _Seed {
   _Seed(
     this.x,
@@ -179,10 +201,14 @@ class _Seed {
     this.alt,
     this.part,
     this.realm,
-    this.v,
-  );
-  final double x, y, size, v;
-  final int col, alt, part, realm;
+    this.v, {
+    double? sx,
+    double? sy,
+    this.layer = 0,
+  }) : sx = sx ?? x,
+       sy = sy ?? y;
+  final double x, y, size, v, sx, sy;
+  final int col, alt, part, realm, layer;
 }
 
 /// The field: its grains, the flow a finger leaves in them, and what the
@@ -301,6 +327,7 @@ class WildMapField {
     _ft = Float32List(_fieldW * _fieldH);
     _fieldOn = false;
     _dropPictures();
+    _turnLayers();
     final cull = Rect.fromLTRB(
       -size.width,
       -size.height,
@@ -510,13 +537,17 @@ class WildMapField {
 
   // ── Grains ────────────────────────────────────────────────────────────
 
-  // Every grain, in group order: where each rests, its push from the flow,
-  // its colour clear and under its realm's weather, its part, its realm
-  // (4 = Arcane) and its height in the shape's square.
+  // Every grain, in group order: where each rests now, its push from the
+  // flow, its colour clear and under its realm's weather, its part, its
+  // realm (4 = Arcane) and its height in the shape's square. And for a
+  // shape's grain: its place in the shape and in the dust (where it rests
+  // now is one of the two), its layer of dust, and when it sets off and how
+  // far round it swings as its realm gathers.
   int _n = 0;
   late Float32List _hx, _hy, _ox, _oy, _vx, _vy, _size2, _ph, _v;
+  late Float32List _fx, _fy, _sx, _sy, _delay, _curl;
   late Float32List _r, _g, _b, _ar, _ag, _ab, _alpha;
-  late Uint8List _realm, _part;
+  late Uint8List _realm, _part, _layer;
   final List<int> _from = List.filled(_groups, 0);
   final List<int> _to = List.filled(_groups, 0);
   final List<Rect> _reach = List.filled(_groups, Rect.zero);
@@ -574,6 +605,26 @@ class WildMapField {
       }
     }
 
+    // Where a shape's grain waits while its realm is empty: anywhere in
+    // the circle, in loose clumps (each layer its own), thinning toward the
+    // rim. Its own dice, so the shapes come out as they always have.
+    final dust = math.Random(_seed + 101);
+    Offset scatter(int i, int layer) {
+      final c = _centre[i];
+      while (true) {
+        final r = _ringR * 0.9 * math.sqrt(dust.nextDouble());
+        final a = dust.nextDouble() * _tau;
+        final x = c.dx + math.cos(a) * r, y = c.dy + math.sin(a) * r;
+        final q = 3.2 / _ringR;
+        final clump = _fbm(x * q, y * q, 90 + i * 7 + layer);
+        final edge = 1 - _smooth(_clamp01((r / _ringR - 0.68) / 0.22));
+        final keep =
+            (0.12 + 0.88 * _smooth(_clamp01(clump * 2.4 - 0.75))) *
+            (0.35 + 0.65 * edge);
+        if (dust.nextDouble() < keep) return Offset(x, y);
+      }
+    }
+
     // The shapes: about one grain to every 1.8 square px. A grain is
     // tested a little way off its own place, so the edges come out grained,
     // never cut.
@@ -592,6 +643,8 @@ class WildMapField {
           if (part < 0) continue;
           final u = (px - b.left) / _side, v = (py - b.top) / _side;
           final (col, alt, sub) = _look(part, u, v, px, py, rng);
+          final layer = dust.nextInt(_layers);
+          final at = scatter(i, layer);
           add(
             _Seed(
               px,
@@ -602,6 +655,9 @@ class WildMapField {
               sub,
               i,
               v,
+              sx: at.dx,
+              sy: at.dy,
+              layer: layer,
             ),
           );
         }
@@ -662,20 +718,21 @@ class WildMapField {
     );
 
     final all = <_Seed>[];
-    final chunkFrom = <int>[];
+    final chunkFrom = <int>[], chunkLayer = <int>[];
     for (var g = 0; g < _groups; g++) {
       _from[g] = all.length;
       _chunk0[g] = chunkFrom.length;
       if (_chunked(g)) {
         // Into chunks, each a square of the map, so a stir redraws only
-        // the ones it pushed. Each layer (the sand, the ring) stays under
-        // what was drawn over it; within a chunk grains keep their order.
+        // the ones it pushed. Arcane's ring stays under what was drawn over
+        // it, and each layer of dust keeps together so it can turn as one;
+        // within a chunk grains keep their order.
         final seeds = groups[g];
         int keyOf(_Seed s) {
-          final under = s.part == _sand || s.part == _arcRing ? 0 : 1;
+          final under = s.part == _arcRing ? 0 : 1;
           final cx = (s.x / _chunkSide).floor().clamp(0, 255);
           final cy = (s.y / _chunkSide).floor().clamp(0, 255);
-          return (under << 16) | (cy << 8) | cx;
+          return (under << 20) | (s.layer << 16) | (cy << 8) | cx;
         }
 
         final keys = [for (final s in seeds) keyOf(s)];
@@ -688,13 +745,17 @@ class WildMapField {
         for (final i in order) {
           if (keys[i] != last) {
             chunkFrom.add(all.length);
+            chunkLayer.add(seeds[i].layer);
             last = keys[i];
           }
           all.add(seeds[i]);
         }
       } else {
         // A rim pulses whole, so it is one chunk, never a picture.
-        if (_isRim(g) && groups[g].isNotEmpty) chunkFrom.add(all.length);
+        if (_isRim(g) && groups[g].isNotEmpty) {
+          chunkFrom.add(all.length);
+          chunkLayer.add(0);
+        }
         all.addAll(groups[g]);
       }
       _chunk1[g] = chunkFrom.length;
@@ -702,10 +763,14 @@ class WildMapField {
       var l = double.infinity, t = double.infinity;
       var r = -double.infinity, b = -double.infinity;
       for (final s in groups[g]) {
-        if (s.x < l) l = s.x;
-        if (s.x > r) r = s.x;
-        if (s.y < t) t = s.y;
-        if (s.y > b) b = s.y;
+        // A shape's grain drifts anywhere in its circle as dust.
+        final box = _isShape(s.part) && s.realm < 4
+            ? circleOf(WildRealm.values[s.realm])
+            : Rect.fromLTRB(s.x, s.y, s.x, s.y);
+        if (box.left < l) l = box.left;
+        if (box.right > r) r = box.right;
+        if (box.top < t) t = box.top;
+        if (box.bottom > b) b = box.bottom;
       }
       // Wide enough for its own motion; the movers and lava are always
       // live anyway.
@@ -727,12 +792,20 @@ class WildMapField {
     _chunkS0 = Int32List(nc);
     _chunkS1 = Int32List(nc);
     _chunkBusy = Uint8List(nc);
+    _chunkLayer = Uint8List.fromList(chunkLayer);
     for (final p in _chunkPics) {
       p?.dispose();
     }
     _chunkPics = List.filled(nc, null);
     _hx = Float32List(_n);
     _hy = Float32List(_n);
+    _fx = Float32List(_n);
+    _fy = Float32List(_n);
+    _sx = Float32List(_n);
+    _sy = Float32List(_n);
+    _layer = Uint8List(_n);
+    _delay = Float32List(_n);
+    _curl = Float32List(_n);
     _size2 = Float32List(_n);
     _v = Float32List(_n);
     _ox = Float32List(_n);
@@ -751,8 +824,20 @@ class WildMapField {
     _part = Uint8List(_n);
     for (var k = 0; k < _n; k++) {
       final s = all[k];
-      _hx[k] = s.x;
-      _hy[k] = s.y;
+      _fx[k] = s.x;
+      _fy[k] = s.y;
+      _sx[k] = s.sx;
+      _sy[k] = s.sy;
+      _layer[k] = s.layer;
+      // Rests as its realm last rested: in its shape or in the dust.
+      final shaped = s.realm >= 4 || _formed[s.realm] == 1;
+      _hx[k] = shaped ? s.x : s.sx;
+      _hy[k] = shaped ? s.y : s.sy;
+      // When it sets off as the realm gathers, and how far round it swings
+      // on the way: the way its layer was turning.
+      _delay[k] = dust.nextDouble() * _stagger;
+      final way = s.realm < 4 ? _turnWay(s.realm, s.layer) : 1.0;
+      _curl[k] = way * (0.12 + 0.26 * dust.nextDouble());
       _size2[k] = s.size;
       _v[k] = s.v;
       _realm[k] = s.realm;
@@ -808,10 +893,10 @@ class WildMapField {
   final Int32List _chunk0 = Int32List(_groups), _chunk1 = Int32List(_groups);
   // Each chunk's grains (_chunkFrom[c].._chunkTo[c]), its sprites in
   // its group's batch (_chunkS0[c].._chunkS1[c]), whether any grain of it
-  // is pushed off its place, and its picture.
+  // is pushed off its place, its layer of dust, and its picture.
   Int32List _chunkFrom = Int32List(0), _chunkTo = Int32List(0);
   Int32List _chunkS0 = Int32List(0), _chunkS1 = Int32List(0);
-  Uint8List _chunkBusy = Uint8List(0);
+  Uint8List _chunkBusy = Uint8List(0), _chunkLayer = Uint8List(0);
   List<ui.Picture?> _chunkPics = const [];
 
   int _tileAt(double x, double y) {
@@ -848,7 +933,8 @@ class WildMapField {
 
   /// Whether group [g] is drawn whole, grain by grain: every grain of it
   /// moves or changes colour this frame.
-  bool _whole(int g) => g == _gLive || (g == _gCloud && _flash > 0);
+  bool _whole(int g) =>
+      g == _gLive || (g == _gCloud && _flash > 0) || _travelling(g);
 
   static bool _isRim(int g) => (g >= _gRim && g < _gRim + 4) || g == _gArcRim;
 
@@ -1053,7 +1139,8 @@ class WildMapField {
     for (final (x, y, r, i) in _washes) {
       final c = _mix(_washClear[i], _washAlt[i], _wx[i]);
       final breathe = 0.85 + 0.15 * _fsin(t * 0.5 + x * 0.05);
-      var a = 0.06 * breathe;
+      // Lit within its shape: dimmer while it is only dust.
+      var a = 0.06 * breathe * (0.35 + 0.65 * _form[i]);
       if (i == WildRealm.sky.index) a += 0.14 * _flash * _wx[i];
       _wash.add(x, y, r * 2, (_byte(a) << 24) | (c & 0xFFFFFF));
     }
@@ -1062,11 +1149,17 @@ class WildMapField {
     final o = WildRealm.volcano.index;
     final heat = _wx[o];
     final crater = _at(o, 0.5, 0.25);
+    final cone = 0.3 + 0.7 * _form[o];
     _wash.add(
       crater.dx,
       crater.dy,
       _side * (0.3 + 0.25 * heat),
-      _argb((0.08 + 0.24 * heat) * (0.9 + 0.1 * _fsin(t * 1.7)), 1, 0.48, 0.16),
+      _argb(
+        (0.08 + 0.24 * heat) * (0.9 + 0.1 * _fsin(t * 1.7)) * cone,
+        1,
+        0.48,
+        0.16,
+      ),
     );
     if (_erupt > 0) {
       final up = _at(o, 0.5, 0.42);
@@ -1156,16 +1249,18 @@ class WildMapField {
   }
 
   void _paintRainbow(Canvas canvas) {
-    if (_bow <= 0) return;
+    // It stands before the mountains: none while they are only dust.
+    final bow = _bow * _form[WildRealm.valley.index];
+    if (bow <= 0) return;
     if (!ink) {
       _wash.clear();
       for (final (x, y, r, c) in _bowLanes) {
-        _wash.add(x, y, r, _scaleAlpha(c, _bow));
+        _wash.add(x, y, r, _scaleAlpha(c, bow));
       }
       _wash.draw(canvas, _atlas!, _add);
     }
     // Ink on the page has no light behind it: it needs more of itself.
-    final a = ink ? _bow * 1.8 : _bow;
+    final a = ink ? bow * 1.8 : bow;
     _dots.clear();
     for (var k = 0; k < _bowX.length; k++) {
       _dots.add(_bowX[k], _bowY[k], _bowS[k], _scaleAlpha(_bowC[k], a));
@@ -1622,6 +1717,127 @@ class WildMapField {
   final Float64List _rain = Float64List(1);
   // Each realm's, and Arcane's (4).
   final Float64List _ready = Float64List(5);
+
+  // How far each realm has gathered: 0 dust, 1 its shape; it travels at an
+  // even pace and each grain eases along its own share of the way.
+  final Float64List _form = Float64List(4);
+  // How each realm last rested (1 in its shape, 0 as dust): where its
+  // grains' places at rest (_hx, _hy) are.
+  final Uint8List _formed = Uint8List(4);
+  // No realm gathers before this time: the map has a moment to open.
+  double _formWait = 0;
+
+  /// How long a realm takes to gather or come apart, s.
+  static const double _formTime = 1.8;
+
+  /// The share of that time a grain may wait before it sets off.
+  static const double _stagger = 0.4;
+
+  /// How long an opened map waits before the realms gather, s.
+  static const double _gatherDelay = 0.35;
+
+  /// How bright a realm's dust is against its shape: a realm with
+  /// something waiting stands out.
+  static const double _dustAlpha = 0.72;
+
+  // Each realm's layers of dust, turned this frame: angle, cos, sin.
+  final Float64List _spinA = Float64List(4 * _layers);
+  final Float64List _spinC = Float64List(4 * _layers)
+    ..fillRange(0, 4 * _layers, 1);
+  final Float64List _spinS = Float64List(4 * _layers);
+
+  /// Which way layer [l] of realm [i]'s dust turns: 1 or -1.
+  static double _turnWay(int i, int l) =>
+      (_layerTurn[l] < 0 ? -1.0 : 1.0) * (i.isEven ? 1 : -1);
+
+  void _turnLayers() {
+    for (var i = 0; i < 4; i++) {
+      for (var l = 0; l < _layers; l++) {
+        final j = i * _layers + l;
+        final a = time * _layerTurn[l] * (i.isEven ? 1 : -1) + i * 1.7 + l;
+        _spinA[j] = a;
+        _spinC[j] = math.cos(a);
+        _spinS[j] = math.sin(a);
+      }
+    }
+  }
+
+  /// Whether realm [i] is on its way between dust and its shape.
+  bool _gathering(int i) => _form[i] > 0 && _form[i] < 1;
+
+  /// The realm whose shape group [g] holds, or -1.
+  static int _realmOf(int g) {
+    if (g >= _gStill && g < _gStill + 4) return g - _gStill;
+    if (g == _gCloud) return WildRealm.sky.index;
+    if (g == _gTree) return WildRealm.swamp.index;
+    return -1;
+  }
+
+  /// Whether group [g] is a realm's dust at rest, its layers turning.
+  bool _turning(int g) {
+    final i = _realmOf(g);
+    return i >= 0 && _formed[i] == 0 && !_gathering(i);
+  }
+
+  /// Whether group [g] is a realm's grains on their way.
+  bool _travelling(int g) {
+    final i = _realmOf(g);
+    return i >= 0 && _gathering(i);
+  }
+
+  /// Realm [i] at rest in its shape ([formed] 1) or as dust: its grains'
+  /// places moved there, and what was drawn of them at the old ones let go.
+  void _restAs(int i, int formed) {
+    _formed[i] = formed;
+    if (_n == 0) return;
+    final shaped = formed == 1;
+    for (var k = 0; k < _n; k++) {
+      if (_realm[k] != i || !_isShape(_part[k])) continue;
+      _px[k] = _hx[k] = shaped ? _fx[k] : _sx[k];
+      _py[k] = _hy[k] = shaped ? _fy[k] : _sy[k];
+      _tile[k] = _tileAt(_hx[k], _hy[k]);
+    }
+    for (var g = 0; g < _groups; g++) {
+      if (_realmOf(g) == i || g == _gLive) _dropGroup(g);
+    }
+  }
+
+  // Set by [_travel]: where grain k is on its way, and how far along (0–1).
+  double _qx = 0, _qy = 0, _qe = 0;
+
+  /// Where grain [k] is on its way between the dust and its shape: from its
+  /// spot in its turning layer to its place in the shape (as its part moves
+  /// there), easing, swinging round on the way.
+  @pragma('vm:prefer-inline')
+  void _travel(int k) {
+    final i = _realm[k];
+    var s = (_form[i] - _delay[k]) / (1 - _stagger);
+    s = s < 0 ? 0 : (s > 1 ? 1 : s);
+    final e = s * s * s * (s * (s * 6 - 15) + 10);
+    final c = _centre[i];
+    final j = i * _layers + _layer[k];
+    final cs = _spinC[j], sn = _spinS[j];
+    final dx = _sx[k] - c.dx, dy = _sy[k] - c.dy;
+    final x0 = c.dx + dx * cs - dy * sn, y0 = c.dy + dx * sn + dy * cs;
+    var x1 = _fx[k], y1 = _fy[k];
+    switch (_part[k]) {
+      case _cloud:
+        x1 += _cloudDx;
+        y1 += _cloudDy;
+      case _canopy || _moss:
+        x1 += _treeShear * (y1 - _treeBase);
+      default:
+        break;
+    }
+    final mx = x1 - x0, my = y1 - y0;
+    final swing = _curl[k] * _fsin(math.pi * e);
+    _qx = x0 + mx * e - my * swing;
+    _qy = y0 + my * e + mx * swing;
+    _qe = e;
+  }
+
+  /// How gathered realm [r] is: 0 dust, 1 its shape (tests, previews).
+  double debugFormOf(WildRealm r) => _form[r.index];
   // The Volcano: smoke over it (smoking or erupting), and erupting.
   double _smoke = 0, _erupt = 0, _bow = 0;
   double _flash = 0;
@@ -1663,11 +1879,18 @@ class WildMapField {
       arcane && weather['arcane'] == WeatherKind.aurora ? 1 : 0;
 
   /// Snaps the weather and the realms' moods to what is asked, no easing.
-  void settle() {
+  /// With [gather], every realm starts as dust and those with something
+  /// waiting gather once the map has had a moment to open; otherwise each
+  /// is snapped to its shape or its dust.
+  void settle({bool gather = false}) {
     for (final r in WildRealm.values) {
       _wx[r.index] = _target(r);
       _ready[r.index] = ready.contains(r.sceneId) ? 1 : 0;
+      final to = gather ? 0 : (ready.contains(r.sceneId) ? 1 : 0);
+      _form[r.index] = to.toDouble();
+      _restAs(r.index, to);
     }
+    _formWait = gather ? time + _gatherDelay : 0;
     _ready[4] = _arcReadyTo;
     _shower = _showerTo;
     _aurora = _auroraTo;
@@ -1686,9 +1909,17 @@ class WildMapField {
     time += dt;
     final k = 1 - math.exp(-dt / 1.2);
     for (final r in WildRealm.values) {
-      _wx[r.index] = _ease(_wx[r.index], _target(r), k);
+      final i = r.index;
+      _wx[i] = _ease(_wx[i], _target(r), k);
       final to = ready.contains(r.sceneId) ? 1.0 : 0.0;
-      _ready[r.index] = _ease(_ready[r.index], to, k);
+      _ready[i] = _ease(_ready[i], to, k);
+      // Gathering into its shape, or coming apart, at an even pace.
+      final was = _form[i];
+      if (was != to && time >= _formWait) {
+        final d = dt / _formTime;
+        _form[i] = to > was ? math.min(to, was + d) : math.max(to, was - d);
+        if (_form[i] == to) _restAs(i, to.toInt());
+      }
     }
     _ready[4] = _ease(_ready[4], _arcReadyTo, k);
     _shower = _ease(_shower, _showerTo, k);
@@ -1714,6 +1945,8 @@ class WildMapField {
     final storm = _wx[WildRealm.sky.index];
     if (storm < 0.3 || _size.isEmpty) return;
     _stepFlicker(dt);
+    // Bolts drop out of the cloud's base: none while it is only dust.
+    if (_form[WildRealm.sky.index] < 1) return;
     _nextStrike -= dt;
     if (_nextStrike > 0) return;
     _nextStrike = 1.6 + _rng.nextDouble() * 2.8;
@@ -1796,6 +2029,7 @@ class WildMapField {
   /// from its picture.
   bool _live(int g) {
     if (_moved[g]) return true;
+    if (_travelling(g)) return true;
     if (_fieldOn && _reach[g].overlaps(_flowBox)) return true;
     if (g == _gLive) return true;
     if (g == _gCloud && _flash > 0) return true;
@@ -1815,6 +2049,7 @@ class WildMapField {
     _treeBase = _box[WildRealm.swamp.index].top + _side * 0.6;
     _treeShear = -(1 - 0.3 * dry) * 0.032 * _fsin(0.9 * t);
     _arcTurn = t * 0.32;
+    _turnLayers();
     final ac = _fcos(_arcTurn), as = _fsin(_arcTurn);
     final warm = _wx[WildRealm.volcano.index];
     final mid = _mid;
@@ -1835,33 +2070,40 @@ class WildMapField {
       // Drawn whole this frame: its batch no longer follows it.
       _liveOk[grp] = false;
       var moved = false;
+      final travelling = _travelling(grp);
       for (var k = _from[grp]; k < _to[grp]; k++) {
         final hx = _hx[k], hy = _hy[k];
         final here = on;
         var bx = hx, by = hy;
-        switch (grp) {
-          case _gCloud:
-            bx += _cloudDx;
-            by += _cloudDy;
-          case _gTree:
-            bx += _treeShear * (hy - _treeBase);
-          case _gArcane:
-            final dx = hx - mid.dx, dy = hy - mid.dy;
-            bx = mid.dx + dx * ac - dy * as;
-            by = mid.dy + dx * as + dy * ac;
-          case _gLive:
-            final ph = _ph[k];
-            if (_part[k] == _meadow) {
-              // Grass in the wind, in waves crossing it.
-              bx += 1.2 * _fsin(1.3 * t - hx * 0.05 + ph * 0.3);
-            } else {
-              // Heat shimmer over the lava, as warm as it is.
-              final heat = _part[k] == _lava2 ? _erupt : warm;
-              bx += 0.4 * heat * _fsin(2.6 * t + ph);
-              by += 0.5 * heat * _fsin(3.1 * t + ph * 1.7);
-            }
-          default:
-            break;
+        if (travelling) {
+          _travel(k);
+          bx = _qx;
+          by = _qy;
+        } else {
+          switch (grp) {
+            case _gCloud:
+              bx += _cloudDx;
+              by += _cloudDy;
+            case _gTree:
+              bx += _treeShear * (hy - _treeBase);
+            case _gArcane:
+              final dx = hx - mid.dx, dy = hy - mid.dy;
+              bx = mid.dx + dx * ac - dy * as;
+              by = mid.dy + dx * as + dy * ac;
+            case _gLive:
+              final ph = _ph[k];
+              if (_part[k] == _meadow) {
+                // Grass in the wind, in waves crossing it.
+                bx += 1.2 * _fsin(1.3 * t - hx * 0.05 + ph * 0.3);
+              } else {
+                // Heat shimmer over the lava, as warm as it is.
+                final heat = _part[k] == _lava2 ? _erupt : warm;
+                bx += 0.4 * heat * _fsin(2.6 * t + ph);
+                by += 0.5 * heat * _fsin(3.1 * t + ph * 1.7);
+              }
+            default:
+              break;
+          }
         }
         var ox = _ox[k], oy = _oy[k], vx = _vx[k], vy = _vy[k];
         if (here || ox != 0 || oy != 0 || vx != 0 || vy != 0) {
@@ -1943,12 +2185,40 @@ class WildMapField {
     final lxf = live._xf, rxf = rest._xf;
     final lcol = live._colors, rcol = rest._colors;
     final glow = _swayGlow..clear();
+    // The realms (bits) whose grains here are on their way, and those
+    // resting as dust, turning.
+    var travelling = 0, dust = 0;
+    for (var i = 0; i < 4; i++) {
+      if (_gathering(i)) {
+        travelling |= 1 << i;
+      } else if (_formed[i] == 0) {
+        dust |= 1 << i;
+      }
+    }
+    final realms = _realm, layers = _layer;
     var moved = false;
     for (var k = _from[g], end = _to[g]; k < end; k++) {
       final hx = hxs[k], hy = hys[k];
       final ph = phs[k];
       final part = parts[k];
       var bx = hx, by = hy;
+      final bit = 1 << realms[k];
+      // How far along its way it is, or -1 at rest.
+      var fly = -1.0;
+      if (travelling & bit != 0) {
+        _travel(k);
+        bx = _qx;
+        by = _qy;
+        fly = _qe;
+      } else if (dust & bit != 0) {
+        final i = realms[k];
+        final c = _centre[i];
+        final j = i * _layers + layers[k];
+        final cs = _spinC[j], sn = _spinS[j];
+        final dx = hx - c.dx, dy = hy - c.dy;
+        bx = c.dx + dx * cs - dy * sn;
+        by = c.dy + dx * sn + dy * cs;
+      }
       if (part == _meadow) {
         // Grass in the wind, in waves crossing it.
         bx += 1.2 * _fsin(1.3 * t - hx * 0.05 + ph * 0.3);
@@ -2002,7 +2272,12 @@ class WildMapField {
       // Catching the light when pushed fast; lava and the crater glowing,
       // breathing, as warm as they are.
       final sp = (vx < 0 ? -vx : vx) + (vy < 0 ? -vy : vy);
-      final rc = rcol[s];
+      var rc = rcol[s];
+      if (fly >= 0) {
+        // Brightening from dust to its shape on the way.
+        final a = _alpha[k] * (_dustAlpha + (1 - _dustAlpha) * fly);
+        rc = (_byte(a) << 24) | (rc & 0xFFFFFF);
+      }
       final hot = part == _lava || part == _lava2 || part == _crater;
       final heat = !hot ? 0.0 : (part == _lava2 ? erupt : warm);
       if (sp <= 30) {
@@ -2044,6 +2319,11 @@ class WildMapField {
     // (a·x + b·y + c, d·x + e·y + f). The batch is drawn under that move,
     // so a push goes into it turned back by the inverse (ia ib / id ie).
     var a = 1.0, b = 0.0, c = 0.0, d = 0.0, e = 1.0, f = 0.0;
+    // A realm's dust turns layer by layer: each its own move, set as its
+    // chunks come up.
+    final turning = _turning(g);
+    final ri = _realmOf(g);
+    var layerNow = -1;
     switch (g) {
       case _gCloud:
         c = _cloudDx;
@@ -2064,8 +2344,9 @@ class WildMapField {
         break;
     }
     final det = a * e - b * d;
-    final ia = e / det, ib = -b / det, id = -d / det, ie = a / det;
-    final spin = g == _gArcane;
+    var ia = e / det, ib = -b / det, id = -d / det, ie = a / det;
+    final spin = g == _gArcane || turning;
+    final chunkLayer = _chunkLayer;
 
     final hxs = _hx, hys = _hy, oxs = _ox, oys = _oy, vxs = _vx, vys = _vy;
     final pxs = _px, pys = _py, sizes = _size2;
@@ -2089,6 +2370,22 @@ class WildMapField {
     }
     var moved = false;
     for (var ch = _chunk0[g], ce = _chunk1[g]; ch < ce; ch++) {
+      if (turning && chunkLayer[ch] != layerNow) {
+        layerNow = chunkLayer[ch];
+        final j = ri * _layers + layerNow;
+        final cs = _spinC[j], sn = _spinS[j];
+        final mx = _centre[ri].dx, my = _centre[ri].dy;
+        a = cs;
+        b = -sn;
+        d = sn;
+        e = cs;
+        c = mx - mx * cs + my * sn;
+        f = my - mx * sn - my * cs;
+        ia = cs;
+        ib = sn;
+        id = -sn;
+        ie = cs;
+      }
       var off = false;
       for (var k = chunkFrom[ch], end = chunkTo[ch]; k < end; k++) {
         var here = false;
@@ -2263,6 +2560,11 @@ class WildMapField {
   // Each group's picture at rest, the batch it was drawn from, and what
   // they were drawn for.
   final List<ui.Picture?> _pics = List.filled(_groups, null);
+  // A realm's dust at rest: each layer's picture, by group.
+  final List<List<ui.Picture?>> _layerPics = List.generate(
+    _groups,
+    (_) => List.filled(_layers, null),
+  );
   final List<_Batch> _rest = List.generate(_groups, (_) => _Batch(_solid));
   final List<bool> _restOk = List.filled(_groups, false);
   final List<_Batch> _liveB = List.generate(_groups, (_) => _Batch(_solid));
@@ -2275,16 +2577,31 @@ class WildMapField {
 
   void _dropPictures() {
     for (var g = 0; g < _groups; g++) {
-      _pics[g]?.dispose();
-      _pics[g] = null;
-      _restOk[g] = false;
-      _liveOk[g] = false;
+      _dropGroup(g);
     }
     for (var c = 0; c < _chunkPics.length; c++) {
       _chunkPics[c]?.dispose();
       _chunkPics[c] = null;
     }
     _picKey = null;
+  }
+
+  /// Lets go of everything drawn of group [g] at rest.
+  void _dropGroup(int g) {
+    _pics[g]?.dispose();
+    _pics[g] = null;
+    for (var l = 0; l < _layers; l++) {
+      _layerPics[g][l]?.dispose();
+      _layerPics[g][l] = null;
+    }
+    if (g < _chunk1.length) {
+      for (var c = _chunk0[g]; c < _chunk1[g] && c < _chunkPics.length; c++) {
+        _chunkPics[c]?.dispose();
+        _chunkPics[c] = null;
+      }
+    }
+    _restOk[g] = false;
+    _liveOk[g] = false;
   }
 
   /// Lets go of the pictures kept for the field at rest.
@@ -2383,6 +2700,7 @@ class WildMapField {
     _glow.clear();
 
     for (var g = 0; g < _groups; g++) {
+      if (_to[g] == _from[g]) continue;
       if (g == _gArcane && !arcane) continue;
       if (g >= _gRim && g < _gRim + 4 && _ready[g - _gRim] <= 0) continue;
       if (g == _gArcRim && (!arcane || _ready[4] <= 0)) continue;
@@ -2412,9 +2730,28 @@ class WildMapField {
             final b = _liveOf(g);
             debugGrains += b.n;
             b.draw(canvas, _atlas!, dots);
+          } else if (_turning(g)) {
+            for (var l = 0; l < _layers; l++) {
+              _drawTurned(
+                canvas,
+                g,
+                l,
+                () => _drawChunks(canvas, g, dots, layer: l),
+              );
+            }
           } else {
             _drawMoved(canvas, g, () => _drawChunks(canvas, g, dots));
           }
+        }
+        continue;
+      }
+      if (_turning(g)) {
+        // Dust: each layer its own picture, turned its own way.
+        for (var l = 0; l < _layers; l++) {
+          final pic = _layerPic(g, l, dots);
+          if (pic == null) continue;
+          debugPictures++;
+          _drawTurned(canvas, g, l, () => canvas.drawPicture(pic));
         }
         continue;
       }
@@ -2484,9 +2821,41 @@ class WildMapField {
     canvas.restore();
   }
 
+  /// [draw] done with layer [l] of group [g]'s dust turned as it is now.
+  void _drawTurned(Canvas canvas, int g, int l, void Function() draw) {
+    final i = _realmOf(g);
+    final c = _centre[i];
+    canvas
+      ..save()
+      ..translate(c.dx, c.dy)
+      ..rotate(_spinA[i * _layers + l])
+      ..translate(-c.dx, -c.dy);
+    draw();
+    canvas.restore();
+  }
+
+  /// Layer [l] of group [g]'s dust at rest, as one picture; null if the
+  /// layer has no grains.
+  ui.Picture? _layerPic(int g, int l, Paint dots) {
+    final had = _layerPics[g][l];
+    if (had != null) return had;
+    final rest = _restOf(g);
+    var s0 = -1, s1 = -1;
+    for (var c = _chunk0[g]; c < _chunk1[g]; c++) {
+      if (_chunkLayer[c] != l) continue;
+      if (s0 < 0) s0 = _chunkS0[c];
+      s1 = _chunkS1[c];
+    }
+    if (s0 < 0 || s1 <= s0) return null;
+    final rec = ui.PictureRecorder();
+    rest.draw(Canvas(rec), _atlas!, dots, from: s0, to: s1);
+    return _layerPics[g][l] = rec.endRecording();
+  }
+
   /// Stirred group [g], chunk by chunk: each one at rest from its picture,
-  /// each run of pushed ones from the group's batch in one go.
-  void _drawChunks(Canvas canvas, int g, Paint dots) {
+  /// each run of pushed ones from the group's batch in one go. With
+  /// [layer], only that layer's chunks.
+  void _drawChunks(Canvas canvas, int g, Paint dots, {int? layer}) {
     final live = _liveOf(g), rest = _rest[g];
     final atlas = _atlas!;
     var run = -1, end = 0;
@@ -2498,6 +2867,10 @@ class WildMapField {
     }
 
     for (var c = _chunk0[g]; c < _chunk1[g]; c++) {
+      if (layer != null && _chunkLayer[c] != layer) {
+        flush();
+        continue;
+      }
       final s0 = _chunkS0[c], s1 = _chunkS1[c];
       if (s1 == s0) continue;
       if (_chunkBusy[c] != 0) {
@@ -2579,7 +2952,7 @@ class WildMapField {
           _hx[k],
           _hy[k],
           _size2[k],
-          _argb(_alpha[k], _cr, _cg, _cb),
+          _argb(_alpha[k] * _restAlpha(k), _cr, _cg, _cb),
         );
       }
       _chunkS1[c] = into.n;
@@ -2591,9 +2964,15 @@ class WildMapField {
         _hx[k],
         _hy[k],
         _size2[k],
-        _argb(_alpha[k], _cr, _cg, _cb),
+        _argb(_alpha[k] * _restAlpha(k), _cr, _cg, _cb),
       );
     }
+  }
+
+  /// How bright grain [k] is where it rests: dimmer as dust.
+  double _restAlpha(int k) {
+    final i = _realm[k];
+    return i < 4 && _formed[i] == 0 && _isShape(_part[k]) ? _dustAlpha : 1;
   }
 
   /// Group [g]'s grains where they are this frame, catching the light when
@@ -2602,10 +2981,16 @@ class WildMapField {
     final flash = g == _gCloud ? _flash * _wx[WildRealm.sky.index] : 0.0;
     final bolt = _bolt.isNotEmpty ? _bolt.first : null;
     final t = time;
+    final travelling = _travelling(g);
     for (var k = _from[g]; k < _to[g]; k++) {
       _colour(k);
       var r = _cr, gg = _cg, b = _cb, a = _alpha[k];
       final x = _px[k], y = _py[k];
+      if (travelling) {
+        final i = _realm[k];
+        final s = _clamp01((_form[i] - _delay[k]) / (1 - _stagger));
+        a *= _dustAlpha + (1 - _dustAlpha) * s;
+      }
       if (_part[k] == _rim) {
         // A realm with something waiting: its rim pulses.
         final pulse = 0.5 + 0.5 * _fsin(t * 2.4 + _realm[k] * 1.3);
@@ -2621,7 +3006,13 @@ class WildMapField {
         l += flash * 1.5 * near;
       }
       final sp = _vx[k].abs() + _vy[k].abs();
-      final lit = sp > 30 ? math.min(1.0, (sp - 30) / 400) : 0.0;
+      var lit = sp > 30 ? math.min(1.0, (sp - 30) / 400) : 0.0;
+      if (travelling) {
+        // Catching the light on its way, most at mid-flight.
+        final i = _realm[k];
+        final s = _clamp01((_form[i] - _delay[k]) / (1 - _stagger));
+        lit = math.max(lit, 0.28 * _fsin(math.pi * s));
+      }
       r = r * l + (1 - r) * lit * 0.6;
       gg = gg * l + (1 - gg) * lit * 0.6;
       b = b * l + (1 - b) * lit * 0.55;
@@ -2669,13 +3060,17 @@ class WildMapField {
   void _paintMovers() {
     final grain = _unit;
     final storm = _wx[WildRealm.sky.index];
-    final dry = _wx[WildRealm.swamp.index];
     final o = WildRealm.volcano.index;
+    // Each comes off its realm's shape: none while it is only dust.
+    final wind = _form[WildRealm.sky.index];
+    final dry = _wx[WildRealm.swamp.index] * _form[WildRealm.swamp.index];
+    final erupt = _erupt * _form[o], smoke = _smoke * _form[o];
     for (var k = 0; k < _m; k++) {
       final kind = _mkind[k];
+      if (kind == 0 && wind < 0.02) continue;
       if (kind == 3 && dry < 0.05) continue;
-      if (kind == 1 && _erupt < 0.02) continue;
-      if (kind == 2 && _smoke < 0.02) continue;
+      if (kind == 1 && erupt < 0.02) continue;
+      if (kind == 2 && smoke < 0.02) continue;
       final (x0, y0) = _moverAt(k);
       final x = x0 + _mox[k], y = y0 + _moy[k];
       switch (kind) {
@@ -2685,7 +3080,9 @@ class WildMapField {
             x,
             y,
             grain * 0.0028,
-            storm > 0.5 ? _argb(0.5, 0.56, 0.58, 0.72) : _argb(0.6, 1, 1, 1),
+            storm > 0.5
+                ? _argb(0.5 * wind, 0.56, 0.58, 0.72)
+                : _argb(0.6 * wind, 1, 1, 1),
           );
         case 1:
           final a = (time / _bombLife + _mph[k]) % 1.0;
@@ -2693,7 +3090,7 @@ class WildMapField {
           // it has come down a way onto the cone.
           final below = (y0 - _craterAt.dy) / _side;
           final fade =
-              (a < 0.04 ? a / 0.04 : 1.0) * _clamp01(1 - below / 0.3) * _erupt;
+              (a < 0.04 ? a / 0.04 : 1.0) * _clamp01(1 - below / 0.3) * erupt;
           if (fade <= 0) continue;
           debugBombs++;
           _dots.add(
@@ -2714,7 +3111,7 @@ class WildMapField {
           final fade =
               (a < 0.12 ? a / 0.12 : 1 - a) *
               math.min(1.0, _zone(o, x, y) * 2.5) *
-              _smoke;
+              smoke;
           if (fade <= 0.01) continue;
           debugSmoke++;
           // Grey smoke; in eruption darker ash, lit red from beneath.
@@ -2765,13 +3162,15 @@ class WildMapField {
           );
         }
       }
-      for (var k = 0; k < 40; k++) {
+      // (Splashing on the meadow: none while it is only dust.)
+      final meadow = _form[v];
+      for (var k = 0; k < 40 && meadow > 0.02; k++) {
         final a = (time * 2.2 + _hash(k * 7 + 5)) % 1.0;
         if (a > 0.25) continue;
         final u = 0.08 + 0.84 * _hash(k * 7 + 6);
         final e = math.sqrt(math.max(0, 1 - math.pow((u - 0.5) / 0.47, 2)));
         final p = _at(v, u, 0.9 - e * 0.05 * _hash(k * 7 + 4));
-        final f = rain * (1 - a / 0.25);
+        final f = rain * meadow * (1 - a / 0.25);
         final spread = 1 + a * 14;
         _dots.add(p.dx, p.dy, grain * 0.0034, _argb(0.8 * f, 0.86, 0.92, 1));
         _dots.add(
@@ -2809,8 +3208,9 @@ class WildMapField {
     if (storm > 0) {
       final s = WildRealm.sky.index;
       final d = Offset(_cloudDx, _cloudDy);
-      // Rain out of the storm cloud's base.
-      for (var k = 0; k < 110; k++) {
+      // Rain out of the storm cloud's base (none while it is only dust).
+      final base = _form[s];
+      for (var k = 0; k < 110 && base > 0.02; k++) {
         final ph = _hash(k * 3 + 41), ph2 = _hash(k * 3 + 42);
         final fall = (time * (1.3 + 0.4 * ph2) + ph) % 1.0;
         final u = 0.16 + 0.68 * _hash(k * 3 + 40) + fall * 0.04;
@@ -2822,7 +3222,7 @@ class WildMapField {
             p.dx - j * 0.4,
             p.dy - j * 2.3,
             grain * 0.003,
-            _argb(storm * m * (0.7 - j * 0.12), 0.6, 0.66, 0.82),
+            _argb(storm * base * m * (0.7 - j * 0.12), 0.6, 0.66, 0.82),
           );
         }
       }

@@ -163,6 +163,51 @@ void main() {
       '14_arcane_aurora',
       shoot(fresh(weather: {'arcane': WeatherKind.aurora}, arcane: true)),
     );
+    // The map opening with something waiting everywhere: dust, the realms
+    // on their way, their shapes.
+    final gather = WildMapField()
+      ..ready = const {'valley', 'sky', 'volcano', 'swamp'}
+      ..layout(size)
+      ..settle(gather: true);
+    for (final (name, until) in [
+      ('15_gather_dust', 0.3),
+      ('16_gather_quarter', 0.8),
+      ('17_gather_half', 1.25),
+      ('18_gather_three_quarters', 1.7),
+      ('19_gathered', 2.4),
+    ]) {
+      while (gather.time < until) {
+        gather.step(1 / 60);
+      }
+      await save(name, shoot(gather));
+    }
+
+    // WILDMAP_FRAMES=dir: the same at 30 frames a second, the dust
+    // drifting a while first, for a clip.
+    final frames = Platform.environment['WILDMAP_FRAMES'];
+    if (frames != null) {
+      Directory(frames).createSync(recursive: true);
+      final clip = WildMapField()
+        ..ready = const {}
+        ..layout(size)
+        ..settle(gather: true);
+      for (var i = 0; i < 30 * 6; i++) {
+        // Two seconds of dust, then the Valley and the Volcano are called.
+        if (i == 60) clip.ready = const {'valley', 'volcano'};
+        clip
+          ..step(1 / 60)
+          ..step(1 / 60);
+        final img = shoot(clip);
+        await tester.runAsync(() async {
+          final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+          File(
+            '$frames/f_${i.toString().padLeft(4, '0')}.png',
+          ).writeAsBytesSync(bytes!.buffer.asUint8List());
+        });
+        img.dispose();
+      }
+    }
+
     // The same states in ink, for the light theme.
     await save(
       'ink_1_storm_snow_dry_erupting',
