@@ -105,14 +105,33 @@ class VesselGeometry {
   double get mouthY => center.dy - radius * 1.5;
   double get bottom => center.dy + radius * 0.965;
 
-  /// Where the surface stands when the chamber is full.
-  double get fullLevel => center.dy + radius * 0.24;
+  /// Where the surface stands when the chamber is full: up in the shoulder,
+  /// about nine tenths of the bulb, with a little headroom under the neck so
+  /// it never looks about to spill.
+  double get fullLevel => center.dy - radius * 0.57;
+
+  /// The liquid's sphere: just inside the glass.
+  double get liquidRadius => radius * 0.9644;
 
   /// Half the liquid's width at height [y].
   double chord(double y) {
     final dy = y - center.dy;
-    final r2 = radius * radius * 0.93 - dy * dy;
+    final r2 = liquidRadius * liquidRadius - dy * dy;
     return r2 <= 0 ? 0 : math.sqrt(r2);
+  }
+
+  /// The liquid's volume [depth] deep from the bottom (a spherical cap,
+  /// without the π/3).
+  double capVolume(double depth) =>
+      depth * depth * (3 * liquidRadius - depth);
+
+  /// The liquid's cross-section [depth] deep: the area its grains fill.
+  double segmentArea(double depth) {
+    final r = liquidRadius;
+    final d = depth.clamp(0.0, 2 * r);
+    final k = r - d;
+    return r * r * math.acos((k / r).clamp(-1.0, 1.0)) -
+        k * math.sqrt(math.max(0.0, 2 * r * d - d * d));
   }
 
   /// The neck's open top, in the box's coordinates.
@@ -218,7 +237,7 @@ class ExtractionVesselField {
   Offset _specimenAt = Offset.zero;
 
   /// Grains held in the liquid at full.
-  static const int poolGrains = 1500;
+  static const int poolGrains = 2200;
 
   /// Grains along the surface.
   static const int surfaceGrains = 90;
@@ -261,17 +280,34 @@ class ExtractionVesselField {
   double get shownLevel => _shown;
 
   double _residue() => switch (mode) {
-    VesselMode.locked => 0.035,
-    VesselMode.empty => 0.045,
-    _ => 0.045,
+    VesselMode.locked => 0.004,
+    VesselMode.empty => 0.005,
+    _ => 0.005,
   };
+
+  double _baseFor = -1, _baseAt = 0;
+  VesselGeometry? _baseGeo;
 
   double surfaceBase() {
     final g = _geo!;
     final l = math.max(_shown, _residue());
-    // Rises by volume, not by height: the bottom of a sphere fills fast.
-    final k = math.pow(l, 0.72).toDouble();
-    return g.bottom + (g.fullLevel - g.bottom) * k;
+    if (l == _baseFor && identical(g, _baseGeo)) return _baseAt;
+    // Rises by volume, not by height: the bottom of a sphere fills fast and
+    // its middle slowly. Find the depth that holds this share of a full one.
+    final full = g.bottom - g.fullLevel;
+    final want = l.clamp(0.0, 1.0) * g.capVolume(full);
+    var lo = 0.0, hi = full;
+    for (var i = 0; i < 22; i++) {
+      final mid = (lo + hi) / 2;
+      if (g.capVolume(mid) < want) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    _baseFor = l;
+    _baseGeo = g;
+    return _baseAt = g.bottom - (lo + hi) / 2;
   }
 
   double _wave(double x, double base) {
@@ -549,9 +585,14 @@ class ExtractionVesselField {
           _oy[i] + _vy[i] * age + 0.5 * r * 5.5 * age * age,
         );
       case _rise:
+        // Up from the surface and in toward the neck: the surface is high in
+        // the shoulder now, and sparks going straight up would leave
+        // through the glass.
         return Offset(
-          _ox[i] + math.sin(time * 1.3 + s) * r * 0.03 * tau,
-          _oy[i] - r * 0.55 * tau,
+          _ox[i] +
+              (g.center.dx - _ox[i]) * 0.85 * _smooth(tau * 1.3) +
+              math.sin(time * 1.3 + s) * r * 0.03 * tau,
+          _oy[i] - r * 0.5 * tau,
         );
       case _vent:
         // Drawn into the neck and up out of it.
@@ -572,6 +613,37 @@ class ExtractionVesselField {
   }
 
   // ── Painting ──────────────────────────────────────────────────────────
+
+  /// Heights splitting the liquid's cross-section into equal areas, surface
+  /// to bottom: grain k of n sits at the k/n-th.
+  static const int _rowN = 48;
+  final Float32List _rowY = Float32List(_rowN + 1);
+  double _rowsFor = double.nan;
+
+  void _rows(VesselGeometry g, double base) {
+    if (base == _rowsFor) return;
+    _rowsFor = base;
+    const fine = 192;
+    final depth = g.bottom - base;
+    final cum = Float32List(fine + 1);
+    var prev = g.chord(base);
+    for (var k = 1; k <= fine; k++) {
+      final cw = g.chord(base + depth * k / fine);
+      cum[k] = cum[k - 1] + (prev + cw) / 2;
+      prev = cw;
+    }
+    final total = cum[fine];
+    var j = 0;
+    for (var k = 0; k <= _rowN; k++) {
+      final want = total * k / _rowN;
+      while (j < fine - 1 && cum[j + 1] < want) {
+        j++;
+      }
+      final span = cum[j + 1] - cum[j];
+      final f = span <= 0 ? 0.0 : ((want - cum[j]) / span).clamp(0.0, 1.0);
+      _rowY[k] = base + depth * (j + f) / fine;
+    }
+  }
 
   static final Paint _p = Paint();
 
@@ -737,19 +809,32 @@ class ExtractionVesselField {
     // The liquid's grains, turning in a slow roll.
     final depth = g.bottom - base;
     if (depth > 0.5) {
-      final full = g.bottom - g.fullLevel;
-      final frac = (depth / full).clamp(0.0, 1.0);
-      final count = (poolGrains * math.pow(frac, 1.2)).round().clamp(
+      // As many grains as the cross-section holds, so the liquid is as dense
+      // at a sip as at full.
+      final frac =
+          (g.segmentArea(depth) / g.segmentArea(g.bottom - g.fullLevel)).clamp(
+            0.0,
+            1.0,
+          );
+      final count = (poolGrains * frac).round().clamp(
         28,
         poolGrains,
       );
-      final mid = base + depth / 2;
-      final hh = depth / 2;
+      _rows(g, base);
       for (var i = 0; i < count; i++) {
+        // Each grain rolls round a disc; the disc is then stretched over the
+        // liquid's cross-section area for area, so a deep flask fills edge
+        // to edge instead of gathering into a lozenge.
         final th = _h(i, 1) * math.pi * 2 + _swirl * (0.6 + 0.8 * _h(i, 2));
         final rho = math.sqrt(_h(i, 3));
-        var y = mid + math.sin(th) * rho * hh;
-        final x = c.dx + math.cos(th) * rho * g.chord(y) * 0.96;
+        final v = math.sin(th) * rho;
+        final w = math.sqrt(math.max(1e-6, 1 - v * v));
+        final u = (math.cos(th) * rho / w).clamp(-1.0, 1.0);
+        final a = (v * w + math.asin(v)) / math.pi + 0.5;
+        final af = a * _rowN;
+        final ai = af.floor().clamp(0, _rowN - 1);
+        var y = _rowY[ai] + (_rowY[ai + 1] - _rowY[ai]) * (af - ai);
+        final x = c.dx + u * g.chord(y) * 0.96;
         final top = _wave(x, base);
         if (y < top) y = top + (top - y) * 0.4;
         final d = ((y - top) / depth).clamp(0.0, 1.0);
