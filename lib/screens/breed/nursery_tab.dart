@@ -389,6 +389,7 @@ class _NurseryTabState extends State<NurseryTab> {
                           _showDialogWithPausedBackground<void>(
                             builder: builder,
                           ),
+                      onExtract: _hatchFromStorage,
                     ),
                   ),
                 ],
@@ -1280,6 +1281,46 @@ class _NurseryTabState extends State<NurseryTab> {
 
     if (!mounted) return;
 
+    if (result.success) {
+      widget.onHatchComplete();
+    } else if (result.message != null) {
+      _showToast(
+        result.message!,
+        icon: result.icon ?? AppIcons.error_rounded,
+        color: result.color ?? Colors.red.shade600,
+      );
+    }
+  }
+
+  /// A cold-storage extraction, run as a chamber's is: the background
+  /// paused, the curtain (raised by the dialog) held until the ceremony takes
+  /// over, and the same toast if it fails.
+  Future<void> _hatchFromStorage(Egg egg) async {
+    if (!mounted) {
+      HatchCurtain.lower();
+      return;
+    }
+    _acquireBackgroundAnimationPause();
+    await HatchCurtain.raise(context);
+    if (!mounted) {
+      HatchCurtain.lower();
+      _releaseBackgroundAnimationPause();
+      return;
+    }
+
+    late final HatchingResult result;
+    try {
+      result = await EggHatching.performStorageHatching(
+        context: context,
+        egg: egg,
+        undiscoveredCache: _undiscoveredCache,
+      );
+    } finally {
+      HatchCurtain.lower();
+      _releaseBackgroundAnimationPause();
+    }
+
+    if (!mounted) return;
     if (result.success) {
       widget.onHatchComplete();
     } else if (result.message != null) {

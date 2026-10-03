@@ -671,8 +671,15 @@ class EggHatching {
     final NavigatorState nav = Navigator.of(context, rootNavigator: true);
     final BuildContext safeContext = nav.context;
 
-    // Clear egg & cache
-    await db.incubatorDao.clearEgg(slot.id);
+    // Clear egg & cache. A cold-storage extraction comes through on
+    // performStorageHatching's stand-in slot (id -1): its vial leaves the
+    // rack here, before the ceremony, as a chamber's does — not after it,
+    // which left it sitting in the rack until the reveal was dismissed.
+    if (slot.id < 0 && slot.eggId != null) {
+      await db.incubatorDao.removeFromInventory(slot.eggId!);
+    } else {
+      await db.incubatorDao.clearEgg(slot.id);
+    }
     if (slot.resultCreatureId != null) {
       undiscoveredCache.remove(slot.resultCreatureId!);
     }

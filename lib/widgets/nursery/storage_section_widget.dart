@@ -13,6 +13,7 @@ import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/nursery/cultivation_stage.dart';
+import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
 import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:alchemons/widgets/perf/viewport_ticker_gate.dart';
 import 'package:flutter/material.dart';
@@ -36,6 +37,9 @@ const double _kStoredSpin = 1 / ColdStorageService.slowdownFactor;
 
 /// Shows a dialog built by [builder]: how a stasis cell opens its details.
 typedef StoragePresentDialog = Future<void> Function(WidgetBuilder builder);
+
+/// Extracts a stored cultivation; called with the curtain already up.
+typedef StorageExtract = Future<void> Function(Egg egg);
 
 /// A stored cultivation's clock, read once for a cell and its dialog alike.
 class _StoredTimes {
@@ -108,6 +112,12 @@ class StorageSection extends StatefulWidget {
   /// [showDialog].
   final StoragePresentDialog? presentDialog;
 
+  /// Runs an extraction behind the dialog's curtain. The nursery passes its
+  /// own, the one its chambers use — background paused, curtain held, the
+  /// cultivation carried into the ceremony; without one the dialog runs the
+  /// hatch itself.
+  final StorageExtract? onExtract;
+
   const StorageSection({
     super.key,
     required this.primaryColor,
@@ -115,6 +125,7 @@ class StorageSection extends StatefulWidget {
     required this.buildSectionHeader,
     this.canAutoMove = false,
     this.presentDialog,
+    this.onExtract,
   });
 
   @override
@@ -215,6 +226,7 @@ class _StorageSectionState extends State<StorageSection> {
                     quality: widget.quality,
                     nowUtc: _nowUtc,
                     presentDialog: widget.presentDialog,
+                    onExtract: widget.onExtract,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -417,6 +429,7 @@ class _StasisRack extends StatefulWidget {
     required this.quality,
     required this.nowUtc,
     this.presentDialog,
+    this.onExtract,
   });
 
   final List<Egg> items;
@@ -430,6 +443,7 @@ class _StasisRack extends StatefulWidget {
   final CinematicQuality quality;
   final DateTime nowUtc;
   final StoragePresentDialog? presentDialog;
+  final StorageExtract? onExtract;
 
   /// A cell's width, aimed for: the column count follows from it.
   static const double targetCellWidth = 84;
@@ -502,6 +516,7 @@ class _StasisRackState extends State<_StasisRack>
                           quality: widget.quality,
                           nowUtc: widget.nowUtc,
                           presentDialog: widget.presentDialog,
+                          onExtract: widget.onExtract,
                           dimmed:
                               widget.highlight != null &&
                               widget.groups[i] != widget.highlight,
@@ -533,6 +548,7 @@ class StasisCell extends StatefulWidget {
     required this.nowUtc,
     this.dimmed = false,
     this.presentDialog,
+    this.onExtract,
   });
 
   const StasisCell.socket({super.key})
@@ -540,7 +556,8 @@ class StasisCell extends StatefulWidget {
       quality = CinematicQuality.performance,
       nowUtc = null,
       dimmed = false,
-      presentDialog = null;
+      presentDialog = null,
+      onExtract = null;
 
   final Egg? egg;
   final CinematicQuality quality;
@@ -551,6 +568,9 @@ class StasisCell extends StatefulWidget {
 
   /// Shows the cell's dialog; see [StorageSection.presentDialog].
   final StoragePresentDialog? presentDialog;
+
+  /// Extracts it; see [StorageSection.onExtract].
+  final StorageExtract? onExtract;
 
   @override
   State<StasisCell> createState() => _StasisCellState();
@@ -594,18 +614,16 @@ class _StasisCellState extends State<StasisCell> {
     final isReady = times.ready;
     final progress = times.progress;
 
-    final media = MediaQuery.of(context);
-    final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
+    // Neither the viewport gate's TickerMode nor a fling's deferred-loading
+    // hint may change these: either one rebuilt every sphere from nothing,
+    // so the grains popped in as the rack scrolled into view and again when
+    // a fling settled. A muted ticker already stops the sphere by itself.
     final showGrains =
-        !widget.dimmed &&
-        TickerMode.valuesOf(context).enabled &&
-        !media.disableAnimations;
-    final grains = deferEffects
-        ? 90
-        : switch (widget.quality) {
-            CinematicQuality.cinematic => 220,
-            CinematicQuality.performance => 140,
-          };
+        !widget.dimmed && !MediaQuery.of(context).disableAnimations;
+    final grains = switch (widget.quality) {
+      CinematicQuality.cinematic => 220,
+      CinematicQuality.performance => 140,
+    };
 
     final isBloodborn = isBloodbornPayload(payload);
     final light = isBloodborn ? kBloodbornSecondary : elementGroup.color;
@@ -616,15 +634,20 @@ class _StasisCellState extends State<StasisCell> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            CustomPaint(
-              painter: _StasisCellPainter(
-                onParchment: !BracketPalette.of(context).isDark,
-                state: widget.dimmed
-                    ? _CellState.dimmed
-                    : (isReady ? _CellState.ready : _CellState.held),
-                light: light,
-                frost: _frostFor(times),
-                seed: egg.eggId.hashCode,
+            // Its own layer, so the grains turning over it do not repaint the
+            // cell's gradients and frost every frame (they share the rack's
+            // layer otherwise, and every cell in it went with them).
+            RepaintBoundary(
+              child: CustomPaint(
+                painter: _StasisCellPainter(
+                  onParchment: !BracketPalette.of(context).isDark,
+                  state: widget.dimmed
+                      ? _CellState.dimmed
+                      : (isReady ? _CellState.ready : _CellState.held),
+                  light: light,
+                  frost: _frostFor(times),
+                  seed: egg.eggId.hashCode,
+                ),
               ),
             ),
             if (showGrains)
@@ -636,18 +659,20 @@ class _StasisCellState extends State<StasisCell> {
                     child: SizedBox.square(
                       dimension: side,
                       child: IgnorePointer(
-                        child: CultivationSphere(
-                          payload: payload,
-                          types: isBloodborn
-                              ? const ['blood', 'dark']
-                              : _sphereTypes(payload, elementGroup),
-                          progress: progress,
-                          isReady: isReady,
-                          grains: grains,
-                          interactive: false,
-                          spinScale: _kStoredSpin,
-                          radiusFactor: 0.36,
-                          pureElement: pureElementFromPayload(payload),
+                        child: RepaintBoundary(
+                          child: CultivationSphere(
+                            payload: payload,
+                            types: isBloodborn
+                                ? const ['blood', 'dark']
+                                : _sphereTypes(payload, elementGroup),
+                            progress: progress,
+                            isReady: isReady,
+                            grains: grains,
+                            interactive: false,
+                            spinScale: _kStoredSpin,
+                            radiusFactor: 0.36,
+                            pureElement: pureElementFromPayload(payload),
+                          ),
                         ),
                       ),
                     ),
@@ -678,8 +703,11 @@ class _StasisCellState extends State<StasisCell> {
   }
 
   void _showEggDetails(BuildContext context, Map<String, dynamic> payload) {
-    Widget dialog(BuildContext _) =>
-        StoredCultivationDialog(hostContext: this.context, egg: widget.egg!);
+    Widget dialog(BuildContext _) => StoredCultivationDialog(
+      hostContext: this.context,
+      egg: widget.egg!,
+      onExtract: widget.onExtract,
+    );
     final present = widget.presentDialog;
     if (present != null) {
       present(dialog);
@@ -1040,11 +1068,13 @@ class StoredCultivationDialog extends StatefulWidget {
     super.key,
     required this.hostContext,
     required this.egg,
+    this.onExtract,
   });
 
   /// The cell's context, which outlives this dialog for the extraction.
   final BuildContext hostContext;
   final Egg egg;
+  final StorageExtract? onExtract;
 
   @override
   State<StoredCultivationDialog> createState() =>
@@ -1057,6 +1087,10 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
       ColdStorageService.decodePayload(widget.egg.payloadJson);
   Timer? _clock;
   bool _busy = false;
+
+  /// The sphere on the stage, handed on to the hatching ceremony so it opens
+  /// on this cultivation instead of on black — as a chamber's does.
+  final GlobalKey _sphereKey = GlobalKey();
 
   /// The vessel's width; flat-topped, so its height is √3/2 of this.
   static const double _cellWidth = 272;
@@ -1155,6 +1189,7 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
                                           // Its parents' grains, which a held
                                           // finger can part.
                                           child: CultivationSphere(
+                                            key: _sphereKey,
                                             payload: payload,
                                             types: isBloodborn
                                                 ? const ['blood', 'dark']
@@ -1335,14 +1370,39 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
   Future<void> _extract() async {
     if (_busy) return;
     _busy = true;
+    HapticFeedback.heavyImpact();
     final host = widget.hostContext;
     final t = ForgeTokens(context.read<FactionTheme>());
+
+    // The chamber's order: carry the grains, go dark, and only then close
+    // the dialog underneath, so the nursery never flashes back up between
+    // the dialog and the ceremony.
+    CultivationHandoff.stage(CultivationSphere.handoffFrom(_sphereKey));
+    await HatchCurtain.raise(context);
+    if (!mounted) {
+      HatchCurtain.lower();
+      return;
+    }
     Navigator.pop(context);
 
-    final result = await EggHatching.performStorageHatching(
-      context: host,
-      egg: widget.egg,
-    );
+    final onExtract = widget.onExtract;
+    if (onExtract != null) {
+      await onExtract(widget.egg);
+      return;
+    }
+    if (!host.mounted) {
+      HatchCurtain.lower();
+      return;
+    }
+    late final HatchingResult result;
+    try {
+      result = await EggHatching.performStorageHatching(
+        context: host,
+        egg: widget.egg,
+      );
+    } finally {
+      HatchCurtain.lower();
+    }
     if (!host.mounted || result.success || result.message == null) return;
     showGameSnack(
       host,
