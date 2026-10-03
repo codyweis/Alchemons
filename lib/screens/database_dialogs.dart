@@ -57,8 +57,8 @@ Future<void> showDatabaseTutorial(BuildContext context, FactionTheme theme) {
           icon: AppIcons.category_rounded,
           title: 'Species catalog',
           body:
-              'The second tab is every species: families across, elements '
-              'down. Tap one you have found to see your specimens of it.',
+              'The second tab is every species, as shelves or a table. Tap '
+              'one you have found to see your specimens of it.',
         ),
         const SizedBox(height: 12),
         _TutorialRow(
@@ -67,8 +67,8 @@ Future<void> showDatabaseTutorial(BuildContext context, FactionTheme theme) {
           icon: AppIcons.show_chart_rounded,
           title: 'Breeding milestones',
           body:
-              'Open a species from the catalog; the button beside its name '
-              'tracks them.',
+              'A species you pick shows its milestones above its specimens; '
+              'MILESTONES in the catalog lists them all.',
         ),
         const SizedBox(height: 20),
         BracketButton(

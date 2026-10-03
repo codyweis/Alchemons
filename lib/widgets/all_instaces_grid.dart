@@ -71,6 +71,10 @@ class AllCreatureInstances extends StatefulWidget {
   /// — the Creatures tab's look. Off, every picker keeps its detail cards.
   final bool caseCards;
 
+  /// Only this species' specimens (a species id like 'LET01'), set from
+  /// outside — the Creatures tab after a species is picked in the catalog.
+  final String? speciesIdFilter;
+
   const AllCreatureInstances({
     super.key,
     required this.theme,
@@ -92,6 +96,7 @@ class AllCreatureInstances extends StatefulWidget {
     this.allowEnhancementMode = false,
     this.cardBadgeBuilder,
     this.caseCards = false,
+    this.speciesIdFilter,
   });
 
   @override
@@ -430,6 +435,10 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     return instances.where((inst) {
       final creature = repo.getCreatureById(inst.baseId);
       if (!_matchesAllowedPrimaryTypes(creature)) {
+        return false;
+      }
+      if (widget.speciesIdFilter != null &&
+          inst.baseId != widget.speciesIdFilter) {
         return false;
       }
       if (_filterFamily != null &&

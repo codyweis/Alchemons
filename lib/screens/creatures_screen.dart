@@ -5,24 +5,25 @@ import 'package:alchemons/audio/audio.dart';
 // two tabs — over two views.
 //
 //   SPECIMENS  every Alchemon you own, as lit display cases
-//              (specimen_case.dart, through AllCreatureInstances).
-//   CATALOG    every species as a table, families across and elements down
-//              (species_table.dart). Progress is the table filling in.
+//              (specimen_case.dart, through AllCreatureInstances). Picking a
+//              species in the catalog filters this to it, under a plate with
+//              its breeding milestones (species_plate.dart).
+//   CATALOG    every species, as family shelves or an element table
+//              (species_table.dart). Progress is the catalog filling in.
 //
 // Its two dialogs live in database_dialogs.dart.
 
 import 'dart:async';
 
 import 'package:alchemons/database/daos/settings_dao.dart';
-import 'package:alchemons/screens/breeding_milestones_screen.dart';
 import 'package:alchemons/screens/database_dialogs.dart';
 import 'package:alchemons/screens/progress_overview_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
-import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/catalog/species_plate.dart';
 import 'package:alchemons/widgets/catalog/species_table.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:flutter/material.dart';
@@ -32,7 +33,6 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
 
 import '../models/creature.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -67,6 +67,12 @@ class CreaturesScreenState extends State<CreaturesScreen> {
 
   String _query = '';
 
+  /// The species the specimens are filtered to, picked in the catalog.
+  String? _speciesFilter;
+
+  CatalogLayout _layout = CatalogLayout.shelves;
+  static const _layoutKey = 'creatures_catalog_layout';
+
   /// Bumped to clear the specimens' sort, filters and search together.
   int _clearVersion = 0;
   bool _specimensResettable = false;
@@ -90,6 +96,49 @@ class CreaturesScreenState extends State<CreaturesScreen> {
     super.didChangeDependencies();
     _settings = context.read<AlchemonsDatabase>().settingsDao;
     _bindInstanceCounts();
+    if (!_layoutRead) {
+      _layoutRead = true;
+      () async {
+        final raw = await _settings.getSetting(_layoutKey);
+        if (!mounted || raw == null) return;
+        final saved = CatalogLayout.values.where((l) => l.name == raw);
+        if (saved.isNotEmpty) setState(() => _layout = saved.first);
+      }();
+    }
+  }
+
+  bool _layoutRead = false;
+
+  void _setLayout(CatalogLayout layout) {
+    setState(() => _layout = layout);
+    _settings.setSetting(_layoutKey, layout.name);
+  }
+
+  /// The specimens tab, filtered to [speciesId].
+  void _showSpecies(String speciesId) {
+    unfocusSearch();
+    _searchCtrl.clear();
+    _debounce?.cancel();
+    setState(() {
+      _query = '';
+      _speciesFilter = speciesId;
+      _tab = 0;
+    });
+  }
+
+  void _openMilestones() {
+    unfocusSearch();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (routeContext) => ConstellationProgressOverviewScreen(
+          onOpenSpecies: (id) {
+            Navigator.of(routeContext).pop();
+            _showSpecies(id);
+          },
+        ),
+      ),
+    );
   }
 
   void _selectTab(int tab) {
@@ -204,6 +253,11 @@ class CreaturesScreenState extends State<CreaturesScreen> {
             final palette = BracketPalette.fromTheme(theme);
             final accent = bracketReadableAccent(theme);
             final owned = _instanceCounts.values.fold<int>(0, (a, b) => a + b);
+            final filteredSpecies = _speciesFilter == null
+                ? null
+                : context.read<CreatureCatalog>().getCreatureById(
+                    _speciesFilter!,
+                  );
 
             return Scaffold(
               backgroundColor: palette.bg1,
@@ -218,9 +272,11 @@ class CreaturesScreenState extends State<CreaturesScreen> {
                         accent: accent,
                         controller: _searchCtrl,
                         focusNode: _searchFocus,
-                        hint: _tab == 0
-                            ? 'Search your specimens'
-                            : 'Search found species',
+                        hint: _tab == 1
+                            ? 'Search found species'
+                            : _speciesFilter != null
+                            ? 'Search these specimens'
+                            : 'Search your specimens',
                         onChanged: _onQueryChanged,
                         showReset: _tab == 0 && _specimensResettable,
                         onReset: () {
@@ -251,27 +307,54 @@ class CreaturesScreenState extends State<CreaturesScreen> {
                         children: [
                           TickerMode(
                             enabled: _tab == 0,
-                            child: AllCreatureInstances(
-                              theme: theme,
-                              caseCards: true,
-                              prefsScopeKey: 'creatures_all_specimens',
-                              searchTextOverride: _query,
-                              showInternalSearchBar: false,
-                              clearVersion: _clearVersion,
-                              onResettableStateChanged: (value) {
-                                if (!mounted || _specimensResettable == value) {
-                                  return;
-                                }
-                                setState(() => _specimensResettable = value);
-                              },
-                              onTap: (inst) {
-                                final creature = context
-                                    .read<CreatureCatalog>()
-                                    .getCreatureById(inst.baseId);
-                                if (creature != null) {
-                                  _openDetailsForInstance(creature, inst);
-                                }
-                              },
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (filteredSpecies != null)
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      12,
+                                      6,
+                                      12,
+                                      0,
+                                    ),
+                                    child: SpeciesPlate(
+                                      species: filteredSpecies,
+                                      palette: palette,
+                                      accent: accent,
+                                      onClear: () =>
+                                          setState(() => _speciesFilter = null),
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: AllCreatureInstances(
+                                    theme: theme,
+                                    caseCards: true,
+                                    speciesIdFilter: _speciesFilter,
+                                    prefsScopeKey: 'creatures_all_specimens',
+                                    searchTextOverride: _query,
+                                    showInternalSearchBar: false,
+                                    clearVersion: _clearVersion,
+                                    onResettableStateChanged: (value) {
+                                      if (!mounted ||
+                                          _specimensResettable == value) {
+                                        return;
+                                      }
+                                      setState(
+                                        () => _specimensResettable = value,
+                                      );
+                                    },
+                                    onTap: (inst) {
+                                      final creature = context
+                                          .read<CreatureCatalog>()
+                                          .getCreatureById(inst.baseId);
+                                      if (creature != null) {
+                                        _openDetailsForInstance(creature, inst);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           if (_catalogBuilt)
@@ -281,18 +364,15 @@ class CreaturesScreenState extends State<CreaturesScreen> {
                                 entries: entries,
                                 counts: _instanceCounts,
                                 palette: palette,
+                                accent: accent,
+                                layout: _layout,
+                                onLayoutChanged: _setLayout,
                                 query: _query,
                                 revealCreatureId: _revealCreatureId,
                                 controller: _catalogScrollCtl,
                                 onTap: (c, isDiscovered) =>
                                     _handleTap(c, isDiscovered, theme),
-                                onOpenProgress: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const ConstellationProgressOverviewScreen(),
-                                  ),
-                                ),
+                                onOpenMilestones: _openMilestones,
                               ),
                             )
                           else
@@ -321,56 +401,10 @@ class CreaturesScreenState extends State<CreaturesScreen> {
   void _handleTap(Creature species, bool isDiscovered, FactionTheme theme) {
     unfocusSearch();
     if (isDiscovered) {
-      _showInstancesSheet(species, theme);
+      _showSpecies(species.id);
     } else {
       showUnknownSpeciesDialog(context, theme, species);
     }
-  }
-
-  void _showInstancesSheet(Creature species, FactionTheme theme) {
-    unfocusSearch();
-    final t = ForgeTokens(theme);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => BottomSheetShell(
-        theme: theme,
-        titleAction: GestureDetector(
-          onTap: context.soundAction(
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => BreedingMilestoneScreen(speciesId: species.id),
-              ),
-            ),
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: t.bg3,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: t.borderDim),
-            ),
-            padding: const EdgeInsets.all(8),
-            child: Icon(
-              AppIcons.emoji_nature_rounded,
-              size: 18,
-              color: t.textSecondary,
-            ),
-          ),
-        ),
-        title: '${species.name} Specimens',
-        child: InstancesSheet(
-          species: species,
-          theme: theme,
-          prefsScopeKey: 'creatures_species_instances',
-          onTap: (inst) {
-            Navigator.of(context).pop();
-            _openDetailsForInstance(species, inst);
-          },
-        ),
-      ),
-    );
   }
 
   void _openDetailsForInstance(Creature species, CreatureInstance inst) {

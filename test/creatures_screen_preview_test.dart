@@ -12,6 +12,7 @@ import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
@@ -27,8 +28,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 // The Creatures tab on a phone, in both themes, a few weeks into a save:
-// the specimen cases it opens on, the species table (top, scrolled, and
-// searched), and the specimens searched.
+// the specimen cases it opens on, the catalog as shelves and as a table
+// (and searched), a species picked from it, the milestones list, and a new
+// species landing in the catalog.
 //
 //   CREATURES_OUT=/tmp/creatures flutter test \
 //     test/creatures_screen_preview_test.dart --tags preview
@@ -125,6 +127,18 @@ void main() {
           );
           if (fav) await db.creatureDao.setFavorite(id, true);
         }
+        // Bred counts, for the species plate and the milestones list.
+        for (final (id, n) in const [
+          ('LET01', 12),
+          ('PIP01', 27),
+          ('HOR01', 4),
+          ('WNG05', 101),
+          ('MAN09', 74),
+        ]) {
+          for (var i = 0; i < n; i++) {
+            await db.constellationDao.incrementBreedCount(id);
+          }
+        }
         entries = await GameDataService(
           db: db,
           catalog: catalog,
@@ -184,6 +198,9 @@ void main() {
             ChangeNotifierProvider<ConstellationEffectsService>.value(
               value: constellations,
             ),
+            ChangeNotifierProvider<ConstellationService>(
+              create: (_) => ConstellationService(db),
+            ),
           ],
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
@@ -199,30 +216,39 @@ void main() {
 
       await tester.tap(find.textContaining('CATALOG').first);
       await settle(40);
-      await shoot('2_catalog');
+      await shoot('2_catalog_shelves');
 
-      await tester.drag(
-        find.byType(SingleChildScrollView).last,
-        const Offset(0, -900),
-      );
+      await tester.tap(find.text('TABLE'));
       await settle(30);
-      await shoot('3_catalog_scrolled');
+      await shoot('3_catalog_table');
 
       await tester.enterText(find.byType(TextField).first, 'fire');
       await settle(20);
       await shoot('4_catalog_search');
-
-      await tester.tap(find.textContaining('SPECIMENS').first);
+      await tester.enterText(find.byType(TextField).first, '');
+      await tester.tap(find.text('SHELVES'));
       await settle(20);
-      await shoot('5_specimens_search');
+
+      // Pick a found species: the specimens, filtered, under its plate.
+      await tester.tap(find.byKey(const ValueKey('species:LET01')));
+      await settle(30);
+      await shoot('5_species_filtered');
+
+      await tester.tap(find.textContaining('CATALOG').first);
+      await settle(10);
+      await tester.tap(find.text('MILESTONES ›'));
+      await settle(30);
+      await shoot('6_milestones');
+      // A row opens that species' specimens.
+      await tester.tap(find.text('FIREPIP'));
+      await settle(30);
+      await shoot('7_from_milestones');
 
       // A new species files itself away: the catalog opens on its cell, which
       // pops in a gilt frame.
-      await tester.enterText(find.byType(TextField).first, '');
-      await settle(10);
       NewDiscoveryReveal.instance.pendingRevealCreatureId.value = 'LET13';
       await settle(5);
-      await shoot('6_reveal');
+      await shoot('8_reveal');
       await settle(80);
       expect(NewDiscoveryReveal.instance.pendingRevealCreatureId.value, isNull);
 

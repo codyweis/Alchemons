@@ -14,7 +14,7 @@ import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/screens/breed/utils/breed_utils.dart';
-import 'package:alchemons/screens/breeding_milestones_screen.dart';
+import 'package:alchemons/screens/progress_overview_screen.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
@@ -1093,7 +1093,9 @@ class EggHatching {
       dismissOverlay();
       rootNav.push(
         MaterialPageRoute(
-          builder: (_) => BreedingMilestoneScreen(speciesId: speciesId),
+          builder: (_) => ConstellationProgressOverviewScreen(
+            highlightSpeciesId: speciesId,
+          ),
         ),
       );
     }

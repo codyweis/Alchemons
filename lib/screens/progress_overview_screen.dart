@@ -1,67 +1,45 @@
 import 'package:alchemons/audio/audio.dart';
-// lib/screens/constellation_progress_overview_screen.dart
+// lib/screens/progress_overview_screen.dart
 //
-// REDESIGNED CONSTELLATION PROGRESS OVERVIEW
-// Aesthetic: Scorched Forge — dark metal, amber reagent accents, monospace
-// All logic, routing, FutureBuilder caching, and view-toggle preserved.
-// PERF: ForgeTokens hoisted above FutureBuilder, RepaintBoundary on cards,
-//       const scanline singleton, LinearProgressIndicator, cacheExtent added.
+// Breeding milestones: every species you have bred, one row each — its
+// portrait in a lit case, its name, how far it is to the next milestone and
+// what that is worth, and the milestone track. Rows closest to their next
+// milestone come first; species with every milestone reached sink to the
+// bottom in gilt.
 //
+// Opened from the catalog, from the constellation screen, and from the
+// "milestone reached" notice after a hatch (which lights that species' row).
 
-import 'package:alchemons/screens/breeding_milestones_screen.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
+import 'dart:async';
+
 import 'package:alchemons/database/alchemons_db.dart';
-
+import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/background/starfield_background.dart';
-import 'package:alchemons/widgets/creature_sprite.dart';
-import 'package:flame/image_composition.dart';
 import 'package:alchemons/widgets/app_icons.dart';
-
-// ──────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS
-// ──────────────────────────────────────────────────────────────────────────────
-
-Color _rarityColor(String rarity) => switch (rarity.toLowerCase()) {
-  'common' => const Color(0xFF6B7280),
-  'uncommon' => const Color(0xFF34D399),
-  'rare' => const Color(0xFF60A5FA),
-  'legendary' => const Color(0xFFF59E0B),
-  // Was 'epic', which no species is; the 17 Mystics read as Common.
-  'mystic' => const Color(0xFFE879F9),
-  _ => const Color(0xFF6B7280),
-};
-
-// PERF: const constructor + singleton instance — never re-instantiated.
-class _ScanlinePainter extends CustomPainter {
-  const _ScanlinePainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.black.withValues(alpha: 0.07);
-    for (double y = 0; y < size.height; y += 3) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
-
-// PERF: Single const instance shared across all cards — zero allocations.
-const _kScanlines = CustomPaint(painter: _ScanlinePainter());
-
-// ──────────────────────────────────────────────────────────────────────────────
-// SCREEN
-// ──────────────────────────────────────────────────────────────────────────────
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/catalog/milestone_track.dart';
+import 'package:alchemons/widgets/instance_widgets/specimen_case.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class ConstellationProgressOverviewScreen extends StatefulWidget {
-  const ConstellationProgressOverviewScreen({super.key});
+  const ConstellationProgressOverviewScreen({
+    super.key,
+    this.highlightSpeciesId,
+    this.onOpenSpecies,
+  });
+
+  /// A species whose row is brought into view and lit — the one a
+  /// "milestone reached" notice was about.
+  final String? highlightSpeciesId;
+
+  /// Tapping a row: the Creatures tab passes this to show that species'
+  /// specimens. Elsewhere rows are not tappable.
+  final ValueChanged<String>? onOpenSpecies;
 
   @override
   State<ConstellationProgressOverviewScreen> createState() =>
@@ -70,1101 +48,328 @@ class ConstellationProgressOverviewScreen extends StatefulWidget {
 
 class _ConstellationProgressOverviewScreenState
     extends State<ConstellationProgressOverviewScreen> {
-  bool _isCardView = true;
-  late PageController _pageController;
-  int _currentPage = 0;
-
-  final Map<String, Future<BreedingProgress>> _progressFutures = {};
-
-  final TextEditingController _searchCtrl = TextEditingController();
-  String _searchQuery = '';
-
-  Future<BreedingProgress> _progressFor(
-    ConstellationService service,
-    String speciesId,
-  ) => _progressFutures.putIfAbsent(
-    speciesId,
-    () => service.getBreedingProgress(speciesId),
-  );
-
-  List<Creature> _filtered(List<Creature> species) {
-    if (_searchQuery.isEmpty) return species;
-    final q = _searchQuery.toLowerCase();
-    return species.where((c) => c.name.toLowerCase().contains(q)).toList();
-  }
+  Future<List<BreedingStatistic>>? _stats;
+  final GlobalKey _highlightKey = GlobalKey(debugLabel: 'milestone-highlight');
+  bool _scrolledToHighlight = false;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.85);
+    final id = widget.highlightSpeciesId;
+    if (id != null) {
+      // This screen is where the showcase is seen; don't play it twice.
+      context
+          .read<ConstellationService>()
+          .consumePendingMilestoneShowcaseForSpecies(id);
+    }
   }
 
   @override
-  void dispose() {
-    _pageController.dispose();
-    _searchCtrl.dispose();
-    super.dispose();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _stats = context.watch<ConstellationService>().getAllBreedingStats();
   }
 
-  // ── BUILD ──────────────────────────────────────────────────────────────────
+  void _scrollToHighlight() {
+    if (_scrolledToHighlight) return;
+    _scrolledToHighlight = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _highlightKey.currentContext;
+      if (!mounted || ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        alignment: 0.3,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // This screen is painted on a star field, so it is dark whatever the app's
-    // light/dark setting is. The forcing has to happen ABOVE the FactionTheme
-    // read below — in light mode that read returns light surfaces and near
-    // black text, which is what used to land on top of the stars.
-    return ForcedFactionBrightness(
-      brightness: Brightness.dark,
-      child: Builder(builder: _buildBody),
-    );
-  }
-
-  Widget _buildBody(BuildContext context) {
+    final theme = context.watch<FactionTheme>();
+    final palette = BracketPalette.fromTheme(theme);
+    final accent = bracketReadableAccent(theme);
     final catalog = context.watch<CreatureCatalog>();
-    final constellationService = context.watch<ConstellationService>();
-    final db = context.read<AlchemonsDatabase>();
+    final gilt = palette.isDark ? kCaseGilt : const Color(0xFF8A5A12);
 
-    // PERF: Read theme once at top level — not inside child builders.
-    final t = ForgeTokens(context.read<FactionTheme>());
-
-    return StarfieldBackgroundScaffold(
-      nebulaColor: t.amber,
-      appBar: _buildAppBar(t),
-      body: StreamBuilder<List<PlayerCreature>>(
-        stream: db.creatureDao.watchDiscovered(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return Center(child: CircularProgressIndicator(color: t.amber));
-          }
-          final species = snapshot.data!
-              .map((d) => catalog.getCreatureById(d.id))
-              .whereType<Creature>()
-              .toList();
-
-          if (species.isEmpty) return _buildEmptyState(t);
-
-          final filtered = _filtered(species);
-          return SafeArea(
-            top: false,
-            child: Column(
-              children: [
-                _buildSearchField(t),
-                Expanded(
-                  child: filtered.isEmpty
-                      ? _buildNoResults(t)
-                      : _isCardView
-                      ? _buildCardView(filtered, constellationService, t)
-                      : _buildListView(filtered, constellationService, t),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSearchField(ForgeTokens t) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-        ),
-        child: TextField(
-          controller: _searchCtrl,
-          onChanged: (v) {
-            setState(() {
-              _searchQuery = v.trim();
-              _currentPage = 0;
-            });
-            if (_pageController.hasClients) {
-              _pageController.jumpToPage(0);
+    return Scaffold(
+      backgroundColor: palette.bg1,
+      body: SafeArea(
+        child: FutureBuilder<List<BreedingStatistic>>(
+          future: _stats,
+          builder: (context, snap) {
+            final rows = <(Creature, int)>[
+              for (final s in snap.data ?? const <BreedingStatistic>[])
+                if (s.totalBred > 0)
+                  if (catalog.getCreatureById(s.speciesId) case final c?)
+                    (c, s.totalBred),
+            ];
+            int? toGo((Creature, int) r) {
+              final next = BreedingMilestone.nextMilestone(r.$2);
+              return next == null ? null : next.count - r.$2;
             }
-          },
-          style: TextStyle(color: t.textPrimary, fontSize: 14),
-          cursorColor: t.amberBright,
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            isDense: true,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 12,
-            ),
-            prefixIcon: Icon(
-              AppIcons.search_rounded,
-              color: t.textSecondary,
-              size: 20,
-            ),
-            hintText: 'Search species',
-            hintStyle: TextStyle(color: t.textMuted, fontSize: 14),
-            suffixIcon: _searchQuery.isEmpty
-                ? null
-                : IconButton(
-                    icon: Icon(
-                      AppIcons.close_rounded,
-                      color: t.textSecondary,
-                      size: 18,
-                    ),
-                    onPressed: context.soundAction(() {
-                      _searchCtrl.clear();
-                      setState(() {
-                        _searchQuery = '';
-                        _currentPage = 0;
-                      });
-                      if (_pageController.hasClients) {
-                        _pageController.jumpToPage(0);
-                      }
-                    }),
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildNoResults(ForgeTokens t) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(AppIcons.search_off_rounded, size: 48, color: t.textMuted),
-            const SizedBox(height: 12),
-            Text(
-              'No species match "$_searchQuery"',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: t.textSecondary, fontSize: 14),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+            rows.sort((a, b) {
+              final ga = toGo(a), gb = toGo(b);
+              if (ga == null && gb == null) {
+                return a.$1.name.compareTo(b.$1.name);
+              }
+              if (ga == null) return 1;
+              if (gb == null) return -1;
+              return ga != gb
+                  ? ga.compareTo(gb)
+                  : a.$1.name.compareTo(b.$1.name);
+            });
+            final bred = rows.fold<int>(0, (sum, r) => sum + r.$2);
+            final points = rows.fold<int>(
+              0,
+              (sum, r) => sum + breedingPointsEarned(r.$2, r.$1.rarity),
+            );
+            if (widget.highlightSpeciesId != null && rows.isNotEmpty) {
+              _scrollToHighlight();
+            }
 
-  PreferredSizeWidget _buildAppBar(ForgeTokens t) {
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      surfaceTintColor: Colors.transparent,
-      leading: IconButton(
-        icon: Icon(
-          AppIcons.arrow_back_rounded,
-          color: t.textSecondary,
-          size: 22,
-        ),
-        onPressed: context.soundAction(() => Navigator.pop(context)),
-      ),
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                margin: const EdgeInsets.only(right: 8, bottom: 1),
-                decoration: BoxDecoration(
-                  color: t.amber,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              Text(
-                'CONSTELLATION PROGRESS',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 2.0,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 1),
-          Text(
-            'BREEDING MILESTONES',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: t.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.6,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        IconButton(
-          icon: Icon(
-            _isCardView
-                ? AppIcons.list_rounded
-                : AppIcons.view_carousel_rounded,
-            color: t.textSecondary,
-            size: 22,
-          ),
-          onPressed: context.soundAction(
-            () => setState(() => _isCardView = !_isCardView),
-          ),
-        ),
-        const SizedBox(width: 4),
-      ],
-    );
-  }
-
-  // ── CARD VIEW ──────────────────────────────────────────────────────────────
-
-  Widget _buildCardView(
-    List<Creature> species,
-    ConstellationService constellationService,
-    ForgeTokens t,
-  ) {
-    return SafeArea(
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
-          Expanded(
-            child: PageView.builder(
-              controller: _pageController,
-              onPageChanged: (index) {
-                HapticFeedback.selectionClick();
-                setState(() => _currentPage = index);
-              },
-              itemCount: species.length,
-              itemBuilder: (context, index) {
-                final creature = species[index];
-                // PERF: RepaintBoundary is the `child` of MyAnimatedBuilder so
-                // the card subtree is isolated from scroll-driven rebuilds.
-                // Only the Transform.scale wrapper repaints on page drag.
-                return MyAnimatedBuilder(
-                  animation: _pageController,
-                  builder: (context, child) {
-                    double value = 1.0;
-                    if (_pageController.position.haveDimensions) {
-                      value = (_pageController.page! - index).abs();
-                      value = (1 - (value * 0.15)).clamp(0.85, 1.0);
-                    }
-                    return Transform.scale(
-                      scale: value,
-                      child: Opacity(
-                        opacity: value.clamp(0.8, 1.0),
-                        child: child,
-                      ),
-                    );
-                  },
-                  // PERF: child is built once, not on every animation tick.
-                  child: RepaintBoundary(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 4,
-                      ),
-                      child: Center(
-                        child: _SpeciesCard(
-                          creature: creature,
-                          progressFuture: _progressFor(
-                            constellationService,
-                            creature.id,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          _buildPageIndicator(species.length, t),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPageIndicator(int count, ForgeTokens t) {
-    if (count <= 8) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            count,
-            (index) => GestureDetector(
-              onTap: context.soundAction(
-                () => _pageController.animateToPage(
-                  index,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutCubic,
-                ),
-              ),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: index == _currentPage ? 24 : 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: index == _currentPage
-                      ? t.amberBright
-                      : t.borderAccent.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    } else {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(40, 12, 40, 12),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
               children: [
-                Text(
-                  '${_currentPage + 1}',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: t.amberBright,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  ' / $count',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: t.textMuted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Container(
-              height: 3,
-              decoration: BoxDecoration(
-                color: t.borderMid,
-                borderRadius: BorderRadius.circular(2),
-              ),
-              child: LayoutBuilder(
-                builder: (context, constraints) => Stack(
+                Row(
                   children: [
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOutCubic,
-                      left: (constraints.maxWidth / count) * _currentPage,
-                      child: Container(
-                        width: constraints.maxWidth / count,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: t.amberBright,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
+                    BracketIconButton(
+                      icon: AppIcons.arrow_back_rounded,
+                      onTap: () => Navigator.of(context).maybePop(),
+                      palette: palette,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'BREEDING MILESTONES',
+                            style: caseMono(13, palette.ink, spacing: 1.6),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Breed a species to earn constellation points',
+                            style: caseMono(
+                              9.5,
+                              palette.muted,
+                              weight: FontWeight.w600,
+                              spacing: 0.3,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
-  // ── LIST VIEW ──────────────────────────────────────────────────────────────
-
-  Widget _buildListView(
-    List<Creature> species,
-    ConstellationService constellationService,
-    ForgeTokens t,
-  ) {
-    return ListView.builder(
-      physics: const BouncingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
-      padding: const EdgeInsets.all(14),
-      itemCount: species.length,
-      itemBuilder: (context, index) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        // PERF: RepaintBoundary isolates each row from its neighbours.
-        child: RepaintBoundary(
-          child: _ListItem(
-            creature: species[index],
-            progressFuture: _progressFor(
-              constellationService,
-              species[index].id,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── EMPTY STATE ────────────────────────────────────────────────────────────
-
-  Widget _buildEmptyState(ForgeTokens t) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: t.bg2,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: t.borderAccent.withValues(alpha: 0.5),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Text(
+                      '$bred',
+                      style: caseMono(15, palette.ink, weight: FontWeight.w900),
+                    ),
+                    Text(' BRED    ', style: caseMono(10.5, palette.muted)),
+                    Text(
+                      '$points',
+                      style: caseMono(15, gilt, weight: FontWeight.w900),
+                    ),
+                    Text(
+                      ' POINTS EARNED',
+                      style: caseMono(10.5, palette.muted),
+                    ),
+                  ],
                 ),
-              ),
-              child: Icon(
-                AppIcons.auto_awesome_outlined,
-                size: 36,
-                color: t.amber,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'NO SPECIES DISCOVERED',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 2.0,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Discover and breed creatures to track\nyour constellation progress',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.textSecondary,
-                fontSize: 12,
-                letterSpacing: 0.3,
-                height: 1.7,
-              ),
-            ),
-          ],
+                const SizedBox(height: 14),
+                if (snap.hasData && rows.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: Text(
+                      'Nothing bred yet. Each species pays out at '
+                      '${BreedingMilestone.milestones.map((m) => m.count).join(', ')} bred.',
+                      style: caseMono(
+                        11,
+                        palette.muted,
+                        weight: FontWeight.w600,
+                        spacing: 0.3,
+                      ),
+                    ),
+                  ),
+                for (final r in rows)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: () {
+                      final row = _MilestoneRow(
+                        species: r.$1,
+                        bred: r.$2,
+                        palette: palette,
+                        accent: accent,
+                        onTap: widget.onOpenSpecies == null
+                            ? null
+                            : () => widget.onOpenSpecies!(r.$1.id),
+                      );
+                      if (r.$1.id != widget.highlightSpeciesId) return row;
+                      return _Highlight(key: _highlightKey, child: row);
+                    }(),
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// SPECIES CARD  (card view)
-// ──────────────────────────────────────────────────────────────────────────────
+class _MilestoneRow extends StatelessWidget {
+  const _MilestoneRow({
+    required this.species,
+    required this.bred,
+    required this.palette,
+    required this.accent,
+    this.onTap,
+  });
 
-class _SpeciesCard extends StatelessWidget {
-  final Creature creature;
-  final Future<BreedingProgress> progressFuture;
-
-  const _SpeciesCard({required this.creature, required this.progressFuture});
+  final Creature species;
+  final int bred;
+  final BracketPalette palette;
+  final Color accent;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    // PERF: Resolved once per card build — not inside FutureBuilder.
-    final t = ForgeTokens(context.read<FactionTheme>());
-    final rColor = _rarityColor(creature.rarity);
-
-    // PERF: Glow decoration depends only on rColor (static per creature).
-    // Built here instead of inside FutureBuilder to avoid repeated allocation.
-    final glowDecoration = BoxDecoration(
-      shape: BoxShape.circle,
-      gradient: RadialGradient(
-        colors: [rColor.withValues(alpha: 0.10), Colors.transparent],
-      ),
-    );
-
-    return FutureBuilder<BreedingProgress>(
-      future: progressFuture,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return Container(
-            decoration: BoxDecoration(
-              color: t.bg2,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: t.borderDim),
-            ),
-            child: Center(
-              child: CircularProgressIndicator(color: t.amber, strokeWidth: 2),
-            ),
-          );
-        }
-
-        final progress = snapshot.data!;
-        final nextMilestone = progress.nextMilestone;
-        final isComplete = nextMilestone == null;
-        final pointsForRarity =
-            nextMilestone?.getPointsForRarity(creature.rarity) ?? 0;
-
-        return GestureDetector(
-          onTap: context.soundAction(() {
-            HapticFeedback.lightImpact();
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => BreedingMilestoneScreen(speciesId: creature.id),
-              ),
-            );
-          }),
-          child: IntrinsicHeight(
-            child: Container(
-              decoration: BoxDecoration(
-                color: t.bg2,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: rColor.withValues(alpha: 0.35),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: rColor.withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
-                children: [
-                  // PERF: Const singleton — never allocates a new painter.
-                  Positioned.fill(child: _kScanlines),
-
-                  // PERF: Glow container built from cached decoration above.
-                  Positioned(
-                    top: -60,
-                    right: -60,
-                    child: Container(
-                      width: 200,
-                      height: 200,
-                      decoration: glowDecoration,
+    final next = BreedingMilestone.nextMilestone(bred);
+    final done = next == null;
+    final gilt = palette.isDark ? kCaseGilt : const Color(0xFF8A5A12);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap == null ? null : context.soundAction(onTap!),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: done
+              ? gilt.withValues(alpha: 0.85)
+              : palette.line.withValues(alpha: 0.5),
+          bracketSize: 7,
+        ),
+        child: Container(
+          color: palette.surfaceMutedFill(),
+          padding: const EdgeInsets.fromLTRB(8, 8, 12, 10),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 46,
+                height: 46,
+                child: CustomPaint(
+                  painter: CaseLightPainter(color: caseElementLight(species)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Image.asset(
+                      'assets/images/${species.image}',
+                      cacheHeight: 120,
+                      errorBuilder: (_, _, _) => const SizedBox(),
                     ),
                   ),
-
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            _RarityBadge(
-                              rarity: creature.rarity,
-                              color: rColor,
-                            ),
-                            Icon(
-                              AppIcons.arrow_forward_ios_rounded,
-                              color: t.textMuted,
-                              size: 14,
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 8),
-                        Hero(
-                          tag: 'constellation_sprite_${creature.id}',
-                          child: SizedBox(
-                            width: 120,
-                            height: 120,
-                            child: RepaintBoundary(
-                              child: CreatureSprite(
-                                spritePath:
-                                    creature.spriteData!.spriteSheetPath,
-                                totalFrames: creature.spriteData!.totalFrames,
-                                rows: creature.spriteData!.rows,
-                                frameSize: Vector2(
-                                  creature.spriteData!.frameWidth.toDouble(),
-                                  creature.spriteData!.frameHeight.toDouble(),
-                                ),
-                                stepTime:
-                                    creature.spriteData!.frameDurationMs /
-                                    1000.0,
-                              ),
-                            ),
+                        Expanded(
+                          child: Text(
+                            species.name.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: caseMono(10.5, palette.ink, spacing: 1),
                           ),
                         ),
-                        const SizedBox(height: 8),
-
                         Text(
-                          creature.name.toUpperCase(),
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: t.textPrimary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2.0,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: t.bg3,
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(color: t.borderDim),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.baseline,
-                                textBaseline: TextBaseline.alphabetic,
-                                children: [
-                                  Text(
-                                    '${progress.totalBred}',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: t.textPrimary,
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'BRED',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: t.textMuted,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 1.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-
-                              if (!isComplete) ...[
-                                _ProgressBar(
-                                  progress: progress.progress,
-                                  color: rColor,
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        '${nextMilestone.displayName}  (${nextMilestone.count})',
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          color: t.textSecondary,
-                                          fontSize: 12,
-                                          letterSpacing: 0.5,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    _RewardBadge(
-                                      points: pointsForRarity,
-                                      color: rColor,
-                                    ),
-                                  ],
-                                ),
-                              ] else
-                                _CompleteBadge(),
-                            ],
+                          done
+                              ? 'ALL DONE'
+                              : '$bred/${next.count}  '
+                                    '+${next.getPointsForRarity(species.rarity)}',
+                          style: caseMono(
+                            9.5,
+                            done ? gilt : palette.muted,
+                            spacing: 0.4,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// LIST ITEM  (list view)
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _ListItem extends StatelessWidget {
-  final Creature creature;
-  final Future<BreedingProgress> progressFuture;
-
-  const _ListItem({required this.creature, required this.progressFuture});
-
-  @override
-  Widget build(BuildContext context) {
-    // PERF: Resolved once per item build — not inside FutureBuilder.
-    final t = ForgeTokens(context.read<FactionTheme>());
-    final rColor = _rarityColor(creature.rarity);
-
-    return FutureBuilder<BreedingProgress>(
-      future: progressFuture,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return Container(
-            height: 92,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: t.bg2,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: t.borderDim),
-            ),
-            alignment: Alignment.centerLeft,
-            child: SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2, color: t.amber),
-            ),
-          );
-        }
-
-        final progress = snapshot.data!;
-        final nextMilestone = progress.nextMilestone;
-        final isComplete = nextMilestone == null;
-        final pointsForRarity =
-            nextMilestone?.getPointsForRarity(creature.rarity) ?? 0;
-
-        return GestureDetector(
-          onTap: context.soundAction(() {
-            HapticFeedback.lightImpact();
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => BreedingMilestoneScreen(speciesId: creature.id),
-              ),
-            );
-          }),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: t.bg2,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: t.borderDim),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: t.bg3,
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: rColor.withValues(alpha: 0.4)),
-                  ),
-                  child: SizedBox(
-                    width: 52,
-                    height: 52,
-                    child: RepaintBoundary(
-                      child: CreatureSprite(
-                        spritePath: creature.spriteData!.spriteSheetPath,
-                        totalFrames: creature.spriteData!.totalFrames,
-                        rows: creature.spriteData!.rows,
-                        frameSize: Vector2(
-                          creature.spriteData!.frameWidth.toDouble(),
-                          creature.spriteData!.frameHeight.toDouble(),
-                        ),
-                        stepTime: creature.spriteData!.frameDurationMs / 1000.0,
-                      ),
+                    const SizedBox(height: 8),
+                    MilestoneTrack(
+                      bred: bred,
+                      palette: palette,
+                      accent: accent,
+                      labels: false,
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              creature.name.toUpperCase(),
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.textPrimary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.0,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _RarityBadge(
-                            rarity: creature.rarity,
-                            color: rColor,
-                            small: true,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-
-                      Row(
-                        children: [
-                          Text(
-                            '${progress.totalBred}',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.amberBright,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          Text(
-                            '  BRED',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.textMuted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 7),
-
-                      if (!isComplete) ...[
-                        _ProgressBar(
-                          progress: progress.progress,
-                          color: rColor,
-                          height: 3,
-                        ),
-                        const SizedBox(height: 5),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'NEXT  ${nextMilestone.count}',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.textMuted,
-                                fontSize: 12,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            _RewardBadge(
-                              points: pointsForRarity,
-                              color: rColor,
-                              small: true,
-                            ),
-                          ],
-                        ),
-                      ] else
-                        Row(
-                          children: [
-                            Icon(
-                              AppIcons.emoji_events_rounded,
-                              color: t.amberBright,
-                              size: 12,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'COMPLETE',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.amberBright,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  AppIcons.chevron_right_rounded,
-                  color: t.textMuted,
-                  size: 18,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// SHARED SMALL WIDGETS
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _ProgressBar extends StatelessWidget {
-  final double progress;
-  final Color color;
-  final double height;
-
-  const _ProgressBar({
-    required this.progress,
-    required this.color,
-    this.height = 5,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
-    // PERF: LinearProgressIndicator is platform-optimized and avoids the
-    // FractionallySizedBox + ClipRRect layout pass from before.
-    return SizedBox(
-      height: height,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(height / 2),
-        child: LinearProgressIndicator(
-          value: progress.clamp(0.0, 1.0),
-          backgroundColor: t.borderMid,
-          valueColor: AlwaysStoppedAnimation<Color>(color),
-          minHeight: height,
-        ),
-      ),
-    );
-  }
-}
-
-class _RarityBadge extends StatelessWidget {
-  final String rarity;
-  final Color color;
-  final bool small;
-
-  const _RarityBadge({
-    required this.rarity,
-    required this.color,
-    this.small = false,
-  });
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: EdgeInsets.symmetric(
-      horizontal: small ? 6 : 9,
-      vertical: small ? 3 : 5,
-    ),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(2),
-      border: Border.all(color: color.withValues(alpha: 0.4), width: 0.8),
-    ),
-    child: Text(
-      rarity.toUpperCase(),
-      style: TextStyle(
-        fontFamily: 'monospace',
-        color: color,
-        fontSize: small ? 8 : 9,
-        fontWeight: FontWeight.w900,
-        letterSpacing: 1.0,
-      ),
-    ),
-  );
-}
-
-class _RewardBadge extends StatelessWidget {
-  final int points;
-  final Color color;
-  final bool small;
-
-  const _RewardBadge({
-    required this.points,
-    required this.color,
-    this.small = false,
-  });
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: EdgeInsets.symmetric(
-      horizontal: small ? 5 : 8,
-      vertical: small ? 2 : 4,
-    ),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(2),
-      border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(AppIcons.auto_awesome, color: color, size: small ? 9 : 11),
-        const SizedBox(width: 3),
-        Text(
-          '+$points',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: color,
-            fontSize: small ? 9 : 11,
-            fontWeight: FontWeight.w900,
+              ),
+            ],
           ),
         ),
-      ],
-    ),
-  );
-}
-
-class _CompleteBadge extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: t.amberDim.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: t.borderAccent),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(AppIcons.emoji_events_rounded, color: t.amberBright, size: 16),
-          const SizedBox(width: 8),
-          Text(
-            'ALL COMPLETE',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: t.amberBright,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.5,
-            ),
-          ),
-        ],
       ),
     );
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// ANIMATED PAGE BUILDER (unchanged — avoids collision with Flutter's built-in)
-// ──────────────────────────────────────────────────────────────────────────────
+/// The row a milestone notice was about: a gilt frame that flares twice and
+/// settles. Drawn, not glowed.
+class _Highlight extends StatefulWidget {
+  const _Highlight({super.key, required this.child});
 
-class MyAnimatedBuilder extends AnimatedWidget {
-  final Widget? child;
-  final Widget Function(BuildContext context, Widget? child) builder;
-
-  const MyAnimatedBuilder({
-    super.key,
-    required Listenable animation,
-    required this.builder,
-    this.child,
-  }) : super(listenable: animation);
+  final Widget child;
 
   @override
-  Widget build(BuildContext context) => builder(context, child);
+  State<_Highlight> createState() => _HighlightState();
+}
+
+class _HighlightState extends State<_Highlight>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2200),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    // Let the scroll arrive first.
+    Timer(const Duration(milliseconds: 360), () {
+      if (mounted) _ctl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _ctl,
+    builder: (_, child) {
+      final t = _ctl.value;
+      // Two flares, then a steady gilt frame.
+      final flare = t < 0.6 ? (1 - ((t / 0.3) % 1 - 0.5).abs() * 2) : 0.0;
+      final steady = t <= 0 ? 0.0 : 0.7;
+      final a = (steady + 0.3 * flare).clamp(0.0, 1.0);
+      return CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: kCaseGilt.withValues(alpha: a),
+          bracketSize: 10,
+          strokeWidth: 1.4 + 1.2 * flare,
+        ),
+        child: child,
+      );
+    },
+    child: widget.child,
+  );
 }
