@@ -27,7 +27,7 @@ import 'package:alchemons/widgets/creature_detail/outcome_widget.dart';
 import 'package:alchemons/widgets/creature_detail/parent_display_widget.dart';
 import 'package:alchemons/widgets/creature_detail/stats_potential_widget.dart';
 import 'package:alchemons/widgets/creature_detail/unknow_helper.dart';
-import 'package:alchemons/widgets/tutorial_step.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart';
 
@@ -783,81 +783,22 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   Future<void> _showAnalyzerTutorialDialog(
     List<CreatureDetailsTutorialTarget> targets,
   ) async {
-    final c = _C.of(context);
-    final theme = context.read<FactionTheme>();
-    await showDialog<void>(
-      context: context,
+    final lines = [
+      for (final target in targets) '${target.title}: ${target.tutorialBody}',
+    ].join('\n\n');
+    await showStoryDialog(
+      context,
+      icon: AppIcons.auto_awesome_rounded,
+      primaryLabel: 'SHOW ME',
       barrierDismissible: true,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: c.bg1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: c.borderDim),
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-          contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-          title: Row(
-            children: [
-              Icon(AppIcons.auto_awesome_rounded, color: c.amberBright),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  targets.length == 1
-                      ? '${targets.first.title} Unlocked'
-                      : 'New Creature Analysis Unlocked',
-                  style: TextStyle(
-                    color: c.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Creature Details has new analysis data. The highlighted panels below are where those unlocks now appear.',
-                style: TextStyle(
-                  color: c.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ...targets.map(
-                (target) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: TutorialStep(
-                    theme: theme,
-                    icon: AppIcons.visibility_rounded,
-                    title: target.title,
-                    body: target.tutorialBody,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: context.soundAction(
-                () => Navigator.of(dialogContext).pop(),
-              ),
-              child: Text(
-                'Show me',
-                style: TextStyle(
-                  color: c.amberBright,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+      beats: [
+        StoryBeat(
+          title: targets.length == 1
+              ? '${targets.first.title} unlocked'
+              : 'New analysis unlocked',
+          message: 'New readouts are highlighted below.\n\n$lines',
+        ),
+      ],
     );
   }
 

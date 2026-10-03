@@ -521,7 +521,7 @@ class EggHatching {
 
       return HatchingResult(
         success: true,
-        message: 'Incubator full — specimen transferred to cold storage',
+        message: 'Chambers full — specimen moved to cold storage',
         icon: AppIcons.inventory_2_rounded,
         color: FC.orange,
       );

@@ -31,9 +31,10 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/wilderness_access_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 // for FactionTheme
-import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/widgets/wilderness/wild_map.dart';
 import 'package:alchemons/widgets/wilderness/wild_map_view.dart';
 
@@ -267,12 +268,7 @@ class _MapScreenState extends State<MapScreen>
               children: [
                 _HeaderBar(
                   theme: theme,
-                  onInfo: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => _InfoDialog(theme: theme),
-                    );
-                  },
+                  onInfo: () => _showInfoDialog(context),
                   isTutorial: widget.isTutorial,
                 ),
 
@@ -280,43 +276,7 @@ class _MapScreenState extends State<MapScreen>
 
                 // Show tutorial hint
                 if (widget.isTutorial) ...[
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.accent.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: theme.accent, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.accent.withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          AppIcons.explore_rounded,
-                          color: theme.accent,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'TAP THE REALM CIRCLED IN GREEN TO ENTER IT.',
-                            style: TextStyle(
-                              color: theme.text,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _TutorialBanner(theme: theme),
                   const SizedBox(height: 16),
                 ],
 
@@ -355,68 +315,37 @@ class _MapScreenState extends State<MapScreen>
   }
 
   void _showTutorialBlockedDialog() {
-    final theme = context.read<FactionTheme>();
-
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF0A0E27).withValues(alpha: .95),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.accent, width: 1.4),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(AppIcons.lock_outline, color: theme.accent, size: 28),
-              const SizedBox(height: 12),
-              Text(
-                'Locked',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Please complete your first expedition to continue.',
-                style: TextStyle(
-                  color: theme.textMuted,
-                  fontSize: 12,
-                  height: 1.3,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: context.soundAction(() => Navigator.pop(context)),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: theme.accentSoft,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: theme.accent, width: 1.4),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'OK',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+    showStoryDialog(
+      context,
+      icon: AppIcons.lock_outline,
+      primaryLabel: 'OK',
+      barrierDismissible: true,
+      beats: const [
+        StoryBeat(
+          title: 'Not yet',
+          message: 'Finish your first expedition in the realm circled in green.',
         ),
-      ),
+      ],
+    );
+  }
+
+  void _showInfoDialog(BuildContext context) {
+    showStoryDialog(
+      context,
+      icon: AppIcons.explore_rounded,
+      primaryLabel: 'OK',
+      barrierDismissible: true,
+      beats: const [
+        StoryBeat(
+          title: 'Alchemical Biomes',
+          message:
+              'Tap a realm to enter it. Its circle pulses green when a creature '
+              'has been detected there.\n\nA successful fusion sends a vial to '
+              'your Extraction Chamber; a successful harvest captures the '
+              'creature itself. Wild Alchemons are stronger and have better '
+              'stats.',
+        ),
+      ],
     );
   }
 
@@ -1121,86 +1050,6 @@ class _WildMap extends StatelessWidget {
 // INFO DIALOG
 // =====================================================
 
-class _InfoDialog extends StatelessWidget {
-  const _InfoDialog({required this.theme});
-  final FactionTheme theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final ft = FT(fc);
-
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: Container(
-        decoration: BoxDecoration(
-          color: fc.bg2,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: fc.borderAccent, width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: fc.borderDim.withValues(alpha: .12),
-              blurRadius: 12,
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header row with small amber marker
-            Row(
-              children: [
-                Container(
-                  width: 4,
-                  height: 20,
-                  color: fc.amber,
-                  margin: const EdgeInsets.only(right: 10),
-                ),
-                Expanded(
-                  child: Text(
-                    'Alchemical Biomes',
-                    style: ft.heading.copyWith(
-                      fontSize: 14,
-                      color: fc.textPrimary,
-                    ),
-                  ),
-                ),
-                Icon(AppIcons.explore_rounded, color: fc.amberBright, size: 20),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap a realm to enter it. Its circle pulses green when a creature has been detected there. Venture into diverse biomes to discover new creatures. Successful breeding or harvesting will create an offspring you can extract in the Incubator. Wild Alchemons are more powerful and have better stats.',
-              style: ft.body.copyWith(color: fc.textSecondary),
-              textAlign: TextAlign.left,
-            ),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: context.soundAction(() => Navigator.pop(context)),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: fc.bg3,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: fc.borderMid, width: 1),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  'OK',
-                  style: ft.mono.copyWith(color: fc.amberBright, fontSize: 12),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// The confirm dialog's buttons, in the shape the rest of the game's
 /// confirmations use.
 class _LureButton extends StatelessWidget {
@@ -1245,6 +1094,51 @@ class _LureButton extends StatelessWidget {
                 letterSpacing: 1.0,
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The first Field visit's one line of direction, in the bracket frame.
+class _TutorialBanner extends StatelessWidget {
+  const _TutorialBanner({required this.theme});
+
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.fromTheme(theme);
+    final accent = bracketReadableAccent(theme);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: accent.withValues(alpha: 0.9),
+          bracketSize: 10,
+          strokeWidth: 1.3,
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          color: palette.surfaceFill(),
+          child: Row(
+            children: [
+              Icon(AppIcons.explore_rounded, color: accent, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'TAP THE REALM CIRCLED IN GREEN TO ENTER IT',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: palette.ink,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

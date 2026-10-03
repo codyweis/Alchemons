@@ -1599,7 +1599,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _NotificationToggleRow(
                           icon: AppIcons.science_rounded,
                           title: 'CULTIVATIONS',
-                          subtitle: 'Egg ready and extraction-ready alerts',
+                          subtitle: 'Alerts when a vial is ready to extract',
                           value: _cultivationsEnabled,
                           enabled: _notificationPrefsLoaded,
                           onChanged: _toggleCultivations,

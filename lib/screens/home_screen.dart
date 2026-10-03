@@ -53,7 +53,6 @@ import 'package:drift/drift.dart' hide Column;
 import 'package:flame/flame.dart' show Flame;
 import 'package:flutter/cupertino.dart' hide Column;
 import 'package:flutter/material.dart';
-import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -180,7 +179,12 @@ class _MainShellState extends State<MainShell> {
     bool withHaptic = true,
     SectionFocus focus = SectionFocus.none,
   }) {
-    final wantsCultivations = focus == SectionFocus.cultivations;
+    // breedInitialTab 1 is the old name for the cultivations side; the
+    // tutorial hand-offs still pass it, and it used to be ignored, so a player
+    // who last left Breed on FUSION was sent there instead of to their vial.
+    final wantsCultivations =
+        focus == SectionFocus.cultivations ||
+        (section == NavSection.breed && breedInitialTab == 1);
 
     // Already there and nothing to re-aim: nothing to do. The focus request
     // is checked first so a tap that lands on the tab the player is already
@@ -1493,7 +1497,7 @@ class _HomeScreenState extends State<HomeScreen>
         NotificationBanner(
           type: NotificationBannerType.eggReady,
           title: 'Alchemon ready to extract!',
-          subtitle: 'Tap to view incubator',
+          subtitle: 'Tap to open the Extraction Chamber',
           count: readyEggs,
           stateKey: stateKey,
           onTap: () {
@@ -2394,16 +2398,8 @@ class _HomeScreenState extends State<HomeScreen>
     if (storyPending) {
       _memoryStoryShowing = true;
       try {
-        // Was the full-screen story dialog — empty title, typewriter, not
-        // dismissable — for a recap of mechanics the player performed thirty
-        // seconds earlier. That register belongs to the story, and a summary
-        // of what you just did does not need to be acknowledged to be read.
-        showGameSnack(
-          context,
-          'Cosmic combat: summon to a slot, link the tether to follow or unlink it to hold, and arm the bottom-right cannon for auto-fire',
-          icon: AppIcons.auto_awesome,
-          duration: const Duration(seconds: 6),
-        );
+        // The memory itself prompts each control as it is needed; a recap
+        // here (once a dialog, then a six-second snack) only repeated it.
         await CosmicMemoryTutorialService.acknowledgeStory(settings);
       } finally {
         _memoryStoryShowing = false;
@@ -2561,7 +2557,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (granted) {
       // The opening day of halved cultivation. Given here rather than on
       // first launch because this is the moment the save actually begins —
-      // a faction is chosen and the first egg exists — so the day is not
+      // a faction is chosen and the first vial exists — so the day is not
       // burned by someone who opened the app and went away again.
       if (mounted) {
         await context.read<TimedBoostService>().giveOpeningGrant();
@@ -2581,11 +2577,10 @@ class _HomeScreenState extends State<HomeScreen>
 
       await SystemDialog.show(
         context,
-        title: 'VIAL SECURED',
-        message:
-            'Your vial has been placed in the Extraction Chamber and is ready for processing.',
+        title: 'Vial secured',
+        message: 'Your starter vial is waiting in the Extraction Chamber.',
         kind: SystemDialogKind.success,
-        typewriter: true,
+        primaryLabel: 'OPEN THE CHAMBER',
         onPrimary: () async {
           if (!mounted) return;
           widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);

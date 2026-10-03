@@ -14,6 +14,7 @@ import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/screens/scenes/rift_threshold.dart';
 import 'package:alchemons/services/opening_wilderness_service.dart';
 import 'package:alchemons/services/wilderness_service.dart';
@@ -303,13 +304,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
           if (widget.isTutorial && !_tutorialDialogShown && mounted) {
             _tutorialDialogShown = true;
-            if (mounted) {
-              await _showPortalDialog();
-            }
-            await Future.delayed(const Duration(milliseconds: 500));
-            if (mounted) {
-              await _showWelcomeDialog();
-            }
+            await _showFieldTutorialDialog();
           } else if (_isCaptureTutorialScene &&
               !_tutorialDialogShown &&
               mounted) {
@@ -360,9 +355,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       title: 'Trees and valleys are absent in this universe.',
       message:
           'It is nothing but desolation and precariousness. Eventually reality seeps through the mind\'s defense. Why would I create such a world.',
-      typewriter: true,
       kind: LandscapeDialogKind.info,
-      showIcon: false,
       primaryLabel: 'Continue',
     );
   }
@@ -397,9 +390,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           'I created this world to hide my shame from the death of Alchemons. '
           'I filled it with a perception of life and called that beauty. '
           'But beauty does not make it true.',
-      typewriter: true,
       kind: LandscapeDialogKind.info,
-      showIcon: false,
       primaryLabel: 'Continue',
       barrierDismissible: false,
     );
@@ -457,44 +448,30 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     await _db.inventoryDao.addItemQty(inventoryKey, 1);
   }
 
-  Future<void> _showWelcomeDialog() async {
-    await LandscapeDialog.show(
+  /// The first Field entry: the portal's story line, then what to do here,
+  /// as two pages of one dialog.
+  Future<void> _showFieldTutorialDialog() async {
+    if (!mounted) return;
+    await showStoryDialog(
       context,
-      title: 'Alchemy is Power',
-      message:
-          'Tap the creature to begin your first fusion. Select one of your Alchemons to attempt the fuse. Alchemons are stronger here. Fusing with them should provide formidable results.',
-      typewriter: true,
-      kind: LandscapeDialogKind.info,
-      icon: AppIcons.explore_rounded,
-      primaryLabel: 'Begin',
-      barrierDismissible: false,
-    );
-  }
-
-  Future<void> _showPortalDialog() async {
-    await LandscapeDialog.show(
-      context,
-      title: 'Ancient Portal',
-      message:
-          'This portal was created eons ago. Is this false perception? Beauty obstructs reality.',
-      typewriter: true,
-      kind: LandscapeDialogKind.info,
       icon: AppIcons.auto_awesome,
-      primaryLabel: 'Continue',
-      barrierDismissible: false,
-    );
-  }
-
-  /// The full-screen dialog is the game's story voice — it is how the
-  /// wilderness says "trees and valleys are absent in this universe". Using it
-  /// to confirm a fusion put an outcome in the same register as a revelation,
-  /// and handed the player a modal describing what they had just watched
-  /// happen, immediately before taking them to the chamber to look at it.
-  void _announceFusion() {
-    showGameSnack(
-      context,
-      'Your new Alchemon is cultivating in the chamber',
-      icon: AppIcons.check_circle_rounded,
+      primaryLabel: 'BEGIN',
+      beats: const [
+        StoryBeat(
+          title: 'Ancient Portal',
+          message: '',
+          voice:
+              'This portal was created eons ago. Is this false perception? '
+              'Beauty obstructs reality.',
+        ),
+        StoryBeat(
+          title: 'Alchemy is Power',
+          message:
+              'Tap the wild Alchemon, then choose one of yours to fuse with it. '
+              'Wild Alchemons are stronger, so what you make from them starts '
+              'strong.',
+        ),
+      ],
     );
   }
 
@@ -504,7 +481,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       title: 'Harvester Trial',
       message:
           'This wild Alchemon must be harvested, not fused. Open the harvester panel and use the issued device to capture the specimen.',
-      typewriter: true,
       kind: LandscapeDialogKind.info,
       icon: AppIcons.catching_pokemon_rounded,
       primaryLabel: 'Begin Capture',
@@ -902,7 +878,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       title: 'The Cosmic Ship',
       message:
           '"Recognizing that the world is but an illusion, does not act as if it were real, so he escapes suffering."',
-      typewriter: true,
       kind: LandscapeDialogKind.success,
       icon: AppIcons.rocket_launch_rounded,
       primaryLabel: 'Claim',
@@ -1532,9 +1507,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                         // Handle the first wilderness fusion tutorial after everything
                         if (!widget.isTutorial || !mounted) return;
 
-                        _announceFusion();
-                        if (!mounted) return;
-
+                        // The encounter already said where the new
+                        // specimen went; a second snack here repeated it.
                         final settingsDao = _db.settingsDao;
                         await OpeningWildernessService.advanceToCaptureTutorial(
                           settingsDao,

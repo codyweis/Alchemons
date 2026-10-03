@@ -8,6 +8,10 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/story/campaign_journal_screen.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
+import 'package:alchemons/data/mystic_altar_data.dart';
+import 'package:alchemons/models/inventory.dart';
+import 'package:drift/drift.dart' show Variable;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:provider/provider.dart';
@@ -99,6 +103,35 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
   /// permanent furniture.
   int _tasksOutstanding = 0;
 
+  /// What [refresh] last loaded from. A database write that leaves this
+  /// unchanged cannot change the snapshot or the task count, so it is answered
+  /// with one small query instead of a full journal load.
+  List<Object?>? _loadedFrom;
+
+  /// Everything the task count reads that the journal signature does not:
+  /// the task flags, the relic gate (held or placed) and the forge gate.
+  Future<List<Object?>> _taskSignature(
+    AlchemonsDatabase db,
+    ShopService? shop,
+  ) async {
+    final relicKeys = [
+      for (final e in kAltarEntries) BossLootKeys.traitKeyForElement(e.element),
+    ];
+    final row = await db
+        .customSelect(
+          'SELECT '
+          '(SELECT group_concat(kv, char(31)) FROM ('
+          "SELECT key || '=' || value AS kv FROM settings "
+          "WHERE key GLOB 'task_*' OR key GLOB 'altar_relic_placed_*' "
+          'ORDER BY key)) AS s, '
+          '(SELECT COUNT(*) FROM inventory_items WHERE qty > 0 AND key IN '
+          '(${List.filled(relicKeys.length, '?').join(',')})) AS r',
+          variables: [for (final k in relicKeys) Variable.withString(k)],
+        )
+        .getSingle();
+    return [row.data['s'], row.data['r'], shop?.hasElementalCreatorUnlocked()];
+  }
+
   Future<void> refresh() async {
     if (!mounted || _route?.isCurrent == false) return;
     if (_loading) {
@@ -107,13 +140,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
     }
     _loading = true;
     try {
-      final next = await CampaignJournalService(
-        context.read<AlchemonsDatabase>(),
-      ).load();
-      if (!mounted) return;
-      // Tasks are collected on this same screen, so the badge has to count
-      // them too — otherwise the reward the player was told to come back for
-      // is the one thing the button does not mention.
+      final db = context.read<AlchemonsDatabase>();
       // Read defensively: this button sits on screens that may not provide
       // the shop, and the forge task's gate asks it whether the Elemental
       // Creator is owned. Without it that one task simply is not counted.
@@ -123,10 +150,34 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
       } on ProviderNotFoundException {
         shop = null;
       }
+      final journal = CampaignJournalService(db);
+      final signature = [
+        ...await journal.inputsSignature(),
+        ...await _taskSignature(db, shop),
+      ];
+      if (!mounted) return;
+      // Nothing the badge reads has moved, so a load would return what is
+      // already on screen. The one exception is a ready reward this screen
+      // has not announced yet (the button was disabled, or off-route, when
+      // it became ready): that still goes through the load below so the
+      // snack fires exactly when it always did.
+      final current = _snapshot;
+      if (current != null &&
+          listEquals(signature, _loadedFrom) &&
+          (!widget.enabled ||
+              current.ready.every((a) => _announced.contains(a.id)))) {
+        return;
+      }
+      final next = await journal.load();
+      if (!mounted) return;
+      // Tasks are collected on this same screen, so the badge has to count
+      // them too — otherwise the reward the player was told to come back for
+      // is the one thing the button does not mention.
       final tasksOutstanding = (await OnboardingTaskService(
-        context.read<AlchemonsDatabase>(),
+        db,
       ).outstanding(shop: shop)).length;
       if (!mounted) return;
+      _loadedFrom = signature;
       final previous = _snapshot;
       setState(() {
         _snapshot = next;

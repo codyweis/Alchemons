@@ -433,9 +433,9 @@ class ShopService extends ChangeNotifier {
       id: potentialSoulOfferId,
       name: 'Potential Soul',
       description:
-          'Permanently raises one selected Potential in Stat Infusion, and '
-          'the improved genetics pass through breeding. Costs Silver to '
-          'infuse on top of this purchase.',
+          'Permanently raises one selected Potential, used from the Souls '
+          'tray in Enhance, and the improved genetics pass through breeding. '
+          'Costs Silver to use on top of this purchase.',
       icon: AppIcons.diamond_rounded,
       cost: const {'gold': 150},
       reward: const {},

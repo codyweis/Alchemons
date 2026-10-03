@@ -1,15 +1,15 @@
-import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
-import 'package:alchemons/utils/faction_util.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const String _pureExtractionIntroSeenKey = 'pure_extraction_intro_seen_v1';
 
+/// The first time a bred specimen comes out pure: what purity is, and what it
+/// does, as two pages of the shared story dialog.
 Future<void> maybeShowFirstPureExtractionDialog(
   BuildContext context, {
   required CreatureInstance instance,
@@ -27,86 +27,36 @@ Future<void> maybeShowFirstPureExtractionDialog(
   await prefs.setBool(_pureExtractionIntroSeenKey, true);
   if (!context.mounted) return;
 
-  final theme = context.read<FactionTheme>();
   final elementLabel = _singleLineageLabel(purity.elementLineage) ?? 'one';
   final familyLabel = _singleLineageLabel(purity.speciesLineage) ?? 'one';
 
-  await showDialog<void>(
-    context: context,
-    builder: (dialogContext) {
-      return AlertDialog(
-        backgroundColor: theme.surface,
-        title: Row(
-          children: [
-            Icon(AppIcons.auto_awesome_rounded, color: theme.accent),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Pure Lineage Extracted',
-                style: TextStyle(
-                  color: theme.text,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'You just extracted a Pure Alchemon.',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Pure means its ancestry resolves to one element line and one species line.',
-                style: TextStyle(color: theme.text.withValues(alpha: 0.92)),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'This specimen carries a $elementLabel element line and a $familyLabel family line.',
-                style: TextStyle(color: theme.text.withValues(alpha: 0.86)),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'This happened because the breeding line stayed unbroken through both its elemental ancestry and its species ancestry.',
-                style: TextStyle(color: theme.text.withValues(alpha: 0.86)),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Its generation number will still rise normally over future breeding. Purity is tracked separately, so a line can stay pure across generations if that ancestry stays unbroken.',
-                style: TextStyle(color: theme.text.withValues(alpha: 0.86)),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Stats otherwise depend on species, level, Potential, nature, and Enhancement. Contest bonuses depend on the trial.',
-                style: TextStyle(color: theme.text.withValues(alpha: 0.86)),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'A pure line also strengthens one stat, chosen when the specimen is extracted and fixed for its life. A full line raises one of the four by 15%; an elemental line raises Beauty or Intelligence by 10%, and a species line raises Speed or Strength by 10%. Analysis reports which one it rolled.',
-                style: TextStyle(color: theme.text.withValues(alpha: 0.86)),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: context.soundAction(
-              () => Navigator.of(dialogContext).pop(),
-            ),
-            child: Text('Understood', style: TextStyle(color: theme.accent)),
-          ),
-        ],
-      );
-    },
+  await showStoryDialog(
+    context,
+    icon: AppIcons.auto_awesome_rounded,
+    kind: StoryDialogKind.success,
+    primaryLabel: 'UNDERSTOOD',
+    barrierDismissible: true,
+    beats: [
+      StoryBeat(
+        title: 'Pure lineage',
+        message:
+            'You extracted a Pure Alchemon: its ancestry resolves to one '
+            'element line and one species line. This one carries a '
+            '$elementLabel element line and a $familyLabel family line.\n\n'
+            'Purity is tracked apart from generation, so a line stays pure '
+            'for as long as its ancestry stays unbroken.',
+      ),
+      const StoryBeat(
+        title: 'What purity does',
+        message:
+            'A pure line strengthens one stat, chosen at extraction and fixed '
+            'for life. A full line raises one of the four by 15%. An element '
+            'line raises Beauty or Intelligence by 10%; a species line raises '
+            'Speed or Strength by 10%. Analysis shows which one it rolled.\n\n'
+            'Everything else still comes from species, level, Potential, '
+            'nature and Enhancement.',
+      ),
+    ],
   );
 }
 

@@ -9,6 +9,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/data/mystic_altar_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -672,6 +673,72 @@ class CampaignJournalService {
     }
   }
 
+  // SharedPreferences entries [load] reads. Named once so [inputsSignature]
+  // cannot drift away from what [load] actually looks at.
+  static const _starsPref = 'cosmic_planet_stars';
+  static const _contestsPref = 'cosmic_trait_contests_v1';
+  static const _ringPref = 'cosmic_blood_ring_v1';
+  static const _fogPref = 'cosmic_fog_state_v2';
+
+  /// Settings rows [load] reads, as GLOB patterns and exact keys. Every
+  /// counter in [kCampaignCounters], every claim flag, [revelationKey],
+  /// [endingKey], the seen list and the survival-cleared record all live
+  /// under `campaign_`.
+  static const _settingGlobs = ['campaign_*', 'altar_summoned_*'];
+  static const _settingKeys = [
+    'first_extraction_done',
+    'cosmic_ship_unlocked',
+    'cosmic_survival_best_wave',
+    'cosmic_memory_tutorial_completed_v1',
+    'pureblood_rite_stage_index_v2',
+  ];
+
+  /// A cheap stand-in for everything [load] reads: if two signatures are
+  /// equal, two loads would return the same snapshot.
+  ///
+  /// [load] is expensive (every settings row, a creature scan, constellation
+  /// and survival reads, four SharedPreferences decodes) and the rewards
+  /// button used to run it on every settings write, which onboarding makes
+  /// constantly. This is one small query plus four in-memory string reads,
+  /// so callers can compare first and only load when something that feeds
+  /// the snapshot has moved. False positives (a change that does not alter
+  /// the snapshot) only cost a load; nothing [load] reads may be left out.
+  Future<List<Object?>> inputsSignature() async {
+    final where = [
+      for (final _ in _settingGlobs) 'key GLOB ?',
+      'key IN (${List.filled(_settingKeys.length, '?').join(',')})',
+    ].join(' OR ');
+    final row = await db
+        .customSelect(
+          'SELECT '
+          '(SELECT group_concat(kv, char(31)) FROM ('
+          "SELECT key || '=' || value AS kv FROM settings WHERE $where "
+          'ORDER BY key)) AS s, '
+          '(SELECT COUNT(*) FROM player_creatures WHERE discovered = 1) AS c, '
+          '(SELECT COUNT(*) FROM constellation_unlocks) AS u, '
+          '(SELECT COALESCE(MAX(best_wave), 0) FROM survival_high_score '
+          'WHERE id = 1) AS w',
+          variables: [
+            for (final g in _settingGlobs) Variable.withString(g),
+            for (final k in _settingKeys) Variable.withString(k),
+          ],
+        )
+        .getSingle();
+    final prefs = await SharedPreferences.getInstance();
+    return [
+      row.data['s'],
+      row.data['c'],
+      row.data['u'],
+      row.data['w'],
+      // Compared with ==, which short-circuits on the identical cached
+      // String the preferences instance hands back.
+      prefs.getString(_starsPref),
+      prefs.getString(_contestsPref),
+      prefs.getString(_ringPref),
+      prefs.getString(_fogPref),
+    ];
+  }
+
   Future<void> record(String id) => db.transaction(() async {
     if (!campaignEntries.any((e) => e.id == id)) return;
     final seen = _decodeSet(await db.settingsDao.getSetting(_seenKey))..add(id);
@@ -685,10 +752,10 @@ class CampaignJournalService {
     final unlockedSkills = await db.constellationDao.getUnlockedSkillIds();
     final prefs = await SharedPreferences.getInstance();
     final stars = PlanetStarState.deserialise(
-      prefs.getString('cosmic_planet_stars') ?? '',
+      prefs.getString(_starsPref) ?? '',
     );
     final contests = CosmicContestProgress.deserialise(
-      prefs.getString('cosmic_trait_contests_v1') ?? '',
+      prefs.getString(_contestsPref) ?? '',
     );
     final ids = await (_catalogIds ??= rootBundle
         .loadString('assets/data/alchemons_creatures.json')
@@ -707,9 +774,7 @@ class CampaignJournalService {
         .where((e) => e.order < 17 && summoned(e.id))
         .length;
     final blood = summoned('boss_017');
-    final ring = BloodRing.deserialise(
-      prefs.getString('cosmic_blood_ring_v1') ?? '',
-    );
+    final ring = BloodRing.deserialise(prefs.getString(_ringPref) ?? '');
     final legacyScore = await db.getSurvivalHighScore();
     final reached = max(
       int.tryParse(settings['cosmic_survival_best_wave'] ?? '') ?? 0,
@@ -742,7 +807,7 @@ class CampaignJournalService {
       // Read straight off the saved fog state, which is where cosmic space
       // already records what the player has found.
       'planets': CosmicFogState.deserialise(
-        prefs.getString('cosmic_fog_state_v2') ?? '',
+        prefs.getString(_fogPref) ?? '',
       ).discoveredIndices.length,
       // Maxims are already persisted as 'egg:'-prefixed discovered clouds, so
       // this needs no counter of its own.

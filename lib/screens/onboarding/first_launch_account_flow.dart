@@ -1,4 +1,3 @@
-import 'package:alchemons/audio/audio.dart';
 // lib/screens/onboarding/first_launch_account_flow.dart
 //
 // First-launch "do you already have an account?" flow.
@@ -6,7 +5,12 @@ import 'package:alchemons/audio/audio.dart';
 // Returning players can sign in and restore their cloud backup here, which
 // overwrites the fresh local save and lets them skip the story intro + faction
 // picker entirely. New players fall through to the normal onboarding.
+//
+// The very first thing a new player sees, so it speaks in the game's bracket
+// frame (story_dialog.dart / bracket_controls.dart) on the dark ground, the
+// same in every faction theme — the player has not picked one yet.
 
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
 import 'package:alchemons/services/account_service.dart';
@@ -14,12 +18,17 @@ import 'package:alchemons/services/account_session_service.dart';
 import 'package:alchemons/services/save_restore_reload_service.dart';
 import 'package:alchemons/services/save_transfer_service.dart';
 import 'package:alchemons/utils/app_scaffold_messenger.dart';
-import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/game_snack.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 enum _WelcomeChoice { newPlayer, returning }
+
+const _palette = BracketPalette.dark;
 
 /// Shows the first-launch account prompt and, if the player chooses to sign in
 /// and restore an existing account, performs the restore.
@@ -43,49 +52,25 @@ Future<bool> runFirstLaunchAccountRestore(BuildContext context) async {
   }
 }
 
-Future<_WelcomeChoice?> _showWelcomeDialog(BuildContext context) {
-  return showDialog<_WelcomeChoice>(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) {
-      final t = ForgeTokens(context.read<FactionTheme>());
-      return AlertDialog(
-        backgroundColor: t.bg2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: t.borderAccent, width: 1),
-        ),
-        title: Text('Welcome, Alchemist', style: _heading(t)),
-        content: Text(
-          'Do you already have an Alchemons account?\n\n'
-          'Sign in to restore your cloud backup onto this device, or start a '
-          'fresh journey.',
-          style: _body(t),
-        ),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        actions: [
-          TextButton(
-            onPressed: context.soundAction(
-              () => Navigator.pop(context, _WelcomeChoice.newPlayer),
-            ),
-            child: Text(
-              "I'M NEW",
-              style: _label(t).copyWith(color: t.textMuted),
-            ),
-          ),
-          TextButton(
-            onPressed: context.soundAction(
-              () => Navigator.pop(context, _WelcomeChoice.returning),
-            ),
-            child: Text(
-              'I HAVE AN ACCOUNT',
-              style: _label(t).copyWith(color: t.amberBright),
-            ),
-          ),
-        ],
-      );
-    },
+Future<_WelcomeChoice?> _showWelcomeDialog(BuildContext context) async {
+  final answer = await showStoryDialog(
+    context,
+    beats: const [
+      StoryBeat(
+        title: 'Welcome, Alchemist',
+        message:
+            'Already have an Alchemons account? Sign in to bring your cloud '
+            'backup to this device, or start fresh.',
+      ),
+    ],
+    primaryLabel: 'I HAVE AN ACCOUNT',
+    secondaryLabel: "I'M NEW",
   );
+  return switch (answer) {
+    true => _WelcomeChoice.returning,
+    false => _WelcomeChoice.newPlayer,
+    null => null,
+  };
 }
 
 /// Signs in and restores the account's cloud backup. Returns `true` on success.
@@ -103,14 +88,14 @@ Future<bool> _attemptRestore(BuildContext context) async {
     await account.signIn(email: creds.email, password: creds.password);
     final uid = account.user?.uid;
     if (uid == null) {
-      throw const AccountException('Sign in failed. Please try again.');
+      throw const AccountException('Sign-in failed. Try again.');
     }
 
     final snapshot = await cloudSave.getSnapshot(uid);
     if (snapshot == null) {
       throw const AccountCloudSaveException(
-        'No cloud backup found for this account. Start a new journey and back '
-        'up from your profile.',
+        'No cloud backup on this account. Start fresh, then back up from '
+        'your profile.',
       );
     }
 
@@ -124,23 +109,27 @@ Future<bool> _attemptRestore(BuildContext context) async {
     await session.refresh();
 
     if (context.mounted) _dismissProgressDialog(context);
-    _snack('Account restored. Welcome back!');
+    _snack(context.mounted ? context : null, 'Account restored. Welcome back');
     return true;
   } on AccountException catch (error) {
     if (context.mounted) _dismissProgressDialog(context);
-    _snack(error.message, isError: true);
+    _snack(context.mounted ? context : null, error.message, isError: true);
     return false;
   } on AccountCloudSaveException catch (error) {
     if (context.mounted) _dismissProgressDialog(context);
-    _snack(error.message, isError: true);
+    _snack(context.mounted ? context : null, error.message, isError: true);
     return false;
   } on SaveTransferException catch (error) {
     if (context.mounted) _dismissProgressDialog(context);
-    _snack(error.message, isError: true);
+    _snack(context.mounted ? context : null, error.message, isError: true);
     return false;
   } catch (error) {
     if (context.mounted) _dismissProgressDialog(context);
-    _snack('Restore failed: $error', isError: true);
+    _snack(
+      context.mounted ? context : null,
+      'Restore failed: $error',
+      isError: true,
+    );
     return false;
   }
 }
@@ -152,78 +141,88 @@ Future<_Credentials?> _showCredentialDialog(BuildContext context) {
 
   return showDialog<_Credentials>(
     context: context,
+    barrierColor: Colors.black.withValues(alpha: 0.7),
     builder: (context) {
-      final t = ForgeTokens(context.read<FactionTheme>());
+      final accent = storyDialogAccent(StoryDialogKind.info);
       return StatefulBuilder(
         builder: (context, setDialogState) {
-          return AlertDialog(
-            backgroundColor: t.bg2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: t.borderAccent, width: 1),
-            ),
-            title: Text('Sign In', style: _heading(t)),
-            content: SizedBox(
-              width: 440,
+          return _BracketDialogFrame(
+            accent: accent,
+            child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextField(
+                  _title('SIGN IN'),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Use the email and password from your account.',
+                    style: bracketText(
+                      context,
+                      13,
+                      _palette.ink.withValues(alpha: 0.85),
+                    ).copyWith(height: 1.4),
+                  ),
+                  const SizedBox(height: 16),
+                  _BracketField(
                     controller: emailController,
+                    label: 'EMAIL',
+                    accent: accent,
                     keyboardType: TextInputType.emailAddress,
-                    autocorrect: false,
-                    style: TextStyle(color: t.textPrimary),
-                    decoration: _inputDecoration(t, 'Email'),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  _BracketField(
                     controller: passwordController,
+                    label: 'PASSWORD',
+                    accent: accent,
                     obscureText: obscure,
-                    autocorrect: false,
-                    style: TextStyle(color: t.textPrimary),
-                    decoration: _inputDecoration(
-                      t,
-                      'Password',
-                      suffix: IconButton(
-                        onPressed: context.soundAction(
-                          () => setDialogState(() => obscure = !obscure),
-                        ),
-                        icon: Icon(
-                          obscure
-                              ? AppIcons.visibility_rounded
-                              : AppIcons.visibility_off_rounded,
-                          color: t.textSecondary,
-                        ),
+                    suffix: IconButton(
+                      onPressed: context.soundAction(
+                        () => setDialogState(() => obscure = !obscure),
+                      ),
+                      icon: Icon(
+                        obscure
+                            ? AppIcons.visibility_rounded
+                            : AppIcons.visibility_off_rounded,
+                        color: _palette.muted,
+                        size: 18,
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: BracketButton(
+                          label: 'CANCEL',
+                          primary: false,
+                          height: 42,
+                          palette: _palette,
+                          accent: accent,
+                          onTap: () => Navigator.pop(context),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: BracketButton(
+                          label: 'SIGN IN',
+                          height: 42,
+                          palette: _palette,
+                          accent: accent,
+                          onTap: () => Navigator.pop(
+                            context,
+                            _Credentials(
+                              email: emailController.text.trim(),
+                              password: passwordController.text,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: context.soundAction(() => Navigator.pop(context)),
-                child: Text(
-                  'CANCEL',
-                  style: _label(t).copyWith(color: t.textMuted),
-                ),
-              ),
-              TextButton(
-                onPressed: context.soundAction(
-                  () => Navigator.pop(
-                    context,
-                    _Credentials(
-                      email: emailController.text.trim(),
-                      password: passwordController.text,
-                    ),
-                  ),
-                ),
-                child: Text(
-                  'SIGN IN',
-                  style: _label(t).copyWith(color: t.amberBright),
-                ),
-              ),
-            ],
           );
         },
       );
@@ -235,22 +234,23 @@ void _showProgressDialog(BuildContext context, String title) {
   showDialog<void>(
     context: context,
     barrierDismissible: false,
+    barrierColor: Colors.black.withValues(alpha: 0.7),
     builder: (context) {
-      final t = ForgeTokens(context.read<FactionTheme>());
-      return AlertDialog(
-        backgroundColor: t.bg2,
-        content: Row(
+      final accent = storyDialogAccent(StoryDialogKind.info);
+      return _BracketDialogFrame(
+        accent: accent,
+        child: Row(
           children: [
             SizedBox(
-              width: 22,
-              height: 22,
+              width: 18,
+              height: 18,
               child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(t.amberBright),
+                strokeWidth: 1.5,
+                valueColor: AlwaysStoppedAnimation<Color>(accent),
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(child: Text(title, style: _label(t))),
+            const SizedBox(width: 14),
+            Expanded(child: _title(title)),
           ],
         ),
       );
@@ -262,54 +262,130 @@ void _dismissProgressDialog(BuildContext context) {
   Navigator.of(context, rootNavigator: true).pop();
 }
 
-void _snack(String message, {bool isError = false}) {
-  final messenger = rootScaffoldMessengerKey.currentState;
-  messenger?.showSnackBar(
-    SnackBar(
-      content: Text(message),
-      backgroundColor: isError ? const Color(0xFFC0392B) : null,
+/// The game's top notification. Falls back to the root messenger's context
+/// when the flow's own context was torn down by the restore's reload.
+void _snack(BuildContext? context, String message, {bool isError = false}) {
+  final target = context ?? rootScaffoldMessengerKey.currentContext;
+  if (target == null || !target.mounted) return;
+  showGameSnack(
+    target,
+    message,
+    icon: isError
+        ? AppIcons.error_outline_rounded
+        : AppIcons.check_circle_rounded,
+    accent: storyDialogAccent(
+      isError ? StoryDialogKind.danger : StoryDialogKind.success,
     ),
+    duration: Duration(seconds: isError ? 5 : 3),
   );
 }
 
-InputDecoration _inputDecoration(
-  ForgeTokens t,
-  String label, {
-  Widget? suffix,
-}) {
-  return InputDecoration(
-    labelText: label,
-    labelStyle: TextStyle(color: t.textSecondary),
-    suffixIcon: suffix,
-    filled: true,
-    fillColor: t.bg1,
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide(color: t.borderMid),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide(color: t.amberBright),
-    ),
-  );
+Widget _title(String text) => Text(
+  text.toUpperCase(),
+  style: TextStyle(
+    fontFamily: 'monospace',
+    color: _palette.ink,
+    fontSize: 14,
+    fontWeight: FontWeight.w800,
+    letterSpacing: 1.8,
+  ),
+);
+
+/// The story dialog's frame, for dialogs it cannot express (a form, a
+/// spinner): bracket corners in [accent] around the dark ground.
+class _BracketDialogFrame extends StatelessWidget {
+  const _BracketDialogFrame({required this.accent, required this.child});
+
+  final Color accent;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final landscape = media.size.width > media.size.height;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: landscape ? 40 : 24,
+        vertical: 24,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: landscape ? 560 : 420),
+        child: CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: accent.withValues(alpha: 0.9),
+            bracketSize: 14,
+            strokeWidth: 1.3,
+          ),
+          child: Container(
+            color: _palette.bg1,
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-TextStyle _heading(ForgeTokens t) => TextStyle(
-  color: t.textPrimary,
-  fontSize: 18,
-  fontWeight: FontWeight.w700,
-  letterSpacing: 0.5,
-);
+/// A square-cornered text field on the darker ground: hairline in the
+/// palette's line colour, the accent when focused.
+class _BracketField extends StatelessWidget {
+  const _BracketField({
+    required this.controller,
+    required this.label,
+    required this.accent,
+    this.keyboardType,
+    this.obscureText = false,
+    this.suffix,
+  });
 
-TextStyle _body(ForgeTokens t) =>
-    TextStyle(color: t.textSecondary, fontSize: 14, height: 1.4);
+  final TextEditingController controller;
+  final String label;
+  final Color accent;
+  final TextInputType? keyboardType;
+  final bool obscureText;
+  final Widget? suffix;
 
-TextStyle _label(ForgeTokens t) => TextStyle(
-  color: t.textPrimary,
-  fontSize: 13,
-  fontWeight: FontWeight.w700,
-  letterSpacing: 0.8,
-);
+  @override
+  Widget build(BuildContext context) {
+    OutlineInputBorder border(Color c) => OutlineInputBorder(
+      borderRadius: BorderRadius.zero,
+      borderSide: BorderSide(color: c),
+    );
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscureText,
+      autocorrect: false,
+      cursorColor: accent,
+      style: bracketText(context, 14, _palette.ink, weight: FontWeight.w600),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(
+          fontFamily: 'monospace',
+          color: _palette.muted,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+        ),
+        floatingLabelStyle: TextStyle(
+          fontFamily: 'monospace',
+          color: accent,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+        ),
+        suffixIcon: suffix,
+        isDense: true,
+        filled: true,
+        fillColor: _palette.bg0,
+        enabledBorder: border(_palette.line),
+        focusedBorder: border(accent),
+      ),
+    );
+  }
+}
 
 class _Credentials {
   final String email;

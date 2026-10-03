@@ -3,6 +3,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -198,11 +199,11 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
         if (extractionPending ||
             (!extractionTutorialComplete && !fieldTutorialComplete)) {
           // State 1: Extraction pending (starter granted, waiting for extraction)
-          message = 'Please extract your vial from the Extraction Chamber!';
+          message = 'Extract your vial in the Extraction Chamber first';
           iconData = AppIcons.science_rounded;
         } else if (!fieldTutorialComplete) {
           // State 2: Extraction done, field tutorial not started
-          message = 'Please tap the Field icon to begin your first expedition';
+          message = 'Tap Field on the home screen to begin your first expedition';
           iconData = AppIcons.explore_rounded;
         } else {
           // State 3: Both tutorials done, generic nav lock (shouldn't happen normally)
@@ -212,33 +213,11 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
 
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(iconData, color: Colors.white, size: 18),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    message,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.orange.shade700,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 76),
-            duration: const Duration(seconds: 2),
-            showCloseIcon: true,
-          ),
+        showGameSnack(
+          context,
+          message,
+          icon: iconData,
+          duration: const Duration(seconds: 2),
         );
       } catch (_) {}
       return;

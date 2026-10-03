@@ -1,5 +1,6 @@
 import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/dock_emblems.dart';
@@ -166,7 +167,6 @@ class _FloatingSideButton extends StatefulWidget {
 class _FloatingSideButtonState extends State<_FloatingSideButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
@@ -174,10 +174,6 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
-    );
-
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
     if (widget.highlight) {
@@ -249,53 +245,17 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
       ),
     );
 
-    // Highlight behavior only
+    // The tutorial's "tap here": bracket corners that breathe in and out
+    // round the button over a soft radial light. It used to scale the button
+    // under two animated BoxShadow blurs — a gaussian pass every frame — and
+    // the scaling smeared the label.
     if (widget.highlight) {
-      return AnimatedBuilder(
-        animation: _pulseAnimation,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _pulseAnimation.value,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // glow ring
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: widget.theme.accent.withValues(alpha: 0.6),
-                          blurRadius: 25,
-                          spreadRadius: 8,
-                        ),
-                        BoxShadow(
-                          color: widget.theme.accent.withValues(alpha: 0.3),
-                          blurRadius: 40,
-                          spreadRadius: 15,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // pulsing border
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: widget.theme.accent.withValues(alpha: 0.8),
-                        width: 3,
-                      ),
-                    ),
-                  ),
-                ),
-                button,
-              ],
-            ),
-          );
-        },
+      return CustomPaint(
+        painter: _TutorialHaloPainter(
+          pulse: _pulseController,
+          accent: widget.theme.accent,
+        ),
+        child: button,
       );
     }
 
@@ -650,4 +610,44 @@ class _RedDotTiny extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TutorialHaloPainter extends CustomPainter {
+  _TutorialHaloPainter({required this.pulse, required this.accent})
+    : super(repaint: pulse);
+
+  final Animation<double> pulse;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = Curves.easeInOut.transform(pulse.value);
+    final c = size.center(Offset.zero);
+    final r = size.longestSide * 0.75;
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            accent.withValues(alpha: 0.28 + 0.14 * t),
+            accent.withValues(alpha: 0.0),
+          ],
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+    final inset = -6.0 - 5 * t;
+    final rect = (Offset.zero & size).inflate(-inset);
+    canvas.save();
+    canvas.translate(rect.left, rect.top);
+    BracketFramePainter(
+      color: accent.withValues(alpha: 0.65 + 0.35 * t),
+      bracketSize: 12,
+      strokeWidth: 1.6,
+    ).paint(canvas, rect.size);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _TutorialHaloPainter old) =>
+      old.accent != accent || old.pulse != pulse;
 }

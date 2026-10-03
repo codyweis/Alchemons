@@ -4,7 +4,7 @@ Built 2026-09-28. Not yet played on a device.
 
 ## Why
 
-The wilderness is the pretty lie; cosmic space is what is under it (see [campaign canon](campaign_story_canon.md)). Real Alchemons drifting in the dark are that idea made playable. Over time they are meant to replace the timed wilderness spawns, which in the story were only ever the alchemist's portal system dressing creatures up in a beautiful scene. **That phase-out is not built yet.**
+The wilderness is the pretty lie; cosmic space is what is under it (see [campaign canon](campaign_story_canon.md)). Real Alchemons drifting in the dark are that idea made playable. They sit alongside the wilderness rather than replacing it: the timed wilderness spawns stay for good.
 
 ## Decisions (from the creator)
 
@@ -59,5 +59,4 @@ Both halves are drawn by `lib/games/cosmic/portal_tear_paint.dart` using filled 
 ## Open
 
 - Device playtest: readability at space zoom, ship-shot and ship-damage tuning (`_wildShipShotScale`, the `/45` in `_WildDuelTarget`), and spawn density.
-- Wilderness phase-out after the "return to wilderness" reveal.
 - Whether fusing should require the Wild Fusion catalyst in space, as it does in the wilderness.

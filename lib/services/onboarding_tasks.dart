@@ -108,15 +108,15 @@ const List<OnboardingTask> kOnboardingTasks = [
     id: 'battle_tab',
     title: 'Read an Alchemon',
     blurb:
-        'Each specimen has a battle profile — its family decides how it '
-        'fights.',
+        'Open any Alchemon and read its battle tab — its family decides '
+        'how it fights.',
     icon: AppIcons.pets_rounded,
     destination: TaskDestination.creatures,
   ),
   OnboardingTask(
     id: 'enhance',
-    title: 'Find the forge',
-    blurb: 'Sacrifice spare specimens for levels, or infuse a stat directly.',
+    title: 'Open Enhance',
+    blurb: 'Feed spare specimens, orbs and souls to make an Alchemon stronger.',
     icon: AppIcons.auto_awesome_rounded,
     destination: TaskDestination.enhance,
     gate: TaskGate.enhanceUnlocked,

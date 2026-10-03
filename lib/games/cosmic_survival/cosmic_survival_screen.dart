@@ -546,7 +546,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
         context,
         title: 'A Test?',
         icon: AppIcons.help_outline_rounded,
-        typewriter: true,
         message:
             'Something here refuses to finish. The field closes, the wave breaks, the silence returns, and then the same war leans forward again as if no ending was ever allowed to remain.\n\n'
             'Is this my creation? Or has this constant alchemical war always existed somewhere beneath memory, waiting for a witness strong enough to mistake it for a test?',

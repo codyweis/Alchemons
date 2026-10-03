@@ -8,6 +8,7 @@ import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/mystic_ritual_service.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -382,4 +383,45 @@ void main() {
       expect(await service.claim('blood_mystic'), isFalse);
     },
   );
+
+  test('the load signature moves with every input the snapshot reads, '
+      'and with nothing else', () async {
+    final journal = CampaignJournalService(db);
+    var before = await journal.inputsSignature();
+    Future<void> expectSame(String why) async {
+      final after = await journal.inputsSignature();
+      expect(after, before, reason: why);
+    }
+
+    Future<void> expectMoved(String why) async {
+      final after = await journal.inputsSignature();
+      expect(after, isNot(equals(before)), reason: why);
+      before = after;
+    }
+
+    // Onboarding writes settings like these constantly; none feed the
+    // snapshot, so none may cost the rewards button a full load.
+    await db.settingsDao.setSetting('onboarding_step_v1', '3');
+    await db.settingsDao.setSetting('cosmic_some_ui_flag', '1');
+    await expectSame('a setting load() never reads');
+
+    await db.settingsDao.setSetting('first_extraction_done', '1');
+    await expectMoved('an exact key load() reads');
+    await CampaignJournalService.bump(db.settingsDao, 'enhance');
+    await expectMoved('a campaign counter');
+    await db.settingsDao.setSetting('campaign_claim_first_extraction', '1');
+    await expectMoved('a claim flag');
+    await db.settingsDao.setSetting('altar_summoned_boss_001', 'x');
+    await expectMoved('a Mystic summon');
+    await db.creatureDao.addOrUpdateCreature(
+      PlayerCreaturesCompanion.insert(
+        id: 'LET02',
+        discovered: const Value(true),
+      ),
+    );
+    await expectMoved('a newly discovered species');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('cosmic_fog_state_v2', 'changed');
+    await expectMoved('the cosmic fog state in SharedPreferences');
+  });
 }

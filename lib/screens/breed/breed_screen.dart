@@ -1,4 +1,3 @@
-import 'package:alchemons/audio/audio.dart';
 // screens/breed/breed_screen.dart
 
 import 'package:alchemons/database/alchemons_db.dart';
@@ -6,7 +5,7 @@ import 'package:alchemons/screens/breed/breed_tab.dart';
 import 'package:alchemons/screens/breed/nursery_tab.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
-import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
@@ -14,6 +13,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/widgets/starter_granted_dialog.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -64,8 +64,13 @@ class _BreedScreenState extends State<BreedScreen> {
     }
   }
 
-  void _goCreatureScreen() {
-    widget.onGoToSection?.call(NavSection.creatures);
+  /// Waits (a few seconds at most) for a new-discovery card to finish flying
+  /// into the database.
+  Future<void> _awaitDiscoveryReveal() async {
+    final pending = NewDiscoveryReveal.instance.pendingRevealCreatureId;
+    for (var i = 0; i < 40 && pending.value != null; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
   }
 
   void _setMode(_BreedMode next) {
@@ -115,62 +120,17 @@ class _BreedScreenState extends State<BreedScreen> {
         return;
       }
 
-      final theme = context.read<FactionTheme>();
-      final t = ForgeTokens(theme);
-      final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
-
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => Dialog(
-          backgroundColor: dialogSurface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-            side: BorderSide(color: t.borderAccent, width: 1.5),
+      await showStoryDialog(
+        context,
+        barrierDismissible: true,
+        primaryLabel: 'GOT IT',
+        beats: const [
+          StoryBeat(
+            title: 'Cold Storage',
+            message:
+                'Cold storage still cultivates your vials, but 5x slower. An 8 hour cultivation becomes 40 hours while stored. Moving a vial back to a chamber resumes its normal pace.',
           ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Cold Storage',
-                  style: TextStyle(
-                    color: t.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Cold storage still cultivates your vials, but at a 5x slower pace. An 8 hour cultivation becomes 40 hours while stored, and moving a vial back to a chamber resumes its active cultivation time.',
-                  style: TextStyle(
-                    color: t.textSecondary,
-                    fontSize: 13,
-                    height: 1.45,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: context.soundAction(
-                      () => Navigator.of(dialogContext).pop(),
-                    ),
-                    child: Text(
-                      'Got it',
-                      style: TextStyle(
-                        color: t.amberBright,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        ],
       );
 
       if (!mounted) return;
@@ -194,16 +154,19 @@ class _BreedScreenState extends State<BreedScreen> {
       final pages = story.drainQueue();
 
       if (pages.isNotEmpty) {
-        await SystemDialog.show(
+        // The introduction and the remembered lines it introduces are one
+        // dialog with two pages, not two dialogs back to back.
+        await SystemDialog.playStory(
           context,
-          title: 'An older echo',
-          message:
-              'The first vial opens. Another presence speaks as though it remembers an earlier ritual.',
-          primaryLabel: 'CONTINUE',
-          barrierDismissible: false,
+          pages,
+          lead: const [
+            StoryBeat(
+              title: 'An older echo',
+              message:
+                  'The first vial opens. Another presence speaks as though it remembers an earlier ritual.',
+            ),
+          ],
         );
-        if (!mounted) return;
-        await SystemDialog.playStory(context, pages);
         await story.acknowledge(StoryEvent.firstBreeding);
       }
 
@@ -211,7 +174,13 @@ class _BreedScreenState extends State<BreedScreen> {
       await db.settingsDao.deleteSetting('tutorial_extraction_pending');
       await db.settingsDao.setNavLocked(false);
 
-      _goCreatureScreen();
+      // Home is where the next step (the Field) is pointed out. Landing on
+      // the database instead left the player with the nav unlocked and
+      // nothing saying where to go. Let the new specimen's card finish
+      // filing itself away first.
+      await _awaitDiscoveryReveal();
+      if (!mounted) return;
+      widget.onGoToSection?.call(NavSection.home);
     }
   }
 

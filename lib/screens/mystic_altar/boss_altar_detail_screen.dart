@@ -197,7 +197,6 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         context,
         title: 'A Relic Is Not A Trophy',
         icon: AppIcons.album_outlined,
-        typewriter: true,
         message:
             'It is what remains when form fails. Not the creature, not its beauty, but the instruction that endured beneath both.\n\n'
             'Is creation discovery or concealment, is beauty truth made visible, or a veil drawn over something worse.',
@@ -219,7 +218,6 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       context,
       title: 'Not A Return',
       icon: AppIcons.auto_awesome_outlined,
-      typewriter: true,
       message:
           'A relic does not bring something back. It gives the surviving instruction a body again.\n\n'
           'If the mystics were made to guard what this world could not bear, then Sanguorath is what remains when sacrifice itself is taught to take shape.',
@@ -521,7 +519,6 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         context,
         title: entry.title,
         message: entry.text,
-        typewriter: true,
         barrierDismissible: false,
       );
       await db.settingsDao.setSetting('campaign_mystic_presence_seen_v1', '1');
@@ -535,7 +532,6 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         context,
         title: 'Carry It Outward',
         icon: AppIcons.public_rounded,
-        typewriter: true,
         message:
             'Do not keep it here.\n\nThe stars are not above this world. They are part of the seal. Bring the blood mystic outward, where the last offering can be witnessed.',
       );

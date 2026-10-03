@@ -302,17 +302,13 @@ class _AppGateState extends State<AppGate> {
     }
 
     // 2) Immediately show faction picker (same as before, just moved up here)
-    final selected = await showDialog<FactionId>(
+    // The picker saves the faction itself (FactionService.setId) before it
+    // closes; saving it again here only notified every listener twice.
+    await showDialog<FactionId>(
       context: context,
       barrierDismissible: false,
       builder: (_) => const FactionPickerDialog(),
     );
-
-    if (!mounted || selected == null) {
-      return;
-    }
-
-    await factionSvc.setId(selected);
   }
 
   /// ============================================================

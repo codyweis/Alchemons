@@ -14,6 +14,7 @@ import 'package:alchemons/audio/audio.dart';
 //   5. Pops back to the cosmic screen, which runs the normal tutorial.
 
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -286,11 +287,8 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
     setState(() {
       _chosenElement = element;
       _portalOrigin = origin;
-      _takeoverField = RiftVortexField(
-        grains: 900,
-        ringGrains: 140,
-        motes: 40,
-      )..open = 1;
+      _takeoverField = RiftVortexField(grains: 900, ringGrains: 140, motes: 40)
+        ..open = 1;
       _phase = _ProloguePhase.entering;
     });
 
@@ -390,15 +388,18 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
               child: IgnorePointer(
                 child: AnimatedBuilder(
                   animation: Listenable.merge([_fadeIn, _warp]),
-                  builder: (context, child) => Opacity(
+                  // The fade goes to the motes' own alpha, not an Opacity
+                  // widget: this rests at 0.85, and a partial Opacity over a
+                  // layer that repaints every frame is an offscreen pass
+                  // every frame for the whole crossing. The motes are points
+                  // that barely overlap, so scaling each one's alpha looks
+                  // the same.
+                  builder: (context, _) => AlchemicalParticleBackground(
+                    colors: _cosmosParticleColors,
+                    densityMultiplier: 1.35,
                     // Particles wash out as the jump builds; they read as
                     // stationary grit against a moving star field otherwise.
                     opacity: 0.85 * _fadeIn.value * (1 - _warpAmount * 0.9),
-                    child: child,
-                  ),
-                  child: const AlchemicalParticleBackground(
-                    colors: _cosmosParticleColors,
-                    densityMultiplier: 1.35,
                   ),
                 ),
               ),
@@ -466,19 +467,23 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
                         ),
                       ),
                       const SizedBox(height: 14),
-                      Text(
-                        _harvesterClaimed
-                            ? 'STABILIZED HARVESTER SECURED'
-                            : 'STABILIZED HARVESTER',
-                        style: TextStyle(
-                          fontFamily: appFontFamily(context),
-                          color: Colors.amber.withValues(alpha: 0.95),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2.2,
-                          shadows: const [
-                            Shadow(blurRadius: 22, color: Colors.amber),
-                          ],
+                      // The amber glow used to be a text Shadow with
+                      // blurRadius 22: a gaussian pass on every glyph, every
+                      // frame, since this whole layer repaints with the
+                      // clock. A painted haze behind the line reads the same.
+                      CustomPaint(
+                        painter: const _LabelGlowPainter(Colors.amber),
+                        child: Text(
+                          _harvesterClaimed
+                              ? 'STABILIZED HARVESTER SECURED'
+                              : 'STABILIZED HARVESTER',
+                          style: TextStyle(
+                            fontFamily: appFontFamily(context),
+                            color: Colors.amber.withValues(alpha: 0.95),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2.2,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 7),
@@ -868,15 +873,15 @@ class _HarvesterRelicPainter extends CustomPainter {
     final breathe = 0.9 + 0.1 * sin(t * 1.5);
     final fade = taken ? (1 - claim).clamp(0.0, 1.0) : 1.0;
 
-    // Halo.
-    canvas.drawCircle(
+    // Halo. Was a drawCircle under MaskFilter.blur with a sigma animated
+    // every frame — a gaussian pass per frame for as long as the harvester
+    // sits there. The same blurred disc as one radial gradient.
+    _paintBlurredDisc(
+      canvas,
       c,
       base * 2.4 * breathe * (1 + claim * 1.4),
-      Paint()
-        ..color = _gold.withValues(
-          alpha: (0.16 + claim * 0.3) * (1 - claim * 0.5),
-        )
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 22 + claim * 40),
+      _gold.withValues(alpha: (0.16 + claim * 0.3) * (1 - claim * 0.5)),
+      22 + claim * 40,
     );
 
     // Three nested alchemical rings, each turning its own way.
@@ -926,6 +931,106 @@ class _HarvesterRelicPainter extends CustomPainter {
   @override
   bool shouldRepaint(_HarvesterRelicPainter old) =>
       old.t != t || old.claim != claim || old.taken != taken;
+}
+
+/// What `drawCircle(at, radius, Paint()..color = color
+/// ..maskFilter = MaskFilter.blur(BlurStyle.normal, sigma))` drew, as one
+/// radial gradient and no filter pass.
+///
+/// `paintSoftCircle` falls off linearly, which spreads a glow this big
+/// (radius about 5 sigma) visibly wider and dimmer than the blur it replaces.
+/// These stops follow the blurred disc's real edge instead: across the rim
+/// a gaussian-blurred disc is the error function of the distance from it.
+void _paintBlurredDisc(
+  Canvas canvas,
+  Offset at,
+  double radius,
+  Color color,
+  double sigma,
+) {
+  if (color.a <= 0 || radius <= 0) return;
+  final s = max(sigma, 0.01);
+  // A blurred disc's half-brightness rim sits a little inside the disc:
+  // the curved edge loses more light outward than it gains. sigma^2 / 2R is
+  // that shift to first order, capped so a small disc keeps a core.
+  final edge = radius - min(s * s / (2 * radius), radius * 0.5);
+  final outer = edge + s * 3;
+  final inner = max(0.0, edge - s * 3);
+  const steps = 12;
+  final stops = <double>[0];
+  final colors = <Color>[];
+  double level(double r) => 0.5 * (1 - _erf((r - edge) / (s * sqrt2)));
+  colors.add(color.withValues(alpha: color.a * level(0)));
+  for (var i = 0; i <= steps; i++) {
+    final r = inner + (outer - inner) * i / steps;
+    if (r <= 0) continue;
+    stops.add(r / outer);
+    colors.add(color.withValues(alpha: i == steps ? 0 : color.a * level(r)));
+  }
+  canvas.drawCircle(
+    at,
+    outer,
+    Paint()..shader = ui.Gradient.radial(at, outer, colors, stops),
+  );
+}
+
+/// Abramowitz and Stegun 7.1.26: within 1.5e-7, far below one alpha step.
+double _erf(double x) {
+  final sign = x < 0 ? -1.0 : 1.0;
+  final a = x.abs();
+  final t = 1 / (1 + 0.3275911 * a);
+  final y =
+      1 -
+      (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t -
+                      0.284496736) *
+                  t +
+              0.254829592) *
+          t *
+          exp(-a * a);
+  return sign * y;
+}
+
+/// A soft glow behind a line of text, standing in for a blurred text Shadow.
+///
+/// A `Shadow(blurRadius: 22)` puts a sigma-13 haze around the glyphs; across
+/// a single line that reads as a wide, low ellipse of the colour, which is
+/// what this paints — a stretched radial gradient, no filter.
+class _LabelGlowPainter extends CustomPainter {
+  const _LabelGlowPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    // About two sigma of spread past the glyphs, as the shadow had.
+    final rx = size.width / 2 + 26;
+    final ry = size.height / 2 + 22;
+    final centre = size.center(Offset.zero);
+    canvas.save();
+    canvas.translate(centre.dx, centre.dy);
+    canvas.scale(rx / ry, 1);
+    canvas.drawCircle(
+      Offset.zero,
+      ry,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset.zero,
+          ry,
+          [
+            color.withValues(alpha: 0.30),
+            color.withValues(alpha: 0.18),
+            color.withValues(alpha: 0.06),
+            color.withValues(alpha: 0),
+          ],
+          const [0, 0.45, 0.75, 1],
+        ),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_LabelGlowPainter old) => old.color != color;
 }
 
 // ─────────────────────────────────────────────────────────

@@ -56,7 +56,6 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/background_loading.png
     - assets/images/relics/
     - assets/animations/
     - assets/images/backgrounds/

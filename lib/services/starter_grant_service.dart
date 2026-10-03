@@ -13,8 +13,8 @@ class StarterGrantService {
 
   StarterGrantService({required this.db, required this.payloadFactory});
 
-  /// Grants exactly one starter egg that matches the chosen faction.
-  /// - If an incubator is free: places egg there.
+  /// Grants exactly one starter vial (an egg row in the database) that matches the chosen faction.
+  /// - If an incubator is free: places the vial there.
   /// - Else: enqueues to storage.
   /// Returns `true` if granted, `false` if already granted before.
   Future<bool> ensureStarterGranted(
@@ -27,7 +27,7 @@ class StarterGrantService {
 
     final baseId = _pickLetForFaction(faction);
 
-    // Keep the actual egg rarity as "common" so hatch time uses your UI map.
+    // Keep the vial's rarity as "common" so hatch time uses your UI map.
     final rarity = 'common';
     final hatchDur =
         tutorialHatch ??
@@ -35,7 +35,7 @@ class StarterGrantService {
 
     final eggId = _makeEggId('START');
 
-    // Deterministic RNG so results are stable for a given egg
+    // Deterministic RNG so results are stable for a given vial
     final seed =
         int.tryParse(eggId.split('_')[1]) ??
         DateTime.now().millisecondsSinceEpoch;
@@ -49,7 +49,7 @@ class StarterGrantService {
 
     final payloadJson = payload.toJsonString();
 
-    // --- PLACE OR ENQUEUE EGG ---
+    // --- PLACE OR ENQUEUE THE VIAL ---
     final free = await db.incubatorDao.firstFreeSlot();
     if (free != null) {
       await db.incubatorDao.placeEgg(

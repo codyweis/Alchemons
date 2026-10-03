@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 enum StoryPageType {
   quote, // Text-heavy philosophical quotes
   elementIntro, // Short chapter-card style text
-  loading, // Loading screen with progress bar
 }
 
 enum StoryEvent { firstBreeding }
@@ -66,7 +65,6 @@ class StoryPage {
   final String? subtitle;
   final Color? textColor;
   final Color? backgroundColor;
-  final String? backgroundImagePath; // For loading screen
   final bool useTypewriterEffect;
 
   const StoryPage({
@@ -75,7 +73,6 @@ class StoryPage {
     this.subtitle,
     this.textColor,
     this.backgroundColor,
-    this.backgroundImagePath,
     this.useTypewriterEffect = false,
   });
 }
@@ -164,13 +161,8 @@ class AlchemonsStory {
     ),
   ];
 
-  static List<StoryPage> get allPages => [
-    ...darkPrelude,
-    const StoryPage(
-      type: StoryPageType.loading,
-      mainText: 'INITIALIZING LABORATORY SYSTEMS',
-      backgroundColor: Colors.black,
-      backgroundImagePath: 'assets/images/background_loading.png',
-    ),
-  ];
+  /// What the opening plays. It used to end on a fake loading page
+  /// ("INITIALIZING LABORATORY SYSTEMS") made mostly of fixed delays; the
+  /// faction choice follows the last quote directly now.
+  static List<StoryPage> get allPages => darkPrelude;
 }

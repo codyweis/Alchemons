@@ -26,6 +26,7 @@ import 'package:alchemons/screens/cosmic/space_market_sheet.dart';
 import 'package:alchemons/screens/cosmic/cosmic_sell_sheet.dart';
 import 'package:alchemons/screens/cosmic/gold_conversion_sheet.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/station_art.dart';
@@ -1578,9 +1579,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       context,
       title: '',
       message: 'Is this a memory?',
-      typewriter: true,
       kind: LandscapeDialogKind.info,
-      showIcon: false,
       primaryLabel: 'Continue',
       barrierDismissible: false,
     );
@@ -1764,7 +1763,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       message:
           'The field thins. Whatever this was, it is already behind you — and '
           'you are only remembering it.',
-      typewriter: true,
       kind: LandscapeDialogKind.info,
       icon: AppIcons.auto_awesome,
       primaryLabel: 'Return',
@@ -2164,9 +2162,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         title: 'The Gate Whispers a Pattern',
         message:
             'This gate accepts Elemental Cargo carried aboard your ship—not elements banked at home. Fill the cargo meter in the proportions shown above it and reach at least a 70% pattern match. A failed offering consumes the carried cargo.',
-        typewriter: true,
         kind: LandscapeDialogKind.info,
-        showIcon: false,
         primaryLabel: 'Heed the Sign',
       );
       await prefs.setBool(_planetRecipeArrivalIntroSeenKey, true);
@@ -4515,9 +4511,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         title: 'Signal Detected',
         message:
             'Something is triggering alchemical data on the map. Open your mini map and find the blinking signal.',
-        typewriter: true,
         kind: LandscapeDialogKind.info,
-        showIcon: false,
         primaryLabel: 'Open Map',
         barrierDismissible: false,
       );
@@ -4539,9 +4533,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       title: 'Trace The Source',
       message:
           "Find where this energy is coming from. Follow your mini map guidance to the signal.",
-      typewriter: true,
       kind: LandscapeDialogKind.info,
-      showIcon: false,
       primaryLabel: 'Track Signal',
       barrierDismissible: false,
     );
@@ -4700,29 +4692,24 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     _runningCosmicIntro = true;
     try {
-      await LandscapeDialog.show(
+      // The quote and the first instruction: one dialog, two pages.
+      await showStoryDialog(
         context,
-        title: 'Reality Unfolds',
-        message:
-            '"We are travelers on a cosmic journey, stardust, swirling and dancing in the eddies and whirlpools of infinity."',
-        typewriter: true,
-        kind: LandscapeDialogKind.info,
-        showIcon: false,
-        primaryLabel: 'Continue',
-        barrierDismissible: false,
-      );
-
-      if (!mounted) return;
-      await LandscapeDialog.show(
-        context,
-        title: 'Establish Home Base',
-        message:
-            'Fly around and choose where you want to anchor your home base. Most systems stay locked until home is built.',
-        typewriter: true,
-        kind: LandscapeDialogKind.info,
-        showIcon: false,
-        primaryLabel: 'Continue',
-        barrierDismissible: false,
+        beats: const [
+          StoryBeat(
+            title: 'Reality Unfolds',
+            message: '',
+            voice:
+                '"We are travelers on a cosmic journey, stardust, swirling and '
+                'dancing in the eddies and whirlpools of infinity."',
+          ),
+          StoryBeat(
+            title: 'Establish Home Base',
+            message:
+                'Fly around and choose where to anchor your home base. Most '
+                'systems stay locked until home is built.',
+          ),
+        ],
       );
 
       if (!mounted) return;
@@ -4742,9 +4729,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       title: 'Home Established',
       message:
           'Home base online. Collect elemental resources and cosmic dust to unlock tons of ship and base upgrades.',
-      typewriter: true,
       kind: LandscapeDialogKind.info,
-      showIcon: false,
       primaryLabel: 'Continue',
       barrierDismissible: false,
     );
@@ -4787,7 +4772,6 @@ class _CosmicScreenState extends State<CosmicScreen>
           'It will be lifted from where it stands now, and this costs '
           '$_relocateCost carried shards.',
       kind: LandscapeDialogKind.info,
-      showIcon: false,
       primaryLabel: 'Move It Here',
       secondaryLabel: 'Cancel',
     );
@@ -6481,7 +6465,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       await LandscapeDialog.show(
         context,
         title: entry.title,
-        typewriter: true,
         message:
             '${entry.text}\n\nBring the relic to the Mystic Altar. Each elemental ritual requires one of every non-Mystic species of that element.',
         barrierDismissible: false,
