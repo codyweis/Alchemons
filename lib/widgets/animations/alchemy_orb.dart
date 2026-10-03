@@ -1,5 +1,6 @@
 import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 class FloatingAlchemyOrb extends StatefulWidget {
@@ -132,11 +133,18 @@ class _AlchemyOrbPainter extends CustomPainter {
       canvas.drawCircle(nebulaCenter, radius * 0.25, nebulaPaint);
     }
 
-    // Clean circular border
+    // A very thin gold edge, in the avatar and Upgrade medallions' gold, so
+    // the way into the cosmos reads as one of the home's set pieces.
+    final band = Rect.fromCircle(center: center, radius: radius);
     final borderPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.5
-      ..color = const Color(0xFF6B4FBF).withValues(alpha: 0.2);
+      ..strokeWidth = 0.9
+      ..shader = ui.Gradient.linear(
+        band.topLeft,
+        band.bottomRight,
+        const [Color(0xFFF2D58A), Color(0xFF8A6420), Color(0xFFC9A04E)],
+        const [0.0, 0.6, 1.0],
+      );
     canvas.drawCircle(center, radius, borderPaint);
   }
 
