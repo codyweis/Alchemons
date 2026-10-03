@@ -271,13 +271,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Reopens the faction picker so the choice — and the commit animation
-  /// that plays on it — can be seen again.
+  /// Reopens the faction picker so it can be seen again.
   ///
   /// The picker is normally the first thing in the game and runs exactly
-  /// once per save, which makes its transition the hardest thing here to
-  /// look at twice. This is a bypass of the shop's paid faction change on
-  /// purpose: it is for watching the animation, not for playing.
+  /// once per save, which makes it the hardest screen here to look at
+  /// twice. This is a bypass of the shop's paid faction change on purpose:
+  /// it is for looking at the picker, not for playing.
   Future<void> _openFactionTester() async {
     final before = context.read<FactionService>().current;
     final selected = await showDialog<FactionId>(

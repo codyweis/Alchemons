@@ -1,9 +1,9 @@
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/creatures_screen.dart
 //
-// REDESIGNED CREATURES SCREEN
-// Aesthetic: Scorched Forge — dark metal chrome, amber reagent accents, monospace
-// All sliver structure, filtering, sorting, routing, tutorial logic preserved.
+// The Alchemon Database: every specimen you own (the default view) and the
+// species catalog. Bracket-frame language throughout (bracket_frame.dart,
+// bracket_controls.dart), including its two dialogs (database_dialogs.dart).
 // Public widget APIs (SectionCard, ProgressBar, SearchFieldSolid, etc.) preserved.
 //
 
@@ -12,6 +12,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/screens/breeding_milestones_screen.dart';
+import 'package:alchemons/screens/database_dialogs.dart';
 import 'package:alchemons/screens/progress_overview_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
@@ -45,22 +46,14 @@ import 'package:alchemons/widgets/app_icons.dart';
 // DESIGN TOKENS
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _T {
-  static const heading = TextStyle(
-    fontFamily: 'monospace',
-    color: Color.fromARGB(255, 67, 67, 67),
-    fontSize: 13,
-    fontWeight: FontWeight.w800,
-    letterSpacing: 2.0,
-  );
-}
-
-Color _rarityColorForge(String rarity) => switch (rarity.toLowerCase()) {
+// 17 species are Mystic. This listed 'mythic', which no species is, so every
+// Mystic wore Common's grey.
+Color _rarityColor(String rarity) => switch (rarity.toLowerCase()) {
   'common' => const Color(0xFF6B7280),
   'uncommon' => const Color(0xFF34D399),
   'rare' => const Color(0xFF60A5FA),
-  'mythic' => const Color(0xFFA855F7),
   'legendary' => const Color(0xFFF59E0B),
+  'mystic' => const Color(0xFFE879F9),
   _ => const Color(0xFF6B7280),
 };
 
@@ -90,7 +83,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
   Map<String, int> _instanceCounts = const {};
 
   bool _creaturesTutorialChecked = false;
-  bool _highlightAllInstances = false;
+  bool _highlightViewSwitch = false;
   bool _tutorialScheduled = false;
   bool _showCatalogView = false;
 
@@ -302,111 +295,19 @@ class CreaturesScreenState extends State<CreaturesScreen>
   Future<void> _maybeShowCreaturesTutorial() async {
     if (!mounted || _creaturesTutorialChecked) return;
     _creaturesTutorialChecked = true;
-    final t = ForgeTokens(context.read<FactionTheme>());
+    final theme = context.read<FactionTheme>();
     final hasSeen = await _settings.hasSeenCreaturesTutorial();
     if (hasSeen || !mounted) return;
 
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => Dialog(
-        backgroundColor: t.bg1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-          side: BorderSide(color: t.borderAccent, width: 1.5),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Title
-              Row(
-                children: [
-                  Container(
-                    width: 3,
-                    height: 16,
-                    color: t.amber,
-                    margin: const EdgeInsets.only(right: 10),
-                  ),
-                  const Text('ALCHEMON DATABASE', style: _T.heading),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Browse every species you\'ve discovered, filter them, '
-                'and inspect individual specimens.',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.textSecondary,
-                  fontSize: 12,
-                  letterSpacing: 0.3,
-                  height: 1.6,
-                ),
-              ),
-              const SizedBox(height: 14),
-              _TutorialRow(
-                icon: AppIcons.search_rounded,
-                title: 'SEARCH & FILTER',
-                body:
-                    'Use the search bar and chips to filter by name, '
-                    'type, rarity, and more.',
-              ),
-              const SizedBox(height: 8),
-              _TutorialRow(
-                icon: AppIcons.category_rounded,
-                title: 'SPECIES CATALOG',
-                body:
-                    'Use the top-left button to switch to the species catalog, '
-                    'then tap a species to view its specimens and details.',
-              ),
-              const SizedBox(height: 8),
-              _TutorialRow(
-                icon: AppIcons.grid_view_rounded,
-                title: 'ALL SPECIMENS VIEW',
-                body:
-                    'This screen now opens on the full specimen list by '
-                    'default. Use the top-left button to switch between '
-                    'specimens and species.',
-              ),
-              const SizedBox(height: 18),
-              GestureDetector(
-                onTap: context.soundAction(() => Navigator.of(context).pop()),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: t.amberDim.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: t.borderAccent),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'UNDERSTOOD',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.amberBright,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2.0,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    await showDatabaseTutorial(context, theme);
 
     if (!mounted) return;
     await _settings.setCreaturesTutorialSeen();
     if (!mounted) return;
-    setState(() => _highlightAllInstances = true);
+    setState(() => _highlightViewSwitch = true);
     Future.delayed(const Duration(seconds: 3), () {
       if (!mounted) return;
-      setState(() => _highlightAllInstances = false);
+      setState(() => _highlightViewSwitch = false);
     });
   }
 
@@ -460,6 +361,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                 showFloatingCloseButton: false,
                 leadingIcon: AppIcons.category_rounded,
                 leadingTooltip: 'Species Catalog',
+                leadingHighlighted: _highlightViewSwitch,
                 onLeadingTap: () {
                   unfocusSearch();
                   setState(() => _showCatalogView = true);
@@ -491,7 +393,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                         controller: _searchCtrl,
                         focusNode: _searchFocus,
                         onQueryChanged: _onQueryChanged,
-                        highlightAllInstances: _highlightAllInstances,
+                        highlightAllInstances: _highlightViewSwitch,
                         onOpenAllInstances: () {
                           unfocusSearch();
                           setState(() => _showCatalogView = false);
@@ -576,117 +478,8 @@ class CreaturesScreenState extends State<CreaturesScreen>
     }
   }
 
-  void _showSilhouettePopup(Creature species, FactionTheme theme) {
-    final t = ForgeTokens(theme);
-    final spriteData = species.spriteData;
-    showDialog(
-      context: context,
-      barrierColor: Colors.black87,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 340),
-          child: Container(
-            decoration: BoxDecoration(
-              color: t.bg1,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: t.borderDim, width: 1.5),
-            ),
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Silhouette image
-                SizedBox(
-                  height: 320,
-                  width: double.infinity,
-                  child: Center(
-                    child: Silhouette(
-                      enabled: true,
-                      child: spriteData != null
-                          ? SizedBox(
-                              width: 260,
-                              height: 260,
-                              child: CreatureSprite(
-                                spritePath: spriteData.spriteSheetPath,
-                                totalFrames: spriteData.totalFrames,
-                                rows: spriteData.rows,
-                                frameSize: Vector2(
-                                  spriteData.frameWidth.toDouble(),
-                                  spriteData.frameHeight.toDouble(),
-                                ),
-                                stepTime: spriteData.frameDurationMs / 1000.0,
-                              ),
-                            )
-                          : SizedBox(
-                              width: 260,
-                              height: 260,
-                              child: CreatureImage(
-                                c: species,
-                                discovered: false,
-                                rounded: 6,
-                              ),
-                            ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'UNKNOWN SPECIMEN',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: t.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.8,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Classification data unavailable.\nDiscover this species to reveal its true form.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: t.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                _RarityPill(rarity: 'CLASS ?'),
-                const SizedBox(height: 20),
-                GestureDetector(
-                  onTap: context.soundAction(() => Navigator.pop(ctx)),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    decoration: BoxDecoration(
-                      color: t.borderDim.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: t.borderDim),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'CLOSE',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  void _showSilhouettePopup(Creature species, FactionTheme theme) =>
+      showUnknownSpeciesDialog(context, theme, species);
 
   List<CreatureEntry> _filterAndSort(
     List<CreatureEntry> all,
@@ -745,6 +538,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
     'rare' => 2,
     'mythic' => 3,
     'legendary' => 4,
+    'mystic' => 5,
     _ => 0,
   };
 
@@ -2054,7 +1848,7 @@ class _RarityPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _rarityColorForge(rarity);
+    final color = _rarityColor(rarity);
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: small ? 6 : 8,
@@ -2105,66 +1899,6 @@ class _TypeTiny extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.visible,
       ),
-    );
-  }
-}
-
-// Tutorial step row used in the tutorial dialog
-class _TutorialRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String body;
-  const _TutorialRow({
-    required this.icon,
-    required this.title,
-    required this.body,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-            color: t.bg3,
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: t.borderDim),
-          ),
-          child: Icon(icon, color: t.amberBright, size: 14),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.0,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                body,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.textSecondary,
-                  fontSize: 12,
-                  letterSpacing: 0.2,
-                  height: 1.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

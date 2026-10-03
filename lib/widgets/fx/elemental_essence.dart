@@ -1522,6 +1522,7 @@ class ElementalEssence extends StatefulWidget {
     this.reveal,
     this.hold = false,
     this.tappable = true,
+    this.onRevealed,
   });
 
   /// The creature's type name ('Fire'…): see [EssenceElement.of].
@@ -1539,6 +1540,11 @@ class ElementalEssence extends StatefulWidget {
 
   /// False where a tap on the sprite already means something else.
   final bool tappable;
+
+  /// Once per [reveal], when the creature stands whole: the grains have
+  /// landed, or the sprite was shown plainly instead (it never loaded, or
+  /// could not be read). Not called by a tap's play.
+  final VoidCallback? onRevealed;
 
   @override
   State<ElementalEssence> createState() => _ElementalEssenceState();
@@ -1564,10 +1570,33 @@ class _ElementalEssenceState extends State<ElementalEssence>
   bool _spriteReady = false;
   Timer? _revealTimeout;
 
+  /// A reveal is under way and [ElementalEssence.onRevealed] is still owed.
+  bool _revealOwed = false;
+
   void _onStatus(AnimationStatus s) {
     if (s == AnimationStatus.completed && mounted) {
       setState(() => _field = null);
+      _payReveal();
     }
+  }
+
+  void _payReveal() {
+    if (!_revealOwed) return;
+    _revealOwed = false;
+    widget.onRevealed?.call();
+  }
+
+  /// The reveal could not play: the sprite, plainly, and the reveal counts
+  /// as done.
+  void _revealPlainly() {
+    setState(_showPlain);
+    if (!_revealOwed) return;
+    _revealOwed = false;
+    // After the frame: this can run inside didUpdateWidget, and the owner's
+    // answer is usually a setState of its own.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onRevealed?.call();
+    });
   }
 
   void _onTick() {
@@ -1595,7 +1624,7 @@ class _ElementalEssenceState extends State<ElementalEssence>
         _released();
       } else if (!_c.isAnimating && _field != null) {
         // Stopped part-way while it was out of view: never leave it there.
-        setState(_showPlain);
+        _revealPlainly();
       }
     } else if (!old.hold && widget.hold) {
       // Out of view: the give-up timer is for a card someone is looking at.
@@ -1629,6 +1658,7 @@ class _ElementalEssenceState extends State<ElementalEssence>
       _field = null;
     }
     _awaitingReveal = true;
+    _revealOwed = true;
     _revealTimeout?.cancel();
     if (!widget.hold) _released();
   }
@@ -1640,7 +1670,7 @@ class _ElementalEssenceState extends State<ElementalEssence>
     // is not a sprite) is shown plainly rather than kept hidden.
     _revealTimeout = Timer(const Duration(milliseconds: 1600), () {
       if (mounted && _awaitingReveal && !_reading && !widget.hold) {
-        setState(_showPlain);
+        _revealPlainly();
       }
     });
     // Already loaded (the same creature, revealed again): read it now.
@@ -1668,7 +1698,7 @@ class _ElementalEssenceState extends State<ElementalEssence>
     if (!mounted) return;
     _revealTimeout?.cancel();
     if (grains == null) {
-      setState(_showPlain);
+      _revealPlainly();
       return;
     }
     _landed = false;

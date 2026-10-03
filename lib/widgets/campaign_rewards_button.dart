@@ -32,10 +32,15 @@ class CampaignRewardsButton extends StatefulWidget {
     this.color,
     this.enabled = true,
     this.style = CampaignRewardsStyle.icon,
+    this.docked = false,
   });
   final Color? color;
   final bool enabled;
   final CampaignRewardsStyle style;
+
+  /// Bar style only: shrink to a small tab (trophy and badge) so the bar can
+  /// be parked against a screen edge. State is kept, so the count stays live.
+  final bool docked;
   @override
   State<CampaignRewardsButton> createState() => _CampaignRewardsButtonState();
 }
@@ -182,6 +187,54 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
     final done = snapshot?.claimed.length ?? 0;
     final hasReady = ready > 0;
     final accent = hasReady ? fc.mint : fc.amberBright;
+
+    if (widget.docked) {
+      return Semantics(
+        button: true,
+        label: hasReady
+            ? 'Achievements, $ready rewards ready'
+            : 'Achievements, $done of $total collected',
+        child: GestureDetector(
+          onTap: context.soundAction(widget.enabled ? open : null),
+          behavior: HitTestBehavior.opaque,
+          child: Opacity(
+            opacity: widget.enabled ? 1 : 0.4,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(0, 9, 10, 9),
+              decoration: BoxDecoration(
+                color: fc.bg2,
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(4),
+                ),
+                border: Border.all(
+                  color: hasReady
+                      ? accent.withValues(alpha: 0.65)
+                      : fc.borderDim,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 3, height: 34, color: accent),
+                  const SizedBox(width: 10),
+                  Badge(
+                    isLabelVisible: hasReady,
+                    label: Text('$ready'),
+                    backgroundColor: fc.rewardGold,
+                    textColor: fc.onColor(fc.rewardGold),
+                    child: Icon(
+                      AppIcons.emoji_events_outlined,
+                      size: 18,
+                      color: accent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, c) {

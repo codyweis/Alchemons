@@ -316,6 +316,7 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
 
   static Color _rarityColor(String rarity, BracketPalette palette) =>
       switch (rarity.toLowerCase()) {
+        'mystic' => const Color(0xFFE879F9),
         'legendary' => const Color(0xFFFFB020),
         'rare' => const Color(0xFF60A5FA),
         'uncommon' => const Color(0xFF34D399),

@@ -47,6 +47,7 @@ import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/utils/nature_effect_formatter.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/inventory_item_artwork.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 
 import '../../models/creature.dart';
@@ -1472,6 +1473,11 @@ class _OverviewTab extends StatelessWidget {
               instanceId: instance!.instanceId,
               creatureName: creature.name,
             ),
+            const SizedBox(height: 8),
+            _AlchemyEffectSlot(
+              instance: instance!,
+              creatureName: creature.name,
+            ),
           ],
           const SizedBox(height: 20),
 
@@ -2100,6 +2106,217 @@ class _StaminaRestoreButton extends StatelessWidget {
         ),
       );
     }
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ALCHEMICAL EFFECT SLOT
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Where a bought alchemy effect goes on this creature, so it is applied
+/// here instead of through the inventory. Lists only effects the player owns.
+class _AlchemyEffectSlot extends StatelessWidget {
+  final CreatureInstance instance;
+  final String creatureName;
+  const _AlchemyEffectSlot({
+    required this.instance,
+    required this.creatureName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final db = context.read<AlchemonsDatabase>();
+    final registry = buildInventoryRegistry(db);
+    return StreamBuilder<List<InventoryItem>>(
+      stream: db.inventoryDao.watchItemInventory(),
+      builder: (context, snapshot) {
+        final owned = <InventoryItem>[
+          for (final item in snapshot.data ?? const <InventoryItem>[])
+            if (item.qty > 0 && InvKeys.alchemyEffectFor(item.key) != null)
+              item,
+        ];
+        final currentKey = instance.alchemyEffect;
+        String? currentName;
+        if (currentKey != null) {
+          for (final e in registry.entries) {
+            if (InvKeys.alchemyEffectFor(e.key) == currentKey) {
+              currentName = e.value.name;
+              break;
+            }
+          }
+        }
+        final palette = _bp(context);
+        final theme = context.read<FactionTheme>();
+        final accent = _dialogAccent(context);
+        final canPick = owned.isNotEmpty;
+        final subtitle =
+            currentName ??
+            (canPick ? 'None applied' : 'None applied · none in inventory');
+        return GestureDetector(
+          onTap: canPick
+              ? context.soundAction(() {
+                  HapticFeedback.mediumImpact();
+                  _pick(context, owned, registry, currentName);
+                })
+              : null,
+          child: CustomPaint(
+            painter: BracketFramePainter(
+              color: accent.withValues(alpha: canPick ? 0.88 : 0.4),
+              bracketSize: 8,
+              strokeWidth: 1.05,
+            ),
+            child: Container(
+              color: palette.accentWash(theme.accent, darkAlpha: 0.10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(AppIcons.auto_awesome_rounded, color: accent, size: 14),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Alchemical effect',
+                          style: bracketText(
+                            context,
+                            12.5,
+                            palette.ink,
+                            weight: FontWeight.w700,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: bracketText(
+                            context,
+                            11.5,
+                            palette.muted,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (canPick) ...[
+                    Text(
+                      '${owned.length} owned',
+                      style: bracketText(
+                        context,
+                        12,
+                        palette.muted,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      AppIcons.chevron_right_rounded,
+                      size: 16,
+                      color: palette.muted,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pick(
+    BuildContext context,
+    List<InventoryItem> owned,
+    Map<String, InventoryItemDef> registry,
+    String? currentName,
+  ) async {
+    final c = _C.of(context);
+    final picked = await showModalBottomSheet<InventoryItem>(
+      context: context,
+      backgroundColor: c.bg1,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.7,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+            children: [
+              Text(
+                'APPLY AN EFFECT TO ${creatureName.toUpperCase()}',
+                style: _T(c).sectionTitle,
+              ),
+              if (currentName != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Applying one replaces $currentName.',
+                  style: _T(c).body,
+                ),
+              ],
+              const SizedBox(height: 10),
+              for (final item in owned)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: InventoryItemArtwork(
+                    inventoryKey: item.key,
+                    size: 44,
+                  ),
+                  title: Text(
+                    registry[item.key]?.name ?? item.key,
+                    style: TextStyle(
+                      color: c.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  trailing: Text(
+                    '×${item.qty}',
+                    style: TextStyle(
+                      color: c.textMuted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  onTap: () => Navigator.of(sheetCtx).pop(item),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked == null || !context.mounted) return;
+    final effect = InvKeys.alchemyEffectFor(picked.key);
+    if (effect == null) return;
+    final db = context.read<AlchemonsDatabase>();
+    final name = registry[picked.key]?.name ?? 'Effect';
+    await db.creatureDao.updateAlchemyEffect(
+      instanceId: instance.instanceId,
+      effect: effect,
+    );
+    await db.inventoryDao.decrementItem(picked.key, by: 1);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Applied $name!',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: c.textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        backgroundColor: c.bg1,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 }
 

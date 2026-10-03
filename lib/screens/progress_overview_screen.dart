@@ -31,8 +31,9 @@ Color _rarityColor(String rarity) => switch (rarity.toLowerCase()) {
   'common' => const Color(0xFF6B7280),
   'uncommon' => const Color(0xFF34D399),
   'rare' => const Color(0xFF60A5FA),
-  'epic' => const Color(0xFFA855F7),
   'legendary' => const Color(0xFFF59E0B),
+  // Was 'epic', which no species is; the 17 Mystics read as Common.
+  'mystic' => const Color(0xFFE879F9),
   _ => const Color(0xFF6B7280),
 };
 

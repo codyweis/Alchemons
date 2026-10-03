@@ -24,6 +24,10 @@ class AllSpecimensPage extends StatefulWidget {
   final IconData? leadingIcon;
   final String leadingTooltip;
   final VoidCallback? onLeadingTap;
+
+  /// Lights the leading button for a moment -- the database does this after
+  /// its tutorial points at it.
+  final bool leadingHighlighted;
   final String searchHint;
   final bool showFloatingCloseButton;
   final List<String> allowedPrimaryTypes;
@@ -47,6 +51,7 @@ class AllSpecimensPage extends StatefulWidget {
     this.leadingIcon,
     this.leadingTooltip = 'Close',
     this.onLeadingTap,
+    this.leadingHighlighted = false,
     this.searchHint = 'ALL SPECIMENS',
     this.showFloatingCloseButton = true,
     this.allowedPrimaryTypes = const [],
@@ -118,6 +123,7 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
                         palette: palette,
                         accent: theme.accentSoft,
                         tooltip: widget.leadingTooltip,
+                        highlighted: widget.leadingHighlighted,
                         onTap: widget.onLeadingTap ?? _closePage,
                       ),
                       const SizedBox(width: 12),
@@ -295,6 +301,7 @@ class _HeaderSquareButton extends StatelessWidget {
     required this.accent,
     required this.tooltip,
     required this.onTap,
+    this.highlighted = false,
   });
 
   final IconData icon;
@@ -302,6 +309,7 @@ class _HeaderSquareButton extends StatelessWidget {
   final Color accent;
   final String tooltip;
   final VoidCallback onTap;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -316,15 +324,18 @@ class _HeaderSquareButton extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         child: CustomPaint(
           painter: BracketFramePainter(
-            color: displayAccent.withValues(alpha: 0.6),
+            color: displayAccent.withValues(alpha: highlighted ? 1 : 0.6),
             bracketSize: 7,
-            strokeWidth: 1.0,
+            strokeWidth: highlighted ? 1.4 : 1.0,
           ),
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 240),
             width: 40,
             height: 40,
             alignment: Alignment.center,
-            color: Colors.transparent,
+            color: highlighted
+                ? palette.accentWash(displayAccent, darkAlpha: 0.22)
+                : Colors.transparent,
             child: Icon(icon, color: displayAccent, size: 16),
           ),
         ),

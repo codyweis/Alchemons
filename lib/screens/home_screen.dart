@@ -71,7 +71,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/starter_grant_service.dart';
-import 'package:alchemons/widgets/background/interactive_background_widget.dart';
+import 'package:alchemons/widgets/background/faction_realm.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
@@ -690,14 +690,34 @@ class _HomeScreenState extends State<HomeScreen>
   ];
 
   late AnimationController _breathingController;
-  late AnimationController _rotationController;
-  late AnimationController _particleController;
-  late AnimationController _waveController;
   late AnimationController _shakeController;
   late AnimationController _enhanceRevealController;
   bool? _lastEnhanceUnlocked;
   bool _enhanceCelebrationChecking = false;
   bool _enhanceHighlightActive = false;
+
+  /// The achievements bar can be swiped right to park against the edge.
+  static const _achievementsDockedKey = 'home_achievements_docked';
+  bool _achievementsDocked = false;
+
+  Future<void> _loadAchievementsDocked() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final docked = prefs.getBool(_achievementsDockedKey) ?? false;
+      if (mounted && docked != _achievementsDocked) {
+        setState(() => _achievementsDocked = docked);
+      }
+    } catch (_) {}
+  }
+
+  void _setAchievementsDocked(bool docked) {
+    if (docked == _achievementsDocked) return;
+    HapticFeedback.selectionClick();
+    setState(() => _achievementsDocked = docked);
+    SharedPreferences.getInstance()
+        .then((p) => p.setBool(_achievementsDockedKey, docked))
+        .catchError((_) => false);
+  }
 
   final PushNotificationService _pushNotifications = PushNotificationService();
   static const String _eggNotificationStateType = 'egg_ready';
@@ -771,6 +791,7 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadAchievementsDocked();
     final lifecycleState = WidgetsBinding.instance.lifecycleState;
     _isAppInForeground =
         lifecycleState == null ||
@@ -781,21 +802,6 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(seconds: 3),
       vsync: this,
     )..repeat(reverse: true);
-
-    _rotationController = AnimationController(
-      duration: const Duration(seconds: 20),
-      vsync: this,
-    )..repeat();
-
-    _particleController = AnimationController(
-      duration: const Duration(seconds: 15),
-      vsync: this,
-    )..repeat();
-
-    _waveController = AnimationController(
-      duration: const Duration(seconds: 4),
-      vsync: this,
-    )..repeat();
 
     _shakeController = AnimationController(
       vsync: this,
@@ -865,9 +871,6 @@ class _HomeScreenState extends State<HomeScreen>
     WidgetsBinding.instance.removeObserver(this);
     routeObserver.unsubscribe(this);
     _breathingController.dispose();
-    _rotationController.dispose();
-    _particleController.dispose();
-    _waveController.dispose();
     _shakeController.dispose();
     _enhanceRevealController.dispose();
     _slotsSubscription?.cancel();
@@ -1707,21 +1710,6 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  ({double particle, double rotation, double elemental}) _speedFor(
-    FactionId faction,
-  ) {
-    switch (faction) {
-      case FactionId.volcanic:
-        return (particle: .1, rotation: 0.1, elemental: .3);
-      case FactionId.oceanic:
-        return (particle: 1, rotation: 0.1, elemental: .5);
-      case FactionId.verdant:
-        return (particle: 1, rotation: 0.1, elemental: 1);
-      case FactionId.earthen:
-        return (particle: 1, rotation: 0.1, elemental: 0.2);
-    }
-  }
-
   // ============================================================
   // FEATURED HERO HELPERS
   // ============================================================
@@ -1915,7 +1903,6 @@ class _HomeScreenState extends State<HomeScreen>
           }) {
             final factionSvc = context.watch<FactionService>();
             final currentFaction = factionSvc.current ?? FactionId.oceanic;
-            final speeds = _speedFor(currentFaction);
             final hasLineageAnalyzer = context
                 .select<ConstellationEffectsService, bool>(
                   (service) => service.hasLineageAnalyzer(),
@@ -1959,17 +1946,11 @@ class _HomeScreenState extends State<HomeScreen>
                         child: TickerMode(
                           enabled: _animationsEnabled,
                           child: RepaintBoundary(
-                            child: InteractiveBackground(
-                              particleController: _particleController,
-                              rotationController: _rotationController,
-                              waveController: _waveController,
-                              primaryColor: theme.primary,
-                              secondaryColor: theme.secondary,
-                              accentColor: theme.accent,
-                              factionType: currentFaction,
-                              particleSpeed: speeds.particle,
-                              rotationSpeed: speeds.rotation,
-                              elementalSpeed: speeds.elemental,
+                            // The faction's realm in grains; drag through
+                            // it and it stirs like the wild map's sand.
+                            child: FactionRealmView(
+                              faction: currentFaction,
+                              ink: theme.brightness == Brightness.light,
                             ),
                           ),
                         ),
@@ -2033,16 +2014,40 @@ class _HomeScreenState extends State<HomeScreen>
                         bottom: 8,
                         child: SafeArea(
                           top: false,
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 460),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: CampaignRewardsButton(
-                                  style: CampaignRewardsStyle.bar,
-                                  enabled: !_isFieldTutorialActive,
+                          left: false,
+                          right: false,
+                          child: AnimatedAlign(
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.easeOutCubic,
+                            alignment: _achievementsDocked
+                                ? Alignment.centerRight
+                                : Alignment.center,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onHorizontalDragEnd: (d) {
+                                final v = d.primaryVelocity ?? 0;
+                                if (v > 150) _setAchievementsDocked(true);
+                                if (v < -150) _setAchievementsDocked(false);
+                              },
+                              child: AnimatedSize(
+                                duration: const Duration(milliseconds: 260),
+                                curve: Curves.easeOutCubic,
+                                alignment: Alignment.centerRight,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: _achievementsDocked ? 64 : 460,
+                                  ),
+                                  child: Padding(
+                                    padding: EdgeInsets.only(
+                                      left: _achievementsDocked ? 0 : 16,
+                                      right: _achievementsDocked ? 0 : 16,
+                                    ),
+                                    child: CampaignRewardsButton(
+                                      style: CampaignRewardsStyle.bar,
+                                      docked: _achievementsDocked,
+                                      enabled: !_isFieldTutorialActive,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
