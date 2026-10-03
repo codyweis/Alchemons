@@ -6,6 +6,7 @@ import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 
@@ -37,7 +38,7 @@ import 'package:alchemons/widgets/bracket_controls.dart'
 import 'package:alchemons/widgets/coin_icon.dart' show CoinKind;
 import 'package:alchemons/screens/cosmic/widgets/station_panel_kit.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
-    show ShardAmount, panelLabel, panelPalette;
+    show ShardAmount, panelLabel, panelMono, panelPalette;
 import 'package:alchemons/games/cosmic/planets/planet_art.dart'
     show paintSoftCircle;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
@@ -84,6 +85,7 @@ import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 // Local widget imports
 import 'models/map_marker.dart';
 import 'widgets/widgets.dart';
+import 'widgets/coach_mark.dart';
 import 'widgets/mini_map_circle.dart';
 import 'widgets/contest_arena_overlays.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
@@ -279,6 +281,13 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _awaitingShipMenuTap = false;
   bool _awaitingBuildHomeTap = false;
   bool _awaitingSurvivalMapTap = false;
+
+  // The controls a coach mark can point at (widgets/coach_mark.dart).
+  final GlobalKey _coachShipKey = GlobalKey(debugLabel: 'coach.ship');
+  final GlobalKey _coachMapKey = GlobalKey(debugLabel: 'coach.map');
+  final GlobalKey _coachGunKey = GlobalKey(debugLabel: 'coach.gun');
+  final GlobalKey _coachTetherKey = GlobalKey(debugLabel: 'coach.tether');
+  final GlobalKey _coachSlotKey = GlobalKey(debugLabel: 'coach.slot');
   bool _survivalMapTapped = false;
   bool _survivalGuidanceActive = false;
   bool _survivalIntroCompleted = false;
@@ -705,6 +714,10 @@ class _CosmicScreenState extends State<CosmicScreen>
       _largeJoystick = true;
       _boostToggleMode = false;
       _showPinnedMiniMap = false;
+      // The memory teaches tap-to-arm, tap-to-stop: the gun must be the
+      // auto-fire kind whatever the player has saved. Only this flight's
+      // copy changes — the saved setting is never written from here.
+      _autoFireGun = true;
       // The weapons are NOT stood down here. The gun button is the one
       // control in its column that the memory does not hide, so disarming it
       // left a button on screen that ignored every tap. Missiles need no
@@ -1588,9 +1601,26 @@ class _CosmicScreenState extends State<CosmicScreen>
     game.resumeEngine();
     setState(() {
       _memoryAwaitingSummon = true;
-      _memoryTutorialPrompt =
-          'Tap an Alchemon slot on the right to summon it into the field.';
+      _memoryTutorialPrompt = 'Tap an Alchemon slot to summon it.';
     });
+  }
+
+  /// The control the memory's current step is about, if it is about one.
+  GlobalKey? get _memoryCoachTarget {
+    if (_memoryAwaitingSummon) return _coachSlotKey;
+    if (_memoryAwaitingTetherToggle) return _coachTetherKey;
+    if (_memoryAwaitingGunToggle) return _coachGunKey;
+    if (_memoryCombatStarted && !_memoryBossSpawned) return _coachSlotKey;
+    return null;
+  }
+
+  Color get _memoryCoachAccent {
+    if (_memoryAwaitingTetherToggle) return const Color(0xFF42A5F5);
+    if (_memoryAwaitingGunToggle) return const Color(0xFF00E5FF);
+    if (_memoryAwaitingSummon || _memoryCombatStarted) {
+      return const Color(0xFF00E676);
+    }
+    return const Color(0xFF9FA8DA);
   }
 
   void _onMemoryCompanionSummoned() {
@@ -1604,7 +1634,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _memoryFlightStart = _game?.ship.pos;
     setState(() {
       _memoryTutorialPrompt =
-          'Good. Fly with your Alchemon for a moment. It follows while the tether is linked.';
+          'Fly a little way. Your Alchemon follows while the tether is linked.';
     });
     _watchMemoryFlightWithCompanion();
   }
@@ -1629,7 +1659,8 @@ class _CosmicScreenState extends State<CosmicScreen>
         _memoryAwaitingTetherToggle = true;
         _memoryTetherLessonVisible = true;
         _memoryTutorialPrompt =
-            'Now tap the chain button to unlink the tether. Your Alchemon will hold its ground and fight from there.';
+            'Tap the chain to unlink the tether. Your Alchemon will hold its '
+            'ground and fight there.';
       });
     });
   }
@@ -1646,7 +1677,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       _memoryTetherLessonVisible = false;
       _memoryAwaitingGunToggle = true;
       _memoryTutorialPrompt =
-          'Your Alchemon attacks on its own. Now tap the bottom-right cannon to arm the ship\'s auto-fire. Tap it again whenever you want it to stop.';
+          'Tap the lightning button to switch on auto-fire. Tap it again to '
+          'stop.';
     });
   }
 
@@ -1661,7 +1693,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       _memoryAwaitingGunToggle = false;
       _memoryCombatStarted = true;
       _memoryTutorialPrompt =
-          'Ship and companion weapons are active. Special abilities use cooldowns: watch the number over each slot.';
+          "Specials need time to recharge. The number in a slot's corner "
+          'is the seconds left.';
     });
     _beginMemoryCombatWave();
   }
@@ -2159,11 +2192,13 @@ class _CosmicScreenState extends State<CosmicScreen>
     try {
       await LandscapeDialog.show(
         context,
-        title: 'The Gate Whispers a Pattern',
+        title: 'A Gate Pattern',
         message:
-            'This gate accepts Elemental Cargo carried aboard your ship—not elements banked at home. Fill the cargo meter in the proportions shown above it and reach at least a 70% pattern match. A failed offering consumes the carried cargo.',
+            'Gates take only the cargo your ship carries, not what is banked '
+            'at home. Fill the meter to the marks on it: a 70% match opens '
+            'the gate. A failed offering uses up the cargo.',
         kind: LandscapeDialogKind.info,
-        primaryLabel: 'Heed the Sign',
+        primaryLabel: 'Got It',
       );
       await prefs.setBool(_planetRecipeArrivalIntroSeenKey, true);
     } finally {
@@ -4502,18 +4537,27 @@ class _CosmicScreenState extends State<CosmicScreen>
     _survivalIntroCompleted = true;
   }
 
-  Future<void> _startSurvivalSignalTutorial() async {
+  /// The page that sends the player looking for the survival signal.
+  static const _signalBeat = StoryBeat(
+    title: 'Signal Detected',
+    message:
+        'Something out here is sending a signal. Open your map and find '
+        'where it blinks.',
+  );
+
+  /// Says once, in a dialog, that there is a signal to find; the coach mark
+  /// on the map button does the rest. [before] pages go first — the home
+  /// being built, when this follows straight on from it.
+  Future<void> _startSurvivalSignalTutorial({
+    List<StoryBeat> before = const [],
+  }) async {
     if (_runningSurvivalIntro || !mounted || _survivalIntroCompleted) return;
     _runningSurvivalIntro = true;
     try {
-      await LandscapeDialog.show(
+      await showStoryDialog(
         context,
-        title: 'Signal Detected',
-        message:
-            'Something is triggering alchemical data on the map. Open your mini map and find the blinking signal.',
-        kind: LandscapeDialogKind.info,
-        primaryLabel: 'Open Map',
-        barrierDismissible: false,
+        beats: [...before, _signalBeat],
+        primaryLabel: 'FIND IT',
       );
       if (!mounted) return;
       setState(() {
@@ -4526,22 +4570,15 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
-  Future<void> _runPostMapSurvivalGuidancePrompt() async {
+  /// After the map has shown where the signal is: the arrow at the screen's
+  /// edge takes over, with one line to say what it is.
+  void _runPostMapSurvivalGuidancePrompt() {
     if (!mounted || _survivalIntroCompleted || _survivalGuidanceActive) return;
-    await LandscapeDialog.show(
-      context,
-      title: 'Trace The Source',
-      message:
-          "Find where this energy is coming from. Follow your mini map guidance to the signal.",
-      kind: LandscapeDialogKind.info,
-      primaryLabel: 'Track Signal',
-      barrierDismissible: false,
+    setState(() => _survivalGuidanceActive = true);
+    _showQuote(
+      'Follow the arrow at the edge of the screen.',
+      holdFor: const Duration(seconds: 3),
     );
-    if (!mounted) return;
-    setState(() {
-      _survivalGuidanceActive = true;
-    });
-    _showQuote('Follow the blinking signal to the Survival Portal.');
   }
 
   Future<void> _completeSurvivalSignalTutorial() async {
@@ -4722,29 +4759,46 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
+  /// The home is built: one dialog that says so and, on its next page,
+  /// sends the player after the survival signal.
   Future<void> _showHomeBuiltTutorial() async {
     if (!mounted) return;
-    await LandscapeDialog.show(
-      context,
-      title: 'Home Established',
-      message:
-          'Home base online. Collect elemental resources and cosmic dust to unlock tons of ship and base upgrades.',
-      kind: LandscapeDialogKind.info,
-      primaryLabel: 'Continue',
-      barrierDismissible: false,
+    final orbit = _homeOrbitLine();
+    await _startSurvivalSignalTutorial(
+      before: [
+        StoryBeat(
+          title: 'Home Established',
+          message:
+              '${orbit == null ? '' : '$orbit '}Bring elements and dust back '
+              'here to unlock ship and base upgrades.',
+        ),
+      ],
     );
-    if (!mounted) return;
-    await _startSurvivalSignalTutorial();
   }
 
   bool _handleBuildHomePlanet() {
     if (_game == null || _homePlanet != null) return false;
+    final tutorial = _awaitingBuildHomeTap;
     final warning = _game!.buildHomePlanet();
     if (warning != null) {
       _showQuote(warning);
       return false;
     }
+    // The tutorial's own dialog says it (see _showHomeBuiltTutorial).
+    final orbit = _homeOrbitLine();
+    if (orbit != null && !tutorial) _showQuote(orbit);
     return true;
+  }
+
+  /// "Your home is orbiting X." when the home sits in a planet's pull and
+  /// goes round it, or null.
+  String? _homeOrbitLine() {
+    final partner = _game?.homeOrbitPartner;
+    if (partner == null) return null;
+    final name = planetName(partner.element);
+    return _game!.homeOrbitsPartner
+        ? 'Your home is orbiting $name.'
+        : '$name is orbiting your home.';
   }
 
   static const int _relocateCost = kRelocateHomeCost;
@@ -4764,13 +4818,15 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Relocating spends shards and abandons the spot the player picked, so it
     // asks first rather than moving out from under them on a stray tap.
+    final pull = _game!.homeCaptureAt(_game!.ship.pos);
     final confirmed = await LandscapeDialog.show(
       context,
       title: 'Move Home Planet?',
       message:
           'Anchor your home base at this position? '
           'It will be lifted from where it stands now, and this costs '
-          '$_relocateCost carried shards.',
+          '$_relocateCost carried shards.'
+          '${pull == null ? '' : ' It will orbit ${planetName(pull.element)}.'}',
       kind: LandscapeDialogKind.info,
       primaryLabel: 'Move It Here',
       secondaryLabel: 'Cancel',
@@ -4792,6 +4848,8 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     wallet.shards -= _relocateCost;
     _saveHomePlanet();
+    final orbit = _homeOrbitLine();
+    if (orbit != null) _showQuote(orbit);
     setState(() {});
   }
 
@@ -5033,6 +5091,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           });
         }),
         child: _CosmicSquareHudButton(
+          key: _coachShipKey,
           accent: const Color(0xFF00E5FF),
           active: _awaitingShipMenuTap,
           child: Icon(
@@ -5165,6 +5224,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// manual it is a trigger held with a raw Listener — a tap recogniser
   /// gives up the moment the thumb drifts, and a firing thumb drifts.
   Widget _weaponTrigger({
+    Key? key,
     required bool auto,
     required bool firing,
     required void Function(bool firing) setFiring,
@@ -5172,6 +5232,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   }) {
     if (auto) {
       return GestureDetector(
+        key: key,
         // Opaque, or only the glyph inside the plate answers a tap — the
         // border and padding are not hit-testable on their own.
         behavior: HitTestBehavior.opaque,
@@ -5180,6 +5241,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       );
     }
     return Listener(
+      key: key,
       behavior: HitTestBehavior.opaque,
       onPointerDown: (_) => setFiring(true),
       onPointerUp: (_) => setFiring(false),
@@ -5236,19 +5298,22 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   Widget _buildCompanionTetherButton() {
-    return _buildRightHudButton(
-      icon: _companionTethered ? AppIcons.link : AppIcons.link_off,
-      semanticLabel: _companionTethered
-          ? 'Companion tether linked; companions follow the ship'
-          : 'Companion tether unlinked; companions hold position',
-      accent: const Color(0xFF42A5F5),
-      active: _companionTethered,
-      onTap: () {
-        setState(() => _companionTethered = !_companionTethered);
-        _game?.companionTethered = _companionTethered;
-        _onMemoryTetherToggled();
-        HapticFeedback.selectionClick();
-      },
+    return KeyedSubtree(
+      key: _coachTetherKey,
+      child: _buildRightHudButton(
+        icon: _companionTethered ? AppIcons.link : AppIcons.link_off,
+        semanticLabel: _companionTethered
+            ? 'Companion tether linked; companions follow the ship'
+            : 'Companion tether unlinked; companions hold position',
+        accent: const Color(0xFF42A5F5),
+        active: _companionTethered,
+        onTap: () {
+          setState(() => _companionTethered = !_companionTethered);
+          _game?.companionTethered = _companionTethered;
+          _onMemoryTetherToggled();
+          HapticFeedback.selectionClick();
+        },
+      ),
     );
   }
 
@@ -5419,38 +5484,41 @@ class _CosmicScreenState extends State<CosmicScreen>
                         Positioned(
                           bottom: -2,
                           left: -2,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 2,
+                          child: CustomPaint(
+                            foregroundPainter: BracketFramePainter(
+                              color: isActive
+                                  ? const Color(
+                                      0xFFE53935,
+                                    ).withValues(alpha: 0.85)
+                                  : const Color(
+                                      0xFF00E676,
+                                    ).withValues(alpha: 0.8),
+                              bracketSize: 4,
+                              strokeWidth: 1,
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.82),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: isActive
-                                    ? const Color(
-                                        0xFFE53935,
-                                      ).withValues(alpha: 0.8)
-                                    : const Color(
-                                        0xFF00E676,
-                                      ).withValues(alpha: 0.75),
-                                width: 1,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
                               ),
-                            ),
-                            child: Text(
-                              // Infinity means a Mystic's world is out and the
-                              // cast is spent until it is recalled. `.ceil()`
-                              // throws on it, and a throw here paints a grey
-                              // error box over the HUD.
-                              specialCooldown.isFinite
-                                  ? specialCooldown.ceil().toString()
-                                  : '∞',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                height: 1,
+                              color: _cosmicMeterPalette.bg0.withValues(
+                                alpha: 0.9,
+                              ),
+                              child: Text(
+                                // Infinity means a Mystic's world is out and
+                                // the cast is spent until it is recalled.
+                                // `.ceil()` throws on it, and a throw here
+                                // paints a grey error box over the HUD.
+                                specialCooldown.isFinite
+                                    ? specialCooldown.ceil().toString()
+                                    : '∞',
+                                style: TextStyle(
+                                  fontFamily: panelMono,
+                                  color: _cosmicMeterPalette.ink,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1,
+                                ),
                               ),
                             ),
                           ),
@@ -7509,7 +7577,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         _game?.resumeEngine();
         setState(() => _showMiniMap = false);
         if (_survivalMapTapped && !_survivalGuidanceActive) {
-          unawaited(_runPostMapSurvivalGuidancePrompt());
+          _runPostMapSurvivalGuidancePrompt();
         }
       });
     }
@@ -7522,7 +7590,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       _game?.resumeEngine();
       setState(() => _showMiniMap = false);
       if (_survivalMapTapped && !_survivalGuidanceActive) {
-        unawaited(_runPostMapSurvivalGuidancePrompt());
+        _runPostMapSurvivalGuidancePrompt();
       }
     });
   }
@@ -7709,6 +7777,11 @@ class _CosmicScreenState extends State<CosmicScreen>
         .clamp(0.0, 400.0)
         .toDouble();
     final isMemoryTutorial = widget.memoryTutorial;
+    // The edge of each planet's pull shows while the console (where a home
+    // is built or moved) is open, and fades after (CosmicGame).
+    if (_game != null && _game!.homePlacementPreview != _showShipMenu) {
+      _game!.homePlacementPreview = _showShipMenu;
+    }
     final showCosmicHud =
         !isMemoryTutorial && !_wildTearActive && !_showBloodRitualOverlay;
     final showJoystickControl = isMemoryTutorial || _showJoystick;
@@ -7811,32 +7884,17 @@ class _CosmicScreenState extends State<CosmicScreen>
                             child: Transform.scale(scale: scale, child: child),
                           );
                         },
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: _awaitingSurvivalMapTap
-                                  ? const Color(0xFF8B5CF6)
-                                  : _showPinnedMiniMap
-                                  ? const Color(0xFFFFB300)
-                                  : Colors.white24,
-                              width: _awaitingSurvivalMapTap
-                                  ? 2
-                                  : _showPinnedMiniMap
-                                  ? 1.5
-                                  : 1,
-                            ),
-                          ),
+                        child: _CosmicSquareHudButton(
+                          key: _coachMapKey,
+                          accent: _awaitingSurvivalMapTap
+                              ? _signalColor
+                              : const Color(0xFFFFB300),
+                          active: _awaitingSurvivalMapTap,
                           child: Icon(
                             AppIcons.map_rounded,
                             color: _awaitingSurvivalMapTap
-                                ? const Color(0xFFB39DDB)
-                                : _showPinnedMiniMap
-                                ? const Color(0xFFFFB300)
-                                : Colors.white60,
+                                ? _signalColor
+                                : _cosmicMeterPalette.muted,
                             size: 20,
                           ),
                         ),
@@ -7857,6 +7915,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   left: 12,
                   child: SafeArea(
                     child: CosmicMiniMapCircle(
+                      key: _coachMapKey,
                       world: _world,
                       game: _game!,
                       onTap: context.soundTap(_toggleMiniMap),
@@ -8468,17 +8527,30 @@ class _CosmicScreenState extends State<CosmicScreen>
                   child: FadeTransition(
                     opacity: _quoteFade,
                     child: IgnorePointer(
-                      child: Text(
-                        _activeQuote!,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 18,
-                          fontStyle: FontStyle.italic,
-                          height: 1.5,
-                          shadows: [
-                            Shadow(blurRadius: 12, color: Colors.black87),
-                          ],
+                      // A soft dark pool behind the line, so it reads over
+                      // bright space without a blurred text shadow.
+                      child: DecoratedBox(
+                        decoration: const BoxDecoration(
+                          gradient: RadialGradient(
+                            radius: 1.6,
+                            colors: [Color(0xB3020010), Color(0x00020010)],
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 22,
+                            vertical: 12,
+                          ),
+                          child: Text(
+                            _activeQuote!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Color(0xE6FFFFFF),
+                              fontSize: 18,
+                              fontStyle: FontStyle.italic,
+                              height: 1.5,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -8486,40 +8558,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               if (widget.memoryTutorial && _memoryTutorialPrompt != null)
-                Positioned(
-                  left: 18,
-                  right: 18,
-                  top: 18 + MediaQuery.of(context).padding.top,
-                  child: IgnorePointer(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 13,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.86),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: const Color(0xFF9FA8DA).withValues(alpha: 0.7),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.55),
-                            blurRadius: 18,
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        _memoryTutorialPrompt!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
+                Positioned.fill(
+                  child: CosmicCoachMark(
+                    text: _memoryTutorialPrompt!,
+                    target: _memoryCoachTarget,
+                    accent: _memoryCoachAccent,
                   ),
                 ),
 
@@ -9062,17 +9105,18 @@ class _CosmicScreenState extends State<CosmicScreen>
                                   _customizationState.hasMissiles)
                                 const SizedBox(height: 10),
                               _weaponTrigger(
+                                key: _coachGunKey,
                                 auto: _autoFireGun,
                                 firing: _isShooting,
                                 setFiring: _setGunFiring,
                                 child: _buildWeaponHudButton(
                                   accent: const Color(0xFF00E5FF),
-                                  active:
-                                      _isShooting || _memoryAwaitingGunToggle,
+                                  // Lit only when it is firing: the coach
+                                  // mark frames it while the memory waits.
+                                  active: _isShooting,
                                   child: Icon(
                                     AppIcons.flash_on_rounded,
-                                    color:
-                                        _isShooting || _memoryAwaitingGunToggle
+                                    color: _isShooting
                                         ? const Color(0xFF00E5FF)
                                         : Colors.white54,
                                     size: 25,
@@ -9091,46 +9135,12 @@ class _CosmicScreenState extends State<CosmicScreen>
                   _awaitingShipMenuTap &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
-                Positioned(
-                  left: 78,
-                  bottom: showJoystickControl
-                      ? (largeJoystickControl ? 258.0 : 210.0)
-                      : 40,
-                  child: IgnorePointer(
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 260),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.9),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: const Color(
-                            0xFF00E5FF,
-                          ).withValues(alpha: 0.65),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFF00E5FF,
-                            ).withValues(alpha: 0.22),
-                            blurRadius: 18,
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        'Tap the ship icon to open your ship console and build your home base.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
+                Positioned.fill(
+                  child: CosmicCoachMark(
+                    text:
+                        'Tap the ship to open its console and build your '
+                        'home.',
+                    target: _coachShipKey,
                   ),
                 ),
 
@@ -9138,44 +9148,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                   _awaitingSurvivalMapTap &&
                   !_showMiniMap &&
                   !_anyOverlayOpen)
-                Positioned(
-                  left: 72,
-                  top: mapColumnTop + 8,
-                  child: IgnorePointer(
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 250),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.9),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: const Color(
-                            0xFF8B5CF6,
-                          ).withValues(alpha: 0.75),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFF8B5CF6,
-                            ).withValues(alpha: 0.25),
-                            blurRadius: 18,
-                          ),
-                        ],
-                      ),
-                      child: const Text(
-                        'Open the mini map and locate the blinking signal.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
+                Positioned.fill(
+                  child: CosmicCoachMark(
+                    text: 'Open the map to find the signal.',
+                    target: _coachMapKey,
+                    accent: _signalColor,
                   ),
                 ),
 
@@ -9276,7 +9253,13 @@ class _CosmicScreenState extends State<CosmicScreen>
                                 );
                               },
                             ),
-                            _buildPartySlotButton(i),
+                            if (i == 0)
+                              KeyedSubtree(
+                                key: _coachSlotKey,
+                                child: _buildPartySlotButton(i),
+                              )
+                            else
+                              _buildPartySlotButton(i),
                             if (i < _cosmicPartySlotsUnlocked - 1)
                               const SizedBox(height: 8),
                           ],
@@ -9290,6 +9273,21 @@ class _CosmicScreenState extends State<CosmicScreen>
               if (showCosmicHud && _showShipMenu)
                 ShipMenuOverlay(
                   hasHomePlanet: _homePlanet != null,
+                  pullPlanet: _game?.homeCaptureAt(_game!.ship.pos),
+                  tooClosePlanet: _game?.homePlacementBlockerAt(
+                    _game!.ship.pos,
+                  ),
+                  onFlyElsewhere: () {
+                    setState(() {
+                      _showShipMenu = false;
+                      if (_awaitingBuildHomeTap && _homePlanet == null) {
+                        // Back to the start of the step: the coach mark
+                        // returns to the ship button for when they are ready.
+                        _awaitingBuildHomeTap = false;
+                        _awaitingShipMenuTap = true;
+                      }
+                    });
+                  },
                   shipSkin: _customizationState.activeShipSkin,
                   ammoName: _customizationState.activeAmmo?.name,
                   elementStorage: _elementStorage,
@@ -10343,6 +10341,10 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
   }
 }
 
+/// The survival signal's colour: its map blip, its edge arrow, the coach
+/// mark on the map button.
+const _signalColor = Color(0xFFB794F6);
+
 class _SurvivalSignalEdgeArrowPainter extends CustomPainter {
   _SurvivalSignalEdgeArrowPainter({
     required this.game,
@@ -10355,6 +10357,8 @@ class _SurvivalSignalEdgeArrowPainter extends CustomPainter {
   final Offset targetPos;
   final Animation<double> progress;
   final EdgeInsets viewPadding;
+
+  static final Paint _grainPaint = Paint();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -10394,7 +10398,6 @@ class _SurvivalSignalEdgeArrowPainter extends CustomPainter {
     final angle = atan2(dir.dy, dir.dx);
     final shove = 3.5 + flash * 4.5;
     final scale = 0.92 + flash * 0.16;
-    const signalColor = Color(0xFFB794F6);
 
     canvas.save();
     canvas.translate(anchor.dx, anchor.dy);
@@ -10402,32 +10405,63 @@ class _SurvivalSignalEdgeArrowPainter extends CustomPainter {
     canvas.translate(shove, 0);
     canvas.scale(scale, scale);
 
-    // At sigma 18 the arrow's blurred glow was a soft blob round it anyway;
-    // one gradient draws that without a blur pass.
+    // A pool of the signal's light under the head.
     paintSoftCircle(
       canvas,
-      const Offset(6, 0),
-      22,
-      signalColor.withValues(alpha: 0.28 + flash * 0.18),
+      const Offset(10, 0),
       18,
+      _signalColor.withValues(alpha: 0.22 + flash * 0.16),
+      16,
     );
 
-    final arrowPath = Path()
-      ..moveTo(32, 0)
-      ..lineTo(-18, 25)
-      ..lineTo(-7, 0)
-      ..lineTo(-18, -25)
+    // Grains streaming toward the head, the way the signal pulls.
+    final p = progress.value;
+    for (var i = 0; i < 6; i++) {
+      final u = (p * 2 + i / 6) % 1.0;
+      final x = -46 + u * 50;
+      final y = sin((i * 2.1) + u * 5) * (1 - u) * 7;
+      _grainPaint.color = _signalColor.withValues(
+        alpha: (u * (1 - u) * 4 * 0.75).clamp(0.0, 1.0),
+      );
+      canvas.drawCircle(Offset(x, y), 1.1 + u * 1.4, _grainPaint);
+    }
+
+    // The head: a filled, tapered blade with no outline, dark at the
+    // tail and lit toward the point.
+    final blade = Path()
+      ..moveTo(30, 0)
+      ..quadraticBezierTo(4, 5, -14, 15)
+      ..quadraticBezierTo(-6, 4, -8, 0)
+      ..quadraticBezierTo(-6, -4, -14, -15)
+      ..quadraticBezierTo(4, -5, 30, 0)
       ..close();
     canvas.drawPath(
-      arrowPath,
-      Paint()..color = signalColor.withValues(alpha: alpha),
-    );
-    canvas.drawPath(
-      arrowPath,
+      blade,
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..color = Colors.white.withValues(alpha: 0.38 + flash * 0.24),
+        ..shader = ui.Gradient.linear(
+          const Offset(-14, 0),
+          const Offset(30, 0),
+          [
+            _signalColor.withValues(alpha: 0.18 * alpha),
+            _signalColor.withValues(alpha: 0.75 * alpha),
+            Color.lerp(
+              _signalColor,
+              Colors.white,
+              0.55,
+            )!.withValues(alpha: alpha),
+          ],
+          const [0, 0.6, 1],
+        ),
+    );
+    // A sliver of light down its spine.
+    final spine = Path()
+      ..moveTo(27, 0)
+      ..quadraticBezierTo(6, 3, -6, 0)
+      ..quadraticBezierTo(6, -3, 27, 0)
+      ..close();
+    canvas.drawPath(
+      spine,
+      Paint()..color = Colors.white.withValues(alpha: 0.16 + flash * 0.2),
     );
 
     canvas.restore();
@@ -10974,6 +11008,7 @@ class _SettingsToggleRow extends StatelessWidget {
 
 class _CosmicSquareHudButton extends StatelessWidget {
   const _CosmicSquareHudButton({
+    super.key,
     required this.accent,
     required this.child,
     this.active = false,

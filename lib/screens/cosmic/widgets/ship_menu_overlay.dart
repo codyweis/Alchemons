@@ -74,6 +74,9 @@ class ShipMenuOverlay extends StatefulWidget {
     this.shipSkin,
     this.ammoName,
     this.elementStorage,
+    this.pullPlanet,
+    this.tooClosePlanet,
+    this.onFlyElsewhere,
   });
 
   final bool hasHomePlanet;
@@ -126,6 +129,17 @@ class ShipMenuOverlay extends StatefulWidget {
 
   /// What the base holds, so a supply's price shows what it can cover.
   final ElementStorage? elementStorage;
+
+  /// The planet whose pull the ship is in, if any: a home built or moved
+  /// here would orbit it. Said beside the build / move action.
+  final CosmicPlanet? pullPlanet;
+
+  /// The planet the ship is too close to for a home to go here, if any.
+  final CosmicPlanet? tooClosePlanet;
+
+  /// Closes the console so the player can fly somewhere else first. Shown
+  /// beside the placement note.
+  final VoidCallback? onFlyElsewhere;
 
   @override
   State<ShipMenuOverlay> createState() => ShipMenuOverlayState();
@@ -491,6 +505,34 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
     );
   }
 
+  /// The line about where the ship is, when a home placed here would orbit
+  /// a planet or could not go at all.
+  Widget? _placementNote({required bool building}) {
+    final blocked = widget.tooClosePlanet;
+    final pull = widget.pullPlanet;
+    final verb = building ? 'build' : 'move';
+    if (blocked != null) {
+      return PlacementNote(
+        key: const ValueKey('ship.placementNote'),
+        planet: blocked,
+        text:
+            'Too close to ${planetName(blocked.element)}. Fly further out to '
+            '$verb your home.',
+        onFlyElsewhere: widget.onFlyElsewhere,
+      );
+    }
+    if (pull == null) return null;
+    final name = planetName(pull.element);
+    return PlacementNote(
+      key: const ValueKey('ship.placementNote'),
+      planet: pull,
+      text: building
+          ? "You're inside $name's pull. Your home will orbit it."
+          : "You're inside $name's pull. Moved here, your home will orbit it.",
+      onFlyElsewhere: widget.onFlyElsewhere,
+    );
+  }
+
   /// What there is to do, docked at the foot. Until there is a home, the
   /// console is for building one; after that it opens on the party.
   Widget _dock() {
@@ -515,6 +557,8 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
           ),
         );
       }
+      final note = _placementNote(building: true);
+      if (note != null) children.add(note);
       children.add(
         BracketButton(
           key: const ValueKey('ship.buildHome'),
@@ -570,6 +614,11 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
         ),
     ];
 
+    if (widget.hasHomePlanet) {
+      final note = _placementNote(building: false);
+      if (note != null) children.add(note);
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: BoxDecoration(
@@ -593,6 +642,75 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
           ] else
             PanelRow(children: secondaries),
         ],
+      ),
+    );
+  }
+}
+
+/// What placing a home here would do, when it would do something to note:
+/// orbit a planet whose pull the ship is in, or not go at all. A line in
+/// the planet's colour inside a bracket frame, with a quiet way out.
+class PlacementNote extends StatelessWidget {
+  const PlacementNote({
+    super.key,
+    required this.planet,
+    required this.text,
+    this.onFlyElsewhere,
+  });
+
+  final CosmicPlanet planet;
+  final String text;
+  final VoidCallback? onFlyElsewhere;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = elementInk(planet.element);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: accent.withValues(alpha: 0.7),
+          bracketSize: 6,
+          strokeWidth: 1.1,
+        ),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+          color: accent.withValues(alpha: 0.08),
+          child: Row(
+            children: [
+              PanelDot(accent),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontFamily: panelMono,
+                    color: panelPalette.ink,
+                    fontSize: 11.5,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (onFlyElsewhere != null)
+                GestureDetector(
+                  key: const ValueKey('ship.flyElsewhere'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: context.soundAction(onFlyElsewhere!),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    child: Text(
+                      'FLY ELSEWHERE',
+                      style: panelLabel(10, panelPalette.muted, spacing: 1),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -35,6 +35,7 @@ import 'cosmic_cache_data.dart';
 import 'cosmic_cache_vfx.dart';
 import 'portal_tear_paint.dart';
 import 'planets/planet_art.dart';
+import 'gravity_ring_art.dart';
 import 'ship_art.dart';
 import 'station_art.dart';
 import 'contest_art.dart';
@@ -4216,6 +4217,16 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
+    // ── the edge of each pull, shown while a home is being placed ──
+    {
+      final want = homePlanet == null || _homePlacementPreview ? 1.0 : 0.0;
+      // In quickly; out over a few seconds, so it is still there to see
+      // when the console closes.
+      _captureBandFade = want > _captureBandFade
+          ? min(want, _captureBandFade + dt * 1.6)
+          : max(want, _captureBandFade - dt * 0.25);
+    }
+
     // ── orbital gravity between home planet and nearby cosmic planet ──
     if (homePlanet != null && _orbitalPartner != null) {
       _orbitAngle += _orbitSpeed * dt;
@@ -5049,6 +5060,9 @@ class CosmicGame extends FlameGame with PanDetector {
     // ── planet territories: a faint wash of each element ──
     _renderTerritories(canvas, cx, cy, screenW, screenH);
 
+    // ── gravity rings ──
+    _renderGravityRings(canvas, cx, cy, screenW, screenH);
+
     // ── planets ──
     for (final pc in planetComps) {
       final planet = pc.planet;
@@ -5712,25 +5726,6 @@ class CosmicGame extends FlameGame with PanDetector {
           canvas,
           Offset(hpPos.dx - homeLabel.width / 2, hpPos.dy + vr + 12),
         );
-
-        // ── Orbital path ring ──
-        if (_orbitalPartner != null) {
-          final center = _homeOrbitsPartner
-              ? _wrappedRenderPos(
-                  _orbitalPartner!.position,
-                  cx,
-                  cy,
-                  screenW,
-                  screenH,
-                )
-              : hpPos;
-          // Dashed orbital ring
-          final orbitPaint = Paint()
-            ..color = const Color(0xFF00E5FF).withValues(alpha: 0.15)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5;
-          canvas.drawCircle(center, _orbitRadius, orbitPaint);
-        }
       }
     }
 
@@ -6825,6 +6820,25 @@ class CosmicGame extends FlameGame with PanDetector {
   // ── fog ────────────────────────────────────────────────
 
   CosmicPlanet? _orbitalPartner;
+
+  /// Draws every planet's pull as a ring of grains (gravity_ring_art.dart).
+  final GrainRingPainter _gravityRings = GrainRingPainter();
+
+  /// Set by the screen while the ship console is open, where a home is
+  /// built or moved: the edge of each planet's pull is shown, so it can be
+  /// seen whether a home placed here would orbit. It comes on at once (the
+  /// world is held still under the console) and fades slowly once the
+  /// console closes. Before there is a home at all it shows anyway.
+  bool get homePlacementPreview => _homePlacementPreview;
+  set homePlacementPreview(bool v) {
+    _homePlacementPreview = v;
+    if (v) _captureBandFade = 1;
+  }
+
+  bool _homePlacementPreview = false;
+
+  /// 0..1, easing toward whether the pull's edge is shown.
+  double _captureBandFade = 0;
   bool _homeOrbitsPartner =
       false; // true → home orbits partner; false → partner orbits home
   double _orbitAngle = 0;

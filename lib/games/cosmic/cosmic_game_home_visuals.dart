@@ -10,6 +10,12 @@ part of 'cosmic_game.dart';
 extension CosmicGameHomeAndVisuals on CosmicGame {
   // ── Orbital setup ──────────────────────────────────────────────────────────
 
+  /// Ties the home at [homePos] to the planet whose pull holds it, if one
+  /// does. Nothing moves when the tie is made: the orbit is taken at the
+  /// distance and the angle the two already stand at, so a home placed
+  /// inside a pull begins exactly where it was placed and drifts from there.
+  /// The home's saved position is a point on that orbit, so a restore takes
+  /// up the same radius again.
   void _setupOrbitalRelationship(Offset homePos) {
     final partner = _nearestPlanetForOrbit(homePos);
     if (partner == null) {
@@ -18,24 +24,138 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     }
     _orbitalPartner = partner;
     final homeVr = homePlanet!.visualRadius;
+    // From the planet to the home, across the world's seam if need be.
+    final d = _toroidalDelta(homePos, partner.position);
+    _orbitRadius = d.distance;
     if (homeVr >= partner.radius) {
+      // The home is the heavier: the planet goes round it, from where the
+      // planet stands (the angle seen from the home, not from the planet).
       _homeOrbitsPartner = false;
-      _orbitRadius = homeVr * 3.0 + partner.radius;
+      _orbitAngle = atan2(-d.dy, -d.dx);
       _orbitSpeed = 0.02;
     } else {
       _homeOrbitsPartner = true;
-      _orbitRadius = partner.particleFieldRadius + homeVr;
+      _orbitAngle = atan2(d.dy, d.dx);
       _orbitSpeed = 0.015;
     }
-    final ww = world_.worldSize.width;
-    final wh = world_.worldSize.height;
-    var pdx = homePos.dx - partner.position.dx;
-    var pdy = homePos.dy - partner.position.dy;
-    if (pdx > ww / 2) pdx -= ww;
-    if (pdx < -ww / 2) pdx += ww;
-    if (pdy > wh / 2) pdy -= wh;
-    if (pdy < -wh / 2) pdy += wh;
-    _orbitAngle = atan2(pdy, pdx);
+  }
+
+  /// The planet whose pull would hold a home placed at [pos] — it would
+  /// orbit that planet — or null when nothing would, or when the spot is
+  /// too close to build on at all (see [homePlacementBlockerAt]).
+  CosmicPlanet? homeCaptureAt(Offset pos) {
+    if (_planetBlockingPlacement(pos) != null) return null;
+    return _nearestPlanetForOrbit(pos);
+  }
+
+  /// The planet a home placed at [pos] would sit too close to, or null.
+  CosmicPlanet? homePlacementBlockerAt(Offset pos) =>
+      _planetBlockingPlacement(pos);
+
+  /// The planet the home is tied to by its pull, or null.
+  CosmicPlanet? get homeOrbitPartner => _orbitalPartner;
+
+  /// Whether the home goes round [homeOrbitPartner] (true) or the planet
+  /// goes round the home (false).
+  bool get homeOrbitsPartner => _homeOrbitsPartner;
+
+  /// The radius of the orbit tying home and partner, world units.
+  double get homeOrbitRadius => _orbitRadius;
+
+  // ── Gravity rings ──────────────────────────────────────────────────────
+
+  /// Each planet's pull as a ring of drifting grains at the edge of its
+  /// field; while a home is being placed, the edge of the band that would
+  /// capture it too; and the wake of whatever is orbiting, home or planet.
+  /// Only the arcs in view are visited (gravity_ring_art.dart).
+  void _renderGravityRings(
+    Canvas canvas,
+    double cx,
+    double cy,
+    double screenW,
+    double screenH,
+  ) {
+    final view = Rect.fromLTWH(cx, cy, screenW, screenH);
+    final band = Curves.easeInOut.transform(_captureBandFade.clamp(0.0, 1.0));
+    // Pulled back, the grains would shrink below a pixel: keep them about
+    // the size they are at the middle zoom.
+    final grain = (0.72 / cameraZoom).clamp(1.0, 1.5);
+    var seed = 0;
+    for (final p in world_.planets) {
+      seed++;
+      final c = _wrappedRenderPos(p.position, cx, cy, screenW, screenH);
+      final r = p.particleFieldRadius;
+      _gravityRings.paint(
+        canvas,
+        centre: c,
+        radius: r,
+        view: view,
+        color: p.color,
+        t: _elapsed,
+        style: GrainRingStyle.pull,
+        seed: seed,
+        sizeScale: grain,
+      );
+      if (band > 0.01) {
+        // The pull reaches half as far again: loose matter through the
+        // band and a thinner ring at its edge.
+        _gravityRings.paint(
+          canvas,
+          centre: c,
+          radius: r * 1.25,
+          view: view,
+          color: p.color,
+          t: _elapsed,
+          style: GrainRingStyle.captureWash,
+          seed: seed + 50,
+          sizeScale: grain,
+          spread: r * 0.25,
+          alpha: band,
+        );
+        _gravityRings.paint(
+          canvas,
+          centre: c,
+          radius: r * 1.5,
+          view: view,
+          color: p.color,
+          t: _elapsed,
+          style: GrainRingStyle.captureEdge,
+          seed: seed + 100,
+          sizeScale: grain,
+          alpha: band,
+        );
+      }
+    }
+
+    // The orbit, as the matter the orbiting body leaves behind it.
+    final partner = _orbitalPartner;
+    final home = homePlanet;
+    if (partner != null && home != null && _orbitRadius > 0) {
+      final centre = _wrappedRenderPos(
+        _homeOrbitsPartner ? partner.position : home.position,
+        cx,
+        cy,
+        screenW,
+        screenH,
+      );
+      final bodyR = _homeOrbitsPartner ? home.visualRadius : partner.radius;
+      _gravityRings.paint(
+        canvas,
+        centre: centre,
+        radius: _orbitRadius,
+        view: view,
+        // The home's own light, cooled toward the HOME beacon's teal.
+        color: _homeOrbitsPartner
+            ? Color.lerp(home.blendedColor, const Color(0xFF00E5FF), 0.45)!
+            : partner.color,
+        t: _elapsed,
+        style: GrainRingStyle.trail,
+        seed: 977,
+        sizeScale: grain,
+        trailHead: _orbitAngle - bodyR * 0.6 / _orbitRadius,
+        trailSpan: (1500 / _orbitRadius).clamp(0.1, 0.9),
+      );
+    }
   }
 
   // ── Home planet build / move / restore ────────────────────────────────────
