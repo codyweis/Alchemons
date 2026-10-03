@@ -1,8 +1,10 @@
 // lib/widgets/wilderness/tutorial_highlight.dart
+import 'dart:math' as math;
+
 import 'package:flame/components.dart';
-import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 
 /// Wraps a widget with a pulsing highlight effect for tutorials
 /// The amber the rest of the game's chrome is drawn in.
@@ -103,7 +105,7 @@ class _TutorialHighlightState extends State<TutorialHighlight>
                     color: const Color(0xFF0C0F14).withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
-                      color: _kLabelAccent.withValues(alpha: 0.75),
+                      color: _kLabelAccent.withValues(alpha: 0.35),
                     ),
                   ),
                   child: Row(
@@ -119,9 +121,9 @@ class _TutorialHighlightState extends State<TutorialHighlight>
                         widget.label!.toUpperCase(),
                         style: const TextStyle(
                           fontFamily: 'monospace',
-                          color: _kLabelAccent,
+                          color: Color(0xFFE8DCC8),
                           fontSize: 10.5,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                           letterSpacing: 1.1,
                         ),
                       ),
@@ -151,29 +153,24 @@ class _TutorialHighlightState extends State<TutorialHighlight>
                 // Isolated so the ring's per-frame repaint does not drag the
                 // highlighted panel's own painting along with it.
                 RepaintBoundary(child: child),
+                // Bracket corners round the thing, breathing in opacity:
+                // the game's pointer everywhere else (cosmic coach marks,
+                // the home Field halo). They were two amber outline rings,
+                // which read loud on a panel already full of light.
                 Positioned(
-                  left: -5,
-                  right: -5,
-                  top: -4,
-                  bottom: -4,
+                  left: -7,
+                  right: -7,
+                  top: -6,
+                  bottom: -6,
                   child: IgnorePointer(
-                    child: _Rule(
-                      radius: 12,
-                      width: 1.3,
-                      alpha: 0.34 + 0.30 * _breathe.value,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: -10,
-                  right: -10,
-                  top: -9,
-                  bottom: -9,
-                  child: IgnorePointer(
-                    child: _Rule(
-                      radius: 16,
-                      width: 1,
-                      alpha: 0.07 + 0.13 * _breathe.value,
+                    child: CustomPaint(
+                      painter: BracketFramePainter(
+                        color: _kLabelAccent.withValues(
+                          alpha: 0.35 + 0.4 * _breathe.value,
+                        ),
+                        bracketSize: 10,
+                        strokeWidth: 1.4,
+                      ),
                     ),
                   ),
                 ),
@@ -187,98 +184,45 @@ class _TutorialHighlightState extends State<TutorialHighlight>
   }
 }
 
-/// One hairline amber rule of the highlight ring.
-class _Rule extends StatelessWidget {
-  final double radius;
-  final double width;
-  final double alpha;
-
-  const _Rule({required this.radius, required this.width, required this.alpha});
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(
-          color: _kLabelAccent.withValues(alpha: alpha),
-          width: width,
-        ),
-      ),
-    );
-  }
-}
-
-/// Adds a pulsing glow effect around a wild creature in tutorial mode
+/// The wilderness tutorial's pointer at a wild creature: a soft pool of warm
+/// light under it that slowly breathes. It used to be three amber hoops,
+/// scaling and spinning, which read as a target painted on the creature;
+/// "material, not lines" — a light, not a ring. Its owner removes it once
+/// the creature has been tapped.
 class TutorialCreatureHighlight extends PositionComponent {
   final double radius;
   final Color glowColor;
 
   TutorialCreatureHighlight({
     required this.radius,
-    this.glowColor = Colors.amber,
+    this.glowColor = _kLabelAccent,
     Vector2? position,
   }) : super(position: position ?? Vector2.zero(), anchor: Anchor.center);
 
+  double _t = 0;
+  final Paint _paint = Paint();
+
   @override
-  Future<void> onLoad() async {
-    // Outer glow ring
-    final outerRing = CircleComponent(
-      radius: radius * 1.3,
-      paint: Paint()
-        ..color = glowColor.withValues(alpha: 0.3)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4,
-      anchor: Anchor.center,
-      position: size / 2,
-    );
+  void update(double dt) {
+    super.update(dt);
+    _t += dt;
+  }
 
-    // Middle glow ring
-    final middleRing = CircleComponent(
-      radius: radius * 1.15,
-      paint: Paint()
-        ..color = glowColor.withValues(alpha: 0.5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3,
-      anchor: Anchor.center,
-      position: size / 2,
-    );
-
-    // Inner glow ring
-    final innerRing = CircleComponent(
-      radius: radius,
-      paint: Paint()
-        ..color = glowColor.withValues(alpha: 0.7)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-      anchor: Anchor.center,
-      position: size / 2,
-    );
-
-    add(outerRing);
-    add(middleRing);
-    add(innerRing);
-
-    // Pulsing scale animation
-    add(
-      ScaleEffect.to(
-        Vector2.all(1.15),
-        EffectController(
-          duration: 1.2,
-          reverseDuration: 1.2,
-          infinite: true,
-          curve: Curves.easeInOut,
-          alternate: true,
-        ),
-      ),
-    );
-
-    // Rotating effect for outer ring
-    outerRing.add(
-      RotateEffect.by(
-        3.14159 * 2, // Full rotation
-        EffectController(duration: 3.0, infinite: true),
-      ),
-    );
+  @override
+  void render(Canvas canvas) {
+    // 0..1, a slow breath (about four seconds a cycle).
+    final b = 0.5 + 0.5 * math.sin(_t * 1.6);
+    final r = radius * (1.25 + 0.06 * b);
+    // Centred a little low: light pooling where the creature stands.
+    final c = Offset(0, radius * 0.18);
+    _paint.shader = RadialGradient(
+      colors: [
+        glowColor.withValues(alpha: 0.16 + 0.08 * b),
+        glowColor.withValues(alpha: 0.06 + 0.03 * b),
+        glowColor.withValues(alpha: 0),
+      ],
+      stops: const [0.0, 0.55, 1.0],
+    ).createShader(Rect.fromCircle(center: c, radius: r));
+    canvas.drawCircle(c, r, _paint);
   }
 }

@@ -288,22 +288,25 @@ class _AppGateState extends State<AppGate> {
       return;
     }
 
-    // 1) Show story intro as full-screen route
-    final completed = await Navigator.of(context).push<bool>(
-      CupertinoPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => const StoryIntroScreen(),
+    // 1) The story intro, faded in over the splash. Its last page gathers
+    //    into a knot of grains and opens the faction picker on it, so the
+    //    choice is made inside this one route.
+    await Navigator.of(context).push<bool>(
+      PageRouteBuilder<bool>(
+        opaque: true,
+        transitionDuration: const Duration(milliseconds: 450),
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, _, _) => const StoryIntroScreen(),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
+    if (!mounted) return;
 
-    if (!mounted || completed != true) {
-      // User bailed somehow; don't proceed to shell setup yet
-      return;
-    }
-
-    // 2) Immediately show faction picker (same as before, just moved up here)
-    // The picker saves the faction itself (FactionService.setId) before it
-    // closes; saving it again here only notified every listener twice.
+    // 2) The picker saves the faction itself (FactionService.setId). Only if
+    //    the intro was left without one does it open here on its own.
+    await factionSvc.loadId();
+    if (!mounted || factionSvc.current != null) return;
     await showDialog<FactionId>(
       context: context,
       barrierDismissible: false,

@@ -27,14 +27,28 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class FactionPickerDialog extends StatefulWidget {
-  const FactionPickerDialog({super.key});
+  const FactionPickerDialog({super.key, this.emergeFrom});
+
+  /// Opened from the opening's last page: the realm gathers out of the knot
+  /// of grains that page ended in, at this point on screen, and the rest of
+  /// the picker fades in once it has.
+  final Offset? emergeFrom;
 
   @override
   State<FactionPickerDialog> createState() => _FactionPickerDialogState();
 }
 
-class _FactionPickerDialogState extends State<FactionPickerDialog> {
+class _FactionPickerDialogState extends State<FactionPickerDialog>
+    with SingleTickerProviderStateMixin {
   late PageController _pageController;
+
+  /// The picker's words and buttons, faded in after the realm has formed
+  /// when it opens out of the opening (see [FactionPickerDialog.emergeFrom]).
+  late final AnimationController _chrome = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+    value: widget.emergeFrom == null ? 1 : 0,
+  );
 
   /// The realm behind every page: one field, so a swipe reforms the grains
   /// from one faction's ground into the next rather than cutting.
@@ -124,11 +138,23 @@ class _FactionPickerDialogState extends State<FactionPickerDialog> {
     super.initState();
     _pageController = PageController();
     _factions = _fromCatalog();
+    // Taps wait for the chrome: rebuild once it has faded in.
+    _chrome.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) setState(() {});
+    });
+    final knot = widget.emergeFrom;
+    if (knot != null) {
+      _realm.emergeFrom(knot);
+      Future<void>.delayed(const Duration(milliseconds: 1100), () {
+        if (mounted) _chrome.forward();
+      });
+    }
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _chrome.dispose();
     if (!_realmHandedOff) _realm.dispose();
     super.dispose();
   }
@@ -145,6 +171,9 @@ class _FactionPickerDialogState extends State<FactionPickerDialog> {
     final selected = _factions[_currentIndex];
     final svc = context.read<FactionService>();
     final db = context.read<AlchemonsDatabase>();
+    // Only the very first choice brings a starter vial to carry into a
+    // chamber; a faction change bought later just closes.
+    final firstChoice = svc.current == null;
 
     try {
       for (final biome in [
@@ -164,7 +193,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog> {
     }
 
     if (!mounted) return;
-    _handOffToChamber(selected);
+    if (firstChoice) _handOffToChamber(selected);
     Navigator.of(context).pop(selected.id);
   }
 
@@ -208,7 +237,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog> {
         // Nothing is worth tapping once the choice is made, and a second tap
         // on Confirm mid-flood would be a second commit.
         body: AbsorbPointer(
-          absorbing: _committing,
+          absorbing: _committing || _chrome.value < 1,
           // Any finger anywhere stirs the realm, a swipe between pages too.
           child: FactionRealmStir(
             field: _realm,
@@ -223,57 +252,63 @@ class _FactionPickerDialogState extends State<FactionPickerDialog> {
                   ),
                 ),
                 SafeArea(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 18),
-                      Text(
-                        'CHOOSE YOUR DIVISION',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: palette.muted,
-                          letterSpacing: 2.6,
+                  child: FadeTransition(
+                    opacity: CurvedAnimation(
+                      parent: _chrome,
+                      curve: Curves.easeOut,
+                    ),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 18),
+                        Text(
+                          'CHOOSE YOUR DIVISION',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: palette.muted,
+                            letterSpacing: 2.6,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      _OrbRow(
-                        factions: _factions,
-                        currentIndex: _currentIndex,
-                        palette: palette,
-                        orbKey: _chosenOrbKey,
-                        onTap: (index) => _pageController.animateToPage(
-                          index,
-                          duration: const Duration(milliseconds: 420),
-                          curve: Curves.easeInOutCubic,
+                        const SizedBox(height: 14),
+                        _OrbRow(
+                          factions: _factions,
+                          currentIndex: _currentIndex,
+                          palette: palette,
+                          orbKey: _chosenOrbKey,
+                          onTap: (index) => _pageController.animateToPage(
+                            index,
+                            duration: const Duration(milliseconds: 420),
+                            curve: Curves.easeInOutCubic,
+                          ),
                         ),
-                      ),
-                      Expanded(
-                        child: PageView.builder(
-                          controller: _pageController,
-                          onPageChanged: _onPageChanged,
-                          itemCount: _factions.length,
-                          itemBuilder: (context, index) => _FactionPage(
-                            data: _factions[index],
-                            palette: palette,
-                            accent: t.readableAccent(
-                              _factions[index].primaryColor,
+                        Expanded(
+                          child: PageView.builder(
+                            controller: _pageController,
+                            onPageChanged: _onPageChanged,
+                            itemCount: _factions.length,
+                            itemBuilder: (context, index) => _FactionPage(
+                              data: _factions[index],
+                              palette: palette,
+                              accent: t.readableAccent(
+                                _factions[index].primaryColor,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(28, 6, 28, 20),
-                        child: BracketButton(
-                          label: 'JOIN THE ${chosen.name} DIVISION',
-                          palette: palette,
-                          accent: accent,
-                          height: 50,
-                          enabled: !_committing,
-                          onTap: _selectFaction,
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(28, 6, 28, 20),
+                          child: BracketButton(
+                            label: 'JOIN THE ${chosen.name} DIVISION',
+                            palette: palette,
+                            accent: accent,
+                            height: 50,
+                            enabled: !_committing,
+                            onTap: _selectFaction,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],

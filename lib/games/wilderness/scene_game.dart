@@ -2139,16 +2139,15 @@ class WildMonComponent extends PositionComponent
 
       _addTapPulse();
 
-      // 🆕 ADD THIS BLOCK AFTER _addTapPulse():
-      // Add tutorial highlight if in tutorial mode
+      // The tutorial's "this one": a soft light under it, gone once it
+      // has been tapped (see _tapped).
       if (game.isTutorialMode) {
-        final highlight = TutorialCreatureHighlight(
-          radius: size.x * 0.5,
-          glowColor: Colors.amber,
-          position: size / 2,
+        add(
+          TutorialCreatureHighlight(
+            radius: size.x * 0.5,
+            position: size / 2,
+          )..priority = -1,
         );
-        add(highlight);
-        debugPrint('✨ Added tutorial highlight to wild creature');
       }
 
       return;
@@ -2269,14 +2268,23 @@ class WildMonComponent extends PositionComponent
     );
   }
 
+  /// Answers the tap, and lets go of the tutorial's light: once the
+  /// creature has been found it has nothing left to point at.
+  void _tapped() {
+    children.whereType<TutorialCreatureHighlight>().toList().forEach(
+      (h) => h.removeFromParent(),
+    );
+    onTap();
+  }
+
   @override
   void onTapDown(TapDownEvent event) {
-    if (!tapOnRelease) onTap();
+    if (!tapOnRelease) _tapped();
   }
 
   @override
   void onTapUp(TapUpEvent event) {
-    if (tapOnRelease) onTap();
+    if (tapOnRelease) _tapped();
   }
 }
 

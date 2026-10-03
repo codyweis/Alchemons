@@ -140,6 +140,48 @@ class FactionRealmField {
     _reformT = -1;
     _layoutWind();
     _movers.clear();
+    final pending = _pendingEmerge;
+    if (pending != null) {
+      _pendingEmerge = null;
+      emergeFrom(pending.$1, spread: pending.$2, colour: pending.$3);
+    }
+  }
+
+  (Offset, double, int)? _pendingEmerge;
+
+  /// The realm gathers itself out of a knot of grains at [at]: every grain
+  /// starts there, in [colour], and flies out to its place (the opening's
+  /// last page ends in that knot, and the faction picker opens on it).
+  /// Before the field has a size, it waits for [layout].
+  void emergeFrom(
+    Offset at, {
+    double spread = 40,
+    int colour = 0xFFE8DCC8,
+  }) {
+    if (_n == 0 || _size.isEmpty) {
+      _pendingEmerge = (at, spread, colour);
+      return;
+    }
+    final next = _compose(_faction, _n, _size, 11);
+    final r = math.Random(5);
+    _fx = Float32List(_n);
+    _fy = Float32List(_n);
+    _fs = Float32List(_n);
+    _fc = Int32List(_n)..fillRange(0, _n, colour);
+    for (var i = 0; i < _n; i++) {
+      // A soft knot: dense at the middle, thinning out.
+      final a = r.nextDouble() * math.pi * 2;
+      final d = spread * math.sqrt(r.nextDouble()) * r.nextDouble();
+      _fx[i] = at.dx + math.cos(a) * d;
+      _fy[i] = at.dy + math.sin(a) * d;
+      _fs[i] = _sz[i] * 0.7;
+    }
+    _targetOf = Int32List.fromList(List<int>.generate(_n, (i) => i));
+    _from = _faction;
+    _target = next;
+    _reformT = 0;
+    _fadeWindFrom = 0;
+    _dropPictures();
   }
 
   static int _grainsFor(Size s) =>

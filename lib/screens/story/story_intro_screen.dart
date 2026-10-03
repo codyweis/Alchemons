@@ -20,6 +20,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -94,6 +95,11 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
     _turning = false;
   }
 
+  /// Where the last page's grains gather, and where the faction picker's
+  /// realm bursts out of: the same point, so the two screens meet in it.
+  static Offset knotFor(Size size) =>
+      Offset(size.width / 2, size.height * 0.42);
+
   Future<void> _finish() async {
     if (_finishing) return;
     _finishing = true;
@@ -102,7 +108,22 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
     await _fade.reverse();
     // Long enough to watch the grains close in, short enough not to be a
     // wait.
-    await Future<void>.delayed(const Duration(milliseconds: 520));
+    await Future<void>.delayed(const Duration(milliseconds: 560));
+    if (!mounted) return;
+    final knot = knotFor(MediaQuery.sizeOf(context));
+    // The picker opens on the knot and the realm forms out of it. It comes
+    // back with the faction chosen (or nothing, if it was left some other
+    // way); either way the opening is over.
+    await Navigator.of(context).push<Object?>(
+      PageRouteBuilder<Object?>(
+        opaque: true,
+        transitionDuration: const Duration(milliseconds: 420),
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, _, _) => FactionPickerDialog(emergeFrom: knot),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
+      ),
+    );
     if (mounted) Navigator.of(context).pop(true);
   }
 
@@ -293,12 +314,14 @@ class _IntroDust {
 
   void gather() => _gathering = true;
 
+  Offset get _knot => _StoryIntroScreenState.knotFor(_size);
+
   void step(double dt) {
     if (_size.isEmpty) return;
     _t += dt;
     if (_gathering) _gather = math.min(1, _gather + dt / 0.7);
     final w = _size.width, h = _size.height;
-    final cx = w / 2, cy = h / 2;
+    final cx = _knot.dx, cy = _knot.dy;
     final damp = math.pow(0.08, dt).toDouble(); // velocity halves in ~0.27 s
     final pull = _gather * _gather * 9.0;
     for (var i = 0; i < _n; i++) {
