@@ -22,6 +22,7 @@ import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
 import 'package:alchemons/widgets/nursery/non_ready_hatch_widget.dart';
 import 'package:alchemons/widgets/nursery/storage_section_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/fx/starter_vial_handoff.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -50,6 +51,15 @@ class _NurseryTabState extends State<NurseryTab> {
 
   final Map<String, bool> _undiscoveredCache = {};
   final GlobalKey _storageSectionKey = GlobalKey();
+
+  /// The first chamber's cell: where the starter vial lands at the end of
+  /// the faction handoff (starter_vial_handoff.dart).
+  final GlobalKey _firstChamberKey = GlobalKey(debugLabel: 'first-chamber');
+
+  /// The opening's first extraction is still to do: a ready chamber gets one
+  /// line saying to tap it. Re-read whenever the chambers change.
+  bool _extractionPending = false;
+  String _pendingCheckedFor = '';
   final CinematicQualityService _qualityService = CinematicQualityService();
   bool _suspendNurseryAnimations = false;
   int _animationPauseHolds = 0;
@@ -66,6 +76,7 @@ class _NurseryTabState extends State<NurseryTab> {
   @override
   void initState() {
     super.initState();
+    StarterVialHandoff.instance.chamberKey = _firstChamberKey;
     _loadCinematicQuality();
     CinematicQualityService.qualityNotifier.addListener(
       _handleCinematicQualityChanged,
@@ -105,7 +116,26 @@ class _NurseryTabState extends State<NurseryTab> {
       _handleDebugToolsChanged,
     );
     _nextReadyTimer?.cancel();
+    if (StarterVialHandoff.instance.chamberKey == _firstChamberKey) {
+      StarterVialHandoff.instance.chamberKey = null;
+    }
     super.dispose();
+  }
+
+  void _refreshExtractionPending(List<IncubatorSlot> slots) {
+    final sig = slots.map((s) => '${s.id}:${s.eggId}').join(',');
+    if (sig == _pendingCheckedFor) return;
+    _pendingCheckedFor = sig;
+    context
+        .read<AlchemonsDatabase>()
+        .settingsDao
+        .getSetting('tutorial_extraction_pending')
+        .then((v) {
+          final pending = v == '1';
+          if (mounted && pending != _extractionPending) {
+            setState(() => _extractionPending = pending);
+          }
+        });
   }
 
   /// Cancels any pending timer and schedules a new one-shot timer that
@@ -249,6 +279,7 @@ class _NurseryTabState extends State<NurseryTab> {
         // the soonest egg becomes ready, instead of every second.
         _scheduleNextReadyTimer(slots);
         _preloadUndiscoveredStatus(slots);
+        _refreshExtractionPending(slots);
 
         final activeSlots =
             (slots
@@ -330,6 +361,22 @@ class _NurseryTabState extends State<NurseryTab> {
                     primaryColor: theme.text,
                     theme: theme,
                   ),
+                  if (_extractionPending && anyReady)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: Center(
+                        child: Text(
+                          'TAP THE VIAL TO EXTRACT',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.8,
+                            color: BracketPalette.of(context).muted,
+                          ),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 24),
                   KeyedSubtree(
                     key: _storageSectionKey,
@@ -477,66 +524,81 @@ class _NurseryTabState extends State<NurseryTab> {
       ),
       itemCount: totalCount,
       itemBuilder: (context, index) {
-        final chamber = chambers[index];
-        final occupied = chamber.eggId != null && chamber.hatchAtUtcMs != null;
-        if (occupied) {
-          final slot = chamber;
-          final remaining = _remainingFor(slot.hatchAtUtcMs!);
-          final ready = remaining.inSeconds <= 0;
-          final rarity = slot.rarity?.toLowerCase();
-          final hatchDelay = rarity != null
-              ? BreedConstants.rarityHatchTimes[rarity]
-              : null;
-
-          double? progress;
-          if (hatchDelay != null && hatchDelay.inMilliseconds > 0) {
-            final left = remaining.isNegative ? Duration.zero : remaining;
-            final done = (hatchDelay.inMilliseconds - left.inMilliseconds)
-                .clamp(0, hatchDelay.inMilliseconds);
-            progress = done / hatchDelay.inMilliseconds;
-          }
-
-          final rarityColor = BreedConstants.getRarityColor(
-            slot.rarity ?? 'common',
-          );
-          final statusColor = ready ? Colors.green : rarityColor;
-
-          final isUndiscovered =
-              _undiscoveredCache[slot.resultCreatureId!] == true;
-
-          final egg = Egg(
-            eggId: slot.eggId!,
-            resultCreatureId: slot.resultCreatureId!,
-            rarity: slot.rarity ?? 'common',
-            remainingMs: remaining.inMilliseconds,
-            payloadJson: slot.payloadJson,
-          );
-
-          return NurseryBrewingCard(
-            key: ValueKey('slot-${slot.id}'),
-            egg: egg,
-            statusColor: statusColor,
-            isReady: ready,
-            progress: progress,
-            quality: _cinematicQuality,
-            useSimpleFusion: false,
-            theme: theme,
-            onTap: () => _showSlotInfoModal(
-              slot,
-              ready,
-              primaryColor,
-              remaining,
-              progress,
-              isUndiscovered,
-            ),
-          );
-        }
-
-        return _PlaceholderTile(
-          primaryColor: theme.text,
-          onTap: context.soundTap(widget.onRequestAddEgg),
+        final cell = _buildChamberCell(
+          chambers[index],
+          primaryColor: primaryColor,
+          theme: theme,
         );
+        return index == 0
+            ? KeyedSubtree(key: _firstChamberKey, child: cell)
+            : cell;
       },
+    );
+  }
+
+  Widget _buildChamberCell(
+    IncubatorSlot chamber, {
+    required Color primaryColor,
+    required FactionTheme theme,
+  }) {
+    final occupied = chamber.eggId != null && chamber.hatchAtUtcMs != null;
+    if (occupied) {
+      final slot = chamber;
+      final remaining = _remainingFor(slot.hatchAtUtcMs!);
+      final ready = remaining.inSeconds <= 0;
+      final rarity = slot.rarity?.toLowerCase();
+      final hatchDelay = rarity != null
+          ? BreedConstants.rarityHatchTimes[rarity]
+          : null;
+
+      double? progress;
+      if (hatchDelay != null && hatchDelay.inMilliseconds > 0) {
+        final left = remaining.isNegative ? Duration.zero : remaining;
+        final done = (hatchDelay.inMilliseconds - left.inMilliseconds).clamp(
+          0,
+          hatchDelay.inMilliseconds,
+        );
+        progress = done / hatchDelay.inMilliseconds;
+      }
+
+      final rarityColor = BreedConstants.getRarityColor(
+        slot.rarity ?? 'common',
+      );
+      final statusColor = ready ? Colors.green : rarityColor;
+
+      final isUndiscovered = _undiscoveredCache[slot.resultCreatureId!] == true;
+
+      final egg = Egg(
+        eggId: slot.eggId!,
+        resultCreatureId: slot.resultCreatureId!,
+        rarity: slot.rarity ?? 'common',
+        remainingMs: remaining.inMilliseconds,
+        payloadJson: slot.payloadJson,
+      );
+
+      return NurseryBrewingCard(
+        key: ValueKey('slot-${slot.id}'),
+        egg: egg,
+        statusColor: statusColor,
+        isReady: ready,
+        progress: progress,
+        quality: _cinematicQuality,
+        useSimpleFusion: false,
+        theme: theme,
+        onTap: () => _showSlotInfoModal(
+          slot,
+          ready,
+          primaryColor,
+          remaining,
+          progress,
+          isUndiscovered,
+        ),
+      );
+    }
+
+    return _PlaceholderTile(
+      primaryColor: theme.text,
+      onTap: context.soundTap(widget.onRequestAddEgg),
     );
   }
 

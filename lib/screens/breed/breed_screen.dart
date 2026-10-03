@@ -6,6 +6,7 @@ import 'package:alchemons/screens/breed/nursery_tab.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
+import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
@@ -173,6 +174,11 @@ class _BreedScreenState extends State<BreedScreen> {
       await db.settingsDao.setSetting('first_extraction_done', '1');
       await db.settingsDao.deleteSetting('tutorial_extraction_pending');
       await db.settingsDao.setNavLocked(false);
+
+      // Held back from the opening (see PushNotificationService.initialize):
+      // now there is a cultivation worth being told about.
+      await PushNotificationService().requestPermissions();
+      if (!mounted) return;
 
       // Home is where the next step (the Field) is pointed out. Landing on
       // the database instead left the player with the nav unlocked and

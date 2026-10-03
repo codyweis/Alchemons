@@ -8,6 +8,7 @@
 
 import 'package:alchemons/audio/audio.dart';
 
+import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
@@ -18,6 +19,7 @@ import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/background/faction_realm.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/fx/starter_vial_handoff.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +43,12 @@ class _FactionPickerDialogState extends State<FactionPickerDialog> {
   );
 
   int _currentIndex = 0;
+
+  /// The chosen division's starter orb: where the handoff picks it up.
+  final GlobalKey _chosenOrbKey = GlobalKey(debugLabel: 'chosen-starter-orb');
+
+  /// The realm was handed to [StarterVialHandoff], which disposes it.
+  bool _realmHandedOff = false;
 
   /// Set while the choice is being saved: the button dims and nothing else
   /// takes a tap, so the wait reads as the choice being made.
@@ -121,7 +129,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog> {
   @override
   void dispose() {
     _pageController.dispose();
-    _realm.dispose();
+    if (!_realmHandedOff) _realm.dispose();
     super.dispose();
   }
 
@@ -155,9 +163,35 @@ class _FactionPickerDialogState extends State<FactionPickerDialog> {
       rethrow;
     }
 
-    if (mounted) {
-      Navigator.of(context).pop(selected.id);
-    }
+    if (!mounted) return;
+    _handOffToChamber(selected);
+    Navigator.of(context).pop(selected.id);
+  }
+
+  /// The choice keeps the screen: the realm and the chosen starter orb move
+  /// into the root overlay, the grains pour into the orb, and it carries on
+  /// into the first chamber once the app has loaded under it (see
+  /// starter_vial_handoff.dart). Skipped if the orb isn't on screen.
+  void _handOffToChamber(_FactionCardData chosen) {
+    final box = _chosenOrbKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    final orbRect = box.localToGlobal(Offset.zero) & box.size;
+    final (a, b) = chosen.elementalGroup.particleTypes;
+    final theme = context.read<FactionTheme>();
+    StarterVialHandoff.instance.begin(
+      context,
+      faction: chosen.id,
+      ink: !ForgeTokens(theme).isDark,
+      field: _realm,
+      vial: _starterVialFor(chosen),
+      orbRect: orbRect,
+      grainColors: [
+        BreedConstants.getTypeColor(a),
+        if (b != null) BreedConstants.getTypeColor(b),
+        const Color(0xFFE8DCC8),
+      ],
+    );
+    _realmHandedOff = true;
   }
 
   @override
@@ -207,6 +241,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog> {
                         factions: _factions,
                         currentIndex: _currentIndex,
                         palette: palette,
+                        orbKey: _chosenOrbKey,
                         onTap: (index) => _pageController.animateToPage(
                           index,
                           duration: const Duration(milliseconds: 420),
@@ -297,12 +332,14 @@ class _OrbRow extends StatelessWidget {
     required this.currentIndex,
     required this.palette,
     required this.onTap,
+    required this.orbKey,
   });
 
   final List<_FactionCardData> factions;
   final int currentIndex;
   final BracketPalette palette;
   final ValueChanged<int> onTap;
+  final GlobalKey orbKey;
 
   @override
   Widget build(BuildContext context) {
@@ -327,6 +364,7 @@ class _OrbRow extends StatelessWidget {
                   data: factions[i],
                   chosen: i == currentIndex,
                   palette: palette,
+                  orbKey: i == currentIndex ? orbKey : null,
                 ),
               ),
             ),
@@ -336,26 +374,35 @@ class _OrbRow extends StatelessWidget {
   }
 }
 
+/// The starter vial a division hands out, as its orb shows it.
+ExtractionVial _starterVialFor(_FactionCardData data) => ExtractionVial(
+  price: null,
+  id: 'starter_${data.elementalGroup.name}',
+  name: 'STARTER VIAL',
+  group: data.elementalGroup,
+  rarity: VialRarity.uncommon,
+  quantity: 1,
+);
+
 class _Orb extends StatelessWidget {
-  const _Orb({required this.data, required this.chosen, required this.palette});
+  const _Orb({
+    required this.data,
+    required this.chosen,
+    required this.palette,
+    this.orbKey,
+  });
 
   final _FactionCardData data;
   final bool chosen;
   final BracketPalette palette;
+  final GlobalKey? orbKey;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
         final side = box.maxWidth;
-        final vial = ExtractionVial(
-          price: null,
-          id: 'starter_${data.elementalGroup.name}',
-          name: 'STARTER VIAL',
-          group: data.elementalGroup,
-          rarity: VialRarity.uncommon,
-          quantity: 1,
-        );
+        final vial = _starterVialFor(data);
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -363,6 +410,7 @@ class _Orb extends StatelessWidget {
               duration: const Duration(milliseconds: 300),
               opacity: chosen ? 1 : 0.55,
               child: SizedBox.square(
+                key: orbKey,
                 dimension: side,
                 child: ExtractionVialCard(
                   vial: vial,

@@ -48,11 +48,11 @@ import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart';
 import 'package:alchemons/widgets/side_dock_widget.dart';
-import 'package:alchemons/widgets/starter_granted_dialog.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flame/flame.dart' show Flame;
 import 'package:flutter/cupertino.dart' hide Column;
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/fx/starter_vial_handoff.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -123,6 +123,7 @@ class _MainShellState extends State<MainShell> {
           if (!mounted) return;
           _goToSection(section, withHaptic: false, focus: focus);
         };
+    StarterVialHandoff.instance.markShellWarming();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // A notification tap can cold-start the app and be read before this
       // shell exists; the request parks on the router until now.
@@ -340,6 +341,7 @@ class _MainShellState extends State<MainShell> {
                   onEnd: () {
                     if (mounted && !_warmingNavigation) {
                       setState(() => _splashFaded = true);
+                      StarterVialHandoff.instance.markShellReady();
                     }
                   },
                   child: AlchemonsSplash(
@@ -1134,7 +1136,14 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _initializeApp() async {
-    await _pushNotifications.initialize();
+    // A save that has not extracted its first vial yet is in the opening;
+    // the permission prompt waits until after that extraction.
+    final pastOpening =
+        await context.read<AlchemonsDatabase>().settingsDao.getSetting(
+          'first_extraction_done',
+        ) ==
+        '1';
+    await _pushNotifications.initialize(requestPermission: pastOpening);
     try {
       if (!mounted) return;
       final factionSvc = context.read<FactionService>();
@@ -2575,17 +2584,13 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (!mounted) return;
 
-      await SystemDialog.show(
-        context,
-        title: 'Vial secured',
-        message: 'Your starter vial is waiting in the Extraction Chamber.',
-        kind: SystemDialogKind.success,
-        primaryLabel: 'OPEN THE CHAMBER',
-        onPrimary: () async {
-          if (!mounted) return;
-          widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);
-        },
-      );
+      // No "Vial secured" dialog: the vial the player just chose is carried
+      // straight into its chamber by the faction picker's handoff
+      // (starter_vial_handoff.dart), which lands once this tab is showing.
+      widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);
+      StarterVialHandoff.instance.land();
+    } else {
+      StarterVialHandoff.instance.cancel();
     }
   }
 

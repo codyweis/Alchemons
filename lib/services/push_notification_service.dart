@@ -74,7 +74,12 @@ class PushNotificationService {
   // Key: normalized hatch time -> consolidated notification ID for that window
   final Map<String, int> _eggHatchWindowConsolidatedIds = {};
 
-  Future<void> initialize() async {
+  /// [requestPermission] false sets everything up without the system's
+  /// permission prompt. A new save passes false: the prompt used to land in
+  /// the middle of the opening, between choosing a faction and the starter
+  /// vial, before the player had anything a notification could be about. It
+  /// is asked for after the first extraction instead ([requestPermissions]).
+  Future<void> initialize({bool requestPermission = true}) async {
     if (_initialized) return;
 
     // Initialize timezone data
@@ -93,13 +98,13 @@ class PushNotificationService {
       '@mipmap/ic_launcher',
     );
 
-    const darwinSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+    final darwinSettings = DarwinInitializationSettings(
+      requestAlertPermission: requestPermission,
+      requestBadgePermission: requestPermission,
+      requestSoundPermission: requestPermission,
     );
 
-    const initSettings = InitializationSettings(
+    final initSettings = InitializationSettings(
       android: androidSettings,
       iOS: darwinSettings,
       macOS: darwinSettings,
@@ -121,6 +126,15 @@ class PushNotificationService {
       _routeForPayload(payload);
     }
 
+    if (requestPermission) await requestPermissions();
+
+    _initialized = true;
+    debugPrint('✅ Push notification service initialized');
+  }
+
+  /// The system's notification permission prompt (iOS/macOS, Android 13+).
+  /// Safe to call more than once: the OS only ever asks once.
+  Future<void> requestPermissions() async {
     // Request permissions for iOS/macOS
     if (Platform.isIOS || Platform.isMacOS) {
       await _notifications
@@ -144,9 +158,6 @@ class PushNotificationService {
           >()
           ?.requestNotificationsPermission();
     }
-
-    _initialized = true;
-    debugPrint('✅ Push notification service initialized');
   }
 
   // Handle notification tap
