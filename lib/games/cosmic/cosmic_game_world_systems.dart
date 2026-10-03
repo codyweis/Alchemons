@@ -73,6 +73,13 @@ extension CosmicGameWorldSystems on CosmicGame {
     } else {
       behavior = EnemyBehavior.feeding;
     }
+    // Stalkers spawn around the ship and keep to it, so they are the one
+    // roll that stacks up when the ship stays put. A shadow or two reads as
+    // eerie; past that it is a crowd.
+    if (behavior == EnemyBehavior.stalking &&
+        _stalkerGroups() >= CosmicGame._maxStalkerGroups) {
+      behavior = EnemyBehavior.drifting;
+    }
 
     // Choose tier — behavior determines distribution across all 6 tiers
     EnemyTier tier;
@@ -250,6 +257,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     final angle = rng.nextDouble() * pi * 2;
     final driftTimer = rng.nextDouble() * 4;
     final stalkDistance = 400 + rng.nextDouble() * 300;
+    final stalkPatience = 35 + rng.nextDouble() * 25;
     for (var m = 0; m < max(1, flockSize); m++) {
       final at = m == 0
           ? pos
@@ -284,9 +292,25 @@ extension CosmicGameWorldSystems on CosmicGame {
           homePos: homePos,
           aggroRadius: aggroRadius,
           stalkDistance: stalkDistance,
+          stalkPatience: stalkPatience,
         ),
       );
     }
+  }
+
+  /// How many stalkers are shadowing the ship, a flock counting once.
+  int _stalkerGroups() {
+    final packs = <int>{};
+    var solos = 0;
+    for (final e in enemies) {
+      if (e.dead || e.behavior != EnemyBehavior.stalking) continue;
+      if (e.packId >= 0) {
+        packs.add(e.packId);
+      } else {
+        solos++;
+      }
+    }
+    return packs.length + solos;
   }
 
   /// Where each roaming flock is and which way it heads this frame, gathered
@@ -1356,6 +1380,13 @@ extension CosmicGameWorldSystems on CosmicGame {
           e.angle += diff * 4.0 * dt;
           // Speed boost when attacking
           e.speed = 120;
+        } else if ((e.stalkPatience -= dt) <= 0) {
+          // Lost interest: peel away and drift off, to be despawned out of
+          // range like any drifter. A flock started with one patience, so it
+          // leaves together.
+          e.behavior = EnemyBehavior.drifting;
+          e.angle = toShip + pi;
+          e.turnLeft = 0;
         } else if (distToShip < e.stalkDistance - 50) {
           // Too close — back off
           _steerToward(e, toShip + pi, 4.0, dt);

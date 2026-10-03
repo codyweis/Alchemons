@@ -778,6 +778,9 @@ class CosmicGame extends FlameGame with PanDetector {
   final Map<int, _FlockCentre> _flockCentres = {};
   static const int _maxEnemies = 220;
 
+  /// Stalkers (or stalker flocks) shadowing the ship at once.
+  static const int _maxStalkerGroups = 2;
+
   /// Squared distance between two world points, respecting the world's
   /// toroidal wrap — a naive distance would read two points either side of the
   /// seam as maximally far apart.

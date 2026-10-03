@@ -3706,6 +3706,11 @@ class CosmicEnemy {
   /// For stalkers: how close they keep to the player.
   double stalkDistance;
 
+  /// For stalkers: seconds of shadowing left before it loses interest and
+  /// drifts off. Without it a stalker circled a parked ship forever, so
+  /// sitting still piled up dozens of them (see `_spawnEnemy`).
+  double stalkPatience;
+
   /// Galaxy whirl index this enemy belongs to (-1 = none).
   int whirlIndex;
 
@@ -3782,6 +3787,7 @@ class CosmicEnemy {
     this.homePos,
     this.aggroRadius = 300,
     this.stalkDistance = 500,
+    this.stalkPatience = 50,
     this.whirlIndex = -1,
     this.variant = CosmicEnemyVariant.standard,
     this.maneRootSlot,
