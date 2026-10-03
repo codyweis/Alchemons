@@ -29,6 +29,12 @@ class OpeningWildernessService {
   static const String shipHuntKey = 'wilderness_ship_hunt_scenes_v1';
   static const String shipUnlockedKey = 'cosmic_ship_unlocked';
 
+  /// Set when the fourth core biome is first entered: the ship is owed, and
+  /// comes down with the Valley's next batch of wild rather than on its own,
+  /// so the Valley lights up once, with both in it, and there is never a
+  /// stretch where the ship is there and the region reads as empty.
+  static const String shipArmedKey = 'cosmic_ship_armed';
+
   static const Set<String> coreScenes = {'valley', 'sky', 'swamp', 'volcano'};
 
   /// How long the region the hunt points at takes to stir.

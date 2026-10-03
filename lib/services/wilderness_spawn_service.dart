@@ -878,6 +878,7 @@ class WildernessSpawnService extends ChangeNotifier {
         debugPrint('🌦️ ${weather.label} comes with the $sceneId batch');
       }
     }
+    if (sceneId == 'valley') await _landArmedShip();
 
     // After spawning, show consolidated notification of active wilderness state.
     // Callers can disable this to batch multiple spawn operations into one push.
@@ -890,6 +891,23 @@ class WildernessSpawnService extends ChangeNotifier {
     await _syncScheduledWildernessNotification();
     notifyListeners();
     return true;
+  }
+
+  /// The ship, armed by the fourth realm's first visit, comes down with
+  /// this Valley batch. Nothing announces it: the player finds it there.
+  Future<void> _landArmedShip() async {
+    final settings = _db.settingsDao;
+    if (await settings.getSetting(OpeningWildernessService.shipArmedKey) !=
+        '1') {
+      return;
+    }
+    await settings.deleteSetting(OpeningWildernessService.shipArmedKey);
+    if (await settings.getSetting('cosmic_ship_claimed') == '1') return;
+    if (await settings.getSetting('cosmic_ship_scene') != null) return;
+    await settings.setSetting('cosmic_ship_scene', 'valley');
+    // Armed for the crash-landing cinematic on the next Valley render.
+    await settings.setSetting('cosmic_ship_arrival_pending', '1');
+    debugPrint('🚀 The ship comes down with the valley batch');
   }
 
   bool _isCameraSafePoint(SpawnPoint point, SceneDefinition scene) {

@@ -141,9 +141,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   String? _shipSceneId;
   bool _shipBeaconPlaced = false;
 
-  /// The ship has just been armed in the Valley while the player is
-  /// elsewhere; they hear of it once this scene has opened.
-  bool _shipNewsPending = false;
   late final AnimationController _biomeAmbienceCtrl;
   bool get _isCosmicPlanetMode => widget.isCosmicPlanetEntry;
 
@@ -318,16 +315,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
           if (mounted && !widget.isTutorial && !_isCaptureTutorialScene) {
             await _maybeShowFirstVisitWildernessStoryDialog();
-          }
-
-          if (_shipNewsPending && mounted) {
-            _shipNewsPending = false;
-            showGameSnack(
-              context,
-              'Something has come down in the Valley.',
-              icon: AppIcons.auto_awesome_rounded,
-              duration: const Duration(seconds: 5),
-            );
           }
 
           if (!widget.isTutorial &&
@@ -837,26 +824,35 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
         await settings.setSetting('visited_biomes', set.join(','));
       }
 
-      // If we've now visited all four and ship is not claimed, arm spawn in Valley.
+      // All four seen and the ship not yet claimed: it is owed to the Valley.
       final visitedCount = set.where((s) => allowed.contains(s)).length;
       final existingShip = await settings.getSetting('cosmic_ship_scene');
       final claimed = (await settings.getSetting('cosmic_ship_claimed')) == '1';
+      final armed =
+          await settings.getSetting(OpeningWildernessService.shipArmedKey) ==
+          '1';
       if (existingShip != null && existingShip != 'valley' && !claimed) {
         await settings.setSetting('cosmic_ship_scene', 'valley');
       }
-      if (visitedCount >= 4 && existingShip == null && !claimed) {
-        await settings.setSetting('cosmic_ship_scene', 'valley');
-        // Arm the crash-landing cinematic for the next time Valley renders.
-        await settings.setSetting('cosmic_ship_arrival_pending', '1');
-        // Away from the Valley, nothing would tell the player to go back:
-        // they are told once, after this realm's own story has had its say.
-        _shipNewsPending = widget.sceneId != 'valley';
-        if (mounted) {
-          setState(() {
-            _shipSceneId = 'valley';
-            _shipPresent = widget.sceneId == 'valley';
-          });
-          await _syncShipBeaconPlacement();
+      if (visitedCount >= 4 && existingShip == null && !claimed && !armed) {
+        // It comes down with the Valley's next batch of wild, and nothing
+        // announces it: whoever goes into the Valley finds it there. The
+        // spawn service lands it; an empty Valley entered right now is
+        // filled on the way in, so that is a batch too.
+        //
+        // A Valley already holding wild is lit on the map already, so the
+        // ship joins those rather than waiting for them to be cleared.
+        final valleyWaiting =
+            widget.sceneId != 'valley' &&
+            _spawnService.getSceneSpawnCount('valley') > 0;
+        if (valleyWaiting) {
+          await settings.setSetting('cosmic_ship_scene', 'valley');
+          await settings.setSetting('cosmic_ship_arrival_pending', '1');
+        } else {
+          await settings.setSetting(
+            OpeningWildernessService.shipArmedKey,
+            '1',
+          );
         }
       }
     } catch (e) {

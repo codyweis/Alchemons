@@ -146,15 +146,32 @@ class _MapScreenState extends State<MapScreen>
       final db = context.read<AlchemonsDatabase>();
       final v = await db.settingsDao.getSetting('arcane_portal_unlocked');
       if (mounted && v == '1') setState(() => _arcaneUnlocked = true);
-      final ship = await db.settingsDao.getSetting('cosmic_ship_scene');
-      final claimed =
-          await db.settingsDao.getSetting('cosmic_ship_claimed') == '1';
-      if (mounted && ship == 'valley' && !claimed) {
-        setState(() => _shipWaitsInValley = true);
-      }
+      await _refreshShipWaitsInValley();
       await Future.delayed(const Duration(milliseconds: 150));
       if (mounted) _mapController.forward();
     });
+  }
+
+  /// Whether the ship is down in the Valley and unclaimed, read fresh.
+  ///
+  /// It lands while the player is in some other realm, so the map that sent
+  /// them there has to look again when they come back — not just when it
+  /// was first built.
+  Future<bool> _readShipWaitsInValley(AlchemonsDatabase db) async {
+    final ship = await db.settingsDao.getSetting('cosmic_ship_scene');
+    final claimed =
+        await db.settingsDao.getSetting('cosmic_ship_claimed') == '1';
+    return ship == 'valley' && !claimed;
+  }
+
+  Future<void> _refreshShipWaitsInValley() async {
+    if (!mounted) return;
+    final waits = await _readShipWaitsInValley(
+      context.read<AlchemonsDatabase>(),
+    );
+    if (mounted && waits != _shipWaitsInValley) {
+      setState(() => _shipWaitsInValley = waits);
+    }
   }
 
   static const Map<String, String> _biomeDisplayNames = {
@@ -502,8 +519,16 @@ class _MapScreenState extends State<MapScreen>
       return;
     }
 
+    // The ship is something waiting there too — the map lights the Valley
+    // for it — and it lands the moment the fourth realm is entered, a
+    // minute before the Valley's own wild arrive. Without this, the region
+    // the player was just told to go back to answered "nothing here".
+    final shipWaits =
+        biomeId == 'valley' && await _readShipWaitsInValley(db);
+    if (!context.mounted) return;
+
     final sceneSpawnCount = spawnService.getSceneSpawnCount(biomeId);
-    if (sceneSpawnCount == 0) {
+    if (sceneSpawnCount == 0 && !shipWaits) {
       // An empty region used to be a flat no. If the player is carrying a
       // lure, this is the one moment it is for, so offer it here rather than
       // making them find it in the inventory and work out where it applies.
@@ -653,6 +678,8 @@ class _MapScreenState extends State<MapScreen>
         DeviceOrientation.portraitDown,
       ],
     );
+    // The ship may have come down (or been claimed) while we were away.
+    await _refreshShipWaitsInValley();
   }
 
   Future<bool> _confirmExpeditionReadiness(
