@@ -191,13 +191,23 @@ void main() {
 
         await tester.tap(find.text('All'));
         await settle();
-        await tester.tap(find.text('READY'));
-        await settle(14);
-        await shoot('3_details_$tag');
-        await tester.tap(find.text('Delete specimen'));
-        await settle();
-        await shoot('4_delete_$tag');
       }
+      // A vial still cultivating, then the ready one.
+      await tester.tap(find.textContaining('12h ').first);
+      await settle(14);
+      await shoot('3_details_$tag');
+      await tester.tap(find.byTooltip('Close'));
+      await settle();
+      await tester.tap(find.text('READY'));
+      await settle(14);
+      await shoot('3_details_ready_$tag');
+      await tester.tap(find.byTooltip('Delete specimen'));
+      await settle();
+      await shoot('4_delete_$tag');
+      await tester.tap(find.text('CANCEL'));
+      await settle();
+      await tester.tap(find.byTooltip('Close'));
+      await settle();
       await tester.runAsync(db.close);
     }
 

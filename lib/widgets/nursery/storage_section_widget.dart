@@ -9,11 +9,10 @@ import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/game_snack.dart';
-import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
+import 'package:alchemons/widgets/nursery/cultivation_stage.dart';
 import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:alchemons/widgets/perf/viewport_ticker_gate.dart';
 import 'package:flutter/material.dart';
@@ -35,6 +34,60 @@ const Color _kReadyGold = Color(0xFFFFD700);
 /// Grains in storage turn at the pace they cultivate at.
 const double _kStoredSpin = 1 / ColdStorageService.slowdownFactor;
 
+/// Shows a dialog built by [builder]: how a stasis cell opens its details.
+typedef StoragePresentDialog = Future<void> Function(WidgetBuilder builder);
+
+/// A stored cultivation's clock, read once for a cell and its dialog alike.
+class _StoredTimes {
+  const _StoredTimes(this.active, this.display, this.progress);
+
+  /// What would be left in a chamber.
+  final Duration active;
+
+  /// What is left here, at a fifth of the pace.
+  final Duration display;
+
+  /// 0..1 through its time in storage, when that can be known.
+  final double? progress;
+
+  bool get ready => active <= Duration.zero;
+
+  static _StoredTimes of(
+    Egg egg,
+    Map<String, dynamic> payload,
+    Map<String, dynamic> coldPayload, [
+    DateTime? nowUtc,
+  ]) {
+    final now = nowUtc ?? DateTime.now().toUtc();
+    final fallback = Duration(milliseconds: egg.remainingMs);
+    final active = ColdStorageService.activeRemainingFromPayload(
+      coldPayload,
+      fallbackActiveRemaining: fallback,
+      nowUtc: now,
+    );
+    final display = ColdStorageService.coldStorageRemainingFromPayload(
+      coldPayload,
+      fallbackActiveRemaining: fallback,
+      nowUtc: now,
+    );
+    final rarityHatch =
+        BreedConstants.rarityHatchTimes[egg.rarity.toLowerCase()];
+    final factor = ColdStorageService.slowdownFactorFromPayload(payload);
+    final totalMs =
+        ColdStorageService.totalDisplayDurationMsFromPayload(coldPayload) ??
+        (rarityHatch == null ? null : rarityHatch.inMilliseconds * factor);
+    final progress = (totalMs != null && totalMs > 0)
+        ? (1 - display.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        : null;
+    return _StoredTimes(active, display, progress);
+  }
+}
+
+/// How far up its cell the frost has grown. It thaws as the vial cultivates;
+/// there is always a little while it is still in here, and none once ready.
+double _frostFor(_StoredTimes t) =>
+    t.ready ? 0 : 0.18 + 0.82 * (1 - (t.progress ?? 0));
+
 class StorageSection extends StatefulWidget {
   final Color primaryColor;
   final CinematicQuality quality;
@@ -50,12 +103,18 @@ class StorageSection extends StatefulWidget {
   /// with batch extraction).
   final bool canAutoMove;
 
+  /// Shows a vial's dialog. The nursery passes its own, which pauses the
+  /// chambers behind it as their dialogs do; without one it is a plain
+  /// [showDialog].
+  final StoragePresentDialog? presentDialog;
+
   const StorageSection({
     super.key,
     required this.primaryColor,
     required this.quality,
     required this.buildSectionHeader,
     this.canAutoMove = false,
+    this.presentDialog,
   });
 
   @override
@@ -155,6 +214,7 @@ class _StorageSectionState extends State<StorageSection> {
                     highlight: selected,
                     quality: widget.quality,
                     nowUtc: _nowUtc,
+                    presentDialog: widget.presentDialog,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -356,6 +416,7 @@ class _StasisRack extends StatefulWidget {
     required this.highlight,
     required this.quality,
     required this.nowUtc,
+    this.presentDialog,
   });
 
   final List<Egg> items;
@@ -368,6 +429,7 @@ class _StasisRack extends StatefulWidget {
   final ElementalGroup? highlight;
   final CinematicQuality quality;
   final DateTime nowUtc;
+  final StoragePresentDialog? presentDialog;
 
   /// A cell's width, aimed for: the column count follows from it.
   static const double targetCellWidth = 84;
@@ -439,6 +501,7 @@ class _StasisRackState extends State<_StasisRack>
                           egg: widget.items[i],
                           quality: widget.quality,
                           nowUtc: widget.nowUtc,
+                          presentDialog: widget.presentDialog,
                           dimmed:
                               widget.highlight != null &&
                               widget.groups[i] != widget.highlight,
@@ -469,13 +532,15 @@ class StasisCell extends StatefulWidget {
     required this.quality,
     required this.nowUtc,
     this.dimmed = false,
+    this.presentDialog,
   });
 
   const StasisCell.socket({super.key})
     : egg = null,
       quality = CinematicQuality.performance,
       nowUtc = null,
-      dimmed = false;
+      dimmed = false,
+      presentDialog = null;
 
   final Egg? egg;
   final CinematicQuality quality;
@@ -483,6 +548,9 @@ class StasisCell extends StatefulWidget {
 
   /// Filtered out: the cell goes dark and its grains are put away.
   final bool dimmed;
+
+  /// Shows the cell's dialog; see [StorageSection.presentDialog].
+  final StoragePresentDialog? presentDialog;
 
   @override
   State<StasisCell> createState() => _StasisCellState();
@@ -521,27 +589,10 @@ class _StasisCellState extends State<StasisCell> {
     final payload = _payload;
     final nowUtc = widget.nowUtc ?? DateTime.now().toUtc();
     final elementGroup = getElementalGroupFromPayload(payload);
-    final activeRemaining = ColdStorageService.activeRemainingFromPayload(
-      _coldPayload,
-      fallbackActiveRemaining: Duration(milliseconds: egg.remainingMs),
-      nowUtc: nowUtc,
-    );
-    final displayRemaining = ColdStorageService.coldStorageRemainingFromPayload(
-      _coldPayload,
-      fallbackActiveRemaining: Duration(milliseconds: egg.remainingMs),
-      nowUtc: nowUtc,
-    );
-    final isReady = activeRemaining <= Duration.zero;
-
-    final rarityHatch =
-        BreedConstants.rarityHatchTimes[egg.rarity.toLowerCase()];
-    final factor = ColdStorageService.slowdownFactorFromPayload(payload);
-    final totalMs =
-        ColdStorageService.totalDisplayDurationMsFromPayload(_coldPayload) ??
-        (rarityHatch == null ? null : rarityHatch.inMilliseconds * factor);
-    final progress = (totalMs != null && totalMs > 0)
-        ? (1 - displayRemaining.inMilliseconds / totalMs).clamp(0.0, 1.0)
-        : null;
+    final times = _StoredTimes.of(egg, payload, _coldPayload, nowUtc);
+    final displayRemaining = times.display;
+    final isReady = times.ready;
+    final progress = times.progress;
 
     final media = MediaQuery.of(context);
     final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
@@ -572,9 +623,7 @@ class _StasisCellState extends State<StasisCell> {
                     ? _CellState.dimmed
                     : (isReady ? _CellState.ready : _CellState.held),
                 light: light,
-                // The frost thaws as it cultivates; there is always a little
-                // while it is still in here, and none once it is ready.
-                frost: isReady ? 0 : 0.18 + 0.82 * (1 - (progress ?? 0)),
+                frost: _frostFor(times),
                 seed: egg.eggId.hashCode,
               ),
             ),
@@ -629,19 +678,14 @@ class _StasisCellState extends State<StasisCell> {
   }
 
   void _showEggDetails(BuildContext context, Map<String, dynamic> payload) {
-    final elementGroup = getElementalGroupFromPayload(payload);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => EggDetailsModal(
-        hostContext: this.context,
-        egg: widget.egg!,
-        payload: payload,
-        elementGroup: elementGroup,
-      ),
-    );
+    Widget dialog(BuildContext _) =>
+        StoredCultivationDialog(hostContext: this.context, egg: widget.egg!);
+    final present = widget.presentDialog;
+    if (present != null) {
+      present(dialog);
+    } else {
+      showDialog<void>(context: context, builder: dialog);
+    }
   }
 }
 
@@ -711,16 +755,15 @@ class _StasisCellPainter extends CustomPainter {
   final double frost;
   final int seed;
 
-  /// The seam left between neighbouring cells.
-  static const double _seam = 2.2;
-
-  /// The bevel's width.
-  static const double _bevel = 2.4;
+  /// The seam left round the cell, and its bevel's width: fixed at rack size,
+  /// growing for the dialog's large cell so its ice does not go thin.
+  static double _seam(Size s) => math.max(2.2, s.width * 0.01);
+  static double _bevel(Size s) => math.max(2.4, s.width * 0.028);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final outer = _hexPath(size, _seam);
-    final inner = _hexPath(size, _seam + _bevel);
+    final outer = _hexPath(size, _seam(size));
+    final inner = _hexPath(size, _seam(size) + _bevel(size));
     final rect = Offset.zero & size;
     final p = Paint();
 
@@ -815,23 +858,26 @@ class _StasisCellPainter extends CustomPainter {
     // Frost, grown up from the floor of the cell: tapered crystals whose
     // edge catches the light, over a soft body of rime.
     if (frost > 0.01) {
-      final floor = size.height - _seam - _bevel;
+      final floor = size.height - _seam(size) - _bevel(size);
       final top = floor - frost * size.height * 0.4;
       final a = state == _CellState.dimmed ? 0.1 : 0.26;
+      // Crystals keep their rack size in a larger cell — more of them, no
+      // taller — or the dialog's cell grows a mountain range.
+      final grain = (73 / size.height).clamp(0.3, 1.0);
       final crystals = Path()..moveTo(0, floor);
-      const teeth = 21;
+      final teeth = math.max(21, (size.width / 4).round()) | 1;
       for (var k = 0; k <= teeth; k++) {
         final x = size.width * k / teeth;
         final jag = ((seed * 31 + k * 17) % 13) / 13.0;
         final y = k.isEven
-            ? top - size.height * (0.015 + 0.045 * jag)
-            : top + size.height * (0.004 + 0.01 * jag);
+            ? top - size.height * grain * (0.015 + 0.045 * jag)
+            : top + size.height * grain * (0.004 + 0.01 * jag);
         crystals.lineTo(x, y);
       }
       crystals
         ..lineTo(size.width, floor)
         ..close();
-      final reach = top - size.height * 0.07;
+      final reach = top - size.height * grain * 0.07;
       canvas.drawPath(
         crystals,
         p
@@ -841,10 +887,16 @@ class _StasisCellPainter extends CustomPainter {
             colors: [
               _kFrost.withValues(alpha: a * 0.2),
               _kFrost.withValues(alpha: a),
-              _kIce.withValues(alpha: a * 0.35),
-              _kFrost.withValues(alpha: a * 0.8),
+              _kIce.withValues(alpha: a * 0.3),
+              _kFrost.withValues(alpha: a * 0.5),
             ],
-            stops: const [0.0, 0.32, 0.62, 1.0],
+            // The bright rime sits at the crystals' edge, wherever that is.
+            stops: [
+              0.0,
+              ((top - reach) / (floor - reach)).clamp(0.0, 1.0) * 0.9,
+              0.75,
+              1.0,
+            ],
           ).createShader(Rect.fromLTRB(0, reach, 0, floor)),
       );
     }
@@ -974,438 +1026,290 @@ class _FrostDriftPainter extends CustomPainter {
   bool shouldRepaint(_FrostDriftPainter old) => old.t != t;
 }
 
-class EggDetailsModal extends StatelessWidget {
-  final BuildContext hostContext;
-  final Egg egg;
-  final Map<String, dynamic> payload;
-  final ElementalGroup elementGroup;
+// ─────────────────────────────────────────────────────────────────────────────
+// A STORED CULTIVATION, UP CLOSE
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const EggDetailsModal({
+/// What tapping a stasis cell opens: that cell, large, on the same dark stage
+/// as a chamber's own dialog, with the same controls — the thing to do written
+/// on the vessel (and the vessel itself the target), delete and close in the
+/// corners, the countdown between them. It used to be a bottom sheet with a
+/// boxed vial, a solid green button and a countdown that never moved.
+class StoredCultivationDialog extends StatefulWidget {
+  const StoredCultivationDialog({
     super.key,
     required this.hostContext,
     required this.egg,
-    required this.payload,
-    required this.elementGroup,
   });
+
+  /// The cell's context, which outlives this dialog for the extraction.
+  final BuildContext hostContext;
+  final Egg egg;
+
+  @override
+  State<StoredCultivationDialog> createState() =>
+      _StoredCultivationDialogState();
+}
+
+class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
+  late final Map<String, dynamic> _payload = parseEggPayload(widget.egg);
+  late final Map<String, dynamic> _coldPayload =
+      ColdStorageService.decodePayload(widget.egg.payloadJson);
+  Timer? _clock;
+  bool _busy = false;
+
+  /// The vessel's width; flat-topped, so its height is √3/2 of this.
+  static const double _cellWidth = 272;
+
+  @override
+  void initState() {
+    super.initState();
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _clock?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
-    final palette = BracketPalette.fromTheme(theme);
-    final skin = elementGroup.skin;
-    final source = payload['source'] as String? ?? 'unknown';
-    final parents = _extractParents();
-    final displayRemaining = ColdStorageService.coldStorageRemainingFromEgg(
-      egg,
-    );
-    final isReady = ColdStorageService.isReady(egg);
-    final accent = bracketReadableAccent(theme, color: elementGroup.color);
+    const ink = Color(0xFFE8DCC8);
+    const muted = Color(0xFF9A8D7C);
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85,
-          ),
-          decoration: BoxDecoration(
-            color: palette.surfaceFill(),
-            border: Border(
-              top: BorderSide(color: accent.withValues(alpha: 0.85), width: 2),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 22, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    final egg = widget.egg;
+    final payload = _payload;
+    final times = _StoredTimes.of(egg, payload, _coldPayload);
+    final elementGroup = getElementalGroupFromPayload(payload);
+    final isBloodborn = isBloodbornPayload(payload);
+    final light = isBloodborn ? kBloodbornSecondary : elementGroup.color;
+    final media = MediaQuery.of(context);
+    final showGrains =
+        TickerMode.valuesOf(context).enabled && !media.disableAnimations;
+    final ready = times.ready;
+    final act = ready ? _extract : _toChamber;
+
+    final source = _formatSource(payload['source'] as String?);
+    final parents = _parentNames(payload);
+    final lineage = [
+      elementGroup.displayName,
+      ?source,
+      if (parents.isNotEmpty) parents.join(' × '),
+    ].join('  ·  ');
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: ColoredBox(
+            color: kCultivationStage,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 44 + _cellWidth * math.sqrt(3) / 2 + 46,
+                  child: Stack(
                     children: [
-                      Center(
-                        child: SizedBox(
-                          height: 240,
-                          child: _buildLargeVialDisplay(
-                            skin,
-                            t,
-                            displayRemaining,
-                            isReady,
+                      // The cell, large, under its label. Tapping it does
+                      // what its word says.
+                      Positioned(
+                        top: 44,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: SizedBox(
+                            width: _cellWidth,
+                            height: _cellWidth * math.sqrt(3) / 2,
+                            child: _HexHitBox(
+                              child: GestureDetector(
+                                onTap: context.soundTap(act),
+                                behavior: HitTestBehavior.opaque,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    CustomPaint(
+                                      painter: _StasisCellPainter(
+                                        state: ready
+                                            ? _CellState.ready
+                                            : _CellState.held,
+                                        light: light,
+                                        frost: _frostFor(times),
+                                        seed: egg.eggId.hashCode,
+                                      ),
+                                    ),
+                                    if (showGrains)
+                                      Align(
+                                        alignment: const Alignment(0, -0.3),
+                                        child: SizedBox.square(
+                                          dimension: _cellWidth * 0.6,
+                                          // Its parents' grains, which a held
+                                          // finger can part.
+                                          child: CultivationSphere(
+                                            payload: payload,
+                                            types: isBloodborn
+                                                ? const ['blood', 'dark']
+                                                : _sphereTypes(
+                                                    payload,
+                                                    elementGroup,
+                                                  ),
+                                            progress: times.progress,
+                                            isReady: ready,
+                                            grains: 1100,
+                                            spinScale: _kStoredSpin,
+                                            radiusFactor: 0.36,
+                                            pureElement: pureElementFromPayload(
+                                              payload,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Center(
-                        child: Text(
-                          getEggLabel(payload),
-                          style: bracketText(
-                            context,
-                            18,
-                            palette.ink,
-                            weight: FontWeight.w700,
-                            letterSpacing: 0.3,
-                          ),
-                          textAlign: TextAlign.center,
+                      Positioned(
+                        top: 10,
+                        left: 14,
+                        child: CultivationChamberPill(
+                          label: 'COLD STORAGE',
+                          color: ready ? _kReadyGold : _kIce,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Center(
-                        child: Text(
-                          elementGroup.displayName,
-                          style: bracketText(
-                            context,
-                            12.5,
-                            palette.muted,
-                            weight: FontWeight.w500,
-                            fontStyle: FontStyle.italic,
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: VialActionButton(
+                            label: ready ? 'EXTRACT' : 'TO CHAMBER',
+                            onTap: act,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      _buildInlineRow('Source', _formatSource(source), palette),
-                      if (!isReady)
-                        _buildInlineRow(
-                          'Time left',
-                          '${_fmtShort(displayRemaining)} here · '
-                              '${_fmtShort(ColdStorageService.activeRemainingFromEgg(egg))} in a chamber',
-                          palette,
-                        ),
-                      if (parents.isNotEmpty) ...[
-                        const SizedBox(height: 14),
-                        const BracketSectionDivider(label: 'Parents'),
-                        const SizedBox(height: 10),
-                        for (var i = 0; i < parents.length; i++) ...[
-                          _buildParentRow(parents[i], palette, accent),
-                          if (i < parents.length - 1)
-                            const SizedBox(height: 10),
-                        ],
-                      ],
                     ],
                   ),
                 ),
-              ),
-              CultivationDialogActionArea(
-                tokens: t,
-                children: [
-                  CultivationDialogButton(
-                    tokens: t,
-                    label: isReady ? 'Extract specimen' : 'Add to chamber',
-                    icon: isReady
-                        ? AppIcons.biotech_rounded
-                        : AppIcons.inventory_2_rounded,
-                    accentColor: isReady ? accent : t.amberBright,
-                    emphasis: CultivationDialogButtonEmphasis.primary,
-                    useSolidBackground: true,
-                    foregroundColor: Colors.white,
-                    large: true,
-                    onTap: () => isReady
-                        ? _extractFromStorage(context, t)
-                        : _addToIncubator(context, t),
-                  ),
-                  const SizedBox(height: 10),
-                  Center(
-                    child: _DetailsTextLink(
-                      label: 'Delete specimen',
-                      icon: AppIcons.delete_outline_rounded,
-                      color: t.danger,
-                      onTap: context.soundTap(() => _confirmDelete(context, t)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        Positioned(
-          top: 10,
-          right: 10,
-          child: _DetailsCloseButton(
-            palette: palette,
-            onTap: context.soundTap(() => Navigator.pop(context)),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _extractFromStorage(BuildContext context, ForgeTokens t) async {
-    Navigator.pop(context);
-
-    final result = await EggHatching.performStorageHatching(
-      context: hostContext,
-      egg: egg,
-    );
-
-    if (!hostContext.mounted || result.success || result.message == null) {
-      return;
-    }
-
-    ScaffoldMessenger.of(hostContext).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 2),
-        content: Row(
-          children: [
-            Icon(result.icon ?? AppIcons.error_rounded, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text(result.message!)),
-          ],
-        ),
-        backgroundColor: result.color ?? t.danger,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
-  }
-
-  Widget _buildLargeVialDisplay(
-    ElementalGroupSkin skin,
-    ForgeTokens t,
-    Duration displayRemaining,
-    bool isReady,
-  ) {
-    final payload = parseEggPayload(egg);
-    final isBloodborn = isBloodbornPayload(payload);
-    final displaySkin = isBloodborn
-        ? const ElementalGroupSkin(
-            frameStart: kBloodbornPrimary,
-            frameEnd: kBloodbornSecondary,
-            fill: kBloodbornFill,
-            badge: kBloodbornSecondary,
-          )
-        : skin;
-    final borderColor = isReady
-        ? (isBloodborn ? kBloodbornReadyBorder : const Color(0xFFFFD700))
-        : (isBloodborn ? kBloodbornSecondary : t.borderAccent);
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(4),
-        color: kVialGlass,
-        border: Border.all(color: borderColor, width: isReady ? 1.4 : 1),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(3),
-        child: Stack(
-          children: [
-            // The light it gives off, under its grains.
-            Positioned.fill(
-              child: VialLightPool(
-                color: isBloodborn ? displaySkin.badge : elementGroup.color,
-                strength: isReady ? 1.3 : 1,
-              ),
-            ),
-
-            // Its parents' grains, which a held finger can part.
-            Positioned.fill(
-              child: CultivationSphere(
-                payload: payload,
-                types: isBloodborn
-                    ? const ['blood', 'dark']
-                    : _sphereTypes(payload, elementGroup),
-                isReady: isReady,
-                grains: 800,
-                spinScale: _kStoredSpin,
-                radiusFactor: 0.36,
-                pureElement: pureElementFromPayload(payload),
-              ),
-            ),
-            // Time remaining badge
-            Positioned(
-              bottom: 8,
-              left: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(2),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Text(
-                  isReady ? 'READY' : _fmtShort(displayRemaining),
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInlineRow(String label, String value, BracketPalette palette) {
-    return Builder(
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 92,
-                child: Text(
-                  label.toUpperCase(),
-                  style: bracketText(
-                    context,
-                    11,
-                    palette.muted,
-                    weight: FontWeight.w700,
-                    letterSpacing: 0.9,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  value,
-                  style: bracketText(
-                    context,
-                    12.5,
-                    palette.ink,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildParentRow(
-    _ParentDetail parent,
-    BracketPalette palette,
-    Color accent,
-  ) {
-    return Builder(
-      builder: (context) {
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(width: 2, height: 18, color: accent),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    parent.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: bracketText(
-                      context,
-                      13,
-                      palette.ink,
-                      weight: FontWeight.w700,
-                    ),
-                  ),
-                  if (parent.subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      parent.subtitle!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: bracketText(
-                        context,
-                        12,
-                        palette.muted,
-                        weight: FontWeight.w500,
-                        fontStyle: FontStyle.italic,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
+                  child: Row(
+                    children: [
+                      StageIconButton(
+                        icon: AppIcons.delete_outline_rounded,
+                        tooltip: 'Delete specimen',
+                        color: t.danger,
+                        heavy: true,
+                        onTap: _confirmDelete,
                       ),
-                    ),
-                  ],
-                ],
-              ),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              ready ? 'READY' : _fmtShort(times.display),
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: ready ? _kReadyGold : _kIce,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.6,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              ready
+                                  ? 'Cultivation complete'
+                                  : '${_fmtShort(times.active)} in a chamber',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: muted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      StageIconButton(
+                        icon: AppIcons.close_rounded,
+                        tooltip: 'Close',
+                        // The stage is dark on both themes; the theme's own
+                        // secondary text is dark on the light one.
+                        color: muted,
+                        onTap: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  height: 1,
+                  color: Colors.white.withValues(alpha: 0.06),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+                  child: Column(
+                    children: [
+                      Text(
+                        getEggLabel(payload),
+                        textAlign: TextAlign.center,
+                        style: bracketText(
+                          context,
+                          14,
+                          ink,
+                          weight: FontWeight.w700,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        lineage,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: bracketText(
+                          context,
+                          12,
+                          muted,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        );
-      },
+          ),
+        ),
+      ),
     );
   }
 
-  List<_ParentDetail> _extractParents() {
-    final parentage = payload['parentage'];
-    if (parentage is! Map) return const [];
-
-    final parents = <_ParentDetail>[];
-    final parentA = _parseParent(parentage['parentA'], 'A');
-    final parentB = _parseParent(parentage['parentB'], 'B');
-
-    if (parentA != null) parents.add(parentA);
-    if (parentB != null) parents.add(parentB);
-
-    return parents;
-  }
-
-  _ParentDetail? _parseParent(dynamic raw, String fallbackLabel) {
-    if (raw is! Map) return null;
-
-    try {
-      final snap = ParentSnapshot.fromJson(Map<String, dynamic>.from(raw));
-      final cleanName = snap.name.trim();
-      if (cleanName.isEmpty) return null;
-
-      final parts = <String>[];
-      final types = snap.types
-          .where((type) => type.trim().isNotEmpty)
-          .join(' • ');
-      if (types.isNotEmpty) parts.add(types);
-
-      return _ParentDetail(
-        name: cleanName,
-        subtitle: parts.isEmpty ? null : parts.join('  |  '),
-      );
-    } catch (_) {
-      final rawName = (raw['name'] as String?)?.trim() ?? '';
-      if (rawName.isEmpty) return null;
-
-      final rawTypes = (raw['types'] is List)
-          ? (raw['types'] as List)
-                .map((type) => type.toString().trim())
-                .where((type) => type.isNotEmpty)
-                .join(' • ')
-          : '';
-      final parts = <String>[if (rawTypes.isNotEmpty) rawTypes];
-
-      return _ParentDetail(
-        name: rawName,
-        subtitle: parts.isEmpty ? null : parts.join('  |  '),
-      );
-    }
-  }
-
-  String _formatSource(String source) {
-    return switch (source) {
-      'wild_capture' => 'Wild Capture',
-      'wild' => 'Wild Capture',
-      'wild_fusion' => 'Wild Fusion',
-      'wild_breeding' => 'Wild Fusion',
-      'standard_fusion' => 'Standard Fusion',
-      'breeding' => 'Standard Fusion',
-      'rift_portal' => 'Rift Portal',
-      'planet_summon' => 'Planet Summon',
-      'boss_summon' => 'Altar Summon',
-      'vial' => 'Extraction Vial',
-      'bloodborn' => 'Bloodborn Rite',
-      'starter' => 'Starter Selection',
-      _ => source.replaceAll('_', ' ').toUpperCase(),
-    };
-  }
-
-  Future<void> _addToIncubator(BuildContext context, ForgeTokens t) async {
+  Future<void> _toChamber() async {
+    if (_busy) return;
+    _busy = true;
+    final t = ForgeTokens(context.read<FactionTheme>());
     final db = context.read<AlchemonsDatabase>();
-    final chamber = await placeStoredEggInChamber(db, egg);
-    if (!context.mounted) return;
+    final chamber = await placeStoredEggInChamber(db, widget.egg);
+    if (!mounted) return;
+    _busy = false;
 
-    // Told before the sheet closes: once it has, its context is gone.
+    // Told before the dialog closes: once it has, its context is gone.
     if (chamber == null) {
       HapticFeedback.heavyImpact();
       showGameSnack(
@@ -1415,20 +1319,42 @@ class EggDetailsModal extends StatelessWidget {
         accent: t.danger,
         duration: const Duration(seconds: 2),
       );
-    } else {
-      HapticFeedback.lightImpact();
-      showGameSnack(
-        context,
-        'Added to chamber ${chamber + 1}',
-        icon: AppIcons.bubble_chart_rounded,
-        accent: t.amberBright,
-        duration: const Duration(seconds: 2),
-      );
+      return;
     }
+    HapticFeedback.lightImpact();
+    showGameSnack(
+      context,
+      'Added to chamber ${chamber + 1}',
+      icon: AppIcons.bubble_chart_rounded,
+      accent: t.amberBright,
+      duration: const Duration(seconds: 2),
+    );
     Navigator.pop(context);
   }
 
-  Future<void> _confirmDelete(BuildContext context, ForgeTokens t) async {
+  Future<void> _extract() async {
+    if (_busy) return;
+    _busy = true;
+    final host = widget.hostContext;
+    final t = ForgeTokens(context.read<FactionTheme>());
+    Navigator.pop(context);
+
+    final result = await EggHatching.performStorageHatching(
+      context: host,
+      egg: widget.egg,
+    );
+    if (!host.mounted || result.success || result.message == null) return;
+    showGameSnack(
+      host,
+      result.message!,
+      icon: result.icon ?? AppIcons.error_rounded,
+      accent: result.color ?? t.danger,
+      duration: const Duration(seconds: 2),
+    );
+  }
+
+  Future<void> _confirmDelete() async {
+    final t = ForgeTokens(context.read<FactionTheme>());
     final confirmed = await showBracketConfirm(
       context,
       palette: BracketPalette.of(context),
@@ -1438,12 +1364,12 @@ class EggDetailsModal extends StatelessWidget {
       confirmLabel: 'DELETE',
       icon: AppIcons.delete_outline_rounded,
     );
-    if (!confirmed || !context.mounted) return;
+    if (!confirmed || !mounted) return;
 
     await context.read<AlchemonsDatabase>().incubatorDao.removeFromInventory(
-      egg.eggId,
+      widget.egg.eggId,
     );
-    if (!context.mounted) return;
+    if (!mounted) return;
     HapticFeedback.mediumImpact();
     showGameSnack(
       context,
@@ -1454,85 +1380,45 @@ class EggDetailsModal extends StatelessWidget {
     );
     Navigator.pop(context);
   }
-}
 
-class _ParentDetail {
-  final String name;
-  final String? subtitle;
-
-  const _ParentDetail({required this.name, required this.subtitle});
-}
-
-class _DetailsCloseButton extends StatelessWidget {
-  const _DetailsCloseButton({required this.palette, required this.onTap});
-
-  final BracketPalette palette;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Close',
-      child: GestureDetector(
-        onTap: context.soundAction(onTap),
-        behavior: HitTestBehavior.opaque,
-        child: CustomPaint(
-          painter: BracketFramePainter(
-            color: palette.line.withValues(alpha: 0.7),
-            bracketSize: 6,
-            strokeWidth: 1,
-          ),
-          child: Container(
-            width: 32,
-            height: 32,
-            alignment: Alignment.center,
-            color: palette.surfaceMutedFill(),
-            child: Icon(AppIcons.close_rounded, size: 16, color: palette.muted),
-          ),
-        ),
-      ),
-    );
+  /// Where it came from, in words; null when the record does not say.
+  static String? _formatSource(String? source) {
+    return switch (source) {
+      null || '' || 'unknown' => null,
+      'wild_capture' || 'wild' => 'Wild Capture',
+      'wild_fusion' || 'wild_breeding' => 'Wild Fusion',
+      'standard_fusion' || 'breeding' => 'Standard Fusion',
+      'rift_portal' => 'Rift Portal',
+      'planet_summon' => 'Planet Summon',
+      'boss_summon' => 'Altar Summon',
+      'vial' => 'Extraction Vial',
+      'bloodborn' => 'Bloodborn Rite',
+      'starter' => 'Starter Selection',
+      _ =>
+        source
+            .split('_')
+            .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+            .join(' '),
+    };
   }
-}
 
-class _DetailsTextLink extends StatelessWidget {
-  const _DetailsTextLink({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: color.withValues(alpha: 0.85)),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: bracketText(
-                context,
-                12,
-                color.withValues(alpha: 0.85),
-                weight: FontWeight.w600,
-                letterSpacing: 0.4,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  /// Its parents' names, when it has any on record.
+  static List<String> _parentNames(Map<String, dynamic> payload) {
+    final parentage = payload['parentage'];
+    if (parentage is! Map) return const [];
+    final names = <String>[];
+    for (final key in const ['parentA', 'parentB']) {
+      final raw = parentage[key];
+      if (raw is! Map) continue;
+      String name;
+      try {
+        name = ParentSnapshot.fromJson(Map<String, dynamic>.from(raw)).name;
+      } catch (_) {
+        name = raw['name'] as String? ?? '';
+      }
+      name = name.trim();
+      if (name.isNotEmpty) names.add(name);
+    }
+    return names;
   }
 }

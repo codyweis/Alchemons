@@ -3,6 +3,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/fusion_emblem.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -161,8 +162,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
       'assets/images/ui/dexicon_light.png',
       'assets/images/ui/dexicon.png',
       'assets/images/ui/homeicon2.png',
-      'assets/images/ui/extrastorage.png',
-      'assets/images/ui/shopicon2.png',
+            'assets/images/ui/shopicon2.png',
     ];
 
     for (final path in paths) {
@@ -350,7 +350,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                         ),
                         _buildNavButton(
                           section: NavSection.breed,
-                          icon: 'assets/images/ui/extrastorage.png',
+                          icon: const _FusionIcon(),
                           label: 'FUSION',
                           theme: theme,
                           isDisabled: isDisabled,
@@ -402,7 +402,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
 
   Widget _buildNavButton({
     required NavSection section,
-    required dynamic icon, // IconData | String (asset path)
+    required dynamic icon, // IconData | String (asset path) | _FusionIcon
     required String label,
     required FactionTheme? theme,
     required bool isDisabled,
@@ -481,6 +481,17 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                             size: iconSize,
                           ),
                         )
+                      else if (icon is _FusionIcon)
+                        _withDot(
+                          showDot,
+                          FusionEmblem(
+                            key: iconKey,
+                            size: iconSize,
+                            // Only the open tab moves.
+                            animate: isActive && !isDisabled,
+                            dark: theme?.isDark ?? true,
+                          ),
+                        )
                       else if (icon is String)
                         _withDot(
                           showDot,
@@ -525,4 +536,9 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
       },
     );
   }
+}
+
+/// Marks the Fusion tab, whose icon is drawn rather than loaded.
+class _FusionIcon {
+  const _FusionIcon();
 }

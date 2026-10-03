@@ -385,6 +385,10 @@ class _NurseryTabState extends State<NurseryTab> {
                       buildSectionHeader: _buildSectionHeader,
                       quality: _cinematicQuality,
                       canAutoMove: canBatchExtract,
+                      presentDialog: (builder) =>
+                          _showDialogWithPausedBackground<void>(
+                            builder: builder,
+                          ),
                     ),
                   ),
                 ],
