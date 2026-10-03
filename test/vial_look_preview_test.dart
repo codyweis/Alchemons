@@ -20,7 +20,7 @@ import 'package:provider/provider.dart';
 
 // Every way a vial is shown, on the dark and the light theme's grounds: the
 // inventory's grid cards at each rarity, a priced shop card, the faction
-// picker's orb, and cold storage's cards (in progress and ready).
+// picker's orb, and cold storage's stasis cells (in progress and ready).
 //
 //   VIALS_OUT=/tmp/vials flutter test \
 //     test/vial_look_preview_test.dart --tags preview
@@ -138,9 +138,9 @@ void main() {
                   ('s3', 'verdant', true),
                 ]) ...[
                   SizedBox(
-                    width: 110,
-                    height: 128,
-                    child: StorageEggCard(
+                    width: 84,
+                    height: 72.7,
+                    child: StasisCell(
                       egg: stored(id, faction, ready: ready),
                       quality: CinematicQuality.cinematic,
                       nowUtc: DateTime.now().toUtc(),
