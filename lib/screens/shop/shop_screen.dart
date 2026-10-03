@@ -78,7 +78,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   ForgeTokens get t => ForgeTokens(context.read<FactionTheme>());
 
   int _slotsUnlocked = 1;
-  int _cosmicPartySlots = 0;
 
   /// Cosmic space found. Raids only exist out there, so the beacon that
   /// summons one is meaningless — and a spoiler — before then.
@@ -93,12 +92,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
   late final Map<String, int> _slot2Cost;
   late final Map<String, int> _slot3Cost;
-
-  // Cosmic party slot costs.
-  /// The only patrol slot for sale. The first two come with the ship, so
-  /// there is nothing to buy until the player already knows what a
-  /// companion does for them.
-  static const Map<String, int> _partySlot3Cost = {'gold': 25};
 
   @override
   void initState() {
@@ -157,12 +150,10 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   Future<void> _refreshAll() async {
     final db = context.read<AlchemonsDatabase>();
     final n = await db.settingsDao.getBlobSlotsUnlocked();
-    final cp = await db.settingsDao.getCosmicPartySlotsUnlocked();
     final show = await db.settingsDao.getShopShowPurchased();
     if (!mounted) return;
     setState(() {
       _slotsUnlocked = n;
-      _cosmicPartySlots = cp;
       _showPurchased = show;
     });
   }
@@ -645,19 +636,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                         resourceBalances,
                       ),
 
-                      // A patrol slot is only legible once there is a ship to
-                      // patrol beside, so it appears with the ship, not before.
-                      if (context.watch<ShopService>().getPurchaseCount(
-                            'cosmic.ship',
-                          ) >
-                          0) ...[
-                        _buildSectionHeader(
-                          'PATROL SLOTS',
-                          AppIcons.groups_rounded,
-                        ),
-                        _buildPatrolSlotsGrid(theme, allCurrencies),
-                      ],
-
                       // Power Orbs raise Enhancement ranks, so they are
                       // stock for a screen the player cannot open yet. Hidden
                       // until Enhance is unlocked, the way Enhance itself is
@@ -983,105 +961,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     );
   }
 
-  /// Patrol slots stand alone now that 'COSMIC EXPLORATION' is gone.
-  /// The slot card lived inside [buildExplorationGrid], so removing that
-  /// section took the only way to buy a third patrol slot with it — the
-  /// ship itself is discovered in-world, but the slot that fills it still
-  /// has to be sold somewhere.
-  Widget _buildPatrolSlotsGrid(
-    FactionTheme theme,
-    Map<String, int> allCurrencies,
-  ) {
-    return Consumer<ShopService>(
-      builder: (context, shopService, _) {
-        final cards = <Widget>[];
-
-        void addPartySlot(int slotNumber, Map<String, int> cost) {
-          if (_cosmicPartySlots >= slotNumber && !_showPurchased) return;
-          final enabled = _cosmicPartySlots < slotNumber;
-          final canAfford = cost.entries.every(
-            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
-          );
-          final costWidgets = <Widget>[
-            for (final e in cost.entries)
-              CostChip(
-                currencyType: e.key,
-                amount: e.value,
-                available: allCurrencies[e.key] ?? 0,
-              ),
-          ];
-          final slotOffer = ShopOffer(
-            rewardType: 'Upgrade',
-            reward: <String, dynamic>{},
-            limit: PurchaseLimit.once,
-            id: 'unlock.cosmic_party_slot_$slotNumber',
-            name: 'Patrol Slot $slotNumber',
-            description:
-                'Unlock patrol slot $slotNumber. Assign an Alchemon to patrol space with your ship.',
-            icon: AppIcons.groups_rounded,
-            cost: cost,
-            inventoryKey: null,
-            assetName: null,
-          );
-          cards.add(
-            GestureDetector(
-              onTap: context.soundAction(
-                () => enabled
-                    ? _handleCosmicPartySlotPurchase(
-                        context,
-                        slotOffer,
-                        allCurrencies,
-                        canAfford,
-                        slotNumber,
-                      )
-                    : _showBubbleSlotDetails(
-                        context,
-                        slotOffer,
-                        allCurrencies,
-                        canAfford,
-                      ),
-              ),
-              child: GameShopCard(
-                key: ValueKey('cosmic-party-slot-$slotNumber'),
-                title: 'Patrol Slot $slotNumber',
-                offer: slotOffer,
-                theme: theme,
-                costWidgets: costWidgets,
-                enabled: enabled,
-                canAfford: canAfford,
-              ),
-            ),
-          );
-        }
-
-        addPartySlot(3, DebugSettingsService.priced(_partySlot3Cost));
-
-        if (cards.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(12),
-            child: EmptySection(
-              message: 'All patrol slots unlocked',
-              icon: AppIcons.check_circle_outline_rounded,
-            ),
-          );
-        }
-
-        return Padding(
-          padding: const EdgeInsets.all(12),
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: responsiveCrossAxisCount(context),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 0.75,
-            children: cards,
-          ),
-        );
-      },
-    );
-  }
-
   Widget buildExplorationGrid(
     FactionTheme theme,
     Map<String, int> allCurrencies,
@@ -1201,67 +1080,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
         addSlot(2);
         addSlot(3);
 
-        // ── Cosmic Party (patrol slot) upgrades ──
-        void addPartySlot(int slotNumber, Map<String, int> cost) {
-          if (_cosmicPartySlots >= slotNumber && !_showPurchased) return;
-          final enabled = _cosmicPartySlots < slotNumber;
-          final canAfford = cost.entries.every(
-            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
-          );
-          final costWidgets = <Widget>[
-            for (final e in cost.entries)
-              CostChip(
-                currencyType: e.key,
-                amount: e.value,
-                available: allCurrencies[e.key] ?? 0,
-              ),
-          ];
-          final slotOffer = ShopOffer(
-            rewardType: 'Upgrade',
-            reward: <String, dynamic>{},
-            limit: PurchaseLimit.once,
-            id: 'unlock.cosmic_party_slot_$slotNumber',
-            name: 'Patrol Slot $slotNumber',
-            description:
-                'Unlock patrol slot $slotNumber. Assign an Alchemon to patrol space with your ship.',
-            icon: AppIcons.groups_rounded,
-            cost: cost,
-            inventoryKey: null,
-            assetName: null,
-          );
-          cards.add(
-            GestureDetector(
-              onTap: context.soundAction(
-                () => enabled
-                    ? _handleCosmicPartySlotPurchase(
-                        context,
-                        slotOffer,
-                        allCurrencies,
-                        canAfford,
-                        slotNumber,
-                      )
-                    : _showBubbleSlotDetails(
-                        context,
-                        slotOffer,
-                        allCurrencies,
-                        canAfford,
-                      ),
-              ),
-              child: GameShopCard(
-                key: ValueKey('cosmic-party-slot-$slotNumber'),
-                title: 'Patrol Slot $slotNumber',
-                offer: slotOffer,
-                theme: theme,
-                costWidgets: costWidgets,
-                enabled: enabled,
-                canAfford: canAfford,
-              ),
-            ),
-          );
-        }
-
-        addPartySlot(3, DebugSettingsService.priced(_partySlot3Cost));
-
         if (cards.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(12),
@@ -1286,84 +1104,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
         );
       },
     );
-  }
-
-  Future<void> _handleCosmicPartySlotPurchase(
-    BuildContext context,
-    ShopOffer offer,
-    Map<String, int> balances,
-    bool canAfford,
-    int slotNumber,
-  ) async {
-    final theme = context.read<FactionTheme>();
-    final shouldProceed = await showItemDetailDialog(
-      context: context,
-      offer: offer,
-      theme: theme,
-      currencies: balances,
-      inventoryQty: 0,
-      canPurchase: canAfford,
-      canAfford: canAfford,
-      effectiveCost: offer.cost,
-    );
-    if (!shouldProceed || !context.mounted) return;
-    await _purchaseCosmicPartySlot(slotNumber);
-  }
-
-  Future<void> _purchaseCosmicPartySlot(int target) async {
-    final db = context.read<AlchemonsDatabase>();
-    final cost = DebugSettingsService.priced(_partySlot3Cost);
-
-    if (_cosmicPartySlots >= target) {
-      _toast('Already unlocked');
-      return;
-    }
-
-    final ok = await _spendWalletCost(db, cost);
-    if (!ok) {
-      _toast(
-        'Not enough currency',
-        icon: AppIcons.lock_rounded,
-        color: t.amber,
-      );
-      return;
-    }
-
-    await db.settingsDao.setCosmicPartySlotsUnlocked(target);
-    await _refreshAll();
-    if (!mounted) return;
-    context.sound(SoundCue.purchaseSuccess, owner: this);
-    _toast(
-      'Patrol slot $target unlocked!',
-      icon: AppIcons.groups_rounded,
-      color: t.teal,
-    );
-    HapticFeedback.lightImpact();
-  }
-
-  Future<bool> _spendWalletCost(
-    AlchemonsDatabase db,
-    Map<String, int> cost,
-  ) async {
-    // Guard first so we don't partially spend in mixed-currency costs.
-    final balances = await db.currencyDao.getAllCurrencies();
-    final canAfford = cost.entries.every(
-      (e) => (balances[e.key] ?? 0) >= e.value,
-    );
-    if (!canAfford) return false;
-
-    for (final e in cost.entries) {
-      final key = e.key;
-      final amount = e.value;
-      final spent = switch (key) {
-        'silver' => await db.currencyDao.spendSilver(amount),
-        'gold' => await db.currencyDao.spendGold(amount),
-        'soft' => await db.currencyDao.spendSoft(amount),
-        _ => false,
-      };
-      if (!spent) return false;
-    }
-    return true;
   }
 
   Widget _buildPortalKeysGrid(

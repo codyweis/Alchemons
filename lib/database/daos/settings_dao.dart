@@ -358,27 +358,14 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
 
   // =================== COSMIC PARTY (ALCHEMON PATROL) ===================
 
-  /// Patrol slots every ship has, before anything is bought.
-  ///
-  /// Flying alone was the default and it made cosmic space read as a
-  /// shooter the player's collection had nothing to do with. Two is enough
-  /// to show what a companion is for; the third is the thing worth buying.
-  static const int freeCosmicPartySlots = 2;
-  static const int maxCosmicPartySlots = 3;
+  /// Every ship flies with a full party of three. There used to be a shop
+  /// slot to buy for the third; it is gone, so nobody has to find it.
+  static const int cosmicPartySlotCount = 3;
 
-  /// How many cosmic party slots the ship has (2-3).
-  Future<int> getCosmicPartySlotsUnlocked() async {
-    final v = await getSetting('cosmic_party_slots_unlocked');
-    final n = v == null ? freeCosmicPartySlots : (int.tryParse(v) ?? 0);
-    // Floored rather than defaulted, so a save that recorded 0 or 1 back
-    // when those were real states still gets the free two.
-    return n.clamp(freeCosmicPartySlots, maxCosmicPartySlots);
-  }
-
-  Future<void> setCosmicPartySlotsUnlocked(int n) async {
-    final clamped = n.clamp(freeCosmicPartySlots, maxCosmicPartySlots);
-    await setSetting('cosmic_party_slots_unlocked', clamped.toString());
-  }
+  /// How many cosmic party slots the ship has. Always [cosmicPartySlotCount];
+  /// kept as a getter so older saves that recorded 2 (or 3, from the old
+  /// purchase) read the same.
+  Future<int> getCosmicPartySlotsUnlocked() async => cosmicPartySlotCount;
 
   /// Get the list of instance IDs assigned to cosmic party slots.
   Future<List<String?>> getCosmicPartySlots() async {
