@@ -585,16 +585,18 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
       ),
   ];
 
-  /// The journal used to hardcode `ThemeData.dark()`. Its own surfaces come
-  /// from [FC], which follows the faction theme, so in light mode the screen
-  /// ended up with dark-theme Material defaults — white default text, dark
-  /// dividers and ripples — painted over light parchment.
+  /// The app's own theme with the journal's gold and surfaces laid over it.
+  ///
+  /// It used to start from a stock `ThemeData.dark()`/`light()`, which
+  /// carries none of the app's text theme — so every line on the screen
+  /// that did not name a font came out in the platform's default one,
+  /// whatever the player had picked in their profile.
   ThemeData get journalTheme {
     final theme = context.read<FactionTheme>();
     final fc = FC(theme);
     final brightness = theme.isDark ? Brightness.dark : Brightness.light;
     final gold = fc.rewardGold;
-    return (theme.isDark ? ThemeData.dark() : ThemeData.light()).copyWith(
+    return Theme.of(context).copyWith(
       scaffoldBackgroundColor: fc.bg1,
       appBarTheme: AppBarTheme(
         backgroundColor: fc.bg1,

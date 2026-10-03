@@ -75,6 +75,56 @@ class CoinAmount extends StatelessWidget {
   }
 }
 
+/// Gold over silver, exact, in a bracket frame: the one way the game shows
+/// what the player holds. [CurrencyDisplayWidget] is the live version.
+class CoinPurse extends StatelessWidget {
+  const CoinPurse({
+    super.key,
+    required this.gold,
+    required this.silver,
+    required this.palette,
+    this.fill,
+  });
+
+  final int gold;
+  final int silver;
+  final BracketPalette palette;
+
+  /// Behind the figures; the palette's surface when left out.
+  final Color? fill;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: palette.line.withValues(alpha: 0.9),
+        bracketSize: 7,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        color: fill ?? palette.surfaceFill(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            CoinAmount(
+              kind: CoinKind.gold,
+              amount: gold,
+              color: coinColor(CoinKind.gold, palette),
+            ),
+            const SizedBox(height: 3),
+            CoinAmount(
+              kind: CoinKind.silver,
+              amount: silver,
+              color: coinColor(CoinKind.silver, palette),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// A button: accent brackets round a wash, the label in ink.
 ///
 /// [primary] is the thing to do; the other kind is a quieter frame in the

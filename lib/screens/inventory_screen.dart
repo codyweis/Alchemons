@@ -298,11 +298,7 @@ class _InventoryScreenState extends State<InventoryScreen>
           padding: const EdgeInsets.only(left: 18),
           child: Row(
             children: [
-              Flexible(
-                child: CurrencyDisplayWidget(
-                  accentColor: bracketReadableAccent(theme),
-                ),
-              ),
+              Flexible(child: const CurrencyDisplayWidget()),
               const SizedBox(width: 10),
               Expanded(
                 child: ResourceCollectionWidget(

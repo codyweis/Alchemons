@@ -25,6 +25,7 @@ import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -189,7 +190,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
   }
 
   Widget _buildHeader(BracketPalette palette) {
-    final db = context.read<AlchemonsDatabase>();
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
@@ -238,41 +238,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          StreamBuilder<Map<String, int>>(
-            stream: db.currencyDao.watchAllCurrencies(),
-            builder: (context, snap) {
-              final curr = snap.data ?? const {'gold': 0, 'silver': 0};
-              return CustomPaint(
-                painter: BracketFramePainter(
-                  color: palette.line.withValues(alpha: 0.9),
-                  bracketSize: 7,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  color: palette.surfaceFill(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      CoinAmount(
-                        kind: CoinKind.gold,
-                        amount: curr['gold'] ?? 0,
-                        color: coinColor(CoinKind.gold, palette),
-                      ),
-                      const SizedBox(height: 3),
-                      CoinAmount(
-                        kind: CoinKind.silver,
-                        amount: curr['silver'] ?? 0,
-                        color: coinColor(CoinKind.silver, palette),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
+          const CurrencyDisplayWidget(),
         ],
       ),
     );

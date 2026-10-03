@@ -327,12 +327,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             padding: const EdgeInsets.only(left: 12, bottom: 10),
             child: Row(
               children: [
-                Flexible(
-                  child: CurrencyDisplayWidget(
-                    accentColor: t.borderAccent,
-                    initiallyExpanded: true,
-                  ),
-                ),
+                Flexible(child: const CurrencyDisplayWidget()),
                 const SizedBox(width: 4),
                 Expanded(
                   child: ResourceCollectionWidget(

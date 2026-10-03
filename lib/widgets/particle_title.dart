@@ -119,6 +119,10 @@ TitleHue titleHue(String? id) =>
 
 // ── the samples ─────────────────────────────────────────────────────────────
 
+/// The lettering the title's grains are read from (the dock's home emblem
+/// reads its A from it too).
+const String kTitleAsset = 'assets/images/ui/alchemonstitle.png';
+
 /// The logo, read into grains: where each sits (in the 300×60 box the logo
 /// always occupied), its colour tone, and which letter it belongs to.
 class TitleSamples {
@@ -830,7 +834,7 @@ class _ParticleTitleState extends State<ParticleTitle>
   OverlayEntry? _picker;
 
   String get _asset => widget.darkBackdrop
-      ? 'assets/images/ui/alchemonstitle.png'
+      ? kTitleAsset
       : 'assets/images/ui/alchemonstitledark.png';
 
   @override

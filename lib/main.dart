@@ -342,48 +342,17 @@ class _AppGateState extends State<AppGate> {
 
   Future<void> _precacheUIAssets() async {
     if (!mounted) return;
-
-    const uiPaths = <String>[
-      // Bottom nav
-      'assets/images/ui/inventorylight.png',
-      'assets/images/ui/inventorydark.png',
-      'assets/images/ui/dexicon_light.png',
-      'assets/images/ui/dexicon.png',
-      'assets/images/ui/homeicon2.png',
-      'assets/images/ui/breedicon.png',
-      'assets/images/ui/shopicon2.png',
-      'assets/images/ui/trialsicon.png',
-      'assets/images/ui/map.png',
-
-      // Header/avatar + quick actions
-      'assets/images/ui/profileicon.png',
-      'assets/images/ui/fieldicon.png',
-      'assets/images/ui/competeicon.png',
-
-      // Title images (both light/dark variants)
-      'assets/images/ui/alchemonstitle.png',
-      'assets/images/ui/alchemonstitledark.png',
-    ];
-
-    // Precache at multiple sizes for different UI states
-    const sizes = [
-      Size(55, 55), // Inactive navbar icons
-      Size(120, 120), // Expanded navbar icons
-    ];
-
-    int cached = 0;
-    for (final path in uiPaths) {
-      for (final size in sizes) {
-        try {
-          await precacheImage(AssetImage(path), context, size: size);
-          cached++;
-        } catch (e) {
-          debugPrint('Failed to precache $path at $size: $e');
-        }
-      }
+    // The splash's title. The dock, the avatar and the daily cache are drawn
+    // now, not loaded; this list used to decode a dozen large PNGs at
+    // startup, half of which nothing showed any more.
+    try {
+      await precacheImage(
+        const AssetImage('assets/images/ui/alchemonstitle.png'),
+        context,
+      );
+    } catch (e) {
+      debugPrint('Failed to precache the title: $e');
     }
-
-    debugPrint('🎨 Precached $cached UI assets');
   }
 
   // >>> spawn bootstrap

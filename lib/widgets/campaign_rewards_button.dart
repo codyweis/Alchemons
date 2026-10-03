@@ -424,14 +424,19 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
     }
 
     if (widget.style == CampaignRewardsStyle.tile) {
-      return ListTile(
-        leading: icon,
-        title: const Text('ACHIEVEMENTS'),
-        subtitle: Text(
-          count > 0 ? '$count waiting' : 'Main story, rewards, and memories',
+      // Its own Material: the profile panel it sits in has a fill, which
+      // would hide the ripple (and Flutter asserts on it).
+      return Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          leading: icon,
+          title: const Text('ACHIEVEMENTS'),
+          subtitle: Text(
+            count > 0 ? '$count waiting' : 'Main story, rewards, and memories',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: widget.enabled ? open : null,
         ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: widget.enabled ? open : null,
       );
     }
     return IconButton(

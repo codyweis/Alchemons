@@ -617,7 +617,16 @@ class HomeNoticeDot extends StatelessWidget {
 class NotificationBannerStack extends StatefulWidget {
   final List<NotificationBanner> notifications;
 
-  const NotificationBannerStack({super.key, required this.notifications});
+  /// Where the stack sits until the player moves it, from the top of the
+  /// screen. Home passes the space under its featured specimen; left out, it
+  /// starts at the top.
+  final double? restTop;
+
+  const NotificationBannerStack({
+    super.key,
+    required this.notifications,
+    this.restTop,
+  });
 
   @override
   State<NotificationBannerStack> createState() =>
@@ -637,7 +646,11 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
   // drag: tap already expands a notice and a horizontal swipe already folds
   // one, so a plain pan had nowhere to go without taking one of those away.
   static const _prefsSideKey = 'home_banner_right_side';
-  static const _prefsDyKey = 'home_banner_dy';
+
+  /// Measured from [NotificationBannerStack.restTop]. A new key, because
+  /// the old one counted from the top of the screen — where the stack used
+  /// to start, on top of the player's coins.
+  static const _prefsDyKey = 'home_banner_dy_v2';
 
   /// How long the press has to be held before the stack lifts.
   ///
@@ -695,14 +708,19 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
     });
   }
 
-  void _drop(double screenWidth, double maxDy, double releasedAtX) {
+  void _drop(
+    double screenWidth,
+    double minDy,
+    double maxDy,
+    double releasedAtX,
+  ) {
     // Whichever half it was released in, so a short nudge across the middle
     // still switches sides and a long drag that ends up back where it
     // started does not.
     final side = releasedAtX > screenWidth / 2;
     setState(() {
       _onRight = side;
-      _dy = (_dy + _liveDy).clamp(0.0, maxDy);
+      _dy = (_dy + _liveDy).clamp(minDy, maxDy);
       _dragging = false;
       _liveDx = 0;
       _liveDy = 0;
@@ -833,11 +851,14 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
     }
 
     final media = MediaQuery.of(context);
-    final baseTop = media.padding.top + 8;
+    final highest = media.padding.top + 8;
+    final baseTop = math.max(widget.restTop ?? highest, highest);
     // Kept on screen whatever was stored: a rotation or a smaller device
-    // must not strand the banners past the bottom edge.
-    final maxDy = (media.size.height - baseTop - 140).clamp(0.0, 4000.0);
-    final top = (_dy + _liveDy).clamp(0.0, maxDy) + baseTop;
+    // must not strand the banners past the bottom edge, and it can still be
+    // lifted all the way to the top.
+    final minDy = highest - baseTop;
+    final maxDy = (media.size.height - baseTop - 140).clamp(minDy, 4000.0);
+    final top = (_dy + _liveDy).clamp(minDy, maxDy) + baseTop;
 
     return Positioned(
       top: top,
@@ -859,8 +880,12 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
                   instance.onLongPressStart = (_) => _pickUp();
                   instance.onLongPressMoveUpdate = (d) =>
                       _dragTo(d.offsetFromOrigin);
-                  instance.onLongPressEnd = (d) =>
-                      _drop(media.size.width, maxDy, d.globalPosition.dx);
+                  instance.onLongPressEnd = (d) => _drop(
+                    media.size.width,
+                    minDy,
+                    maxDy,
+                    d.globalPosition.dx,
+                  );
                   instance.onLongPressCancel = _cancelDrag;
                 },
               ),

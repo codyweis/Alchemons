@@ -48,22 +48,15 @@ class FeaturedCreaturePresentation extends StatelessWidget {
               alignment: Alignment.center,
               clipBehavior: Clip.none,
               children: [
-                // glow aura behind
-                Container(
-                  width: 220,
-                  height: 220,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [theme.primary, Colors.transparent],
+                // The glow behind it, in its own layer: the float moves the
+                // layer, it never repaints the glow.
+                RepaintBoundary(
+                  child: CustomPaint(
+                    size: const Size.square(220),
+                    painter: _HaloPainter(
+                      core: theme.primary,
+                      rim: theme.accent,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.accent.withValues(alpha: 0.45),
-                        blurRadius: 40,
-                        spreadRadius: 8,
-                      ),
-                    ],
                   ),
                 ),
 
@@ -160,4 +153,43 @@ class PresentationData {
     required this.instance,
     required this.creature,
   });
+}
+
+/// The featured specimen's glow: its faction's colour at the heart, fading
+/// through the accent into nothing past the edge of its 220 box.
+///
+/// One radial gradient. It replaced a gradient disc over a 40px blurred
+/// shadow, which the breathing float redrew every frame — a blur on home for
+/// as long as home was open.
+class _HaloPainter extends CustomPainter {
+  const _HaloPainter({required this.core, required this.rim});
+
+  final Color core;
+  final Color rim;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    // The old shadow reached about 1.5x the disc's radius.
+    final r = size.shortestSide * 0.75;
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            core,
+            Color.lerp(core, rim, 0.5)!.withValues(alpha: 0.72),
+            rim.withValues(alpha: 0.24),
+            rim.withValues(alpha: 0.07),
+            rim.withValues(alpha: 0),
+          ],
+          stops: const [0, 0.33, 0.667, 0.85, 1],
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _HaloPainter old) =>
+      old.core != core || old.rim != rim;
 }

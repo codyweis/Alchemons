@@ -35,6 +35,7 @@ import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
@@ -403,7 +404,9 @@ class _BreedingTabState extends State<BreedingTab>
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: _buildActions(palette, gold, ready.block == null),
             ),
-            const SizedBox(height: 14),
+            // Clear of the dock's raised FUSION icon, which otherwise sat on
+            // the middle of the button.
+            const SizedBox(height: kDockIconRise + 6),
           ],
         );
         return compact

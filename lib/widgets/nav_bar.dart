@@ -5,12 +5,20 @@ import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/fusion_emblem.dart';
 import 'package:alchemons/widgets/game_snack.dart';
+import 'package:alchemons/widgets/nav_emblems.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 enum NavSection { home, creatures, shop, breed, inventory }
+
+/// How far the open tab's icon stands above the top of the dock.
+///
+/// The dock is 60 high; the open tab's icon grows to 80 and is lifted 30, so
+/// it reaches about 40 above the dock's edge. A tab whose content ends in a
+/// full-width control keeps that much clear, or the icon sits on it.
+const double kDockIconRise = 40;
 
 class BottomNav extends StatefulWidget {
   const BottomNav({
@@ -44,7 +52,6 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   late final Animation<double> _expandAnimation;
   late final AnimationController _tutorialPulseController;
 
-  static bool _navIconsCached = false;
   int? _activePointer;
   Offset? _dragStart;
   bool _isSlidingAcrossNav = false;
@@ -70,10 +77,6 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_navIconsCached) {
-      _navIconsCached = true;
-      _precacheNavIcons();
-    }
     _slotSub ??= context
         .read<AlchemonsDatabase>()
         .incubatorDao
@@ -155,25 +158,6 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  Future<void> _precacheNavIcons() async {
-    const paths = <String>[
-      'assets/images/ui/inventorylight.png',
-      'assets/images/ui/inventorydark.png',
-      'assets/images/ui/dexicon_light.png',
-      'assets/images/ui/dexicon.png',
-      'assets/images/ui/homeicon2.png',
-            'assets/images/ui/shopicon2.png',
-    ];
-
-    for (final path in paths) {
-      try {
-        await precacheImage(AssetImage(path), context);
-      } catch (e) {
-        debugPrint('Failed to precache bottom nav icon $path: $e');
-      }
-    }
-  }
-
   Future<void> _handleTap(
     NavSection section, {
     required bool isDisabled,
@@ -203,7 +187,8 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
           iconData = AppIcons.science_rounded;
         } else if (!fieldTutorialComplete) {
           // State 2: Extraction done, field tutorial not started
-          message = 'Tap Field on the home screen to begin your first expedition';
+          message =
+              'Tap Field on the home screen to begin your first expedition';
           iconData = AppIcons.explore_rounded;
         } else {
           // State 3: Both tutorials done, generic nav lock (shouldn't happen normally)
@@ -283,7 +268,6 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
-    final isDark = theme?.isDark ?? true;
     final db = context.read<AlchemonsDatabase>();
 
     // watch the nav lock flag from settings; defaults to '0' if unset
@@ -322,16 +306,14 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                       children: [
                         _buildNavButton(
                           section: NavSection.inventory,
-                          icon: 'assets/images/ui/inventorylight.png',
+                          icon: NavEmblemKind.inventory,
                           label: 'INVENTORY',
                           theme: theme,
                           isDisabled: isDisabled,
                         ),
                         _buildNavButton(
                           section: NavSection.creatures,
-                          icon: isDark
-                              ? 'assets/images/ui/dexicon_light.png'
-                              : 'assets/images/ui/dexicon.png',
+                          icon: NavEmblemKind.creatures,
                           label: 'CREATURES',
                           theme: theme,
                           isDisabled: isDisabled,
@@ -339,7 +321,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                         ),
                         _buildNavButton(
                           section: NavSection.home,
-                          icon: 'assets/images/ui/homeicon2.png',
+                          icon: NavEmblemKind.home,
                           label: 'HOME',
                           theme: theme,
                           isDisabled: isDisabled,
@@ -358,7 +340,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                         ),
                         _buildNavButton(
                           section: NavSection.shop,
-                          icon: 'assets/images/ui/shopicon2.png',
+                          icon: NavEmblemKind.shop,
                           label: 'SHOP',
                           theme: theme,
                           isDisabled: isDisabled,
@@ -402,7 +384,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
 
   Widget _buildNavButton({
     required NavSection section,
-    required dynamic icon, // IconData | String (asset path) | _FusionIcon
+    required dynamic icon, // IconData | NavEmblemKind | _FusionIcon
     required String label,
     required FactionTheme? theme,
     required bool isDisabled,
@@ -492,23 +474,15 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                             dark: theme?.isDark ?? true,
                           ),
                         )
-                      else if (icon is String)
+                      else if (icon is NavEmblemKind)
                         _withDot(
                           showDot,
-                          SizedBox(
+                          NavEmblem(
                             key: iconKey,
-                            width: iconSize,
-                            height: iconSize,
-                            child: FittedBox(
-                              fit: BoxFit.cover,
-                              child: Image.asset(
-                                gaplessPlayback: true,
-                                icon,
-                                fit: BoxFit.contain,
-                                color: iconColor,
-                                colorBlendMode: BlendMode.modulate,
-                              ),
-                            ),
+                            kind: icon,
+                            size: iconSize,
+                            // Only the open tab moves.
+                            animate: isActive && !isDisabled,
                           ),
                         ),
                       if (shouldExpand)

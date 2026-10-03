@@ -12,7 +12,6 @@ import 'dart:math';
 import 'package:alchemons/screens/extraction_hub_screen.dart';
 import 'package:alchemons/screens/pureblood_rite_screen.dart';
 import 'package:alchemons/screens/splash_screen.dart';
-import 'package:lottie/lottie.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
@@ -45,6 +44,7 @@ import 'package:alchemons/widgets/background/alchemical_particle_background.dart
 import 'package:alchemons/widgets/creature_showcase_widget.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
+import 'package:alchemons/widgets/daily_reliquary.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart';
 import 'package:alchemons/widgets/side_dock_widget.dart';
@@ -757,6 +757,32 @@ class _HomeScreenState extends State<HomeScreen>
   bool _memoryStoryShowing = false;
 
   bool _isInitialized = false;
+
+  // ── Where the notices rest ─────────────────────────────────────────────
+  //
+  // In the open band between the featured specimen and the chest: up in the
+  // toolbar they covered the player's coins, and lower down the title. Read
+  // off the laid-out screen, because the header has no fixed height.
+  final GlobalKey _homeStackKey = GlobalKey();
+  final GlobalKey _headerKey = GlobalKey();
+  final GlobalKey _heroSlotKey = GlobalKey();
+  double? _noticeRestTop;
+
+  void _measureNoticeRest() {
+    if (!mounted) return;
+    final stack = _homeStackKey.currentContext?.findRenderObject();
+    final anchor = (_heroSlotKey.currentContext ?? _headerKey.currentContext)
+        ?.findRenderObject();
+    if (stack is! RenderBox || anchor is! RenderBox) return;
+    if (!stack.hasSize || !anchor.hasSize) return;
+    final bottom = stack
+        .globalToLocal(anchor.localToGlobal(Offset(0, anchor.size.height)))
+        .dy;
+    final next = bottom + 6;
+    if (_noticeRestTop == null || (next - _noticeRestTop!).abs() > 0.5) {
+      setState(() => _noticeRestTop = next);
+    }
+  }
 
   // Notification banners
   final List<NotificationBanner> _activeNotifications = [];
@@ -1955,7 +1981,11 @@ class _HomeScreenState extends State<HomeScreen>
                   // One factor for every hard-coded dimension below; see
                   // _homeScaleFor.
                   final hs = _homeScaleFor(constraints.maxHeight);
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _measureNoticeRest(),
+                  );
                   return Stack(
+                    key: _homeStackKey,
                     fit: StackFit.expand,
                     children: [
                       // Background is always the home background here
@@ -1977,7 +2007,10 @@ class _HomeScreenState extends State<HomeScreen>
                         top: true,
                         child: Column(
                           children: [
-                            _buildHeader(theme),
+                            KeyedSubtree(
+                              key: _headerKey,
+                              child: _buildHeader(theme),
+                            ),
 
                             if (_featuredData != null) ...[
                               SizedBox(height: 20 * hs),
@@ -1990,6 +2023,7 @@ class _HomeScreenState extends State<HomeScreen>
                               // proportionate on the way down.
                               Flexible(
                                 child: SizedBox(
+                                  key: _heroSlotKey,
                                   height: 260 * hs,
                                   child: Center(
                                     child: TickerMode(
@@ -2311,6 +2345,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 .join(','),
                           ),
                           notifications: _activeNotifications,
+                          restTop: _noticeRestTop,
                         ),
                     ],
                   );
@@ -2635,7 +2670,7 @@ class _HomeScreenState extends State<HomeScreen>
                 opacity: _isFieldTutorialActive ? 0.35 : 1.0,
                 child: IgnorePointer(
                   ignoring: _isFieldTutorialActive,
-                  child: CurrencyDisplayWidget(),
+                  child: const CurrencyDisplayWidget(),
                 ),
               ),
             ),
@@ -2715,11 +2750,14 @@ Duration _treasureMs(int ms) =>
     Duration(milliseconds: (ms * _kTreasureSpeedUp).round());
 
 class _DailyTreasureChestState extends State<_DailyTreasureChest>
-    with TickerProviderStateMixin {
-  late final AnimationController _lottieCtrl;
+    with SingleTickerProviderStateMixin {
+  /// The unsealing, 0 → 1. The rewards land as it ends.
+  late final AnimationController _openCtrl = AnimationController(
+    vsync: this,
+    duration: _treasureMs(2000),
+  );
   bool _isClaimed = false;
   bool _isPlaying = false;
-  bool _ready = false; // true once lottie loaded
 
   static const _settingKey = 'daily_loot_key';
 
@@ -2729,7 +2767,6 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
   @override
   void initState() {
     super.initState();
-    _lottieCtrl = AnimationController(vsync: this);
     _checkClaimed();
   }
 
@@ -2744,28 +2781,25 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
 
   @override
   void dispose() {
-    _lottieCtrl.dispose();
+    _openCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _onTap() async {
-    if (_isClaimed || _isPlaying || !_ready) return;
+    if (_isClaimed || _isPlaying) return;
     // Tap: you touched it.
     HapticFeedback.lightImpact();
     setState(() => _isPlaying = true);
 
-    // Start lottie — show loot partway through, without waiting for the end.
-    _lottieCtrl.forward(from: 0);
+    _openCtrl.forward(from: 0);
 
-    // The lid breaking open is the moment worth feeling, so land a heavier
-    // beat partway in rather than only at the ends. Taken as a fraction of the
-    // clip's own length so it stays on the lid if the asset is ever replaced.
-    final burstAt = (_lottieCtrl.duration ?? _treasureMs(1500)) * 0.45;
-    Future.delayed(burstAt, () {
+    // The seal cracking is the moment worth feeling, so land a heavier beat
+    // there rather than only at the ends.
+    Future.delayed(_openCtrl.duration! * 0.4, () {
       if (mounted) HapticFeedback.mediumImpact();
     });
 
-    await Future.delayed(_treasureMs(1500));
+    await Future.delayed(_openCtrl.duration!);
 
     if (!mounted) return;
 
@@ -2841,47 +2875,14 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
   @override
   Widget build(BuildContext context) {
     if (_isClaimed) return const SizedBox.shrink();
+    final faction = context.watch<FactionService>().current;
     return GestureDetector(
       onTap: context.soundAction(_onTap),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Glow ring when unclaimed
-          if (!_isClaimed)
-            Container(
-              width: 81 * widget.scale,
-              height: 81 * widget.scale,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFFAA00).withValues(alpha: 0.22),
-                    blurRadius: 5,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-            ),
-          Opacity(
-            opacity: 1.0,
-            child: SizedBox(
-              width: 160 * widget.scale,
-              height: 160 * widget.scale,
-              child: Lottie.asset(
-                'assets/animations/treasure_lottie.json',
-                controller: _lottieCtrl,
-                fit: BoxFit.contain,
-                repeat: false,
-                onLoaded: (comp) {
-                  if (!mounted) return;
-                  _lottieCtrl.duration = comp.duration * _kTreasureSpeedUp;
-                  _lottieCtrl.value = 0;
-                  setState(() => _ready = true);
-                },
-              ),
-            ),
-          ),
-        ],
+      behavior: HitTestBehavior.opaque,
+      child: DailyReliquary(
+        element: dailyCacheElementFor(faction),
+        size: 160 * widget.scale,
+        opening: _openCtrl,
       ),
     );
   }
