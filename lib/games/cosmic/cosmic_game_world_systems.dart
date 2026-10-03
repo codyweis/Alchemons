@@ -3281,6 +3281,9 @@ extension CosmicGameWorldSystems on CosmicGame {
     if (planet != null && planet >= 0 && planet < world_.planets.length) {
       _planetScannerTargetIndex = planet;
     }
+    // Scanners spawn at world load, before the save says which planets are
+    // already found; drop the ones with nothing left to find.
+    syncPlanetScannerAvailability();
   }
 
   /// Restore collected star dust from persisted set.
