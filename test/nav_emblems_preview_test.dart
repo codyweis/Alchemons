@@ -8,11 +8,10 @@ import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/widgets/daily_reliquary.dart';
 import 'package:alchemons/widgets/fusion_emblem.dart';
 import 'package:alchemons/widgets/nav_emblems.dart';
-import 'package:alchemons/widgets/particle_title.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// The dock's five emblems on the dock, closed (55) and open (80, three
+// The dock's drawn emblems (inventory, fusion), closed (55) and open (80, three
 // moments), and large enough to judge their drawing; then home's daily
 // reliquary for each division, and Earthen's (crystal) unsealing.
 //
@@ -25,21 +24,13 @@ void main() {
 
   testWidgets('nav emblem sheet', (tester) async {
     if (out == null) return;
-    late TitleSamples title;
-    await tester.runAsync(() async {
-      title = await TitleSamples.of(kTitleAsset);
-    });
-
     const order = [
       NavEmblemKind.inventory,
-      NavEmblemKind.creatures,
-      NavEmblemKind.home,
       null, // fusion
-      NavEmblemKind.shop,
     ];
     CustomPainter painter(NavEmblemKind? kind, double t) => kind == null
         ? FusionEmblemPainter(time: t)
-        : NavEmblemPainter(kind: kind, time: t, title: title);
+        : NavEmblemPainter(kind: kind, time: t);
 
     const cell = 110.0;
     final rows = <(double, List<double>)>[
@@ -53,7 +44,7 @@ void main() {
     for (final (size, times) in rows) {
       height += (size > cell ? size + 20 : cell) * times.length;
     }
-    const width = cell * 5 * 2.2;
+    const width = cell * 2 * 2.2;
     canvas.drawRect(
       const Rect.fromLTWH(0, 0, width, 2000),
       Paint()..color = const Color(0xFF07090C),

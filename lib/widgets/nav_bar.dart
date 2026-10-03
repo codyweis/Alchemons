@@ -52,6 +52,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   late final Animation<double> _expandAnimation;
   late final AnimationController _tutorialPulseController;
 
+  static bool _navIconsCached = false;
   int? _activePointer;
   Offset? _dragStart;
   bool _isSlidingAcrossNav = false;
@@ -77,6 +78,10 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (!_navIconsCached) {
+      _navIconsCached = true;
+      _precacheNavIcons();
+    }
     _slotSub ??= context
         .read<AlchemonsDatabase>()
         .incubatorDao
@@ -156,6 +161,22 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
       NewDiscoveryReveal.instance.databaseNavKey = null;
     }
     super.dispose();
+  }
+
+  /// The three tabs still drawn from art: decoded before the dock first
+  /// shows, so they do not pop in.
+  static const _creaturesIcon = 'assets/images/ui/dexicon_light.png';
+  static const _homeIcon = 'assets/images/ui/homeicon2.png';
+  static const _shopIcon = 'assets/images/ui/shopicon2.png';
+
+  Future<void> _precacheNavIcons() async {
+    for (final path in const [_creaturesIcon, _homeIcon, _shopIcon]) {
+      try {
+        await precacheImage(AssetImage(path), context);
+      } catch (e) {
+        debugPrint('Failed to precache bottom nav icon $path: $e');
+      }
+    }
   }
 
   Future<void> _handleTap(
@@ -313,7 +334,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                         ),
                         _buildNavButton(
                           section: NavSection.creatures,
-                          icon: NavEmblemKind.creatures,
+                          icon: _creaturesIcon,
                           label: 'CREATURES',
                           theme: theme,
                           isDisabled: isDisabled,
@@ -321,7 +342,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                         ),
                         _buildNavButton(
                           section: NavSection.home,
-                          icon: NavEmblemKind.home,
+                          icon: _homeIcon,
                           label: 'HOME',
                           theme: theme,
                           isDisabled: isDisabled,
@@ -340,7 +361,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                         ),
                         _buildNavButton(
                           section: NavSection.shop,
-                          icon: NavEmblemKind.shop,
+                          icon: _shopIcon,
                           label: 'SHOP',
                           theme: theme,
                           isDisabled: isDisabled,
@@ -384,7 +405,8 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
 
   Widget _buildNavButton({
     required NavSection section,
-    required dynamic icon, // IconData | NavEmblemKind | _FusionIcon
+    required dynamic
+    icon, // IconData | String (asset) | NavEmblemKind | _FusionIcon
     required String label,
     required FactionTheme? theme,
     required bool isDisabled,
@@ -472,6 +494,23 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                             // Only the open tab moves.
                             animate: isActive && !isDisabled,
                             dark: theme?.isDark ?? true,
+                          ),
+                        )
+                      else if (icon is String)
+                        _withDot(
+                          showDot,
+                          SizedBox(
+                            key: iconKey,
+                            width: iconSize,
+                            height: iconSize,
+                            child: FittedBox(
+                              fit: BoxFit.cover,
+                              child: Image.asset(
+                                icon,
+                                gaplessPlayback: true,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
                           ),
                         )
                       else if (icon is NavEmblemKind)

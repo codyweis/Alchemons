@@ -35,6 +35,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/utils/alchemy_effect_apply.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/models/stat_system.dart';
@@ -432,6 +433,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   int _currentImageIndex = 0;
 
   CreatureInstance? _instance;
+  StreamSubscription<CreatureInstance?>? _effectSub;
   int? _instanceLevel;
   bool _favoriteBusy = false;
   bool _nicknameBusy = false;
@@ -464,8 +466,23 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     });
     if (widget.instanceId != null) {
       _hydrateFromInstance(widget.instanceId!);
+      _watchAlchemyEffect(widget.instanceId!);
     }
     unawaited(_reloadBgOption());
+  }
+
+  /// The dialog holds one copy of the specimen, so an effect applied from
+  /// here would not show until it was reopened. Follow the saved effect.
+  void _watchAlchemyEffect(String instanceId) {
+    final db = context.read<AlchemonsDatabase>();
+    _effectSub = db.creatureDao.watchInstanceById(instanceId).listen((row) {
+      final current = _instance;
+      if (!mounted || row == null || current == null) return;
+      if (row.alchemyEffect == current.alchemyEffect) return;
+      setState(() {
+        _instance = current.copyWith(alchemyEffect: Value(row.alchemyEffect));
+      });
+    });
   }
 
   Future<void> _openDisplayView() async {
@@ -710,6 +727,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
 
   @override
   void dispose() {
+    _effectSub?.cancel();
     _tabController.dispose();
     _pageController.dispose();
     _analysisScrollController.dispose();
@@ -2089,10 +2107,10 @@ class _AlchemyEffectSlot extends StatelessWidget {
         final palette = _bp(context);
         final theme = context.read<FactionTheme>();
         final accent = _dialogAccent(context);
-        final canPick = owned.isNotEmpty;
+        // A worn effect can always be opened, to swap it or take it off.
+        final canPick = owned.isNotEmpty || currentKey != null;
         final subtitle =
-            currentName ??
-            (canPick ? 'None applied' : 'None applied · none in inventory');
+            currentName ?? (owned.isEmpty ? 'None · none owned' : 'None');
         return GestureDetector(
           onTap: canPick
               ? context.soundAction(() {
@@ -2103,57 +2121,46 @@ class _AlchemyEffectSlot extends StatelessWidget {
           child: CustomPaint(
             painter: BracketFramePainter(
               color: accent.withValues(alpha: canPick ? 0.88 : 0.4),
-              bracketSize: 8,
-              strokeWidth: 1.05,
+              bracketSize: 6,
+              strokeWidth: 1.0,
             ),
             child: Container(
               color: palette.accentWash(theme.accent, darkAlpha: 0.10),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               child: Row(
                 children: [
-                  Icon(AppIcons.auto_awesome_rounded, color: accent, size: 14),
+                  Icon(AppIcons.auto_awesome_rounded, color: accent, size: 13),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Alchemical effect',
-                          style: bracketText(
-                            context,
-                            12.5,
-                            palette.ink,
-                            weight: FontWeight.w700,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          style: bracketText(
-                            context,
-                            11.5,
-                            palette.muted,
-                            weight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      'Effect · $subtitle',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: bracketText(
+                        context,
+                        11.5,
+                        palette.ink,
+                        weight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
                     ),
                   ),
-                  if (canPick) ...[
+                  if (owned.isNotEmpty) ...[
                     Text(
                       '${owned.length} owned',
                       style: bracketText(
                         context,
-                        12,
+                        11,
                         palette.muted,
                         weight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(width: 4),
+                  ],
+                  if (canPick) ...[
+                    const SizedBox(width: 2),
                     Icon(
                       AppIcons.chevron_right_rounded,
-                      size: 16,
+                      size: 15,
                       color: palette.muted,
                     ),
                   ],
@@ -2173,7 +2180,9 @@ class _AlchemyEffectSlot extends StatelessWidget {
     String? currentName,
   ) async {
     final c = _C.of(context);
-    final picked = await showModalBottomSheet<InventoryItem>(
+    // An item key to apply, or the empty string to take the current one off.
+    const removeEffect = '';
+    final picked = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: c.bg1,
       isScrollControlled: true,
@@ -2196,7 +2205,7 @@ class _AlchemyEffectSlot extends StatelessWidget {
               if (currentName != null) ...[
                 const SizedBox(height: 6),
                 Text(
-                  'Applying one replaces $currentName.',
+                  'Applying one returns $currentName to your inventory.',
                   style: _T(c).body,
                 ),
               ],
@@ -2223,7 +2232,25 @@ class _AlchemyEffectSlot extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  onTap: () => Navigator.of(sheetCtx).pop(item),
+                  onTap: () => Navigator.of(sheetCtx).pop(item.key),
+                ),
+              if (currentName != null)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    AppIcons.close_rounded,
+                    color: c.textMuted,
+                    size: 22,
+                  ),
+                  title: Text(
+                    'Take off $currentName',
+                    style: TextStyle(
+                      color: c.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  onTap: () => Navigator.of(sheetCtx).pop(removeEffect),
                 ),
             ],
           ),
@@ -2231,20 +2258,25 @@ class _AlchemyEffectSlot extends StatelessWidget {
       ),
     );
     if (picked == null || !context.mounted) return;
-    final effect = InvKeys.alchemyEffectFor(picked.key);
-    if (effect == null) return;
     final db = context.read<AlchemonsDatabase>();
-    final name = registry[picked.key]?.name ?? 'Effect';
-    await db.creatureDao.updateAlchemyEffect(
-      instanceId: instance.instanceId,
-      effect: effect,
-    );
-    await db.inventoryDao.decrementItem(picked.key, by: 1);
+    final String message;
+    if (picked == removeEffect) {
+      await removeAlchemyEffect(db, instanceId: instance.instanceId);
+      message = 'Returned ${currentName ?? 'the effect'} to your inventory';
+    } else {
+      final applied = await applyAlchemyEffect(
+        db,
+        instanceId: instance.instanceId,
+        itemKey: picked,
+      );
+      if (!applied) return;
+      message = 'Applied ${registry[picked]?.name ?? 'Effect'}!';
+    }
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Applied $name!',
+          message,
           style: TextStyle(
             fontFamily: 'monospace',
             color: c.textPrimary,

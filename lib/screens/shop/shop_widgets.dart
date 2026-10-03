@@ -26,6 +26,7 @@ import 'package:alchemons/widgets/stamina_elixir_glyph.dart';
 import 'package:alchemons/widgets/faction_essence_glyph.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/static_effect_snapshot.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/harvester_glyph.dart';
@@ -37,6 +38,10 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 // ============= SUPPORTING WIDGETS =============
+
+/// A price the player cannot meet yet: a muted coral on the figure alone, so
+/// the coin or element beside it still says what is short.
+const Color kShortColor = Color(0xFFE08A7A);
 // ShowPurchasedToggle and CurrencyPill are unchanged...
 
 String _formatShopValue(int value) {
@@ -955,8 +960,12 @@ Widget _buildOfferPreviewForDialog(
   return _buildOfferPreview(offer, size: size, theme: theme, animate: true);
 }
 
-// ============= NEW GAME SHOP CARD =============
+// ============= SHOP CARD =============
 
+/// An offer on the shelf, in the inventory's card language: corner
+/// brackets round a dark field, the thing itself, its name in the display
+/// face, and its price on a footer strip so every card's price sits on the
+/// same line.
 class GameShopCard extends StatelessWidget {
   final String title;
   final ShopOffer offer; // Pass entire offer instead of individual fields
@@ -966,6 +975,9 @@ class GameShopCard extends StatelessWidget {
   final List<Widget> costWidgets;
   final String? displayLabel;
   final String? statusText;
+
+  /// Drawn in place of the offer's own preview (the daily vial's orb).
+  final Widget? preview;
 
   const GameShopCard({
     super.key,
@@ -977,109 +989,160 @@ class GameShopCard extends StatelessWidget {
     required this.costWidgets,
     this.displayLabel,
     this.statusText,
+    this.preview,
   });
-
-  String get _cardLabel => (displayLabel ?? title).toUpperCase();
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
     final isLocked = !enabled;
+    final label = displayLabel ?? title;
 
-    // Soft surface tint — no border. Locked cards drop to a neutral muted
-    // tint; affordable + unaffordable share the same accent tint and rely on
-    // the cost text color (red) to signal can't-afford.
-    final cardColor = isLocked
-        ? theme.text.withValues(alpha: theme.isDark ? 0.04 : 0.035)
-        : theme.accent.withValues(alpha: theme.isDark ? 0.07 : 0.055);
-
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(10),
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: palette.line.withValues(alpha: isLocked ? 0.45 : 0.9),
+        bracketSize: 9,
       ),
-      child: Stack(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 14, 8, 4),
-                  child: Opacity(
-                    opacity: isLocked ? 0.45 : 1.0,
-                    child: _buildOfferPreview(
-                      offer,
-                      size: 64.0,
-                      theme: theme,
-                      // Cards at rest render a baked raster, never a live
-                      // animation. The live effect plays in the detail dialog.
-                      animate: false,
+      child: Container(
+        color: palette.surfaceFill(),
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 16, 8, 2),
+                    child: Opacity(
+                      opacity: isLocked ? 0.4 : 1.0,
+                      child:
+                          preview ??
+                          _buildOfferPreview(
+                            offer,
+                            size: 64.0,
+                            theme: theme,
+                            // Cards at rest render a baked raster, never a
+                            // live animation. The live effect plays in the
+                            // detail dialog.
+                            animate: false,
+                          ),
                     ),
                   ),
                 ),
-              ),
-              if (_cardLabel.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(6, 2, 6, 0),
-                  child: Text(
-                    _cardLabel,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: isLocked ? t.textMuted : t.textPrimary,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      height: 1.15,
-                      letterSpacing: 0.7,
+                if (label.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: bracketText(
+                        context,
+                        12.5,
+                        isLocked ? palette.muted : palette.ink,
+                        weight: FontWeight.w600,
+                      ).copyWith(height: 1.1),
                     ),
                   ),
+                Container(height: 1, color: palette.lineSoft),
+                Container(
+                  height: 30,
+                  color: palette.chromeFill(darkAlpha: 0.7),
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  alignment: Alignment.center,
+                  child: isLocked
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              AppIcons.check_rounded,
+                              size: 13,
+                              color: palette.muted,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'PURCHASED',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: palette.muted,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                          ],
+                        )
+                      : FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (var i = 0; i < costWidgets.length; i++) ...[
+                                if (i > 0) const SizedBox(width: 10),
+                                costWidgets[i],
+                              ],
+                            ],
+                          ),
+                        ),
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 2,
-                  alignment: WrapAlignment.center,
-                  children: costWidgets,
-                ),
-              ),
-            ],
-          ),
-
-          // Owned / maxed marker — small, top-left, no border.
-          if (isLocked)
-            Positioned(
-              top: 6,
-              left: 8,
-              child: Icon(
-                AppIcons.check_circle_rounded,
-                color: theme.accent.withValues(alpha: 0.7),
-                size: 16,
-              ),
+              ],
             ),
 
-          // Inventory count — flat text top-right, no pill.
-          if (statusText != null && statusText!.isNotEmpty && enabled)
-            Positioned(
-              top: 6,
-              right: 9,
-              child: Text(
-                statusText!,
-                style: TextStyle(
-                  color: theme.accent,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'monospace',
-                  letterSpacing: 0.4,
+            // How many are already on hand.
+            if (statusText != null && statusText!.isNotEmpty && enabled)
+              Positioned(
+                top: 7,
+                right: 9,
+                child: Text(
+                  statusText!,
+                  style: TextStyle(
+                    color: palette.muted,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'monospace',
+                    letterSpacing: 0.4,
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+/// The shelf: cards of one size in rows, the last row centred rather than
+/// left hanging with holes beside it.
+class ShopGrid extends StatelessWidget {
+  const ShopGrid({
+    super.key,
+    required this.children,
+    this.aspectRatio = 0.74,
+    this.spacing = 10,
+  });
+
+  final List<Widget> children;
+  final double aspectRatio;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    final cols = responsiveCrossAxisCount(context);
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = ((box.maxWidth - spacing * (cols - 1)) / cols)
+            .floorToDouble();
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          alignment: WrapAlignment.center,
+          children: [
+            for (final child in children)
+              SizedBox(width: w, height: w / aspectRatio, child: child),
+          ],
+        );
+      },
     );
   }
 }
@@ -1146,15 +1209,17 @@ class MiniCostChip extends StatelessWidget {
     final t = ForgeTokens(context.read<FactionTheme>());
     final displayColor = t.readableAccent(resource.color);
     final hasEnough = current >= required;
-    final textColor = hasEnough ? displayColor : Colors.red.shade300;
+    final textColor = hasEnough ? displayColor : kShortColor;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         ElementResourceGlyph(
           biomeId: resource.biomeId,
-          color: textColor,
-          size: 14,
+          color: resource.color,
+          size: 16,
+          animate: false,
+          glow: 0.9,
         ),
         const SizedBox(width: 4),
         Text(
@@ -1246,16 +1311,25 @@ class CostChip extends StatelessWidget {
     final t = ForgeTokens(theme);
     final hasEnough = available >= amount;
     final (icon, rawColor) = _getCurrencyDisplay(currencyType, theme);
-    final color = t.readableAccent(rawColor);
     final coin = CoinKind.tryFromToken(currencyType);
+    final resource = currencyType.startsWith('res_')
+        ? ElementResources.all
+              .where((r) => r.settingsKey == currencyType)
+              .firstOrNull
+        : null;
+    final color = coin != null
+        ? coinColor(coin)
+        : t.readableAccent(resource?.color ?? rawColor);
 
-    final textColor = hasEnough ? color : Colors.red.shade300;
+    final textColor = hasEnough ? color : kShortColor;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (coin != null && hasEnough)
+        if (coin != null)
           CoinIcon(kind: coin, size: 13)
+        else if (resource != null)
+          ElementResourceGlyph.of(resource, size: 16, animate: false, glow: 0.9)
         else
           Icon(icon, size: 12, color: textColor),
         const SizedBox(width: 4),

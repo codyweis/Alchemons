@@ -321,79 +321,91 @@ class _NurseryTabState extends State<NurseryTab> {
             onPointerMove: _handlePointerMove,
             onPointerUp: _resetSwipeTracking,
             onPointerCancel: _resetSwipeTracking,
-            child: SingleChildScrollView(
+            // A sliver viewport, not a SingleChildScrollView: that one clamps
+            // an overscroll back to the edge whenever its child re-lays out
+            // (a countdown, a cell waking up), which cut the bounce short and
+            // let it coast on to rest a few pixels below the top.
+            child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionHeader(
-                    'ACTIVE CULTIVATION',
-                    AppIcons.science_rounded,
-                    theme.text,
-                    trailing: totalUnlocked == 0
-                        ? null
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (canBatchExtract && readySlots.length > 1) ...[
-                                _BatchExtractButton(
-                                  count: readySlots.length,
-                                  theme: theme,
-                                  onTap: () => _extractAllReady(readySlots),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionHeader(
+                          'ACTIVE CULTIVATION',
+                          AppIcons.science_rounded,
+                          theme.text,
+                          trailing: totalUnlocked == 0
+                              ? null
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (canBatchExtract &&
+                                        readySlots.length > 1) ...[
+                                      _BatchExtractButton(
+                                        count: readySlots.length,
+                                        theme: theme,
+                                        onTap: () =>
+                                            _extractAllReady(readySlots),
+                                      ),
+                                      const SizedBox(width: 8),
+                                    ],
+                                    _ChamberStatusBadge(
+                                      activeCount: activeSlots.length,
+                                      totalCount: totalUnlocked,
+                                      nextReady: nextReady,
+                                      anyReady: anyReady,
+                                      theme: theme,
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                              ],
-                              _ChamberStatusBadge(
-                                activeCount: activeSlots.length,
-                                totalCount: totalUnlocked,
-                                nextReady: nextReady,
-                                anyReady: anyReady,
-                                theme: theme,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildChamberGrid(
+                          chambers: [...activeSlots, ...unlockedEmptySlots]
+                            ..sort((a, b) => a.id.compareTo(b.id)),
+                          primaryColor: theme.text,
+                          theme: theme,
+                        ),
+                        if (_extractionPending && anyReady)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 14),
+                            child: Center(
+                              child: Text(
+                                'TAP THE VIAL TO EXTRACT',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.8,
+                                  color: BracketPalette.of(context).muted,
+                                ),
                               ),
-                            ],
+                            ),
                           ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildChamberGrid(
-                    chambers: [...activeSlots, ...unlockedEmptySlots]
-                      ..sort((a, b) => a.id.compareTo(b.id)),
-                    primaryColor: theme.text,
-                    theme: theme,
-                  ),
-                  if (_extractionPending && anyReady)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 14),
-                      child: Center(
-                        child: Text(
-                          'TAP THE VIAL TO EXTRACT',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.8,
-                            color: BracketPalette.of(context).muted,
+                        const SizedBox(height: 24),
+                        KeyedSubtree(
+                          key: _storageSectionKey,
+                          child: StorageSection(
+                            primaryColor: theme.text,
+                            buildSectionHeader: _buildSectionHeader,
+                            quality: _cinematicQuality,
+                            canAutoMove: canBatchExtract,
+                            presentDialog: (builder) =>
+                                _showDialogWithPausedBackground<void>(
+                                  builder: builder,
+                                ),
+                            onExtract: _hatchFromStorage,
                           ),
                         ),
-                      ),
-                    ),
-                  const SizedBox(height: 24),
-                  KeyedSubtree(
-                    key: _storageSectionKey,
-                    child: StorageSection(
-                      primaryColor: theme.text,
-                      buildSectionHeader: _buildSectionHeader,
-                      quality: _cinematicQuality,
-                      canAutoMove: canBatchExtract,
-                      presentDialog: (builder) =>
-                          _showDialogWithPausedBackground<void>(
-                            builder: builder,
-                          ),
-                      onExtract: _hatchFromStorage,
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );

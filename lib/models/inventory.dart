@@ -587,6 +587,32 @@ class InvKeys {
     alchemyDustRing => 'dust_ring',
     _ => null,
   };
+
+  /// The inventory item an applied effect came from (the reverse of
+  /// [alchemyEffectFor]), so taking one off a creature can return it.
+  static String? alchemyItemFor(String? effect) {
+    if (effect == null) return null;
+    for (final key in const [
+      alchemyGlow,
+      alchemyElementalAura,
+      alchemyVolcanicAura,
+      alchemyVoidRift,
+      alchemyPrismaticCascade,
+      alchemyRitualGold,
+      alchemyBeautyRadiance,
+      alchemySpeedFlux,
+      alchemyStrengthForge,
+      alchemyIntelligenceHalo,
+      alchemyBloodAura,
+      alchemyWavebreakerCrown,
+      alchemyWillOWisps,
+      alchemyDustRing,
+    ]) {
+      if (alchemyEffectFor(key) == effect) return key;
+    }
+    return null;
+  }
+
   static const staminaPotion = 'item.stamina_potion';
   static const wildFusion = 'item.wild_fusion';
   // Historic key string kept so existing player stacks convert for free.

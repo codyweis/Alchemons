@@ -32,15 +32,14 @@ import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart'
     show routeObserver;
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/black_market_button.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/wallet_panel.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
-import 'package:alchemons/widgets/currency_display_widget.dart';
-import 'package:alchemons/widgets/element_resource_widget.dart';
 import 'package:alchemons/widgets/perf/viewport_ticker_gate.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -271,75 +270,42 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   // ── HEADER ─────────────────────────────────────────────────────────────────
 
   Widget _buildHeader(FactionTheme theme) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: t.borderDim)),
-      ),
-      padding: EdgeInsets.zero,
+    final palette = BracketPalette.fromTheme(theme);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Title row — keeps horizontal padding
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: Row(
-              children: [
-                _buildBlackMarketFloatingButton(context, theme.accent),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              color: t.amber,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          Text(
-                            'RESEARCH SHOP',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.textPrimary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 2.0,
-                            ),
-                          ),
-                        ],
+          Row(
+            children: [
+              _buildBlackMarketFloatingButton(context, theme.accent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Research Shop',
+                      style: bracketText(context, 26, palette.ink),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Supplies, devices and rarer stock.',
+                      style: bracketText(
+                        context,
+                        12.5,
+                        palette.muted,
+                        fontStyle: FontStyle.italic,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                _buildExchangeFloatingButton(context),
-              ],
-            ),
+              ),
+              _buildExchangeFloatingButton(context),
+            ],
           ),
-
-          const SizedBox(height: 10),
-
-          // Currency + resources — left padding only, resources bleed to edge
-          Padding(
-            padding: const EdgeInsets.only(left: 12, bottom: 10),
-            child: Row(
-              children: [
-                Flexible(child: const CurrencyDisplayWidget()),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: ResourceCollectionWidget(
-                    initiallyExpanded: true,
-                    theme: theme,
-                    horizontalPadding: 0,
-                    alignToEnd: true,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 12),
+          const WalletPanel(),
         ],
       ),
     );
@@ -357,12 +323,12 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   /// Gold in the dark, black in the light: the dark palette is the one this
   /// screen was designed against, and on the light ground gold has nothing
   /// to hold against.
-  Widget _buildSectionHeader(String title, IconData icon, {CoinKind? coin}) {
+  Widget _buildSectionHeader(String title, {CoinKind? coin}) {
     final displayAccent = context.read<FactionTheme>().isDark
         ? t.amberBright
         : Colors.black;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 0),
+      padding: const EdgeInsets.fromLTRB(14, 22, 14, 0),
       child: Row(
         children: [
           // Accent bar
@@ -372,11 +338,10 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             color: displayAccent,
             margin: const EdgeInsets.only(right: 10),
           ),
-          if (coin != null)
-            CoinIcon(kind: coin, size: 15)
-          else
-            Icon(icon, color: displayAccent, size: 14),
-          const SizedBox(width: 8),
+          if (coin != null) ...[
+            CoinIcon(kind: coin, size: 15),
+            const SizedBox(width: 8),
+          ],
           Text(
             title,
             style: TextStyle(
@@ -400,7 +365,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   }
 
   // ── DAILY VIAL ─────────────────────────────────────────────────────────────
-  // Transparent card style preserved per user request
 
   Widget _buildDailyVialSection(
     FactionTheme theme,
@@ -439,13 +403,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
           price: price,
         );
 
-        // Border color reflects purchase state — transparent card preserved
-        final borderColor = isPurchased
-            ? t.success.withValues(alpha: 0.5)
-            : canAfford
-            ? t.borderAccent
-            : t.danger.withValues(alpha: 0.5);
-
         return GestureDetector(
           onTap: context.soundAction(() {
             if (canPurchase) {
@@ -454,96 +411,16 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
               _showDetails(context, offer, allCurrencies, canAfford);
             }
           }),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: borderColor, width: 1.5),
-            ),
-            child: Stack(
-              children: [
-                Column(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: ExtractionVialCard(
-                          vial: vialModel,
-                          compact: true,
-                          onAddToInventory: null,
-                          onTap: null,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            offer.name.toUpperCase(),
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.textPrimary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Wrap(spacing: 4, children: costWidgets),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                // Purchased overlay
-                if (isPurchased)
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: theme.isDark
-                            ? Colors.black.withValues(alpha: 0.65)
-                            : theme.surface.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: t.successDim.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(3),
-                              border: Border.all(
-                                color: t.success.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            child: const Icon(
-                              AppIcons.check_rounded,
-                              color: Color(0xFF4ADE80),
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'PURCHASED',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: Color(0xFF4ADE80),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
+          child: GameShopCard(
+            key: ValueKey('vial-${offer.id}'),
+            title: '${group.displayName} Vial',
+            offer: offer,
+            theme: theme,
+            costWidgets: costWidgets,
+            enabled: !isPurchased,
+            canAfford: canAfford,
+            preview: Center(
+              child: ExtractionVialOrb(vial: vialModel, size: 70),
             ),
           ),
         );
@@ -580,20 +457,14 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildSectionHeader(
-                        'SPECIAL UNLOCKS',
-                        AppIcons.auto_awesome_rounded,
-                      ),
+                      _buildSectionHeader('SPECIAL UNLOCKS'),
                       _buildSpecialUnlocksGrid(
                         theme,
                         allCurrencies,
                         resourceBalances,
                       ),
 
-                      _buildSectionHeader(
-                        'COMMON ITEMS',
-                        AppIcons.flash_on_rounded,
-                      ),
+                      _buildSectionHeader('COMMON ITEMS'),
                       // The vial is a routine restock like the other two, so
                       // it shares their grid — same cell, same size — instead
                       // of a full-width card above them. Its live brewing
@@ -611,19 +482,12 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                         ],
                       ),
 
-                      _buildSectionHeader(
-                        'GOLD VAULT',
-                        AppIcons.hexagon_rounded,
-                        coin: CoinKind.gold,
-                      ),
+                      _buildSectionHeader('GOLD VAULT', coin: CoinKind.gold),
                       // One grain field on one ticker; its own layer, and
                       // paused once it scrolls out of the viewport.
                       ViewportTickerGate(child: _buildGoldVaultSection(theme)),
 
-                      _buildSectionHeader(
-                        'HARVEST DEVICES',
-                        AppIcons.science_rounded,
-                      ),
+                      _buildSectionHeader('HARVEST DEVICES'),
                       _buildHarvestDevicesGrid(
                         theme,
                         allCurrencies,
@@ -638,10 +502,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                       if (context
                           .watch<ShopService>()
                           .hasElementalCreatorUnlocked()) ...[
-                        _buildSectionHeader(
-                          'ALCHEMICAL POWERUPS',
-                          AppIcons.blur_circular_rounded,
-                        ),
+                        _buildSectionHeader('ALCHEMICAL POWERUPS'),
                         // Five floating/pulsing orbs, each with a blurred
                         // glow; own layer, paused once out of the viewport.
                         ViewportTickerGate(
@@ -653,10 +514,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                         ),
                       ],
 
-                      _buildSectionHeader(
-                        'SPECIAL ITEMS',
-                        AppIcons.auto_awesome_rounded,
-                      ),
+                      _buildSectionHeader('SPECIAL ITEMS'),
                       _buildInstantItemsGrid(
                         theme,
                         allCurrencies,
@@ -664,30 +522,21 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                         _specialConsumableIds,
                       ),
 
-                      _buildSectionHeader(
-                        'ALCHEMY EFFECTS',
-                        AppIcons.auto_awesome_rounded,
-                      ),
+                      _buildSectionHeader('ALCHEMY EFFECTS'),
                       _buildAlchemyEffectsGrid(
                         theme,
                         allCurrencies,
                         inventoryByKey,
                       ),
 
-                      _buildSectionHeader(
-                        'SELL',
-                        AppIcons.currency_exchange_rounded,
-                      ),
+                      _buildSectionHeader('SELL'),
                       _buildCurrencyExchangeGrid(
                         theme,
                         allCurrencies,
                         resourceBalances,
                       ),
 
-                      _buildSectionHeader(
-                        'PORTAL KEYS',
-                        AppIcons.vpn_key_rounded,
-                      ),
+                      _buildSectionHeader('PORTAL KEYS'),
                       _buildPortalKeysGrid(
                         theme,
                         allCurrencies,
@@ -779,15 +628,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: responsiveCrossAxisCount(context),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 0.75,
-            children: cards,
-          ),
+          child: ShopGrid(children: cards),
         );
       },
     );
@@ -942,15 +783,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: responsiveCrossAxisCount(context),
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 0.85,
-            children: cards,
-          ),
+          child: ShopGrid(children: cards),
         );
       },
     );
@@ -1087,15 +920,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: responsiveCrossAxisCount(context),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 0.75,
-            children: cards,
-          ),
+          child: ShopGrid(children: cards),
         );
       },
     );
@@ -1166,15 +991,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: responsiveCrossAxisCount(context),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 0.75,
-            children: cards,
-          ),
+          child: ShopGrid(children: cards),
         );
       },
     );
@@ -1263,15 +1080,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: responsiveCrossAxisCount(context),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 0.8,
-            children: [...leading, ...cards],
-          ),
+          child: ShopGrid(children: [...leading, ...cards]),
         );
       },
     );
@@ -1334,6 +1143,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             child: GameShopCard(
               key: ValueKey('fx-${offer.id}'),
               title: offer.name,
+              displayLabel: _exchangeLabel(offer.name),
               theme: theme,
               costWidgets: costWidgets,
               enabled: canPurchase,
@@ -1345,15 +1155,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: responsiveCrossAxisCount(context),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 0.8,
-            children: cards,
-          ),
+          child: ShopGrid(children: cards),
         );
       },
     );
@@ -1464,24 +1266,25 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: responsiveCrossAxisCount(context),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 0.75,
-            children: cards,
-          ),
+          child: ShopGrid(children: cards),
         );
       },
     );
   }
 
+  /// 'Volcanic → Gold (1g)' as the card says it: what you get, "1 Gold".
+  /// The card's display face has no arrow glyph, and the price strip and the
+  /// picture already say what is paid.
+  static String? _exchangeLabel(String name) {
+    final m = RegExp(r'→\s*(\w+)\s*\(([\d,]+)\s*[a-z]*\)').firstMatch(name);
+    if (m == null) return null;
+    return '${m.group(2)} ${m.group(1)}';
+  }
+
   String? _specialUnlockLabel(ShopOffer offer) {
-    if (offer.id.startsWith('unlock.storage_cap.')) return 'COLD STORAGE';
-    if (offer.id.startsWith('unlock.fusion_slot.')) return 'CHAMBERS';
-    if (offer.id == 'boost.faction_change') return 'FACTION';
+    if (offer.id.startsWith('unlock.storage_cap.')) return 'Cold Storage';
+    if (offer.id.startsWith('unlock.fusion_slot.')) return 'Fusion Chamber';
+    if (offer.id == 'boost.faction_change') return 'Change Faction';
     return null;
   }
 
@@ -1728,10 +1531,12 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     return Consumer<ConstellationEffectsService>(
       builder: (context, constellations, _) {
         final unlocked = constellations.canSellAlchemonsInShop();
-        final actionAccent = t.readableAccent(t.amberBright);
-
-        return GestureDetector(
-          onTap: context.soundAction(() {
+        return _ShopDoor(
+          icon: unlocked ? AppIcons.sell_rounded : AppIcons.lock_rounded,
+          label: 'SELL',
+          accent: t.readableAccent(t.amberBright),
+          lit: unlocked,
+          onTap: () {
             if (!unlocked) {
               _toast(
                 'Explore the constellations to unlock.',
@@ -1740,80 +1545,12 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
               );
               return;
             }
-
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => const AlchemonExchangeScreen(),
               ),
             );
-          }),
-          child: SizedBox(
-            width: 75,
-            height: 75,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: unlocked
-                          ? [actionAccent, t.readableAccent(t.amber)]
-                          : [t.bg2, t.bg1],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(
-                      color: unlocked ? actionAccent : t.borderDim,
-                      width: 1.5,
-                    ),
-                    boxShadow: unlocked
-                        ? [
-                            BoxShadow(
-                              color: t.amber.withValues(alpha: 0.28),
-                              blurRadius: 18,
-                              spreadRadius: 2,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Icon(
-                    unlocked ? AppIcons.sell_rounded : AppIcons.lock_rounded,
-                    color: unlocked ? t.onColor(actionAccent) : t.textMuted,
-                    size: 28,
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: t.bg0.withValues(alpha: 0.92),
-                      borderRadius: BorderRadius.circular(99),
-                      border: Border.all(
-                        color: unlocked ? actionAccent : t.borderDim,
-                      ),
-                    ),
-                    child: Text(
-                      'SELL',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: unlocked ? actionAccent : t.textMuted,
-                        fontSize: 7,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          },
         );
       },
     );
@@ -2206,6 +1943,66 @@ class _ShopPowerupOrbState extends State<_ShopPowerupOrb>
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The way out of the shop to the specimen exchange: a small bracketed door,
+/// lit in its accent while it can be walked through, quiet in the line
+/// colour while it is shut.
+class _ShopDoor extends StatelessWidget {
+  const _ShopDoor({
+    required this.icon,
+    required this.label,
+    required this.accent,
+    required this.lit,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color accent;
+  final bool lit;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final ink = lit ? accent : palette.muted;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: (lit ? accent : palette.line).withValues(alpha: 0.9),
+          bracketSize: 7,
+          strokeWidth: lit ? 1.2 : 1,
+        ),
+        child: Container(
+          width: 56,
+          height: 52,
+          color: lit
+              ? palette.accentWash(accent, darkAlpha: 0.16)
+              : palette.surfaceMutedFill(),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 19, color: ink),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: ink,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

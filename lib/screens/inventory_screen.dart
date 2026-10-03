@@ -5,10 +5,12 @@ import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/inventory_screen.dart - REDESIGNED
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/utils/alchemy_effect_apply.dart';
 import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
+import 'package:alchemons/widgets/wallet_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
@@ -23,8 +25,6 @@ import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/specimen_picker_route.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
-import 'package:alchemons/widgets/currency_display_widget.dart';
-import 'package:alchemons/widgets/element_resource_widget.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 typedef _InventoryPalette = BracketPalette;
@@ -293,22 +293,9 @@ class _InventoryScreenState extends State<InventoryScreen>
           ),
         ),
         const SizedBox(height: 14),
-        // Currency + resources — left padding only, resources bleed to edge
-        Padding(
-          padding: const EdgeInsets.only(left: 18),
-          child: Row(
-            children: [
-              Flexible(child: const CurrencyDisplayWidget()),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ResourceCollectionWidget(
-                  theme: theme,
-                  horizontalPadding: 0,
-                  alignToEnd: true,
-                ),
-              ),
-            ],
-          ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 18),
+          child: WalletPanel(),
         ),
         const SizedBox(height: 12),
         Padding(
@@ -1110,19 +1097,13 @@ class _InventoryScreenState extends State<InventoryScreen>
 
     if (selectedInstance == null || !mounted) return;
 
-    // Determine effect type
-    final effectType = InvKeys.alchemyEffectFor(item.key);
-
-    if (effectType == null) return;
-
-    // Apply the effect
-    await db.creatureDao.updateAlchemyEffect(
+    // Whatever effect it replaces goes back into the inventory.
+    final applied = await applyAlchemyEffect(
+      db,
       instanceId: selectedInstance.instanceId,
-      effect: effectType,
+      itemKey: item.key,
     );
-
-    // Consume the item
-    await db.inventoryDao.decrementItem(item.key, by: 1);
+    if (!applied) return;
 
     _showToast(
       'Applied ${def.name}!',

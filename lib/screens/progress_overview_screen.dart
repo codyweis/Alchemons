@@ -24,6 +24,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/catalog/milestone_track.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 
 class ConstellationProgressOverviewScreen extends StatefulWidget {
@@ -50,6 +51,8 @@ class _ConstellationProgressOverviewScreenState
     extends State<ConstellationProgressOverviewScreen> {
   Future<List<BreedingStatistic>>? _stats;
   final GlobalKey _highlightKey = GlobalKey(debugLabel: 'milestone-highlight');
+  final GlobalKey _firstRowKey = GlobalKey(debugLabel: 'milestone-first-row');
+  final ScrollController _scroll = ScrollController();
   bool _scrolledToHighlight = false;
 
   @override
@@ -70,18 +73,58 @@ class _ConstellationProgressOverviewScreenState
     _stats = context.watch<ConstellationService>().getAllBreedingStats();
   }
 
-  void _scrollToHighlight() {
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _revealHighlight(Duration duration) {
+    final ctx = _highlightKey.currentContext;
+    if (!mounted || ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      alignment: 0.3,
+    );
+  }
+
+  /// Brings row [index] into view. The list is lazy and the species a notice
+  /// is about has just passed a milestone — so it is now far from its next
+  /// one and usually sorts well below the fold, where its row has not been
+  /// built and has no context to reveal. Scroll to where it must be (rows are
+  /// one height; the first one is measured), then let ensureVisible land it.
+  void _scrollToHighlight(int index) {
     if (_scrolledToHighlight) return;
     _scrolledToHighlight = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = _highlightKey.currentContext;
-      if (!mounted || ctx == null) return;
-      Scrollable.ensureVisible(
-        ctx,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-        alignment: 0.3,
-      );
+      if (!mounted) return;
+      if (_highlightKey.currentContext != null) {
+        _revealHighlight(const Duration(milliseconds: 320));
+        return;
+      }
+      final first = _firstRowKey.currentContext?.findRenderObject();
+      if (first is! RenderBox || !_scroll.hasClients) return;
+      final position = _scroll.position;
+      final firstTop = RenderAbstractViewport.of(
+        first,
+      ).getOffsetToReveal(first, 0).offset;
+      final rowExtent = first.size.height + 8; // + the row's bottom padding
+      final target =
+          (firstTop + index * rowExtent - position.viewportDimension * 0.3)
+              .clamp(position.minScrollExtent, position.maxScrollExtent);
+      _scroll
+          .animateTo(
+            target,
+            duration: const Duration(milliseconds: 380),
+            curve: Curves.easeOutCubic,
+          )
+          .then((_) {
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => _revealHighlight(const Duration(milliseconds: 160)),
+            );
+          });
     });
   }
 
@@ -126,11 +169,13 @@ class _ConstellationProgressOverviewScreenState
               0,
               (sum, r) => sum + breedingPointsEarned(r.$2, r.$1.rarity),
             );
-            if (widget.highlightSpeciesId != null && rows.isNotEmpty) {
-              _scrollToHighlight();
-            }
+            final highlightIndex = rows.indexWhere(
+              (r) => r.$1.id == widget.highlightSpeciesId,
+            );
+            if (highlightIndex >= 0) _scrollToHighlight(highlightIndex);
 
             return ListView(
+              controller: _scroll,
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
               children: [
                 Row(
@@ -197,8 +242,9 @@ class _ConstellationProgressOverviewScreenState
                       ),
                     ),
                   ),
-                for (final r in rows)
+                for (final (i, r) in rows.indexed)
                   Padding(
+                    key: i == 0 ? _firstRowKey : null,
                     padding: const EdgeInsets.only(bottom: 8),
                     child: () {
                       final row = _MilestoneRow(

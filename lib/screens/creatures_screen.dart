@@ -32,7 +32,6 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
-import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 
 import '../models/creature.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -344,14 +343,6 @@ class CreaturesScreenState extends State<CreaturesScreen> {
                                         () => _specimensResettable = value,
                                       );
                                     },
-                                    onTap: (inst) {
-                                      final creature = context
-                                          .read<CreatureCatalog>()
-                                          .getCreatureById(inst.baseId);
-                                      if (creature != null) {
-                                        _openDetailsForInstance(creature, inst);
-                                      }
-                                    },
                                   ),
                                 ),
                               ],
@@ -405,16 +396,6 @@ class CreaturesScreenState extends State<CreaturesScreen> {
     } else {
       showUnknownSpeciesDialog(context, theme, species);
     }
-  }
-
-  void _openDetailsForInstance(Creature species, CreatureInstance inst) {
-    unfocusSearch();
-    CreatureDetailsDialog.show(
-      context,
-      species,
-      true,
-      instanceId: inst.instanceId,
-    );
   }
 }
 

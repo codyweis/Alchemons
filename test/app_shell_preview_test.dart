@@ -455,6 +455,14 @@ Future<void> _seed(AlchemonsDatabase db, FactionId faction) async {
 
   await db.currencyDao.addGold(42);
   await db.currencyDao.addSilver(12850);
+  for (final (key, n) in const [
+    ('res_volcanic', 340),
+    ('res_oceanic', 125),
+    ('res_earthen', 2210),
+    ('res_verdant', 60),
+  ]) {
+    await db.currencyDao.addResource(key, n);
+  }
 
   const owned = <(String, int)>[
     ('LET01', 14),

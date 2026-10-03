@@ -48,7 +48,7 @@ class ElementResource {
 
   const ElementResource({required this.id, required this.amount});
 
-  // For ResourceCollectionWidget pills:
+  // For resource readouts:
   // Top line (big bold all-caps)
   String get resourceName => id.label; // "Volcanic"
 
