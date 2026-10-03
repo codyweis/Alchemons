@@ -121,6 +121,9 @@ class _ProgressResetHostState extends State<ProgressResetHost> {
   Widget build(BuildContext context) =>
       _game ??
       MaterialApp(
+        // The game is dark only; a white page here flashed between the old
+        // save and the new one.
+        theme: ThemeData.dark(),
         home: Scaffold(
           body: SafeArea(
             child: Center(

@@ -38,7 +38,6 @@ import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
-import 'package:alchemons/widgets/theme_switch_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -1443,49 +1442,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _ForgePanel(
                       accentBar: t.amber,
                       padding: EdgeInsets.zero,
-                      child: ListTile(
-                        leading: Icon(AppIcons.science_rounded, color: t.amber),
-                        title: Text('ALCHEMY CHAMBER', style: _label(t)),
-                        subtitle: Text(
-                          'An interactive experiment in elemental matter',
-                          style: _body(t),
+                      // Its own Material: the panel's fill would otherwise
+                      // hide the tile's ripple (and Flutter asserts on it).
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: ListTile(
+                          leading: Icon(
+                            AppIcons.science_rounded,
+                            color: t.amber,
+                          ),
+                          title: Text('ALCHEMY CHAMBER', style: _label(t)),
+                          subtitle: Text(
+                            'An interactive experiment in elemental matter',
+                            style: _body(t),
+                          ),
+                          trailing: Icon(
+                            Icons.chevron_right_rounded,
+                            color: t.amber,
+                          ),
+                          onTap: context.soundAction(() {
+                            Navigator.of(context).push<void>(
+                              MaterialPageRoute(
+                                builder: (_) => const AlchemyChamberScreen(),
+                              ),
+                            );
+                          }),
                         ),
-                        trailing: Icon(
-                          Icons.chevron_right_rounded,
-                          color: t.amber,
-                        ),
-                        onTap: context.soundAction(() {
-                          Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              builder: (_) => const AlchemyChamberScreen(),
-                            ),
-                          );
-                        }),
                       ),
                     ),
                     const SizedBox(height: 10),
                   ],
-
-                  // ── Appearance ────────────────────────────────────────────
-                  _ForgePanel(
-                    accentBar: t.amber,
-                    padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
-                    child: Row(
-                      children: [
-                        Icon(
-                          AppIcons.brightness_4_rounded,
-                          size: 14,
-                          color: t.amber,
-                        ),
-                        const SizedBox(width: 8),
-                        Text('APPEARANCE', style: _label(t)),
-                        const Spacer(),
-                        ThemeModeSelector(),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
 
                   // ── Font style ────────────────────────────────────────────
                   _ForgePanel(

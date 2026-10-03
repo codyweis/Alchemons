@@ -6,6 +6,15 @@ import '../database/alchemons_db.dart';
 
 const String defaultAppFontName = 'IM Fell English';
 
+/// The game is dark only. Its art makes its own light — grains, glass, glows —
+/// and on paper every piece needed a second, hand-authored ink version; most
+/// of it never got one, so light mode was the weaker game, and the one a
+/// light-mode phone opened into by default.
+///
+/// The light palettes are left in place behind this switch. Whatever mode a
+/// save has stored is kept, and is ignored while this is false.
+const bool kLightModeEnabled = false;
+
 final Map<String, TextTheme Function(TextTheme)> appFontMap = {
   defaultAppFontName: GoogleFonts.imFellEnglishTextTheme,
   'ABeeZee': GoogleFonts.aBeeZeeTextTheme,
@@ -20,7 +29,7 @@ class ThemeNotifier extends ChangeNotifier {
 
   // Theme state
   ThemeMode _themeMode = ThemeMode.system;
-  ThemeMode get themeMode => _themeMode;
+  ThemeMode get themeMode => kLightModeEnabled ? _themeMode : ThemeMode.dark;
 
   String _fontName = defaultAppFontName;
   String get fontName => _fontName;
@@ -130,7 +139,7 @@ class ThemeNotifier extends ChangeNotifier {
   bool get isDarkEffective {
     // "effective" means what the UI should look like right now,
     // not just what ThemeMode enum says.
-    switch (_themeMode) {
+    switch (themeMode) {
       case ThemeMode.dark:
         return true;
       case ThemeMode.light:
