@@ -315,7 +315,9 @@ int _hsv(double hue, double s, double v) {
     4 => (u, p, v),
     _ => (v, p, q),
   };
-  return ((r * 255).round() << 16) | ((g * 255).round() << 8) | (b * 255).round();
+  return ((r * 255).round() << 16) |
+      ((g * 255).round() << 8) |
+      (b * 255).round();
 }
 
 /// Soft sprites in one drawRawAtlas call, each its own colour, size and
@@ -418,11 +420,10 @@ abstract final class _Atlas {
     canvas.drawPath(
       vfxLeaf(const Offset(-c * 0.34, 0), c * 0.68, 0),
       Paint()
-        ..shader = ui.Gradient.radial(
-          const Offset(-c * 0.04, 0),
-          c * 0.36,
-          [white, white.withValues(alpha: 0.55)],
-        ),
+        ..shader = ui.Gradient.radial(const Offset(-c * 0.04, 0), c * 0.36, [
+          white,
+          white.withValues(alpha: 0.55),
+        ]),
     );
     canvas.restore();
     final picture = rec.endRecording();

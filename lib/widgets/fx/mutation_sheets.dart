@@ -50,7 +50,10 @@ enum MutationLook {
   const MutationLook(this.id);
   final String id;
 
-  static MutationLook? of(AlchemonMutation? mutation, {bool prismatic = false}) {
+  static MutationLook? of(
+    AlchemonMutation? mutation, {
+    bool prismatic = false,
+  }) {
     switch (mutation) {
       case AlchemonMutation.transmuted:
         return MutationLook.transmuted;
@@ -293,7 +296,8 @@ Uint8List transmuteRgba(MutationBakeJob job) {
   final lutR = Uint8List(256), lutG = Uint8List(256), lutB = Uint8List(256);
   final lutL = Float32List(256);
   for (var b = 0; b < 256; b++) {
-    final l = math.pow(((b / 255.0 - lo) / (hi - lo)).clamp(0.0, 1.0), gamma)
+    final l = math
+        .pow(((b / 255.0 - lo) / (hi - lo)).clamp(0.0, 1.0), gamma)
         .toDouble();
     lutL[b] = l;
     final c = _rampAt(l);

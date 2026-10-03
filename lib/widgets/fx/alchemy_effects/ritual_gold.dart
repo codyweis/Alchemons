@@ -134,7 +134,8 @@ abstract final class _GoldenRite {
       final rho = math.sqrt(_h(i, 83)) * 0.95;
       final phi = _h(i, 84) * math.pi * 2;
       final x = math.cos(phi) * rho * big + math.sin(t * 0.9 + i) * r * 0.04;
-      final y = fy +
+      final y =
+          fy +
           math.sin(phi) * rho * big * squash -
           (0.45 + 0.6 * _h(i, 85)) * r * u;
       final env = _smooth(0.0, 0.12, u) * (1 - _smooth(0.6, 1.0, u));

@@ -131,8 +131,10 @@ abstract final class _DustRing {
         0,
         0,
         0,
-        ((dark ? 0.85 : 1.0) * (0.85 + 0.15 * math.sin(t * 0.4)) * o)
-            .clamp(0.0, 1.0),
+        ((dark ? 0.85 : 1.0) * (0.85 + 0.15 * math.sin(t * 0.4)) * o).clamp(
+          0.0,
+          1.0,
+        ),
       );
     c.drawCircle(Offset.zero, _reach, _lanePaint);
     c.restore();

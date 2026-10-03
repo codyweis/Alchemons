@@ -15,6 +15,7 @@ abstract final class _VoidRift {
     for (var i = 0; i < _n; i++) 0.16 + 0.12 * _h(i, 71),
   ];
   static final List<double> _ph = [for (var i = 0; i < _n; i++) _h(i, 72)];
+
   /// Three arms, each grain a little off its arm's line.
   static final List<double> _th0 = [
     for (var i = 0; i < _n; i++)

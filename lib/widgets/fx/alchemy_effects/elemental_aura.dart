@@ -263,9 +263,7 @@ abstract final class _ElementalAura {
       final s = _frac(t / p + _q(2, i));
       final crown = i % 4 == 3;
       final side = _q(5, i) < 0.55 ? -1.0 : 1.0;
-      final x0 = crown
-          ? -0.3 + 0.6 * _q(3, i)
-          : side * (0.42 + 0.3 * _q(3, i));
+      final x0 = crown ? -0.3 + 0.6 * _q(3, i) : side * (0.42 + 0.3 * _q(3, i));
       final y0 = crown ? -0.5 : 0.05 + 0.5 * _q(4, i);
       final y = y0 - (crown ? 0.5 : 0.8 + 0.5 * _q(6, i)) * s;
       final x =
@@ -432,8 +430,7 @@ abstract final class _ElementalAura {
       final side = i.isEven ? -1.0 : 1.0;
       final x = side * (0.12 + 0.6 * _q(3, i + 8));
       final y = _feet + 0.005 + 0.04 * _q(4, i + 8) * (1 - x.abs());
-      final hot =
-          math.sin(t * (1.6 + _q(5, i + 8)) + _q(6, i + 8) * 20) > 0.55;
+      final hot = math.sin(t * (1.6 + _q(5, i + 8)) + _q(6, i + 8) * 20) > 0.55;
       _shade(hot ? 3 : (i % 3 == 0 ? 1 : 0), x, y);
       if (hot) _add(_glowB, x, y);
     }
@@ -496,8 +493,8 @@ abstract final class _ElementalAura {
     }
     for (var i = 0; i < 10; i++) {
       final side = i.isEven ? -1.0 : 1.0;
-      final x = side * (0.14 + 0.56 * _q(3, i + 10)) +
-          0.012 * math.sin(t * 1.2 + i);
+      final x =
+          side * (0.14 + 0.56 * _q(3, i + 10)) + 0.012 * math.sin(t * 1.2 + i);
       final y = _feet + 0.01 + 0.035 * _q(4, i + 10) * (1 - x.abs());
       _shade(i % 3 == 0 ? 2 : 1, x, y);
     }
@@ -534,9 +531,7 @@ abstract final class _ElementalAura {
       final x = x0 + (0.5 + 0.6 * _q(5, i)) * s;
       final y = low
           ? y0 - 0.03 * math.sin(s * 9 + i).abs()
-          : y0 -
-                0.12 * s * _q(6, i) +
-                0.05 * math.sin(s * 8 + _q(7, i) * 6.28);
+          : y0 - 0.12 * s * _q(6, i) + 0.05 * math.sin(s * 8 + _q(7, i) * 6.28);
       if (s > 0.94) continue;
       final k = s < 0.45 ? 2 : (s < 0.75 ? 1 : 0);
       _shade(k == 2 && _q(7, i) < 0.3 ? 3 : k, x, y);
@@ -637,7 +632,8 @@ abstract final class _ElementalAura {
       final rise = 0.55 + 0.5 * _q(4, i);
       if (s < 0.85) {
         final u = s / 0.85;
-        final x = x0 * (1 - 0.15 * u) + 0.03 * math.sin(s * 9 + _q(5, i) * 6.28);
+        final x =
+            x0 * (1 - 0.15 * u) + 0.03 * math.sin(s * 9 + _q(5, i) * 6.28);
         final y = _feet - 0.02 - rise * u;
         if (u < 0.14) {
           _add(_softB, x, y);

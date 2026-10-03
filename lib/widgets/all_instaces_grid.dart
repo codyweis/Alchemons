@@ -105,7 +105,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   String? _filterNature;
   String? _filterType;
   String? _filterFamily;
-  bool _filterPrismatic = false;
+  InstanceSpecialFilter _filterSpecial = InstanceSpecialFilter.any;
   bool _filterFavorites = false;
   bool _filterHasStamina = false;
   String? _filterVariant;
@@ -169,7 +169,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     'filterNature': _filterNature,
     'filterType': _filterType,
     'filterFamily': _filterFamily,
-    'filterPrismatic': _filterPrismatic,
+    'filterSpecial': _filterSpecial.name,
     'filterFavorites': _filterFavorites,
     'filterHasStamina': _filterHasStamina,
     'filterVariant': _filterVariant,
@@ -189,7 +189,13 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     _filterNature = p['filterNature'];
     _filterType = p['filterType'];
     _filterFamily = p['filterFamily'] ?? p['filterSpeciesId'];
-    _filterPrismatic = p['filterPrismatic'] ?? _filterPrismatic;
+    _filterSpecial = InstanceSpecialFilter.values.firstWhere(
+      (e) =>
+          e.name ==
+          (p['filterSpecial'] ??
+              (p['filterPrismatic'] == true ? 'prismatic' : null)),
+      orElse: () => InstanceSpecialFilter.any,
+    );
     _filterFavorites =
         p['filterFavorites'] ?? (p['filterLocked'] ?? _filterFavorites);
     _filterHasStamina = p['filterHasStamina'] ?? _filterHasStamina;
@@ -324,7 +330,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   }
 
   bool get _hasAdvancedFilters =>
-      _filterPrismatic ||
+      _filterSpecial != InstanceSpecialFilter.any ||
       _filterFavorites ||
       _filterHasStamina ||
       _filterPurity != InstancePurityFilter.all ||
@@ -345,7 +351,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   }
 
   void _resetAllControls({required bool clearSearch}) {
-    _filterPrismatic = false;
+    _filterSpecial = InstanceSpecialFilter.any;
     _filterFavorites = false;
     _filterHasStamina = false;
     _filterType = null;
@@ -447,7 +453,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
       if ((widget.favoritesOnly || _filterFavorites) && !inst.isFavorite) {
         return false;
       }
-      if (_filterPrismatic && !inst.isPrismaticSkin) {
+      if (!_filterSpecial.matches(inst)) {
         return false;
       }
       if (_filterHasStamina && stamina.computeState(inst).bars <= 0) {
@@ -878,9 +884,9 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                 sortBy: _sortBy,
                 onSortChanged: (s) => _mutate(() => _sortBy = s),
                 harvestMode: false,
-                filterPrismatic: _filterPrismatic,
-                onTogglePrismatic: () =>
-                    _mutate(() => _filterPrismatic = !_filterPrismatic),
+                specialFilter: _filterSpecial,
+                onCycleSpecial: () =>
+                    _mutate(() => _filterSpecial = _filterSpecial.next()),
                 sizeValueText: _filterSize == null
                     ? null
                     : (sizeLabels[_filterSize] ?? _filterSize!),

@@ -72,10 +72,7 @@ class PortalHarvest {
           final centre = box.localToGlobal(box.size.center(Offset.zero));
           final grains = await SpecimenGrains.capture(
             box,
-            pixelRatio: math.min(
-              MediaQuery.devicePixelRatioOf(context),
-              2.5,
-            ),
+            pixelRatio: math.min(MediaQuery.devicePixelRatioOf(context), 2.5),
           );
           return grains == null ? null : (grains, centre, 1.0);
         },

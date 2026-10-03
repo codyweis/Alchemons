@@ -69,8 +69,8 @@ abstract final class _Resonance {
       final p = 4.5 + 2.0 * _h(i, 51);
       final u = _frac(t / p + _h(i, 52));
       final side = i.isEven ? -1.0 : 1.0;
-      final x = side * (0.42 + 0.34 * _h(i, 53)) +
-          0.06 * math.sin(t * 0.8 + i * 1.9);
+      final x =
+          side * (0.42 + 0.34 * _h(i, 53)) + 0.06 * math.sin(t * 0.8 + i * 1.9);
       final y = 0.45 - 1.4 * u;
       final env = math.sin(math.pi * u);
       _Atlas.add(

@@ -98,8 +98,8 @@ class InstanceFiltersPanel extends StatelessWidget {
   final ValueChanged<SortBy> onSortChanged;
   final bool harvestMode;
 
-  final bool filterPrismatic;
-  final VoidCallback onTogglePrismatic;
+  final InstanceSpecialFilter specialFilter;
+  final VoidCallback onCycleSpecial;
 
   final String? sizeValueText;
   final VoidCallback onCycleSize;
@@ -131,8 +131,8 @@ class InstanceFiltersPanel extends StatelessWidget {
     required this.sortBy,
     required this.onSortChanged,
     required this.harvestMode,
-    required this.filterPrismatic,
-    required this.onTogglePrismatic,
+    required this.specialFilter,
+    required this.onCycleSpecial,
     required this.sizeValueText,
     required this.onCycleSize,
     required this.tintValueText,
@@ -156,7 +156,7 @@ class InstanceFiltersPanel extends StatelessWidget {
   });
 
   bool get _hasActiveFilters =>
-      filterPrismatic ||
+      specialFilter != InstanceSpecialFilter.any ||
       filterFavorites ||
       filterHasStamina ||
       filterNature != null ||
@@ -242,12 +242,11 @@ class InstanceFiltersPanel extends StatelessWidget {
         showInactiveFrame: showInactiveBrackets,
       ),
 
-      _ToggleChip(
+      _CycleChip(
         icon: AppIcons.auto_awesome_rounded,
-        label: 'PRISMATIC',
-        active: filterPrismatic,
-        activeColor: const Color(0xFFE879F9), // purple for prismatic
-        onTap: context.soundTap(onTogglePrismatic),
+        labelWhenAny: 'SPECIAL',
+        valueText: specialFilter.chipValueText,
+        onTap: context.soundTap(onCycleSpecial),
         showInactiveFrame: showInactiveBrackets,
       ),
 

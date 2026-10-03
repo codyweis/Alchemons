@@ -85,7 +85,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
   String? _filterSize;
   String? _filterTint;
   String? _filterNature;
-  bool _filterPrismatic = false;
+  InstanceSpecialFilter _filterSpecial = InstanceSpecialFilter.any;
   bool _filterFavorites = false;
   bool _filterHasStamina = false;
   String? _filterVariant;
@@ -132,7 +132,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
     'filterSize': _filterSize,
     'filterTint': _filterTint,
     'filterNature': _filterNature,
-    'filterPrismatic': _filterPrismatic,
+    'filterSpecial': _filterSpecial.name,
     'filterFavorites': _filterFavorites,
     'filterHasStamina': _filterHasStamina,
     'filterVariant': _filterVariant,
@@ -150,7 +150,13 @@ class _InstancesSheetState extends State<InstancesSheet> {
     _filterSize = p['filterSize'];
     _filterTint = p['filterTint'];
     _filterNature = p['filterNature'];
-    _filterPrismatic = p['filterPrismatic'] ?? _filterPrismatic;
+    _filterSpecial = InstanceSpecialFilter.values.firstWhere(
+      (e) =>
+          e.name ==
+          (p['filterSpecial'] ??
+              (p['filterPrismatic'] == true ? 'prismatic' : null)),
+      orElse: () => InstanceSpecialFilter.any,
+    );
     _filterFavorites = p['filterFavorites'] ?? _filterFavorites;
     _filterHasStamina = p['filterHasStamina'] ?? _filterHasStamina;
     _filterVariant = p['filterVariant'];
@@ -268,7 +274,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
               if (_filterHasStamina && stamina.computeState(inst).bars <= 0) {
                 return false;
               }
-              if (_filterPrismatic && inst.isPrismaticSkin != true) {
+              if (!_filterSpecial.matches(inst)) {
                 return false;
               }
               if (!matchesPurityFilter(
@@ -371,7 +377,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                       _filterNature != null ||
                       _searchText.trim().isNotEmpty ||
                       _sortBy != SortBy.newest
-                : _filterPrismatic ||
+                : _filterSpecial != InstanceSpecialFilter.any ||
                       _filterFavorites ||
                       _filterHasStamina ||
                       _filterPurity != InstancePurityFilter.all ||
@@ -398,9 +404,9 @@ class _InstancesSheetState extends State<InstancesSheet> {
                       sortBy: _sortBy,
                       onSortChanged: (s) => _mutate(() => _sortBy = s),
                       harvestMode: _isHarvestMode,
-                      filterPrismatic: _filterPrismatic,
-                      onTogglePrismatic: () =>
-                          _mutate(() => _filterPrismatic = !_filterPrismatic),
+                      specialFilter: _filterSpecial,
+                      onCycleSpecial: () =>
+                          _mutate(() => _filterSpecial = _filterSpecial.next()),
                       sizeValueText: _filterSize == null
                           ? null
                           : (sizeLabels[_filterSize] ?? _filterSize!),
@@ -437,7 +443,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                       onToggleHasStamina: () =>
                           _mutate(() => _filterHasStamina = !_filterHasStamina),
                       onClearAll: () => _mutate(() {
-                        _filterPrismatic = false;
+                        _filterSpecial = InstanceSpecialFilter.any;
                         _filterFavorites = false;
                         _filterHasStamina = false;
                         _filterPurity = InstancePurityFilter.all;

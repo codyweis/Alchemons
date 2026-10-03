@@ -1,23 +1,49 @@
+// lib/screens/breed/breed_tab.dart
+//
+// FUSION — two Alchemons on one lit floor. What they will make is kept a
+// surprise.
+//
+//   Each stands at its family's size on a pool of its element's light, the
+//   first turned to face the second. Once both are in, a small knot of their
+//   grains turns between them: the cultivation to be, in the same material
+//   the chambers hold. Under each, its name, element, level and stamina; above
+//   the button, one plain line for anything that would stop the fusion, so
+//   nothing refuses after the tap. One button always does the next thing:
+//   choose two, choose one more, fuse.
+//
+//   FUSE runs the merge here, on the live chamber: each is read into grains
+//   where it stands and poured into the knot (fusion_particles.dart), and the
+//   cinematic opens over it, anchored to the same places.
+//
+// This replaced a card of hexagram circles, a wave line and a flat orb, with
+// refusals (resting, cross-family, Mystics, no room) that only came as
+// dialogs after INITIATE FUSION was pressed.
+
+import 'dart:async' show Timer;
 import 'dart:math' as math;
-import 'dart:math';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
+
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart'
     show kCompanionSpeciesScale;
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_service.dart';
+import 'package:alchemons/services/cold_storage_service.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
+import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:alchemons/widgets/game_snack.dart';
@@ -27,6 +53,15 @@ import '../../database/alchemons_db.dart';
 import '../../models/creature.dart';
 import '../../services/creature_repository.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+
+part 'fusion_stage.dart';
+
+/// The fusion gold: pale on the dark palette, deep on the parchment, where
+/// the pale one washes out.
+Color fusionGold(BracketPalette palette) =>
+    palette.isDark ? const Color(0xFFE4C16A) : const Color(0xFF9A6B00);
+
+const _kDanger = Color(0xFFE5735C);
 
 class BreedingTab extends StatefulWidget {
   final List<CreatureEntry> discoveredCreatures;
@@ -38,12 +73,17 @@ class BreedingTab extends StatefulWidget {
     required this.onBreedingComplete,
     this.debugParent1,
     this.debugParent2,
+    this.debugLastPair,
   });
 
   /// Specimens already in the chambers when the tab opens, with no reveal:
   /// for measuring the chamber at rest.
   @visibleForTesting
   final CreatureInstance? debugParent1, debugParent2;
+
+  /// A pair fused before, so SAME PAIR is offered.
+  @visibleForTesting
+  final (String, String)? debugLastPair;
 
   @override
   State<BreedingTab> createState() => _BreedingTabState();
@@ -62,29 +102,21 @@ class _BreedingTabState extends State<BreedingTab>
   String? _lastParent1InstanceId;
   String? _lastParent2InstanceId;
 
-  late AnimationController _slot1Controller;
-  late AnimationController _slot2Controller;
-  late AnimationController _compatibilityController;
-  late AnimationController _breedButtonController;
-
-  late AnimationController _emptyFuseController;
-
   /// Runs the merge in the chamber, before the cinematic opens.
   late AnimationController _preCinematicFadeController;
 
   /// The merge, in particles: both specimens read into grains at the tap,
-  /// then poured into the orb. Null when no merge is running.
+  /// then poured into the knot. Null when no merge is running.
   FusionParticleField? _fusionField;
 
   /// Seconds into the merge.
   double get _mergeTime =>
       _preCinematicFadeController.value * FusionParticleField.duration;
 
-  late Animation<double> _orbScaleAnim;
-
-  /// The orb and the line through it, going as the grains pour in.
-  late Animation<double> _orbFadeAnim;
-  late Animation<double> _orbSpinSpeedAnim;
+  /// The knot, fed a little as the grains start to arrive and gone by the
+  /// time they have: the cloud of the two of them is the fusion.
+  late Animation<double> _knotScaleAnim;
+  late Animation<double> _knotFadeAnim;
 
   // Keys to capture on-screen chamber positions so the fusion cinematic can
   // anchor itself to the live screen.
@@ -92,20 +124,33 @@ class _BreedingTabState extends State<BreedingTab>
   final GlobalKey _slot2AvatarKey = GlobalKey();
   final GlobalKey _orbKey = GlobalKey();
 
-  // What each specimen is read into grains from, and the stack the grains
-  // are painted in.
   /// A specimen put into a chamber gathers there out of its element. Each
   /// pick gets its own ticket, so the chambers coming back into view later
   /// just show what is in them.
   EssenceReveal? _slot1Reveal, _slot2Reveal;
 
+  // What each specimen is read into grains from, and the stack the grains
+  // are painted in.
   final GlobalKey _slot1CaptureKey = GlobalKey();
   final GlobalKey _slot2CaptureKey = GlobalKey();
   final GlobalKey _slotsStackKey = GlobalKey();
 
-  /// How tall the specimen's part of a chamber is, filled or empty, so
-  /// choosing a specimen never moves its name.
-  static const double _avatarZone = 170;
+  late final Stream<List<IncubatorSlot>> _slots;
+  late final Stream<List<Egg>> _stored;
+
+  /// Cold storage's size: read once, and again after each fusion.
+  int? _storageCapacity;
+
+  /// Stamina as shown, per specimen, kept a while: a nature's extra bar is
+  /// rolled each time it is worked out, and the cells should not flicker.
+  final Map<String, (StaminaState, DateTime)> _staminaShown = {};
+
+  /// Ticks the rest countdown while a resting specimen is in a chamber.
+  Timer? _restTimer;
+
+  /// The knot's makings, for the pair it was built for.
+  Map<String, dynamic>? _knotPayload;
+  String? _knotPair;
 
   /// A sprite frame this wide per unit of family scale: a let (1.1) stands
   /// 115 across, a wing (2.0) 209, a mystic (2.4) 251.
@@ -125,6 +170,10 @@ class _BreedingTabState extends State<BreedingTab>
   /// too big beside its partner here.
   static const Map<String, double> _chamberFamilyScale = {'mask': 1.3};
 
+  /// The knot's box. The merge's cloud is sized from it (a little wider), and
+  /// the cinematic's cover from that.
+  static const double _knotBox = 56;
+
   String _familyKeyForCreature(Creature c) {
     if (c.mutationFamily != null && c.mutationFamily!.isNotEmpty) {
       return c.mutationFamily!.toUpperCase();
@@ -134,103 +183,20 @@ class _BreedingTabState extends State<BreedingTab>
     return letters.toUpperCase();
   }
 
-  Future<void> _showCrossSpeciesLockedDialog(
-    BuildContext context,
-    String familyA,
-    String familyB,
-  ) async {
-    final theme = context.read<FactionTheme>();
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: Text(
-            'Further Research Required',
-            style: TextStyle(color: theme.text),
-          ),
-          content: Text(
-            'Your current alchemical research only supports fusion within the '
-            'same lineage family.\n\n'
-            'To attempt breeding between $familyA and $familyB specimens, '
-            'you must first unlock the Cross-Species Lineage node in the '
-            'Alchemy constellation.',
-            style: TextStyle(color: theme.text),
-          ),
-          actions: [
-            TextButton(
-              onPressed: context.soundAction(() => Navigator.of(ctx).pop()),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// Mystics may only fuse with the exact same Mystic species.
-  Future<void> _showMysticBreedingLockedDialog(
-    BuildContext context,
-    String nameA,
-    String nameB,
-  ) async {
-    final theme = context.read<FactionTheme>();
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: Text(
-            'Mystic Incompatibility',
-            style: TextStyle(color: theme.text),
-          ),
-          content: Text(
-            'Mystic entities are bound to their own essence.\n\n'
-            '$nameA and $nameB cannot be fused, Mystics may only '
-            'breed with another of the exact same Mystic species.',
-            style: TextStyle(color: theme.text),
-          ),
-          actions: [
-            TextButton(
-              onPressed: context.soundAction(() => Navigator.of(ctx).pop()),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   void initState() {
     super.initState();
-    _slot1Controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-
-    _emptyFuseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat();
-
-    _slot2Controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _compatibilityController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    _breedButtonController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    );
+    final db = context.read<AlchemonsDatabase>();
+    _slots = db.incubatorDao.watchSlots();
+    _stored = db.incubatorDao.watchInventory();
+    _loadStorageCapacity();
 
     // THE MERGE, performed in the chamber itself, so the route that follows
     // never has to draw a copy of anything.
     //
     // Each specimen is read into grains where it stands and swapped for
     // them under a line of sparkle — the same shape, the same markings, made
-    // of particles — and the grains are poured into the orb, the two
+    // of particles — and the grains are poured into the knot, the two
     // winding through each other, until it takes them in. The timeline is
     // the field's; this controller just runs it.
     _preCinematicFadeController = AnimationController(
@@ -240,11 +206,7 @@ class _BreedingTabState extends State<BreedingTab>
       ),
     );
 
-    // The orb is fed a little as the grains start to arrive, and is gone by
-    // the time they have: the cloud of the two of them is the fusion, as it
-    // is in the wild where there is no orb at all. Left standing, it sat at
-    // double size under the cloud with the grains falling into a gradient.
-    _orbScaleAnim = TweenSequence<double>([
+    _knotScaleAnim = TweenSequence<double>([
       TweenSequenceItem(tween: ConstantTween(1.0), weight: 34),
       TweenSequenceItem(
         tween: Tween(
@@ -255,608 +217,542 @@ class _BreedingTabState extends State<BreedingTab>
       ),
       TweenSequenceItem(tween: ConstantTween(1.2), weight: 36),
     ]).animate(_preCinematicFadeController);
-    _orbFadeAnim = Tween<double>(begin: 1.0, end: 0.0).animate(
+    _knotFadeAnim = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _preCinematicFadeController,
         curve: const Interval(0.42, 0.72, curve: Curves.easeIn),
       ),
     );
 
-    _orbSpinSpeedAnim = Tween<double>(begin: 1.0, end: 4.0).animate(
-      CurvedAnimation(
-        parent: _preCinematicFadeController,
-        curve: Curves.easeInCubic,
-      ),
-    );
-
     selectedParent1 = widget.debugParent1;
     selectedParent2 = widget.debugParent2;
-    if (selectedParent1 != null || selectedParent2 != null) {
-      _updateAnimations();
+    final last = widget.debugLastPair;
+    if (last != null) {
+      _lastParent1InstanceId = last.$1;
+      _lastParent2InstanceId = last.$2;
+    }
+  }
+
+  Future<void> _loadStorageCapacity() async {
+    final capacity = await ColdStorageService.getCapacity(
+      context.read<AlchemonsDatabase>(),
+    );
+    if (mounted && capacity != _storageCapacity) {
+      setState(() => _storageCapacity = capacity);
     }
   }
 
   @override
   void dispose() {
-    _slot1Controller.dispose();
-    _slot2Controller.dispose();
-    _compatibilityController.dispose();
-    _breedButtonController.dispose();
+    _restTimer?.cancel();
     _preCinematicFadeController.dispose();
-    _emptyFuseController.dispose();
     super.dispose();
   }
 
-  void _updateAnimations() {
-    final hasParent1 = selectedParent1 != null;
-    final hasParent2 = selectedParent2 != null;
-    final hasEither = hasParent1 || hasParent2;
-    final hasBoth = hasParent1 && hasParent2;
+  // ───────────────────────────── reading the pair ─────────────────────────
 
-    final slot1Empty = selectedParent1 == null;
-    final slot2Empty = selectedParent2 == null;
-
-    // if BOTH are empty we animate fuse,
-    // else we could slow/stop. You can pick your rule.
-    if (slot1Empty || slot2Empty) {
-      if (!_emptyFuseController.isAnimating) {
-        _emptyFuseController.repeat();
-      }
-    } else {
-      _emptyFuseController.stop();
-    }
-
-    // slot anims stay as-is
-    if (hasParent1) {
-      _slot1Controller.forward();
-    } else {
-      _slot1Controller.reverse();
-    }
-
-    if (hasParent2) {
-      _slot2Controller.forward();
-    } else {
-      _slot2Controller.reverse();
-    }
-
-    // spin the orb if we have at least one parent
-    if (hasEither) {
-      if (!_compatibilityController.isAnimating) {
-        _compatibilityController.repeat();
-      }
-    } else {
-      _compatibilityController.reset();
-    }
-
-    // breed button should only pulse (and show DNA/particles/etc) when both
-    if (hasBoth) {
-      if (!_breedButtonController.isAnimating) {
-        _breedButtonController.repeat();
-      }
-    } else {
-      _breedButtonController.reset();
-    }
+  /// Its stamina now, as last worked out (within half a minute).
+  StaminaState _staminaOf(CreatureInstance inst) {
+    final now = DateTime.now();
+    final key =
+        '${inst.instanceId}|${inst.staminaBars}|${inst.staminaLastUtcMs}';
+    final kept = _staminaShown[key];
+    if (kept != null && now.difference(kept.$2).inSeconds < 30) return kept.$1;
+    final state = context.read<StaminaService>().computeState(inst);
+    _staminaShown
+      ..removeWhere((k, _) => k.startsWith('${inst.instanceId}|'))
+      ..[key] = (state, now);
+    return state;
   }
+
+  /// Keeps the rest countdown moving while a resting one is chosen, and
+  /// nothing ticking otherwise.
+  void _syncRestTimer(bool anyResting) {
+    if (!anyResting) {
+      _restTimer?.cancel();
+      _restTimer = null;
+      return;
+    }
+    _restTimer ??= Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  String _nameOf(CreatureInstance inst, Creature? base) {
+    final nick = inst.nickname?.trim();
+    if (nick != null && nick.isNotEmpty) return nick;
+    return base?.name ?? 'Specimen';
+  }
+
+  /// Whatever stops this pair fusing right now, in plain words, or null.
+  /// And, when it can go ahead, anything worth knowing first.
+  ({String? block, String? note}) _readiness(
+    Creature? a,
+    Creature? b,
+    _Room room,
+  ) {
+    final p1 = selectedParent1, p2 = selectedParent2;
+    if (p1 == null || p2 == null || a == null || b == null) {
+      return (block: null, note: null);
+    }
+    final mysticA = a.mutationFamily == 'Mystic';
+    final mysticB = b.mutationFamily == 'Mystic';
+    if ((mysticA || mysticB) && !(mysticA && mysticB && a.id == b.id)) {
+      return (block: 'Mystics fuse only with their own species', note: null);
+    }
+    if (_familyKeyForCreature(a) != _familyKeyForCreature(b) &&
+        !context
+            .read<ConstellationEffectsService>()
+            .hasCrossSpeciesBreeding()) {
+      return (block: 'Two families · needs Cross-Species Lineage', note: null);
+    }
+    for (final (inst, base) in [(p1, a), (p2, b)]) {
+      final s = _staminaOf(inst);
+      if (s.bars < 1) {
+        final wait = s.nextTickUtc?.difference(DateTime.now().toUtc());
+        return (
+          block: wait == null
+              ? '${_nameOf(inst, base)} is resting'
+              : '${_nameOf(inst, base)} is resting · ${_shortWait(wait)}',
+          note: null,
+        );
+      }
+    }
+    if (room.known && room.free == 0) {
+      if (room.storageFull) {
+        return (block: 'Chambers and cold storage full', note: null);
+      }
+      return (
+        block: null,
+        note: 'Chambers full · this one goes to cold storage',
+      );
+    }
+    return (block: null, note: null);
+  }
+
+  static String _shortWait(Duration d) {
+    if (d.isNegative || d.inMinutes < 1) return 'any moment';
+    final h = d.inHours, m = d.inMinutes % 60;
+    return h > 0 ? '${h}h ${m}m' : '${m}m';
+  }
+
+  // ───────────────────────────── the chamber ──────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
-
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildBreedingCard(theme),
-          const SizedBox(height: 16),
-          if (selectedParent1 != null && selectedParent2 != null)
-            _buildBreedButton(theme),
-          // Quick-select both button when neither slot is filled
-          if (selectedParent1 == null && selectedParent2 == null) ...[
-            const SizedBox(height: 8),
-            _buildQuickSelectButton(theme),
-          ],
-          // Repeat breed button when both slots empty but we have a last pair
-          if (selectedParent1 == null &&
-              selectedParent2 == null &&
-              _lastParent1InstanceId != null &&
-              _lastParent2InstanceId != null) ...[
-            const SizedBox(height: 10),
-            _buildRepeatBreedButton(theme),
-          ],
-        ],
+    // Cross-Species Lineage can be unlocked while this tab sits open.
+    context.watch<ConstellationEffectsService>();
+    final palette = BracketPalette.fromTheme(theme);
+    return StreamBuilder<List<IncubatorSlot>>(
+      stream: _slots,
+      builder: (context, slotSnap) => StreamBuilder<List<Egg>>(
+        stream: _stored,
+        builder: (context, storedSnap) {
+          final room = _Room.of(
+            slotSnap.data,
+            storedSnap.data?.length,
+            _storageCapacity,
+          );
+          return _buildChamber(theme, palette, room);
+        },
       ),
     );
   }
 
-  // ================== MAIN FUSION CARD ==================
-  Widget _buildBreedingCard(FactionTheme theme) {
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.surfaceAlt.withValues(alpha: .4),
-        boxShadow: [
-          BoxShadow(
-            color: theme.surface.withValues(alpha: .2),
-            blurRadius: 32,
-            offset: const Offset(0, 0),
-          ),
-        ],
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            theme.surface.withValues(alpha: .6),
-            theme.surfaceAlt.withValues(alpha: .15),
-          ],
-        ),
-      ),
-      child: Stack(
-        children: [
-          // Animated background particles when both selected
-          if (selectedParent1 != null && selectedParent2 != null)
-            _buildBackgroundParticles(theme),
-
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                _buildHeader(theme),
-                const SizedBox(height: 24),
-                _buildParentSlots(theme),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(FactionTheme theme) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Vertical accent bar with glow
-        Container(
-          width: 3,
-          height: 44,
-          decoration: BoxDecoration(
-            color: theme.accent,
-            borderRadius: BorderRadius.circular(2),
-            boxShadow: [
-              BoxShadow(
-                color: theme.accent.withValues(alpha: .5),
-                blurRadius: 8,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 14),
-        // Title + subtitle
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'FUSION CHAMBER',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.4,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                'Select two specimens to synthesize new life',
-                style: TextStyle(
-                  color: theme.textMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  height: 1.3,
-                  letterSpacing: .3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildParentSlots(FactionTheme theme) {
-    final hasParents = selectedParent1 != null && selectedParent2 != null;
-
-    // grab base species + their colors up front so we can feed them to orb
+  Widget _buildChamber(FactionTheme theme, BracketPalette palette, _Room room) {
     final repo = context.read<CreatureCatalog>();
-    final baseA = selectedParent1 != null
-        ? repo.getCreatureById(selectedParent1!.baseId)
-        : null;
-    final baseB = selectedParent2 != null
-        ? repo.getCreatureById(selectedParent2!.baseId)
-        : null;
+    final p1 = selectedParent1, p2 = selectedParent2;
+    final a = p1 == null ? null : repo.getCreatureById(p1.baseId);
+    final b = p2 == null ? null : repo.getCreatureById(p2.baseId);
+    final ready = _readiness(a, b, room);
+    _syncRestTimer(
+      [
+        if (p1 != null) p1,
+        if (p2 != null) p2,
+      ].any((i) => _staminaOf(i).bars < 1),
+    );
+    final gold = fusionGold(palette);
 
-    final Color? colorA = baseA != null
-        ? BreedConstants.getTypeColor(baseA.types.first)
-        : null;
-
-    final Color? colorB = baseB != null
-        ? BreedConstants.getTypeColor(baseB.types.first)
-        : null;
-
-    final field = _fusionField;
-    return Stack(
-      key: _slotsStackKey,
-      clipBehavior: Clip.none,
-      children: [
-        // animated DNA line
-        if (hasParents)
-          FadeTransition(
-            opacity: _orbFadeAnim,
-            child: _buildDNAConnection(theme),
-          ),
-
-        // the two slots
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, box) {
+        // A short window (a split screen) scrolls a stage of fixed height
+        // rather than squeezing the specimens.
+        final compact = box.maxHeight < 520;
+        final stage = _buildStage(theme, palette, gold, a, b);
+        final column = Column(
           children: [
-            Expanded(
-              child: _buildEnhancedSlot(
-                inst: selectedParent1,
-                label: 'SPECIMEN A',
-                slotIndex: 1,
-                theme: theme,
-                controller: _slot1Controller,
-                avatarKey: _slot1AvatarKey,
-                captureKey: _slot1CaptureKey,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+              child: _ChamberCells(room: room, palette: palette, gold: gold),
+            ),
+            if (compact)
+              SizedBox(height: 400, child: stage)
+            else
+              Expanded(child: stage),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _ReadinessLine(
+                block: ready.block,
+                note: ready.note,
+                palette: palette,
               ),
             ),
-            const SizedBox(width: 16),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildEnhancedSlot(
-                inst: selectedParent2,
-                label: 'SPECIMEN B',
-                slotIndex: 2,
-                theme: theme,
-                controller: _slot2Controller,
-                avatarKey: _slot2AvatarKey,
-                captureKey: _slot2CaptureKey,
-              ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildActions(palette, gold, ready.block == null),
             ),
+            const SizedBox(height: 14),
           ],
-        ),
+        );
+        return compact
+            ? SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: column,
+              )
+            : column;
+      },
+    );
+  }
 
-        // The merge's grains on the far side of the orb, under it. Always
-        // in the tree (painting nothing between merges) so adding it never
-        // shuffles the orb's place in this stack.
-        Positioned.fill(
-          child: IgnorePointer(
-            child: CustomPaint(
-              painter: field == null
-                  ? null
-                  : FusionParticlePainter(
-                      field,
-                      () => _mergeTime,
-                      back: true,
-                      repaint: _preCinematicFadeController,
-                    ),
-            ),
+  /// How far a side's specimen has been drawn out of its chamber by the
+  /// merge, 0..1.
+  double _emptied(int side) {
+    if (!_isBreeding && _preCinematicFadeController.value == 0) return 0;
+    return _fusionField?.chamberEmpty(side, _mergeTime) ??
+        Curves.easeIn.transform(_preCinematicFadeController.value);
+  }
+
+  /// One button that does the next thing, and SAME PAIR beside it when
+  /// there is a pair to repeat.
+  Widget _buildActions(BracketPalette palette, Color gold, bool clear) {
+    final p1 = selectedParent1, p2 = selectedParent2;
+    if (p1 != null && p2 != null) {
+      return BracketButton(
+        label: 'FUSE',
+        icon: AppIcons.merge_type_rounded,
+        height: 48,
+        palette: palette,
+        accent: gold,
+        enabled: clear && !_isBreeding,
+        onTap: _onBreedTap,
+      );
+    }
+    if (p1 != null || p2 != null) {
+      return BracketButton(
+        label: 'CHOOSE ONE MORE',
+        height: 48,
+        palette: palette,
+        accent: gold,
+        enabled: !_isBreeding,
+        onTap: () => _showBreedingPicker(targetSlot: p1 == null ? 1 : 2),
+      );
+    }
+    final repeat =
+        _lastParent1InstanceId != null && _lastParent2InstanceId != null;
+    return Row(
+      children: [
+        Expanded(
+          flex: 3,
+          child: BracketButton(
+            label: 'CHOOSE TWO',
+            height: 48,
+            palette: palette,
+            accent: gold,
+            onTap: () => _showBreedingPicker(),
           ),
         ),
-
-        // floating fusion orb, centered between slots visually
-        Positioned.fill(
-          child: IgnorePointer(
-            child: Center(
-              child: KeyedSubtree(
-                key: _orbKey,
-                child: _buildFusionIndicator(
-                  theme: theme,
-                  hasParents: hasParents,
-                  leftColor: colorA,
-                  rightColor: colorB,
-                ),
-              ),
+        if (repeat) ...[
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: BracketButton(
+              label: 'SAME PAIR',
+              icon: AppIcons.replay_rounded,
+              primary: false,
+              height: 48,
+              palette: palette,
+              accent: gold,
+              onTap: _onRepeatBreed,
             ),
           ),
-        ),
-
-        // ...and everything else of it, over the orb and the chambers.
-        Positioned.fill(
-          child: IgnorePointer(
-            child: CustomPaint(
-              painter: field == null
-                  ? null
-                  : FusionParticlePainter(
-                      field,
-                      () => _mergeTime,
-                      back: false,
-                      repaint: _preCinematicFadeController,
-                    ),
-            ),
-          ),
-        ),
+        ],
       ],
     );
   }
 
-  // ================== ENHANCED SLOT ==================
-  Widget _buildEnhancedSlot({
-    required CreatureInstance? inst,
-    required String label,
-    required int slotIndex,
-    required FactionTheme theme,
-    required AnimationController controller,
-    GlobalKey? avatarKey,
-    GlobalKey? captureKey,
-  }) {
-    final repo = context.read<CreatureCatalog>();
-    final base = inst != null ? repo.getCreatureById(inst.baseId) : null;
-    final genetics = decodeGenetics(inst?.geneticsJson);
+  // ───────────────────────────── the stage ────────────────────────────────
 
-    final typeColor = base != null
-        ? BreedConstants.getTypeColor(base.types.first)
-        : theme.accent;
+  /// How far a body reaches either side of its frame's centre, as a share
+  /// of the frame: about a third, give or take a tail or a wing.
+  static const double _bodyHalf = 0.36;
 
-    final isEmpty = base == null;
+  /// From the floor down to the plate under a specimen.
+  static const double _plateGap = 16;
 
-    return AnimatedBuilder(
-      animation: Listenable.merge([controller, _preCinematicFadeController]),
-      builder: (context, child) {
-        // THE MERGE happens to this widget's own sprite: it is cut away
-        // behind the crest as its grains take its place, and the chamber
-        // empties as they are poured into the orb.
+  /// The floor, the pair standing on it with their plates under them, the
+  /// knot between them, and the merge's grains over all of it.
+  ///
+  /// The pair and their plates are one group, centred in the stage. Each
+  /// stands as far from the middle as its own body is wide (and at least a
+  /// quarter of the way across), so a wing and a let are both clear of the
+  /// knot rather than set at fixed places.
+  Widget _buildStage(
+    FactionTheme theme,
+    BracketPalette palette,
+    Color gold,
+    Creature? a,
+    Creature? b,
+  ) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = box.maxWidth, h = box.maxHeight;
+        // Room between each body and the knot. At 8 the pair crowded it.
+        const clear = _knotBox / 2 + 24;
+        // A tall stage stands the pair a little bigger, as far as the width
+        // allows: never into the knot or off the screen's edge, never past
+        // the stage's top.
+        final zoom = ((h - _Plate.height - 60) / 300).clamp(1.0, 1.15);
+        final widthCap = (w / 2 - clear - 6) / (2 * _bodyHalf);
+        final heightCap = (h - _Plate.height - _plateGap - 24) / 0.98;
+        double frameOf(Creature? c, CreatureInstance? inst) => c == null
+            ? 0
+            : math.min(
+                math.min(
+                  _chamberFrame(c) *
+                      zoom *
+                      scaleFromGenes(decodeGenetics(inst?.geneticsJson)),
+                  widthCap,
+                ),
+                heightCap,
+              );
+        final frames = [
+          frameOf(a, selectedParent1),
+          frameOf(b, selectedParent2),
+        ];
+        final emptyW = math.min(w * 0.36, 150.0);
+        final emptyH = emptyW * 1.25;
+        final filled = frames.where((f) => f > 0);
+        final tallest = filled.isEmpty ? emptyH : filled.reduce(math.max);
+        final pairH = math.max(
+          tallest * 0.95,
+          frames.contains(0.0) ? emptyH : 0.0,
+        );
+        // The group a little above the middle: the eye sits there.
+        final group = pairH + _plateGap + _Plate.height;
+        final floorY = math.max(8.0, (h - group) * 0.45) + pairH;
+        final xs = [
+          for (var side = 0; side < 2; side++)
+            () {
+              final half = frames[side] > 0
+                  ? frames[side] * _bodyHalf
+                  : emptyW / 2;
+              // Never nearer the middle than a quarter of the way across,
+              // so a small pair on a wide screen does not huddle.
+              final out = math.max(clear + half, w * 0.25);
+              final x = w / 2 + (side == 0 ? -1 : 1) * out;
+              return x.clamp(half + 6, w - half - 6);
+            }(),
+        ];
+        // Level with the middle of the pair's bodies.
+        final knotY = floorY - (tallest * 0.42).clamp(56.0, 130.0);
+        final colors = [
+          a == null ? null : BreedConstants.getTypeColor(a.types.first),
+          b == null ? null : BreedConstants.getTypeColor(b.types.first),
+        ];
+        final plateW = w / 2 - 10;
         final field = _fusionField;
-        final side = slotIndex - 1;
-        final t = _mergeTime;
-        final cutY = field?.cutY(side, t);
-        // With no field (the chamber could not be measured) the sprite just
-        // fades, as it used to.
-        final emptied =
-            field?.chamberEmpty(side, t) ??
-            Curves.easeIn.transform(_preCinematicFadeController.value);
 
-        // The CARD only breathes; the merge belongs to the sprite alone.
-        final scale = isEmpty ? 1.0 : 1.0 + (controller.value * 0.03);
-
-        return Transform.scale(
-          scale: scale,
-          child: GestureDetector(
-            // Mid-merge the specimen is already grains; swapping it out
-            // from under them would leave the merge pouring a creature that
-            // is no longer there.
-            onTap: context.soundAction(
-              _isBreeding
-                  ? null
-                  : () => _showBreedingPicker(targetSlot: slotIndex),
-            ),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOut,
-              height: 270,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: LayoutBuilder(
-                builder: (context, box) => Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // CONTENT COLUMN
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // SPRITE ZONE
-                        //
-                        // The merge belongs to the sprite and nothing else:
-                        // the name and element chip stay with the chamber.
-                        Center(
-                          key: avatarKey,
-                          child: isEmpty
-                              ? _buildEmptyAvatar(theme)
-                              : _buildCreatureAvatar(
-                                  base,
-                                  inst!,
-                                  genetics,
-                                  captureKey: captureKey,
-                                  // Never so big it spills out of its chamber
-                                  // (a giant mystic on a narrow phone): the
-                                  // body is about 60% of its frame.
-                                  maxFrame: box.maxWidth * 1.5,
-                                  cutY: cutY,
-                                  emptied: emptied,
-                                  spriteOpacity: field == null
-                                      ? 1.0 - emptied
-                                      : 1.0,
-                                  reveal: slotIndex == 1
-                                      ? _slot1Reveal
-                                      : _slot2Reveal,
-                                ),
-                        ),
-
-                        const SizedBox(height: 18),
-
-                        // NAME + TYPE — they belong to the chamber, not to the
-                        // specimen, so they stay put and dim as it is drawn out.
-                        if (!isEmpty) ...[
-                          Opacity(
-                            opacity: (1.0 - emptied).clamp(0.0, 1.0),
-                            child: Column(
-                              children: [
-                                Text(
-                                  base.name.toUpperCase(),
-                                  style: TextStyle(
-                                    color: theme.text,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: .5,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 6),
-                                _buildTypeChip(base.types.first, typeColor),
-                              ],
-                            ),
-                          ),
-                        ] else ...[
-                          Text(
-                            'Tap to select',
-                            style: TextStyle(
-                              color: theme.textMuted.withValues(alpha: .6),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-
-                    // CLOSE BUTTON (ONLY WHEN FILLED)
-                    if (!isEmpty)
-                      Positioned(
-                        right: -8,
-                        top: -18,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: context.soundAction(
-                            _isBreeding
-                                ? null
-                                : () {
-                                    setState(() {
-                                      if (slotIndex == 1) {
-                                        selectedParent1 = null;
-                                      } else {
-                                        selectedParent2 = null;
-                                      }
-                                      _updateAnimations();
-                                    });
-                                  },
-                          ),
-                          child: SizedBox(
-                            width: 44,
-                            height: 44,
-                            child: Center(
-                              child: Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: .78),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.red.withValues(alpha: .68),
-                                    width: 1.5,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withValues(alpha: .38),
-                                      blurRadius: 10,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  AppIcons.close,
-                                  color: Colors.red,
-                                  size: 14,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+        return Stack(
+          key: _slotsStackKey,
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              child: IgnorePointer(
+                child: RepaintBoundary(
+                  child: AnimatedBuilder(
+                    animation: _preCinematicFadeController,
+                    builder: (context, _) => CustomPaint(
+                      painter: _FusionFloorPainter(
+                        floorY: floorY,
+                        knotY: knotY,
+                        xs: xs,
+                        frames: frames,
+                        colors: colors,
+                        lit: [1 - _emptied(0) * 0.85, 1 - _emptied(1) * 0.85],
+                        palette: palette,
                       ),
-                  ],
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+
+            for (var side = 0; side < 2; side++)
+              if (frames[side] == 0)
+                _buildEmptySpot(palette, side, xs[side], floorY, emptyW, emptyH)
+              else
+                _buildSpecimen(
+                  side: side,
+                  base: side == 0 ? a! : b!,
+                  inst: side == 0 ? selectedParent1! : selectedParent2!,
+                  frame: frames[side],
+                  x: xs[side],
+                  floorY: floorY,
+                  dark: theme.isDark,
+                ),
+
+            for (final (side, inst, base) in [
+              (0, selectedParent1, a),
+              (1, selectedParent2, b),
+            ])
+              if (inst != null)
+                Positioned(
+                  left: (xs[side] - plateW / 2).clamp(6.0, w - 6 - plateW),
+                  top: floorY + _plateGap,
+                  width: plateW,
+                  child: AnimatedBuilder(
+                    animation: _preCinematicFadeController,
+                    builder: (context, child) => Opacity(
+                      // They belong to the chamber, not to the specimen, so
+                      // they stay put and dim as it is drawn out.
+                      opacity: (1 - _emptied(side)).clamp(0.0, 1.0),
+                      child: child,
+                    ),
+                    child: _Plate(
+                      name: _nameOf(inst, base),
+                      element: base?.types.first,
+                      level: inst.level,
+                      stamina: _staminaOf(inst),
+                      palette: palette,
+                      gold: gold,
+                      onRemove: _isBreeding
+                          ? null
+                          : () => setState(() {
+                              if (side == 0) {
+                                selectedParent1 = null;
+                              } else {
+                                selectedParent2 = null;
+                              }
+                            }),
+                    ),
+                  ),
+                ),
+
+            // The merge's grains on the far side of the knot, under it.
+            // Always in the tree (painting nothing between merges) so adding
+            // it never shuffles the knot's place in this stack.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: field == null
+                      ? null
+                      : FusionParticlePainter(
+                          field,
+                          () => _mergeTime,
+                          back: true,
+                          repaint: _preCinematicFadeController,
+                        ),
+                ),
+              ),
+            ),
+
+            Positioned(
+              left: w / 2 - _knotBox / 2,
+              top: knotY - _knotBox / 2,
+              width: _knotBox,
+              height: _knotBox,
+              child: IgnorePointer(
+                child: KeyedSubtree(
+                  key: _orbKey,
+                  child: _buildKnot(theme, a, b),
+                ),
+              ),
+            ),
+
+            // ...and everything else of it, over the knot and the pair.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: field == null
+                      ? null
+                      : FusionParticlePainter(
+                          field,
+                          () => _mergeTime,
+                          back: false,
+                          repaint: _preCinematicFadeController,
+                        ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
   }
 
-  // empty avatar — alchemical summoning circle
-  //
-  // Only the mote going round it moves, so only the mote repaints: the
-  // circle is drawn once, and the mote on a layer of its own.
-  Widget _buildEmptyAvatar(FactionTheme theme) {
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return SizedBox(
-      height: _avatarZone,
-      child: Center(
-        child: SizedBox(
-          width: 104,
-          height: 104,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CustomPaint(
-                painter: _SummoningCirclePainter(
-                  color: theme.border.withValues(alpha: .45),
-                  accentColor: primary,
-                  glowColor: primary.withValues(alpha: .06),
-                ),
-              ),
-              RepaintBoundary(
-                child: CustomPaint(
-                  painter: _SummoningOrbitPainter(
-                    progress: _emptyFuseController,
-                    color: primary,
-                  ),
-                ),
-              ),
-              Center(
-                child: Icon(
-                  AppIcons.help_center_rounded,
-                  color: theme.textMuted.withValues(alpha: .25),
-                  size: 28,
-                ),
-              ),
-            ],
+  /// A place to stand, waiting: a frame on the floor, open to a tap.
+  Widget _buildEmptySpot(
+    BracketPalette palette,
+    int side,
+    double x,
+    double floorY,
+    double width,
+    double height,
+  ) {
+    return Positioned(
+      left: x - width / 2,
+      top: floorY - height,
+      width: width,
+      height: height,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: context.soundAction(
+          _isBreeding ? null : () => _showBreedingPicker(targetSlot: side + 1),
+        ),
+        child: CustomPaint(
+          painter: BracketFramePainter(
+            color: palette.line.withValues(alpha: palette.isDark ? 0.55 : 0.6),
+            bracketSize: 14,
+          ),
+          child: Center(
+            child: Icon(
+              AppIcons.add_rounded,
+              size: 20,
+              color: palette.muted.withValues(alpha: 0.7),
+            ),
           ),
         ),
       ),
     );
   }
 
-  // live animated sprite inside summoning circle frame
-  /// The specimen and the circle it stands in.
+  /// The specimen standing on the floor at its family's size.
   ///
-  /// It stands at its family's size ([_chamberFrame]) times its size gene,
-  /// up to [maxFrame], and the circle under it grows with it.
-  ///
-  /// They part during a merge: the SUMMONING CIRCLE belongs to the chamber
-  /// and stays, dimming as the chamber empties ([emptied]), while the sprite
-  /// is cut away from the top down ([cutY], from the capture box's centre)
-  /// as its grains take its place.
-  ///
-  /// The sprite sits in a repaint boundary ([captureKey]) a little bigger
-  /// than it, so it can be read into grains exactly as it is showing. The
-  /// tree here is the same whether or not a merge is running, so starting
-  /// one never rebuilds the sprite underneath it.
-  Widget _buildCreatureAvatar(
-    Creature base,
-    CreatureInstance inst,
-    Genetics? genetics, {
-    GlobalKey? captureKey,
-    double maxFrame = double.infinity,
-    double? cutY,
-    double emptied = 0,
-    double spriteOpacity = 1,
-    EssenceReveal? reveal,
+  /// It sits in a repaint boundary ([captureKey]) a little bigger than its
+  /// frame, so it can be read into grains exactly as it is showing; the merge
+  /// cuts it away from the top down ([SpriteCrestClipper]) as its grains take
+  /// its place. The first one is turned to face the second, inside the
+  /// boundary, so what is read is what is seen. The tree is the same whether
+  /// or not a merge is running, so starting one never rebuilds the sprite.
+  Widget _buildSpecimen({
+    required int side,
+    required Creature base,
+    required CreatureInstance inst,
+    required double frame,
+    required double x,
+    required double floorY,
+    required bool dark,
   }) {
-    final typeColor = BreedConstants.getTypeColor(base.types.first);
-    // The sprite's own widget draws its frame 69 across and then applies the
-    // size gene, so the family size goes on as a scale around it.
-    final gene = scaleFromGenes(genetics);
-    final frame = math.min(_chamberFrame(base) * gene, maxFrame);
+    final gene = scaleFromGenes(decodeGenetics(inst.geneticsJson));
+    final captureBox = (frame * 1.12).ceilToDouble();
+    // The frame's foot on the floor: the sprites stand a little inside it.
+    final centreY = floorY - frame / 2 + frame * 0.085;
     final sprite = base.spriteData != null
         ? Transform.scale(
+            // The sprite's own widget draws its frame 69 across and then
+            // applies the size gene, so the family size goes on around it.
             scale: frame / gene / 69,
             child: InstanceSprite(creature: base, instance: inst, size: 64),
           )
@@ -865,296 +761,128 @@ class _BreedingTabState extends State<BreedingTab>
             color: Colors.white.withValues(alpha: .4),
             size: 32,
           );
-    final captureBox = (frame * 1.12).ceilToDouble();
-    final circle = (frame * 0.62).clamp(104.0, 150.0);
-    final cut = cutY ?? double.negativeInfinity;
-    // Gone once the crest has passed; nothing left to draw.
-    final opacity = cut == double.infinity ? 0.0 : spriteOpacity;
-
-    return SizedBox(
-      width: 104,
-      height: _avatarZone,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          Opacity(
-            opacity: (1.0 - emptied * 0.9).clamp(0.0, 1.0),
-            child: OverflowBox(
-              maxWidth: circle,
-              maxHeight: circle,
-              child: SizedBox.square(
-                dimension: circle,
-                child: CustomPaint(
-                  painter: _SummoningCirclePainter(
-                    color: typeColor.withValues(alpha: .5),
-                    accentColor: typeColor,
-                    glowColor: typeColor.withValues(alpha: .08),
-                  ),
-                ),
-              ),
-            ),
+    return Positioned(
+      left: x - captureBox / 2,
+      top: centreY - captureBox / 2,
+      width: captureBox,
+      height: captureBox,
+      child: KeyedSubtree(
+        key: side == 0 ? _slot1AvatarKey : _slot2AvatarKey,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          // Mid-merge the specimen is already grains; swapping it out from
+          // under them would leave the merge pouring a creature that is no
+          // longer there.
+          onTap: context.soundAction(
+            _isBreeding
+                ? null
+                : () => _showBreedingPicker(targetSlot: side + 1),
           ),
-          OverflowBox(
-            maxWidth: captureBox,
-            maxHeight: captureBox,
-            child: ClipRect(
-              clipper: SpriteCrestClipper(cut),
-              clipBehavior: cut == double.negativeInfinity
-                  ? Clip.none
-                  : Clip.hardEdge,
-              child: RepaintBoundary(
-                key: captureKey,
-                child: SizedBox.square(
-                  dimension: captureBox,
-                  child: Center(
-                    child: Opacity(
-                      opacity: opacity.clamp(0.0, 1.0),
-                      child: SizedBox(
-                        width: 68,
-                        height: 68,
-                        child: base.spriteData == null
-                            ? sprite
-                            : ElementalEssence(
-                                key: ValueKey(inst.instanceId),
-                                element: base.types.first,
-                                dark: context.read<FactionTheme>().isDark,
-                                reveal: reveal,
-                                // A tap on the chamber picks its specimen.
-                                tappable: false,
-                                // The sprite is scaled up past this box to
-                                // its family size; read all of it.
-                                captureScale: captureBox / 68,
-                                child: sprite,
-                              ),
-                      ),
+          child: AnimatedBuilder(
+            animation: _preCinematicFadeController,
+            builder: (context, child) {
+              final field = _fusionField;
+              final cut =
+                  field?.cutY(side, _mergeTime) ?? double.negativeInfinity;
+              // With no field (the chamber could not be measured) the sprite
+              // just fades, as it used to.
+              final opacity = cut == double.infinity
+                  ? 0.0
+                  : field == null
+                  ? 1 - _emptied(side)
+                  : 1.0;
+              return ClipRect(
+                clipper: SpriteCrestClipper(cut),
+                clipBehavior: cut == double.negativeInfinity
+                    ? Clip.none
+                    : Clip.hardEdge,
+                child: Opacity(opacity: opacity.clamp(0.0, 1.0), child: child),
+              );
+            },
+            child: RepaintBoundary(
+              key: side == 0 ? _slot1CaptureKey : _slot2CaptureKey,
+              child: SizedBox.square(
+                dimension: captureBox,
+                child: Center(
+                  child: Transform.flip(
+                    flipX: side == 0,
+                    child: SizedBox(
+                      width: 68,
+                      height: 68,
+                      child: base.spriteData == null
+                          ? sprite
+                          : ElementalEssence(
+                              key: ValueKey(inst.instanceId),
+                              element: base.types.first,
+                              dark: dark,
+                              reveal: side == 0 ? _slot1Reveal : _slot2Reveal,
+                              // A tap on the chamber picks its specimen.
+                              tappable: false,
+                              // The sprite is scaled up past this box to its
+                              // family size; read all of it.
+                              captureScale: captureBox / 68,
+                              child: sprite,
+                            ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTypeChip(String type, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .25),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: .5), width: 1),
-      ),
-      child: Text(
-        type.toUpperCase(),
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.5,
         ),
       ),
     );
   }
 
-  // ================== FUSION INDICATOR ==================
-  //
-  // Painted, on a layer of its own. It turns every frame while a specimen is
-  // in, and as a stack of widgets it rebuilt each frame and took the whole
-  // card with it when it repainted.
-  Widget _buildFusionIndicator({
-    required FactionTheme theme,
-    required bool hasParents,
-    Color? leftColor,
-    Color? rightColor,
-  }) {
-    return RepaintBoundary(
-      child: SizedBox.square(
-        dimension: 52,
-        child: CustomPaint(
-          painter: _FusionOrbPainter(
-            spin: _compatibilityController,
-            merge: _preCinematicFadeController,
-            charge: _orbScaleAnim,
-            fade: _orbFadeAnim,
-            spinSpeed: _orbSpinSpeedAnim,
-            hasParents: hasParents,
-            leftColor: leftColor,
-            rightColor: rightColor,
-            emptyFill: theme.surfaceAlt,
-            emptyRing: theme.border.withValues(alpha: .3),
+  /// The pair's grains, turning between them once both are in: the same
+  /// sphere a cultivation is, made of the two portraits.
+  Widget _buildKnot(FactionTheme theme, Creature? a, Creature? b) {
+    final p1 = selectedParent1, p2 = selectedParent2;
+    if (p1 == null || p2 == null || a == null || b == null) {
+      return const SizedBox.expand();
+    }
+    final pair = '${p1.instanceId}|${p2.instanceId}';
+    if (_knotPair != pair) {
+      final repo = context.read<CreatureCatalog>();
+      _knotPair = pair;
+      _knotPayload = {
+        'parentage': {
+          'parentA': ParentSnapshot.fromDbInstance(p1, repo).toJson(),
+          'parentB': ParentSnapshot.fromDbInstance(p2, repo).toJson(),
+        },
+      };
+    }
+    return FadeTransition(
+      opacity: _knotFadeAnim,
+      child: ScaleTransition(
+        scale: _knotScaleAnim,
+        child: TweenAnimationBuilder<double>(
+          // Kindles when a pair is made, and again for a new pair.
+          key: ValueKey(pair),
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 900),
+          curve: Curves.easeOutCubic,
+          builder: (context, v, child) => Opacity(
+            opacity: v,
+            child: Transform.scale(scale: 0.45 + 0.55 * v, child: child),
+          ),
+          child: CultivationSphere(
+            payload: _knotPayload!,
+            types: [a.types.first, b.types.first],
+            progress: 0,
+            grains: 260,
+            radiusFactor: 0.44,
+            interactive: false,
+            darkBackdrop: theme.isDark,
+            // Wound up as the pair pour in.
+            spinScale: _isBreeding ? 7 : 1.4,
           ),
         ),
       ),
     );
   }
 
-  // ================== DNA CONNECTION LINE ==================
-  // The FadeTransition round it is already its own layer.
-  Widget _buildDNAConnection(FactionTheme theme) {
-    return IgnorePointer(
-      child: CustomPaint(
-        size: const Size(double.infinity, 200),
-        painter: _DNAConnectionPainter(
-          progress: _compatibilityController,
-          color: theme.accent,
-        ),
-      ),
-    );
-  }
-
-  // ================== BACKGROUND PARTICLES ==================
-  Widget _buildBackgroundParticles(FactionTheme theme) {
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: RepaintBoundary(
-          child: CustomPaint(
-            painter: _ParticlePainter(
-              progress: _compatibilityController,
-              color: theme.accent,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ================== BREED BUTTON ==================
-  //
-  // Its own layer, and only the glow and the pulse are rebuilt each frame:
-  // the label is built once.
-  Widget _buildBreedButton(FactionTheme theme) {
-    final canBreed =
-        selectedParent1 != null && selectedParent2 != null && !_isBreeding;
-
-    return RepaintBoundary(
-      child: GestureDetector(
-        onTap: context.soundAction(canBreed ? _onBreedTap : null),
-        child: AnimatedBuilder(
-          animation: _breedButtonController,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (canBreed) ...[
-                Icon(
-                  AppIcons.merge_type_rounded,
-                  color: Colors.black,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-              ],
-              Text(
-                canBreed ? 'INITIATE FUSION' : 'SELECT TWO SPECIMENS',
-                style: TextStyle(
-                  color: canBreed
-                      ? Colors.black
-                      : theme.textMuted.withValues(alpha: .5),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.0,
-                ),
-              ),
-            ],
-          ),
-          builder: (context, child) {
-            final t = _breedButtonController.value;
-            final pulseValue = canBreed
-                ? 1.0 + (math.sin(t * 2 * math.pi) * 0.04)
-                : 1.0;
-            final glowAlpha = canBreed
-                ? 0.4 + math.sin(t * 2 * math.pi) * 0.2
-                : 0.0;
-
-            return Transform.scale(
-              scale: pulseValue,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                decoration: BoxDecoration(
-                  gradient: canBreed
-                      ? LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            theme.accent,
-                            theme.accentSoft,
-                            theme.accent,
-                          ],
-                          stops: const [0.0, 0.5, 1.0],
-                        )
-                      : null,
-                  color: canBreed
-                      ? null
-                      : theme.surfaceAlt.withValues(alpha: .4),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: canBreed
-                        ? theme.accent.withValues(alpha: .9)
-                        : theme.border.withValues(alpha: .4),
-                    width: canBreed ? 1.5 : 1,
-                  ),
-                  boxShadow: canBreed
-                      ? [
-                          BoxShadow(
-                            color: theme.accent.withValues(alpha: glowAlpha),
-                            blurRadius: 28,
-                            spreadRadius: 6,
-                          ),
-                          BoxShadow(
-                            color: theme.accent.withValues(
-                              alpha: glowAlpha * .4,
-                            ),
-                            blurRadius: 52,
-                            spreadRadius: 2,
-                          ),
-                        ]
-                      : [],
-                ),
-                child: child,
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  // ================== REPEAT BREED BUTTON ==================
-  Widget _buildRepeatBreedButton(FactionTheme theme) {
-    return GestureDetector(
-      onTap: context.soundAction(_onRepeatBreed),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: theme.surfaceAlt.withValues(alpha: .5),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: theme.accent.withValues(alpha: .5),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(AppIcons.replay_rounded, color: theme.accent, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              'BREED AGAIN',
-              style: TextStyle(
-                color: theme.accent,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.0,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // ───────────────────────────── fusing ───────────────────────────────────
 
   Future<void> _onRepeatBreed() async {
     if (_lastParent1InstanceId == null || _lastParent2InstanceId == null) {
@@ -1166,7 +894,7 @@ class _BreedingTabState extends State<BreedingTab>
 
     if (inst1 == null || inst2 == null) {
       _showToast(
-        'Previous specimens no longer available',
+        'That pair is no longer here',
         icon: AppIcons.warning_rounded,
         color: Colors.orange,
       );
@@ -1177,46 +905,11 @@ class _BreedingTabState extends State<BreedingTab>
       return;
     }
 
-    setState(() {
-      _revealNewPicks(inst1, inst2);
-      selectedParent1 = inst1;
-      selectedParent2 = inst2;
-      _updateAnimations();
-    });
+    _applyBreedingPicks(inst1, inst2);
   }
 
-  // ================== QUICK SELECT BOTH BUTTON ==================
-  Widget _buildQuickSelectButton(FactionTheme theme) {
-    return GestureDetector(
-      onTap: context.soundAction(() => _showBreedingPicker()),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: theme.surfaceAlt.withValues(alpha: .3),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: theme.border.withValues(alpha: .4),
-            width: 1,
-          ),
-        ),
-        child: Center(
-          child: Text(
-            'SELECT ALCHEMONS',
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // instead of calling _performBreeding() directly,
-  // we first run the dissolve fade, then call _performBreeding()
+  // Read the specimens into grains first, then check, then run the merge in
+  // the chamber, then the cinematic and the fusion itself.
   Future<void> _onBreedTap() async {
     if (selectedParent1 == null || selectedParent2 == null) return;
     if (_isBreeding) return;
@@ -1226,7 +919,6 @@ class _BreedingTabState extends State<BreedingTab>
     // checked, so the merge does not wait on it. Thrown away if one says no.
     final grains = _captureSpecimens();
     try {
-      // --- Cross-species check runs BEFORE any cinematic / fade ---
       final repo = context.read<CreatureCatalog>();
       final breedingService = context.read<BreedingServiceV2>();
       final speciesA = repo.getCreatureById(selectedParent1!.baseId);
@@ -1237,17 +929,16 @@ class _BreedingTabState extends State<BreedingTab>
         return;
       }
 
-      // Stamina belongs up here with the other refusals. It was checked
-      // inside _performBreeding, which runs after the dissolve fade — so a
-      // resting specimen played the whole wind-up and then said no.
+      // The readiness line has already said all of these, and FUSE waits
+      // on it; checked again against the database in case it moved since.
       final stamina = context.read<StaminaService>();
       final restedA = await stamina.canBreed(selectedParent1!.instanceId);
       final restedB = await stamina.canBreed(selectedParent2!.instanceId);
       if (!restedA || !restedB) {
         _showToast(
           !restedA && !restedB
-              ? 'Both specimens are resting'
-              : (!restedA ? 'Specimen A is resting' : 'Specimen B is resting'),
+              ? 'Both are resting'
+              : '${_nameOf(!restedA ? selectedParent1! : selectedParent2!, !restedA ? speciesA : speciesB)} is resting',
           icon: AppIcons.hourglass_bottom_rounded,
           color: Colors.orange,
         );
@@ -1255,34 +946,27 @@ class _BreedingTabState extends State<BreedingTab>
       }
       if (!mounted) return;
 
-      final famA = _familyKeyForCreature(speciesA);
-      final famB = _familyKeyForCreature(speciesB);
-      final sameFamily = famA == famB;
-
-      // Mystic-only rule: Mystics can only breed with the EXACT same species.
       final isMysticA = speciesA.mutationFamily == 'Mystic';
       final isMysticB = speciesB.mutationFamily == 'Mystic';
-      if (isMysticA || isMysticB) {
-        final sameMysticSpecies =
-            isMysticA && isMysticB && speciesA.id == speciesB.id;
-        if (!sameMysticSpecies) {
-          await _showMysticBreedingLockedDialog(
-            context,
-            speciesA.name,
-            speciesB.name,
-          );
-          return;
-        }
+      if ((isMysticA || isMysticB) &&
+          !(isMysticA && isMysticB && speciesA.id == speciesB.id)) {
+        _showToast(
+          'Mystics fuse only with their own species',
+          icon: AppIcons.block_rounded,
+          color: Colors.orange,
+        );
+        return;
       }
 
       final db = context.read<AlchemonsDatabase>();
       final skills = await db.constellationDao.getUnlockedSkillIds();
-      final hasCrossSpecies = skills.contains('breeder_cross_species');
-
-      if (!sameFamily && !hasCrossSpecies) {
-        if (!mounted) return;
-        await _showCrossSpeciesLockedDialog(context, famA, famB);
-        // Do NOT start fade / cinematic; we just bail out cleanly.
+      if (_familyKeyForCreature(speciesA) != _familyKeyForCreature(speciesB) &&
+          !skills.contains('breeder_cross_species')) {
+        _showToast(
+          'Two families · needs Cross-Species Lineage',
+          icon: AppIcons.block_rounded,
+          color: Colors.orange,
+        );
         return;
       }
 
@@ -1296,9 +980,8 @@ class _BreedingTabState extends State<BreedingTab>
         );
         return;
       }
-      // -------------------------------------------------------------
 
-      // The specimens turn to grains and are poured into the orb, on the
+      // The specimens turn to grains and are poured into the knot, on the
       // real chamber. Measured from the layout as it is right now: it is
       // responsive, so none of this can be a constant.
       final read = await grains;
@@ -1309,7 +992,7 @@ class _BreedingTabState extends State<BreedingTab>
       context.sound(SoundCue.breedingStart, owner: this);
       await _preCinematicFadeController.forward();
 
-      // let that max-charged orb hang briefly
+      // let that max-charged knot hang briefly
       await Future.delayed(const Duration(milliseconds: 140));
 
       // now jump to cinematic + actual breeding
@@ -1322,6 +1005,7 @@ class _BreedingTabState extends State<BreedingTab>
           _isBreeding = false;
           _fusionField = null;
         });
+        _loadStorageCapacity();
       }
     }
   }
@@ -1366,7 +1050,6 @@ class _BreedingTabState extends State<BreedingTab>
     for (final key in [_slot1CaptureKey, _slot2CaptureKey]) {
       final box = boxOf(key);
       if (box == null) return null;
-      // Through any transform above it (the slot breathes at 1.03).
       final tl = box.localToGlobal(Offset.zero);
       final br = box.localToGlobal(box.size.bottomRight(Offset.zero));
       centres.add(stack.globalToLocal((tl + br) / 2));
@@ -1384,7 +1067,7 @@ class _BreedingTabState extends State<BreedingTab>
       core: stack.globalToLocal(
         orb.localToGlobal(orb.size.center(Offset.zero)),
       ),
-      // A cloud a little wider than the orb, so it shows through the gaps.
+      // A cloud a little wider than the knot, so it shows through the gaps.
       coreRadius: orb.size.width / 2 * 1.7,
       colors: [colorA, colorB],
       darkBackdrop: context.read<FactionTheme>().isDark,
@@ -1392,7 +1075,7 @@ class _BreedingTabState extends State<BreedingTab>
   }
 
   // Resolve a keyed widget's bounds in global screen coordinates, so the
-  // fusion cinematic can anchor itself to the live chamber slots / orb.
+  // fusion cinematic can anchor itself to the live chamber slots / knot.
   Rect? _globalRectOf(GlobalKey key) {
     final box = key.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.attached) return null;
@@ -1455,26 +1138,8 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
-  // ================== BREED HANDLER ==================
   Future<void> _performBreeding() async {
     if (selectedParent1 == null || selectedParent2 == null) return;
-
-    final stamina = context.read<StaminaService>();
-    final id1 = selectedParent1!.instanceId;
-    final id2 = selectedParent2!.instanceId;
-
-    final ok1 = await stamina.canBreed(id1);
-    final ok2 = await stamina.canBreed(id2);
-    if (!ok1 || !ok2) {
-      _showToast(
-        !ok1 && !ok2
-            ? 'Both specimens are resting'
-            : (!ok1 ? 'Specimen A is resting' : 'Specimen B is resting'),
-        icon: AppIcons.hourglass_bottom_rounded,
-        color: Colors.orange,
-      );
-      return;
-    }
 
     try {
       if (!mounted) return;
@@ -1527,12 +1192,11 @@ class _BreedingTabState extends State<BreedingTab>
         outcome: outcomeNotifier,
         // The eruption is made of what the pair were just poured as.
         grains: _fusionField?.specimens,
-        // Shorter than the old 4350: the intake, the charge and the haul
-        // together now happen for real in the chamber before this opens, so
-        // the route only has the eruption and the reveal left to play.
+        // The intake, the charge and the haul together happen for real in
+        // the chamber before this opens, so the route only has the eruption
+        // and the reveal left to play.
         minDuration: const Duration(milliseconds: 2800),
         task: () async {
-          // Service now handles breeding + analysis in one go.
           final result = await breedingService.breedInstances(
             selectedParent1!,
             selectedParent2!,
@@ -1540,7 +1204,7 @@ class _BreedingTabState extends State<BreedingTab>
 
           if (!result.success) {
             _pendingFusionToast = _PendingToast(
-              result.message ?? 'Breeding failed',
+              result.message ?? 'Fusion failed',
               icon: AppIcons.warning_rounded,
               color: Colors.orange,
             );
@@ -1557,18 +1221,17 @@ class _BreedingTabState extends State<BreedingTab>
 
           if (result.placement == EggPlacement.storage) {
             _pendingFusionToast = _PendingToast(
-              'Incubator full. Specimen transferred to cold storage',
+              'Chambers full. The cultivation went to cold storage',
               icon: AppIcons.inventory_2_rounded,
               color: Colors.orange,
             );
           } else if (result.placement == EggPlacement.incubator) {
             _pendingFusionToast = _PendingToast(
-              'Specimen placed in incubation chamber ${(result.slotId ?? 0) + 1}',
+              'Cultivating in chamber ${(result.slotId ?? 0) + 1}',
               icon: AppIcons.science_rounded,
             );
           }
 
-          // Handle stamina cost with faction perks
           await _handleStaminaCost(
             selectedParent1!,
             selectedParent2!,
@@ -1594,18 +1257,17 @@ class _BreedingTabState extends State<BreedingTab>
       if (!mounted) return;
 
       setState(() {
-        // Save last pair for repeat breeding
+        // Saved for SAME PAIR.
         _lastParent1InstanceId = selectedParent1?.instanceId;
         _lastParent2InstanceId = selectedParent2?.instanceId;
         selectedParent1 = null;
         selectedParent2 = null;
-        _updateAnimations();
       });
 
       widget.onBreedingComplete();
     } catch (e) {
       _showToast(
-        'Fusion protocol error: $e',
+        'Fusion failed: $e',
         color: Colors.red,
         icon: AppIcons.error_rounded,
       );
@@ -1632,7 +1294,7 @@ class _BreedingTabState extends State<BreedingTab>
     );
 
     // 50% chance to skip if perk is active
-    if (skipStamina && Random().nextBool()) {
+    if (skipStamina && math.Random().nextBool()) {
       return; // Lucky! No stamina cost
     }
 
@@ -1646,6 +1308,8 @@ class _BreedingTabState extends State<BreedingTab>
       instanceOverlayForNature: speciesB,
     );
   }
+
+  // ───────────────────────────── choosing ─────────────────────────────────
 
   /// New tickets for whichever chambers are getting a different specimen.
   void _revealNewPicks(CreatureInstance? parent1, CreatureInstance? parent2) {
@@ -1666,11 +1330,18 @@ class _BreedingTabState extends State<BreedingTab>
       _revealNewPicks(parent1, parent2);
       selectedParent1 = parent1;
       selectedParent2 = parent2;
-      _updateAnimations();
     });
   }
 
-  // ================== PERSISTENT BREEDING PICKER ==================
+  /// The picker's title: who the pick will fuse with, once one is in.
+  String _pickerTitle(CreatureInstance? partner) {
+    if (partner == null) return 'CHOOSE TO FUSE';
+    final base = context.read<CreatureCatalog>().getCreatureById(
+      partner.baseId,
+    );
+    return 'FUSE WITH ${_nameOf(partner, base).toUpperCase()}';
+  }
+
   // targetSlot == null => pick both (quick-select flow)
   // targetSlot != null => pick only that slot and close.
   void _showBreedingPicker({int? targetSlot}) async {
@@ -1678,16 +1349,14 @@ class _BreedingTabState extends State<BreedingTab>
     var nextParent2 = selectedParent2;
 
     if (targetSlot != null) {
+      final partner = targetSlot == 1 ? nextParent2 : nextParent1;
       final picked = await _pickBreedingInstance(
-        searchHint: targetSlot == 1 ? 'SELECT SPECIMEN A' : 'SELECT SPECIMEN B',
+        searchHint: _pickerTitle(partner),
         selectedIds: [
           if (nextParent1 != null) nextParent1.instanceId,
           if (nextParent2 != null) nextParent2.instanceId,
         ],
-        blockedIds: [
-          if (targetSlot == 1 && nextParent2 != null) nextParent2.instanceId,
-          if (targetSlot == 2 && nextParent1 != null) nextParent1.instanceId,
-        ],
+        blockedIds: [if (partner != null) partner.instanceId],
       );
       if (picked == null) return;
 
@@ -1702,7 +1371,7 @@ class _BreedingTabState extends State<BreedingTab>
 
     if (nextParent1 == null) {
       final picked = await _pickBreedingInstance(
-        searchHint: 'SELECT SPECIMEN A',
+        searchHint: _pickerTitle(nextParent2),
         selectedIds: [if (nextParent2 != null) nextParent2.instanceId],
         blockedIds: [if (nextParent2 != null) nextParent2.instanceId],
       );
@@ -1713,7 +1382,7 @@ class _BreedingTabState extends State<BreedingTab>
 
     if (nextParent2 == null) {
       final picked = await _pickBreedingInstance(
-        searchHint: 'SELECT SPECIMEN B',
+        searchHint: _pickerTitle(nextParent1),
         selectedIds: [nextParent1.instanceId],
         blockedIds: [nextParent1.instanceId],
       );
@@ -1767,10 +1436,9 @@ class _BreedingTabState extends State<BreedingTab>
   }) async {
     if (blockedIds.contains(instance.instanceId)) {
       _showToast(
-        'That specimen is already selected',
+        'That one is already in the other chamber',
         icon: AppIcons.block_rounded,
         color: Colors.orange,
-        fromTop: true,
       );
       return false;
     }
@@ -1788,10 +1456,9 @@ class _BreedingTabState extends State<BreedingTab>
     final remMs = perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
     final mins = (remMs / 60000).ceil();
     _showToast(
-      'Specimen is resting, next stamina in ~${mins}m',
+      'Resting, next stamina in ~${mins}m',
       icon: AppIcons.hourglass_bottom_rounded,
       color: Colors.orange,
-      fromTop: true,
     );
     return false;
   }
@@ -1801,16 +1468,10 @@ class _BreedingTabState extends State<BreedingTab>
   String? _lastToastMessage;
   DateTime? _lastToastAt;
 
-  void _showToast(
-    String message, {
-    IconData icon = AppIcons.info_rounded,
-    Color? color,
-    bool fromTop = false,
-  }) {
+  void _showToast(String message, {IconData? icon, Color? color}) {
     if (!mounted) return;
-    // The one thing worth keeping from this screen's own toast: breeding can
-    // fire the same complaint several times in a second, and repeating it is
-    // just noise.
+    // Fusion can fire the same complaint several times in a second, and
+    // repeating it is just noise.
     final now = DateTime.now();
     if (_lastToastMessage == message &&
         _lastToastAt != null &&
@@ -1823,450 +1484,11 @@ class _BreedingTabState extends State<BreedingTab>
     showGameSnack(
       context,
       message,
-      icon: icon,
+      icon: icon ?? AppIcons.info_rounded,
       accent: color,
       duration: const Duration(seconds: 2),
     );
   }
-}
-
-// ================== CUSTOM PAINTERS ==================
-
-/// A disc of [radius] under a gaussian blur of [sigma], as one radial
-/// gradient: the BoxShadow and MaskFilter glows this tab asked the GPU to
-/// blur every frame, worked out once instead. The stops follow the blurred
-/// disc's own falloff, so the glow hugs the rim as the blur did.
-class _BlurredDisc {
-  _BlurredDisc(this.radius, this.sigma) : extent = radius + 3 * sigma {
-    for (var k = 0; k < _stops.length; k++) {
-      _coverage[k] = k == _stops.length - 1
-          ? 0
-          : _coverageAt(_stops[k] * extent);
-    }
-  }
-
-  /// The orb's BoxShadow: its 26 px disc spread by 4, under a blur of 24.
-  static final orbGlow = _BlurredDisc(30, 24 * 0.57735 + 0.5);
-
-  /// The mote round an empty chamber: 2.5 px under a blur of 3.
-  static final orbitMote = _BlurredDisc(2.5, 3);
-
-  final double radius, sigma, extent;
-
-  static const List<double> _stops = [
-    0, .08, .16, .24, .32, .40, .48, .56, .64, .72, .80, .88, 1, //
-  ];
-  final List<double> _coverage = List.filled(_stops.length, 0);
-
-  /// How much of the gaussian at distance [d] from the centre falls inside
-  /// the disc.
-  double _coverageAt(double d) {
-    const rings = 32, spokes = 64;
-    final dr = radius / rings, dt = 2 * math.pi / spokes;
-    final twoS2 = 2 * sigma * sigma;
-    var sum = 0.0;
-    for (var i = 0; i < rings; i++) {
-      final rho = (i + 0.5) * dr;
-      for (var j = 0; j < spokes; j++) {
-        final th = (j + 0.5) * dt;
-        final dx = d - rho * math.cos(th), dy = rho * math.sin(th);
-        sum += math.exp(-(dx * dx + dy * dy) / twoS2) * rho;
-      }
-    }
-    return (sum * dr * dt / (math.pi * twoS2)).clamp(0.0, 1.0);
-  }
-
-  void paint(Canvas canvas, Offset at, Color color) {
-    if (color.a <= 0) return;
-    canvas.drawCircle(
-      at,
-      extent,
-      Paint()
-        ..shader = ui.Gradient.radial(at, extent, [
-          for (final c in _coverage) color.withValues(alpha: color.a * c),
-        ], _stops),
-    );
-  }
-}
-
-/// The orb between the chambers, drawn as the widgets it replaced drew it:
-/// a disc of the pair's colours (one specimen alone fills its left half)
-/// turning inside a thin ring, over a soft glow.
-class _FusionOrbPainter extends CustomPainter {
-  _FusionOrbPainter({
-    required this.spin,
-    required this.merge,
-    required this.charge,
-    required this.fade,
-    required this.spinSpeed,
-    required this.hasParents,
-    required this.leftColor,
-    required this.rightColor,
-    required this.emptyFill,
-    required this.emptyRing,
-  }) : super(repaint: Listenable.merge([spin, merge]));
-
-  final Animation<double> spin, merge, charge, fade, spinSpeed;
-  final bool hasParents;
-  final Color? leftColor, rightColor;
-  final Color emptyFill, emptyRing;
-
-  static const double _border = 1.5;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final opacity = fade.value;
-    if (opacity <= 0) return;
-    final r = size.shortestSide / 2;
-    final turn = spin.value * 2 * math.pi;
-    final rotation = turn * (hasParents ? 2.0 : 1.0) * spinSpeed.value;
-    final pulse = hasParents ? 1.0 + math.sin(turn) * 0.1 : 1.0;
-
-    final a = leftColor, b = rightColor;
-    final ring = a != null && b != null
-        ? Color.lerp(a, b, 0.5)!.withValues(alpha: .8)
-        : (a ?? b)?.withValues(alpha: .8);
-
-    final centre = size.center(Offset.zero);
-    // A layer only while the merge fades it out; at rest it is drawn
-    // straight.
-    final faded = opacity < 1;
-    if (faded) {
-      canvas.saveLayer(
-        Rect.fromCircle(center: centre, radius: r * 4),
-        Paint()..color = Color.fromRGBO(0, 0, 0, opacity),
-      );
-    }
-    canvas.save();
-    canvas.translate(centre.dx, centre.dy);
-    canvas.scale(pulse * charge.value);
-    canvas.rotate(rotation);
-
-    // The BoxShadow's glow (blur 24, spread 4), without the blur.
-    if (ring != null) {
-      _BlurredDisc.orbGlow.paint(
-        canvas,
-        Offset.zero,
-        ring.withValues(alpha: .3),
-      );
-    }
-
-    final inner = r - _border;
-    final disc = Rect.fromCircle(center: Offset.zero, radius: inner);
-    if (a != null && b != null) {
-      canvas.drawCircle(
-        Offset.zero,
-        inner,
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [a, b],
-          ).createShader(disc),
-      );
-    } else if (a != null || b != null) {
-      canvas.drawArc(
-        disc,
-        math.pi / 2,
-        math.pi,
-        true,
-        Paint()..color = (a ?? b)!,
-      );
-    } else {
-      canvas.drawCircle(Offset.zero, inner, Paint()..color = emptyFill);
-    }
-    canvas.drawCircle(
-      Offset.zero,
-      r - _border / 2,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = _border
-        ..color = ring ?? emptyRing,
-    );
-    canvas.restore();
-    if (faded) canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_FusionOrbPainter old) =>
-      old.hasParents != hasParents ||
-      old.leftColor != leftColor ||
-      old.rightColor != rightColor ||
-      old.emptyFill != emptyFill ||
-      old.emptyRing != emptyRing;
-}
-
-class _DNAConnectionPainter extends CustomPainter {
-  _DNAConnectionPainter({required this.progress, required this.color})
-    : super(repaint: progress);
-
-  final Animation<double> progress;
-  final Color color;
-
-  /// A wave this gentle is smooth with a vertex every few pixels. One per
-  /// pixel was ~360 segments to tessellate every frame.
-  static const double _step = 6;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withValues(alpha: .3)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final width = size.width;
-    final centerY = size.height / 2;
-    final phase = progress.value * 2 * math.pi;
-    double yAt(double x) =>
-        centerY + math.sin((x / width) * 4 * math.pi + phase) * 8;
-
-    final path = Path()..moveTo(0, yAt(0));
-    for (double x = _step; x < width; x += _step) {
-      path.lineTo(x, yAt(x));
-    }
-    path.lineTo(width, yAt(width));
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_DNAConnectionPainter old) =>
-      old.progress != progress || old.color != color;
-}
-
-/// The motes drifting in the card once both chambers are filled: placed
-/// once, and drawn in three sizes as three point batches rather than a
-/// circle each.
-class _ParticlePainter extends CustomPainter {
-  _ParticlePainter({required this.progress, required this.color})
-    : super(repaint: progress);
-
-  final Animation<double> progress;
-  final Color color;
-
-  static const List<double> _radii = [1.33, 2.0, 2.67];
-
-  /// Each mote's place, as a fraction of the card, and its size.
-  static final List<(double, double, int)> _motes = () {
-    final random = math.Random(42);
-    return [
-      for (var i = 0; i < 20; i++)
-        (
-          random.nextDouble(),
-          random.nextDouble(),
-          (random.nextDouble() * _radii.length).floor(),
-        ),
-    ];
-  }();
-
-  final GrainBatch _batch = GrainBatch(_radii.length);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final b = _batch..clear();
-    final t = progress.value * 2 * math.pi;
-    for (var i = 0; i < _motes.length; i++) {
-      final (fx, fy, k) = _motes[i];
-      b.add(k, fx * size.width, fy * size.height + math.sin(t + i) * 20);
-    }
-    final c = color.withValues(alpha: .2);
-    for (var k = 0; k < _radii.length; k++) {
-      b.draw(canvas, k, _radii[k] * 2, c);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_ParticlePainter old) =>
-      old.progress != progress || old.color != color;
-}
-
-/// The mote going round an empty chamber's circle, with its trail.
-class _SummoningOrbitPainter extends CustomPainter {
-  _SummoningOrbitPainter({required this.progress, required this.color})
-    : super(repaint: progress);
-
-  final Animation<double> progress;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final outerR = cx - 4;
-    final orbitR = (outerR + outerR * 0.78) / 2;
-    final angle = progress.value * 2 * math.pi;
-
-    // The mote, as it was drawn under a blur of 3, without the blur.
-    _BlurredDisc.orbitMote.paint(
-      canvas,
-      Offset(cx + orbitR * math.cos(angle), cy + orbitR * math.sin(angle)),
-      color,
-    );
-
-    // Fading trail
-    final trail = Paint();
-    for (int t = 1; t <= 6; t++) {
-      final ta = angle - t * 0.15;
-      canvas.drawCircle(
-        Offset(cx + orbitR * math.cos(ta), cy + orbitR * math.sin(ta)),
-        2.0 - t * 0.25,
-        trail..color = color.withValues(alpha: color.a * (1.0 - t / 7)),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_SummoningOrbitPainter old) =>
-      old.progress != progress || old.color != color;
-}
-
-class _SummoningCirclePainter extends CustomPainter {
-  final Color color;
-  final Color accentColor;
-  final Color glowColor;
-
-  _SummoningCirclePainter({
-    required this.color,
-    required this.accentColor,
-    required this.glowColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final center = Offset(cx, cy);
-    final outerR = cx - 4;
-    final innerR = outerR * 0.78;
-
-    // --- Subtle radial glow ---
-    final glowPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [glowColor, glowColor.withValues(alpha: 0)],
-      ).createShader(Rect.fromCircle(center: center, radius: innerR));
-    canvas.drawCircle(center, innerR, glowPaint);
-
-    // --- Outer circle ---
-    canvas.drawCircle(
-      center,
-      outerR,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
-
-    // --- Inner circle ---
-    canvas.drawCircle(
-      center,
-      innerR,
-      Paint()
-        ..color = color.withValues(alpha: color.a * 0.5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8,
-    );
-
-    // --- Inscribed hexagon on outer circle ---
-    final hexPaint = Paint()
-      ..color = color.withValues(alpha: color.a * 0.4)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8;
-
-    final hexPath = Path();
-    for (int i = 0; i < 6; i++) {
-      final angle = (i / 6) * 2 * math.pi - math.pi / 2;
-      final x = cx + outerR * math.cos(angle);
-      final y = cy + outerR * math.sin(angle);
-      if (i == 0) {
-        hexPath.moveTo(x, y);
-      } else {
-        hexPath.lineTo(x, y);
-      }
-    }
-    hexPath.close();
-    canvas.drawPath(hexPath, hexPaint);
-
-    // --- Two overlapping triangles (Star of David / transmutation seal) ---
-    final triPaint = Paint()
-      ..color = accentColor.withValues(alpha: accentColor.a * 0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.9;
-
-    // Triangle pointing up
-    final triUpPath = Path();
-    for (int i = 0; i < 3; i++) {
-      final angle = (i / 3) * 2 * math.pi - math.pi / 2;
-      final x = cx + innerR * math.cos(angle);
-      final y = cy + innerR * math.sin(angle);
-      if (i == 0) {
-        triUpPath.moveTo(x, y);
-      } else {
-        triUpPath.lineTo(x, y);
-      }
-    }
-    triUpPath.close();
-    canvas.drawPath(triUpPath, triPaint);
-
-    // Triangle pointing down
-    final triDownPath = Path();
-    for (int i = 0; i < 3; i++) {
-      final angle = (i / 3) * 2 * math.pi + math.pi / 2;
-      final x = cx + innerR * math.cos(angle);
-      final y = cy + innerR * math.sin(angle);
-      if (i == 0) {
-        triDownPath.moveTo(x, y);
-      } else {
-        triDownPath.lineTo(x, y);
-      }
-    }
-    triDownPath.close();
-    canvas.drawPath(triDownPath, triPaint);
-
-    // --- Small tick marks at 12 positions on outer ring ---
-    // One batch of line segments rather than a draw per tick.
-    final tickPaint = Paint()
-      ..color = color.withValues(alpha: color.a * 0.5)
-      ..strokeWidth = 1.0
-      ..strokeCap = StrokeCap.round;
-
-    final ticks = Float32List(12 * 4);
-    for (int i = 0; i < 12; i++) {
-      final angle = (i / 12) * 2 * math.pi - math.pi / 2;
-      final isCardinal = i % 3 == 0;
-      final len = isCardinal ? 4.0 : 2.0;
-      final c = math.cos(angle), s = math.sin(angle);
-      ticks
-        ..[i * 4] = cx + outerR * c
-        ..[i * 4 + 1] = cy + outerR * s
-        ..[i * 4 + 2] = cx + (outerR + len) * c
-        ..[i * 4 + 3] = cy + (outerR + len) * s;
-    }
-    canvas.drawRawPoints(ui.PointMode.lines, ticks, tickPaint);
-
-    // --- Small diamond runes at 4 cardinal points (outside ring) ---
-    final runePaint = Paint()
-      ..color = accentColor.withValues(alpha: accentColor.a * 0.4)
-      ..style = PaintingStyle.fill;
-
-    final runes = Path();
-    for (int i = 0; i < 4; i++) {
-      final angle = (i / 4) * 2 * math.pi - math.pi / 2;
-      final dx = cx + (outerR + 7) * math.cos(angle);
-      final dy = cy + (outerR + 7) * math.sin(angle);
-      runes
-        ..moveTo(dx, dy - 2.2)
-        ..lineTo(dx + 1.3, dy)
-        ..lineTo(dx, dy + 2.2)
-        ..lineTo(dx - 1.3, dy)
-        ..close();
-    }
-    canvas.drawPath(runes, runePaint);
-  }
-
-  @override
-  bool shouldRepaint(_SummoningCirclePainter old) =>
-      old.color != color ||
-      old.accentColor != accentColor ||
-      old.glowColor != glowColor;
 }
 
 /// A toast captured during the fusion cinematic, shown once after it closes.

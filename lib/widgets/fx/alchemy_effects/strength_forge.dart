@@ -89,7 +89,8 @@ abstract final class _Strength {
       final p = 2.4 + 1.2 * _h(i, 126);
       final u = _frac(t / p + _h(i, 127));
       final side = i.isEven ? -1.0 : 1.0;
-      final x = side * (0.32 + 0.36 * _h(i, 128)) +
+      final x =
+          side * (0.32 + 0.36 * _h(i, 128)) +
           0.05 * math.sin(t * 1.1 + i * 1.7);
       final y = 0.3 - 1.1 * u;
       _Atlas.add(

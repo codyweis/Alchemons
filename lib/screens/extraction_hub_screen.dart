@@ -4,13 +4,14 @@ import 'package:alchemons/audio/scene_ambience.dart';
 import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/widgets/achievements/reward_collect_burst.dart';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show ValueListenable;
 
+import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
+import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -22,86 +23,32 @@ import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/utils/harvest_rate.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/element_resource_glyph.dart';
 import 'package:alchemons/widgets/element_resource_totals_bar.dart';
-import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
+import 'package:alchemons/widgets/fx/elemental_essence.dart';
+import 'package:alchemons/widgets/fx/extraction_vessel.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
-import 'package:alchemons/widgets/tutorial_step.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/game_snack.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 // ---------------------------------------------------------------------------
 // ExtractionHubScreen
-// All 5 animated extraction chambers on one scrollable screen. This is the
-// only harvest surface — the older BiomeHarvestScreen / BiomeDetailScreen pair
-// it replaced carried duplicate copies of the chamber and collect code, and
-// was deleted once nothing routed to it.
+// The harvest: five biome chambers, one shown at a time, picked from the
+// element totals strip. Each chamber is a flask (ExtractionVessel): put an
+// Alchemon of the biome's elements in and its essence fills the glass; the
+// level is the job's progress. Tapping the glass while it runs splashes it
+// and takes a few seconds off (the tap boost — an easter egg, so it is not
+// announced anywhere).
 // ---------------------------------------------------------------------------
 
-TextStyle _display(
-  BuildContext context,
-  double size,
-  Color color, {
-  FontWeight weight = FontWeight.w500,
-  double letterSpacing = 0,
-  FontStyle fontStyle = FontStyle.normal,
-}) {
-  final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
-  return base.copyWith(
-    color: color,
-    fontSize: size,
-    fontWeight: weight,
-    letterSpacing: letterSpacing,
-    fontStyle: fontStyle,
-  );
-}
-
-class _BracketFramePainter extends CustomPainter {
-  const _BracketFramePainter({
-    required this.color,
-    this.bracketSize = 10,
-    this.strokeWidth = 1,
-  });
-
-  final Color color;
-  final double bracketSize;
-  final double strokeWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-    final s = bracketSize;
-    final w = size.width;
-    final h = size.height;
-    final path = Path()
-      ..moveTo(0, s)
-      ..lineTo(0, 0)
-      ..lineTo(s, 0)
-      ..moveTo(w - s, 0)
-      ..lineTo(w, 0)
-      ..lineTo(w, s)
-      ..moveTo(0, h - s)
-      ..lineTo(0, h)
-      ..lineTo(s, h)
-      ..moveTo(w - s, h)
-      ..lineTo(w, h)
-      ..lineTo(w, h - s);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _BracketFramePainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.bracketSize != bracketSize ||
-      oldDelegate.strokeWidth != strokeWidth;
-}
+/// The screen is always dark, so its chrome is too.
+const BracketPalette _kPalette = BracketPalette.dark;
 
 class ExtractionHubScreen extends StatefulWidget {
   const ExtractionHubScreen({super.key, this.service});
@@ -182,150 +129,11 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
     final db = context.read<AlchemonsDatabase>();
     final hasSeen = await db.settingsDao.hasSeenBiomeHarvestTutorial();
     if (hasSeen || !mounted) return;
-    final theme = context.read<FactionTheme>();
-    final t = ForgeTokens(theme);
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          decoration: BoxDecoration(
-            color: t.bg1,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: t.borderAccent, width: 1.2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: theme.isDark ? 0.42 : 0.08,
-                ),
-                blurRadius: theme.isDark ? 24 : 16,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 3,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: t.amber,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Icon(
-                    AppIcons.science_rounded,
-                    color: t.amberBright,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'BIOME EXTRACTORS',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.6,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(height: 1, color: t.borderMid),
-              const SizedBox(height: 12),
-              Text(
-                'Use biome extractors to slowly generate elemental resources over time.',
-                style: TextStyle(
-                  color: t.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 12),
-              TutorialStep(
-                theme: theme,
-                icon: AppIcons.terrain_rounded,
-                title: 'Step 1 – Pick a biome',
-                body:
-                    'Each biome specialises in certain elements. Some start '
-                    'locked and require resources to unlock.',
-              ),
-              const SizedBox(height: 6),
-              TutorialStep(
-                theme: theme,
-                icon: AppIcons.science_outlined,
-                title: 'Step 2 – Insert an Alchemon',
-                body:
-                    'Tap a chamber and insert an Alchemon to start '
-                    'extraction. Tap the orb to speed it up.',
-              ),
-              const SizedBox(height: 6),
-              TutorialStep(
-                theme: theme,
-                icon: AppIcons.inventory_2_rounded,
-                title: 'Step 3 – Collect your rewards',
-                body:
-                    'When complete, collect from each chamber individually '
-                    'or tap Collect All at the top.',
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Higher-level Alchemons generate more resources.',
-                style: TextStyle(
-                  color: t.textMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerRight,
-                child: GestureDetector(
-                  onTap: context.soundAction(() {
-                    HapticFeedback.lightImpact();
-                    Navigator.of(context).pop();
-                  }),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          t.amberDim.withValues(alpha: 0.45),
-                          t.amber.withValues(alpha: 0.28),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(color: t.amber.withValues(alpha: 0.7)),
-                    ),
-                    child: Text(
-                      'GOT IT',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.amberBright,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (context) => const _HarvestTutorialDialog(),
     );
     if (mounted) await db.settingsDao.setBiomeHarvestTutorialSeen();
   }
@@ -335,6 +143,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
       builder: (_) => _UnlockDialog(biome: farm.biome, costDb: costDb),
     );
     if (confirmed != true || !mounted) return;
@@ -347,14 +156,11 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
       ok ? SoundCue.upgradeComplete : SoundCue.uiDenied,
       owner: this,
     );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok ? 'Unlocked ${farm.biome.label}!' : 'Not enough resources',
-        ),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade700,
-      ),
+    showGameSnack(
+      context,
+      ok ? '${farm.biome.label} chamber unlocked' : 'Not enough resources',
+      icon: ok ? AppIcons.lock_open_rounded : AppIcons.block_rounded,
+      accent: ok ? farm.biome.primaryColor : const Color(0xFFE57373),
     );
   }
 
@@ -419,29 +225,28 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
       );
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Collected $total resources from ${completed.length} chamber${completed.length == 1 ? '' : 's'}',
-        ),
-        behavior: SnackBarBehavior.floating,
-        showCloseIcon: true,
-        duration: const Duration(seconds: 3),
-      ),
+    showGameSnack(
+      context,
+      'Collected $total from ${completed.length} chamber${completed.length == 1 ? '' : 's'}',
+      icon: AppIcons.check_circle_outline_rounded,
     );
 
     if (reloadPlans.isEmpty || !mounted) return;
     final constellations = context.read<ConstellationEffectsService>();
     if (!constellations.hasInstantReload()) return;
 
-    final shouldReload = await showDialog<bool>(
-      context: context,
-      builder: (_) => _ReloadAllDialog(
-        count: reloadPlans.length,
-        theme: context.read<FactionTheme>(),
-      ),
+    final n = reloadPlans.length;
+    final shouldReload = await showBracketConfirm(
+      context,
+      palette: _kPalette,
+      accent: const Color(0xFFFFB74D),
+      icon: AppIcons.refresh_rounded,
+      title: 'RELOAD ALL?',
+      message:
+          'Put the same Alchemon back in ${n == 1 ? 'that chamber' : 'all $n chambers'} for another run.',
+      confirmLabel: 'RELOAD ALL',
     );
-    if (shouldReload != true || !mounted) return;
+    if (!shouldReload || !mounted) return;
 
     final db = context.read<AlchemonsDatabase>();
     var reloaded = 0;
@@ -467,17 +272,13 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
 
     if (reloaded > 0) HapticFeedback.mediumImpact();
     final failed = reloadPlans.length - reloaded;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          failed == 0
-              ? 'Reloaded $reloaded chamber${reloaded == 1 ? '' : 's'}!'
-              : 'Reloaded $reloaded of ${reloadPlans.length} chambers.',
-        ),
-        behavior: SnackBarBehavior.floating,
-        showCloseIcon: true,
-        backgroundColor: failed == 0 ? null : Colors.orange.shade700,
-      ),
+    showGameSnack(
+      context,
+      failed == 0
+          ? 'Reloaded $reloaded chamber${reloaded == 1 ? '' : 's'}'
+          : 'Reloaded $reloaded of ${reloadPlans.length} chambers',
+      icon: AppIcons.refresh_rounded,
+      accent: failed == 0 ? null : Colors.orange.shade400,
     );
   }
 
@@ -490,11 +291,11 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
       brightness: Brightness.dark,
       child: Builder(
         builder: (context) {
-          final theme = context.watch<FactionTheme>();
-          final t = ForgeTokens(theme);
+          // Rebuilt when the theme changes; the builder below hands it on.
+          context.watch<FactionTheme>();
           return Scaffold(
             extendBody: true,
-            backgroundColor: t.bg0,
+            backgroundColor: _kPalette.bg0,
             body: withGameData(
               context,
               loadingBuilder: buildLoadingScreen,
@@ -511,26 +312,13 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                         Positioned.fill(
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [t.bg0, t.bg1, t.bg0],
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: RadialGradient(
-                                  center: const Alignment(0, -0.7),
-                                  radius: 1.15,
-                                  colors: [
-                                    t.amber.withValues(alpha: 0.12),
-                                    Colors.transparent,
-                                  ],
-                                ),
+                              gradient: RadialGradient(
+                                center: const Alignment(0, -0.1),
+                                radius: 1.1,
+                                colors: [
+                                  const Color(0xFF14110E),
+                                  _kPalette.bg0,
+                                ],
                               ),
                             ),
                           ),
@@ -539,106 +327,91 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                           child: AlchemicalParticleBackground(),
                         ),
                         SafeArea(
-                          child: Column(
-                            children: [
-                              Expanded(
-                                child: ListenableBuilder(
-                                  listenable: _svc,
-                                  builder: (_, __) {
-                                    final farms = _svc.biomes;
-                                    final completedCount = farms
-                                        .where((f) => f.completed)
-                                        .length;
-                                    // hasActive covers jobs still running;
-                                    // completed ones are counted separately.
-                                    final activeCount = farms
-                                        .where(
-                                          (f) => f.hasActive && !f.completed,
-                                        )
-                                        .length;
-                                    final lockedCount = farms
-                                        .where((f) => !f.unlocked)
-                                        .length;
-                                    // Held on the state so the choice survives
-                                    // a farm changing under it. Assigned here
-                                    // rather than in a callback because this
-                                    // is the value being rendered this frame.
-                                    final selectedBiomeId =
-                                        _resolveSelectedBiomeId(farms);
-                                    _selectedBiomeId = selectedBiomeId;
-                                    return Column(
-                                      children: [
-                                        // The header lives inside the listenable
-                                        // so it can carry live counts, and it
-                                        // matches the bar + monospace treatment
-                                        // used across the rest of the app.
-                                        _HarvestHeader(
-                                          theme: theme,
-                                          chambers: farms.length - lockedCount,
-                                          ready: completedCount,
-                                          active: activeCount,
+                          child: ListenableBuilder(
+                            listenable: _svc,
+                            builder: (_, __) {
+                              final farms = _svc.biomes;
+                              final completedCount = farms
+                                  .where((f) => f.completed)
+                                  .length;
+                              // hasActive covers jobs still running;
+                              // completed ones are counted separately.
+                              final activeCount = farms
+                                  .where((f) => f.hasActive && !f.completed)
+                                  .length;
+                              final lockedCount = farms
+                                  .where((f) => !f.unlocked)
+                                  .length;
+                              // Held on the state so the choice survives a
+                              // farm changing under it. Assigned here rather
+                              // than in a callback because this is the value
+                              // being rendered this frame.
+                              final selectedBiomeId = _resolveSelectedBiomeId(
+                                farms,
+                              );
+                              _selectedBiomeId = selectedBiomeId;
+                              final selectedFull = farms.any(
+                                (f) =>
+                                    f.biome.id == selectedBiomeId &&
+                                    f.completed,
+                              );
+                              return Column(
+                                children: [
+                                  _HarvestHeader(
+                                    chambers: farms.length - lockedCount,
+                                    ready: completedCount,
+                                    active: activeCount,
+                                  ),
+                                  // Where a collect lands. The totals are the
+                                  // player's actual stock of each element,
+                                  // not what one chamber happens to hold.
+                                  ElementResourceTotalsBar(
+                                    theme: theme,
+                                    totalKeys: {
+                                      for (final f in farms)
+                                        f.biome.id: _totalKeyFor(f.biome.id),
+                                    },
+                                    states: {
+                                      for (final f in farms)
+                                        f.biome.id: ElementChamberState(
+                                          unlocked: f.unlocked,
+                                          ready: f.completed,
                                         ),
-                                        // Where a collect lands. The totals
-                                        // are the player's actual stock of
-                                        // each element, not what one chamber
-                                        // happens to be holding.
-                                        ElementResourceTotalsBar(
-                                          theme: theme,
-                                          totalKeys: {
-                                            for (final f in farms)
-                                              f.biome.id: _totalKeyFor(
-                                                f.biome.id,
-                                              ),
-                                          },
-                                          states: {
-                                            for (final f in farms)
-                                              f.biome.id: ElementChamberState(
-                                                unlocked: f.unlocked,
-                                                ready: f.completed,
-                                              ),
-                                          },
-                                          selectedBiomeId: selectedBiomeId,
-                                          onSelect: (id) => setState(
-                                            () => _selectedBiomeId = id,
-                                          ),
-                                        ),
-                                        if (completedCount > 0)
-                                          _CollectAllBanner(
-                                            count: completedCount,
-                                            theme: theme,
-                                            onCollectAll: () =>
-                                                _collectAll(farms),
-                                          ),
-                                        Expanded(
-                                          child: _ExtractionBay(
-                                            key: _bayKey,
-                                            farms: farms,
-                                            // Pinned here rather than left to
-                                            // the bay's fallback, so a collect
-                                            // cannot move the view out from
-                                            // under its own animation.
-                                            selectedBiomeId: selectedBiomeId,
-                                            totalKeys: {
-                                              for (final f in farms)
-                                                f.biome.id: _totalKeyFor(
-                                                  f.biome.id,
-                                                ),
-                                            },
-                                            theme: theme,
-                                            service: _svc,
-                                            discoveredCreatures: discovered,
-                                            defaultDuration: const Duration(
-                                              hours: 4,
-                                            ),
-                                            onUnlock: _promptUnlock,
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
+                                    },
+                                    selectedBiomeId: selectedBiomeId,
+                                    onSelect: (id) =>
+                                        setState(() => _selectedBiomeId = id),
+                                  ),
+                                  // Only when a full chamber is off screen
+                                  // too: the one in view has its own COLLECT.
+                                  if (completedCount > (selectedFull ? 1 : 0))
+                                    _CollectAllBanner(
+                                      count: completedCount,
+                                      onCollectAll: () => _collectAll(farms),
+                                    ),
+                                  Expanded(
+                                    child: _ExtractionBay(
+                                      key: _bayKey,
+                                      farms: farms,
+                                      // Pinned here rather than left to the
+                                      // bay's fallback, so a collect cannot
+                                      // move the view out from under its own
+                                      // animation.
+                                      selectedBiomeId: selectedBiomeId,
+                                      totalKeys: {
+                                        for (final f in farms)
+                                          f.biome.id: _totalKeyFor(f.biome.id),
+                                      },
+                                      theme: theme,
+                                      service: _svc,
+                                      discoveredCreatures: discovered,
+                                      defaultDuration: const Duration(hours: 4),
+                                      onUnlock: _promptUnlock,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -712,27 +485,18 @@ class _ExtractionBay extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 700;
-        // The floating close button used to sit in this gap; with it gone the
-        // action buttons dock to the bottom instead of floating above dead
-        // space.
-        final bottomPad = wide ? 26.0 : 14.0;
-        final chamber = _EmbeddedChamber(
-          key: ValueKey('bay-${selected.biome.id}'),
-          farm: selected,
-          theme: theme,
-          service: service,
-          discoveredCreatures: discoveredCreatures,
-          defaultDuration: defaultDuration,
-          featured: true,
-          onUnlock: () => onUnlock(selected),
-          collectTargetKey: totalKeys[selected.biome.id],
-        );
-
-        // The selector lives in the totals strip above now, so the bay is
-        // just the chamber and it gets the whole space.
         return Padding(
-          padding: EdgeInsets.fromLTRB(8, 4, 8, bottomPad),
-          child: chamber,
+          padding: EdgeInsets.fromLTRB(12, 4, 12, wide ? 26 : 14),
+          child: _EmbeddedChamber(
+            key: ValueKey('bay-${selected.biome.id}'),
+            farm: selected,
+            theme: theme,
+            service: service,
+            discoveredCreatures: discoveredCreatures,
+            defaultDuration: defaultDuration,
+            onUnlock: () => onUnlock(selected),
+            collectTargetKey: totalKeys[selected.biome.id],
+          ),
         );
       },
     );
@@ -744,194 +508,46 @@ class _ExtractionBay extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _CollectAllBanner extends StatelessWidget {
-  const _CollectAllBanner({
-    required this.count,
-    required this.theme,
-    required this.onCollectAll,
-  });
+  const _CollectAllBanner({required this.count, required this.onCollectAll});
   final int count;
-  final FactionTheme theme;
   final VoidCallback onCollectAll;
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    final readyColor = t.success;
+    const ready = Color(0xFF8FD99F);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
       child: CustomPaint(
-        painter: _BracketFramePainter(
-          color: readyColor.withValues(alpha: theme.isDark ? 0.55 : 0.35),
-          bracketSize: 10,
-          strokeWidth: 1.05,
+        foregroundPainter: BracketFramePainter(
+          color: ready.withValues(alpha: 0.6),
+          bracketSize: 9,
         ),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          color: t.bg2.withValues(alpha: 0.96),
+          padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+          color: _kPalette.surfaceFill(),
           child: Row(
             children: [
-              Icon(
-                AppIcons.check_circle_outline_rounded,
-                color: readyColor,
-                size: 16,
-              ),
-              const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '$count chamber${count == 1 ? '' : 's'} ready to collect',
-                  style: _display(
-                    context,
-                    12.5,
-                    t.textPrimary,
-                    weight: FontWeight.w700,
+                  '$count CHAMBER${count == 1 ? '' : 'S'} FULL',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: ready,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.4,
                   ),
                 ),
               ),
-              _OutlineBtn(
-                label: 'Collect all',
-                accent: readyColor,
-                theme: theme,
-                compact: true,
-                minHeight: 38,
-                onTap: context.soundTap(onCollectAll),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReloadAllDialog extends StatelessWidget {
-  const _ReloadAllDialog({required this.count, required this.theme});
-
-  final int count;
-  final FactionTheme theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 380),
-        child: Container(
-          decoration: BoxDecoration(
-            color: t.bg1,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: t.borderAccent, width: 1),
-          ),
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 3,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: t.amber,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Icon(
-                    AppIcons.refresh_rounded,
-                    color: t.amberBright,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'COLLECTION COMPLETE',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Container(height: 1, color: t.borderMid),
-              const SizedBox(height: 14),
-              Text(
-                'Reload all $count chamber${count == 1 ? '' : 's'} with the same specimens and settings?',
-                style: TextStyle(
-                  color: t.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  height: 1.4,
+              SizedBox(
+                width: 150,
+                child: BracketButton(
+                  label: 'COLLECT ALL',
+                  height: 36,
+                  palette: _kPalette,
+                  accent: ready,
+                  onTap: onCollectAll,
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: context.soundAction(
-                        () => Navigator.pop(context, false),
-                      ),
-                      child: Container(
-                        height: 42,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: t.bg2,
-                          borderRadius: BorderRadius.circular(3),
-                          border: Border.all(color: t.borderDim),
-                        ),
-                        child: Text(
-                          'NOT NOW',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: t.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: context.soundAction(
-                        () => Navigator.pop(context, true),
-                      ),
-                      child: Container(
-                        height: 42,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              t.amberDim.withValues(alpha: 0.45),
-                              t.amber.withValues(alpha: 0.35),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(3),
-                          border: Border.all(
-                            color: t.amber.withValues(alpha: 0.7),
-                          ),
-                        ),
-                        child: Text(
-                          'RELOAD ALL',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: t.amberBright,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.3,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -942,7 +558,7 @@ class _ReloadAllDialog extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// _EmbeddedChamber — full animated orb + all logic, no separate screen needed
+// _EmbeddedChamber — the flask and everything it does
 // ---------------------------------------------------------------------------
 
 class _EmbeddedChamber extends StatefulWidget {
@@ -954,7 +570,6 @@ class _EmbeddedChamber extends StatefulWidget {
     required this.discoveredCreatures,
     required this.defaultDuration,
     required this.onUnlock,
-    this.featured = false,
     this.collectTargetKey,
   });
 
@@ -964,7 +579,6 @@ class _EmbeddedChamber extends StatefulWidget {
   final List<CreatureEntry> discoveredCreatures;
   final Duration defaultDuration;
   final VoidCallback onUnlock;
-  final bool featured;
 
   /// The chip label the collected resources fly to.
   final GlobalKey? collectTargetKey;
@@ -975,58 +589,42 @@ class _EmbeddedChamber extends StatefulWidget {
 
 class _EmbeddedChamberState extends State<_EmbeddedChamber>
     with TickerProviderStateMixin {
-  late final Ticker _ticker;
-  // Ticking this through setState rebuilt the whole chamber every frame —
-  // sprite, panels and badges included — for a value only the painters
-  // read. A notifier keeps the repaint and drops the rebuild.
-  final ValueNotifier<double> _tNotifier = ValueNotifier<double>(0);
   DateTime? _lastTapBoostAt;
 
-  late final AnimationController _tapFxCtrl;
-  Offset? _tapLocal;
-  late final AnimationController _collectCtrl;
+  /// Runs the pour when the chamber is emptied: a collect, or ending a run.
+  late final AnimationController _drainCtrl;
   late final AnimationController _jobCtrl;
-  late final AnimationController _statusCtrl;
 
-  /// Chamber contents and rim progress as live values.
-  ///
-  /// These used to be plain doubles handed to the painters at widget-build
-  /// time. The painters repaint every frame off the clock, but the drain only
-  /// ever moved between rebuilds — which the chamber's cached subtree never
-  /// did — so a collect emptied the chamber on paper and never on screen.
-  final ValueNotifier<double> _fill = ValueNotifier<double>(0);
-  final ValueNotifier<double> _rim = ValueNotifier<double>(0);
+  /// How full the flask is, as a live value: the job's progress, and while a
+  /// collect pours out, what is left of it. The vessel reads it per frame, so
+  /// neither the 4-hour fill nor the drain waits on a rebuild.
+  final ValueNotifier<double> _level = ValueNotifier<double>(0);
 
-  /// What the chamber held when a collect began. The job clears the instant
+  /// What the chamber held when a pour began. The job clears the instant
   /// the collect lands, so draining from live state would snap to empty
   /// instead of emptying.
-  double _drainFillFrom = 0;
-  double _drainRimFrom = 0;
+  double _drainFrom = 0;
   bool _draining = false;
 
-  /// Anchors for the collect's origin. One per layout rather than one shared
-  /// key, because a GlobalKey attached to two trees at once throws — only one
-  /// of these is ever mounted.
-  final GlobalKey _featuredOrbKey = GlobalKey(debugLabel: 'orb_featured');
-  final GlobalKey _compactOrbKey = GlobalKey(debugLabel: 'orb_compact');
+  /// What the vessel showed when the pour began, held through it: the job
+  /// is gone the moment a collect lands, and the flask would otherwise go
+  /// cold and grey mid-pour.
+  VesselMode _drainMode = VesselMode.running;
 
-  Widget? _creatureWidget;
+  final GlobalKey _vesselKey = GlobalKey(debugLabel: 'extraction_vessel');
+
+  ({Creature base, CreatureInstance inst})? _creature;
   String? _cachedInstanceId;
+
+  /// Set when an Alchemon has just been put in, so it gathers into the glass.
+  EssenceReveal? _reveal;
 
   @override
   void initState() {
     super.initState();
-    _collectCtrl = AnimationController(
+    _drainCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-    _statusCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat();
-    _tapFxCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 1100),
     );
     _jobCtrl = AnimationController(
       vsync: this,
@@ -1034,15 +632,11 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
       upperBound: 1,
       value: 0,
     );
-    _ticker = createTicker((elapsed) {
-      _tNotifier.value = elapsed.inMicroseconds / 1e6;
-    })..start();
     // The drain is the collect's whole visual payload, so it runs off the
     // controller rather than waiting on a rebuild that never comes.
-    _collectCtrl.addListener(_pushDrain);
-    // The rim used to advance only when the service notified. It is a 4-hour
-    // sweep; riding the job controller makes it move.
-    _jobCtrl.addListener(_pushRim);
+    _drainCtrl.addListener(_pushDrain);
+    // A 4-hour fill riding the job controller, so it moves.
+    _jobCtrl.addListener(_pushLevel);
     PushNotificationService().cancelHarvestSummaryNotification();
     _refreshCreatureCache();
   }
@@ -1050,92 +644,70 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
   @override
   void didUpdateWidget(covariant _EmbeddedChamber old) {
     super.didUpdateWidget(old);
-    if (widget.farm.activeJob?.creatureInstanceId != _cachedInstanceId) {
+    // Mid-pour the creature stays in the glass; the pour's end refreshes it.
+    if (!_draining &&
+        widget.farm.activeJob?.creatureInstanceId != _cachedInstanceId) {
       _refreshCreatureCache();
     }
   }
 
   void _pushDrain() {
     if (!_draining) return;
-    final left = 1 - Curves.easeInOutCubic.transform(_collectCtrl.value);
-    _fill.value = _drainFillFrom * left;
-    _rim.value = _drainRimFrom * left;
+    final left = 1 - Curves.easeInOutCubic.transform(_drainCtrl.value);
+    _level.value = _drainFrom * left;
   }
 
-  void _pushRim() {
+  void _pushLevel() {
     if (_draining) return;
-    _rim.value = widget.farm.hasActive ? _jobCtrl.value : 0;
+    _level.value = widget.farm.hasActive ? _jobCtrl.value : 0;
   }
 
   @override
   void dispose() {
-    _ticker.dispose();
-    _tNotifier.dispose();
-    _collectCtrl.removeListener(_pushDrain);
-    _jobCtrl.removeListener(_pushRim);
-    _fill.dispose();
-    _rim.dispose();
+    _drainCtrl.removeListener(_pushDrain);
+    _jobCtrl.removeListener(_pushLevel);
+    _level.dispose();
     _jobCtrl.dispose();
-    _collectCtrl.dispose();
-    _tapFxCtrl.dispose();
-    _statusCtrl.dispose();
+    _drainCtrl.dispose();
     super.dispose();
   }
 
   // ── Creature cache ────────────────────────────────────────────────────────
 
   Future<void> _refreshCreatureCache() async {
-    final job = widget.farm.activeJob;
+    final job = widget.service.biome(widget.farm.biome).activeJob;
     if (job == null) {
       _cachedInstanceId = null;
-      if (mounted) {
-        setState(() => _creatureWidget = null);
-      }
+      if (mounted) setState(() => _creature = null);
       return;
     }
-    if (_cachedInstanceId == job.creatureInstanceId &&
-        _creatureWidget != null) {
+    if (_cachedInstanceId == job.creatureInstanceId && _creature != null) {
       return;
     }
     _cachedInstanceId = job.creatureInstanceId;
     final db = context.read<AlchemonsDatabase>();
     final inst = await db.creatureDao.getInstance(job.creatureInstanceId);
     if (!mounted) return;
-    if (inst == null) {
-      setState(() => _creatureWidget = null);
-      return;
-    }
-    final repo = context.read<CreatureCatalog>();
-    final base = repo.getCreatureById(inst.baseId);
-    if (base == null || base.spriteData == null) {
-      setState(() => _creatureWidget = null);
-      return;
-    }
+    final base = inst == null
+        ? null
+        : context.read<CreatureCatalog>().getCreatureById(inst.baseId);
     setState(
-      () => _creatureWidget = InstanceSprite(
-        creature: base,
-        instance: inst,
-        size: widget.featured ? 112 : 72,
-      ),
+      () =>
+          _creature = (inst == null || base == null || base.spriteData == null)
+          ? null
+          : (base: base, inst: inst),
     );
   }
 
   // ── Progress sync ─────────────────────────────────────────────────────────
 
-  _ProgressViewModel _syncAndComputeProgress(BiomeFarmState farm) {
+  Duration? _syncProgress(BiomeFarmState farm) {
     final job = farm.activeJob;
     if (job == null) {
       if (_jobCtrl.value != 0) _jobCtrl.value = 0;
       if (_jobCtrl.isAnimating) _jobCtrl.stop();
-      if (!_draining) {
-        _fill.value = 0;
-        _rim.value = 0;
-      }
-      return const _ProgressViewModel(
-        progress: 0,
-        effectiveFill: 0,
-        remaining: null,
-      );
+      if (!_draining) _level.value = 0;
+      return null;
     }
     final totalMs = job.durationMs;
     final rem = farm.remaining;
@@ -1153,32 +725,17 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
         _jobCtrl.forward(from: rawProgress);
       }
     }
-    final progress = _jobCtrl.value;
-    final targetFill = farm.hasActive
-        ? (0.0 + 0.85 * progress).clamp(0.0, 0.85)
-        : 0.0;
-    final curvedFill = Curves.easeOutCubic.transform(targetFill);
-    // A collect owns these until it finishes. Letting the live job state write
-    // them mid-drain is what made the chamber snap to empty the moment the job
-    // cleared, instead of emptying.
-    if (!_draining) {
-      _fill.value = curvedFill;
-      _rim.value = farm.hasActive ? progress : 0;
-    }
-    final Duration? remainingTime = farm.hasActive && _jobCtrl.duration != null
-        ? _jobCtrl.duration! * (1 - _jobCtrl.value)
-        : farm.remaining;
-    return _ProgressViewModel(
-      progress: progress,
-      effectiveFill: curvedFill,
-      remaining: remainingTime,
-    );
+    // A pour owns the level until it finishes. Letting the live job state
+    // write it mid-drain is what made the chamber snap to empty the moment
+    // the job cleared, instead of emptying.
+    if (!_draining) _level.value = _jobCtrl.value;
+    return _jobCtrl.duration! * (1 - _jobCtrl.value);
   }
 
   // ── Tap boost ─────────────────────────────────────────────────────────────
 
   void _handleTapBoost(BiomeFarmState farm) {
-    if (!farm.hasActive || farm.completed) return;
+    if (!farm.hasActive || farm.completed || _draining) return;
     final now = DateTime.now();
     final lastBoost = _lastTapBoostAt;
     if (lastBoost != null &&
@@ -1269,7 +826,8 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     );
     if (!mounted) return;
     if (ok) {
-      await _collectCtrl.forward(from: 0);
+      HapticFeedback.mediumImpact();
+      _reveal = EssenceReveal.once();
       await _refreshCreatureCache();
     } else {
       _showToast(
@@ -1282,26 +840,12 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 
   // ── Collect ───────────────────────────────────────────────────────────────
 
-  /// The orb's own square, so the particles leave the chamber rather than the
-  /// whole card — the panels and buttons below it are not where the resources
-  /// were sitting.
-  Rect? _orbRect() {
-    for (final key in [_featuredOrbKey, _compactOrbKey]) {
-      final box = key.currentContext?.findRenderObject();
-      if (box is RenderBox && box.hasSize) {
-        return box.localToGlobal(Offset.zero) & box.size;
-      }
-    }
-    final fallback = context.findRenderObject();
-    if (fallback is! RenderBox || !fallback.hasSize) return null;
-    return fallback.localToGlobal(Offset.zero) & fallback.size;
-  }
-
-  /// The chamber's orb and the total it pays into, in screen space.
+  /// The flask's mouth and the total it pays into, in screen space: the
+  /// resources pour up out of the neck and fly to their number.
   ({Rect from, Offset to})? _collectFlight() {
     final toCtx = widget.collectTargetKey?.currentContext;
     if (toCtx == null || !mounted) return null;
-    final from = _orbRect();
+    final from = ExtractionVessel.mouthOf(_vesselKey);
     final toBox = toCtx.findRenderObject();
     if (from == null || toBox is! RenderBox || !toBox.hasSize) return null;
     return (
@@ -1310,22 +854,32 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     );
   }
 
+  /// Starts the pour: the liquid goes up out of the neck as the level falls.
+  Future<void> _pour(VesselMode mode) {
+    _drainFrom = _level.value;
+    _drainMode = mode;
+    _draining = true;
+    setState(() {});
+    return _drainCtrl.forward(from: 0);
+  }
+
+  void _endPour() {
+    _draining = false;
+    _drainCtrl.value = 0;
+  }
+
   Future<void> _handleCollect(BiomeFarmState farm) async {
     if (_draining) return;
     final previousJob = farm.activeJob;
     HapticFeedback.mediumImpact();
 
-    // Read the geometry before the collect: the job clears as it lands, and
-    // the chamber empties out from under the origin rect.
+    // Read the geometry before the collect: the job clears as it lands.
     final flight = _collectFlight();
 
-    // Emptying and streaming out are one motion, so the drain starts here and
+    // Emptying and streaming out are one motion, so the pour starts here and
     // is not awaited until the particles are already on their way. Awaiting it
     // first left a second of dead air before anything moved.
-    _drainFillFrom = _fill.value;
-    _drainRimFrom = _rim.value;
-    _draining = true;
-    final drain = _collectCtrl.forward(from: 0);
+    final drain = _pour(VesselMode.ready);
 
     final got = await widget.service.collect(widget.farm.biome);
     if (!mounted) {
@@ -1339,160 +893,42 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     context.sound(SoundCue.harvestCollect, owner: this);
 
     // The resources visibly leave the chamber and land on the total they are
-    // added to, in the biome's own colour.
+    // added to, in the biome's own colour. A beat in, so they come out of the
+    // stream rather than ahead of it.
     if (flight != null && got > 0) {
       unawaited(
-        playRewardCollect(
-          context,
-          from: flight.from,
-          to: flight.to,
-          gold: got,
-          silver: 0,
-          tint: widget.farm.currentColor,
-        ),
+        Future<void>.delayed(const Duration(milliseconds: 260), () async {
+          if (!mounted) return;
+          await playRewardCollect(
+            context,
+            from: flight.from,
+            to: flight.to,
+            gold: got,
+            silver: 0,
+            tint: widget.farm.currentColor,
+          );
+        }),
       );
     }
 
     await drain;
     if (!mounted) return;
-    _draining = false;
+    _endPour();
 
     await _refreshCreatureCache();
     if (previousJob == null || !mounted) return;
     final constellations = context.read<ConstellationEffectsService>();
     if (!constellations.hasInstantReload()) return;
-    final theme = context.read<FactionTheme>();
-    final t = ForgeTokens(theme);
-    final shouldReload = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Container(
-            decoration: BoxDecoration(
-              color: t.bg1,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: t.borderAccent, width: 1),
-            ),
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 3,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: t.amber,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Icon(
-                      AppIcons.refresh_rounded,
-                      color: t.amberBright,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'EXTRACTION COMPLETE',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.textPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Container(height: 1, color: t.borderMid),
-                const SizedBox(height: 14),
-                Text(
-                  'Reload the same specimen with the same settings?',
-                  style: TextStyle(
-                    color: t.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: context.soundAction(
-                          () => Navigator.pop(ctx, false),
-                        ),
-                        child: Container(
-                          height: 42,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: t.bg2,
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(color: t.borderDim),
-                          ),
-                          child: Text(
-                            'NOT NOW',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.textSecondary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: context.soundAction(
-                          () => Navigator.pop(ctx, true),
-                        ),
-                        child: Container(
-                          height: 42,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                t.amberDim.withValues(alpha: 0.45),
-                                t.amber.withValues(alpha: 0.35),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(
-                              color: t.amber.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          child: Text(
-                            'RELOAD',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.amberBright,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.3,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    final shouldReload = await showBracketConfirm(
+      context,
+      palette: _kPalette,
+      accent: widget.farm.biome.primaryColor,
+      icon: AppIcons.refresh_rounded,
+      title: 'RELOAD?',
+      message: 'Put the same Alchemon back in for another run.',
+      confirmLabel: 'RELOAD',
     );
-    if (shouldReload != true || !mounted) return;
+    if (!shouldReload || !mounted) return;
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
     final inst = await db.creatureDao.getInstance(
@@ -1519,11 +955,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     if (!mounted) return;
     if (ok) {
       HapticFeedback.mediumImpact();
-      _showToast(
-        'Chamber reloaded!',
-        icon: AppIcons.refresh_rounded,
-        color: theme.primary,
-      );
+      _reveal = EssenceReveal.once();
       await _refreshCreatureCache();
     } else {
       _showToast(
@@ -1536,134 +968,24 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 
   // ── Cancel ────────────────────────────────────────────────────────────────
 
-  Future<void> _handleCancel(FactionTheme theme) async {
-    if (_collectCtrl.isAnimating) return;
-    final t = ForgeTokens(theme);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: Container(
-            decoration: BoxDecoration(
-              color: t.bg1,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: t.borderAccent, width: 1),
-            ),
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Container(width: 3, height: 26, color: t.danger),
-                    const SizedBox(width: 10),
-                    Text(
-                      'CANCEL EXTRACTION',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.textPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Container(height: 1, color: t.borderMid),
-                const SizedBox(height: 14),
-                Text(
-                  'Your specimen will be returned, but current progress will be lost.',
-                  style: TextStyle(
-                    color: t.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: context.soundAction(
-                          () => Navigator.pop(ctx, false),
-                        ),
-                        child: Container(
-                          height: 42,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: t.bg2,
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(color: t.borderDim),
-                          ),
-                          child: Text(
-                            'KEEP RUNNING',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.textSecondary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: context.soundAction(
-                          () => Navigator.pop(ctx, true),
-                        ),
-                        child: Container(
-                          height: 42,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: t.danger.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(
-                              color: t.danger.withValues(alpha: 0.55),
-                            ),
-                          ),
-                          child: Text(
-                            'TERMINATE',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.danger,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+  Future<void> _handleCancel() async {
+    if (_draining) return;
+    final confirmed = await showBracketConfirm(
+      context,
+      palette: _kPalette,
+      accent: const Color(0xFFE57373),
+      title: 'END THIS RUN?',
+      message: 'Your Alchemon comes back, but what is in the flask is lost.',
+      confirmLabel: 'END RUN',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     HapticFeedback.heavyImpact();
-    await _collectCtrl.forward(from: 0);
+    await _pour(VesselMode.running);
     await widget.service.cancel(widget.farm.biome);
     if (!mounted) return;
+    _endPour();
     HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Extraction cancelled'),
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
-        showCloseIcon: true,
-      ),
-    );
+    _showToast('Run ended', icon: AppIcons.info_rounded);
     await _refreshCreatureCache();
   }
 
@@ -1682,375 +1004,62 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 
   @override
   Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final t = ForgeTokens(theme);
     return ListenableBuilder(
       listenable: widget.service,
       builder: (_, __) {
         final farm = widget.service.biome(widget.farm.biome);
         final accent = farm.currentColor;
-        final vm = _syncAndComputeProgress(farm);
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = widget.featured
-                ? constraints.maxWidth < 320
-                : constraints.maxWidth < 180;
-            // A fixed reservation rather than a height per state. The panel
-            // used to shrink the moment a job cleared, and the chamber above
-            // it — sized from whatever is left over — jumped a step larger the
-            // instant you pressed Collect, right on top of its own drain. The
-            // start panel centres its button, so the taller box only gives it
-            // more air.
-            final panelHeight = widget.featured
-                ? 104.0
-                : compact
-                ? 82.0
-                : 86.0;
-
-            Widget? badge;
-            if (farm.completed) {
-              badge = _AlchemyStatusBadge(
-                controller: _statusCtrl,
-                label: 'COMPLETE',
-                color: t.success,
-              );
-            } else if (farm.unlocked && !farm.hasActive) {
-              badge = _AlchemyStatusBadge(
-                controller: _statusCtrl,
-                label: 'READY',
-                color: accent,
-              );
-            }
-
-            if (widget.featured) {
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 3,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: accent,
-                            borderRadius: BorderRadius.circular(2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: accent.withValues(alpha: 0.45),
-                                blurRadius: 12,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                farm.biome.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: _display(
-                                  context,
-                                  22,
-                                  t.textPrimary,
-                                  weight: FontWeight.w700,
-                                ),
-                              ),
-                              Text(
-                                farm.biome.elementTypes.join(' · '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: _display(
-                                  context,
-                                  12,
-                                  t.textSecondary,
-                                  weight: FontWeight.w700,
-                                  letterSpacing: 0.4,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: _ChamberView(
-                          key: _featuredOrbKey,
-                          tListenable: _tNotifier,
-                          fillListenable: _fill,
-                          rimListenable: _rim,
-                          progress: vm.progress,
-                          collectCtrl: _collectCtrl,
-                          tapFxCtrl: _tapFxCtrl,
-                          onTapBoost: () => _handleTapBoost(farm),
-                          farm: farm,
-                          accent: accent,
-                          statusOverlay: badge,
-                          creatureWidget: _creatureWidget,
-                          onTapDown: (details, inner) {
-                            final lp = details.localPosition;
-                            final clamped = Offset(
-                              lp.dx.clamp(inner.left + 6, inner.right - 6),
-                              lp.dy.clamp(inner.top + 6, inner.bottom - 6),
-                            );
-                            setState(() => _tapLocal = clamped);
-                            _tapFxCtrl.forward(from: 0);
-                          },
-                          tapLocal: _tapLocal,
-                        ),
+        final remaining = _syncProgress(farm);
+        final mode = _draining
+            ? _drainMode
+            : !farm.unlocked
+            ? VesselMode.locked
+            : farm.completed
+            ? VesselMode.ready
+            : farm.hasActive
+            ? VesselMode.running
+            : VesselMode.empty;
+        final creature = _creature;
+        return Column(
+          children: [
+            _ChamberTitle(farm: farm, mode: mode, accent: accent),
+            const SizedBox(height: 4),
+            Expanded(
+              child: ExtractionVessel(
+                key: _vesselKey,
+                accent: accent,
+                mode: mode,
+                level: _level,
+                vent: _drainCtrl,
+                creatureId: creature?.inst.instanceId,
+                element: creature?.base.types.firstOrNull,
+                reveal: _reveal,
+                lockedIcon: AppIcons.lock_rounded,
+                creature: creature == null
+                    ? null
+                    : (size) => InstanceSprite(
+                        creature: creature.base,
+                        instance: creature.inst,
+                        size: size,
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: CustomPaint(
-                      painter: _BracketFramePainter(
-                        color: accent.withValues(alpha: 0.46),
-                        bracketSize: 12,
-                        strokeWidth: 1,
-                      ),
-                      child: Container(
-                        height: panelHeight + 18,
-                        padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              t.bg2.withValues(alpha: 0.18),
-                              t.bg0.withValues(alpha: 0.54),
-                            ],
-                          ),
-                          border: Border(
-                            top: BorderSide(
-                              color: accent.withValues(alpha: 0.2),
-                            ),
-                          ),
-                        ),
-                        child: farm.hasActive
-                            ? _ActivePanel(
-                                color: accent,
-                                theme: theme,
-                                farm: farm,
-                                biome: farm.biome,
-                                remaining: vm.remaining,
-                                compact: compact,
-                                onCollect: farm.completed
-                                    ? () => _handleCollect(farm)
-                                    : null,
-                                onCancel: () => _handleCancel(theme),
-                              )
-                            : !farm.unlocked
-                            ? _LockedPanel(
-                                color: accent,
-                                theme: theme,
-                                compact: compact,
-                                onBack: widget.onUnlock,
-                              )
-                            : _StartPanel(
-                                color: accent,
-                                theme: theme,
-                                biome: farm.biome,
-                                defaultDuration: widget.defaultDuration,
-                                compact: compact,
-                                onPickAndStart: _handlePickAndStart,
-                              ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            }
-
-            return Container(
-              decoration: BoxDecoration(
-                color: t.bg2.withValues(
-                  alpha: widget.featured
-                      ? (theme.isDark ? 0.64 : 0.88)
-                      : (theme.isDark ? 0.54 : 0.82),
-                ),
-                borderRadius: BorderRadius.circular(widget.featured ? 8 : 6),
-                border: Border.all(
-                  color: farm.completed
-                      ? t.success.withValues(alpha: theme.isDark ? 0.46 : 0.32)
-                      : farm.hasActive
-                      ? accent.withValues(alpha: theme.isDark ? 0.34 : 0.26)
-                      : t.borderDim.withValues(alpha: 0.72),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(
-                      alpha: widget.featured
-                          ? (theme.isDark ? 0.34 : 0.07)
-                          : (theme.isDark ? 0.22 : 0.05),
-                    ),
-                    blurRadius: widget.featured
-                        ? (theme.isDark ? 28 : 16)
-                        : (theme.isDark ? 18 : 10),
-                    offset: Offset(0, widget.featured ? 14 : 8),
-                  ),
-                ],
+                onTap: mode == VesselMode.locked
+                    ? widget.onUnlock
+                    : () => _handleTapBoost(farm),
               ),
-              child: Column(
-                children: [
-                  Container(
-                    padding: EdgeInsets.fromLTRB(
-                      widget.featured ? 14 : (compact ? 8 : 10),
-                      widget.featured ? 12 : (compact ? 7 : 8),
-                      widget.featured ? 12 : (compact ? 7 : 9),
-                      widget.featured ? 10 : (compact ? 5 : 6),
-                    ),
-                    decoration: BoxDecoration(
-                      color: t.bg3.withValues(alpha: theme.isDark ? 0.46 : 0.5),
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(8),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                farm.biome.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: _display(
-                                  context,
-                                  widget.featured ? 20 : (compact ? 13 : 14),
-                                  t.textPrimary,
-                                  weight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                farm.biome.elementTypes.join(' · '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: _display(
-                                  context,
-                                  widget.featured ? 12 : (compact ? 9.5 : 10),
-                                  t.textSecondary,
-                                  weight: FontWeight.w600,
-                                  letterSpacing: 0.4,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    height: 1,
-                    color: t.borderDim.withValues(alpha: 0.62),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        widget.featured ? 12 : (compact ? 4 : 6),
-                        widget.featured ? 10 : 4,
-                        widget.featured ? 12 : (compact ? 4 : 6),
-                        widget.featured ? 12 : (compact ? 6 : 7),
-                      ),
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: AspectRatio(
-                                aspectRatio: widget.featured
-                                    ? 1.0
-                                    : compact
-                                    ? 1.14
-                                    : 1.08,
-                                child: _ChamberView(
-                                  key: _compactOrbKey,
-                                  tListenable: _tNotifier,
-                                  fillListenable: _fill,
-                                  rimListenable: _rim,
-                                  progress: vm.progress,
-                                  collectCtrl: _collectCtrl,
-                                  tapFxCtrl: _tapFxCtrl,
-                                  onTapBoost: () => _handleTapBoost(farm),
-                                  farm: farm,
-                                  accent: accent,
-                                  statusOverlay: badge,
-                                  creatureWidget: _creatureWidget,
-                                  onTapDown: (details, inner) {
-                                    final lp = details.localPosition;
-                                    final clamped = Offset(
-                                      lp.dx.clamp(
-                                        inner.left + 6,
-                                        inner.right - 6,
-                                      ),
-                                      lp.dy.clamp(
-                                        inner.top + 6,
-                                        inner.bottom - 6,
-                                      ),
-                                    );
-                                    setState(() => _tapLocal = clamped);
-                                    _tapFxCtrl.forward(from: 0);
-                                  },
-                                  tapLocal: _tapLocal,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          SizedBox(
-                            height: panelHeight,
-                            child: farm.hasActive
-                                ? _ActivePanel(
-                                    color: accent,
-                                    theme: theme,
-                                    farm: farm,
-                                    biome: farm.biome,
-                                    remaining: vm.remaining,
-                                    compact: compact,
-                                    onCollect: farm.completed
-                                        ? () => _handleCollect(farm)
-                                        : null,
-                                    onCancel: () => _handleCancel(theme),
-                                  )
-                                : SizedBox(
-                                    width: double.infinity,
-                                    child: !farm.unlocked
-                                        ? _LockedPanel(
-                                            color: accent,
-                                            theme: theme,
-                                            compact: compact,
-                                            onBack: widget.onUnlock,
-                                          )
-                                        : _StartPanel(
-                                            color: accent,
-                                            theme: theme,
-                                            biome: farm.biome,
-                                            defaultDuration:
-                                                widget.defaultDuration,
-                                            compact: compact,
-                                            onPickAndStart: _handlePickAndStart,
-                                          ),
-                                  ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
+            ),
+            const SizedBox(height: 8),
+            _ChamberPanel(
+              farm: farm,
+              mode: mode,
+              accent: accent,
+              remaining: remaining,
+              level: _level,
+              onStart: _handlePickAndStart,
+              onCollect: () => _handleCollect(farm),
+              onCancel: _handleCancel,
+              onUnlock: widget.onUnlock,
+            ),
+          ],
         );
       },
     );
@@ -2058,158 +1067,235 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 }
 
 // ---------------------------------------------------------------------------
-// Progress view model
+// Title + panel
 // ---------------------------------------------------------------------------
 
-class _ProgressViewModel {
-  const _ProgressViewModel({
-    required this.progress,
-    required this.effectiveFill,
-    required this.remaining,
+String _modeWord(VesselMode mode) => switch (mode) {
+  VesselMode.locked => 'LOCKED',
+  VesselMode.empty => 'EMPTY',
+  VesselMode.running => 'EXTRACTING',
+  VesselMode.ready => 'FULL',
+};
+
+class _ChamberTitle extends StatelessWidget {
+  const _ChamberTitle({
+    required this.farm,
+    required this.mode,
+    required this.accent,
   });
-  final double progress;
-  final double effectiveFill;
-  final Duration? remaining;
-}
 
-// ---------------------------------------------------------------------------
-// Panels
-// ---------------------------------------------------------------------------
-
-class _StartPanel extends StatelessWidget {
-  const _StartPanel({
-    required this.color,
-    required this.theme,
-    required this.biome,
-    required this.defaultDuration,
-    required this.compact,
-    required this.onPickAndStart,
-  });
-  final Color color;
-  final FactionTheme theme;
-  final Biome biome;
-  final Duration defaultDuration;
-  final bool compact;
-  final VoidCallback onPickAndStart;
+  final BiomeFarmState farm;
+  final VesselMode mode;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _PrimaryBtn(
-          label: 'Insert alchemon',
-          accent: color,
-          theme: theme,
-          compact: compact,
-          onTap: context.soundAction(onPickAndStart),
-        ),
-      ],
+    final word = _modeWord(mode);
+    final wordColor = switch (mode) {
+      VesselMode.locked => _kPalette.muted,
+      VesselMode.empty => _kPalette.muted,
+      VesselMode.running => accent,
+      VesselMode.ready => const Color(0xFF8FD99F),
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${farm.biome.label} chamber',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: bracketText(
+                    context,
+                    21,
+                    _kPalette.ink,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  farm.biome.elementTypes.join(' · ').toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: farm.biome.primaryColor.withValues(alpha: 0.85),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 1),
+            child: Text(
+              word,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: wordColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.8,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _ActivePanel extends StatelessWidget {
-  const _ActivePanel({
-    required this.color,
-    required this.theme,
+/// The chamber's controls and what it is doing, under the flask.
+class _ChamberPanel extends StatelessWidget {
+  const _ChamberPanel({
     required this.farm,
-    required this.biome,
+    required this.mode,
+    required this.accent,
     required this.remaining,
-    required this.compact,
+    required this.level,
+    required this.onStart,
     required this.onCollect,
     required this.onCancel,
+    required this.onUnlock,
   });
-  final Color color;
-  final FactionTheme theme;
+
   final BiomeFarmState farm;
-  final Biome biome;
+  final VesselMode mode;
+  final Color accent;
   final Duration? remaining;
-  final bool compact;
-  final VoidCallback? onCollect;
+  final ValueListenable<double> level;
+  final VoidCallback onStart;
+  final VoidCallback onCollect;
   final VoidCallback onCancel;
+  final VoidCallback onUnlock;
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    final j = farm.activeJob!;
-    final rate = j.ratePerMinute;
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          farm.completed
-              ? 'Ready to collect'
-              : '${_formatHarvestRemaining(remaining)} · $rate/min',
-          style: _display(
-            context,
-            compact ? 10.5 : 11.5,
-            farm.completed ? t.success : color,
-            weight: FontWeight.w700,
+    const full = Color(0xFF8FD99F);
+    final job = farm.activeJob;
+    final (String line, Color lineColor) = switch (mode) {
+      VesselMode.locked => (
+        'Unlock this chamber to extract ${farm.biome.label.toLowerCase()} essence',
+        _kPalette.muted,
+      ),
+      VesselMode.empty => (
+        'Put in a ${_typeList(farm.biome.elementTypes)} Alchemon',
+        _kPalette.muted,
+      ),
+      VesselMode.running => (
+        job == null
+            ? ''
+            : '${_formatHarvestRemaining(remaining)} left · ${job.ratePerMinute}/min',
+        _kPalette.ink,
+      ),
+      VesselMode.ready => ('Full — ready to collect', full),
+    };
+
+    final Widget buttons = switch (mode) {
+      VesselMode.locked => BracketButton(
+        label: 'UNLOCK CHAMBER',
+        icon: AppIcons.lock_open_rounded,
+        palette: _kPalette,
+        accent: const Color(0xFFFFB74D),
+        onTap: onUnlock,
+      ),
+      VesselMode.empty => BracketButton(
+        label: 'INSERT ALCHEMON',
+        palette: _kPalette,
+        accent: accent,
+        onTap: onStart,
+      ),
+      VesselMode.running || VesselMode.ready => Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: BracketButton(
+              label: 'COLLECT',
+              palette: _kPalette,
+              accent: mode == VesselMode.ready ? full : accent,
+              enabled: mode == VesselMode.ready,
+              onTap: onCollect,
+            ),
           ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: BracketButton(
+              label: 'END RUN',
+              primary: false,
+              palette: _kPalette,
+              accent: accent,
+              onTap: onCancel,
+            ),
+          ),
+        ],
+      ),
+    };
+
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: accent.withValues(alpha: 0.45),
+        bracketSize: 12,
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        color: _kPalette.surfaceFill(darkAlpha: 0.6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 18,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      line,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: bracketText(
+                        context,
+                        12.5,
+                        lineColor,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (mode == VesselMode.running)
+                    ValueListenableBuilder<double>(
+                      valueListenable: level,
+                      builder: (_, v, __) => Text(
+                        '${(v * 100).floor()}%',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: accent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            buttons,
+          ],
         ),
-        SizedBox(height: compact ? 6 : 8),
-        if (compact) ...[
-          Row(
-            children: [
-              Expanded(
-                child: _PrimaryBtn(
-                  label: 'Collect',
-                  accent: color,
-                  theme: theme,
-                  compact: compact,
-                  minHeight: 38,
-                  onTap: (farm.completed && onCollect != null)
-                      ? onCollect!
-                      : null,
-                  disabled: !farm.completed,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _OutlineBtn(
-                  label: 'End run',
-                  accent: color,
-                  theme: theme,
-                  compact: compact,
-                  minHeight: 38,
-                  onTap: context.soundTap(onCancel),
-                ),
-              ),
-            ],
-          ),
-        ] else
-          Row(
-            children: [
-              Expanded(
-                child: _PrimaryBtn(
-                  label: 'Collect',
-                  accent: color,
-                  theme: theme,
-                  compact: compact,
-                  minHeight: 42,
-                  onTap: (farm.completed && onCollect != null)
-                      ? onCollect!
-                      : null,
-                  disabled: !farm.completed,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _OutlineBtn(
-                  label: 'End run',
-                  accent: color,
-                  theme: theme,
-                  compact: compact,
-                  minHeight: 42,
-                  onTap: context.soundTap(onCancel),
-                ),
-              ),
-            ],
-          ),
-      ],
+      ),
     );
   }
+}
+
+/// ['Fire', 'Lava', 'Lightning'] → "Fire, Lava or Lightning".
+String _typeList(List<String> types) {
+  if (types.length <= 1) return types.join();
+  return '${types.sublist(0, types.length - 1).join(', ')} or ${types.last}';
 }
 
 String _formatHarvestRemaining(Duration? d) {
@@ -2222,772 +1308,138 @@ String _formatHarvestRemaining(Duration? d) {
   return '${s}s';
 }
 
-class _LockedPanel extends StatelessWidget {
-  const _LockedPanel({
-    required this.color,
-    required this.theme,
-    required this.compact,
-    required this.onBack,
+// ---------------------------------------------------------------------------
+// Dialogs
+// ---------------------------------------------------------------------------
+
+/// A dialog in the screen's bracket frame.
+class _BracketDialog extends StatelessWidget {
+  const _BracketDialog({
+    required this.accent,
+    required this.title,
+    required this.children,
+    this.icon,
   });
-  final Color color;
-  final FactionTheme theme;
-  final bool compact;
-  final VoidCallback onBack;
+
+  final Color accent;
+  final String title;
+  final IconData? icon;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: accent.withValues(alpha: 0.9),
+          bracketSize: 14,
+          strokeWidth: 1.3,
+        ),
+        child: Container(
+          color: _kPalette.bg1,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, color: accent, size: 18),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: _kPalette.ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.8,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ...children,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HarvestTutorialDialog extends StatelessWidget {
+  const _HarvestTutorialDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    const amber = Color(0xFFFFB74D);
+    Widget step(String n, String text) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 22,
+            child: Text(
+              n,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                color: amber,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: bracketText(
+                context,
+                13.5,
+                _kPalette.ink.withValues(alpha: 0.9),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return _BracketDialog(
+      accent: amber,
+      title: 'HARVEST',
+      icon: AppIcons.science_rounded,
       children: [
-        _OutlineBtn(
-          label: 'Unlock chamber',
-          accent: color,
-          theme: theme,
-          compact: compact,
-          onTap: context.soundTap(onBack),
+        step(
+          '1',
+          'Pick a chamber from the strip at the top. Each one takes '
+              'Alchemons of its own elements.',
+        ),
+        step(
+          '2',
+          'Put an Alchemon in. Its essence fills the flask over a few hours.',
+        ),
+        step(
+          '3',
+          'When the flask is full, collect it. Your Alchemon comes back.',
+        ),
+        const SizedBox(height: 8),
+        BracketButton(
+          label: 'GOT IT',
+          height: 42,
+          palette: _kPalette,
+          accent: amber,
+          onTap: () => Navigator.of(context).pop(),
         ),
       ],
     );
   }
 }
-
-class _PrimaryBtn extends StatelessWidget {
-  const _PrimaryBtn({
-    required this.label,
-    required this.accent,
-    required this.theme,
-    required this.compact,
-    required this.onTap,
-    this.disabled = false,
-    this.minHeight,
-  });
-  final String label;
-  final Color accent;
-  final FactionTheme theme;
-  final bool compact;
-  final VoidCallback? onTap;
-  final bool disabled;
-  final double? minHeight;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    final bg = disabled ? t.bg3 : accent.withValues(alpha: 0.16);
-    final border = disabled ? t.borderDim : accent.withValues(alpha: 0.48);
-    return Opacity(
-      opacity: disabled ? 0.6 : 1,
-      child: GestureDetector(
-        onTap: context.soundAction(disabled ? null : onTap),
-        child: CustomPaint(
-          painter: _BracketFramePainter(
-            color: border,
-            bracketSize: 9,
-            strokeWidth: 1.05,
-          ),
-          child: Container(
-            constraints: BoxConstraints(minHeight: minHeight ?? 0),
-            padding: EdgeInsets.symmetric(vertical: compact ? 9 : 11),
-            color: bg,
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              style: _display(
-                context,
-                compact ? 11 : 12.5,
-                disabled ? t.textMuted : t.textPrimary,
-                weight: FontWeight.w700,
-                letterSpacing: 0.45,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OutlineBtn extends StatelessWidget {
-  const _OutlineBtn({
-    required this.label,
-    required this.accent,
-    required this.theme,
-    required this.compact,
-    required this.onTap,
-    this.minHeight,
-  });
-  final String label;
-  final Color accent;
-  final FactionTheme theme;
-  final bool compact;
-  final VoidCallback onTap;
-  final double? minHeight;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: CustomPaint(
-        painter: _BracketFramePainter(
-          color: accent.withValues(alpha: 0.55),
-          bracketSize: 9,
-          strokeWidth: 1.05,
-        ),
-        child: Container(
-          constraints: BoxConstraints(minHeight: minHeight ?? 0),
-          padding: EdgeInsets.symmetric(vertical: compact ? 9 : 11),
-          color: t.bg2,
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: _display(
-              context,
-              compact ? 11 : 12.5,
-              t.textPrimary,
-              weight: FontWeight.w700,
-              letterSpacing: 0.45,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _ChamberView
-// ---------------------------------------------------------------------------
-
-class _ChamberView extends StatelessWidget {
-  const _ChamberView({
-    super.key,
-    required this.tListenable,
-    required this.fillListenable,
-    required this.rimListenable,
-    required this.progress,
-    required this.collectCtrl,
-    required this.tapFxCtrl,
-    required this.onTapBoost,
-    required this.farm,
-    required this.accent,
-    required this.creatureWidget,
-    required this.onTapDown,
-    required this.tapLocal,
-    this.statusOverlay,
-  });
-  final Widget? statusOverlay;
-  final ValueListenable<double> tListenable;
-
-  /// Chamber contents and rim sweep, read live at paint time. The painters
-  /// already repaint every frame off [tListenable]; handing them plain doubles
-  /// meant the collect drain could only move on a rebuild that never happened.
-  final ValueListenable<double> fillListenable;
-  final ValueListenable<double> rimListenable;
-
-  /// Only drives [_tempo], which changes slowly enough to ride rebuilds.
-  final double progress;
-  final AnimationController collectCtrl;
-  final AnimationController tapFxCtrl;
-  final VoidCallback onTapBoost;
-  final BiomeFarmState farm;
-  final Color accent;
-  final Widget? creatureWidget;
-  final void Function(TapDownDetails details, RRect inner) onTapDown;
-  final Offset? tapLocal;
-
-  double _tempo() {
-    final ramp = Curves.easeInQuart.transform(progress).clamp(0.0, 1.0);
-    final nearDone = (progress > .85) ? (progress - .85) / .15 : 0.0;
-    final endBoost = Curves.easeOutExpo.transform(nearDone.clamp(0, 1));
-    final v = tapFxCtrl.value;
-    final tapBell = (v == 0) ? 0 : (1 - (2 * (v - .5)).abs());
-    final tapBoost = tapBell * 1.6;
-    return 1.0 + 3.0 * ramp + 1.5 * endBoost + tapBoost;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final size = Size(c.maxWidth, c.maxHeight);
-        final geo = _ChamberGeometry.fromSize(size);
-        final inner = geo.inner;
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: (d) {
-            HapticFeedback.lightImpact();
-            onTapBoost();
-            onTapDown(d, inner);
-          },
-          child: AnimatedBuilder(
-            animation: Listenable.merge([collectCtrl, tapFxCtrl]),
-            child: Stack(
-              children: [
-                Positioned.fromRect(
-                  rect: inner.outerRect,
-                  child: ClipRRect(
-                    borderRadius: inner._toBorderRadius(),
-                    child: Center(
-                      child: _CreatureIdle(
-                        tapFxCtrl: tapFxCtrl,
-                        child:
-                            creatureWidget ??
-                            Icon(
-                              AppIcons.science_outlined,
-                              size: 28,
-                              color: accent.withValues(alpha: 0.55),
-                            ),
-                      ),
-                    ),
-                  ),
-                ),
-                CustomPaint(
-                  painter: _ChamberBackgroundPainter(
-                    tListenable: tListenable,
-                    fillListenable: fillListenable,
-                    tempo: _tempo(),
-                    color: accent,
-                    active: farm.hasActive,
-                  ),
-                  size: size,
-                ),
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: AnimatedBuilder(
-                      animation: tapFxCtrl,
-                      builder: (_, __) => AlchemyTapFX(
-                        center: tapLocal,
-                        progress: tapFxCtrl.value,
-                        color: accent,
-                      ),
-                    ),
-                  ),
-                ),
-                CustomPaint(
-                  painter: _ChamberForegroundPainter(
-                    tListenable: tListenable,
-                    rimListenable: rimListenable,
-                    tempo: _tempo(),
-                    color: accent,
-                    active: farm.hasActive,
-                  ),
-                  size: size,
-                ),
-                if (statusOverlay != null)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: Center(
-                        child: Transform.translate(
-                          offset: Offset(0, size.height * -0.08),
-                          child: statusOverlay!,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            builder: (_, child) {
-              final v = collectCtrl.value;
-              final decay = 1.0 - v;
-              final dx = math.sin(v * math.pi * 10) * 5.0 * decay;
-              final dy = math.cos(v * math.pi * 8) * 4.0 * decay;
-              final rot = math.sin(v * math.pi * 6) * 0.012 * decay;
-              return Transform.translate(
-                offset: Offset(dx, dy),
-                child: Transform.rotate(angle: rot, child: child),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _CreatureIdle extends StatelessWidget {
-  const _CreatureIdle({required this.tapFxCtrl, required this.child});
-  final AnimationController tapFxCtrl;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: tapFxCtrl,
-      builder: (context, _) {
-        final v = tapFxCtrl.value;
-        final osc = math.sin(v * math.pi * 10);
-        final decay = 1.0 - v;
-        final amp = 6.0 * decay;
-        final dx = osc * amp * .55;
-        final dy = -osc * amp * .35;
-        final rot = osc * 0.02;
-        return Transform.translate(
-          offset: Offset(dx, dy),
-          child: Transform.rotate(angle: rot, child: child),
-        );
-      },
-    );
-  }
-}
-
-extension _RRectBorderRadius on RRect {
-  BorderRadius _toBorderRadius() => BorderRadius.only(
-    topLeft: Radius.circular(tlRadiusX),
-    topRight: Radius.circular(trRadiusX),
-    bottomLeft: Radius.circular(blRadiusX),
-    bottomRight: Radius.circular(brRadiusX),
-  );
-}
-
-class _ChamberGeometry {
-  _ChamberGeometry(this.outer, this.inner, this.center, this.radius);
-  final RRect outer;
-  final RRect inner;
-  final Offset center;
-  final double radius;
-
-  static _ChamberGeometry fromSize(Size size) {
-    final w = size.width;
-    final h = size.height;
-    final d = math.min(w, h * 0.78);
-    final cx = w / 2;
-    final cy = h * 0.42;
-    final rect = Rect.fromCenter(center: Offset(cx, cy), width: d, height: d);
-    final outer = RRect.fromRectAndRadius(rect, Radius.circular(d / 2));
-    final inner = outer.deflate(d * 0.06);
-    return _ChamberGeometry(outer, inner, Offset(cx, cy), d / 2);
-  }
-}
-
-class _ChamberBackgroundPainter extends CustomPainter {
-  /// Repaints straight off the frame clock. Passing the time in as a value
-  /// meant the only way to animate was to rebuild the widget tree every frame.
-  _ChamberBackgroundPainter({
-    required this.tListenable,
-    required this.fillListenable,
-    required this.tempo,
-    required this.color,
-    required this.active,
-  }) : super(repaint: Listenable.merge([tListenable, fillListenable]));
-  final ValueListenable<double> tListenable;
-  final ValueListenable<double> fillListenable;
-  double get tSeconds => tListenable.value;
-
-  /// Read per paint, so the collect drain shows up without a rebuild.
-  double get fill => fillListenable.value;
-  final double tempo;
-  final Color color;
-  final bool active;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final geo = _ChamberGeometry.fromSize(size);
-    final inner = geo.inner;
-    final c = geo.center;
-    final r = geo.radius * 0.92;
-    canvas.save();
-    canvas.clipRRect(inner);
-    final back = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          Colors.black.withValues(alpha: .45),
-          Colors.black.withValues(alpha: .70),
-        ],
-      ).createShader(inner.outerRect);
-    canvas.drawRect(inner.outerRect, back);
-    final beamAlpha = (0.20 + 0.65 * Curves.easeOutCubic.transform(fill)).clamp(
-      0.0,
-      0.85,
-    );
-    final beam = Paint()
-      ..blendMode = BlendMode.plus
-      ..shader = RadialGradient(
-        center: Alignment.center,
-        radius: 0.55,
-        colors: [
-          color.withValues(alpha: beamAlpha * .9),
-          color.withValues(alpha: beamAlpha * .35),
-          Colors.transparent,
-        ],
-        stops: const [.0, .35, 1.0],
-      ).createShader(inner.outerRect);
-    canvas.drawCircle(c, r * 0.78, beam);
-    final baseAngle = active ? tSeconds * tempo : 0.0;
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..color = Colors.white.withValues(alpha: .40);
-    final glyph = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.white.withValues(alpha: .85);
-
-    void drawRing(double radius, double speed, int glyphs, double dash) {
-      canvas.save();
-      canvas.translate(c.dx, c.dy);
-      canvas.rotate(baseAngle * speed);
-      final dashCount = (math.pi * 2 * radius / dash).floor();
-      final segment = (2 * math.pi) / dashCount;
-      for (int i = 0; i < dashCount; i += 2) {
-        final from = i * segment;
-        final to = (i + 1) * segment;
-        final p = Path()
-          ..addArc(
-            Rect.fromCircle(center: Offset.zero, radius: radius),
-            from,
-            to - from,
-          );
-        canvas.drawPath(p, ring);
-      }
-      for (int i = 0; i < glyphs; i++) {
-        final ang = (i / glyphs) * (math.pi * 2);
-        final x = math.cos(ang) * radius;
-        final y = math.sin(ang) * radius;
-        final sz = 2.6 + 1.2 * math.sin(baseAngle * (speed + .3) + i);
-        canvas.save();
-        canvas.translate(x, y);
-        canvas.rotate(-ang + baseAngle * (speed * .6));
-        final rect = Rect.fromCenter(
-          center: Offset.zero,
-          width: sz,
-          height: sz * 1.2,
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(rect, const Radius.circular(1.2)),
-          glyph,
-        );
-        canvas.restore();
-      }
-      canvas.restore();
-    }
-
-    final intensity = (0.3 + 0.7 * fill).clamp(0.0, 1.0);
-    drawRing(r * .68, 0.6 + intensity, 12, 10);
-    drawRing(r * .51, 1.0 + intensity, 10, 9);
-    drawRing(r * .36, 1.6 + intensity, 8, 8);
-
-    final mote = Paint()..color = Colors.white.withValues(alpha: .70);
-    final count = active ? 42 : 18;
-    final suctionBase = 0.20 + 0.55 * Curves.easeOutCubic.transform(fill);
-    final swirlBase = 0.60 + 0.80 * Curves.easeIn.transform(fill);
-    for (int i = 0; i < count; i++) {
-      final seed = i * 1337.0;
-      final rand = (seed % 1000) / 1000.0;
-      final r0 = r * (0.20 + 0.75 * rand);
-      final a0 = (seed % (2 * math.pi));
-      final speed = (0.35 + (seed % 17) / 40.0) * (0.8 + 0.6 * tempo);
-      final t = (tSeconds * speed + (seed % 23) * .013) % 1.0;
-      final suction = suctionBase * (0.65 + 0.35 * math.sin(seed));
-      final rad = r0 * (1.0 - math.pow(t, 1.35) * suction).clamp(0.0, 1.0);
-      final swirl = swirlBase * (1.0 + 0.7 * (1.0 - rad / r0));
-      final ang = a0 + t * 2.0 * math.pi * swirl;
-      final px = c.dx + math.cos(ang) * rad;
-      final py = c.dy + math.sin(ang) * rad;
-      if (inner.outerRect.contains(Offset(px, py))) {
-        final sz = 1.1 + ((i % 5 == 0) ? 0.9 : 0.0);
-        canvas.drawCircle(Offset(px, py), sz, mote);
-        final trailT = (t - 0.06).clamp(0.0, 1.0);
-        if (trailT > 0) {
-          final rad2 = r0 * (1.0 - math.pow(trailT, 1.35) * suction);
-          final ang2 = a0 + trailT * 2.0 * math.pi * swirl;
-          final p2 = Offset(
-            c.dx + math.cos(ang2) * rad2,
-            c.dy + math.sin(ang2) * rad2,
-          );
-          canvas.drawCircle(
-            p2,
-            sz * 0.85,
-            Paint()..color = Colors.white.withValues(alpha: .10),
-          );
-        }
-      }
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _ChamberBackgroundPainter old) =>
-      old.tempo != tempo ||
-      old.fill != fill ||
-      old.color != color ||
-      old.active != active;
-}
-
-class _ChamberForegroundPainter extends CustomPainter {
-  _ChamberForegroundPainter({
-    required this.tListenable,
-    required this.rimListenable,
-    required this.tempo,
-    required this.color,
-    required this.active,
-  }) : super(repaint: Listenable.merge([tListenable, rimListenable]));
-  final ValueListenable<double> tListenable;
-  final ValueListenable<double> rimListenable;
-  double get tSeconds => tListenable.value;
-  final double tempo;
-  final Color color;
-  final bool active;
-
-  /// 0..1 job completion, filled around the rim the chamber already has
-  /// rather than drawn as a second ring outside it. Read per paint so the
-  /// rim sweeps as the job advances and unwinds as a collect drains it.
-  double get progress => rimListenable.value;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final geo = _ChamberGeometry.fromSize(size);
-    final outer = geo.outer;
-    final inner = geo.inner;
-    final c = geo.center;
-    final r = geo.radius;
-    final rim = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = (outer.width * 0.06).clamp(6, 18)
-      ..shader = SweepGradient(
-        colors: [
-          Colors.white.withValues(alpha: .85),
-          Colors.white.withValues(alpha: .45),
-          Colors.white.withValues(alpha: .85),
-        ],
-      ).createShader(outer.outerRect);
-    canvas.drawRRect(outer, rim);
-
-    // THE RIM IS THE PROGRESS BAR. The white ring is already the strongest
-    // shape on the chamber, so filling it in the biome's colour needs no new
-    // geometry — and the job reads from the machine instead of from a chip in
-    // a tab strip you are not looking at.
-    if (active && progress > 0) {
-      final rimWidth = (outer.width * 0.06).clamp(6.0, 18.0);
-      canvas.drawArc(
-        outer.outerRect.deflate(rimWidth / 2),
-        -math.pi / 2,
-        math.pi * 2 * progress.clamp(0.0, 1.0),
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = rimWidth
-          ..strokeCap = StrokeCap.round
-          ..color = color.withValues(alpha: 0.92),
-      );
-    }
-
-    canvas.save();
-    canvas.translate(.6, .6);
-    canvas.drawRRect(
-      outer.deflate(0.6),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFFFF6B6B).withValues(alpha: .33),
-    );
-    canvas.restore();
-    canvas.save();
-    canvas.translate(-.6, -.6);
-    canvas.drawRRect(
-      outer.deflate(0.6),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFF5EC8FF).withValues(alpha: .33),
-    );
-    canvas.restore();
-    canvas.drawRRect(
-      outer,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 8
-        ..shader =
-            LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomLeft,
-              colors: [Colors.white.withValues(alpha: .50), Colors.transparent],
-            ).createShader(
-              Rect.fromLTWH(outer.left - 6, outer.top, 10, outer.height),
-            ),
-    );
-    final crown = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = color.withValues(alpha: active ? .65 : .25);
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.rotate(active ? tSeconds * tempo * 1.2 : 0.0);
-    final cr = r * 0.88;
-    for (int i = 0; i < 24; i++) {
-      final a = i / 24 * 2 * math.pi;
-      canvas.drawLine(
-        Offset(math.cos(a) * cr, math.sin(a) * cr),
-        Offset(math.cos(a) * (cr - 10), math.sin(a) * (cr - 10)),
-        crown,
-      );
-    }
-    canvas.restore();
-    canvas.drawRRect(
-      inner,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..color = Colors.white.withValues(alpha: .45),
-    );
-  }
-
-  @override
-  // Time is handled by `repaint:`; both delegates read the same notifier, so
-  // comparing tSeconds here would always be equal and never trigger anything.
-  bool shouldRepaint(covariant _ChamberForegroundPainter old) =>
-      old.active != active ||
-      old.color != color ||
-      old.tempo != tempo ||
-      old.progress != progress;
-}
-
-class _AlchemyStatusBadge extends StatelessWidget {
-  const _AlchemyStatusBadge({
-    required this.controller,
-    required this.label,
-    required this.color,
-  });
-  final AnimationController controller;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        final t = controller.value;
-        final pulse = 0.65 + 0.35 * math.sin(t * math.pi * 2);
-        final glow = 0.25 + 0.55 * (0.5 - (t - 0.5).abs()) * 2;
-        return Opacity(
-          opacity: 0.85,
-          child: CustomPaint(
-            painter: _AlchemyStatusPainter(
-              t: t,
-              pulse: pulse,
-              glow: glow,
-              color: color,
-              label: label,
-            ),
-            size: const Size(160, 160),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AlchemyStatusPainter extends CustomPainter {
-  _AlchemyStatusPainter({
-    required this.t,
-    required this.pulse,
-    required this.glow,
-    required this.color,
-    required this.label,
-  });
-  final double t, pulse, glow;
-  final Color color;
-  final String label;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    final r = math.min(size.width, size.height) * 0.48;
-    canvas.drawCircle(
-      c,
-      r * (1.05 + 0.02 * glow),
-      Paint()
-        ..blendMode = BlendMode.plus
-        ..shader = RadialGradient(
-          colors: [
-            color.withValues(alpha: 0.08 * (0.7 + 0.3 * glow)),
-            Colors.transparent,
-          ],
-        ).createShader(Rect.fromCircle(center: c, radius: r * 1.2)),
-    );
-    canvas.drawCircle(
-      c,
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0 + 1.8 * pulse
-        ..color = Colors.white.withValues(alpha: 0.85),
-    );
-    canvas.save();
-    canvas.translate(.8, .8);
-    canvas.drawCircle(
-      c,
-      r * 0.985,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..color = const Color(0xFFFF6B6B).withValues(alpha: .38),
-    );
-    canvas.restore();
-    canvas.save();
-    canvas.translate(-.8, -.8);
-    canvas.drawCircle(
-      c,
-      r * 0.985,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..color = const Color(0xFF5EC8FF).withValues(alpha: .38),
-    );
-    canvas.restore();
-    final ticks = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = color.withValues(alpha: .75);
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.rotate(t * math.pi * 2);
-    final tr = r * 0.88;
-    for (int i = 0; i < 24; i++) {
-      final a = i / 24 * 2 * math.pi;
-      canvas.drawLine(
-        Offset(math.cos(a) * tr, math.sin(a) * tr),
-        Offset(math.cos(a) * (tr - 10), math.sin(a) * (tr - 10)),
-        ticks,
-      );
-    }
-    canvas.restore();
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 2,
-          color: Colors.white.withValues(alpha: .95),
-          shadows: [
-            Shadow(
-              blurRadius: 6 + 10 * glow,
-              color: color.withValues(alpha: .8),
-            ),
-          ],
-        ),
-      ),
-      textAlign: TextAlign.center,
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: size.width);
-    textPainter.paint(
-      canvas,
-      Offset(c.dx - textPainter.width / 2, c.dy - textPainter.height / 2),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _AlchemyStatusPainter old) =>
-      old.t != t ||
-      old.pulse != pulse ||
-      old.glow != glow ||
-      old.color != color ||
-      old.label != label;
-}
-
-// ---------------------------------------------------------------------------
-// Unlock dialog
-// ---------------------------------------------------------------------------
 
 class _UnlockDialog extends StatelessWidget {
   const _UnlockDialog({required this.biome, required this.costDb});
@@ -2997,287 +1449,188 @@ class _UnlockDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = biome.primaryColor;
-    final theme = context.watch<FactionTheme>();
-    final t = ForgeTokens(theme);
     final db = context.read<AlchemonsDatabase>();
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Container(
-        decoration: BoxDecoration(
-          color: t.bg1.withValues(alpha: 0.97),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: t.borderAccent, width: 1.1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: theme.isDark ? 0.3 : 0.07),
-              blurRadius: theme.isDark ? 20 : 14,
-              offset: const Offset(0, 10),
+    return StreamBuilder<Map<String, int>>(
+      stream: db.currencyDao.watchResourceBalances(),
+      builder: (context, snap) {
+        final bal = snap.data ?? {};
+        final short = costDb.entries.any((e) => (bal[e.key] ?? 0) < e.value);
+        return _BracketDialog(
+          accent: color,
+          title: 'UNLOCK ${biome.label.toUpperCase()}',
+          icon: AppIcons.lock_open_rounded,
+          children: [
+            Text(
+              '${biome.description}. Its chamber takes '
+              '${_typeList(biome.elementTypes)} Alchemons.',
+              style: bracketText(
+                context,
+                13.5,
+                _kPalette.ink.withValues(alpha: 0.9),
+              ),
             ),
-          ],
-        ),
-        padding: const EdgeInsets.all(16),
-        child: StreamBuilder<Map<String, int>>(
-          stream: db.currencyDao.watchResourceBalances(),
-          builder: (context, snap) {
-            final bal = snap.data ?? {};
-            bool hasShortage = false;
-            for (final e in costDb.entries) {
-              if ((bal[e.key] ?? 0) < e.value) {
-                hasShortage = true;
-                break;
-              }
-            }
-            return Column(
-              mainAxisSize: MainAxisSize.min,
+            const SizedBox(height: 16),
+            Text(
+              'COSTS',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: _kPalette.muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.6,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final e in costDb.entries)
+              _CostRow(
+                resourceKey: e.key,
+                need: e.value,
+                have: bal[e.key] ?? 0,
+              ),
+            const SizedBox(height: 14),
+            Row(
               children: [
-                Row(
-                  children: [
-                    Container(width: 3, height: 34, color: t.amber),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'UNLOCK ${biome.label.toUpperCase()}',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.textPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          letterSpacing: 1.2,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Container(height: 1, color: t.borderMid),
-                const SizedBox(height: 12),
-                Text(
-                  biome.description,
-                  style: TextStyle(
-                    color: t.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
+                Expanded(
+                  child: BracketButton(
+                    label: 'CANCEL',
+                    primary: false,
+                    height: 42,
+                    palette: _kPalette,
+                    accent: color,
+                    onTap: () => Navigator.pop(context, false),
                   ),
                 ),
-                const SizedBox(height: 14),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'REQUIRED RESOURCES',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t.amberBright,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                      letterSpacing: 1.1,
-                    ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: BracketButton(
+                    label: short ? 'NOT ENOUGH' : 'UNLOCK',
+                    height: 42,
+                    palette: _kPalette,
+                    accent: color,
+                    enabled: !short,
+                    onTap: () => Navigator.pop(context, true),
                   ),
-                ),
-                const SizedBox(height: 10),
-                ...costDb.entries.map((e) {
-                  final have = bal[e.key] ?? 0;
-                  final ok = have >= e.value;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: t.bg2,
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(
-                        color: ok
-                            ? color.withValues(alpha: 0.4)
-                            : t.danger.withValues(alpha: 0.55),
-                        width: 1.1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            e.key.toUpperCase(),
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.textPrimary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                              letterSpacing: 0.8,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Text(
-                          '$have / ${e.value}',
-                          style: TextStyle(
-                            color: ok ? t.success : t.danger,
-                            fontFamily: 'monospace',
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: context.soundAction(
-                          () => Navigator.pop(context, false),
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: t.bg2,
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(color: t.borderDim),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'CANCEL',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.textPrimary,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Opacity(
-                        opacity: hasShortage ? 0.5 : 1,
-                        child: GestureDetector(
-                          onTap: context.soundAction(
-                            hasShortage
-                                ? null
-                                : () => Navigator.pop(context, true),
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  t.amberDim.withValues(alpha: 0.42),
-                                  color.withValues(alpha: 0.18),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(3),
-                              border: Border.all(
-                                color: hasShortage
-                                    ? t.borderDim
-                                    : t.amber.withValues(alpha: 0.65),
-                                width: 1.1,
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              hasShortage ? 'NOT ENOUGH' : 'CONFIRM UNLOCK',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: hasShortage
-                                    ? t.textMuted
-                                    : t.amberBright,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
-            );
-          },
-        ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CostRow extends StatelessWidget {
+  const _CostRow({
+    required this.resourceKey,
+    required this.need,
+    required this.have,
+  });
+
+  final String resourceKey;
+  final int need;
+  final int have;
+
+  @override
+  Widget build(BuildContext context) {
+    final res = ElementResources.byKey[resourceKey];
+    final ok = have >= need;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          if (res != null)
+            ElementResourceGlyph.of(res, size: 18)
+          else
+            const SizedBox(width: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              res?.biomeLabel ?? resourceKey,
+              style: bracketText(
+                context,
+                13,
+                _kPalette.ink,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Text(
+            '${formatCoins(have)} / ${formatCoins(need)}',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: ok ? const Color(0xFF8FD99F) : const Color(0xFFE57373),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Screen header: back on the left, bar + monospace title, and live counts so
-/// the state of the bays reads without scanning every chamber.
+/// Screen header: back, the title, and live counts so the state of the bays
+/// reads without visiting every chamber.
 class _HarvestHeader extends StatelessWidget {
   const _HarvestHeader({
-    required this.theme,
     required this.chambers,
     required this.ready,
     required this.active,
   });
 
-  final FactionTheme theme;
   final int chambers;
   final int ready;
   final int active;
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
     final parts = <String>[
-      '$chambers unlocked',
-      if (active > 0) '$active running',
-      if (ready > 0) '$ready ready',
+      '$chambers OPEN',
+      if (active > 0) '$active EXTRACTING',
+      if (ready > 0) '$ready FULL',
     ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: context.soundAction(() {
+          BracketIconButton(
+            icon: AppIcons.arrow_back,
+            palette: _kPalette,
+            onTap: () {
               HapticFeedback.lightImpact();
               Navigator.of(context).maybePop();
-            }),
-            child: Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: t.bg2,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: t.borderDim),
-              ),
-              child: Icon(AppIcons.arrow_back, size: 18, color: t.textPrimary),
-            ),
+            },
           ),
-          const SizedBox(width: 10),
-          Container(width: 3, height: 24, color: t.amber),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                const Text(
                   'HARVEST',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: t.amberBright,
+                    color: Color(0xFFFFB74D),
                     fontSize: 15,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 2.2,
+                    letterSpacing: 2.4,
                   ),
                 ),
-                const SizedBox(height: 1),
+                const SizedBox(height: 2),
                 Text(
                   parts.join(' · '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: ready > 0 ? t.amber : t.textSecondary,
-                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    color: ready > 0
+                        ? const Color(0xFF8FD99F)
+                        : _kPalette.muted,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
                   ),
                 ),
               ],

@@ -85,6 +85,7 @@ class InfusionPainter extends CustomPainter {
     this.deltaLabel,
     this.soulRoll,
     this.body,
+    this.tint,
   });
 
   /// The orb's flight, 0..1, then the power-up, 0..1.
@@ -102,6 +103,11 @@ class InfusionPainter extends CustomPainter {
   /// The specimen as grains, once captured. Without it the infusion plays
   /// round the specimen's sprite instead of through it.
   final InfusionBody? body;
+
+  /// The light, when it is not a stat's: kin given up to it light it gold.
+  final Color? tint;
+
+  Color get _color => tint ?? type.color;
 
   bool get _isSoul => soulRoll != null;
 
@@ -136,7 +142,7 @@ class InfusionPainter extends CustomPainter {
     final orbitCentre = Offset(size.width / 2, size.height * 0.47);
     final bd = body;
     final heart = bd?.centre ?? orbitCentre;
-    final color = type.color;
+    final color = _color;
     final hot = Color.lerp(color, Colors.white, 0.55)!;
     final time = progress * 2.2 + flash * 1.4;
 
@@ -295,7 +301,7 @@ class InfusionPainter extends CustomPainter {
   }
 
   void _labels(Canvas canvas, Offset centre, double u) {
-    final glow = Color.lerp(type.color, Colors.white, 0.2)!;
+    final glow = Color.lerp(_color, Colors.white, 0.2)!;
     if (rollLabel != null) {
       final rp = TextPainter(
         text: TextSpan(
@@ -393,6 +399,7 @@ class InfusionPainter extends CustomPainter {
       old.progress != progress ||
       old.flash != flash ||
       old.type != type ||
+      old.tint != tint ||
       old.body != body ||
       old.deltaLabel != deltaLabel ||
       old.rollLabel != rollLabel ||

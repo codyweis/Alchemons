@@ -105,7 +105,9 @@ abstract final class _Wavebreaker {
       final x = bx + 0.04 * math.sin(t * 0.6 + k * 1.7);
       final y = by + 0.05 * math.sin(t * 0.9 + k * 2.3);
       // Pointing out from the head, turning a little.
-      final a = math.atan2(y + 0.7, x) + math.pi / 2 +
+      final a =
+          math.atan2(y + 0.7, x) +
+          math.pi / 2 +
           0.22 * math.sin(t * 0.5 + k * 1.1);
       final len = _len[k] * r;
       final px = cx + x * r, py = cy + y * r;

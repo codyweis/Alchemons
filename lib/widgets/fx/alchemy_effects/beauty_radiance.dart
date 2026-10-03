@@ -47,7 +47,8 @@ abstract final class _Beauty {
       final p = 5.5 + 2.5 * _h(i, 101);
       final u = _frac(t / p + _h(i, 102));
       final side = i.isEven ? -1.0 : 1.0;
-      final x = side * (0.38 + 0.55 * _h(i, 103)) +
+      final x =
+          side * (0.38 + 0.55 * _h(i, 103)) +
           0.14 * math.sin(u * 5 + _h(i, 104) * 6.28);
       final y = -1.1 + 1.72 * u;
       final env = _smooth(0.0, 0.1, u) * (1 - _smooth(0.82, 1.0, u));

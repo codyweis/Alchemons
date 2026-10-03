@@ -2,11 +2,15 @@
 // of the GPU, with the chambers empty, with one specimen in, and with two.
 //
 // Budget tests, not golden tests. They do not care what it looks like; they
-// care that nothing on this screen goes back to re-recording the whole card
-// every frame for the sake of one spinning orb, or to drawing the background
-// a circle per mote. Before 2026-10-01 an idle frame with both chambers
-// filled re-recorded 120 render objects, rebuilt 11 widgets and issued 158
-// draws (7 blurred); with them empty, 83, 4 and 133 (4).
+// care that nothing on this screen goes back to re-recording the whole stage
+// every frame for the sake of the knot turning between the pair, or to
+// drawing the background a circle per mote. Before 2026-10-01 an idle frame
+// with both chambers filled re-recorded 120 render objects, rebuilt 11
+// widgets and issued 158 draws (7 blurred); with them empty, 83, 4 and 133
+// (4). The one-stage chamber of 2026-10-02 has no glows to blur at all.
+//
+// For a picture of the screen, see fusion_preview_test.dart: painting into
+// the census below disturbs the layers a screenshot would be read from.
 //
 // Widget tests never rasterise, so the GPU side is counted rather than timed:
 // the whole tree is painted once more into a canvas that tallies what it is
@@ -14,21 +18,19 @@
 //
 //   flutter test test/fusion_screen_budget_test.dart
 //
-// With FUSION_SCREEN_OUT=/some/dir it also saves what it measured, as PNGs.
 
-import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/screens/breed/breed_tab.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -136,18 +138,6 @@ enum _Chambers {
 }
 
 void main() {
-  final out = Platform.environment['FUSION_SCREEN_OUT'];
-
-  setUpAll(() async {
-    if (out == null) return;
-    final arial = File('/System/Library/Fonts/Supplemental/Arial.ttf');
-    if (!arial.existsSync()) return;
-    await (FontLoader(
-          'Roboto',
-        )..addFont(Future.value(ByteData.view(arial.readAsBytesSync().buffer))))
-        .load();
-  });
-
   Creature horn(String id, String name, String type, String sheet) => Creature(
     id: id,
     name: name,
@@ -167,16 +157,13 @@ void main() {
   );
 
   Future<_Frame> measure(WidgetTester tester, _Chambers chambers) async {
-    final shot = GlobalKey();
-    // Tests turn box shadows off; the device draws them, so a picture of
-    // the screen should too.
-    if (out != null) debugDisableShadows = false;
     final db = AlchemonsDatabase(NativeDatabase.memory());
     final catalog = CreatureCatalog.fromList([
       horn('HOR01', 'Firehorn', 'Fire', 'HOR01_firehorn_spritesheet.png'),
       horn('HOR02', 'Waterhorn', 'Water', 'HOR02_waterhorn_spritesheet.png'),
     ]);
     CreatureInstance? a, b;
+    late ConstellationEffectsService constellations;
     await tester.runAsync(() async {
       // Most specimens carry a tint: a hue shift and a saturation change.
       await db.creatureDao.insertInstance(
@@ -193,6 +180,8 @@ void main() {
       );
       a = await db.creatureDao.getInstance('a');
       b = await db.creatureDao.getInstance('b');
+      constellations = ConstellationEffectsService(db);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
     });
 
     await tester.pumpWidget(
@@ -201,11 +190,14 @@ void main() {
           Provider<AlchemonsDatabase>.value(value: db),
           Provider<FactionTheme>.value(value: FactionTheme.scorchForge()),
           Provider<CreatureCatalog>.value(value: catalog),
+          Provider<StaminaService>.value(value: StaminaService(db)),
+          ChangeNotifierProvider<ConstellationEffectsService>.value(
+            value: constellations,
+          ),
         ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: ThemeData.dark(),
-          builder: (context, child) => RepaintBoundary(key: shot, child: child),
           home: ParticleBackgroundScaffold(
             body: BreedingTab(
               discoveredCreatures: const [],
@@ -245,20 +237,6 @@ void main() {
     }
     debugDisableShadows = true;
 
-    if (out != null) {
-      await tester.runAsync(() async {
-        final boundary =
-            shot.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-        final image = await boundary.toImage(pixelRatio: 2);
-        final png = await image.toByteData(format: ui.ImageByteFormat.png);
-        Directory(out).createSync(recursive: true);
-        File(
-          '$out/${chambers.name}.png',
-        ).writeAsBytesSync(png!.buffer.asUint8List());
-        image.dispose();
-      });
-    }
-
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
     await tester.runAsync(db.close);
@@ -274,25 +252,20 @@ void main() {
       final f = await measure(tester, chambers);
       final reason = '$f';
 
-      // Only what moves is re-recorded: the empty circles' motes, the orb,
-      // the drifting motes and the pulsing button, each on its own layer.
-      // Re-recording the card for any of them was 83–120 render objects.
-      expect(f.painted, lessThan(30), reason: reason);
-      // The button's glow and pulse; nothing else rebuilds to animate.
-      expect(f.rebuilt, lessThanOrEqualTo(2), reason: reason);
-      // The background's motes are batched by colour, size and strength,
-      // the circles' ticks in one batch each. A circle per mote was ~160.
+      // Only what moves is re-recorded: the knot turning between a pair and
+      // the background's motes, each on a layer of its own. Re-recording the
+      // card for any of them was 83–120 render objects.
+      expect(f.painted, lessThan(20), reason: reason);
+      // Nothing rebuilds to animate. (The knot's portraits decode in real
+      // time, and once in a while land in the measured frame: one rebuild.)
+      expect(f.rebuilt, lessThanOrEqualTo(1), reason: reason);
+      // The background's motes are batched by colour, size and strength, the
+      // knot's grains by tone. A circle per mote was ~160.
       expect(f.census.counts['drawCircle'] ?? 0, lessThan(30), reason: reason);
       expect(f.census.draws, lessThan(100), reason: reason);
-      // The orb's glow and the empty circles' motes are gradients now. What
-      // is left are still rectangles' and the close buttons' BoxShadows,
-      // which do not animate: the card, the header bar, the close buttons
-      // and the fusion button's two.
-      expect(
-        f.census.blurred,
-        lessThanOrEqualTo(chambers == _Chambers.both ? 6 : 4),
-        reason: reason,
-      );
+      // No glows to blur: the floor's light is gradients, and the buttons
+      // are brackets, not shadows.
+      expect(f.census.blurred, 0, reason: reason);
     });
   }
 }

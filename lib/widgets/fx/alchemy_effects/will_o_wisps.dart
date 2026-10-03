@@ -30,10 +30,12 @@ abstract final class _Wisps {
   static (double, double, double) _at(int i, double t) {
     final (hx, hy) = _home[i];
     final k = i * 6;
-    final x = hx +
+    final x =
+        hx +
         0.42 * math.sin(t * _fq[k] + _ph[k]) +
         0.16 * math.sin(t * _fq[k + 1] * 2.3 + _ph[k + 1]);
-    final y = hy +
+    final y =
+        hy +
         0.22 * math.sin(t * _fq[k + 2] + _ph[k + 2]) +
         0.08 * math.sin(t * _fq[k + 3] * 2.7 + _ph[k + 3]);
     final z = math.sin(t * _fq[k + 4] * 0.8 + _ph[k + 4]);
@@ -78,7 +80,8 @@ abstract final class _Wisps {
       // dimmer and smaller for the distance.
       if ((z > 0) != front) continue;
       final depth = 1 + 0.18 * z;
-      final flicker = (0.82 +
+      final flicker =
+          (0.82 +
               0.12 * math.sin(t * 5.3 + i * 1.9) +
               0.06 * math.sin(t * 11.7 + i)) *
           (_frac(t * 0.13 + i * 0.29) < 0.04 ? 0.45 : 1.0);

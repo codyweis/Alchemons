@@ -47,8 +47,7 @@ abstract final class _Volcanic {
     bool dark,
   ) {
     final cx = at.dx, cy = at.dy;
-    final flicker =
-        0.85 + 0.15 * math.sin(t * 7.3) * math.sin(t * 3.1 + 1.3);
+    final flicker = 0.85 + 0.15 * math.sin(t * 7.3) * math.sin(t * 3.1 + 1.3);
 
     // ── the molten glow at its feet, and on its back ──
     final molten = dark ? const Color(0xFFFF5A12) : const Color(0xFFD2400C);
@@ -61,15 +60,7 @@ abstract final class _Volcanic {
       molten,
       (dark ? 0.2 : 0.14) * flicker * o,
     );
-    _pool(
-      c,
-      cx,
-      cy + r * 0.66,
-      r * 0.9,
-      r * 0.22,
-      molten,
-      0.46 * flicker * o,
-    );
+    _pool(c, cx, cy + r * 0.66, r * 0.9, r * 0.22, molten, 0.46 * flicker * o);
     _pool(
       c,
       cx - r * 0.04,
@@ -87,7 +78,8 @@ abstract final class _Volcanic {
       final u = _frac(t / p + _h(i, 67));
       if (u > 0.92) continue;
       final side = i.isEven ? 1.0 : -1.0;
-      final x = side * (0.3 + 0.4 * _h(i, 68)) +
+      final x =
+          side * (0.3 + 0.4 * _h(i, 68)) +
           0.08 * math.sin(t * 0.9 + i * 2.1) * u;
       final y = -0.3 - 0.95 * u;
       b.add(0, cx + x * r, cy + y * r);
@@ -96,10 +88,7 @@ abstract final class _Volcanic {
       c,
       0,
       (r * 0.065).clamp(1.8, 3.8),
-      _fade(
-        dark ? const Color(0xFF6E5A52) : const Color(0xFF4A3A34),
-        0.75 * o,
-      ),
+      _fade(dark ? const Color(0xFF6E5A52) : const Color(0xFF4A3A34), 0.75 * o),
     );
 
     _Atlas.clear();
@@ -107,8 +96,7 @@ abstract final class _Volcanic {
     final emberSize = math.max(4.5, r * 0.2);
     for (var i = 0; i < _embers; i++) {
       final u = _frac(t / _ep[i] + _eph[i]);
-      final x =
-          _ex[i] * (1 - 0.25 * u) + math.sin(u * 6 + i * 1.3) * 0.06 * u;
+      final x = _ex[i] * (1 - 0.25 * u) + math.sin(u * 6 + i * 1.3) * 0.06 * u;
       final y = _ey[i] - _rise[i] * u;
       final env = _smooth(0.0, 0.06, u) * (1 - _smooth(0.75, 1.0, u));
       _Atlas.add(

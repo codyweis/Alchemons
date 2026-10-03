@@ -1440,30 +1440,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const _EtchedDivider(label: 'GENERAL SETTINGS'),
                   const SizedBox(height: 14),
 
-                  _ForgePanel(
-                    accentBar: t.amber,
-                    padding: EdgeInsets.zero,
-                    child: ListTile(
-                      leading: Icon(AppIcons.science_rounded, color: t.amber),
-                      title: Text('ALCHEMY CHAMBER', style: _label(t)),
-                      subtitle: Text(
-                        'An interactive experiment in elemental matter',
-                        style: _body(t),
+                  if (_debugToolsEnabled) ...[
+                    _ForgePanel(
+                      accentBar: t.amber,
+                      padding: EdgeInsets.zero,
+                      child: ListTile(
+                        leading: Icon(AppIcons.science_rounded, color: t.amber),
+                        title: Text('ALCHEMY CHAMBER', style: _label(t)),
+                        subtitle: Text(
+                          'An interactive experiment in elemental matter',
+                          style: _body(t),
+                        ),
+                        trailing: Icon(
+                          Icons.chevron_right_rounded,
+                          color: t.amber,
+                        ),
+                        onTap: context.soundAction(() {
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => const AlchemyChamberScreen(),
+                            ),
+                          );
+                        }),
                       ),
-                      trailing: Icon(
-                        Icons.chevron_right_rounded,
-                        color: t.amber,
-                      ),
-                      onTap: context.soundAction(() {
-                        Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => const AlchemyChamberScreen(),
-                          ),
-                        );
-                      }),
                     ),
-                  ),
-                  const SizedBox(height: 10),
+                    const SizedBox(height: 10),
+                  ],
 
                   // ── Appearance ────────────────────────────────────────────
                   _ForgePanel(
