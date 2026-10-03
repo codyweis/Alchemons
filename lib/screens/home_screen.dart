@@ -1319,9 +1319,9 @@ class _HomeScreenState extends State<HomeScreen>
       _showNotification(
         NotificationBanner(
           type: NotificationBannerType.wildernessSpawn,
-          title: 'SPECIMENS DETECTED',
+          title: 'Wild Alchemons',
           subtitle:
-              'Wild specimens available in $scenesWithSpawns location${scenesWithSpawns > 1 ? 's' : ''}',
+              'Detected in $scenesWithSpawns realm${scenesWithSpawns > 1 ? 's' : ''}',
           count: totalSpawns,
           stateKey: stateKey,
           onTap: () {
@@ -1505,8 +1505,10 @@ class _HomeScreenState extends State<HomeScreen>
       _showNotification(
         NotificationBanner(
           type: NotificationBannerType.eggReady,
-          title: 'Alchemon ready to extract!',
-          subtitle: 'Tap to open the Extraction Chamber',
+          title: readyEggs > 1
+              ? '$readyEggs cultivations ready'
+              : 'Cultivation ready',
+          subtitle: readyEggs > 1 ? 'Tap to extract them' : 'Tap to extract it',
           count: readyEggs,
           stateKey: stateKey,
           onTap: () {
@@ -1623,8 +1625,10 @@ class _HomeScreenState extends State<HomeScreen>
       _showNotification(
         NotificationBanner(
           type: NotificationBannerType.harvestReady,
-          title: 'HARVEST COMPLETE',
-          subtitle: 'Tap to collect resources',
+          title: readyHarvests > 1
+              ? '$readyHarvests harvests ready'
+              : 'Harvest ready',
+          subtitle: 'Tap to collect',
           count: readyHarvests,
           stateKey: stateKey,
           onTap: () {
@@ -2087,21 +2091,10 @@ class _HomeScreenState extends State<HomeScreen>
                                   Positioned(
                                     top: 0,
                                     right: 10,
-                                    child: Container(
-                                      width: 12,
-                                      height: 12,
-                                      decoration: BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.red.withValues(
-                                              alpha: 0.6,
-                                            ),
-                                            blurRadius: 8,
-                                            spreadRadius: 2,
-                                          ),
-                                        ],
+                                    child: HomeNoticeDot(
+                                      color: homeNoticeAccent(
+                                        NotificationBannerType.wildernessSpawn,
+                                        dark: theme.isDark,
                                       ),
                                     ),
                                   ),

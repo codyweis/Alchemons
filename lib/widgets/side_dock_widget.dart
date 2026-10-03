@@ -4,6 +4,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/dock_emblems.dart';
+import 'package:alchemons/widgets/notification_banner_system.dart';
 
 class SideDockFloating extends StatelessWidget {
   final FactionTheme theme;
@@ -220,7 +221,16 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
                 ),
           ),
           if (widget.showDot)
-            const Positioned(right: -2, top: -2, child: _RedDotTiny()),
+            Positioned(
+              right: -2,
+              top: -2,
+              child: HomeNoticeDot(
+                color: homeNoticeAccent(
+                  NotificationBannerType.harvestReady,
+                  dark: widget.theme.isDark,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -585,29 +595,6 @@ class _EnhanceRevealWrapper extends StatelessWidget {
         );
       },
       child: child,
-    );
-  }
-}
-
-class _RedDotTiny extends StatelessWidget {
-  const _RedDotTiny();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(
-        color: Colors.red,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.red.withValues(alpha: 0.6),
-            blurRadius: 6,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
     );
   }
 }

@@ -353,7 +353,7 @@ class _MapScreenState extends State<MapScreen>
           message:
               'Tap a realm to enter it. Its circle pulses green when a creature '
               'has been detected there.\n\nA successful fusion sends a vial to '
-              'your Extraction Chamber; a successful harvest captures the '
+              'your cultivations; a successful harvest captures the '
               'creature itself. Wild Alchemons are stronger and have better '
               'stats.',
         ),

@@ -4,7 +4,7 @@ import 'dart:math' as math;
 
 import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,22 +13,38 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 // ============================================================================
-// NOTIFICATION BANNER SYSTEM
+// HOME NOTICES
 // ============================================================================
+//
+// The home screen's "something is ready" slips: a cultivation to extract, a
+// harvest to collect, wild Alchemons to go and find. Each is a bracket slip in
+// the same chrome as the rest of the game, with a small symbol in grains so
+// the three read apart even folded down to a tab: a sphere (the cultivation),
+// a stream pouring onto a heap (the harvest), a ring with a lit point in it
+// (the wild map's circle with something detected). The grains are a fixed
+// scatter painted once; nothing here ticks.
 
-enum NotificationBannerType {
-  eggReady,
-  harvestReady,
-  dailyReward,
-  eventActive,
-  wildernessSpawn,
-}
+/// The names are stored in notification_dismissals rows (see [toKey]), so a
+/// rename would bring back every banner a player has already dismissed.
+enum NotificationBannerType { eggReady, harvestReady, wildernessSpawn }
 
 extension NotificationBannerTypeExtension on NotificationBannerType {
-  String toKey() {
-    return toString().split('.').last;
-  }
+  String toKey() => name;
 }
+
+/// Each notice's colour, readable on the theme's ground. The dock buttons
+/// that open the same screens wear their dot in it ([HomeNoticeDot]).
+Color homeNoticeAccent(NotificationBannerType type, {required bool dark}) =>
+    switch (type) {
+      // A ready cultivation's gold heartbeat.
+      NotificationBannerType.eggReady =>
+        dark ? const Color(0xFFE4C16A) : const Color(0xFF9A6B12),
+      // The Harvest screen's own "chamber full" green.
+      NotificationBannerType.harvestReady =>
+        dark ? const Color(0xFF8FD99F) : const Color(0xFF2E7D45),
+      NotificationBannerType.wildernessSpawn =>
+        dark ? const Color(0xFF7CC6E0) : const Color(0xFF1F6A84),
+    };
 
 class NotificationBanner {
   final NotificationBannerType type;
@@ -59,11 +75,23 @@ class NotificationBanner {
   int get hashCode => Object.hash(type, stateKey);
 }
 
+BracketPalette _paletteOf(BuildContext context) {
+  try {
+    return BracketPalette.of(context);
+  } catch (_) {
+    return BracketPalette.dark;
+  }
+}
+
 class NotificationBannerWidget extends StatefulWidget {
   final NotificationBanner notification;
   final VoidCallback onDismiss;
   final VoidCallback? onExpand;
   final bool isExpanded;
+
+  /// Which edge the stack is docked to: it slides in from there, and a swipe
+  /// back toward it folds the notice down.
+  final bool onRight;
 
   const NotificationBannerWidget({
     super.key,
@@ -71,6 +99,7 @@ class NotificationBannerWidget extends StatefulWidget {
     required this.onDismiss,
     this.onExpand,
     this.isExpanded = false,
+    this.onRight = true,
   });
 
   @override
@@ -79,6 +108,9 @@ class NotificationBannerWidget extends StatefulWidget {
 }
 
 class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
+  static const double _expandedWidth = 272;
+  static const double _tabSize = 50;
+
   // Drag state
   double _dragOffset = 0.0;
   bool _isDragging = false;
@@ -98,48 +130,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
     });
   }
 
-  // --- Helpers ----------------------------------------------------------------
-
-  ForgeTokens get _t {
-    try {
-      return ForgeTokens(context.read<FactionTheme>());
-    } catch (_) {
-      return ForgeTokens(FactionTheme.scorchForge());
-    }
-  }
-
-  Color _getAccentColor() {
-    final t = _t;
-    switch (widget.notification.type) {
-      case NotificationBannerType.eggReady:
-        return t.amberBright;
-      case NotificationBannerType.harvestReady:
-        return t.success;
-      case NotificationBannerType.dailyReward:
-        return const Color(0xFFB089FF);
-      case NotificationBannerType.eventActive:
-        return t.teal;
-      case NotificationBannerType.wildernessSpawn:
-        return const Color(0xFFA3E635);
-    }
-  }
-
-  IconData _getBannerIcon() {
-    switch (widget.notification.type) {
-      case NotificationBannerType.eggReady:
-        return AppIcons.science_rounded;
-      case NotificationBannerType.harvestReady:
-        return AppIcons.science_rounded;
-      case NotificationBannerType.dailyReward:
-        return AppIcons.auto_awesome_rounded;
-      case NotificationBannerType.eventActive:
-        return AppIcons.stars_rounded;
-      case NotificationBannerType.wildernessSpawn:
-        return AppIcons.explore_rounded;
-    }
-  }
-
-  // --- Drag handlers (for swipe-to-minimize) ----------------------------------
+  // --- Drag handlers (swipe toward the edge to fold) --------------------------
 
   void _handleDragStart(DragStartDetails details) {
     if (!widget.isExpanded) return;
@@ -151,8 +142,9 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
     if (!widget.isExpanded) return;
 
     setState(() {
-      // Only allow dragging to the right (minimize direction)
-      _dragOffset = math.max(0, _dragOffset + details.delta.dx);
+      // Only toward the docked edge.
+      final next = _dragOffset + details.delta.dx;
+      _dragOffset = widget.onRight ? math.max(0, next) : math.min(0, next);
     });
   }
 
@@ -160,303 +152,144 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
     if (!widget.isExpanded) return;
 
     const minimizeThreshold = 80.0;
-    final shouldMinimize = _dragOffset > minimizeThreshold;
+    final shouldMinimize = _dragOffset.abs() > minimizeThreshold;
 
     _isDragging = false;
 
     if (shouldMinimize) {
       HapticFeedback.lightImpact();
-      // Notify parent to collapse; snapping back will be handled by
-      // the rebuild with isExpanded = false.
+      // The parent folds it; the rebuild with isExpanded = false shows the tab.
       widget.onExpand?.call();
-      setState(() {
-        _dragOffset = 0.0;
-      });
     } else {
-      // Just snap back - much cheaper than a custom spring animation
       HapticFeedback.selectionClick();
-      setState(() {
-        _dragOffset = 0.0;
-      });
     }
+    setState(() => _dragOffset = 0.0);
   }
 
   // --- UI pieces --------------------------------------------------------------
 
-  Widget _buildCollapsedView() {
-    final t = _t;
-    final accent = _getAccentColor();
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [t.bg3, t.bg2],
-        ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: accent.withValues(alpha: 0.55), width: 1.6),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
+  Widget _frame({
+    required Color accent,
+    required BracketPalette palette,
+    required Widget child,
+    double bracketSize = 9,
+  }) {
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: accent.withValues(alpha: 0.85),
+        bracketSize: bracketSize,
+        strokeWidth: 1.2,
       ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(7),
-              child: CustomPaint(
-                painter: _ForgeScanlinePainter(
-                  lineColor: Colors.black.withValues(alpha: 0.08),
-                ),
+      child: ColoredBox(color: palette.chromeFill(), child: child),
+    );
+  }
+
+  Widget _buildCollapsedView(BracketPalette palette, Color accent) {
+    final n = widget.notification;
+    // A wilderness count is grains on the ground, not things to act on.
+    final showCount =
+        n.count > 1 && n.type != NotificationBannerType.wildernessSpawn;
+    return _frame(
+      accent: accent,
+      palette: palette,
+      bracketSize: 8,
+      child: SizedBox(
+        width: _tabSize,
+        height: _tabSize,
+        child: Stack(
+          children: [
+            Center(
+              child: _NoticeSigil(
+                type: n.type,
+                accent: accent,
+                dark: palette.isDark,
+                size: 36,
               ),
             ),
-          ),
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.all(9),
-              child: CustomPaint(
-                painter: AlchemicalPatternPainter(
-                  color: accent.withValues(alpha: 0.16),
-                ),
-              ),
-            ),
-          ),
-          Center(child: Icon(_getBannerIcon(), color: accent, size: 24)),
-          if (widget.notification.count > 1 &&
-              widget.notification.type !=
-                  NotificationBannerType.wildernessSpawn)
-            Positioned(
-              top: 2,
-              right: 2,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: accent,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: t.bg0, width: 1.5),
-                ),
-                constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                child: Center(
-                  child: Text(
-                    '${widget.notification.count}',
-                    style: TextStyle(
-                      color: t.bg0,
-                      fontSize: AppType.caption,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'monospace',
-                    ),
+            if (showCount)
+              Positioned(
+                right: 5,
+                bottom: 3,
+                child: Text(
+                  '${n.count}',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: accent,
+                    fontSize: AppType.caption,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildExpandedView() {
-    final t = _t;
-    final accent = _getAccentColor();
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 300),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [t.bg1, t.bg2],
-        ),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(8),
-          bottomLeft: Radius.circular(8),
-        ),
-        border: Border.all(color: t.borderDim, width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 14,
-            offset: const Offset(0, 7),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                bottomLeft: Radius.circular(8),
+  Widget _buildExpandedView(BracketPalette palette, Color accent) {
+    final n = widget.notification;
+    return SizedBox(
+      width: _expandedWidth,
+      child: _frame(
+        accent: accent,
+        palette: palette,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
+          child: Row(
+            children: [
+              _NoticeSigil(
+                type: n.type,
+                accent: accent,
+                dark: palette.isDark,
+                size: 38,
               ),
-              child: CustomPaint(
-                painter: _ForgeScanlinePainter(
-                  lineColor: Colors.black.withValues(alpha: 0.07),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.85),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  bottomLeft: Radius.circular(8),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 10,
-            top: 8,
-            child: SizedBox(
-              width: 36,
-              height: 36,
-              child: CustomPaint(
-                painter: AlchemicalPatternPainter(
-                  color: accent.withValues(alpha: 0.14),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const NeverScrollableScrollPhysics(),
-              child: SizedBox(
-                width: 266,
-                child: Row(
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: t.bg3.withValues(alpha: 0.85),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: accent.withValues(alpha: 0.5),
-                          width: 1,
-                        ),
-                      ),
-                      child: Icon(_getBannerIcon(), color: accent, size: 21),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  widget.notification.title.toUpperCase(),
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: t.textPrimary,
-                                    fontSize: AppType.body,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.1,
-                                    shadows: const [
-                                      Shadow(
-                                        color: Colors.black54,
-                                        blurRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              if (widget.notification.count > 1 &&
-                                  widget.notification.type !=
-                                      NotificationBannerType
-                                          .wildernessSpawn) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: accent.withValues(alpha: 0.25),
-                                    borderRadius: BorderRadius.circular(3),
-                                    border: Border.all(
-                                      color: accent.withValues(alpha: 0.65),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    '${widget.notification.count}',
-                                    style: TextStyle(
-                                      color: accent,
-                                      fontSize: AppType.caption,
-                                      fontWeight: FontWeight.w900,
-                                      fontFamily: 'monospace',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          if (widget.notification.subtitle != null) ...[
-                            const SizedBox(height: 3),
-                            Text(
-                              widget.notification.subtitle!,
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.textSecondary,
-                                fontSize: AppType.caption,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.7,
-                              ),
-                            ),
-                          ],
-                        ],
+                    Text(
+                      n.title.toUpperCase(),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: palette.ink,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.0,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: context.soundAction(() {
-                        HapticFeedback.lightImpact();
-                        widget.onDismiss();
-                      }),
-                      child: SizedBox(
-                        width: AppTap.min,
-                        height: AppTap.min,
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: t.bg3.withValues(alpha: 0.75),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: t.borderDim.withValues(alpha: 0.9),
-                                width: 1,
-                              ),
-                            ),
-                            child: Icon(
-                              AppIcons.close_rounded,
-                              color: t.textSecondary,
-                              size: 22,
-                            ),
-                          ),
-                        ),
+                    if (n.subtitle != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        n.subtitle!,
+                        style: bracketText(context, 12, palette.muted),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
-            ),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: context.soundAction(() {
+                  HapticFeedback.lightImpact();
+                  widget.onDismiss();
+                }),
+                child: SizedBox(
+                  width: AppTap.min,
+                  height: AppTap.min,
+                  child: Center(
+                    child: Icon(
+                      AppIcons.close_rounded,
+                      color: palette.muted,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -465,11 +298,16 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // We apply drag transform only when expanded (so minimized bubble stays put)
-    final bool applyDrag = widget.isExpanded && _dragOffset > 0;
+    final palette = _paletteOf(context);
+    final accent = homeNoticeAccent(
+      widget.notification.type,
+      dark: palette.isDark,
+    );
+    final onRight = widget.onRight;
+    final edge = onRight ? Alignment.topRight : Alignment.topLeft;
 
     return AnimatedSlide(
-      offset: _isShown ? Offset.zero : const Offset(1.0, 0.0),
+      offset: _isShown ? Offset.zero : Offset(onRight ? 1.0 : -1.0, 0.0),
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeOutCubic,
       child: AnimatedOpacity(
@@ -489,19 +327,42 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
           onHorizontalDragStart: _handleDragStart,
           onHorizontalDragUpdate: _handleDragUpdate,
           onHorizontalDragEnd: _handleDragEnd,
-          child: Container(
-            margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: onRight ? 0 : 12,
+              right: onRight ? 12 : 0,
+              top: 4,
+              bottom: 4,
+            ),
             child: Transform.translate(
-              offset: applyDrag ? Offset(_dragOffset, 0) : Offset.zero,
+              offset: Offset(widget.isExpanded ? _dragOffset : 0, 0),
               child: AnimatedCrossFade(
                 duration: const Duration(milliseconds: 200),
-                firstChild: _buildCollapsedView(),
-                secondChild: _buildExpandedView(),
+                firstChild: _buildCollapsedView(palette, accent),
+                secondChild: _buildExpandedView(palette, accent),
                 crossFadeState: widget.isExpanded
                     ? CrossFadeState.showSecond
                     : CrossFadeState.showFirst,
-                // Keep size transitions smooth
                 sizeCurve: Curves.easeOut,
+                alignment: edge,
+                // The default pins the outgoing child to the incoming one's
+                // width, which squeezes the slip into the tab's 50px while
+                // it fades. Pinned to the edge only, each keeps its own size
+                // and the size animation's clip does the rest.
+                layoutBuilder: (top, topKey, bottom, bottomKey) => Stack(
+                  clipBehavior: Clip.none,
+                  alignment: edge,
+                  children: [
+                    Positioned(
+                      key: bottomKey,
+                      top: 0,
+                      right: onRight ? 0 : null,
+                      left: onRight ? null : 0,
+                      child: bottom,
+                    ),
+                    KeyedSubtree(key: topKey, child: top),
+                  ],
+                ),
               ),
             ),
           ),
@@ -511,61 +372,241 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
   }
 }
 
-class _ForgeScanlinePainter extends CustomPainter {
-  final Color lineColor;
+// ============================================================================
+// THE GRAIN SYMBOLS
+// ============================================================================
 
-  const _ForgeScanlinePainter({required this.lineColor});
+class _Grain {
+  const _Grain(this.x, this.y, this.r, this.light);
+
+  /// Position in the symbol's box, -1..1 on each axis.
+  final double x, y;
+
+  /// Radius as a fraction of the box's half-size.
+  final double r;
+
+  /// How lit the grain is, 0..1.
+  final double light;
+}
+
+/// A cultivation: a sphere of grains, heavier at the rim the way the
+/// chambers' spheres are, lit from the upper left, with a bright knot at the
+/// heart for the ready heartbeat.
+final List<_Grain> _sphereGrains = () {
+  final rng = math.Random(7);
+  const lx = -0.55, ly = -0.6;
+  final lz = math.sqrt(1 - lx * lx - ly * ly);
+  final out = <_Grain>[];
+  while (out.length < 150) {
+    final x = rng.nextDouble() * 2 - 1;
+    final y = rng.nextDouble() * 2 - 1;
+    final d2 = x * x + y * y;
+    if (d2 > 1) continue;
+    if (rng.nextDouble() > 0.3 + 0.7 * math.sqrt(d2)) continue;
+    final z = math.sqrt(1 - d2);
+    final lambert = math.max(0.0, x * lx + y * ly + z * lz);
+    out.add(
+      _Grain(
+        x * 0.8,
+        y * 0.8,
+        0.035 + 0.03 * rng.nextDouble(),
+        0.15 + 0.75 * lambert,
+      ),
+    );
+  }
+  for (var i = 0; i < 12; i++) {
+    final a = rng.nextDouble() * math.pi * 2;
+    final d = math.sqrt(rng.nextDouble()) * 0.17;
+    out.add(
+      _Grain(
+        math.cos(a) * d,
+        math.sin(a) * d,
+        0.045 + 0.025 * rng.nextDouble(),
+        1,
+      ),
+    );
+  }
+  return out;
+}();
+
+/// A harvest: a few motes falling onto a low heap, the heap brightest where
+/// they land. The stream stops short of the heap and the heap is wide and
+/// flat, or the two read as one shape (a little tree).
+final List<_Grain> _harvestGrains = () {
+  final rng = math.Random(19);
+  final out = <_Grain>[];
+  // The falling motes, sparser and a touch wider toward the bottom.
+  for (var i = 0; i < 14; i++) {
+    final t = rng.nextDouble();
+    final y = -0.82 + t * 0.92;
+    out.add(
+      _Grain(
+        (rng.nextDouble() - 0.5) * (0.05 + 0.12 * t),
+        y,
+        0.028 + 0.02 * rng.nextDouble(),
+        0.4 + 0.45 * t,
+      ),
+    );
+  }
+  // The heap, under the curve top(x) = 0.78 − 0.3·(1 − (x/0.86)²).
+  while (out.length < 14 + 130) {
+    final x = (rng.nextDouble() * 2 - 1) * 0.86;
+    final top = 0.78 - 0.3 * (1 - (x / 0.86) * (x / 0.86));
+    final y = 0.78 - rng.nextDouble() * (0.78 - top);
+    final nearTop = 1 - ((y - top) / math.max(0.05, 0.78 - top));
+    final nearMiddle = 1 - x.abs() / 0.86;
+    out.add(
+      _Grain(
+        x,
+        y,
+        0.035 + 0.03 * rng.nextDouble(),
+        0.12 + 0.5 * nearTop * nearTop + 0.35 * nearMiddle,
+      ),
+    );
+  }
+  // A few thrown up where the stream meets the heap.
+  for (var i = 0; i < 8; i++) {
+    final a = -math.pi * (0.1 + 0.8 * rng.nextDouble());
+    final d = 0.1 + 0.16 * rng.nextDouble();
+    out.add(
+      _Grain(
+        math.cos(a) * d,
+        0.46 + math.sin(a) * d * 0.6,
+        0.025 + 0.015 * rng.nextDouble(),
+        0.75,
+      ),
+    );
+  }
+  return out;
+}();
+
+/// Wild Alchemons: the wild map's faint sand circle with one point in it lit,
+/// the way a realm looks when something has been detected there.
+final List<_Grain> _wildGrains = () {
+  final rng = math.Random(31);
+  final out = <_Grain>[];
+  for (var i = 0; i < 90; i++) {
+    final a = rng.nextDouble() * math.pi * 2;
+    final d = 0.72 + (rng.nextDouble() - 0.5) * 0.16;
+    out.add(
+      _Grain(
+        math.cos(a) * d,
+        math.sin(a) * d,
+        0.032 + 0.028 * rng.nextDouble(),
+        0.35 + 0.4 * rng.nextDouble(),
+      ),
+    );
+  }
+  for (var i = 0; i < 26; i++) {
+    final a = rng.nextDouble() * math.pi * 2;
+    final d = math.sqrt(rng.nextDouble()) * 0.58;
+    out.add(
+      _Grain(
+        math.cos(a) * d,
+        math.sin(a) * d,
+        0.025 + 0.02 * rng.nextDouble(),
+        0.08 + 0.12 * rng.nextDouble(),
+      ),
+    );
+  }
+  const cx = 0.2, cy = -0.16;
+  for (var i = 0; i < 16; i++) {
+    final a = rng.nextDouble() * math.pi * 2;
+    final d = math.pow(rng.nextDouble(), 1.4) * 0.16;
+    out.add(
+      _Grain(
+        cx + math.cos(a) * d,
+        cy + math.sin(a) * d,
+        0.035 + 0.035 * (1 - d / 0.16),
+        1 - d / 0.2,
+      ),
+    );
+  }
+  return out;
+}();
+
+class _NoticeSigil extends StatelessWidget {
+  const _NoticeSigil({
+    required this.type,
+    required this.accent,
+    required this.dark,
+    required this.size,
+  });
+
+  final NotificationBannerType type;
+  final Color accent;
+  final bool dark;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    // Its own layer, so the slide-in and the fold do not repaint the grains.
+    return RepaintBoundary(
+      child: SizedBox.square(
+        dimension: size,
+        child: CustomPaint(painter: _NoticeSigilPainter(type, accent, dark)),
+      ),
+    );
+  }
+}
+
+class _NoticeSigilPainter extends CustomPainter {
+  _NoticeSigilPainter(this.type, this.accent, this.dark);
+
+  final NotificationBannerType type;
+  final Color accent;
+  final bool dark;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = lineColor
-      ..strokeWidth = 1;
-    for (double y = 1; y < size.height; y += 3) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    final grains = switch (type) {
+      NotificationBannerType.eggReady => _sphereGrains,
+      NotificationBannerType.harvestReady => _harvestGrains,
+      NotificationBannerType.wildernessSpawn => _wildGrains,
+    };
+    final half = size.shortestSide / 2;
+    final centre = size.center(Offset.zero);
+    // Unlit grains sink into the ground; lit ones run to the accent and, on
+    // the dark theme, a little past it toward cream.
+    final lit = dark
+        ? Color.lerp(accent, const Color(0xFFFFF4DC), 0.35)!
+        : accent;
+    final dim = accent.withValues(alpha: dark ? 0.22 : 0.28);
+    final paint = Paint();
+    for (final g in grains) {
+      paint.color = Color.lerp(dim, lit, g.light.clamp(0.0, 1.0))!;
+      canvas.drawCircle(
+        centre + Offset(g.x, g.y) * half,
+        math.max(0.6, g.r * half),
+        paint,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _ForgeScanlinePainter oldDelegate) {
-    return oldDelegate.lineColor != lineColor;
-  }
+  bool shouldRepaint(covariant _NoticeSigilPainter old) =>
+      old.type != type || old.accent != accent || old.dark != dark;
 }
 
-// ============================================================================
-// ALCHEMICAL PATTERN PAINTER
-// ============================================================================
+/// The dot a dock button wears while there is something ready behind it, in
+/// the colour of the notice for the same thing.
+class HomeNoticeDot extends StatelessWidget {
+  const HomeNoticeDot({super.key, required this.color, this.size = 11});
 
-class AlchemicalPatternPainter extends CustomPainter {
   final Color color;
-
-  AlchemicalPatternPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-    final radius = math.min(size.width, size.height) / 3;
-
-    canvas.drawCircle(Offset(centerX, centerY), radius, paint);
-    canvas.drawCircle(Offset(centerX, centerY), radius * 0.7, paint);
-
-    final trianglePath = Path();
-    trianglePath.moveTo(centerX, centerY - radius * 0.5);
-    trianglePath.lineTo(centerX - radius * 0.43, centerY + radius * 0.25);
-    trianglePath.lineTo(centerX + radius * 0.43, centerY + radius * 0.25);
-    trianglePath.close();
-    canvas.drawPath(trianglePath, paint);
-  }
+  final double size;
 
   @override
-  bool shouldRepaint(covariant AlchemicalPatternPainter oldDelegate) {
-    return oldDelegate.color != color;
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: BracketPalette.dark.bg0, width: 1.6),
+      ),
+    );
   }
 }
 
@@ -591,11 +632,10 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
 
   // ── Where the stack sits ──────────────────────────────────────────────
   //
-  // Banners cover the top-right corner, which is also where the currency
-  // and the party strip live, so the player needs to be able to put them
-  // somewhere else. Moving them is a long press and a drag: tap already
-  // expands a banner and a horizontal swipe already dismisses one, so a
-  // plain pan had nowhere to go without taking one of those away.
+  // Wherever it starts, it covers something on a phone, so the player needs
+  // to be able to put it somewhere else. Moving it is a long press and a
+  // drag: tap already expands a notice and a horizontal swipe already folds
+  // one, so a plain pan had nowhere to go without taking one of those away.
   static const _prefsSideKey = 'home_banner_right_side';
   static const _prefsDyKey = 'home_banner_dy';
 
@@ -844,6 +884,7 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
                       ),
                       notification: notification,
                       isExpanded: _expandedStates[notification.type] ?? false,
+                      onRight: _onRight,
                       onExpand: () => _toggleExpanded(notification.type),
                       onDismiss: () => _removeBanner(notification),
                     ),

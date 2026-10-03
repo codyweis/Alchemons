@@ -199,7 +199,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
         if (extractionPending ||
             (!extractionTutorialComplete && !fieldTutorialComplete)) {
           // State 1: Extraction pending (starter granted, waiting for extraction)
-          message = 'Extract your vial in the Extraction Chamber first';
+          message = 'Extract your vial in Cultivations first';
           iconData = AppIcons.science_rounded;
         } else if (!fieldTutorialComplete) {
           // State 2: Extraction done, field tutorial not started

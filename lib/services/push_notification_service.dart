@@ -460,13 +460,13 @@ class PushNotificationService {
     final scheduledDate = tz.TZDateTime.from(localSpawnTime, tz.local);
     await _notifications.zonedSchedule(
       wildernessScheduledId,
-      'Wild Creatures Detected!',
-      'New specimens may be waiting in ${_wildernessSceneLabel(sceneId)}',
+      'Wild Alchemons Detected!',
+      'New wild Alchemons may be waiting in ${_wildernessSceneLabel(sceneId)}',
       scheduledDate,
       _notificationDetails(
         channelId: 'wilderness_spawns',
         channelName: 'Wilderness Spawns',
-        channelDescription: 'Notifications when wild creatures spawn',
+        channelDescription: 'Notifications when wild Alchemons appear',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
       ),
@@ -498,12 +498,12 @@ class PushNotificationService {
 
     await _notifications.show(
       wildernessConsolidatedId,
-      'Wild Creatures Detected!',
-      'Specimens spotted in $locationCount location${locationCount > 1 ? 's' : ''}',
+      'Wild Alchemons Detected!',
+      'Spotted in $locationCount realm${locationCount > 1 ? 's' : ''}',
       _notificationDetails(
         channelId: 'wilderness_spawns',
         channelName: 'Wilderness Spawns',
-        channelDescription: 'Notifications when wild creatures spawn',
+        channelDescription: 'Notifications when wild Alchemons appear',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
         silentUpdate: silentUpdate,
@@ -555,7 +555,7 @@ class PushNotificationService {
 
     await _notifications.zonedSchedule(
       harvestScheduledId,
-      'Harvest Complete!',
+      'Harvest Ready!',
       'Your alchemical harvest is ready for collection',
       scheduledDate,
       _notificationDetails(
