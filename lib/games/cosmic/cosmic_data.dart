@@ -1893,6 +1893,10 @@ const Set<String> kPolishedDungeons = <String>{
   // Floor rebuild (only shadow holds you; the hub hall that grows, the
   // Eclipse, the reworked Solarin), played on device.
   'Light',
+  // Dark — promoted 2026-10-03 on the author's account, after THE BLACK SUN
+  // rebuild (a portal pair per Dark, the party split across rooms, the
+  // blood bridge), played on device.
+  'Dark',
 };
 
 /// True if [element]'s descent is ready for a player: built AND polished.

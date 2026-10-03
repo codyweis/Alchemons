@@ -2070,18 +2070,20 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
-**FIFTEEN of seventeen (2026-09-30): Fire · Air · Water · Earth · Lightning ·
-Steam · Lava · Poison · Mud · Ice · Dust · Crystal · Plant · Spirit · Light.**
-**LIGHT was promoted 2026-09-30** on the author's account, after THE SHADOW
+**SIXTEEN of seventeen (2026-10-03): Fire · Air · Water · Earth · Lightning ·
+Steam · Lava · Poison · Mud · Ice · Dust · Crystal · Plant · Spirit · Light ·
+Dark.** **DARK was promoted 2026-10-03** on the author's account, after THE
+BLACK SUN rebuild (§ "DARK — THE BLACK SUN") was played on device. Blood
+alone remains. **LIGHT was promoted 2026-09-30** on the author's account, after THE SHADOW
 FLOOR rebuild (plus the Eclipse and the reworked Solarin) was played on
-device. Dark and Blood remain. **PLANT and SPIRIT were promoted 2026-09-28** on the author's account —
+device. **PLANT and SPIRIT were promoted 2026-09-28** on the author's account —
 Plant after the Conservatory redesign (§9.20), Spirit after THE UNFINISHED
 FUNERAL redesign — both played on device. Poison was promoted 2026-09-14;
 **MUD (pass 2026-09-13) and ICE (pass 2026-09-15) were promoted 2026-09-23**
 on the author's account that both have been played; **DUST was promoted
 2026-09-25** after its night-dig / sand-throw / observatory pass was played. **CRYSTAL was promoted 2026-09-26** on the author's account. This list is mirrored in code as `kPolishedDungeons`
 (`lib/games/cosmic/cosmic_data.dart`), and it is what decides whether a planet
-offers DESCEND or the coming-soon placard — the other two keep their gate
+offers DESCEND or the coming-soon placard — Blood keeps its gate
 ritual and cannot be descended. Promoting a planet is one line there, pinned
 by `test/dungeon_polish_gate_test.dart`.
 
@@ -4142,7 +4144,7 @@ states the proof already enumerated; the douse order is the proof's own
 the whole chain through the real door rules and re-runs the proof at the
 end, still zero.
 
-### DARK — THE BLACK SUN (2026-09-30; designed, prototyped and BUILT; supersedes the Eclipse Vault below; not yet played on device)
+### DARK — THE BLACK SUN (2026-09-30; designed, prototyped and BUILT; supersedes the Eclipse Vault below; played and PROMOTED 2026-10-03)
 
 Reviewed straight after Light's promotion. The Eclipse Vault was the purest
 case yet of *"going around tapping things"*: a lever maze of three gnomons

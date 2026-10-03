@@ -14,7 +14,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 
 void main() {
-  test('the polished set is the fifteen that have had the pass', () {
+  test('the polished set is the sixteen that have had the pass', () {
     expect(kPolishedDungeons, {
       'Fire',
       'Air',
@@ -40,6 +40,8 @@ void main() {
       'Spirit',
       // Light, 2026-09-30: the Shadow Floor, played.
       'Light',
+      // Dark, 2026-10-03: the Black Sun, played.
+      'Dark',
     });
   });
 
