@@ -11,9 +11,12 @@ import 'package:alchemons/audio/audio.dart';
 //   4. After catch/flee → pops back to cosmic screen
 
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/planets/planet_art.dart'
+    show paintSoftCircle;
 import 'package:alchemons/games/wilderness/encounter_sheet.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/creature_stats.dart';
@@ -668,13 +671,13 @@ class _MiniPortalPainter extends CustomPainter {
     final r = size.width * 0.32;
     final pulse = 0.88 + 0.12 * sin(time * 0.7);
 
-    // Outer glow
-    canvas.drawCircle(
+    // Outer glow — the blurred disc as one radial gradient, no blur pass.
+    paintSoftCircle(
+      canvas,
       Offset(cx, cy),
       r * 2.0,
-      Paint()
-        ..color = color.withValues(alpha: 0.1 * pulse)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+      color.withValues(alpha: 0.1 * pulse),
+      14,
     );
 
     // Event horizon
@@ -691,15 +694,75 @@ class _MiniPortalPainter extends CustomPainter {
       );
     }
 
-    // Rim
-    canvas.drawCircle(
+    // Rim — the blurred stroke as one radial gradient, no blur pass.
+    _paintBlurredRim(
+      canvas,
       Offset(cx, cy),
       r * pulse,
-      Paint()
-        ..color = color.withValues(alpha: 0.3 * pulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+      color.withValues(alpha: 0.3 * pulse),
+    );
+  }
+
+  // The rim was a 1.5 px stroke under a gaussian blur of sigma 2. Its cross
+  // section is a box convolved with that gaussian; sampled once here and laid
+  // down as a radial gradient each paint. (paintSoftRing's two flat strokes
+  // band visibly at this size; this profile matches the blur to ~2%.)
+  static const double _rimWidth = 1.5;
+  static const double _rimSigma = 2.0;
+  static const double _rimReach = _rimWidth / 2 + 3 * _rimSigma;
+  static const int _rimSteps = 14;
+  static final List<double> _rimProfile = [
+    for (var i = 0; i <= _rimSteps; i++)
+      _blurredBox(-_rimReach + 2 * _rimReach * i / _rimSteps),
+  ];
+
+  static double _blurredBox(double d) {
+    final k = sqrt2 * _rimSigma;
+    return 0.5 *
+        (_erf((d + _rimWidth / 2) / k) - _erf((d - _rimWidth / 2) / k));
+  }
+
+  // Abramowitz–Stegun 7.1.26, |error| < 1.5e-7.
+  static double _erf(double x) {
+    final s = x < 0 ? -1.0 : 1.0;
+    final a = x.abs();
+    final t = 1 / (1 + 0.3275911 * a);
+    final y =
+        1 -
+        (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t -
+                        0.284496736) *
+                    t +
+                0.254829592) *
+            t *
+            exp(-a * a);
+    return s * y;
+  }
+
+  static void _paintBlurredRim(
+    Canvas canvas,
+    Offset at,
+    double radius,
+    Color col,
+  ) {
+    if (col.a <= 0 || radius <= 0) return;
+    final outer = radius + _rimReach;
+    final inner = max(0.0, radius - _rimReach);
+    final colors = <Color>[];
+    final stops = <double>[];
+    if (inner > 0) {
+      colors.add(col.withValues(alpha: 0));
+      stops.add(0);
+    }
+    for (var i = 0; i <= _rimSteps; i++) {
+      final d = radius - _rimReach + 2 * _rimReach * i / _rimSteps;
+      if (d < 0) continue;
+      colors.add(col.withValues(alpha: col.a * _rimProfile[i]));
+      stops.add(d / outer);
+    }
+    canvas.drawCircle(
+      at,
+      outer,
+      Paint()..shader = ui.Gradient.radial(at, outer, colors, stops),
     );
   }
 

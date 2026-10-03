@@ -255,35 +255,25 @@ extension CosmicGameElementalCaches on CosmicGame {
     if (!identical(cache, _nearestCache)) return;
     final c = cache.color;
 
-    final title = TextPainter(
-      text: TextSpan(
-        text: '${cache.element.toUpperCase()} CACHE',
-        style: TextStyle(
-          color: c.withValues(alpha: 0.85),
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 2,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final title = _worldLabel(
+      '${cache.element.toUpperCase()} CACHE',
+      color: c.withValues(alpha: 0.85),
+      fontSize: 11,
+      fontWeight: FontWeight.w900,
+      letterSpacing: 2,
+    );
     title.paint(
       canvas,
       Offset(p.dx - title.width / 2, p.dy + ElementalCache.visualRadius + 12),
     );
 
-    final hint = TextPainter(
-      text: TextSpan(
-        text: 'needs ${cacheHintFor(cache.element)}',
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.55),
-          fontSize: 9,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final hint = _worldLabel(
+      'needs ${cacheHintFor(cache.element)}',
+      color: Colors.white.withValues(alpha: 0.55),
+      fontSize: 9,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 1,
+    );
     hint.paint(
       canvas,
       Offset(p.dx - hint.width / 2, p.dy + ElementalCache.visualRadius + 27),

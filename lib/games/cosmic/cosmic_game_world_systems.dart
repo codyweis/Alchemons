@@ -2819,343 +2819,42 @@ extension CosmicGameWorldSystems on CosmicGame {
 
     final t = pf.life;
 
-    // ── Cached render-to-texture for expensive blurred layers ──
-    // Only rebuild the cached image every CosmicGame._prismaticCacheInterval seconds.
-    if (_prismaticCachedImage == null ||
-        (t - _prismaticCacheLife).abs() >= CosmicGame._prismaticCacheInterval) {
-      _prismaticCachedImage?.dispose();
-      _prismaticCachedImage = _buildPrismaticTexture(t, pf);
-      _prismaticCacheLife = t;
-    }
-
-    // Draw the cached texture scaled to world coordinates
-    final img = _prismaticCachedImage!;
-    final texR =
-        pf.radius + 80; // padding matches what _buildPrismaticTexture uses
-    canvas.save();
-    canvas.translate(pp.dx - texR, pp.dy - texR);
-    canvas.scale(
-      texR * 2 / CosmicGame._prismaticTexSize,
-      texR * 2 / CosmicGame._prismaticTexSize,
+    // Curtains of light in every hue (landmark_art.dart); until the reward
+    // is claimed, a turning ring of the eight hues marks the heart a
+    // prismatic companion must be brought to.
+    paintPrismaticAurora(
+      canvas,
+      at: pp,
+      radius: pf.radius,
+      t: t,
+      claimed: prismaticRewardClaimed,
     );
-    canvas.drawImage(img, Offset.zero, Paint());
-    canvas.restore();
-
-    // The central summon ring is only present before the reward is claimed.
-    if (!prismaticRewardClaimed) {
-      final ringR = pf.radius * 0.12;
-      final cRingRotation = t * 0.5;
-      canvas.save();
-      canvas.translate(pp.dx, pp.dy);
-      canvas.rotate(cRingRotation);
-      canvas.drawCircle(
-        Offset.zero,
-        ringR,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.0
-          ..shader = ui.Gradient.sweep(
-            Offset.zero,
-            [
-              for (int i = 0; i <= 8; i++)
-                PrismaticField.auroraColors[i % 8].withValues(
-                  alpha: 0.35 + 0.15 * sin(t * 1.2 + i * 0.9),
-                ),
-            ],
-            [for (int i = 0; i <= 8; i++) i / 8.0],
-          ),
-      );
-      canvas.drawCircle(
-        Offset.zero,
-        ringR,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            Offset.zero,
-            ringR,
-            [
-              PrismaticField.auroraColors[((t * 0.15).floor()) % 8].withValues(
-                alpha: 0.05,
-              ),
-              const Color(0x00000000),
-            ],
-            [0.0, 1.0],
-          ),
-      );
-      canvas.restore();
-
-      for (int d = 0; d < 3; d++) {
-        final dAngle = t * 0.8 + d * pi * 2 / 3;
-        final dx2 = pp.dx + cos(dAngle) * ringR;
-        final dy2 = pp.dy + sin(dAngle) * ringR;
-        canvas.drawCircle(
-          Offset(dx2, dy2),
-          2.0,
-          Paint()
-            ..color = PrismaticField
-                .auroraColors[(d * 2 + (t * 0.2).floor()) % 8]
-                .withValues(alpha: 0.45),
-        );
-      }
-    }
 
     // ── Label (drawn every frame) ──
+    // Its colour walks the aurora's eight in 1/32 steps (one every ~0.1 s,
+    // too fine to see) so the 256 shades are laid out once and reused.
     final ci = ((t * 0.3).floor()) % 8;
     final labelColor = Color.lerp(
       PrismaticField.auroraColors[ci],
       PrismaticField.auroraColors[(ci + 1) % 8],
-      (t * 0.3) % 1.0,
+      (((t * 0.3) % 1.0) * 32).floor() / 32,
     )!.withValues(alpha: 0.7);
-    final labelTp = TextPainter(
-      text: TextSpan(
-        text: 'PRISMATIC AURORA',
-        style: TextStyle(
-          color: labelColor,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 2,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final labelTp = _worldLabel(
+      'PRISMATIC AURORA',
+      color: labelColor,
+      fontSize: 10,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 2,
+    );
     labelTp.paint(
       canvas,
       Offset(pp.dx - labelTp.width / 2, pp.dy + pf.radius + 14),
     );
   }
 
-  /// Renders the expensive blurred aurora layers to a [CosmicGame._prismaticTexSize]²
-  /// off-screen image. Called ~10 times/sec, NOT every frame.
-  ui.Image _buildPrismaticTexture(double t, PrismaticField pf) {
-    const sz = CosmicGame._prismaticTexSize;
-    final texR = pf.radius + 80; // world-unit radius mapped to texture
-    final scale = sz / (texR * 2);
-    final center = Offset(sz / 2, sz / 2);
-
-    final recorder = ui.PictureRecorder();
-    final c = Canvas(
-      recorder,
-      Rect.fromLTWH(0, 0, sz.toDouble(), sz.toDouble()),
-    );
-
-    // All drawing is in texture-pixel space; center = field center.
-
-    // ── 1. Soft radial glow with blur ──
-    final glowR = pf.radius * scale;
-    c.drawCircle(
-      center,
-      glowR,
-      Paint()
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 40)
-        ..shader = ui.Gradient.radial(
-          center,
-          glowR,
-          [
-            PrismaticField.auroraColors[((t * 0.08).floor()) % 8].withValues(
-              alpha: 0.08,
-            ),
-            PrismaticField.auroraColors[((t * 0.08).floor() + 3) % 8]
-                .withValues(alpha: 0.04),
-            const Color(0x00000000),
-          ],
-          [0.0, 0.6, 1.0],
-        ),
-    );
-
-    // ── 2. Aurora bands with blur (6 bands, lush look) ──
-    c.save();
-    c.clipPath(Path()..addOval(Rect.fromCircle(center: center, radius: glowR)));
-    for (int band = 0; band < 6; band++) {
-      final bandPhase = band * 1.1 + t * 0.35;
-      final colorIdx = ((band * 2 + (t * 0.08).floor()) % 8);
-      final bandColor = PrismaticField.auroraColors[colorIdx].withValues(
-        alpha: 0.06 + 0.03 * sin(t * 0.4 + band),
-      );
-
-      final path = Path();
-      final bandY = center.dy - glowR * 0.7 + band * (glowR * 0.22);
-      const segments = 16;
-      for (int s = 0; s <= segments; s++) {
-        final frac = s / segments;
-        final x = center.dx - glowR + frac * glowR * 2;
-        final y =
-            bandY +
-            sin(frac * pi * 3 + bandPhase) * glowR * 0.15 +
-            sin(frac * pi * 5 + bandPhase * 1.3) * glowR * 0.06;
-        if (s == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
-        }
-      }
-      for (int s = segments; s >= 0; s--) {
-        final frac = s / segments;
-        final x = center.dx - glowR + frac * glowR * 2;
-        final y =
-            bandY +
-            glowR * 0.12 +
-            sin(frac * pi * 3 + bandPhase + 0.5) * glowR * 0.08;
-        path.lineTo(x, y);
-      }
-      path.close();
-      c.drawPath(
-        path,
-        Paint()
-          ..color = bandColor
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
-      );
-    }
-    c.restore();
-
-    // ── 3. Sparkles with blur ──
-    final sparkRng = Random(42);
-    for (int i = 0; i < 30; i++) {
-      final sAngle = sparkRng.nextDouble() * pi * 2;
-      final sDist = sparkRng.nextDouble() * glowR * 0.85;
-      final sx = center.dx + cos(sAngle + t * 0.03 * (i % 3 + 1)) * sDist;
-      final sy = center.dy + sin(sAngle + t * 0.02 * (i % 4 + 1)) * sDist;
-      final sBright = (0.3 + 0.7 * sin(t * (1.0 + i * 0.15) + i)).clamp(
-        0.0,
-        1.0,
-      );
-      if (sBright < 0.2) continue;
-      paintSoftCircle(
-        c,
-        Offset(sx, sy),
-        2.0 + sBright * 2.5,
-        PrismaticField.auroraColors[i % 8].withValues(alpha: sBright * 0.5),
-        6,
-      );
-    }
-
-    // ── 4. Edge ring with blur ──
-    c.drawCircle(
-      center,
-      glowR,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.0
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8)
-        ..shader = ui.Gradient.sweep(
-          center,
-          [
-            for (int i = 0; i <= 8; i++)
-              PrismaticField.auroraColors[i % 8].withValues(
-                alpha: 0.15 + 0.08 * sin(t * 0.6 + i * 0.8),
-              ),
-          ],
-          [for (int i = 0; i <= 8; i++) i / 8.0],
-        ),
-    );
-
-    // ── 5. Light pillars (vertical glowing columns) ──
-    for (int p = 0; p < 4; p++) {
-      final px = center.dx - glowR * 0.6 + p * (glowR * 0.4);
-      final pillarAlpha = 0.04 + 0.03 * sin(t * 0.3 + p * 1.5);
-      c.drawRect(
-        Rect.fromCenter(
-          center: Offset(px, center.dy),
-          width: glowR * 0.08,
-          height: glowR * 1.6,
-        ),
-        Paint()
-          ..color = PrismaticField.auroraColors[(p * 2 + (t * 0.1).floor()) % 8]
-              .withValues(alpha: pillarAlpha)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20),
-      );
-    }
-
-    final picture = recorder.endRecording();
-    final image = picture.toImageSync(sz, sz);
-    picture.dispose();
-    return image;
-  }
-
-  /// Renders the expensive blurred layers of the elemental nexus portal to an
-  /// off-screen texture at ~10 fps. The gravitational well glow (blur 200),
-  /// orbiting elemental glows (blur 30 × 4), void core gradient, and pulsing
-  /// rings (blur 15 × 4) are all drawn here.
-  ui.Image _buildNexusTexture(double riftPulse) {
-    const sz = CosmicGame._nexusTexSize;
-    const worldR = CosmicGame._nexusTexWorldR;
-    final scale = sz / (worldR * 2);
-    final center = Offset(sz / 2, sz / 2);
-
-    final recorder = ui.PictureRecorder();
-    final c = Canvas(
-      recorder,
-      Rect.fromLTWH(0, 0, sz.toDouble(), sz.toDouble()),
-    );
-
-    final pulse = 0.85 + 0.15 * sin(riftPulse * 1.8);
-
-    // Huge dark gravitational well glow
-    paintSoftCircle(
-      c,
-      center,
-      600 * scale,
-      const Color(0xFF000000).withValues(alpha: 0.9),
-      200 * scale,
-    );
-
-    // Four elemental glows orbiting
-    const eColors = [
-      Color(0xFFFF5722), // Fire
-      Color(0xFF448AFF), // Water
-      Color(0xFF81D4FA), // Air
-      Color(0xFFB08968), // Earth
-    ];
-    for (var i = 0; i < 4; i++) {
-      final a = riftPulse * 0.6 + i * pi / 2;
-      final orbitR = (400.0 + 50 * sin(riftPulse * 2 + i)) * scale;
-      final gx = center.dx + cos(a) * orbitR;
-      final gy = center.dy + sin(a) * orbitR;
-      paintSoftCircle(
-        c,
-        Offset(gx, gy),
-        40 * pulse * scale,
-        eColors[i].withValues(alpha: 0.45 * pulse),
-        30 * scale,
-      );
-    }
-
-    // Void core
-    c.drawCircle(
-      center,
-      275 * pulse * scale,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          center,
-          275 * pulse * scale,
-          [
-            const Color(0xFF000000),
-            const Color(0xFF000000),
-            const Color(0xFF0A0015),
-          ],
-          [0.0, 0.6, 1.0],
-        ),
-    );
-
-    // Pulsing dark rings with multi-element shimmer
-    for (var i = 0; i < 4; i++) {
-      final ringR = (300.0 + i * 90 + 30 * sin(riftPulse * 2.5 + i)) * scale;
-      paintSoftRing(
-        c,
-        center,
-        ringR,
-        eColors[i].withValues(alpha: 0.18 - i * 0.03),
-        12.5 * scale,
-        15 * scale,
-      );
-    }
-
-    final picture = recorder.endRecording();
-    final image = picture.toImageSync(sz, sz);
-    picture.dispose();
-    return image;
-  }
-
-  /// Renders the pocket dimension blurred elements to an off-screen texture.
-  ui.Image _buildPocketTexture(double riftPulse) {
+  /// Renders the pocket's soft glows to an off-screen texture, once: they
+  /// never change but for a gentle pulse, which the draw applies as alpha.
+  ui.Image _buildPocketTexture() {
     const sz = CosmicGame._pocketTexSize;
     // We need to cover the pocket radius + some margin
     final worldR = ElementalNexus.pocketRadius + 200;
@@ -3167,8 +2866,6 @@ extension CosmicGameWorldSystems on CosmicGame {
       recorder,
       Rect.fromLTWH(0, 0, sz.toDouble(), sz.toDouble()),
     );
-
-    final pulse = 0.85 + 0.15 * sin(riftPulse * 2.0);
 
     // Pocket boundary glow (faint ring)
     paintSoftRing(
@@ -3200,7 +2897,7 @@ extension CosmicGameWorldSystems on CosmicGame {
         c,
         pp,
         ElementalNexus.pocketPortalRadius * 1.25 * scale,
-        col.withValues(alpha: 0.2 * pulse),
+        col.withValues(alpha: 0.2),
         40 * scale,
       );
     }
@@ -3516,6 +3213,8 @@ extension CosmicGameWorldSystems on CosmicGame {
     revealedCells: Set<int>.from(revealedCells),
     shipX: ship.pos.dx,
     shipY: ship.pos.dy,
+    starDustScanTarget: _starDustScannerTargetIndex,
+    planetScanTarget: _planetScannerTargetIndex,
   );
 
   /// Restore fog state — planets, revealed cells, and ship position.
@@ -3540,6 +3239,16 @@ extension CosmicGameWorldSystems on CosmicGame {
     // Restore ship position
     if (state.shipX >= 0 && state.shipY >= 0) {
       ship.pos = Offset(state.shipX, state.shipY);
+    }
+    // A scan that was paid for stays locked. The getters drop a target that
+    // has since been collected or discovered.
+    final dust = state.starDustScanTarget;
+    if (dust != null && dust >= 0 && dust < starDusts.length) {
+      _starDustScannerTargetIndex = dust;
+    }
+    final planet = state.planetScanTarget;
+    if (planet != null && planet >= 0 && planet < world_.planets.length) {
+      _planetScannerTargetIndex = planet;
     }
   }
 
@@ -3599,8 +3308,8 @@ extension CosmicGameWorldSystems on CosmicGame {
     if (!hasRemainingStarDust) {
       return 'All star dust has been collected. Scanner offline.';
     }
-    if (_starDustScannerTargetIndex != null) {
-      return 'Scanner already locked. Follow the radar beeper to your target.';
+    if (starDustScannerTarget != null) {
+      return 'Scanner already locked. The radar points to your target.';
     }
     if (shipWallet.shards < shardCost) {
       return 'Not enough shards. Need $shardCost to activate the scanner.';
@@ -3625,8 +3334,8 @@ extension CosmicGameWorldSystems on CosmicGame {
     if (!hasUndiscoveredPlanets) {
       return 'All planets have been discovered. Scanner offline.';
     }
-    if (_planetScannerTargetIndex != null) {
-      return 'Planet scanner already locked. Follow the beacon to the nearest undiscovered planet.';
+    if (planetScannerTarget != null) {
+      return 'Scanner already locked. The radar points to your target.';
     }
     if (shipWallet.shards < shardCost) {
       return 'Not enough shards. Need $shardCost to activate the scanner.';
@@ -3715,6 +3424,8 @@ extension CosmicGameWorldSystems on CosmicGame {
     }
   }
 
+  static final Map<String, TextPainter> _pocketLabels = {};
+
   void _renderPocket(Canvas canvas) {
     final center = elementalNexus.position;
     final cx = camX;
@@ -3752,24 +3463,27 @@ extension CosmicGameWorldSystems on CosmicGame {
       );
     }
 
-    // ── Cached blurred layers (boundary glow, portal glows, rim rings, center glow) ──
-    if (_pocketCachedImage == null ||
-        (_riftPulse - _pocketCacheTime).abs() >=
-            CosmicGame._pocketCacheInterval) {
-      _pocketCachedImage?.dispose();
-      _pocketCachedImage = _buildPocketTexture(_riftPulse);
-      _pocketCacheTime = _riftPulse;
-    }
+    // ── The soft glows, baked once (boundary, portal washes, centre) ──
+    final img = _pocketCachedImage ??= _buildPocketTexture();
 
     final pocketWorldR = ElementalNexus.pocketRadius + 200;
-    final img = _pocketCachedImage!;
     canvas.save();
     canvas.translate(center.dx - pocketWorldR, center.dy - pocketWorldR);
     canvas.scale(
       pocketWorldR * 2 / CosmicGame._pocketTexSize,
       pocketWorldR * 2 / CosmicGame._pocketTexSize,
     );
-    canvas.drawImage(img, Offset.zero, Paint());
+    canvas.drawImage(
+      img,
+      Offset.zero,
+      _pocketPaint
+        ..color = Color.fromRGBO(
+          255,
+          255,
+          255,
+          0.85 + 0.15 * sin(_riftPulse * 2.0),
+        ),
+    );
     canvas.restore();
 
     // ── Per-frame elements (cheap: no blur) ──
@@ -3784,6 +3498,14 @@ extension CosmicGameWorldSystems on CosmicGame {
     ];
     const portalLabels = ['FIRE', 'WATER', 'EARTH', 'AIR'];
     const portalR = ElementalNexus.pocketPortalRadius;
+    // What the screen shows of the pocket (it is drawn unscaled), grown by
+    // the farthest a portal's dust reaches.
+    final view = Rect.fromLTWH(
+      cx,
+      cy,
+      screenW,
+      screenH,
+    ).inflate(portalR * 2.8 + 24);
 
     for (var i = 0; i < 4; i++) {
       final pp = portals[i];
@@ -3803,6 +3525,8 @@ extension CosmicGameWorldSystems on CosmicGame {
       final last = _riftFieldTimes[key] ?? _riftPulse;
       _riftFieldTimes[key] = _riftPulse;
       field.step((_riftPulse - last).clamp(0.0, 0.05));
+      // Off screen it keeps turning, but its 1,100 grains are not drawn.
+      if (!view.contains(pp)) continue;
       // The one the ship is at draws in, as the key does on the wild rifts.
       field.charge = nearPocketPortalElement == ElementalNexus.pocketElements[i]
           ? 0.35
@@ -3816,19 +3540,22 @@ extension CosmicGameWorldSystems on CosmicGame {
         backdrop: false,
       );
 
-      // Label
-      final tp = TextPainter(
-        text: TextSpan(
-          text: portalLabels[i],
-          style: TextStyle(
-            color: col.withValues(alpha: 0.85),
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2.4,
+      // Label — laid out once; it never changes.
+      final tp = _pocketLabels.putIfAbsent(
+        key,
+        () => TextPainter(
+          text: TextSpan(
+            text: portalLabels[i],
+            style: TextStyle(
+              color: col.withValues(alpha: 0.85),
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 2.4,
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+          textDirection: TextDirection.ltr,
+        )..layout(),
+      );
       tp.paint(canvas, Offset(pp.dx - tp.width / 2, pp.dy + portalR + 8));
     }
 

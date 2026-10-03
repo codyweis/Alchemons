@@ -1046,6 +1046,21 @@ class ShipWake {
     return _seed / 0x7FFFFFFF;
   }
 
+  /// The box the wake's grains lie in (world space), or null with none —
+  /// so a layer round the ship can be bounded to it.
+  Rect? get bounds {
+    if (_n == 0) return null;
+    var l = _x[0], r = l, t = _y[0], b = t;
+    for (var i = 1; i < _n; i++) {
+      final x = _x[i], y = _y[i];
+      if (x < l) l = x;
+      if (x > r) r = x;
+      if (y < t) t = y;
+      if (y > b) b = y;
+    }
+    return Rect.fromLTRB(l, t, r, b);
+  }
+
   /// Forget the wake, as after a teleport.
   void clear() {
     _n = 0;

@@ -1417,6 +1417,11 @@ class CosmicFogState {
   final double shipX;
   final double shipY;
 
+  /// What the two scanners are locked on to (star dust index, planet
+  /// index), so a scan paid for survives a restart.
+  final int? starDustScanTarget;
+  final int? planetScanTarget;
+
   const CosmicFogState({
     required this.worldSeed,
     required this.discoveredIndices,
@@ -1425,10 +1430,12 @@ class CosmicFogState {
     this.revealedCells = const {},
     this.shipX = -1,
     this.shipY = -1,
+    this.starDustScanTarget,
+    this.planetScanTarget,
   });
 
   /// Format:
-  /// seed|planetIndices|shipX,shipY|revealedCells|poiIndices|contestArenaIndices
+  /// seed|planetIndices|shipX,shipY|revealedCells|poiIndices|contestArenaIndices|dustTarget,planetTarget
   String serialise() {
     final pIndices = (discoveredIndices.toList()..sort()).join(',');
     final poiIndices = (discoveredPoiIndices.toList()..sort()).join(',');
@@ -1444,7 +1451,8 @@ class CosmicFogState {
       buf.write(sorted[i] - prev);
       prev = sorted[i];
     }
-    return '$worldSeed|$pIndices|$ship|$buf|$poiIndices|$contestIndices';
+    final scans = '${starDustScanTarget ?? ''},${planetScanTarget ?? ''}';
+    return '$worldSeed|$pIndices|$ship|$buf|$poiIndices|$contestIndices|$scans';
   }
 
   factory CosmicFogState.deserialise(String raw) {
@@ -1478,6 +1486,7 @@ class CosmicFogState {
     final contestIndices = parts.length > 5 && parts[5].isNotEmpty
         ? parts[5].split(',').map(int.parse).toSet()
         : <int>{};
+    final scans = parts.length > 6 ? parts[6].split(',') : const <String>[];
 
     return CosmicFogState(
       worldSeed: seed,
@@ -1487,6 +1496,8 @@ class CosmicFogState {
       revealedCells: cells,
       shipX: sx,
       shipY: sy,
+      starDustScanTarget: scans.isNotEmpty ? int.tryParse(scans[0]) : null,
+      planetScanTarget: scans.length > 1 ? int.tryParse(scans[1]) : null,
     );
   }
 

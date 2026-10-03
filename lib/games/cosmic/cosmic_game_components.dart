@@ -97,19 +97,15 @@ class PlanetComponent {
     art.paintFront(canvas, pos, r, elapsed);
 
     // ── element label ──
-    if (!drawLabel) return;
-    final tp = TextPainter(
-      text: TextSpan(
-        text: planetName(planet.element).toUpperCase(),
-        style: TextStyle(
-          color: color.withValues(alpha: planet.discovered ? 0.9 : 0.0),
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.5,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    // An undiscovered planet's label was laid out at alpha 0: invisible.
+    if (!drawLabel || !planet.discovered) return;
+    final tp = _worldLabel(
+      planetName(planet.element).toUpperCase(),
+      color: color.withValues(alpha: 0.9),
+      fontSize: 11,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 1.5,
+    );
     tp.paint(canvas, Offset(pos.dx - tp.width / 2, pos.dy + r + 10));
   }
 }

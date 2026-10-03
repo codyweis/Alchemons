@@ -1,95 +1,175 @@
 // lib/games/cosmic/cosmic_cache_vfx.dart
 //
-// The artwork for sealed elemental caches: the dormant seal, and the
-// three-second unsealing every element performs its own way — fire burns
-// through it, ice shatters it, dark swallows it.
+// The artwork for sealed elemental caches: the dormant reliquary, and the
+// three-second unsealing every element performs its own way — fire rises
+// out of it, lava drips through, ice and crystal throw glass, dark pulls
+// everything in.
+//
+// A cache is a reliquary of near-black glass, split down the middle by a
+// seam of its element's light, with six shards of the seal circling it.
+// Unsealing, the seal spins up and flies loose, the two halves part, and
+// the element pours out of the seam as grains — each element's grains move
+// their own way — before the light blooms. Material and grains only, in
+// the language of the stations (obsidian_kit.dart): no stroked hoops or
+// lines.
 //
 // Plain paint functions on purpose: the open-world game calls them from its
 // render loop, and they can be exercised on any canvas without a game.
 
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import 'cosmic_cache_data.dart';
 import 'cosmic_data.dart';
-import 'planets/planet_art.dart';
+import 'obsidian_kit.dart';
 
-/// The dormant construct: a slowly turning alchemical seal with an
-/// element-flavoured core. Deliberately cheap — up to 17 of these exist.
+const double _r = ElementalCache.visualRadius;
+
+/// One element's reliquary, baked once: its two halves, a shard of its seal,
+/// and the glass its element throws (ice, earth, crystal).
+class _Reliquary {
+  _Reliquary(Color c) : m = stoneLightFor(c);
+
+  final StoneLight m;
+
+  static const _outline = [
+    Offset(0, -38),
+    Offset(15, -30),
+    Offset(27, -10),
+    Offset(26, 12),
+    Offset(14, 32),
+    Offset(0, 40),
+    Offset(-14, 32),
+    Offset(-26, 12),
+    Offset(-27, -10),
+    Offset(-15, -30),
+  ];
+
+  late final CutStone _gem = CutStone.gem(m, _outline, const Offset(-5, -8));
+
+  BakedArt _half(bool left) =>
+      BakedArt(Rect.fromLTRB(left ? -30 : 0, -42, left ? 0 : 30, 42), (c) {
+        c.clipRect(Rect.fromLTRB(left ? -30 : 0, -42, left ? 0 : 30, 42));
+        _gem.paint(c, 0, glow: 0.7, reach: 46);
+      });
+
+  late final BakedArt left = _half(true);
+  late final BakedArt right = _half(false);
+
+  /// A shard of the seal, its long axis along x.
+  late final BakedArt shard = BakedArt(const Rect.fromLTRB(-10, -5, 10, 5), (
+    c,
+  ) {
+    CutStone.gem(m, const [
+      Offset(-9, 0),
+      Offset(-2, -4),
+      Offset(9, -1),
+      Offset(8, 2),
+      Offset(-2, 4),
+    ], const Offset(-1, -1)).paint(c, 0, glow: 0.4, reach: 10);
+  });
+
+  /// A long crystal, its point along +x.
+  late final BakedArt crystal = BakedArt(const Rect.fromLTRB(-2, -7, 34, 7), (
+    c,
+  ) {
+    CutStone.gem(m, const [
+      Offset(0, -4),
+      Offset(22, -6),
+      Offset(33, 0),
+      Offset(22, 6),
+      Offset(0, 4),
+    ], const Offset(18, -1)).paint(c, 0, glow: 0.6, reach: 16);
+  });
+
+  /// The seam's light: a lens, unit high and wide (see [_seam]).
+  static final Path lens = Path()
+    ..moveTo(0, -1)
+    ..quadraticBezierTo(1, 0, 0, 1)
+    ..quadraticBezierTo(-1, 0, 0, -1)
+    ..close();
+}
+
+final Map<String, _Reliquary> _reliquaries = {};
+_Reliquary _reliquary(String element) =>
+    _reliquaries[element] ??= _Reliquary(elementColor(element));
+
+final PointBatch _hot = PointBatch(260);
+final PointBatch _dim = PointBatch(260);
+final PointBatch _big = PointBatch(80);
+
+/// The seam of light down the middle, [w] wide at its waist, [h] tall.
+void _seam(Canvas c, StoneLight m, Offset p, double w, double h, double a) {
+  c.save();
+  c.translate(p.dx, p.dy);
+  c.scale(w, h);
+  paintFill(c, _Reliquary.lens, m.spark, a);
+  c.restore();
+}
+
+/// The two halves, parted by [gap] each side and leaning out by [lean].
+void _halves(
+  Canvas c,
+  _Reliquary q,
+  Offset p,
+  double gap,
+  double lean, [
+  double alpha = 1,
+]) {
+  for (final side in const [-1.0, 1.0]) {
+    c.save();
+    c.translate(p.dx + side * gap, p.dy);
+    c.rotate(side * lean);
+    (side < 0 ? q.left : q.right).draw(c, alpha);
+    c.restore();
+  }
+}
+
+/// The seal: six shards circling at [radius], turned to [spin].
+void _sealShards(
+  Canvas c,
+  _Reliquary q,
+  Offset p,
+  double spin,
+  double radius, [
+  double alpha = 1,
+]) {
+  if (alpha <= 0.01) return;
+  for (var i = 0; i < 6; i++) {
+    final a = spin + i * pi / 3;
+    c.save();
+    c.translate(p.dx + cos(a) * radius, p.dy + sin(a) * radius);
+    c.rotate(a + pi / 2);
+    c.scale(1.7);
+    q.shard.draw(c, alpha);
+    c.restore();
+  }
+}
+
+/// The dormant construct: the reliquary, its seam breathing, its seal
+/// turning slowly, a few grains of the element drifting in to it.
+/// Deliberately cheap — up to 17 of these exist.
 void paintSealedCache(Canvas canvas, Offset p, String element, double life) {
-  final c = elementColor(element);
-  final t = life;
-  const r = ElementalCache.visualRadius;
-  final breathe = 0.5 + 0.5 * sin(t * 1.4);
+  final q = _reliquary(element);
+  final m = q.m;
+  final breathe = 0.5 + 0.5 * sin(life * 1.4);
 
-  // Soft aura.
-  paintSoftCircle(
-    canvas,
-    p,
-    r * 1.5,
-    c.withValues(alpha: 0.10 + 0.05 * breathe),
-    26,
-  );
+  paintDisc(canvas, m.pool, p, _r * 1.8, 0.75 + 0.25 * breathe);
+  paintDisc(canvas, m.leak, p, _r * 0.8, 0.35 + 0.3 * breathe);
 
-  // Outer ring.
-  canvas.drawCircle(
-    p,
-    r,
-    Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = c.withValues(alpha: 0.55),
-  );
-
-  // Counter-rotating inner ring with tick marks.
-  canvas.save();
-  canvas.translate(p.dx, p.dy);
-  canvas.rotate(t * 0.35);
-  final tickPaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 2
-    ..color = c.withValues(alpha: 0.7);
-  for (var i = 0; i < 8; i++) {
-    final a = i * pi / 4;
-    canvas.drawLine(
-      Offset(cos(a) * (r * 0.72), sin(a) * (r * 0.72)),
-      Offset(cos(a) * (r * 0.9), sin(a) * (r * 0.9)),
-      tickPaint,
-    );
+  _dim.clear();
+  for (var i = 0; i < 40; i++) {
+    final ph = (life * (0.08 + 0.05 * hash01(i, 2)) + hash01(i, 3)) % 1.0;
+    final a = hash01(i, 1) * 2 * pi + ph * 1.4;
+    final r = _r * (1.5 - 1.2 * ph);
+    _dim.add(p.dx + cos(a) * r, p.dy + sin(a) * r);
   }
-  canvas.restore();
+  _dim.draw(canvas, 2, m.grainDim.withValues(alpha: 0.6));
 
-  // Hexagram — the "sealed" glyph.
-  canvas.save();
-  canvas.translate(p.dx, p.dy);
-  canvas.rotate(-t * 0.22);
-  final glyph = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.6
-    ..color = c.withValues(alpha: 0.45);
-  for (var tri = 0; tri < 2; tri++) {
-    final path = Path();
-    for (var i = 0; i < 3; i++) {
-      final a = tri * pi / 3 + i * (pi * 2 / 3) - pi / 2;
-      final v = Offset(cos(a) * r * 0.6, sin(a) * r * 0.6);
-      if (i == 0) {
-        path.moveTo(v.dx, v.dy);
-      } else {
-        path.lineTo(v.dx, v.dy);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, glyph);
-  }
-  canvas.restore();
-
-  // Element core.
-  canvas.drawCircle(
-    p,
-    r * (0.20 + 0.05 * breathe),
-    Paint()..color = c.withValues(alpha: 0.85),
-  );
-  paintSoftCircle(canvas, p, r * 0.34, c.withValues(alpha: 0.30 * breathe), 8);
+  _halves(canvas, q, p, 0, 0);
+  _seam(canvas, m, p, 2.6 + 1.6 * breathe, _r * 0.62, 0.8 + 0.2 * breathe);
+  _sealShards(canvas, q, p, life * 0.25, _r * 1.02);
 }
 
 /// Paint the unsealing of an [element] cache centred on [p].
@@ -103,820 +183,295 @@ void paintCacheUnseal(
   double life,
   double t,
 ) {
-  final c = elementColor(element);
+  final q = _reliquary(element);
+  final m = q.m;
   // Overlapping phases: the seal is already cracking while the element is
   // still pouring in, and the bloom starts before the crack finishes.
   final charge = (t / 0.35).clamp(0.0, 1.0);
   final crack = ((t - 0.30) / 0.45).clamp(0.0, 1.0);
   final bloom = ((t - 0.70) / 0.30).clamp(0.0, 1.0);
+  final part = Curves.easeOutCubic.transform(crack);
+  final e = Curves.easeOutCubic.transform(bloom);
+  final dark = element == 'Dark';
 
-  _unsealAura(canvas, p, c, charge, bloom);
-  _unsealSeal(canvas, p, c, life, crack);
+  // The element's light swelling under it, then flaring as it opens.
+  paintDisc(canvas, m.pool, p, _r * (1.8 + 0.6 * charge + 1.6 * e), 1);
+  paintDisc(
+    canvas,
+    m.leak,
+    p,
+    _r * (0.8 + 0.6 * charge + 0.8 * e),
+    0.6 + 0.4 * charge - 0.6 * e,
+  );
+
+  // The halves part; the seal spins up and flies loose.
+  _halves(canvas, q, p, 30 * part, 0.28 * part, 1 - e);
+  _seam(
+    canvas,
+    m,
+    p,
+    3 + 7 * charge + 16 * part,
+    _r * (0.62 + 0.2 * charge),
+    dark ? 0.9 * (1 - part) : 1 - 0.6 * e,
+  );
+  _sealShards(
+    canvas,
+    q,
+    p,
+    life * 0.25 + 5 * t * t,
+    _r * 1.02 + 120 * crack * crack,
+    1 - crack,
+  );
+
+  // The element itself, poured out as grains.
+  final energy = (t / 0.25).clamp(0.0, 1.0) * (1 - 0.7 * e);
+  _motif(canvas, q, p, element, life, t, charge, crack, energy);
+
+  // The bloom: light opening out of the seam — or, for Dark, a black that
+  // swallows it.
+  if (bloom > 0) {
+    if (dark) {
+      stonePaint
+        ..shader = null
+        ..color = const Color(0xFF050308).withValues(alpha: 1 - e * e);
+      canvas.drawCircle(p, _r * (0.15 + 0.6 * e), stonePaint);
+    } else {
+      paintDisc(canvas, m.spark, p, _r * (0.35 + 1.1 * e), 1 - e);
+    }
+  }
+}
+
+// ── the elements ─────────────────────────────────────────
+
+/// Each element's grains, moving their own way out of the seam. [energy]
+/// is how much of the element is pouring (0..1).
+void _motif(
+  Canvas c,
+  _Reliquary q,
+  Offset p,
+  String element,
+  double life,
+  double t,
+  double charge,
+  double crack,
+  double energy,
+) {
+  if (energy <= 0.01) return;
+  final m = q.m;
+  _hot.clear();
+  _dim.clear();
+  _big.clear();
+  const n = 160;
+  final reach = 0.5 + 0.6 * charge + 1.2 * crack;
+
+  void put(PointBatch b, double x, double y) => b.add(p.dx + x, p.dy + y);
 
   switch (element) {
+    // Fire rises in tongues out of the seam.
     case 'Fire':
-      _motifFire(canvas, p, c, t, charge, crack);
+      for (var i = 0; i < n; i++) {
+        final ph = (life * (0.9 + 0.5 * hash01(i, 2)) + hash01(i, 3)) % 1.0;
+        final x =
+            (hash01(i, 1) - 0.5) * _r * 0.9 * (1 - 0.6 * ph) +
+            sin(life * 6 + i) * 3;
+        final y = _r * 0.3 - ph * _r * 1.4 * reach;
+        put(ph < 0.45 ? _hot : _dim, x, y);
+      }
+    // Lava drips heavy through the parting halves.
     case 'Lava':
-      _motifLava(canvas, p, c, t, charge, crack);
+      for (var i = 0; i < n; i++) {
+        final ph = (life * (0.3 + 0.2 * hash01(i, 2)) + hash01(i, 3)) % 1.0;
+        final x = (hash01(i, 1) - 0.5) * _r * (0.4 + 0.9 * crack);
+        final y = -_r * 0.2 + ph * ph * _r * 1.5 * reach;
+        put(i % 4 == 0 ? _big : (ph < 0.5 ? _hot : _dim), x, y);
+      }
+    // Lightning: bolts of grain that jump to new paths many times a second.
     case 'Lightning':
-      _motifLightning(canvas, p, c, t, charge, crack);
+      final flick = (life * 9).floor();
+      for (var i = 0; i < n; i++) {
+        final bolt = i % 5;
+        final s = (i ~/ 5) / (n / 5);
+        final a = bolt * 2 * pi / 5 + hash01(flick * 7 + bolt, 4) * 1.2;
+        final jag = (hash01(i + flick * 131, 5) - 0.5) * 16 * s;
+        final r = s * _r * 1.3 * reach;
+        put(
+          s < 0.5 ? _hot : _dim,
+          cos(a) * r - sin(a) * jag,
+          sin(a) * r + cos(a) * jag,
+        );
+      }
+    // Water turns in a whirlpool round the cache.
     case 'Water':
-      _motifWater(canvas, p, c, t, charge, crack);
+      for (var i = 0; i < n; i++) {
+        final ph = (hash01(i, 1) + t * 1.2) % 1.0;
+        final a = hash01(i, 2) * 2 * pi + ph * 5 + t * 6;
+        final r = _r * (0.25 + 1.2 * ph) * reach;
+        put(ph < 0.4 ? _hot : _dim, cos(a) * r, sin(a) * r);
+      }
+    // Ice throws slow shards of glass, and frost glitters where they were.
     case 'Ice':
-      _motifIce(canvas, p, c, t, charge, crack);
+      _shardsOut(c, q.crystal, p, 10, 0.4 + 1.5 * crack, 0.6, 1);
+      for (var i = 0; i < n ~/ 2; i++) {
+        final a = hash01(i, 1) * 2 * pi;
+        final r = _r * (0.4 + 1.1 * hash01(i, 2)) * reach;
+        final on = sin(life * 5 + i * 1.7) > 0.2;
+        put(on ? _hot : _dim, cos(a) * r, sin(a) * r);
+      }
+    // Steam billows up and widens as it rises.
     case 'Steam':
-      _motifSteam(canvas, p, c, t, charge, crack);
+      for (var i = 0; i < n; i++) {
+        final ph = (life * (0.35 + 0.2 * hash01(i, 2)) + hash01(i, 3)) % 1.0;
+        final x = (hash01(i, 1) - 0.5) * _r * (0.5 + 2 * ph) * reach;
+        final y = -ph * _r * 1.6 * reach + _r * 0.2;
+        put(i % 3 == 0 ? _big : _dim, x, y);
+      }
+    // Earth bursts into chips of stone that fall as they fly.
     case 'Earth':
-      _motifEarth(canvas, p, c, t, charge, crack);
+      _shardsOut(
+        c,
+        q.shard,
+        p,
+        14,
+        0.5 + 1.4 * crack,
+        1.6,
+        2.4,
+        fall: 40 * crack * crack,
+      );
+      for (var i = 0; i < n ~/ 2; i++) {
+        final a = hash01(i, 1) * 2 * pi;
+        final r = _r * (0.3 + 1.2 * hash01(i, 2) * reach);
+        put(_dim, cos(a) * r, sin(a) * r + 30 * crack * crack);
+      }
+    // Mud oozes down out of the seam in slow heavy drops.
     case 'Mud':
-      _motifMud(canvas, p, c, t, charge, crack);
+      for (var i = 0; i < n ~/ 2; i++) {
+        final ph = (life * (0.15 + 0.1 * hash01(i, 2)) + hash01(i, 3)) % 1.0;
+        final x = (hash01(i, 1) - 0.5) * _r * (0.5 + 0.9 * crack);
+        final y = _r * 0.1 + ph * _r * 0.9 * reach;
+        put(i.isEven ? _big : _dim, x, y);
+      }
+    // Dust: a wide cloud, swirling out.
     case 'Dust':
-      _motifDust(canvas, p, c, t, charge, crack);
+      for (var i = 0; i < n; i++) {
+        final ph = (hash01(i, 1) + t * 0.6) % 1.0;
+        final a = hash01(i, 2) * 2 * pi + t * 3 + ph * 2;
+        final r = _r * (0.3 + 1.5 * ph) * reach;
+        put(i % 5 == 0 ? _hot : _dim, cos(a) * r, sin(a) * r);
+      }
+    // Crystal grows out of it in long faceted points.
     case 'Crystal':
-      _motifCrystal(canvas, p, c, t, charge, crack);
+      _shardsOut(
+        c,
+        q.crystal,
+        p,
+        8,
+        0.25 + 0.6 * crack,
+        0,
+        0.6 + charge,
+        grow: true,
+      );
+      for (var i = 0; i < n ~/ 2; i++) {
+        final a = hash01(i, 1) * 2 * pi;
+        final r = _r * (0.3 + 1.3 * hash01(i, 2)) * reach;
+        if (sin(life * 7 + i * 2.3) > 0.4) put(_hot, cos(a) * r, sin(a) * r);
+      }
+    // Air: gusts — streaks of grain racing round on three orbits.
     case 'Air':
-      _motifAir(canvas, p, c, t, charge, crack);
+      for (var i = 0; i < n; i++) {
+        final ring = i % 3;
+        final a = hash01(i, 1) * 1.8 + ring * 2.1 + t * (9 + ring * 2);
+        final r =
+            _r * (0.6 + 0.35 * ring + (hash01(i, 2) - 0.5) * 0.22) * reach;
+        put(i % 6 == 0 ? _hot : _dim, cos(a) * r, sin(a) * r);
+      }
+    // Plant grows out in curling stems, leaves along them.
     case 'Plant':
-      _motifPlant(canvas, p, c, t, charge, crack);
+      final grow = (0.3 * charge + 0.9 * crack).clamp(0.0, 1.0);
+      for (var i = 0; i < n; i++) {
+        final arm = i % 5;
+        final s = hash01(i, 1);
+        if (s > grow) continue;
+        final a = arm * 2 * pi / 5 + s * 2.4 + 0.3;
+        final r = s * _r * 1.8;
+        final side = (hash01(i, 2) - 0.5) * 9 * (0.4 + s);
+        put(
+          i % 7 == 0 ? _big : (s > grow - 0.1 ? _hot : _dim),
+          cos(a) * r - sin(a) * side,
+          sin(a) * r + cos(a) * side,
+        );
+      }
+    // Poison: bubbles rising and popping.
     case 'Poison':
-      _motifPoison(canvas, p, c, t, charge, crack);
+      for (var i = 0; i < n ~/ 2; i++) {
+        final ph = (life * (0.4 + 0.3 * hash01(i, 2)) + hash01(i, 3)) % 1.0;
+        if (ph > 0.85) continue;
+        final x = (hash01(i, 1) - 0.5) * _r * 1.2 + sin(ph * 6 + i) * 6;
+        final y = _r * 0.3 - ph * _r * 1.6 * reach;
+        put(ph > 0.7 ? _hot : _big, x, y);
+      }
+    // Spirit: pale wisps winding up in slow columns.
     case 'Spirit':
-      _motifSpirit(canvas, p, c, t, charge, crack);
+      for (var i = 0; i < n; i++) {
+        final col = i % 5;
+        final ph = (life * 0.25 + hash01(i, 3)) % 1.0;
+        final x = (col - 2) * _r * 0.32 + sin(ph * 7 + col * 1.3) * 12;
+        final y = _r * 0.4 - ph * _r * 1.9 * reach;
+        put(ph < 0.5 ? _hot : _dim, x, y);
+      }
+    // Dark pulls everything in: grains fall from far off into the seam.
     case 'Dark':
-      _motifDark(canvas, p, c, t, charge, crack);
-    case 'Light':
-      _motifLight(canvas, p, c, t, charge, crack);
+      for (var i = 0; i < n; i++) {
+        final ph = (hash01(i, 1) + t * 1.4) % 1.0;
+        final a = hash01(i, 2) * 2 * pi + ph * 2.2;
+        final r = _r * 2.3 * (1 - ph);
+        put(ph > 0.7 ? _hot : _dim, cos(a) * r, sin(a) * r);
+      }
+    // Blood beats: the grains swell outward with each pulse.
     case 'Blood':
-      _motifBlood(canvas, p, c, t, charge, crack);
+      final beat = pow(0.5 + 0.5 * sin(t * 26), 6).toDouble();
+      for (var i = 0; i < n; i++) {
+        final a = hash01(i, 1) * 2 * pi + t * 2;
+        final r = _r * (0.4 + 0.8 * hash01(i, 2)) * (1 + 0.4 * beat) * reach;
+        put(hash01(i, 2) < 0.3 ? _hot : _dim, cos(a) * r, sin(a) * r);
+      }
+    // Light, and anything else: straight rays of grain.
     default:
-      _motifLight(canvas, p, c, t, charge, crack);
-  }
-
-  if (bloom > 0) _unsealBloom(canvas, p, c, bloom);
-}
-
-// ── shared scaffolding ────────────────────────────────
-
-const double _r = ElementalCache.visualRadius;
-
-/// Element light swelling under the seal, then flaring as it opens.
-void _unsealAura(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double charge,
-  double bloom,
-) {
-  final radius = _r * (1.3 + charge * 0.5 + bloom * 1.1);
-  paintSoftCircle(
-    canvas,
-    p,
-    radius,
-    c.withValues(alpha: 0.10 + charge * 0.15 + bloom * 0.12),
-    20 + bloom * 22,
-  );
-}
-
-/// The seal itself: six arcs that spin up, then tear loose and drift away.
-void _unsealSeal(Canvas canvas, Offset p, Color c, double life, double crack) {
-  if (crack >= 1.0) return;
-  final spin = life * (0.4 + crack * 8.0);
-  final drift = crack * crack * 90.0;
-  final alpha = (1.0 - crack).clamp(0.0, 1.0);
-
-  final paint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 2.4
-    ..strokeCap = StrokeCap.round
-    ..color = c.withValues(alpha: 0.75 * alpha);
-
-  for (var i = 0; i < 6; i++) {
-    final a = spin + i * (pi / 3);
-    final cx = p.dx + cos(a) * drift;
-    final cy = p.dy + sin(a) * drift;
-    canvas.drawArc(
-      Rect.fromCircle(center: Offset(cx, cy), radius: _r),
-      a - 0.32,
-      0.52,
-      false,
-      paint,
-    );
-  }
-}
-
-/// Light pouring out of the opened cache — a widening throat plus rays.
-void _unsealBloom(Canvas canvas, Offset p, Color c, double bloom) {
-  final e = Curves.easeOutCubic.transform(bloom);
-
-  // The throat opens white-hot, then cools back toward the element so the
-  // motif is never buried under a featureless disc.
-  final core = Color.lerp(Colors.white, c, e * 0.75)!;
-  canvas.drawCircle(
-    p,
-    _r * 0.34 * (1 - e * 0.45),
-    Paint()..color = core.withValues(alpha: 0.9 * (1 - e * 0.8)),
-  );
-
-  final rayPaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 2
-    ..strokeCap = StrokeCap.round;
-  for (var i = 0; i < 12; i++) {
-    final a = i * (pi / 6) + e * 0.6;
-    final inner = _r * 0.4;
-    final outer = _r * (0.6 + e * 2.6) * (i.isEven ? 1.0 : 0.7);
-    rayPaint.color = (i.isEven ? c : const Color(0xFFFFE082)).withValues(
-      alpha: 0.75 * (1 - e * e),
-    );
-    canvas.drawLine(
-      Offset(p.dx + cos(a) * inner, p.dy + sin(a) * inner),
-      Offset(p.dx + cos(a) * outer, p.dy + sin(a) * outer),
-      rayPaint,
-    );
-  }
-}
-
-Paint _fill(Color c, double a) => Paint()..color = c.withValues(alpha: a);
-
-Paint _stroke(Color c, double a, double w) => Paint()
-  ..style = PaintingStyle.stroke
-  ..strokeWidth = w
-  ..strokeCap = StrokeCap.round
-  ..color = c.withValues(alpha: a);
-
-// ── FIRE — tongues of flame lick up and char the seal through ──
-void _motifFire(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  for (var i = 0; i < 12; i++) {
-    final a = i * (pi * 2 / 12) - pi / 2;
-    final h = _r * (0.7 + charge * 1.5) * (0.6 + 0.4 * sin(t * 9 + i));
-    final sway = sin(t * 7 + i * 1.3) * 8;
-    final path = Path()
-      ..moveTo(p.dx + cos(a) * _r * 0.3 - 7, p.dy + sin(a) * _r * 0.3)
-      ..quadraticBezierTo(
-        p.dx + cos(a) * h * 0.6 + sway,
-        p.dy + sin(a) * h * 0.6,
-        p.dx + cos(a) * h + sway,
-        p.dy + sin(a) * h,
-      )
-      ..quadraticBezierTo(
-        p.dx + cos(a) * h * 0.6 + sway + 6,
-        p.dy + sin(a) * h * 0.6,
-        p.dx + cos(a) * _r * 0.3 + 7,
-        p.dy + sin(a) * _r * 0.3,
-      )
-      ..close();
-    canvas.drawPath(path, _fill(i.isEven ? c : const Color(0xFFFFC107), 0.55));
-  }
-  // Embers riding the updraft rather than a flat hot disc.
-  for (var i = 0; i < 8; i++) {
-    final a = t * 1.3 + i * (pi * 2 / 8);
-    final rr = _r * (0.5 + ((t * 0.7 + i * 0.12) % 1.0) * (1.2 + crack));
-    canvas.drawCircle(
-      Offset(p.dx + cos(a) * rr, p.dy + sin(a) * rr),
-      1.6 + charge * 1.8,
-      _fill(const Color(0xFFFFE0B2), 0.75 * charge),
-    );
-  }
-}
-
-// ── LAVA — the seal melts, molten strands sag and drip away ──
-void _motifLava(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  for (var i = 0; i < 7; i++) {
-    final a = i * (pi * 2 / 7) + t * 0.4;
-    final drip = crack * (30 + i * 9) + sin(t * 3 + i) * 4;
-    final x = p.dx + cos(a) * _r * 0.85;
-    final y = p.dy + sin(a) * _r * 0.85;
-    canvas.drawLine(
-      Offset(x, y),
-      Offset(x, y + drip),
-      _stroke(c, 0.8 * (1 - crack * 0.4), 4),
-    );
-    canvas.drawCircle(
-      Offset(x, y + drip),
-      3.0 + charge * 2,
-      _fill(const Color(0xFFFFAB40), 0.9),
-    );
-  }
-  // Glowing fissures across the face of the seal.
-  for (var i = 0; i < 4; i++) {
-    final a = i * (pi / 4) + t * 0.2;
-    canvas.drawLine(
-      Offset(p.dx - cos(a) * _r * crack, p.dy - sin(a) * _r * crack),
-      Offset(p.dx + cos(a) * _r * crack, p.dy + sin(a) * _r * crack),
-      _stroke(const Color(0xFFFFD180), 0.85 * crack, 2.2),
-    );
-  }
-}
-
-// ── LIGHTNING — arcs crawl the rim, then one bolt splits it ──
-void _motifLightning(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  final rng = Random((t * 26).floor() * 7919);
-  final paint = _stroke(c, 0.9, 2.0);
-  for (var arc = 0; arc < 4; arc++) {
-    final path = Path();
-    final a0 = rng.nextDouble() * pi * 2;
-    var x = p.dx + cos(a0) * _r;
-    var y = p.dy + sin(a0) * _r;
-    path.moveTo(x, y);
-    for (var seg = 0; seg < 5; seg++) {
-      x += (rng.nextDouble() - 0.5) * 34;
-      y += (rng.nextDouble() - 0.5) * 34;
-      path.lineTo(x, y);
-    }
-    canvas.drawPath(path, paint);
-  }
-  if (crack > 0) {
-    // The killing bolt, straight down through the middle.
-    final path = Path()..moveTo(p.dx, p.dy - _r * 2.4);
-    for (var seg = 1; seg <= 6; seg++) {
-      path.lineTo(
-        p.dx + (rng.nextDouble() - 0.5) * 26,
-        p.dy - _r * 2.4 + seg * (_r * 4.8 / 6),
-      );
-    }
-    canvas.drawPath(path, _stroke(const Color(0xFFFFFDE7), 0.95 * crack, 3.4));
-  }
-  // Charged core: a tight ring that jitters rather than a solid white disc.
-  canvas.drawCircle(
-    p,
-    _r * (0.22 + 0.10 * sin(t * 30)) * charge,
-    _stroke(Colors.white, 0.75 * charge, 2.4),
-  );
-}
-
-// ── WATER — a vortex winds up and washes the seal away in rings ──
-void _motifWater(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  for (var arm = 0; arm < 3; arm++) {
-    final path = Path();
-    for (var i = 0; i <= 16; i++) {
-      final f = i / 16;
-      final a = arm * (pi * 2 / 3) + t * 3.2 + f * pi * 1.8;
-      final rr = _r * (1.5 - f * 1.2) * (0.6 + charge * 0.6);
-      final pt = Offset(p.dx + cos(a) * rr, p.dy + sin(a) * rr);
-      if (i == 0) {
-        path.moveTo(pt.dx, pt.dy);
-      } else {
-        path.lineTo(pt.dx, pt.dy);
+      for (var i = 0; i < n; i++) {
+        final ray = i % 12;
+        final s = ((i ~/ 12) / (n / 12) + t * 1.5) % 1.0;
+        final a = ray * pi / 6 + t * 0.4;
+        final r = _r * (0.3 + s * 1.8 * reach);
+        put(s < 0.4 ? _hot : _dim, cos(a) * r, sin(a) * r);
       }
-    }
-    canvas.drawPath(path, _stroke(c, 0.65, 3));
   }
-  for (var i = 0; i < 3; i++) {
-    final rr = _r * (0.4 + ((crack * 2.2) + i * 0.35) % 2.2);
-    canvas.drawCircle(p, rr, _stroke(const Color(0xFF80D8FF), 0.5 * crack, 2));
-  }
+
+  _dim.draw(c, 2.2, m.grainDim.withValues(alpha: 0.85 * energy));
+  _big.draw(c, 4.2, m.grainHot.withValues(alpha: 0.75 * energy));
+  _hot.draw(c, 2.6, m.grainHot.withValues(alpha: energy));
 }
 
-// ── ICE — frost crystals creep over the seal, then it shatters ──
-void _motifIce(
-  Canvas canvas,
+/// [count] pieces of glass thrown out round the cache to [reach] radii,
+/// each turned by [twist] and sized by [scale]. [grow] means [scale] is
+/// their growth from nothing; [fall] drops them as they go.
+void _shardsOut(
+  Canvas c,
+  BakedArt piece,
   Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  final grow = charge;
-  final spike = _stroke(c, 0.8, 2.2);
-  for (var i = 0; i < 6; i++) {
-    final a = i * (pi / 3) + t * 0.15;
-    final tip = Offset(
-      p.dx + cos(a) * _r * 1.5 * grow,
-      p.dy + sin(a) * _r * 1.5 * grow,
-    );
-    canvas.drawLine(p, tip, spike);
-    // Barbs.
-    for (final s in [-1.0, 1.0]) {
-      final ba = a + s * 0.6;
-      final base = Offset(
-        p.dx + cos(a) * _r * 0.9 * grow,
-        p.dy + sin(a) * _r * 0.9 * grow,
-      );
-      canvas.drawLine(
-        base,
-        Offset(base.dx + cos(ba) * 16 * grow, base.dy + sin(ba) * 16 * grow),
-        spike,
-      );
-    }
-  }
-  if (crack > 0) {
-    final rng = Random(4242);
-    for (var i = 0; i < 12; i++) {
-      final a = rng.nextDouble() * pi * 2;
-      final d = crack * (40 + rng.nextDouble() * 90);
-      final sp = Offset(p.dx + cos(a) * d, p.dy + sin(a) * d);
-      final path = Path()
-        ..moveTo(sp.dx, sp.dy)
-        ..lineTo(sp.dx + 7, sp.dy + 3)
-        ..lineTo(sp.dx + 2, sp.dy + 10)
-        ..close();
-      canvas.drawPath(path, _fill(const Color(0xFFB3E5FC), 0.8 * (1 - crack)));
-    }
-  }
-}
-
-// ── STEAM — pressure jets vent from the seams, then a whiteout ──
-void _motifSteam(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  for (var i = 0; i < 8; i++) {
-    final a = i * (pi / 4);
-    final len = _r * (0.6 + charge * 1.6) * (0.5 + 0.5 * sin(t * 8 + i * 2));
-    canvas.drawLine(
-      Offset(p.dx + cos(a) * _r * 0.7, p.dy + sin(a) * _r * 0.7),
-      Offset(
-        p.dx + cos(a) * (_r * 0.7 + len),
-        p.dy + sin(a) * (_r * 0.7 + len),
-      ),
-      _stroke(const Color(0xFFECEFF1), 0.55, 6),
-    );
-  }
-  for (var i = 0; i < 6; i++) {
-    final a = t * 1.4 + i * (pi / 3);
-    final rr = _r * (0.8 + crack * 1.4);
-    paintSoftCircle(
-      canvas,
-      Offset(p.dx + cos(a) * rr, p.dy + sin(a) * rr),
-      10 + crack * 16,
-      c.withValues(alpha: 0.28),
-      10,
-    );
-  }
-  if (crack > 0.5) {
-    paintSoftCircle(
-      canvas,
-      p,
-      _r * 2.2 * crack,
-      Colors.white.withValues(alpha: 0.22 * crack),
-      30,
-    );
-  }
-}
-
-// ── EARTH — stone plates grind apart, dust puffing from the gap ──
-void _motifEarth(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  final open = Curves.easeInOutCubic.transform(crack) * _r * 1.1;
-  for (var i = 0; i < 4; i++) {
-    final a = i * (pi / 2) + pi / 4;
-    final cx = p.dx + cos(a) * open;
-    final cy = p.dy + sin(a) * open;
-    final path = Path()
-      ..moveTo(cx, cy - _r * 0.55)
-      ..lineTo(cx + _r * 0.5, cy - _r * 0.15)
-      ..lineTo(cx + _r * 0.32, cy + _r * 0.5)
-      ..lineTo(cx - _r * 0.34, cy + _r * 0.46)
-      ..lineTo(cx - _r * 0.52, cy - _r * 0.12)
-      ..close();
-    canvas.drawPath(path, _fill(c, 0.72));
-    canvas.drawPath(path, _stroke(const Color(0xFFD7CCC8), 0.5, 1.4));
-  }
-  paintSoftCircle(
-    canvas,
-    p,
-    _r * 0.5 * charge,
-    const Color(0xFFFFCC80).withValues(alpha: 0.3 * charge),
-    14,
-  );
-}
-
-// ── MUD — the seal sinks into a churning, bubbling mire ──
-void _motifMud(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  final pool = _r * (0.8 + charge * 0.8);
-  canvas.drawOval(
-    Rect.fromCenter(center: p, width: pool * 2.4, height: pool * 1.3),
-    _fill(c, 0.6),
-  );
-  for (var i = 0; i < 9; i++) {
-    final phase = (t * 1.6 + i * 0.7) % 1.0;
-    final a = i * (pi * 2 / 9);
-    final bx = p.dx + cos(a) * pool * 0.8;
-    final by = p.dy + sin(a) * pool * 0.4 - phase * 16;
-    canvas.drawCircle(
-      Offset(bx, by),
-      (1 - phase) * (4 + charge * 4),
-      _fill(const Color(0xFF8D6E63), 0.7 * (1 - phase)),
-    );
-  }
-  // The seal going under: it tips, shrinks, and the mire closes over it.
-  final sink = Curves.easeInCubic.transform(crack);
-  canvas.save();
-  canvas.translate(p.dx, p.dy + sink * 30);
-  canvas.scale(1.0, (1 - sink * 0.8).clamp(0.15, 1.0));
-  canvas.drawCircle(
-    Offset.zero,
-    _r * 0.62 * (1 - sink * 0.4),
-    _stroke(const Color(0xFFD7CCC8), 0.75 * (1 - sink), 2.6),
-  );
-  canvas.restore();
-
-  // Rings spreading from where it went down.
-  for (var i = 0; i < 3; i++) {
-    final f = ((sink * 1.6 + i * 0.33) % 1.0);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(p.dx, p.dy + sink * 30),
-        width: _r * 2.2 * f,
-        height: _r * 1.1 * f,
-      ),
-      _stroke(const Color(0xFFA1887F), 0.45 * (1 - f) * sink, 2),
-    );
-  }
-}
-
-// ── DUST — the seal erodes grain by grain into a spiralling drift ──
-void _motifDust(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  final rng = Random(9001);
-  for (var i = 0; i < 40; i++) {
-    final base = rng.nextDouble() * pi * 2;
-    final a = base + t * (0.8 + rng.nextDouble());
-    final rr = _r * (0.3 + rng.nextDouble() * 1.2) * (1 + crack * 1.4);
-    canvas.drawCircle(
-      Offset(p.dx + cos(a) * rr, p.dy + sin(a) * rr * 0.75),
-      1.0 + rng.nextDouble() * 1.8,
-      _fill(c, 0.35 + 0.4 * charge),
-    );
-  }
-  canvas.drawCircle(
-    p,
-    _r * 0.7 * (1 - crack),
-    _stroke(c, 0.5 * (1 - crack), 2),
-  );
-}
-
-// ── CRYSTAL — a lattice grows, resonates, then the facets fly apart ──
-void _motifCrystal(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  final facet = _stroke(c, 0.85, 1.8);
-  for (var i = 0; i < 6; i++) {
-    final a = i * (pi / 3) + t * 0.3;
-    final d = crack * 70;
-    final cx = p.dx + cos(a) * (_r * 0.55 + d);
-    final cy = p.dy + sin(a) * (_r * 0.55 + d);
-    final s = _r * 0.34 * (0.5 + charge * 0.5);
-    final path = Path()
-      ..moveTo(cx, cy - s)
-      ..lineTo(cx + s * 0.7, cy)
-      ..lineTo(cx, cy + s)
-      ..lineTo(cx - s * 0.7, cy)
-      ..close();
-    canvas.drawPath(path, _fill(c, 0.28));
-    canvas.drawPath(path, facet);
-  }
-  // Resonance rings.
-  for (var i = 0; i < 2; i++) {
-    final rr = _r * (0.6 + ((t * 1.3 + i * 0.5) % 1.0) * 1.8);
-    canvas.drawCircle(
-      p,
-      rr,
-      _stroke(const Color(0xFFA7FFEB), 0.4 * charge, 1.4),
-    );
-  }
-}
-
-// ── AIR — spiral streaks unwind the seal like a ribbon ──
-void _motifAir(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  // Four gusts sweep left-to-right across the seal, each a long shallow arc
-  // with a chevron riding its leading edge.
-  for (var g = 0; g < 4; g++) {
-    final travel = ((t * 0.55 + g * 0.25) % 1.0);
-    final y = p.dy + (g - 1.5) * _r * 0.52;
-    final x0 = p.dx - _r * 2.2 + travel * _r * 2.6;
-    final len = _r * (1.1 + charge * 1.1);
-    final bow = sin(travel * pi) * _r * 0.22 * (g.isEven ? 1 : -1);
-
-    final path = Path()
-      ..moveTo(x0, y)
-      ..quadraticBezierTo(x0 + len * 0.5, y + bow, x0 + len, y);
-    canvas.drawPath(
-      path,
-      _stroke(c, (0.30 + 0.5 * charge) * sin(travel * pi), 2.6),
-    );
-
-    // Chevron at the leading edge.
-    final tip = Offset(x0 + len, y);
-    canvas.drawPath(
-      Path()
-        ..moveTo(tip.dx - 9, tip.dy - 7)
-        ..lineTo(tip.dx, tip.dy)
-        ..lineTo(tip.dx - 9, tip.dy + 7),
-      _stroke(Colors.white, 0.5 * sin(travel * pi), 2),
-    );
-  }
-
-  // The seal itself gets blown apart into tumbling fragments.
-  for (var i = 0; i < 6; i++) {
-    final a = i * (pi / 3) + t * 0.8;
-    final d = crack * (30 + i * 12);
-    canvas.drawArc(
-      Rect.fromCircle(
-        center: Offset(p.dx + cos(a) * d, p.dy + sin(a) * d - crack * 18),
-        radius: _r * 0.42,
-      ),
-      a,
-      0.7,
-      false,
-      _stroke(c, 0.6 * (1 - crack), 2),
-    );
-  }
-}
-
-// ── PLANT — vines coil around the seal and pry it open into a bloom ──
-void _motifPlant(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  for (var v = 0; v < 5; v++) {
-    final path = Path();
-    final base = v * (pi * 2 / 5);
-    final grow = charge;
-    for (var i = 0; i <= 14; i++) {
-      final f = i / 14;
-      final a = base + f * 3.4 * grow;
-      final rr = _r * (0.3 + f * 1.5 * grow);
-      final pt = Offset(p.dx + cos(a) * rr, p.dy + sin(a) * rr);
-      if (i == 0) {
-        path.moveTo(pt.dx, pt.dy);
-      } else {
-        path.lineTo(pt.dx, pt.dy);
-      }
-    }
-    canvas.drawPath(path, _stroke(c, 0.8, 2.6));
-  }
-  // Petals opening as the seal gives.
-  final petals = _fill(const Color(0xFF9CCC65), 0.6 * crack);
-  for (var i = 0; i < 8; i++) {
-    final a = i * (pi / 4) + t * 0.3;
-    final d = _r * (0.35 + crack * 0.8);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(p.dx + cos(a) * d, p.dy + sin(a) * d),
-        width: 16 * crack + 4,
-        height: 9 * crack + 3,
-      ),
-      petals,
-    );
-  }
-}
-
-// ── POISON — corrosive bubbles eat through the seal ──
-void _motifPoison(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  final rng = Random(1337);
-  for (var i = 0; i < 16; i++) {
-    final a = rng.nextDouble() * pi * 2;
-    final phase = ((t * 0.8) + rng.nextDouble()) % 1.0;
-    final rr = _r * (0.3 + phase * 1.5);
-    final bubble = (4 + rng.nextDouble() * 7) * (1 - phase * 0.6);
-    canvas.drawCircle(
-      Offset(p.dx + cos(a) * rr, p.dy + sin(a) * rr),
-      bubble,
-      _fill(c, 0.5 * (1 - phase) + 0.2 * charge),
-    );
-    canvas.drawCircle(
-      Offset(p.dx + cos(a) * rr, p.dy + sin(a) * rr),
-      bubble,
-      _stroke(const Color(0xFFCE93D8), 0.45 * (1 - phase), 1.2),
-    );
-  }
-  // Holes burnt through.
-  canvas.drawCircle(p, _r * 0.6 * crack, _fill(Colors.black, 0.5 * crack));
-}
-
-// ── SPIRIT — wisps orbit, phase the seal out of the world ──
-void _motifSpirit(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  const pale = Color(0xFFC5CAE9);
-
-  // Seven wisps on a slow elliptical orbit, each dragging a comet tail.
-  for (var i = 0; i < 7; i++) {
-    final a = t * 1.6 + i * (pi * 2 / 7);
-    final rr = _r * (1.0 + 0.35 * sin(t * 2 + i)) * (1 + crack * 0.6);
-    final wp = Offset(p.dx + cos(a) * rr, p.dy + sin(a) * rr * 0.72);
-
-    final tail = Path()..moveTo(wp.dx, wp.dy);
-    for (var seg = 1; seg <= 4; seg++) {
-      final ta = a - seg * 0.26;
-      final tr = rr * (1 - seg * 0.03);
-      tail.lineTo(p.dx + cos(ta) * tr, p.dy + sin(ta) * tr * 0.72);
-    }
-    canvas.drawPath(tail, _stroke(pale, 0.45 + 0.3 * charge, 2.4));
-
-    paintSoftCircle(canvas, wp, 6 + charge * 5, c.withValues(alpha: 0.7), 6);
-    canvas.drawCircle(wp, 3.0, _fill(Colors.white, 0.95));
-  }
-
-  // The seal loses its grip on one reality and slides toward another.
-  for (var g = 1; g <= 3; g++) {
-    canvas.drawCircle(
-      Offset(p.dx + g * 11 * crack, p.dy - g * 6 * crack),
-      _r * (1 - crack * 0.35),
-      _stroke(pale, 0.5 * (1 - crack) / g, 2.0),
-    );
-  }
-
-  // A veil pulling off the front.
-  if (crack > 0) {
-    canvas.drawArc(
-      Rect.fromCircle(center: p, radius: _r * (1 + crack * 0.7)),
-      -pi * 0.75 + crack,
-      pi * 1.1,
-      false,
-      _stroke(Colors.white, 0.6 * (1 - crack), 3.0),
-    );
-  }
-}
-
-// ── DARK — a void swallows the seal, then collapses inward ──
-void _motifDark(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  final void_ = _r * (0.4 + charge * 1.1) * (1 - crack * 0.7);
-  canvas.drawCircle(p, void_, _fill(Colors.black, 0.88));
-  canvas.drawCircle(p, void_, _stroke(const Color(0xFFB388FF), 0.7, 2.2));
-  // Matter falling in.
-  for (var i = 0; i < 10; i++) {
-    final a = t * 2.4 + i * (pi * 2 / 10);
-    final f = ((t * 0.9 + i * 0.1) % 1.0);
-    final rr = _r * 2.0 * (1 - f);
-    canvas.drawCircle(
-      Offset(p.dx + cos(a) * rr, p.dy + sin(a) * rr),
-      2 + f * 2,
-      _fill(c, 0.6 * f + 0.2),
-    );
-  }
-  if (crack > 0.6) {
-    canvas.drawCircle(
-      p,
-      _r * 2.4 * (crack - 0.6) / 0.4,
-      _stroke(const Color(0xFFEDE7F6), 0.5 * (1 - crack), 2),
-    );
-  }
-}
-
-// ── LIGHT — a prism splits a beam, dawn breaks the seal ──
-void _motifLight(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  const spectrum = [
-    Color(0xFFFF5252),
-    Color(0xFFFFD740),
-    Color(0xFF69F0AE),
-    Color(0xFF40C4FF),
-    Color(0xFFB388FF),
-  ];
-  for (var i = 0; i < spectrum.length; i++) {
-    final a = -0.5 + i * 0.25 + sin(t * 1.2) * 0.1;
-    final len = _r * (1.2 + crack * 2.4);
-    canvas.drawLine(
-      p,
-      Offset(p.dx + cos(a) * len, p.dy + sin(a) * len),
-      _stroke(spectrum[i], 0.6 * charge, 3.2),
-    );
-  }
-  // Rotating halo.
-  canvas.drawCircle(
-    p,
-    _r * (0.8 + charge * 0.5),
-    _stroke(c, 0.7, 2.4 + crack * 3),
-  );
-  canvas.drawCircle(p, _r * 0.3, _fill(Colors.white, 0.5 + 0.4 * charge));
-}
-
-// ── BLOOD — heartbeat rings, then the seal splits along a vein ──
-void _motifBlood(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double t,
-  double charge,
-  double crack,
-) {
-  // Two-thump cardiac rhythm.
-  final beat = (t * 2.4) % 1.0;
-  final thump = beat < 0.12
-      ? beat / 0.12
-      : (beat < 0.3 ? 1 - (beat - 0.12) / 0.18 : 0.0);
-  canvas.drawCircle(
-    p,
-    _r * (0.7 + thump * 0.5 + charge * 0.3),
-    _stroke(c, 0.8, 3),
-  );
-  canvas.drawCircle(
-    p,
-    _r * (0.4 + thump * 0.25),
-    _fill(const Color(0xFFB71C1C), 0.6),
-  );
-  // Veins spreading out and tearing the seal.
-  for (var i = 0; i < 6; i++) {
-    final a = i * (pi / 3) + 0.3;
-    final path = Path()..moveTo(p.dx, p.dy);
-    var x = p.dx;
-    var y = p.dy;
-    for (var seg = 1; seg <= 3; seg++) {
-      x += cos(a + sin(seg * 2.0) * 0.4) * _r * 0.45 * charge;
-      y += sin(a + sin(seg * 2.0) * 0.4) * _r * 0.45 * charge;
-      path.lineTo(x, y);
-    }
-    canvas.drawPath(path, _stroke(const Color(0xFFEF9A9A), 0.65, 2));
-  }
-  if (crack > 0) {
-    canvas.drawLine(
-      Offset(p.dx, p.dy - _r * 1.6 * crack),
-      Offset(p.dx, p.dy + _r * 1.6 * crack),
-      _stroke(const Color(0xFFFFCDD2), 0.8 * crack, 3),
-    );
+  int count,
+  double reach,
+  double twist,
+  double scale, {
+  bool grow = false,
+  double fall = 0,
+}) {
+  for (var i = 0; i < count; i++) {
+    final a = i * 2 * pi / count + hash01(i, 9) * 0.4;
+    final r = _r * reach * (0.8 + 0.4 * hash01(i, 10));
+    c.save();
+    c.translate(p.dx + cos(a) * r, p.dy + sin(a) * r + fall);
+    c.rotate(a + twist * (hash01(i, 11) - 0.5));
+    c.scale(grow ? scale : 1.2 * scale);
+    piece.draw(c);
+    c.restore();
   }
 }

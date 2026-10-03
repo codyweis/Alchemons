@@ -28,6 +28,17 @@ import 'package:alchemons/screens/cosmic/gold_conversion_sheet.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/games/cosmic/station_art.dart';
+import 'package:alchemons/games/cosmic/contest_art.dart';
+import 'package:alchemons/games/cosmic/contest_judging.dart';
+import 'package:alchemons/widgets/bracket_controls.dart'
+    show BracketButton, CoinAmount;
+import 'package:alchemons/widgets/coin_icon.dart' show CoinKind;
+import 'package:alchemons/screens/cosmic/widgets/station_panel_kit.dart';
+import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
+    show ShardAmount, panelLabel, panelPalette;
+import 'package:alchemons/games/cosmic/planets/planet_art.dart'
+    show paintSoftCircle;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_debug_party.dart';
@@ -105,7 +116,7 @@ class CosmicScreen extends StatefulWidget {
 enum _CosmicPanel { none, home, ship, lab }
 
 class _CosmicScreenState extends State<CosmicScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, RouteAware {
   static const _prefsKey = 'cosmic_fog_state_v2';
   static const _seedKey = 'cosmic_world_seed_v2';
   static const _planetRecipeArrivalIntroSeenKey =
@@ -283,6 +294,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   final Map<int, double> _companionHpFraction = {};
   final Map<int, double> _companionSpecialCooldown = {};
   Timer? _companionCooldownUiTimer;
+  final ValueNotifier<int> _companionTick = ValueNotifier(0);
 
   // Home garrison state (alchemons stationed at home planet)
   List<CosmicPartyMember?> _garrisonMembers = [];
@@ -302,6 +314,66 @@ class _CosmicScreenState extends State<CosmicScreen>
       // PREVIEW button opts itself back in.
       _previewingHome ||
       (_game?.beautyContestCinematicActive ?? false);
+
+  /// Panels that cover the world. Space holds still under them, as it does
+  /// under the full map: nothing should fly, fight or drain while the player
+  /// is reading a console. Home preview and the beauty cinematic are absent on
+  /// purpose — they exist to show the live world.
+  bool get _worldCoveredByPanel =>
+      _showCustomizationMenu ||
+      _showChamberPicker ||
+      _showShipMenu ||
+      _showSettingsMenu ||
+      _showHomeMenu ||
+      _showPartyPicker ||
+      _showGarrisonPicker;
+
+  /// A screen or dialog has been pushed over this one (Survival, the Nexus
+  /// encounter, a dungeon, a picker). Flame's loop is a raw Ticker that
+  /// TickerMode does not mute, so without this the world runs underneath.
+  bool _routeCovered = false;
+
+  /// True while the engine is paused because of [_worldCoveredByPanel] or
+  /// [_routeCovered] — and only then. A flow that paused the engine itself
+  /// before covering the world keeps the job of resuming it.
+  bool _heldPausedWhileCovered = false;
+
+  /// What holds the world still: a covering panel, or a route pushed over
+  /// this one — except a contest's, whose overlay is see-through and plays
+  /// over the cinematic running in the game underneath.
+  bool get _worldHeld =>
+      _worldCoveredByPanel ||
+      (_routeCovered &&
+          !(_game?.beautyContestCinematicActive ?? false) &&
+          !_showBloodRitualOverlay);
+
+  void _syncCoveredPause() {
+    final game = _game;
+    if (game == null || !mounted) return;
+    if (_worldHeld) {
+      if (!game.paused) {
+        game.pauseEngine();
+        _heldPausedWhileCovered = true;
+      }
+    } else if (_heldPausedWhileCovered) {
+      _heldPausedWhileCovered = false;
+      if (!_showMiniMap && !_showElementsCaptured && _cacheReward == null) {
+        game.resumeEngine();
+      }
+    }
+  }
+
+  @override
+  void didPushNext() {
+    _routeCovered = true;
+    _syncCoveredPause();
+  }
+
+  @override
+  void didPopNext() {
+    _routeCovered = false;
+    _syncCoveredPause();
+  }
 
   int _sandboxCompanionStatTier = 4;
   int _sandboxEnemyCount = 1;
@@ -448,19 +520,22 @@ class _CosmicScreenState extends State<CosmicScreen>
       duration: const Duration(milliseconds: 220),
     );
 
+    // The finale: long enough for every thorn of the crown to catch.
     _bloodRitualCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 5),
+      duration: const Duration(seconds: 8),
     );
 
     _screenShakeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
+    // Runs only while the arrow is on screen (see _buildScene); it used to
+    // repeat for the life of the screen, long after the tutorial ended.
     _survivalSignalArrowCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
-    )..repeat();
+    );
     _screenShakeAnim =
         TweenSequence<double>([
           TweenSequenceItem(tween: Tween(begin: 0.0, end: -14.0), weight: 1),
@@ -474,13 +549,14 @@ class _CosmicScreenState extends State<CosmicScreen>
           CurvedAnimation(parent: _screenShakeCtrl, curve: Curves.easeInOut),
         );
 
+    // Cooldowns and health on the companion column. Only that column
+    // listens; a Timer ignores TickerMode, so it also checks it is seen.
     _companionCooldownUiTimer = Timer.periodic(
       const Duration(milliseconds: 250),
       (_) {
-        if (!mounted) return;
-        if (_activeCompanionSlots.isNotEmpty) {
-          setState(() {});
-        }
+        if (!mounted || _activeCompanionSlots.isEmpty) return;
+        if (_routeCovered || (_game?.paused ?? true)) return;
+        _companionTick.value++;
       },
     );
 
@@ -2009,17 +2085,35 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
+  /// Ticks once per meter change. Only the meter's own readouts (top HUD,
+  /// recipe strip) listen; the rest of the screen rebuilds when
+  /// [_meterShape] flips. A harvest or a swarm changes the meter once per
+  /// mote, and each of those used to rebuild the whole cosmic scene.
+  final ValueNotifier<int> _meterTick = ValueNotifier(0);
+  bool _meterTickPending = false;
+
+  /// What the rest of the screen reads off the meter: empty vs. holding
+  /// something (deposit, injector boost) and full (planet action).
+  (bool, bool) _meterShape = (false, false);
+
   void _onMeterChanged() {
-    if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        setState(() {});
-        if (_game != null && _game!.meter.isFull) {
-          _meterPulse.repeat(reverse: true);
-          HapticFeedback.heavyImpact();
-        }
-      });
-    }
+    if (!mounted || _meterTickPending) return;
+    _meterTickPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _meterTickPending = false;
+      final game = _game;
+      if (!mounted || game == null) return;
+      _meterTick.value++;
+      final full = game.meter.isFull;
+      if (full && !_meterPulse.isAnimating) {
+        _meterPulse.repeat(reverse: true);
+        HapticFeedback.heavyImpact();
+      } else if (!full && _meterPulse.isAnimating) {
+        _meterPulse.stop();
+        _meterPulse.value = 0;
+      }
+      if ((game.meter.total > 0, full) != _meterShape) setState(() {});
+    });
   }
 
   Future<void> _saveFogState() async {
@@ -2773,86 +2867,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
-  static const Map<CosmicContestTrait, Map<String, double>>
-  _contestElementWeights = {
-    CosmicContestTrait.beauty: {
-      'Crystal': 0.32,
-      'Light': 0.26,
-      'Spirit': 0.18,
-      'Ice': 0.17,
-      'Fire': 0.15,
-      'Steam': 0.10,
-      'Air': 0.12,
-      'Plant': 0.08,
-      'Poison': -0.30,
-      'Blood': -0.24,
-      'Mud': -0.14,
-    },
-    CosmicContestTrait.speed: {
-      'Lightning': 0.34,
-      'Water': 0.26,
-      'Ice': 0.23,
-      'Air': 0.18,
-      'Steam': 0.14,
-      'Earth': -0.16,
-      'Mud': -0.28,
-      'Lava': -0.13,
-    },
-    CosmicContestTrait.strength: {
-      'Earth': 0.34,
-      'Lava': 0.29,
-      'Fire': 0.23,
-      'Mud': 0.16,
-      'Crystal': 0.12,
-      'Blood': 0.10,
-      'Air': -0.19,
-      'Water': -0.11,
-    },
-    CosmicContestTrait.intelligence: {
-      'Spirit': 0.30,
-      'Light': 0.25,
-      'Dark': 0.22,
-      'Crystal': 0.19,
-      'Air': 0.11,
-      'Water': 0.08,
-      'Lava': -0.16,
-      'Mud': -0.13,
-      'Blood': -0.09,
-    },
-  };
-
-  static const Map<CosmicContestTrait, Map<String, double>>
-  _contestFamilyWeights = {
-    CosmicContestTrait.beauty: {'wing': 0.07, 'mask': 0.12, 'kin': 0.05},
-    CosmicContestTrait.speed: {'wing': 0.18, 'let': 0.07, 'kin': 0.06},
-    CosmicContestTrait.strength: {'horn': 0.16, 'mane': 0.14, 'kin': 0.06},
-    CosmicContestTrait.intelligence: {'mask': 0.14, 'kin': 0.12, 'pip': 0.06},
-  };
-
-  static const Map<CosmicContestTrait, double> _contestTraitBonusCaps = {
-    CosmicContestTrait.beauty: 0.70,
-    CosmicContestTrait.speed: 0.62,
-    CosmicContestTrait.strength: 0.70,
-    CosmicContestTrait.intelligence: 0.68,
-  };
-
-  double _contestBaseStat(CosmicContestTrait trait, CosmicPartyMember member) {
-    return switch (trait) {
-      CosmicContestTrait.beauty => member.statBeauty,
-      CosmicContestTrait.speed => member.statSpeed,
-      CosmicContestTrait.strength => member.statStrength,
-      CosmicContestTrait.intelligence => member.statIntelligence,
-    };
-  }
-
-  double _contestElementBonus(CosmicContestTrait trait, String element) {
-    return _contestElementWeights[trait]?[element] ?? 0.0;
-  }
-
-  double _contestFamilyBonus(CosmicContestTrait trait, String family) {
-    return _contestFamilyWeights[trait]?[family.toLowerCase().trim()] ?? 0.0;
-  }
-
   int _lineageDiversityCount(String? raw) {
     if (raw == null || raw.trim().isEmpty) return 0;
     try {
@@ -2915,122 +2929,187 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
-  Future<double> _computePlayerContestScore(
+  /// Asks which of the party in [slots] competes at [trait]'s [level]. It
+  /// names the level's condition and each one's stat, not how they would
+  /// fare: that is for the player to judge.
+  Future<int?> _pickContestEntrant(
+    CosmicContestTrait trait,
+    int level,
+    List<int> slots,
+  ) {
+    final condition = contestCondition(trait, level);
+    final accent = trait.light;
+    return showDialog<int>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: accent.withValues(alpha: 0.9),
+            bracketSize: 12,
+            strokeWidth: 1.3,
+          ),
+          child: Container(
+            color: CosmicScreenStyles.bg1,
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'WHO COMPETES?',
+                  style: panelLabel(13, panelPalette.ink, spacing: 2.4),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${trait.arenaLabel}, level $level. ${condition.title[0]}'
+                  '${condition.title.substring(1).toLowerCase()}: '
+                  '${condition.line}',
+                  style: TextStyle(
+                    color: CosmicScreenStyles.textSecondary,
+                    fontSize: 12.5,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                for (final i in slots) ...[
+                  _contestEntrantRow(ctx, trait, i, accent),
+                  const SizedBox(height: 6),
+                ],
+                const SizedBox(height: 4),
+                BracketButton(
+                  label: 'NOT NOW',
+                  onTap: () => Navigator.of(ctx).pop(),
+                  palette: panelPalette,
+                  accent: accent,
+                  primary: false,
+                  height: 38,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _contestEntrantRow(
+    BuildContext ctx,
+    CosmicContestTrait trait,
+    int slot,
+    Color accent,
+  ) {
+    final m = _partyMembers[slot]!;
+    final stat = switch (trait) {
+      CosmicContestTrait.beauty => m.statBeauty,
+      CosmicContestTrait.speed => m.statSpeed,
+      CosmicContestTrait.strength => m.statStrength,
+      CosmicContestTrait.intelligence => m.statIntelligence,
+    };
+    return GestureDetector(
+      key: ValueKey('contest.entrant.$slot'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        Navigator.of(ctx).pop(slot);
+      },
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        decoration: BoxDecoration(
+          color: panelPalette.bg0,
+          border: Border.all(color: panelPalette.lineSoft),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: m.imagePath == null
+                  ? Icon(AppIcons.pets_rounded, color: panelPalette.muted)
+                  : Image.asset(
+                      m.imagePath!,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => Icon(
+                        AppIcons.pets_rounded,
+                        color: panelPalette.muted,
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    m.displayName.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: panelLabel(11.5, panelPalette.ink, spacing: 1),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${m.element.toUpperCase()} · ${m.family.toUpperCase()} '
+                    '· LV ${m.level}',
+                    style: panelLabel(9.5, panelPalette.muted, spacing: 0.8),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              '${trait.label.toUpperCase()} '
+              '${AlchemonStatSystem.displayRating(stat)}',
+              style: panelLabel(10.5, accent, spacing: 0.8),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// What the judges can see of [member] for [trait]: its stat, what it is,
+  /// how it looks, and its line (contest_judging.dart judges it).
+  Future<ContestEntrant> _contestEntrant(
     CosmicContestTrait trait,
     CosmicPartyMember member,
   ) async {
-    final baseStat = _contestBaseStat(trait, member);
-    double traitBonus = _contestElementBonus(trait, member.element);
-    traitBonus += _contestFamilyBonus(trait, member.family);
-
+    final stat = switch (trait) {
+      CosmicContestTrait.beauty => member.statBeauty,
+      CosmicContestTrait.speed => member.statSpeed,
+      CosmicContestTrait.strength => member.statStrength,
+      CosmicContestTrait.intelligence => member.statIntelligence,
+    };
     final visuals = member.spriteVisuals;
     final db = context.read<AlchemonsDatabase>();
     final inst = await db.creatureDao.getInstance(member.instanceId);
-
-    if (trait == CosmicContestTrait.beauty) {
-      if (visuals?.isPrismatic == true) traitBonus += 0.24;
-      final fx = visuals?.alchemyEffect;
-      if (fx == 'prismatic_cascade') traitBonus += 0.18;
-      if (fx == 'alchemy_glow' || fx == 'elemental_aura') traitBonus += 0.09;
-      if (fx == 'beauty_radiance') traitBonus += 0.15;
-      if ((member.visualVariant ?? '').trim().isNotEmpty) traitBonus += 0.12;
-      if (visuals?.tint != null) traitBonus += 0.05;
-      final variantKey = (inst?.variantFaction ?? '').trim().toLowerCase();
-      if (variantKey.isNotEmpty && variantKey != 'bloodborn') {
-        traitBonus += 0.06;
-      }
-    }
-    if (trait == CosmicContestTrait.speed) {
-      final scale = visuals?.scale ?? 1.0;
-      final compactness = (1.0 - scale).clamp(0.0, 0.35).toDouble();
-      traitBonus += compactness * 0.55;
-      if (visuals?.alchemyEffect == 'speed_flux') traitBonus += 0.15;
-    }
-    if (trait == CosmicContestTrait.strength) {
-      final scale = visuals?.scale ?? 1.0;
-      final bulk = (scale - 1.0).clamp(0.0, 0.55).toDouble();
-      traitBonus += bulk * 0.70;
-      if (visuals?.alchemyEffect == 'strength_forge') traitBonus += 0.15;
-    }
-    if (trait == CosmicContestTrait.intelligence) {
-      if (visuals?.alchemyEffect == 'intelligence_halo') traitBonus += 0.15;
-    }
-
-    if (inst != null) {
-      if (trait == CosmicContestTrait.intelligence && mounted) {
-        final elemKinds = _lineageDiversityCount(
-          inst.elementLineageJson,
-        ).clamp(0, 6);
-        final factionKinds = _lineageDiversityCount(
-          inst.factionLineageJson,
-        ).clamp(0, 6);
-        final familyKinds = _lineageDiversityCount(
-          inst.familyLineageJson,
-        ).clamp(0, 6);
-        final genDepth = inst.generationDepth.clamp(0, 12);
-        traitBonus += elemKinds * 0.024;
-        traitBonus += factionKinds * 0.026;
-        traitBonus += familyKinds * 0.020;
-        traitBonus += genDepth * 0.011;
-      }
-
-      final pureElement = _singleLineageKey(inst.elementLineageJson);
-      final pureFamily = _singleLineageKey(
-        inst.familyLineageJson,
-      )?.toLowerCase().trim();
-      final speciesPure = _isSpeciesPureFromParentage(
-        inst.parentageJson,
-        member.baseId,
-      );
-
-      if (pureElement != null) {
-        final normalizedElement = pureElement.isEmpty
-            ? pureElement
-            : pureElement[0].toUpperCase() +
-                  pureElement.substring(1).toLowerCase();
-        if (trait == CosmicContestTrait.beauty) {
-          traitBonus += 0.08;
-        }
-        final aligned = _contestElementBonus(trait, normalizedElement);
-        if (aligned > 0) {
-          traitBonus += 0.04 + aligned * 0.28;
-        }
-      }
-
-      if (pureFamily != null && pureFamily.isNotEmpty) {
-        if (trait == CosmicContestTrait.beauty) {
-          traitBonus += 0.06;
-        }
-        final aligned = _contestFamilyBonus(trait, pureFamily);
-        if (aligned > 0) {
-          traitBonus += 0.03 + aligned * 0.26;
-        }
-      }
-
-      if (speciesPure) {
-        traitBonus += trait == CosmicContestTrait.beauty ? 0.08 : 0.03;
-      }
-    }
-
-    traitBonus = traitBonus
-        .clamp(-0.70, _contestTraitBonusCaps[trait]!)
-        .toDouble();
-    final variance = (Random().nextDouble() * 0.18) - 0.09;
-    final effectiveStat = AlchemonStatSystem.legacyGameplayRating(baseStat);
-    final score = effectiveStat + traitBonus + variance;
-    return score.clamp(0.0, 6.85).toDouble();
-  }
-
-  double _computeOpponentContestScore(
-    CosmicContestTrait trait,
-    CosmicContestOpponent opponent,
-  ) {
-    double traitBonus = _contestElementBonus(trait, opponent.element) * 0.45;
-    traitBonus += _contestFamilyBonus(trait, opponent.family) * 0.35;
-    traitBonus = traitBonus.clamp(-0.35, 0.45).toDouble();
-    final variance = (Random().nextDouble() * 0.16) - 0.08;
-    final score = opponent.targetScore + traitBonus + variance;
-    return score.clamp(0.0, 6.80).toDouble();
+    final variantKey = (inst?.variantFaction ?? '').trim().toLowerCase();
+    return ContestEntrant(
+      name: member.displayName,
+      element: member.element,
+      family: member.family,
+      statRating: AlchemonStatSystem.legacyGameplayRating(stat),
+      scale: visuals?.scale ?? 1.0,
+      prismatic: visuals?.isPrismatic == true,
+      effect: visuals?.alchemyEffect,
+      variant:
+          (member.visualVariant ?? '').trim().isNotEmpty ||
+          (variantKey.isNotEmpty && variantKey != 'bloodborn'),
+      tinted: visuals?.tint != null,
+      pureElement: inst == null
+          ? null
+          : _singleLineageKey(inst.elementLineageJson),
+      pureFamily: inst == null
+          ? null
+          : _singleLineageKey(inst.familyLineageJson),
+      speciesPure:
+          inst != null &&
+          _isSpeciesPureFromParentage(inst.parentageJson, member.baseId),
+      elementKinds: _lineageDiversityCount(inst?.elementLineageJson),
+      factionKinds: _lineageDiversityCount(inst?.factionLineageJson),
+      familyKinds: _lineageDiversityCount(inst?.familyLineageJson),
+      generations: inst?.generationDepth ?? 0,
+    );
   }
 
   SpriteVisuals _applyContestThemeVisuals(
@@ -3200,7 +3279,9 @@ class _CosmicScreenState extends State<CosmicScreen>
       instanceId:
           'beauty_contest_${inst.instanceId}_${DateTime.now().millisecondsSinceEpoch}',
       baseId: inst.baseId,
-      displayName: inst.nickname ?? base.name,
+      // The rival goes by the name it was written with; the body is one of
+      // your own specimens' kind.
+      displayName: opponent.name,
       imagePath: base.image != null ? 'assets/images/${base.image}' : null,
       element: typeName,
       family: family,
@@ -3225,6 +3306,8 @@ class _CosmicScreenState extends State<CosmicScreen>
     required int level,
     required double playerScore,
     required double opponentScore,
+    ContestStakes? stakes,
+    ContestJudging? judging,
   }) async {
     final game = _game;
     if (game == null || !mounted) return null;
@@ -3266,6 +3349,8 @@ class _CosmicScreenState extends State<CosmicScreen>
           opponentMember: opponentMember,
           playerScore: playerScore,
           opponentScore: opponentScore,
+          stakes: stakes,
+          judging: judging,
         ),
         transitionBuilder: (context, animation, _, child) {
           final curved = CurvedAnimation(
@@ -3295,6 +3380,8 @@ class _CosmicScreenState extends State<CosmicScreen>
     required int level,
     required double playerScore,
     required double opponentScore,
+    ContestStakes? stakes,
+    ContestJudging? judging,
   }) async {
     final game = _game;
     if (game == null || !mounted) return null;
@@ -3338,6 +3425,8 @@ class _CosmicScreenState extends State<CosmicScreen>
           opponentMember: opponentMember,
           playerScore: playerScore,
           opponentScore: opponentScore,
+          stakes: stakes,
+          judging: judging,
         ),
         transitionBuilder: (context, animation, _, child) {
           final curved = CurvedAnimation(
@@ -3367,6 +3456,8 @@ class _CosmicScreenState extends State<CosmicScreen>
     required int level,
     required double playerScore,
     required double opponentScore,
+    ContestStakes? stakes,
+    ContestJudging? judging,
   }) async {
     final game = _game;
     if (game == null || !mounted) return null;
@@ -3412,6 +3503,8 @@ class _CosmicScreenState extends State<CosmicScreen>
           opponentMember: opponentMember,
           playerScore: playerScore,
           opponentScore: opponentScore,
+          stakes: stakes,
+          judging: judging,
         ),
         transitionBuilder: (context, animation, _, child) {
           final curved = CurvedAnimation(
@@ -3441,6 +3534,8 @@ class _CosmicScreenState extends State<CosmicScreen>
     required int level,
     required double playerScore,
     required double opponentScore,
+    ContestStakes? stakes,
+    ContestJudging? judging,
   }) async {
     final game = _game;
     if (game == null || !mounted) return null;
@@ -3486,6 +3581,8 @@ class _CosmicScreenState extends State<CosmicScreen>
           opponentMember: opponentMember,
           playerScore: playerScore,
           opponentScore: opponentScore,
+          stakes: stakes,
+          judging: judging,
         ),
         transitionBuilder: (context, animation, _, child) {
           final curved = CurvedAnimation(
@@ -3509,7 +3606,20 @@ class _CosmicScreenState extends State<CosmicScreen>
     return opponentMember.displayName;
   }
 
+  /// A contest is being set up or played; a second tap must not start one.
+  bool _contestRunning = false;
+
   Future<void> _handleContestArenaTap() async {
+    if (_contestRunning) return;
+    _contestRunning = true;
+    try {
+      await _runContest();
+    } finally {
+      _contestRunning = false;
+    }
+  }
+
+  Future<void> _runContest() async {
     if (_homeBuildTutorialLock) {
       _showQuote('Build your home base first.');
       return;
@@ -3519,17 +3629,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showQuote('Finish the fight first.');
       return;
     }
-    if (_activeCompanionSlots.isEmpty) {
-      _showQuote('Summon a companion first to enter a contest.');
-      return;
-    }
-    final activeSlot = _activeCompanionSlots.first;
-    final member = _partyMembers[activeSlot];
-    if (member == null) {
-      _showQuote('Active companion missing.');
-      return;
-    }
-
     final trait = _nearContestArena!.trait;
     final completed = _contestProgress.completedLevels(trait);
     final levels = kCosmicContestLevels[trait]!;
@@ -3539,14 +3638,78 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
 
+    // Who competes: one of the party, chosen here when there is a choice.
+    final fit = [
+      for (var i = 0; i < _partyMembers.length; i++)
+        if (_partyMembers[i] != null && (_companionHpFraction[i] ?? 1.0) > 0) i,
+    ];
+    if (fit.isEmpty) {
+      _showQuote('No one in your party is fit to compete.');
+      return;
+    }
+    final slot = fit.length == 1
+        ? fit.first
+        : await _pickContestEntrant(trait, levels[completed].level, fit);
+    if (slot == null || !mounted || _game == null) return;
+    // Only the entrant stands in the arena.
+    for (final other in [..._activeCompanionSlots]) {
+      if (other != slot) _handleReturnCompanion(other);
+    }
+    if (!_activeCompanionSlots.contains(slot)) {
+      await _handleSummonCompanionAsync(slot);
+      if (!mounted || !_activeCompanionSlots.contains(slot)) return;
+    }
+    final member = _partyMembers[slot]!;
+
     final level = levels[completed];
     final levelOpponent = trait == CosmicContestTrait.beauty
         ? _beautyOpponentForLevel(level.level)
         : level.opponent;
-    final playerScore = await _computePlayerContestScore(trait, member);
-    final opponentScore = _computeOpponentContestScore(trait, levelOpponent);
+    // Judged by rules, not dice (contest_judging.dart): the same entrant
+    // against the same level always scores the same.
+    final entrant = await _contestEntrant(trait, member);
+    if (!mounted) return;
+    final playerVerdict = judgeEntrant(
+      trait,
+      level.level,
+      entrant,
+      rivalElement: levelOpponent.element,
+    );
+    final rivalVerdict = judgeRival(trait, level.level, levelOpponent);
+    final playerScore = playerVerdict.score;
+    final opponentScore = rivalVerdict.score;
+    final traitStat = switch (trait) {
+      CosmicContestTrait.beauty => member.statBeauty,
+      CosmicContestTrait.speed => member.statSpeed,
+      CosmicContestTrait.strength => member.statStrength,
+      CosmicContestTrait.intelligence => member.statIntelligence,
+    };
+    final judging = ContestJudging(
+      condition: contestCondition(trait, level.level),
+      player: playerVerdict,
+      rival: rivalVerdict,
+      playerStat:
+          '${trait.label.toUpperCase()} '
+          '${AlchemonStatSystem.displayRating(traitStat)}',
+      rivalStat: 'LEVEL ${level.level} RIVAL',
+    );
     final won = playerScore >= opponentScore;
     var opponentLabel = _contestOpponentDisplay(levelOpponent);
+    final masteryOffer = completed + 1 >= levels.length
+        ? _contestMasteryEffectOfferByTrait[trait]
+        : null;
+    final stakes = ContestStakes(
+      level: level.level,
+      levels: levels.length,
+      shards: level.rewardShards,
+      gold: cosmicContestGoldReward(level.level),
+      unlock: masteryOffer
+          ?.split('.')
+          .last
+          .split('_')
+          .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+          .join(' '),
+    );
 
     if (trait == CosmicContestTrait.beauty) {
       final presentedOpponent = await _playBeautyContestPresentation(
@@ -3555,6 +3718,8 @@ class _CosmicScreenState extends State<CosmicScreen>
         level: level.level,
         playerScore: playerScore,
         opponentScore: opponentScore,
+        stakes: stakes,
+        judging: judging,
       );
       if (!mounted) return;
       if (presentedOpponent == null) return;
@@ -3567,6 +3732,8 @@ class _CosmicScreenState extends State<CosmicScreen>
         level: level.level,
         playerScore: playerScore,
         opponentScore: opponentScore,
+        stakes: stakes,
+        judging: judging,
       );
       if (!mounted) return;
       if (presentedSpeedOpponent == null) return;
@@ -3579,6 +3746,8 @@ class _CosmicScreenState extends State<CosmicScreen>
         level: level.level,
         playerScore: playerScore,
         opponentScore: opponentScore,
+        stakes: stakes,
+        judging: judging,
       );
       if (!mounted) return;
       if (presentedStrengthOpponent == null) return;
@@ -3592,6 +3761,8 @@ class _CosmicScreenState extends State<CosmicScreen>
             level: level.level,
             playerScore: playerScore,
             opponentScore: opponentScore,
+            stakes: stakes,
+            judging: judging,
           );
       if (!mounted) return;
       if (presentedIntelligenceOpponent == null) return;
@@ -3602,7 +3773,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       final nextCompleted = completed + 1;
       _contestProgress = _contestProgress.withCompleted(trait, nextCompleted);
       await _saveContestProgress();
-      _game!.shipWallet.shards += level.rewardShards;
+      // Into the hold, as far as it has room.
+      _game!.shipWallet.addShards(level.rewardShards);
       final goldReward = cosmicContestGoldReward(level.level);
       await _grantContestGold(goldReward);
       String masteryUnlockText = '';
@@ -3836,12 +4008,27 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
+  /// The ritual plays on the Blood Ring itself, in the world: the engine
+  /// runs again for it (the ending holds it paused otherwise) and the game
+  /// frames the crown while it ignites; the overlay only darkens the edges
+  /// and brings the red flood in at the end.
   Future<void> _playBloodRitualInSpace() async {
-    if (!mounted) return;
+    final game = _game;
+    if (!mounted || game == null) return;
     setState(() => _showBloodRitualOverlay = true);
     _bloodRitualCtrl.stop();
     _bloodRitualCtrl.value = 0;
-    await _bloodRitualCtrl.forward();
+    void drive() => game.bloodRitualProgress = _bloodRitualCtrl.value;
+    drive();
+    _bloodRitualCtrl.addListener(drive);
+    game.resumeEngine();
+    try {
+      await _bloodRitualCtrl.forward();
+    } finally {
+      _bloodRitualCtrl.removeListener(drive);
+      game.pauseEngine();
+      game.bloodRitualProgress = null;
+    }
   }
 
   void _resetBloodRitualOverlay() {
@@ -4161,6 +4348,23 @@ class _CosmicScreenState extends State<CosmicScreen>
       final db = context.read<AlchemonsDatabase>();
       db.settingsDao.setCosmicSurvivalPortalDiscovered();
     }
+    // Say what just happened; these used to pass without a word.
+    switch (poi.type) {
+      case POIType.nebula:
+        _showQuote(
+          (_game?.meter.isFull ?? false)
+              ? 'Your meter is full. The nebula\'s matter drifts past.'
+              : 'Gathered ${poi.element.toLowerCase()} matter from the nebula.',
+        );
+      case POIType.derelict:
+        _showQuote('You pick over the wreck. Salvage scatters out.');
+      case POIType.warpAnomaly:
+        _showQuote('The anomaly throws you across space.');
+      case POIType.comet:
+        _showQuote('A meteor shower. Stay inside to catch what falls.');
+      default:
+        break;
+    }
     _saveFogState();
     if (mounted && _showPinnedMiniMap) {
       setState(() {});
@@ -4186,7 +4390,16 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
     if (_nearMarketPOI!.type == POIType.cosmicMarket) {
-      CosmicSellSheet.show(context);
+      CosmicSellSheet.show(
+        context,
+        carriedShards: _game!.shipWallet.shards,
+        shardCapacity: _game!.shipWallet.shardCapacity,
+        addShards: (amount) {
+          setState(() {
+            _game!.shipWallet.shards += amount;
+          });
+        },
+      );
       return;
     }
     if (_nearMarketPOI!.type == POIType.goldConversion) {
@@ -4226,9 +4439,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
     _playCosmicSfx(SoundCue.cosmicScan);
-    _showQuote(
-      'Scanner locked. Follow the radar beeper to the target star dust.',
-    );
+    _showQuote('Scanner locked. The radar points to the nearest star dust.');
     HapticFeedback.mediumImpact();
     _saveFogState();
     if (mounted) setState(() {});
@@ -4262,7 +4473,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     _playCosmicSfx(SoundCue.cosmicScan);
     _showQuote(
-      'Planet scanner locked. Follow the beacon to the nearest undiscovered planet.',
+      'Scanner locked. The radar points to the nearest undiscovered planet.',
     );
     HapticFeedback.mediumImpact();
     _saveFogState();
@@ -5068,25 +5279,30 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   Widget _pulseEmptySlot(Widget child) {
     const accent = Color(0xFF7BE1E8);
-    return AnimatedBuilder(
-      animation: _emptySlotPulse,
-      builder: (context, inner) {
-        final t = Curves.easeInOut.transform(_emptySlotPulse.value);
-        return Transform.scale(
-          scale: 1 + 0.055 * t,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: accent.withValues(alpha: 0.35 + 0.5 * t),
-                width: 1 + t,
+    // Its own layer, and a border that does not pad the child: the breath
+    // used to re-record the whole HUD every frame and relayout the slot.
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _emptySlotPulse,
+        builder: (context, inner) {
+          final t = Curves.easeInOut.transform(_emptySlotPulse.value);
+          return Transform.scale(
+            scale: 1 + 0.055 * t,
+            child: DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: accent.withValues(alpha: 0.35 + 0.5 * t),
+                  width: 1 + t,
+                ),
               ),
+              child: inner,
             ),
-            child: inner,
-          ),
-        );
-      },
-      child: child,
+          );
+        },
+        child: child,
+      ),
     );
   }
 
@@ -5138,36 +5354,44 @@ class _CosmicScreenState extends State<CosmicScreen>
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      // Creature image as silhouette
-                      if (member.imagePath != null)
+                      // Creature image: itself while out, a bright
+                      // silhouette while waiting in the slot.
+                      if (isActive && member.imagePath != null)
+                        Image.asset(
+                          member.imagePath!,
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            AppIcons.catching_pokemon,
+                            color: Color(0xFFE53935),
+                            size: 20,
+                          ),
+                        )
+                      else if (member.imagePath != null)
                         ColorFiltered(
-                          colorFilter: isActive
-                              ? const ColorFilter.mode(
-                                  Colors.transparent,
-                                  BlendMode.dst,
-                                )
-                              : const ColorFilter.matrix(<double>[
-                                  0,
-                                  0,
-                                  0,
-                                  0,
-                                  80,
-                                  0,
-                                  0,
-                                  0,
-                                  0,
-                                  80,
-                                  0,
-                                  0,
-                                  0,
-                                  0,
-                                  80,
-                                  0,
-                                  0,
-                                  0,
-                                  1,
-                                  0,
-                                ]),
+                          colorFilter: const ColorFilter.matrix(<double>[
+                            0,
+                            0,
+                            0,
+                            0,
+                            80,
+                            0,
+                            0,
+                            0,
+                            0,
+                            80,
+                            0,
+                            0,
+                            0,
+                            0,
+                            80,
+                            0,
+                            0,
+                            0,
+                            1,
+                            0,
+                          ]),
                           child: Image.asset(
                             member.imagePath!,
                             width: 32,
@@ -5189,14 +5413,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                               ? const Color(0xFFE53935)
                               : const Color(0xFF00E676),
                           size: 20,
-                        ),
-                      // Show actual image when active
-                      if (isActive && member.imagePath != null)
-                        Image.asset(
-                          member.imagePath!,
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.contain,
                         ),
                       // "RET" label when active
                       if (isActive)
@@ -7250,7 +7466,18 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      ambienceRouteObserver.unsubscribe(this);
+      ambienceRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
   void dispose() {
+    ambienceRouteObserver.unsubscribe(this);
     DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);
     _revealWhenReady.dispose();
     try {
@@ -7260,8 +7487,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     _memorySpawnTimer?.cancel();
     _memoryMonitorTimer?.cancel();
     _companionCooldownUiTimer?.cancel();
+    _companionTick.dispose();
     _raidTimer?.cancel();
     _meterPulse.dispose();
+    _meterTick.dispose();
     _emptySlotPulse.dispose();
     _quoteFade.dispose();
     _miniMapCtrl.dispose();
@@ -7385,6 +7614,18 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   Widget _buildScene(BuildContext context) {
     final theme = context.watch<FactionTheme>();
+    final liveMeter = _game?.meter;
+    if (liveMeter != null) {
+      _meterShape = (liveMeter.total > 0, liveMeter.isFull);
+    }
+
+    // Panels open and close through setState all over this file; checking
+    // here catches every one of them, and re-pauses if a dialog inside a
+    // panel resumed the engine on its way out.
+    final game = _game;
+    if (game != null && (_worldHeld ? !game.paused : _heldPausedWhileCovered)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncCoveredPause());
+    }
 
     // Show loading while game initialises
     if (_game == null || _recipes == null) {
@@ -7485,10 +7726,25 @@ class _CosmicScreenState extends State<CosmicScreen>
         .clamp(0.0, 400.0)
         .toDouble();
     final isMemoryTutorial = widget.memoryTutorial;
-    final showCosmicHud = !isMemoryTutorial && !_wildTearActive;
+    final showCosmicHud =
+        !isMemoryTutorial && !_wildTearActive && !_showBloodRitualOverlay;
     final showJoystickControl = isMemoryTutorial || _showJoystick;
     final largeJoystickControl = isMemoryTutorial || _largeJoystick;
     final tutorialTargetPos = _survivalTutorialTargetPos;
+    final showSignalArrow =
+        showCosmicHud &&
+        _survivalGuidanceActive &&
+        !_survivalIntroCompleted &&
+        tutorialTargetPos != null &&
+        !_showMiniMap &&
+        !_anyOverlayOpen;
+    if (showSignalArrow != _survivalSignalArrowCtrl.isAnimating) {
+      if (showSignalArrow) {
+        _survivalSignalArrowCtrl.repeat();
+      } else {
+        _survivalSignalArrowCtrl.stop();
+      }
+    }
 
     return PopScope(
       canPop: false,
@@ -7510,20 +7766,17 @@ class _CosmicScreenState extends State<CosmicScreen>
               // ── Flame game canvas ──
               Positioned.fill(child: GameWidget(game: _game!)),
 
-              if (showCosmicHud &&
-                  _survivalGuidanceActive &&
-                  !_survivalIntroCompleted &&
-                  tutorialTargetPos != null &&
-                  !_showMiniMap &&
-                  !_anyOverlayOpen)
+              if (showSignalArrow)
                 Positioned.fill(
                   child: IgnorePointer(
-                    child: CustomPaint(
-                      painter: _SurvivalSignalEdgeArrowPainter(
-                        game: _game!,
-                        targetPos: tutorialTargetPos,
-                        progress: _survivalSignalArrowCtrl,
-                        viewPadding: MediaQuery.of(context).padding,
+                    child: RepaintBoundary(
+                      child: CustomPaint(
+                        painter: _SurvivalSignalEdgeArrowPainter(
+                          game: _game!,
+                          targetPos: tutorialTargetPos,
+                          progress: _survivalSignalArrowCtrl,
+                          viewPadding: MediaQuery.of(context).padding,
+                        ),
                       ),
                     ),
                   ),
@@ -7630,7 +7883,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   ),
                 ),
 
-              // ── Space Market Hub ──
+              // ── Space station prompt ──
               if (showCosmicHud &&
                   _nearMarketPOI != null &&
                   _nearPlanet == null &&
@@ -7641,114 +7894,78 @@ class _CosmicScreenState extends State<CosmicScreen>
                 Builder(
                   builder: (_) {
                     final mType = _nearMarketPOI!.type;
-                    final mColor = mType == POIType.harvesterMarket
-                        ? const Color(0xFFFFB300)
-                        : mType == POIType.riftKeyMarket
-                        ? const Color(0xFF7C4DFF)
-                        : mType == POIType.cosmicMarket
-                        ? const Color(0xFF00E5FF)
-                        : mType == POIType.stardustScanner
-                        ? const Color(0xFF9CCC65)
-                        : mType == POIType.goldConversion
-                        ? const Color(0xFFFFD740)
-                        : mType == POIType.survivalPortal
-                        ? const Color(0xFF8B5CF6)
-                        : const Color(0xFF64B5F6);
-                    final mLabel = mType == POIType.harvesterMarket
-                        ? 'HARVESTER SHOP'
-                        : mType == POIType.riftKeyMarket
-                        ? 'RIFT KEY SHOP'
-                        : mType == POIType.cosmicMarket
-                        ? 'COSMIC MARKET'
-                        : mType == POIType.stardustScanner
-                        ? 'STAR DUST SCANNER'
-                        : mType == POIType.goldConversion
-                        ? 'GOLD CONVERSION'
-                        : mType == POIType.survivalPortal
-                        ? 'SURVIVAL PORTAL'
-                        : 'PLANET SCANNER';
-                    final scannerTrackingActive =
-                        _game?.starDustScannerTargetIndex != null;
-                    final planetTrackingActive =
-                        _game?.planetScannerTargetIndex != null;
+                    final kind = stationKindFor(mType);
+                    final tracking = switch (kind) {
+                      StationKind.starDustScanner =>
+                        _game?.starDustScannerTarget != null,
+                      StationKind.planetScanner =>
+                        _game?.planetScannerTarget != null,
+                      _ => false,
+                    };
+                    final scanCost = kind == StationKind.planetScanner
+                        ? _planetScanCost
+                        : _starDustScanCost;
+                    final (line, action) = switch (kind) {
+                      StationKind.harvester => (
+                        'Harvesters for all five groups.',
+                        'ENTER SHOP',
+                      ),
+                      StationKind.riftKey => (
+                        'Keys to the five rifts.',
+                        'ENTER SHOP',
+                      ),
+                      StationKind.market => (
+                        'Sell Alchemons summoned from planets.',
+                        'OPEN MARKET',
+                      ),
+                      StationKind.goldConversion => (
+                        'Gold into shards or matter, matter into silver.',
+                        'CONVERT',
+                      ),
+                      StationKind.starDustScanner =>
+                        tracking
+                            ? (
+                                'Locked on. The radar points the way.',
+                                'TRACKING',
+                              )
+                            : (
+                                'Points the radar at the nearest star dust.',
+                                'SCAN',
+                              ),
+                      StationKind.planetScanner =>
+                        tracking
+                            ? (
+                                'Locked on. The radar points the way.',
+                                'TRACKING',
+                              )
+                            : (
+                                'Points the radar at the nearest undiscovered '
+                                    'planet.',
+                                'SCAN',
+                              ),
+                      null => (
+                        'The arena where waves of enemies come for you.',
+                        'ENTER PORTAL',
+                      ),
+                    };
+                    final scanner =
+                        kind == StationKind.starDustScanner ||
+                        kind == StationKind.planetScanner;
                     return Positioned(
                       bottom: 100,
-                      left: 0,
-                      right: 0,
+                      left: 16,
+                      right: 16,
                       child: Center(
-                        child: GestureDetector(
-                          onTap: context.soundAction(_openMarketShop),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 14,
-                            ),
-                            decoration: BoxDecoration(
-                              color: CosmicScreenStyles.bg1,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: mColor.withValues(alpha: 0.7),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: mColor.withValues(alpha: 0.3),
-                                  blurRadius: 20,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  mLabel,
-                                  style: TextStyle(
-                                    color: mColor,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: mColor.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: mColor.withValues(alpha: 0.4),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    mType == POIType.cosmicMarket
-                                        ? 'SELL ALCHEMONS'
-                                        : mType == POIType.goldConversion
-                                        ? 'CONVERT GOLD'
-                                        : mType == POIType.stardustScanner
-                                        ? (scannerTrackingActive
-                                              ? 'TRACKING ACTIVE'
-                                              : 'SCAN FOR $_starDustScanCost SHARDS')
-                                        : mType == POIType.planetScanner
-                                        ? (planetTrackingActive
-                                              ? 'TRACKING ACTIVE'
-                                              : 'SCAN FOR $_planetScanCost SHARDS')
-                                        : mType == POIType.survivalPortal
-                                        ? 'ENTER SURVIVAL PORTAL'
-                                        : 'ENTER SHOP',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        child: StationPrompt(
+                          title: kind?.title ?? 'SURVIVAL PORTAL',
+                          line: line,
+                          action: action,
+                          accent: kind?.accent ?? const Color(0xFF8B5CF6),
+                          enabled: !tracking,
+                          trailing: scanner && !tracking
+                              ? ShardAmount(scanCost, size: 10.5)
+                              : null,
+                          onTap: context.soundTap(_openMarketShop),
                         ),
                       ),
                     );
@@ -7785,12 +8002,15 @@ class _CosmicScreenState extends State<CosmicScreen>
                   child: SafeArea(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: PlanetRecipeStrip(
-                        planet: hudPlanet,
-                        recipe: _getRecipeForPlanet(hudPlanet),
-                        meter: _game!.meter,
-                        ready: hudCanAct,
-                        onDetail: _handleMeterTap,
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: _meterTick,
+                        builder: (context, _, _) => PlanetRecipeStrip(
+                          planet: hudPlanet,
+                          recipe: _getRecipeForPlanet(hudPlanet),
+                          meter: _game!.meter,
+                          ready: hudCanAct,
+                          onDetail: _handleMeterTap,
+                        ),
                       ),
                     ),
                   ),
@@ -7922,40 +8142,43 @@ class _CosmicScreenState extends State<CosmicScreen>
                   left: 0,
                   right: 0,
                   child: SafeArea(
-                    child: TopHud(
-                      theme: theme,
-                      meter: _game!.meter,
-                      meterPulse: _meterPulse,
-                      discoveryPct: _game!.discoveryPct,
-                      planetsFound: _world.discoveredCount,
-                      planetsTotal: _world.totalCount,
-                      wallet: _game!.shipWallet,
-                      onSettings: () => _homeBuildTutorialLock
-                          ? _showQuote('Build your home base first.')
-                          : setState(() => _showSettingsMenu = true),
-                      onMiniMap: _toggleMiniMap,
-                      onMeterTap: _handleMeterTap,
-                      // The meter never moves or resizes. It used to be
-                      // hidden here and re-drawn inside the planet column,
-                      // which read as the bar shrinking on approach.
-                      showMeter: true,
-                      dustCollected: _collectedDust.length,
-                      dustTotal: starDustTotal,
-                      // Targets drawn onto the meter itself — see
-                      // PlanetRecipeStrip for why the card is gone.
-                      recipe: recipeHudVisible
-                          ? _getRecipeForPlanet(hudPlanet)
-                          : null,
-                      collapsed: _topHudCollapsed,
-                      onCollapsedChanged: (collapsed) {
-                        if (_topHudCollapsed == collapsed) return;
-                        setState(() => _topHudCollapsed = collapsed);
-                      },
-                      zoomLevel: _game!.currentZoomLevel,
-                      onZoomCycle: () {
-                        _game!.cycleZoomLevel();
-                        setState(() {});
-                      },
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: _meterTick,
+                      builder: (context, _, _) => TopHud(
+                        theme: theme,
+                        meter: _game!.meter,
+                        meterPulse: _meterPulse,
+                        discoveryPct: _game!.discoveryPct,
+                        planetsFound: _world.discoveredCount,
+                        planetsTotal: _world.totalCount,
+                        wallet: _game!.shipWallet,
+                        onSettings: () => _homeBuildTutorialLock
+                            ? _showQuote('Build your home base first.')
+                            : setState(() => _showSettingsMenu = true),
+                        onMiniMap: _toggleMiniMap,
+                        onMeterTap: _handleMeterTap,
+                        // The meter never moves or resizes. It used to be
+                        // hidden here and re-drawn inside the planet column,
+                        // which read as the bar shrinking on approach.
+                        showMeter: true,
+                        dustCollected: _collectedDust.length,
+                        dustTotal: starDustTotal,
+                        // Targets drawn onto the meter itself — see
+                        // PlanetRecipeStrip for why the card is gone.
+                        recipe: recipeHudVisible
+                            ? _getRecipeForPlanet(hudPlanet)
+                            : null,
+                        collapsed: _topHudCollapsed,
+                        onCollapsedChanged: (collapsed) {
+                          if (_topHudCollapsed == collapsed) return;
+                          setState(() => _topHudCollapsed = collapsed);
+                        },
+                        zoomLevel: _game!.currentZoomLevel,
+                        onZoomCycle: () {
+                          _game!.cycleZoomLevel();
+                          setState(() {});
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -8471,77 +8694,45 @@ class _CosmicScreenState extends State<CosmicScreen>
                 Builder(
                   builder: (_) {
                     final trait = _nearContestArena!.trait;
+                    final levels = kCosmicContestLevels[trait]!;
                     final done = _contestProgress.completedLevels(trait);
-                    final nextLevel = (done + 1).clamp(1, 5);
                     final mastered = _contestProgress.isMastered(trait);
-                    final accent = trait.color;
+                    final next = mastered ? null : levels[done];
                     return Positioned(
                       bottom: 100,
-                      left: 0,
-                      right: 0,
+                      left: 16,
+                      right: 16,
                       child: Center(
-                        child: GestureDetector(
-                          onTap: context.soundAction(_handleContestArenaTap),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 14,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.92),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: accent, width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: accent.withValues(alpha: 0.5),
-                                  blurRadius: 24,
-                                ),
-                                BoxShadow(
-                                  color: accent.withValues(alpha: 0.2),
-                                  blurRadius: 36,
-                                  spreadRadius: 3,
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Row(
+                        child: StationPrompt(
+                          title: trait.arenaLabel.toUpperCase(),
+                          line: next == null
+                              ? 'Mastered: all ${levels.length} levels won.'
+                              : () {
+                                  final c = contestCondition(trait, next.level);
+                                  return 'Level ${next.level} of '
+                                      '${levels.length}, '
+                                      '${c.title.toLowerCase()}. ${c.line}';
+                                }(),
+                          action: mastered ? 'MASTERED' : 'COMPETE',
+                          accent: trait.light,
+                          enabled: !mastered && !_contestRunning,
+                          reward: next == null
+                              ? null
+                              : Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
-                                      AppIcons.emoji_events_rounded,
-                                      color: accent,
-                                      size: 22,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      '${trait.label.toUpperCase()} CONTEST',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 2,
+                                    ShardAmount(next.rewardShards, size: 10.5),
+                                    const SizedBox(width: 8),
+                                    CoinAmount(
+                                      kind: CoinKind.gold,
+                                      amount: cosmicContestGoldReward(
+                                        next.level,
                                       ),
+                                      size: 10.5,
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  mastered
-                                      ? 'MASTERED (5/5)'
-                                      : 'LEVEL $nextLevel / 5  •  '
-                                            '+${cosmicContestGoldReward(nextLevel)} GOLD  •  TAP TO START',
-                                  style: TextStyle(
-                                    color: Colors.white60,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          onTap: context.soundTap(_handleContestArenaTap),
                         ),
                       ),
                     );
@@ -9013,96 +9204,101 @@ class _CosmicScreenState extends State<CosmicScreen>
                   right: 12,
                   top: isMemoryTutorial ? 88 : 120,
                   child: SafeArea(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (showCosmicHud) ...[
-                          _buildSlowModeButton(),
-                          const SizedBox(height: 10),
-                        ],
-                        if ((showCosmicHud ||
-                                (isMemoryTutorial &&
-                                    _memoryTetherLessonVisible)) &&
-                            _activeCompanionSlots.isNotEmpty) ...[
-                          _buildCompanionTetherButton(),
-                          const SizedBox(height: 10),
-                        ],
-                        for (
-                          var i = 0;
-                          i < _cosmicPartySlotsUnlocked && i < 3;
-                          i++
-                        ) ...[
-                          // Small health bar above each companion slot
-                          Builder(
-                            builder: (_) {
-                              final isActive = _activeCompanionSlots.contains(
-                                i,
-                              );
-                              final hpFrac = isActive
-                                  ? (_game?.activeCompanions[i]?.hpPercent ??
-                                        (_companionHpFraction[i] ?? 1.0))
-                                  : (_companionHpFraction[i] ?? 1.0);
-                              return SizedBox(
-                                width: 44,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      height: 5,
-                                      decoration: BoxDecoration(
-                                        color: isActive
-                                            ? Colors.white12
-                                            : Colors.white10,
-                                        borderRadius: BorderRadius.circular(3),
-                                        border: Border.all(
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: _companionTick,
+                      builder: (context, _, _) => Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (showCosmicHud) ...[
+                            _buildSlowModeButton(),
+                            const SizedBox(height: 10),
+                          ],
+                          if ((showCosmicHud ||
+                                  (isMemoryTutorial &&
+                                      _memoryTetherLessonVisible)) &&
+                              _activeCompanionSlots.isNotEmpty) ...[
+                            _buildCompanionTetherButton(),
+                            const SizedBox(height: 10),
+                          ],
+                          for (
+                            var i = 0;
+                            i < _cosmicPartySlotsUnlocked && i < 3;
+                            i++
+                          ) ...[
+                            // Small health bar above each companion slot
+                            Builder(
+                              builder: (_) {
+                                final isActive = _activeCompanionSlots.contains(
+                                  i,
+                                );
+                                final hpFrac = isActive
+                                    ? (_game?.activeCompanions[i]?.hpPercent ??
+                                          (_companionHpFraction[i] ?? 1.0))
+                                    : (_companionHpFraction[i] ?? 1.0);
+                                return SizedBox(
+                                  width: 44,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        height: 5,
+                                        decoration: BoxDecoration(
                                           color: isActive
-                                              ? Colors.white10
-                                              : Colors.white12,
-                                          width: 0.5,
+                                              ? Colors.white12
+                                              : Colors.white10,
+                                          borderRadius: BorderRadius.circular(
+                                            3,
+                                          ),
+                                          border: Border.all(
+                                            color: isActive
+                                                ? Colors.white10
+                                                : Colors.white12,
+                                            width: 0.5,
+                                          ),
                                         ),
-                                      ),
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: FractionallySizedBox(
-                                          widthFactor: hpFrac.clamp(0.0, 1.0),
-                                          child: Container(
-                                            height: 5,
-                                            decoration: BoxDecoration(
-                                              color:
-                                                  (hpFrac > 0.5
-                                                          ? const Color(
-                                                              0xFF00E676,
-                                                            )
-                                                          : hpFrac > 0.25
-                                                          ? const Color(
-                                                              0xFFFFEA00,
-                                                            )
-                                                          : const Color(
-                                                              0xFFE53935,
-                                                            ))
-                                                      .withValues(
-                                                        alpha: isActive
-                                                            ? 1.0
-                                                            : 0.35,
-                                                      ),
-                                              borderRadius:
-                                                  BorderRadius.circular(3),
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: FractionallySizedBox(
+                                            widthFactor: hpFrac.clamp(0.0, 1.0),
+                                            child: Container(
+                                              height: 5,
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    (hpFrac > 0.5
+                                                            ? const Color(
+                                                                0xFF00E676,
+                                                              )
+                                                            : hpFrac > 0.25
+                                                            ? const Color(
+                                                                0xFFFFEA00,
+                                                              )
+                                                            : const Color(
+                                                                0xFFE53935,
+                                                              ))
+                                                        .withValues(
+                                                          alpha: isActive
+                                                              ? 1.0
+                                                              : 0.35,
+                                                        ),
+                                                borderRadius:
+                                                    BorderRadius.circular(3),
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                          _buildPartySlotButton(i),
-                          if (i < _cosmicPartySlotsUnlocked - 1)
-                            const SizedBox(height: 8),
+                                      const SizedBox(height: 6),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                            _buildPartySlotButton(i),
+                            if (i < _cosmicPartySlotsUnlocked - 1)
+                              const SizedBox(height: 8),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -10223,16 +10419,15 @@ class _SurvivalSignalEdgeArrowPainter extends CustomPainter {
     canvas.translate(shove, 0);
     canvas.scale(scale, scale);
 
-    final glowPaint = Paint()
-      ..color = signalColor.withValues(alpha: 0.28 + flash * 0.18)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
-    final glowPath = Path()
-      ..moveTo(34, 0)
-      ..lineTo(-14, 24)
-      ..lineTo(-6, 0)
-      ..lineTo(-14, -24)
-      ..close();
-    canvas.drawPath(glowPath, glowPaint);
+    // At sigma 18 the arrow's blurred glow was a soft blob round it anyway;
+    // one gradient draws that without a blur pass.
+    paintSoftCircle(
+      canvas,
+      const Offset(6, 0),
+      22,
+      signalColor.withValues(alpha: 0.28 + flash * 0.18),
+      18,
+    );
 
     final arrowPath = Path()
       ..moveTo(32, 0)
@@ -10271,152 +10466,76 @@ class _BloodRitualSpaceOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // The ritual itself is drawn on the ring, in the world. This only closes
+    // the dark in round the edges as it builds, and at the end lets the red
+    // flood out of the heart over everything.
     final t = progress.clamp(0.0, 1.0);
-    final ww = game.world_.worldSize.width;
-    final wh = game.world_.worldSize.height;
-
-    var dx = game.bloodRing.position.dx - game.ship.pos.dx;
-    var dy = game.bloodRing.position.dy - game.ship.pos.dy;
-    if (dx > ww / 2) dx -= ww;
-    if (dx < -ww / 2) dx += ww;
-    if (dy > wh / 2) dy -= wh;
-    if (dy < -wh / 2) dy += wh;
-
-    final ringCenter = Offset(size.width / 2 + dx, size.height / 2 + dy);
-    final fade = Curves.easeInCubic.transform((t * 1.05).clamp(0.0, 1.0));
-    final ringFadeOut =
-        1.0 - Curves.easeInCubic.transform(((t - 0.74) / 0.26).clamp(0.0, 1.0));
-    final engulfT = Curves.easeInCubic.transform(
-      ((t - 0.46) / 0.54).clamp(0.0, 1.0),
+    final z = game.cameraZoom;
+    final ringCenter = Offset(
+      (game.bloodRing.position.dx - game.camX) * z,
+      (game.bloodRing.position.dy - game.camY) * z,
     );
+    final rect = Offset.zero & size;
+    final far = size.longestSide * 0.75;
 
+    final dark = Curves.easeInOut.transform((t / 0.6).clamp(0.0, 1.0));
     canvas.drawRect(
-      Offset.zero & size,
+      rect,
       Paint()
-        ..color = Colors.black.withValues(
-          alpha: (0.08 + fade * 0.68).clamp(0.0, 1.0),
-        ),
+        ..shader =
+            RadialGradient(
+              colors: [
+                Colors.black.withValues(alpha: 0),
+                Colors.black.withValues(alpha: 0.25 * dark),
+                Colors.black.withValues(alpha: 0.85 * dark),
+              ],
+              stops: const [0.0, 0.62, 1.0],
+            ).createShader(
+              Rect.fromCircle(center: size.center(Offset.zero), radius: far),
+            ),
     );
 
-    final collapse = (t - 0.1).clamp(0.0, 1.0);
-    final lineAlpha = 0.35 * collapse * ringFadeOut;
-    for (var i = 0; i < 48; i++) {
-      final a = (i / 48) * pi * 2 + t * pi * 2.6;
-      final edge = Offset(
-        size.width / 2 + cos(a) * size.width * 0.9,
-        size.height / 2 + sin(a) * size.height * 0.9,
-      );
-      canvas.drawLine(
-        edge,
-        ringCenter,
-        Paint()
-          ..color = const Color(0xFFFFCDD2).withValues(alpha: lineAlpha * 0.5)
-          ..strokeWidth = 1.0 + (i % 3) * 0.2,
-      );
-    }
-
-    final pulse = 0.8 + 0.2 * sin(t * pi * 22);
-    final ringBase = 95 + 68 * Curves.easeOut.transform(t);
-    final ringR = ringBase * pulse;
-
-    canvas.drawCircle(
-      ringCenter,
-      ringR * 1.45,
-      Paint()
-        ..color = const Color(
-          0xFFB71C1C,
-        ).withValues(alpha: 0.42 * fade * ringFadeOut)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 34),
+    // Red engulf wave: out of the heart until it covers every corner.
+    final engulfT = Curves.easeInCubic.transform(
+      ((t - 0.74) / 0.22).clamp(0.0, 1.0),
     );
-
-    canvas.drawCircle(
-      ringCenter,
-      ringR,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 9.0
-        ..color = const Color(0xFFFF6E6E).withValues(alpha: 0.95 * ringFadeOut),
-    );
-
-    canvas.drawCircle(
-      ringCenter,
-      ringR * 0.7,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.2
-        ..color = const Color(0xFFFFCDD2).withValues(alpha: 0.8 * ringFadeOut),
-    );
-
-    final runeRot = t * pi * 3.8;
-    for (var i = 0; i < 10; i++) {
-      final a = runeRot + (i / 10) * pi * 2;
-      final pos = Offset(
-        ringCenter.dx + cos(a) * (ringR + 24),
-        ringCenter.dy + sin(a) * (ringR + 24),
-      );
+    if (engulfT > 0) {
+      var maxToCorner = 0.0;
+      for (final c in [
+        rect.topLeft,
+        rect.topRight,
+        rect.bottomLeft,
+        rect.bottomRight,
+      ]) {
+        maxToCorner = max(maxToCorner, (c - ringCenter).distance);
+      }
+      final engulfRadius = 40 + (maxToCorner + 260) * engulfT;
       canvas.drawCircle(
-        pos,
-        3.8 + 0.7 * sin(t * pi * 14 + i),
+        ringCenter,
+        engulfRadius,
         Paint()
-          ..color = const Color(
-            0xFFFF8A80,
-          ).withValues(alpha: 0.9 * ringFadeOut),
+          ..shader =
+              RadialGradient(
+                colors: [
+                  const Color(0xFFFFCDD2).withValues(alpha: 0.5 * engulfT),
+                  const Color(0xFFD32F2F).withValues(alpha: 0.7 * engulfT),
+                  const Color(0xFF8B0000).withValues(alpha: 0.95 * engulfT),
+                  const Color(0xFF8B0000).withValues(alpha: 0),
+                ],
+                stops: const [0.0, 0.35, 0.82, 1.0],
+              ).createShader(
+                Rect.fromCircle(center: ringCenter, radius: engulfRadius),
+              ),
       );
     }
-
-    canvas.drawCircle(
-      ringCenter,
-      ringR * 0.22,
-      Paint()
-        ..shader =
-            RadialGradient(
-              colors: [
-                const Color(0xFFFFCDD2).withValues(alpha: 0.86),
-                const Color(0xFF7F0000).withValues(alpha: 0.34 * ringFadeOut),
-                const Color(0xFF000000).withValues(alpha: 0.0),
-              ],
-            ).createShader(
-              Rect.fromCircle(center: ringCenter, radius: ringR * 0.34),
-            ),
-    );
-
-    // Red engulf wave: expands out from the ring until it covers all corners.
-    final corners = <Offset>[
-      const Offset(0, 0),
-      Offset(size.width, 0),
-      Offset(0, size.height),
-      Offset(size.width, size.height),
-    ];
-    var maxToCorner = 0.0;
-    for (final c in corners) {
-      final d = (c - ringCenter).distance;
-      if (d > maxToCorner) maxToCorner = d;
-    }
-    final engulfRadius = ringR + (maxToCorner + 220) * engulfT;
-    canvas.drawCircle(
-      ringCenter,
-      engulfRadius,
-      Paint()
-        ..shader =
-            RadialGradient(
-              colors: [
-                const Color(0xFFFF6E6E).withValues(alpha: 0.20 * engulfT),
-                const Color(0xFFD32F2F).withValues(alpha: 0.55 * engulfT),
-                const Color(0xFF8B0000).withValues(alpha: 0.92 * engulfT),
-              ],
-              stops: const [0.0, 0.55, 1.0],
-            ).createShader(
-              Rect.fromCircle(center: ringCenter, radius: engulfRadius),
-            ),
-    );
 
     final fullRed = Curves.easeInOutCubic.transform(
-      ((t - 0.78) / 0.22).clamp(0.0, 1.0),
+      ((t - 0.88) / 0.12).clamp(0.0, 1.0),
     );
     canvas.drawRect(
-      Offset.zero & size,
+      rect,
       Paint()
-        ..color = const Color(0xFF7F0000).withValues(alpha: 0.94 * fullRed),
+        ..color = const Color(0xFF7F0000).withValues(alpha: 0.96 * fullRed),
     );
   }
 

@@ -1,30 +1,34 @@
-import 'package:alchemons/audio/audio.dart';
 // lib/screens/cosmic/space_market_sheet.dart
 //
-// Bottom-sheet shop for the two space markets:
-//   • Harvester Shop  — sells faction harvesters + stabilized harvester
-//   • Rift Key Shop   — sells faction portal keys
+// The two shop stations of open space:
+//   • Harvester Shop — the five faction harvesters and the stabilized one
+//   • Rift Key Shop  — the five portal keys
 //
-// Prices mirror the main Research Shop.
-// Shows gold, silver, and carried cosmic shards in the header.
-// Supports a 50 % elemental-meter discount: if the player's current
-// alchemical meter has ≥ 50 % of a required element, the item is half price.
-// Discount recipes rotate every 4 hours.
+// A full panel in the station-screen kit: the station on its stage (the pod
+// or key you are looking at lit), the wallet, today's discounts in plain
+// words, the goods, and one BUY at the foot.
+//
+// Prices mirror the main Research Shop. Two discounts can apply, and stack:
+//   • your faction's own goods are 90% off;
+//   • each item names an element each day (UTC); while that element is at
+//     least half of what is in your alchemical meter, it is half price.
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/screens/shop/shop_widgets.dart';
+import 'package:alchemons/games/cosmic/station_art.dart';
+import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
+import 'package:alchemons/screens/cosmic/widgets/station_panel_kit.dart';
 import 'package:alchemons/services/faction_service.dart';
-import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/coin_icon.dart';
-import 'package:flutter/material.dart';
-import 'package:alchemons/utils/app_font_family.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/widgets/portal_key_glyph.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ITEM DEFINITIONS
@@ -50,6 +54,17 @@ class _MarketItem {
     required this.baseCost,
     required this.faction,
   });
+
+  /// Which pod or key on the station this is (the stations dock the five
+  /// groups in kStationGroupColors' order).
+  int? get dock => switch (faction) {
+    'volcanic' => 0,
+    'oceanic' => 1,
+    'earthen' => 2,
+    'verdant' => 3,
+    'arcane' => 4,
+    _ => null,
+  };
 }
 
 const _harvesterItems = <_MarketItem>[
@@ -169,7 +184,7 @@ const _riftKeyItems = <_MarketItem>[
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SHEET
+// PANEL
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SpaceMarketSheet extends StatefulWidget {
@@ -186,667 +201,347 @@ class SpaceMarketSheet extends StatefulWidget {
     required this.spendShards,
   });
 
-  /// Show the market as a modal bottom sheet.
+  /// Open the shop over the world.
   static Future<void> show(
     BuildContext context, {
     required POIType marketType,
     required ElementMeter meter,
     required int carriedShards,
     required bool Function(int amount) spendShards,
-  }) {
-    HapticFeedback.mediumImpact();
-    return showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => SpaceMarketSheet(
-        marketType: marketType,
-        meter: meter,
-        carriedShards: carriedShards,
-        spendShards: spendShards,
-      ),
-    );
-  }
+  }) => showStationPanel<void>(
+    context,
+    SpaceMarketSheet(
+      marketType: marketType,
+      meter: meter,
+      carriedShards: carriedShards,
+      spendShards: spendShards,
+    ),
+  );
 
   @override
   State<SpaceMarketSheet> createState() => _SpaceMarketSheetState();
 }
 
 class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
-  late final List<_MarketItem> _items;
-  late final Map<String, MarketDiscountRecipe> _recipes;
-  late final String _title;
-  late final Color _accent;
-  late int _carriedShards;
+  late final bool _harvester = widget.marketType == POIType.harvesterMarket;
+  late final List<_MarketItem> _items = _harvester
+      ? _harvesterItems
+      : _riftKeyItems;
+  late final StationKind _kind = _harvester
+      ? StationKind.harvester
+      : StationKind.riftKey;
+  late final Map<String, MarketDiscountRecipe> _recipes =
+      MarketRecipeTable.generate(
+        items: [
+          for (final i in _items)
+            MarketItemEntry(key: i.inventoryKey, faction: i.faction),
+        ],
+      );
+  late int _carriedShards = widget.carriedShards;
+  Map<String, int> _owned = const {};
+  int _selected = 0;
+  bool _buying = false;
 
   @override
   void initState() {
     super.initState();
-
-    final isHarvester = widget.marketType == POIType.harvesterMarket;
-    _items = isHarvester ? _harvesterItems : _riftKeyItems;
-    _title = isHarvester ? 'HARVESTER SHOP' : 'RIFT KEY SHOP';
-    _accent = isHarvester ? const Color(0xFFFFB300) : const Color(0xFF7C4DFF);
-    _carriedShards = widget.carriedShards;
-
-    // Generate rotating discount recipes (change daily, faction-matched)
-    _recipes = MarketRecipeTable.generate(
-      items: _items
-          .map((i) => MarketItemEntry(key: i.inventoryKey, faction: i.faction))
-          .toList(),
-    );
+    _loadOwned();
   }
 
-  /// Faction-based discount: 90% off harvesters matching player's faction.
-  double _factionMultiplier(_MarketItem item) {
-    final factions = context.read<FactionService>();
-    final pFaction = factions.current;
-    if (pFaction == null) return 1.0;
-    final factionName = pFaction.name; // 'volcanic', 'oceanic', etc.
-    if (item.faction == factionName) return 0.1;
-    return 1.0;
-  }
-
-  Map<String, int> _effectiveCost(_MarketItem item) {
-    final fMul = _factionMultiplier(item);
-    var cost = item.baseCost;
-
-    // Apply faction discount first (90% off own-faction harvesters)
-    if (fMul < 1.0) {
-      cost = cost.map((k, v) => MapEntry(k, (v * fMul).ceil()));
+  Future<void> _loadOwned() async {
+    final db = context.read<AlchemonsDatabase>();
+    final owned = <String, int>{};
+    for (final i in _items) {
+      owned[i.inventoryKey] = await db.inventoryDao.getItemQty(i.inventoryKey);
     }
+    if (mounted) setState(() => _owned = owned);
+  }
 
-    // Then check elemental meter discount (50% off)
-    final recipe = _recipes[item.inventoryKey];
-    if (recipe != null &&
-        recipe.qualifies(widget.meter.breakdown, widget.meter.total)) {
+  // ── pricing ──
+
+  bool _factionDiscount(_MarketItem item) =>
+      context.read<FactionService>().current?.name == item.faction;
+
+  MarketDiscountRecipe? _recipe(_MarketItem item) =>
+      _recipes[item.inventoryKey];
+
+  bool _elementDiscount(_MarketItem item) {
+    final r = _recipe(item);
+    return r != null && r.qualifies(widget.meter.breakdown, widget.meter.total);
+  }
+
+  Map<String, int> _cost(_MarketItem item) {
+    var cost = item.baseCost;
+    if (_factionDiscount(item)) {
+      cost = cost.map((k, v) => MapEntry(k, (v * 0.1).ceil()));
+    }
+    if (_elementDiscount(item)) {
       cost = cost.map((k, v) => MapEntry(k, (v * 0.5).ceil()));
     }
     return cost;
   }
 
-  bool _hasFactionDiscount(_MarketItem item) => _factionMultiplier(item) < 1.0;
+  Set<String> _short(Map<String, int> cost, Map<String, int> wallet) => {
+    for (final e in cost.entries)
+      if ((e.key == 'shards' ? _carriedShards : wallet[e.key] ?? 0) < e.value)
+        e.key,
+  };
 
-  bool _hasElementDiscount(_MarketItem item) {
-    final recipe = _recipes[item.inventoryKey];
-    if (recipe == null) return false;
-    return recipe.qualifies(widget.meter.breakdown, widget.meter.total);
+  /// The element that fills the most of the meter, and its share.
+  (String, double)? get _meterLead {
+    final total = widget.meter.total;
+    if (total <= 0) return null;
+    String? best;
+    var most = 0.0;
+    widget.meter.breakdown.forEach((el, v) {
+      if (v > most) {
+        most = v;
+        best = el;
+      }
+    });
+    return best == null ? null : (best!, most / total);
   }
 
-  bool _hasDiscount(_MarketItem item) =>
-      _hasFactionDiscount(item) || _hasElementDiscount(item);
+  // ── buying ──
 
-  IconData _iconForCost(String type) {
-    return switch (type) {
-      'gold' => AppIcons.hexagon_rounded,
-      'silver' => AppIcons.monetization_on_rounded,
-      'shards' => CosmicScreenStyles.astralShardIcon,
-      _ => AppIcons.hexagon_rounded,
-    };
-  }
+  Future<void> _buy(_MarketItem item, Map<String, int> wallet) async {
+    if (_buying) return;
+    final cost = _cost(item);
+    final short = _short(cost, wallet);
+    if (short.isNotEmpty) return;
 
-  Widget _leadingForCost(String type, double size, Color color) {
-    final coin = CoinKind.tryFromToken(type);
-    if (coin != null) return CoinIcon(kind: coin, size: size);
-    return Icon(_iconForCost(type), size: size, color: color);
-  }
-
-  Color _colorForCost(String type, ForgeTokens t) {
-    return switch (type) {
-      'gold' => const Color(0xFFFFD700),
-      'silver' => t.textSecondary,
-      'shards' => CosmicScreenStyles.astralShardColor,
-      _ => _accent,
-    };
-  }
-
-  Future<bool> _confirmPurchase(_MarketItem item, Map<String, int> cost) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        final theme = context.read<FactionTheme>();
-        final t = ForgeTokens(theme);
-        return AlertDialog(
-          backgroundColor: t.bg1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: _accent.withValues(alpha: 0.35)),
-          ),
-          title: Text(
-            'Confirm Purchase',
-            style: TextStyle(color: t.textPrimary, fontWeight: FontWeight.w700),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                item.name,
-                style: TextStyle(color: t.textPrimary, fontSize: 14),
-              ),
-              const SizedBox(height: 10),
-              ...cost.entries.map(
-                (entry) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    children: [
-                      _leadingForCost(
-                        entry.key,
-                        16,
-                        _colorForCost(entry.key, t),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${entry.value}',
-                        style: TextStyle(color: t.textPrimary),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: context.soundAction(
-                () => Navigator.of(context).pop(false),
-              ),
-              child: Text('Cancel'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _accent),
-              onPressed: context.soundAction(
-                () => Navigator.of(context).pop(true),
-              ),
-              child: Text('Buy'),
-            ),
-          ],
-        );
-      },
-    );
-    return confirmed == true;
-  }
-
-  void _showMarketToast(String message, {required bool success}) {
-    final theme = context.read<FactionTheme>();
-    final t = ForgeTokens(theme);
-    final tone = success ? const Color(0xFF22C55E) : const Color(0xFFC0392B);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        duration: const Duration(seconds: 2),
-        content: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: t.bg2,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: tone.withValues(alpha: 0.65)),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                success
-                    ? AppIcons.check_circle_rounded
-                    : AppIcons.warning_amber_rounded,
-                size: 16,
-                color: tone,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  message,
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: t.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _purchase(_MarketItem item) async {
-    final db = context.read<AlchemonsDatabase>();
-    final cost = _effectiveCost(item);
-
-    final balances = await db.currencyDao.getAllCurrencies();
-    final silver = balances['silver'] ?? 0;
-    final gold = balances['gold'] ?? 0;
     final shardCost = cost['shards'] ?? 0;
-    final silverCost = cost['silver'] ?? 0;
-    final goldCost = cost['gold'] ?? 0;
+    final ok = await showBracketConfirm(
+      context,
+      palette: panelPalette,
+      accent: _kind.accent,
+      title: 'BUY ${item.name.toUpperCase()}?',
+      message: shardCost > 0
+          ? 'It goes to your inventory. $shardCost shards come out of the hold.'
+          : 'It goes to your inventory.',
+      amounts: [
+        if ((cost['gold'] ?? 0) > 0) (CoinKind.gold, cost['gold']!),
+        if ((cost['silver'] ?? 0) > 0) (CoinKind.silver, cost['silver']!),
+      ],
+      amountsLabel: 'YOU PAY',
+      confirmLabel: 'BUY',
+    );
+    if (!ok || !mounted) return;
 
-    final canAfford =
-        _carriedShards >= shardCost && silver >= silverCost && gold >= goldCost;
-    if (!canAfford) {
-      if (!mounted) return;
-      _showMarketToast(
-        'Insufficient resources for this purchase.',
-        success: false,
-      );
+    setState(() => _buying = true);
+    final db = context.read<AlchemonsDatabase>();
+    final silver = cost['silver'] ?? 0;
+    final gold = cost['gold'] ?? 0;
+    // All or nothing: anything already taken is handed back if a later
+    // part of the price cannot be paid.
+    var paid = true;
+    var tookSilver = false, tookGold = false;
+    if (silver > 0) {
+      paid = tookSilver = await db.currencyDao.spendSilver(silver);
+    }
+    if (paid && gold > 0) {
+      paid = tookGold = await db.currencyDao.spendGold(gold);
+    }
+    if (paid && shardCost > 0) {
+      paid = widget.spendShards(shardCost);
+      if (paid) _carriedShards -= shardCost;
+    }
+    if (!paid) {
+      if (tookSilver) await db.currencyDao.addSilver(silver);
+      if (tookGold) await db.currencyDao.addGold(gold);
+      if (mounted) {
+        setState(() => _buying = false);
+        showGameSnack(
+          context,
+          'Not enough to pay for that.',
+          accent: CosmicScreenStyles.danger,
+        );
+      }
       return;
-    }
-
-    final confirmed = await _confirmPurchase(item, cost);
-    if (!confirmed) return;
-
-    if (silverCost > 0) {
-      final ok = await db.currencyDao.spendSilver(silverCost);
-      if (!ok) return;
-    }
-    if (goldCost > 0) {
-      final ok = await db.currencyDao.spendGold(goldCost);
-      if (!ok) return;
-    }
-    if (shardCost > 0) {
-      final ok = widget.spendShards(shardCost);
-      if (!ok) return;
-      _carriedShards -= shardCost;
     }
 
     await db.inventoryDao.addItemQty(item.inventoryKey, 1);
     HapticFeedback.heavyImpact();
     if (!mounted) return;
-    _showMarketToast('${item.name} acquired.', success: true);
-    setState(() {}); // refresh owned counts
+    setState(() {
+      _buying = false;
+      _owned = {
+        ..._owned,
+        item.inventoryKey: (_owned[item.inventoryKey] ?? 0) + 1,
+      };
+    });
+    showGameSnack(
+      context,
+      '${item.name} acquired.',
+      accent: CosmicScreenStyles.success,
+    );
   }
+
+  // ── layout ──
 
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
-    final theme = context.watch<FactionTheme>();
-    final t = ForgeTokens(theme);
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.75,
-      minChildSize: 0.4,
-      maxChildSize: 0.92,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: t.bg1,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-            border: Border.all(color: t.borderDim),
+    return StreamBuilder<Map<String, int>>(
+      stream: db.currencyDao.watchAllCurrencies(),
+      builder: (context, snap) {
+        final wallet = snap.data ?? const <String, int>{};
+        final item = _items[_selected];
+        return StationPanel(
+          kind: _kind,
+          highlight: item.dock,
+          caption: _harvester
+              ? 'FIVE HARVESTERS DOCKED · ONE FOR EACH GROUP'
+              : 'FIVE KEYS · ONE FOR EACH RIFT',
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+            children: [
+              StationWallet(
+                gold: wallet['gold'] ?? 0,
+                silver: wallet['silver'] ?? 0,
+                shards: _carriedShards,
+              ),
+              const SizedBox(height: 14),
+              const PanelSectionHeader('TODAY'),
+              ..._today(),
+              const SizedBox(height: 8),
+              PanelSectionHeader(_harvester ? 'HARVESTERS' : 'PORTAL KEYS'),
+              for (var i = 0; i < _items.length; i++) ...[
+                if (i > 0) const SizedBox(height: 6),
+                _row(i, wallet),
+              ],
+            ],
           ),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+          dock: _dockFor(item, wallet),
+        );
+      },
+    );
+  }
+
+  List<Widget> _today() {
+    final faction = context.read<FactionService>().current;
+    final lead = _meterLead;
+    return [
+      StationNote(
+        lead == null
+            ? 'Your meter is empty. Each item is half price while its '
+                  'element makes up half your meter or more.'
+            : 'Your meter is ${(lead.$2 * 100).round()}% ${lead.$1}. Each '
+                  'item is half price while its element makes up half your '
+                  'meter or more.',
+      ),
+      if (faction != null)
+        StationNote(
+          'Your faction’s own goods are 90% off, on top of that.',
+          color: CosmicScreenStyles.success,
+        ),
+    ];
+  }
+
+  Widget _glyph(_MarketItem item, double size) {
+    final harvester = harvesterBiomeForKey(item.inventoryKey);
+    if (harvester != null) {
+      return HarvesterGlyph(biomeId: harvester, size: size, animate: false);
+    }
+    final key = PortalKeyGlyph.biomeForInventoryKey(item.inventoryKey);
+    if (key != null) {
+      return PortalKeyGlyph(biomeId: key, size: size, animate: false);
+    }
+    return Icon(item.icon, color: item.iconColor, size: size * 0.6);
+  }
+
+  /// What applies to [item] today, in a few words.
+  String _status(_MarketItem item) {
+    final parts = <String>[];
+    final owned = _owned[item.inventoryKey] ?? 0;
+    if (owned > 0) parts.add('$owned OWNED');
+    if (_factionDiscount(item)) parts.add('YOUR FACTION · 90% OFF');
+    final r = _recipe(item);
+    if (r != null) {
+      final el = r.requiredElement.toUpperCase();
+      parts.add(
+        _elementDiscount(item) ? 'HALF PRICE · $el' : 'HALF PRICE WITH $el',
+      );
+    }
+    return parts.join('   ');
+  }
+
+  Widget _row(int i, Map<String, int> wallet) {
+    final item = _items[i];
+    final cost = _cost(item);
+    final discounted = _factionDiscount(item) || _elementDiscount(item);
+    final active = discounted;
+    return StationRow(
+      accent: _kind.accent,
+      selected: i == _selected,
+      onTap: () => setState(() => _selected = i),
+      child: Row(
+        children: [
+          SizedBox(width: 38, height: 38, child: _glyph(item, 38)),
+          const SizedBox(width: 12),
+          Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(height: 2, color: _accent.withValues(alpha: 0.75)),
-                const SizedBox(height: 8),
-                Center(
-                  child: Container(width: 34, height: 3, color: t.borderDim),
+                Text(
+                  item.name.toUpperCase(),
+                  style: panelLabel(11.5, panelPalette.ink, spacing: 1),
                 ),
-                const SizedBox(height: 10),
-
-                // Title + currency header
-                _buildHeader(db, t),
-
-                const SizedBox(height: 8),
-
-                // Items list
-                Expanded(
-                  child: ListView.separated(
-                    controller: scrollController,
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-                    itemCount: _items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, i) =>
-                        _buildItemCard(_items[i], db, t),
+                const SizedBox(height: 4),
+                Text(
+                  _status(item),
+                  maxLines: 2,
+                  style: panelLabel(
+                    9.5,
+                    active ? CosmicScreenStyles.success : panelPalette.muted,
+                    spacing: 0.8,
                   ),
                 ),
               ],
             ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildHeader(AlchemonsDatabase db, ForgeTokens t) {
-    return StreamBuilder<Map<String, int>>(
-      stream: db.currencyDao.watchAllCurrencies(),
-      builder: (context, snap) {
-        final c = snap.data ?? {'gold': 0, 'silver': 0};
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left-aligned bar + monospace title, matching every other forge
-              // panel, with the exit on the right instead of a centred label.
-              Row(
-                children: [
-                  Container(width: 3, height: 18, color: _accent),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _title,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: _accent,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2.0,
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: context.soundAction(() {
-                      HapticFeedback.lightImpact();
-                      Navigator.of(context).pop();
-                    }),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: t.bg2,
-                        borderRadius: BorderRadius.circular(3),
-                        border: Border.all(color: t.borderDim),
-                      ),
-                      child: Icon(
-                        AppIcons.close_rounded,
-                        size: 16,
-                        color: t.textPrimary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: t.bg2,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: t.borderDim),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    CurrencyPill(
-                      coin: CoinKind.gold,
-                      color: const Color(0xFFFFD700),
-                      amount: c['gold'] ?? 0,
-                    ),
-                    Container(width: 1, height: 16, color: t.borderDim),
-                    CurrencyPill(
-                      coin: CoinKind.silver,
-                      color: t.textSecondary,
-                      amount: c['silver'] ?? 0,
-                    ),
-                    Container(width: 1, height: 16, color: t.borderDim),
-                    CurrencyPill(
-                      icon: CosmicScreenStyles.astralShardIcon,
-                      color: CosmicScreenStyles.astralShardColor,
-                      amount: _carriedShards,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          const SizedBox(width: 10),
+          StationPrice(
+            cost: cost,
+            was: discounted ? item.baseCost : null,
+            short: _short(cost, wallet),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
-  Widget _buildItemCard(_MarketItem item, AlchemonsDatabase db, ForgeTokens t) {
-    final cost = _effectiveCost(item);
-    final discounted = _hasDiscount(item);
-    final recipe = _recipes[item.inventoryKey];
-
-    return FutureBuilder<int>(
-      future: db.inventoryDao.getItemQty(item.inventoryKey),
-      builder: (context, snap) {
-        final owned = snap.data ?? 0;
-
-        return StreamBuilder<Map<String, int>>(
-          stream: db.currencyDao.watchAllCurrencies(),
-          builder: (context, currSnap) {
-            final currencies = currSnap.data ?? {};
-
-            // Check affordability
-            bool canAfford = true;
-            for (final entry in cost.entries) {
-              final have = switch (entry.key) {
-                'gold' => currencies['gold'] ?? 0,
-                'silver' => currencies['silver'] ?? 0,
-                'shards' => _carriedShards,
-                _ => currencies[entry.key] ?? 0,
-              };
-              if (have < entry.value) {
-                canAfford = false;
-                break;
-              }
-            }
-
-            return Container(
-              decoration: BoxDecoration(
-                color: t.bg2,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: discounted
-                      ? const Color(0xFF4CAF50).withValues(alpha: 0.6)
-                      : t.borderDim,
-                ),
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(4),
-                onTap: context.soundAction(
-                  canAfford ? () => _purchase(item) : null,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      // Item visual
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: item.iconColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Builder(
-                          builder: (_) {
-                            final harvester = harvesterBiomeForKey(
-                              item.inventoryKey,
-                            );
-                            if (harvester != null) {
-                              return HarvesterGlyph(
-                                biomeId: harvester,
-                                size: 48,
-                              );
-                            }
-                            final riftKey = PortalKeyGlyph.biomeForInventoryKey(
-                              item.inventoryKey,
-                            );
-                            if (riftKey != null) {
-                              return PortalKeyGlyph(biomeId: riftKey, size: 48);
-                            }
-                            return Icon(
-                              item.icon,
-                              color: item.iconColor,
-                              size: 28,
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-
-                      // Name + description + discount info
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    item.name,
-                                    style: TextStyle(
-                                      color: t.textPrimary,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                // Owned count badge
-                                if (owned > 0)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: t.borderAccent.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      '×$owned',
-                                      style: TextStyle(
-                                        color: t.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              item.description,
-                              style: TextStyle(
-                                color: t.textSecondary,
-                                fontSize: 12,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-
-                            // Faction discount indicator
-                            if (_hasFactionDiscount(item))
-                              Row(
-                                children: [
-                                  Icon(
-                                    AppIcons.check_circle_rounded,
-                                    size: 12,
-                                    color: const Color(0xFF4CAF50),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '90% OFF, Your faction!',
-                                    style: TextStyle(
-                                      color: const Color(0xFF4CAF50),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                            // Elemental discount recipe indicator
-                            if (recipe != null && !_hasFactionDiscount(item))
-                              Row(
-                                children: [
-                                  Icon(
-                                    _hasElementDiscount(item)
-                                        ? AppIcons.check_circle_rounded
-                                        : AppIcons.info_outline_rounded,
-                                    size: 12,
-                                    color: _hasElementDiscount(item)
-                                        ? const Color(0xFF4CAF50)
-                                        : t.textSecondary.withValues(
-                                            alpha: 0.6,
-                                          ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _hasElementDiscount(item)
-                                        ? '50% OFF, ${recipe.requiredElement} meter active'
-                                        : '50% off with ≥50% ${recipe.requiredElement} meter',
-                                    style: TextStyle(
-                                      color: _hasElementDiscount(item)
-                                          ? const Color(0xFF4CAF50)
-                                          : t.textSecondary.withValues(
-                                              alpha: 0.6,
-                                            ),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Price
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          ...cost.entries.map((e) {
-                            final cType = e.key.startsWith('res_')
-                                ? e.key
-                                : e.key;
-                            return Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (discounted)
-                                  Text(
-                                    '${item.baseCost[e.key]}',
-                                    style: TextStyle(
-                                      color: t.textSecondary.withValues(
-                                        alpha: 0.4,
-                                      ),
-                                      fontSize: 12,
-                                      decoration: TextDecoration.lineThrough,
-                                    ),
-                                  ),
-                                if (discounted) const SizedBox(width: 4),
-                                _leadingForCost(
-                                  cType,
-                                  14,
-                                  _colorForCost(cType, t),
-                                ),
-                                const SizedBox(width: 2),
-                                Text(
-                                  '${e.value}',
-                                  style: TextStyle(
-                                    color: canAfford ? t.textPrimary : t.danger,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
-                            );
-                          }),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
+  Widget _dockFor(_MarketItem item, Map<String, int> wallet) {
+    final cost = _cost(item);
+    final short = _short(cost, wallet);
+    final label = short.isEmpty
+        ? 'BUY'
+        : 'NOT ENOUGH ${short.map((k) => k.toUpperCase()).join(' OR ')}';
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          item.description,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: CosmicScreenStyles.textSecondary,
+            fontSize: 12.5,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 10),
+        BracketButton(
+          key: const ValueKey('station.buy'),
+          label: label,
+          icon: AppIcons.shopping_bag_rounded,
+          palette: panelPalette,
+          accent: _kind.accent,
+          enabled: short.isEmpty && !_buying,
+          trailing: StationPrice(cost: cost, size: 10.5),
+          onTap: () => _buy(item, wallet),
+        ),
+      ],
     );
   }
 }

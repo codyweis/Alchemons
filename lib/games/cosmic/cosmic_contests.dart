@@ -40,6 +40,9 @@ extension CosmicContestVisualThemeX on CosmicContestVisualTheme {
   };
 }
 
+/// How much larger than its own units an arena stands in the world.
+const double kContestArenaScale = 1.4;
+
 class CosmicContestArena {
   Offset position;
   final CosmicContestTrait trait;
@@ -51,9 +54,11 @@ class CosmicContestArena {
     this.discovered = false,
   });
 
-  static const double visualRadius = 260.0;
-  static const double interactRadius = 360.0;
-  static const double exitRadius = 450.0;
+  /// The arena is drawn and danced in its own units — a radius of 260 —
+  /// scaled up by [kContestArenaScale] so the contestants have room.
+  static const double visualRadius = 260.0 * kContestArenaScale;
+  static const double interactRadius = 470.0;
+  static const double exitRadius = 580.0;
 }
 
 class CosmicContestOpponent {
@@ -489,129 +494,155 @@ class CosmicContestHintLore {
   const CosmicContestHintLore({required this.id, required this.text});
 }
 
+/// Notes found drifting in space, each a true rule of the contests
+/// (contest_judging.dart). Ids are what a save remembers, so they stay put
+/// even where a note's text has changed; new notes go at the end, which
+/// keeps every older note where it was.
 const List<CosmicContestHintLore> kCosmicContestHintLore = [
   CosmicContestHintLore(
     id: 'fast_elements_1',
     text:
-        'A torn note: "Lightning, water, and ice are whispered to outrun all."',
+        'A track steward\'s note: "Lightning runs fastest, then water and ice. Mud is slowest of all."',
   ),
   CosmicContestHintLore(
     id: 'fast_family_wing',
-    text: 'A racer\'s chalk mark: "Wing bloodlines catch speed early."',
+    text: 'A racer\'s chalk mark: "Wings are built for speed. Horns are not."',
   ),
   CosmicContestHintLore(
     id: 'fast_family_let',
-    text: 'A pit-lane scrap: "Let lines launch quick off the start."',
+    text:
+        'A pit-lane scrap: "Small frames are nimble on the track. Big ones are heavy."',
   ),
   CosmicContestHintLore(
     id: 'fast_nature_swift',
     text:
-        'A bent telemetry card: "Swift by name, hyperbolic by legend - both love speed."',
+        'A telemetry card: "Swift and Hyperbolic natures raise speed itself."',
   ),
   CosmicContestHintLore(
     id: 'fast_pure_lightning',
     text:
-        'A storm etching: "Pure lightning lineages hold pace better than mixed drag."',
+        'A storm etching: "A line bred pure to a fast element keeps its pace."',
   ),
   CosmicContestHintLore(
     id: 'beauty_elements_1',
     text:
-        'A polished shard reads: "Crystal and light hold beauty better than poison ever could."',
+        'A polished shard: "Crystal and light catch the judges\' eye. Poison and blood do not."',
   ),
   CosmicContestHintLore(
     id: 'beauty_prismatic',
     text:
-        'An engraved plate: "Prismatic coats draw every eye in beauty trials."',
+        'An engraved plate: "A prismatic coat counts for a great deal on the beauty floor."',
   ),
   CosmicContestHintLore(
     id: 'beauty_variant',
     text:
-        'A stage memo: "Rare variants and unusual tints tend to sway the judges."',
+        'A stage memo: "Rare variants, unusual tints and a glow about them all sway the judges."',
   ),
   CosmicContestHintLore(
     id: 'beauty_pure_element',
-    text:
-        'A velvet ribbon note: "Single-element blood sings cleaner on the beauty floor."',
+    text: 'A velvet ribbon: "One beauty round is judged on pure lines alone."',
   ),
   CosmicContestHintLore(
     id: 'beauty_species_pure',
     text:
-        'A critic ledger: "Pure species lines read as deliberate elegance, not noise."',
+        'A critic\'s ledger: "A creature bred true to its own kind is judged more kindly."',
   ),
   CosmicContestHintLore(
     id: 'beauty_nature',
-    text: 'A perfume card: "Elegant natures bloom brighter under lights."',
+    text:
+        'A perfume card: "Elegant and Resplendent natures raise beauty itself."',
   ),
   CosmicContestHintLore(
     id: 'strength_elements_1',
     text:
-        'A basalt tablet: "Earth and lava bodies endure where soft forms fail."',
+        'A basalt tablet: "Earth is strongest, then lava and fire. Air is weakest."',
   ),
   CosmicContestHintLore(
     id: 'strength_size',
     text:
-        'A field memo: "Large frames carry momentum; size matters in strength."',
+        'A field memo: "Big frames carry mass into the shove. In the heavyweight round, size counts most."',
   ),
   CosmicContestHintLore(
     id: 'speed_family',
     text:
-        'A smudged journal: "Winged lines usually gain tempo before the horned."',
+        'A smudged journal: "On the switchback, kin, pips and lets take the turns. Wings overshoot them."',
   ),
   CosmicContestHintLore(
     id: 'intelligence_lineage',
     text:
-        'A cipher strip: "Deep mixed lineages think in more patterns than pure strains."',
+        'A cipher strip: "Many kinds of blood in a line make a sharper mind. Memory rounds count it twice."',
   ),
   CosmicContestHintLore(
     id: 'intelligence_elements_1',
     text:
-        'A library scrap: "Spirit, light, dark, and crystal are favored in mind duels."',
+        'A library scrap: "Spirit, light, dark and crystal are sharpest. Lava and mud are muddled."',
   ),
   CosmicContestHintLore(
     id: 'beauty_bad_elements',
     text:
-        'A critic card: "Judges penalize corrosive palettes - poison and blood rarely place."',
+        'A critic\'s card: "In the contrast rounds, wear different colours from the rival."',
   ),
   CosmicContestHintLore(
     id: 'speed_bad_elements',
-    text: 'A track warning: "Mud and earth drag acceleration in speed lanes."',
+    text:
+        'A track warning: "When it rains, water and ice glide. Fire and earth bog down."',
   ),
   CosmicContestHintLore(
     id: 'strength_family',
-    text: 'A coach note: "Horn and mane bloodlines often peak in raw force."',
+    text: 'A coach\'s note: "Horns and manes are the strongest lines."',
   ),
   CosmicContestHintLore(
     id: 'strength_nature',
-    text: 'A cracked plate: "Mighty natures convert stance into impact."',
+    text:
+        'A cracked plate: "Mighty and Titanic natures raise strength itself."',
   ),
   CosmicContestHintLore(
     id: 'strength_pure_line',
     text:
-        'A quarry annotation: "Pure earth-heavy lines keep leverage through the shove."',
+        'A quarry note: "The molten ring suits fire and lava. Ice and plants wilt in the heat."',
   ),
   CosmicContestHintLore(
     id: 'intelligence_family',
-    text:
-        'A margin note: "Mask and kin lines tend to solve puzzle rounds faster."',
+    text: 'A margin note: "Masks and kin are the sharpest lines."',
   ),
   CosmicContestHintLore(
     id: 'intelligence_nature_clever',
-    text: 'A librarian\'s tag: "Clever natures break cipher loops quickly."',
+    text:
+        'A librarian\'s tag: "Clever and Noetic natures raise intelligence itself."',
   ),
   CosmicContestHintLore(
     id: 'intelligence_nature_neuroadaptive',
-    text:
-        'A neural sketch: "Neuroadaptive minds learn between rounds, not after."',
+    text: 'A neural sketch: "Pattern rounds favour crystal and masks."',
   ),
   CosmicContestHintLore(
     id: 'intelligence_species_pure',
     text:
-        'A sealed thesis: "Pure species lines retain cleaner memory structures."',
+        'A sealed thesis: "In the leverage bout technique beats bulk. Kin, masks and pips find the angle."',
   ),
   CosmicContestHintLore(
     id: 'cross_trait_purity',
     text:
-        'A folded field card: "Purity matters most when the bloodline matches the contest trait."',
+        'A folded card: "Under moonlight, silver, blue and shadow are lovely. Fire and light look harsh."',
+  ),
+  CosmicContestHintLore(
+    id: 'speed_storm',
+    text:
+        'A singed flag: "In the storm lane, lightning and air ride the weather, and wings with them."',
+  ),
+  CosmicContestHintLore(
+    id: 'intelligence_insight',
+    text:
+        'A torn page: "In the insight round, what a creature is made of counts nearly double."',
+  ),
+  CosmicContestHintLore(
+    id: 'contest_finals',
+    text:
+        'A gilt programme: "In every final, everything that counts counts for more."',
+  ),
+  CosmicContestHintLore(
+    id: 'contest_no_luck',
+    text:
+        'A judge\'s rule card: "There is no luck in these contests. Lose, and try another of your party."',
   ),
 ];
 

@@ -277,97 +277,105 @@ class TopHudState extends State<TopHud> {
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: context.soundAction(widget.onMeterTap),
-                  child: AnimatedBuilder(
-                    animation: widget.meterPulse,
-                    builder: (context, child) {
-                      final full = widget.meter.isFull;
-                      final glow = full ? widget.meterPulse.value : 0.0;
-                      return CustomPaint(
-                        painter: BracketFramePainter(
-                          color: full
-                              ? const Color(
-                                  0xFFE4C16A,
-                                ).withValues(alpha: 0.6 + glow * 0.4)
-                              : _palette.line.withValues(alpha: 0.7),
-                          bracketSize: 6,
-                          strokeWidth: 1.05,
-                        ),
-                        child: SizedBox(height: 24, child: child),
-                      );
-                    },
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final total = widget.meter.total;
-                        if (total <= 0) {
-                          return ColoredBox(
-                            color: _palette.bg1,
-                            child: Center(
-                              child: Text(
-                                'Alchemical meter',
-                                style: bracketText(
-                                  context,
-                                  10.5,
-                                  _palette.muted,
-                                  weight: FontWeight.w700,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-
-                        final sorted = meterSegmentsInDrawOrder(widget.meter);
-
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: ColoredBox(color: _palette.bg1),
-                            ),
-                            // Filled element segments — stretched to the full
-                            // bar height so the colour actually shows.
-                            Positioned.fill(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: sorted.map((e) {
-                                  final pct =
-                                      e.value / ElementMeter.maxCapacity;
-                                  return Expanded(
-                                    flex: (pct * 1000).round().clamp(1, 1000),
-                                    child: ColoredBox(
-                                      color: elementColor(e.key),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                            // Recipe targets, drawn over the fill.
-                            if (widget.recipe != null)
-                              Positioned.fill(
-                                child: CustomPaint(
-                                  painter: _RecipeTargetPainter(
-                                    recipe: widget.recipe!,
+                  // The full-meter breath repaints this bar alone, not the
+                  // whole HUD.
+                  child: RepaintBoundary(
+                    child: AnimatedBuilder(
+                      animation: widget.meterPulse,
+                      builder: (context, child) {
+                        final full = widget.meter.isFull;
+                        final glow = full ? widget.meterPulse.value : 0.0;
+                        return CustomPaint(
+                          painter: BracketFramePainter(
+                            color: full
+                                ? const Color(
+                                    0xFFE4C16A,
+                                  ).withValues(alpha: 0.6 + glow * 0.4)
+                                : _palette.line.withValues(alpha: 0.7),
+                            bracketSize: 6,
+                            strokeWidth: 1.05,
+                          ),
+                          child: SizedBox(height: 24, child: child),
+                        );
+                      },
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final total = widget.meter.total;
+                          if (total <= 0) {
+                            return ColoredBox(
+                              color: _palette.bg1,
+                              child: Center(
+                                child: Text(
+                                  'Alchemical meter',
+                                  style: bracketText(
+                                    context,
+                                    10.5,
+                                    _palette.muted,
+                                    weight: FontWeight.w700,
+                                    letterSpacing: 1.0,
                                   ),
                                 ),
                               ),
-                            Center(
-                              child: Text(
-                                widget.meter.isFull
-                                    ? 'METER FULL, FLY TO A PLANET'
-                                    : '${(widget.meter.fillPct * 100).toStringAsFixed(0)}% ALCHEMICAL',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.8,
-                                  shadows: [
-                                    Shadow(color: Colors.black, blurRadius: 4),
-                                  ],
+                            );
+                          }
+
+                          final sorted = meterSegmentsInDrawOrder(widget.meter);
+
+                          return Stack(
+                            children: [
+                              Positioned.fill(
+                                child: ColoredBox(color: _palette.bg1),
+                              ),
+                              // Filled element segments — stretched to the full
+                              // bar height so the colour actually shows.
+                              Positioned.fill(
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: sorted.map((e) {
+                                    final pct =
+                                        e.value / ElementMeter.maxCapacity;
+                                    return Expanded(
+                                      flex: (pct * 1000).round().clamp(1, 1000),
+                                      child: ColoredBox(
+                                        color: elementColor(e.key),
+                                      ),
+                                    );
+                                  }).toList(),
                                 ),
                               ),
-                            ),
-                          ],
-                        );
-                      },
+                              // Recipe targets, drawn over the fill.
+                              if (widget.recipe != null)
+                                Positioned.fill(
+                                  child: CustomPaint(
+                                    painter: _RecipeTargetPainter(
+                                      recipe: widget.recipe!,
+                                    ),
+                                  ),
+                                ),
+                              Center(
+                                child: Text(
+                                  widget.meter.isFull
+                                      ? 'METER FULL, FLY TO A PLANET'
+                                      : '${(widget.meter.fillPct * 100).toStringAsFixed(0)}% ALCHEMICAL',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black,
+                                        blurRadius: 4,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),

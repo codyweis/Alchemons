@@ -3,10 +3,14 @@ import 'dart:async';
 import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:alchemons/games/cosmic/station_art.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
+import 'package:alchemons/games/cosmic/planets/planet_art.dart'
+    show paintSoftCircle;
 import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/utils/app_font_family.dart';
@@ -482,7 +486,10 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     _ => 'DESTINATION',
   };
 
-  static Color _poiColor(POIType type) => switch (type) {
+  static Color _poiColor(POIType type) =>
+      stationKindFor(type)?.accent ?? _otherPoiColor(type);
+
+  static Color _otherPoiColor(POIType type) => switch (type) {
     POIType.nebula => const Color(0xFF64B5F6),
     POIType.derelict => const Color(0xFF90A4AE),
     POIType.warpAnomaly => const Color(0xFFB388FF),
@@ -1809,23 +1816,42 @@ class _MapView extends StatefulWidget {
 
 class _MapViewState extends State<_MapView> {
   double _lastFitSize = -1;
-  int _pulseTick = 0;
+  final ValueNotifier<int> _pulseTick = ValueNotifier<int>(0);
   Timer? _pulseTimer;
 
   @override
   void initState() {
     super.initState();
-    _pulseTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
-      if (!mounted) return;
-      setState(() {
-        _pulseTick++;
+    _syncPulse();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncPulse();
+  }
+
+  /// The tutorial target is the only thing on the chart that pulses, so the
+  /// pulse runs only while there is one. It steps [_pulseTick], which
+  /// repaints the live layer alone — not the map, not the fog. The timer
+  /// dies with the map (closing it removes this widget).
+  void _syncPulse() {
+    final wantsPulse = widget.tutorialTargetPos != null;
+    if (wantsPulse && _pulseTimer == null) {
+      _pulseTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
+        if (!mounted) return;
+        _pulseTick.value++;
       });
-    });
+    } else if (!wantsPulse && _pulseTimer != null) {
+      _pulseTimer!.cancel();
+      _pulseTimer = null;
+    }
   }
 
   @override
   void dispose() {
     _pulseTimer?.cancel();
+    _pulseTick.dispose();
     super.dispose();
   }
 
@@ -1875,22 +1901,43 @@ class _MapViewState extends State<_MapView> {
                   boundaryMargin: EdgeInsets.zero,
                   constrained: false,
                   child: RepaintBoundary(
-                    child: CustomPaint(
-                      isComplex: true,
-                      size: Size(contentW, contentH),
-                      painter: _MiniMapPainter(
-                        world: widget.world,
-                        game: widget.game,
-                        scale: scale,
-                        shipPos: widget.game.ship.pos,
-                        revealedCellCount: widget.game.revealedCells.length,
-                        discoveredPlanetCount: discoveredPlanetCount,
-                        showAllContestArenasOnMap: widget.showAllContestArenas,
-                        markers: widget.markers,
-                        tutorialTargetPos: widget.tutorialTargetPos,
-                        tutorialTargetColor: widget.tutorialTargetColor,
-                        tutorialTargetLabel: widget.tutorialTargetLabel,
-                        pulseTick: _pulseTick,
+                    child: SizedBox(
+                      width: contentW,
+                      height: contentH,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // The chart itself — fog, planets, landmarks, all
+                          // their glows — in a layer of its own, so the
+                          // pulse above never re-records it.
+                          RepaintBoundary(
+                            child: CustomPaint(
+                              isComplex: true,
+                              painter: _MiniMapPainter(
+                                world: widget.world,
+                                game: widget.game,
+                                scale: scale,
+                                shipPos: widget.game.ship.pos,
+                                revealedCellCount:
+                                    widget.game.revealedCells.length,
+                                discoveredPlanetCount: discoveredPlanetCount,
+                                showAllContestArenasOnMap:
+                                    widget.showAllContestArenas,
+                                markers: widget.markers,
+                              ),
+                            ),
+                          ),
+                          CustomPaint(
+                            painter: _MiniMapLivePainter(
+                              scale: scale,
+                              shipPos: widget.game.ship.pos,
+                              pulse: _pulseTick,
+                              tutorialTargetPos: widget.tutorialTargetPos,
+                              tutorialTargetColor: widget.tutorialTargetColor,
+                              tutorialTargetLabel: widget.tutorialTargetLabel,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -2111,10 +2158,6 @@ class _MiniMapPainter extends CustomPainter {
     required this.discoveredPlanetCount,
     this.showAllContestArenasOnMap = false,
     this.markers = const [],
-    this.tutorialTargetPos,
-    this.tutorialTargetColor,
-    this.tutorialTargetLabel,
-    this.pulseTick = 0,
   });
 
   final CosmicWorld world;
@@ -2125,10 +2168,6 @@ class _MiniMapPainter extends CustomPainter {
   final int discoveredPlanetCount;
   final bool showAllContestArenasOnMap;
   final List<MapMarker> markers;
-  final Offset? tutorialTargetPos;
-  final Color? tutorialTargetColor;
-  final String? tutorialTargetLabel;
-  final int pulseTick;
 
   static final _tpCache = <int, TextPainter>{};
 
@@ -2154,19 +2193,25 @@ class _MiniMapPainter extends CustomPainter {
     );
   }
 
-  static final _glowPaintCache = <int, Paint>{};
+  /// The soft halo under a chart mark: what a circle under
+  /// `MaskFilter.blur(BlurStyle.normal, sigma)` drew, as one radial
+  /// gradient instead of a gaussian pass per glow.
+  static void _glow(
+    Canvas canvas,
+    Offset at,
+    double radius,
+    Color color,
+    double alpha,
+    double sigma,
+  ) => paintSoftCircle(
+    canvas,
+    at,
+    radius,
+    color.withValues(alpha: alpha),
+    sigma,
+  );
 
-  static Paint _glowPaint(Color color, double alpha, double blur) {
-    final key = Object.hash(color, (alpha * 1000).round(), (blur * 10).round());
-    return _glowPaintCache.putIfAbsent(
-      key,
-      () => Paint()
-        ..color = color.withValues(alpha: alpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur),
-    );
-  }
-
-  void _paintLabel(
+  static void _paintLabel(
     Canvas canvas,
     String text,
     Color color,
@@ -2297,9 +2342,9 @@ class _MiniMapPainter extends CustomPainter {
       final pr = max(3.0, planet.radius * scale);
       final pos = Offset(px, py);
 
-      canvas
-        ..drawCircle(pos, pr * 3, _glowPaint(planet.color, 0.2, 6))
-        ..drawCircle(pos, pr, Paint()..color = planet.color);
+      _glow(canvas, pos, pr * 3, planet.color, 0.2, 6);
+
+      canvas.drawCircle(pos, pr, Paint()..color = planet.color);
 
       if (showPlanetLabels) {
         _paintLabel(
@@ -2331,9 +2376,9 @@ class _MiniMapPainter extends CustomPainter {
       final hr = max(4.0, hp.visualRadius * scale);
       final hPos = Offset(hx, hy);
 
-      canvas
-        ..drawCircle(hPos, hr * 3, _glowPaint(const Color(0xFF00E5FF), 0.3, 6))
-        ..drawCircle(hPos, hr, Paint()..color = hp.blendedColor);
+      _glow(canvas, hPos, hr * 3, const Color(0xFF00E5FF), 0.3, 6);
+
+      canvas.drawCircle(hPos, hr, Paint()..color = hp.blendedColor);
 
       _paintLabel(
         canvas,
@@ -2351,7 +2396,7 @@ class _MiniMapPainter extends CustomPainter {
     // on hue alone.
     for (final marker in markers) {
       final mPos = marker.worldPos * scale;
-      canvas.drawCircle(mPos, 9, _glowPaint(marker.color, 0.35, 5));
+      _glow(canvas, mPos, 9, marker.color, 0.35, 5);
       paintMarkerShape(
         canvas,
         mPos,
@@ -2371,7 +2416,7 @@ class _MiniMapPainter extends CustomPainter {
       final wPos = whirl.position * scale;
       final wColor = elementColor(whirl.element);
 
-      canvas.drawCircle(wPos, 10, _glowPaint(wColor, 0.3, 8));
+      _glow(canvas, wPos, 10, wColor, 0.3, 8);
 
       final spiralPaint = Paint()
         ..color = wColor.withValues(alpha: 0.8)
@@ -2415,11 +2460,7 @@ class _MiniMapPainter extends CustomPainter {
       final lPos = lair.position * scale;
       final bColor = elementColor(lair.template.element);
 
-      canvas.drawCircle(
-        lPos,
-        12,
-        _glowPaint(const Color(0xFFFF1744), 0.35, 10),
-      );
+      _glow(canvas, lPos, 12, const Color(0xFFFF1744), 0.35, 10);
 
       final diamond = Path()
         ..moveTo(lPos.dx, lPos.dy - 6)
@@ -2476,20 +2517,13 @@ class _MiniMapPainter extends CustomPainter {
           poiColor = elementColor(poi.element);
           poiLabel = '${poi.element.toUpperCase()} NEBULA';
           poiDotR = 4.0;
-          canvas
-            ..drawCircle(
-              poiPos,
-              10,
-              _glowPaint(poiColor, poi.interacted ? 0.12 : 0.25, 8),
-            )
-            ..drawCircle(
-              poiPos,
-              poiDotR,
-              Paint()
-                ..color = poiColor.withValues(
-                  alpha: poi.interacted ? 0.4 : 0.8,
-                ),
-            );
+          _glow(canvas, poiPos, 10, poiColor, poi.interacted ? 0.12 : 0.25, 8);
+          canvas.drawCircle(
+            poiPos,
+            poiDotR,
+            Paint()
+              ..color = poiColor.withValues(alpha: poi.interacted ? 0.4 : 0.8),
+          );
 
         case POIType.derelict:
           poiColor = const Color(0xFF78909C);
@@ -2524,7 +2558,7 @@ class _MiniMapPainter extends CustomPainter {
             );
 
         case POIType.harvesterMarket:
-          poiColor = const Color(0xFFFFB300);
+          poiColor = StationKind.harvester.accent;
           poiLabel = 'HARVESTER SHOP';
           poiDotR = 5.0;
           _paintHexMarker(
@@ -2536,7 +2570,7 @@ class _MiniMapPainter extends CustomPainter {
           );
 
         case POIType.riftKeyMarket:
-          poiColor = const Color(0xFF7C4DFF);
+          poiColor = StationKind.riftKey.accent;
           poiLabel = 'RIFT KEY SHOP';
           poiDotR = 5.0;
           _paintHexMarker(
@@ -2548,7 +2582,7 @@ class _MiniMapPainter extends CustomPainter {
           );
 
         case POIType.cosmicMarket:
-          poiColor = const Color(0xFF00E5FF);
+          poiColor = StationKind.market.accent;
           poiLabel = 'COSMIC MARKET';
           poiDotR = 5.0;
           _paintHexMarker(
@@ -2560,7 +2594,7 @@ class _MiniMapPainter extends CustomPainter {
           );
 
         case POIType.goldConversion:
-          poiColor = const Color(0xFFFFD740);
+          poiColor = StationKind.goldConversion.accent;
           poiLabel = 'GOLD CONVERSION';
           poiDotR = 5.0;
           _paintHexMarker(
@@ -2575,12 +2609,8 @@ class _MiniMapPainter extends CustomPainter {
           poiColor = const Color(0xFF8B5CF6);
           poiLabel = poi.discovered ? 'SURVIVAL PORTAL' : 'UNKNOWN SIGNAL';
           poiDotR = 5.0;
+          _glow(canvas, poiPos, 8, poiColor, poi.discovered ? 0.35 : 0.18, 10);
           canvas
-            ..drawCircle(
-              poiPos,
-              8,
-              _glowPaint(poiColor, poi.discovered ? 0.35 : 0.18, 10),
-            )
             ..drawCircle(
               poiPos,
               poiDotR,
@@ -2626,8 +2656,8 @@ class _MiniMapPainter extends CustomPainter {
       if (!cache.discovered || !cache.isPresent) continue;
       final cPos = cache.position * scale;
       final cColor = cache.color;
+      _glow(canvas, cPos, 7, cColor, 0.18, 4);
       canvas
-        ..drawCircle(cPos, 7, _glowPaint(cColor, 0.18, 4))
         ..drawCircle(
           cPos,
           5,
@@ -2662,8 +2692,9 @@ class _MiniMapPainter extends CustomPainter {
       final pfr = max(6.0, pf.radius * scale);
       const pfColor = Color(0xFFFF00CC);
 
+      _glow(canvas, pfPos, pfr, pfColor, 0.15, pfr * 0.5);
+
       canvas
-        ..drawCircle(pfPos, pfr, _glowPaint(pfColor, 0.15, pfr * 0.5))
         ..drawCircle(
           pfPos,
           pfr,
@@ -2689,8 +2720,9 @@ class _MiniMapPainter extends CustomPainter {
       final nxPos = nx.position * scale;
       const nexusColor = Color(0xFFB388FF);
 
+      _glow(canvas, nxPos, 14, const Color(0xFF7C4DFF), 0.3, 10);
+
       canvas
-        ..drawCircle(nxPos, 14, _glowPaint(const Color(0xFF7C4DFF), 0.3, 10))
         ..drawCircle(nxPos, 6, Paint()..color = const Color(0xFF0A0A0A))
         ..drawCircle(
           nxPos,
@@ -2726,8 +2758,9 @@ class _MiniMapPainter extends CustomPainter {
       final aPos = arena.position * scale;
       final aColor = arena.trait.color;
 
+      _glow(canvas, aPos, 11, aColor, 0.22, 7);
+
       canvas
-        ..drawCircle(aPos, 11, _glowPaint(aColor, 0.22, 7))
         ..drawCircle(
           aPos,
           7.5,
@@ -2771,8 +2804,9 @@ class _MiniMapPainter extends CustomPainter {
       final ringPos = ring.position * scale;
       const ringColor = Color(0xFFFF8A80);
 
+      _glow(canvas, ringPos, 12, const Color(0xFFB71C1C), 0.26, 8);
+
       canvas
-        ..drawCircle(ringPos, 12, _glowPaint(const Color(0xFFB71C1C), 0.26, 8))
         ..drawCircle(
           ringPos,
           8,
@@ -2798,15 +2832,57 @@ class _MiniMapPainter extends CustomPainter {
         );
       }
     }
+    // The tutorial SIGNAL and the ship are drawn on top of all this by
+    // [_MiniMapLivePainter], in their own layer: the chart under them is
+    // recorded once per open and only replayed while the signal pulses.
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniMapPainter old) {
+    if (scale != old.scale) return true;
+    if (revealedCellCount != old.revealedCellCount) return true;
+    if (discoveredPlanetCount != old.discoveredPlanetCount) return true;
+    if (showAllContestArenasOnMap != old.showAllContestArenasOnMap) return true;
+    if (!identical(markers, old.markers)) return true;
+    // The nearest boss lair is picked from where the ship is.
+    return (shipPos - old.shipPos).distance * scale > 0.5;
+  }
+}
+
+/// The two marks on the chart that move: the tutorial target, which pulses,
+/// and the ship. Kept apart from [_MiniMapPainter] so the pulse repaints a
+/// couple of circles instead of every revealed fog cell, and repainted by
+/// [pulse] directly rather than by rebuilding the map.
+class _MiniMapLivePainter extends CustomPainter {
+  _MiniMapLivePainter({
+    required this.scale,
+    required this.shipPos,
+    required this.pulse,
+    this.tutorialTargetPos,
+    this.tutorialTargetColor,
+    this.tutorialTargetLabel,
+  }) : super(repaint: pulse);
+
+  final double scale;
+  final Offset shipPos;
+  final ValueListenable<int> pulse;
+  final Offset? tutorialTargetPos;
+  final Color? tutorialTargetColor;
+  final String? tutorialTargetLabel;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final showPoiLabels = scale >= 0.016;
 
     if (tutorialTargetPos != null) {
       final targetPos = tutorialTargetPos! * scale;
       final color = tutorialTargetColor ?? const Color(0xFF8B5CF6);
-      final pulse = 0.55 + 0.45 * sin(pulseTick * 0.42);
+      final pulse = 0.55 + 0.45 * sin(this.pulse.value * 0.42);
       final outerRadius = 10.0 + pulse * 8.0;
 
+      _MiniMapPainter._glow(canvas, targetPos, outerRadius, color, 0.28, 10);
+
       canvas
-        ..drawCircle(targetPos, outerRadius, _glowPaint(color, 0.28, 10))
         ..drawCircle(
           targetPos,
           6.4 + pulse * 2.0,
@@ -2822,7 +2898,7 @@ class _MiniMapPainter extends CustomPainter {
         );
 
       if (showPoiLabels && tutorialTargetLabel != null) {
-        _paintLabel(
+        _MiniMapPainter._paintLabel(
           canvas,
           tutorialTargetLabel!,
           color,
@@ -2836,22 +2912,24 @@ class _MiniMapPainter extends CustomPainter {
 
     // Ship
     final shipScaled = shipPos * scale;
-    canvas
-      ..drawCircle(shipScaled, 5, _glowPaint(const Color(0xFF00E5FF), 1.0, 4))
-      ..drawCircle(shipScaled, 3, Paint()..color = Colors.white);
+    _MiniMapPainter._glow(
+      canvas,
+      shipScaled,
+      5,
+      const Color(0xFF00E5FF),
+      1.0,
+      4,
+    );
+    canvas.drawCircle(shipScaled, 3, Paint()..color = Colors.white);
   }
 
   @override
-  bool shouldRepaint(covariant _MiniMapPainter old) {
+  bool shouldRepaint(covariant _MiniMapLivePainter old) {
     if (scale != old.scale) return true;
-    if (revealedCellCount != old.revealedCellCount) return true;
-    if (discoveredPlanetCount != old.discoveredPlanetCount) return true;
-    if (showAllContestArenasOnMap != old.showAllContestArenasOnMap) return true;
-    if (!identical(markers, old.markers)) return true;
+    if (!identical(pulse, old.pulse)) return true;
     if (tutorialTargetPos != old.tutorialTargetPos) return true;
     if (tutorialTargetColor != old.tutorialTargetColor) return true;
     if (tutorialTargetLabel != old.tutorialTargetLabel) return true;
-    if (pulseTick != old.pulseTick) return true;
     // Only repaint when ship has moved a visible amount on the minimap.
     return (shipPos - old.shipPos).distance * scale > 0.5;
   }

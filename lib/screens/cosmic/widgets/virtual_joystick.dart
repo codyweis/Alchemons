@@ -1,3 +1,6 @@
+import 'package:alchemons/games/cosmic/planets/planet_art.dart'
+    show paintSoftCircle;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class VirtualJoystick extends StatefulWidget {
@@ -19,8 +22,9 @@ class VirtualJoystickState extends State<VirtualJoystick> {
   static const double _defaultBaseRadius = 52;
   static const double _defaultKnobRadius = 20;
 
-  Offset _knobOffset = Offset.zero;
-  bool _active = false;
+  /// Knob offset, or null at rest. Drives the painter directly: a drag
+  /// repaints the joystick's own layer and never rebuilds a widget.
+  final ValueNotifier<Offset?> _knob = ValueNotifier(null);
 
   double get _baseRadius => _defaultBaseRadius * widget.sizeMultiplier;
   double get _knobRadius => _defaultKnobRadius * widget.sizeMultiplier;
@@ -32,21 +36,21 @@ class VirtualJoystickState extends State<VirtualJoystick> {
     if (dist > _baseRadius - _knobRadius) {
       delta = delta / dist * (_baseRadius - _knobRadius);
     }
-    setState(() {
-      _knobOffset = delta;
-      _active = true;
-    });
+    _knob.value = delta;
     // Normalise: magnitude 0 – 1
     final norm = delta / (_baseRadius - _knobRadius);
     widget.onDirectionChanged(norm);
   }
 
   void _handleRelease() {
-    setState(() {
-      _knobOffset = Offset.zero;
-      _active = false;
-    });
+    _knob.value = null;
     widget.onDirectionChanged(null);
+  }
+
+  @override
+  void dispose() {
+    _knob.dispose();
+    super.dispose();
   }
 
   @override
@@ -56,15 +60,16 @@ class VirtualJoystickState extends State<VirtualJoystick> {
       onPanUpdate: (d) => _handlePointer(d.localPosition),
       onPanEnd: (_) => _handleRelease(),
       onPanCancel: _handleRelease,
-      child: SizedBox(
-        width: _baseRadius * 2,
-        height: _baseRadius * 2,
-        child: CustomPaint(
-          painter: _JoystickPainter(
-            knobOffset: _knobOffset,
-            active: _active,
-            baseRadius: _baseRadius,
-            knobRadius: _knobRadius,
+      child: RepaintBoundary(
+        child: SizedBox(
+          width: _baseRadius * 2,
+          height: _baseRadius * 2,
+          child: CustomPaint(
+            painter: _JoystickPainter(
+              knob: _knob,
+              baseRadius: _baseRadius,
+              knobRadius: _knobRadius,
+            ),
           ),
         ),
       ),
@@ -74,20 +79,20 @@ class VirtualJoystickState extends State<VirtualJoystick> {
 
 class _JoystickPainter extends CustomPainter {
   _JoystickPainter({
-    required this.knobOffset,
-    required this.active,
+    required this.knob,
     required this.baseRadius,
     required this.knobRadius,
-  });
+  }) : super(repaint: knob);
 
-  final Offset knobOffset;
-  final bool active;
+  final ValueListenable<Offset?> knob;
   final double baseRadius;
   final double knobRadius;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(baseRadius, baseRadius);
+    final knobOffset = knob.value ?? Offset.zero;
+    final active = knob.value != null;
 
     // Outer ring
     canvas.drawCircle(
@@ -125,12 +130,12 @@ class _JoystickPainter extends CustomPainter {
     final knobCenter = center + knobOffset;
     // Glow
     if (active) {
-      canvas.drawCircle(
+      paintSoftCircle(
+        canvas,
         knobCenter,
         knobRadius + 6,
-        Paint()
-          ..color = const Color(0xFF00E5FF).withValues(alpha: 0.15)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        const Color(0xFF00E5FF).withValues(alpha: 0.15),
+        8,
       );
     }
     // Fill
@@ -157,8 +162,7 @@ class _JoystickPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_JoystickPainter old) =>
-      old.knobOffset != knobOffset ||
-      old.active != active ||
+      old.knob != knob ||
       old.baseRadius != baseRadius ||
       old.knobRadius != knobRadius;
 }

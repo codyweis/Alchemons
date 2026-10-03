@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
+import 'package:alchemons/games/cosmic/station_art.dart';
 import 'package:flutter/material.dart';
 
 class CosmicMiniMapCircle extends StatefulWidget {
@@ -227,6 +228,8 @@ class _MiniCirclePainter extends CustomPainter {
           c = const Color(0xFF8B5CF6);
           break;
       }
+      // A station is the colour it is lit in space.
+      c = stationKindFor(poi.type)?.accent ?? c;
       final r = isScanner ? 3.0 : (isMarket ? 2.6 : 2.1);
       canvas.drawCircle(p, r, Paint()..color = c);
       if (isScanner) {

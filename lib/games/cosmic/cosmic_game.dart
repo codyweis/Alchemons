@@ -36,6 +36,12 @@ import 'cosmic_cache_vfx.dart';
 import 'portal_tear_paint.dart';
 import 'planets/planet_art.dart';
 import 'ship_art.dart';
+import 'station_art.dart';
+import 'contest_art.dart';
+import 'poi_art.dart';
+import 'asteroid_art.dart';
+import 'landmark_art.dart';
+import 'obsidian_kit.dart' show paintDisc, stoneLightFor;
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/systems/effects/effect.dart';
@@ -72,6 +78,10 @@ final Map<String, TextPainter> _itemIconPainters = {};
 
 TextPainter _itemIconPainter(IconData icon, Color color) {
   final key = '${icon.codePoint}:${icon.fontFamily}:${color.toARGB32()}';
+  // A fading drop asks for up to 33 alphas of its tint; keep it bounded.
+  if (_itemIconPainters.length > 256 && !_itemIconPainters.containsKey(key)) {
+    _itemIconPainters.clear();
+  }
   return _itemIconPainters.putIfAbsent(
     key,
     () => TextPainter(
@@ -88,6 +98,84 @@ TextPainter _itemIconPainter(IconData icon, Color color) {
     )..layout(),
   );
 }
+
+/// World labels (planet names, POI tags, whirl counters, …) laid out once
+/// per distinct (text, colour, size, weight, spacing) instead of every
+/// frame. Keyed on the colour's 8-bit ARGB — all the canvas can show — so a
+/// cached label paints exactly what a fresh one would. Callers whose colour
+/// animates quantize it first. Cleared wholesale if it ever grows past 512.
+final Map<(String, int, double, FontWeight?, double?), TextPainter>
+_worldLabelPainters = {};
+
+TextPainter _worldLabel(
+  String text, {
+  required Color color,
+  required double fontSize,
+  FontWeight? fontWeight,
+  double? letterSpacing,
+}) {
+  final key = (text, color.toARGB32(), fontSize, fontWeight, letterSpacing);
+  final hit = _worldLabelPainters[key];
+  if (hit != null) return hit;
+  if (_worldLabelPainters.length >= 512) _worldLabelPainters.clear();
+  return _worldLabelPainters[key] = TextPainter(
+    text: TextSpan(
+      text: text,
+      style: TextStyle(
+        color: color,
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        letterSpacing: letterSpacing,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+}
+
+/// What a stroke of [width] under MaskFilter.blur(normal, [sigma]) drew,
+/// without the blur: a wide faint pass under a narrower brighter one (the
+/// [paintSoftRing] recipe), handed to [draw] for the shape's geometry.
+void _softStroke(
+  Paint p,
+  Color col,
+  double width,
+  double sigma,
+  void Function(Paint) draw,
+) {
+  if (col.a <= 0) return;
+  final peak = 1 - exp(-width / (1.9 * max(sigma, 0.01)));
+  draw(
+    p
+      ..maskFilter = null
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width + sigma * 4
+      ..color = col.withValues(alpha: col.a * peak * 0.45),
+  );
+  draw(
+    p
+      ..strokeWidth = width + sigma * 1.5
+      ..color = col.withValues(alpha: col.a * peak * 0.6),
+  );
+}
+
+final Paint _softLinePaint = Paint();
+
+/// [_softStroke] for a blurred line.
+void _softLine(
+  Canvas c,
+  Offset a,
+  Offset b,
+  Color col,
+  double width,
+  double sigma, {
+  StrokeCap cap = StrokeCap.butt,
+}) => _softStroke(
+  _softLinePaint..strokeCap = cap,
+  col,
+  width,
+  sigma,
+  (p) => c.drawLine(a, b, p),
+);
 
 // ─────────────────────────────────────────────────────────
 // MAIN GAME
@@ -775,26 +863,10 @@ class CosmicGame extends FlameGame with PanDetector {
   static const double _prismaticCelebDuration = 3.5; // seconds
   VoidCallback? onPrismaticRewardClaimed;
 
-  // Prismatic field cached render-to-texture (~10fps refresh, full blur beauty)
-  ui.Image? _prismaticCachedImage;
-  double _prismaticCacheLife = -1; // life value when cache was built
-  static const int _prismaticTexSize = 512; // render target size
-  static const double _prismaticCacheInterval =
-      0.1; // seconds between refreshes
-
-  // Elemental nexus cached render-to-texture (same trick as prismatic aurora)
-  ui.Image? _nexusCachedImage;
-  double _nexusCacheTime = -1;
-  static const int _nexusTexSize = 512;
-  static const double _nexusCacheInterval = 0.1;
-  // World-unit radius the texture covers (gravitational well glow = 600 + margin)
-  static const double _nexusTexWorldR = 750.0;
-
   // Pocket dimension cached render-to-texture
   ui.Image? _pocketCachedImage;
-  double _pocketCacheTime = -1;
   static const int _pocketTexSize = 512;
-  static const double _pocketCacheInterval = 0.1;
+  final Paint _pocketPaint = Paint()..filterQuality = FilterQuality.low;
 
   // Feeding-pack spawn: separate timer, spawns near asteroid belt
   double _feedingPackTimer = 0;
@@ -849,7 +921,48 @@ class CosmicGame extends FlameGame with PanDetector {
 
   /// The zoom the world is drawn at: the player's preset, pushed in further
   /// while a portal tear plays.
-  double get cameraZoom => _currentZoom * _camZoomMul;
+  double get cameraZoom {
+    var z = _currentZoom * _camZoomMul;
+    if (_contestPullBack > 0) {
+      // A contest frames the whole arena, whatever the player's zoom.
+      final frame = size.x / (CosmicContestArena.visualRadius * 2 * 1.06);
+      z += (min(z, frame) - z) * Curves.easeInOut.transform(_contestPullBack);
+    }
+    if (_bloodFrame > 0) {
+      // The ritual frames the whole crown and the light round it.
+      final frame = size.x / (BloodRing.visualRadius * 2 * 1.5);
+      z += (min(z, frame) - z) * Curves.easeInOut.transform(_bloodFrame);
+    }
+    return z;
+  }
+
+  /// 0 normally, easing to 1 while a contest plays (see update).
+  double _contestPullBack = 0;
+
+  /// The Blood Ring's ritual, 0..1, while it plays (the screen drives it);
+  /// null otherwise. The ritual happens to the ring in the world: the camera
+  /// eases back and over to frame the whole crown, the well runs faster and
+  /// the thorns ignite (see update and paintBloodRing). Clearing it puts the
+  /// camera straight back, under the red the ritual ends in.
+  double? get bloodRitualProgress => _bloodRitual;
+  set bloodRitualProgress(double? v) {
+    _bloodRitual = v;
+    if (v == null) {
+      _bloodFrame = 0;
+      _camPan = Offset.zero;
+    }
+  }
+
+  double? _bloodRitual;
+
+  /// 0..1: how far the camera has come round to frame the Blood Ring.
+  double _bloodFrame = 0;
+
+  /// The Blood Ring well's clock: it runs faster through the ritual.
+  double _bloodFlow = 0;
+
+  /// 0..1, easing toward whether a Mystic Blood companion is out.
+  double _bloodArmed = 0;
 
   void cycleZoomLevel() {
     _zoomLevelIndex = (_zoomLevelIndex + 1) % _zoomPresets.length;
@@ -2223,6 +2336,32 @@ class CosmicGame extends FlameGame with PanDetector {
         _currentZoom = _zoomAnimTo;
         _zoomAnimComplete = true;
       }
+    }
+
+    // The camera eases back while a contest plays, so the whole arena is in
+    // view, and forward again after.
+    final contestTarget = _beautyContestCinematicActive ? 1.0 : 0.0;
+    _contestPullBack += (contestTarget - _contestPullBack) * min(1.0, dt * 2.6);
+    if ((_contestPullBack - contestTarget).abs() < 0.002) {
+      _contestPullBack = contestTarget;
+    }
+
+    final ritual = _bloodRitual;
+    _bloodFlow += dt * (1 + 5 * pow(ritual ?? 0, 2));
+    final armed = activeCompanions.values.any(
+      (c) =>
+          c.member.element.toLowerCase() == 'blood' &&
+          c.member.family.toLowerCase() == 'mystic',
+    );
+    _bloodArmed += ((armed ? 1 : 0) - _bloodArmed) * min(1.0, dt * 1.5);
+    if (ritual != null) {
+      // The world holds still for the ritual; only the ring moves.
+      _riftPulse += dt;
+      _bloodFrame += (1 - _bloodFrame) * min(1.0, dt * 1.4);
+      _camPan =
+          (bloodRing.position - ship.pos) *
+          Curves.easeInOut.transform(_bloodFrame);
+      return;
     }
 
     if (_beautyContestCinematicActive) {
@@ -4584,8 +4723,10 @@ class CosmicGame extends FlameGame with PanDetector {
         poi.discovered = true;
       }
 
-      // Interaction check (ship must be close)
-      if (poiDist < poi.radius * 0.8) {
+      // Interaction check (ship must be close). The wreck is drawn far
+      // larger than its 25 radius, so it answers to the whole hull.
+      final reach = poi.type == POIType.derelict ? 60.0 : poi.radius * 0.8;
+      if (poiDist < reach) {
         poi.interacted = true;
         onPOIDiscovered?.call(poi);
 
@@ -4824,390 +4965,6 @@ class CosmicGame extends FlameGame with PanDetector {
     _renderWingFlowers(canvas);
     _renderKinFlowers(canvas);
 
-    if (_beautyContestCinematicActive) {
-      final introFade = _beautyContestIntroActive
-          ? Curves.easeOutCubic.transform(
-              (_beautyContestIntroTimer / _beautyContestIntroDuration).clamp(
-                0.0,
-                1.0,
-              ),
-            )
-          : 1.0;
-      final center = _beautyContestCenter;
-      if (_contestCinematicMode == _ContestCinematicMode.beauty) {
-        final pulse = 0.5 + 0.5 * sin(_elapsed * 1.8);
-        final haloR = 300.0 + 24.0 * sin(_elapsed * 0.9);
-        final sweepR = 212.0 + 12.0 * sin(_elapsed * 1.6);
-
-        paintSoftCircle(
-          canvas,
-          center,
-          haloR,
-          const Color(
-            0xFFF06292,
-          ).withValues(alpha: (0.18 + pulse * 0.10) * introFade),
-          60,
-        );
-        paintSoftCircle(
-          canvas,
-          center,
-          220,
-          const Color(0xFF80DEEA).withValues(alpha: 0.14 * introFade),
-          38,
-        );
-        canvas.drawCircle(
-          center,
-          170,
-          Paint()
-            ..shader = ui.Gradient.radial(center, 170, [
-              const Color(
-                0xFFFFF8E1,
-              ).withValues(alpha: (0.16 + pulse * 0.06) * introFade),
-              Colors.transparent,
-            ]),
-        );
-        for (var i = 0; i < 10; i++) {
-          final a = _elapsed * 0.26 + i * (pi * 2 / 10);
-          final p = Offset(
-            center.dx + cos(a) * sweepR,
-            center.dy + sin(a) * sweepR * 0.58,
-          );
-          paintSoftCircle(
-            canvas,
-            p,
-            7.0 + 1.2 * sin(_elapsed * 2.2 + i),
-            const Color(0xFFFFE082).withValues(alpha: 0.24 * introFade),
-            10,
-          );
-        }
-      } else if (_contestCinematicMode == _ContestCinematicMode.speed) {
-        final pulse = 0.5 + 0.5 * sin(_elapsed * 2.2);
-        const outerRx = 246.0;
-        const outerRy = 138.0;
-        const innerRx = 208.0;
-        const innerRy = 114.0;
-        final outerRect = Rect.fromCenter(
-          center: center,
-          width: outerRx * 2,
-          height: outerRy * 2,
-        );
-        final innerRect = Rect.fromCenter(
-          center: center,
-          width: innerRx * 2,
-          height: innerRy * 2,
-        );
-
-        canvas.drawOval(
-          outerRect,
-          Paint()
-            ..color = const Color(
-              0xFF4FC3F7,
-            ).withValues(alpha: (0.26 + pulse * 0.10) * introFade)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 5
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-        );
-        canvas.drawOval(
-          innerRect,
-          Paint()
-            ..color = const Color(
-              0xFFB3E5FC,
-            ).withValues(alpha: (0.20 + pulse * 0.08) * introFade)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-        );
-        for (var i = 0; i < 16; i++) {
-          final a = _elapsed * 2.8 + i * (pi * 2 / 16);
-          final p = Offset(
-            center.dx + cos(a) * (innerRx + 8),
-            center.dy + sin(a) * (innerRy + 6),
-          );
-          canvas.drawCircle(
-            p,
-            2.6,
-            Paint()
-              ..color = const Color(
-                0xFFE1F5FE,
-              ).withValues(alpha: (0.16 + pulse * 0.08) * introFade),
-          );
-        }
-      } else if (_contestCinematicMode == _ContestCinematicMode.strength) {
-        final pulse = 0.5 + 0.5 * sin(_elapsed * 3.0);
-        const laneHalfExtent = 118.0;
-        final clashCenterBase = Offset(center.dx, center.dy + 24);
-        final clashCenter = Offset(
-          center.dx + _strengthContestShift,
-          center.dy + 24,
-        );
-        final shiftNorm = (_strengthContestShift / laneHalfExtent).clamp(
-          -1.0,
-          1.0,
-        );
-        final markerColor = Color.lerp(
-          const Color(0xFFFFAB91),
-          const Color(0xFFFFCC80),
-          ((shiftNorm + 1) / 2).clamp(0.0, 1.0),
-        )!;
-        final laneLeft = Offset(
-          clashCenterBase.dx - laneHalfExtent,
-          clashCenterBase.dy,
-        );
-        final laneRight = Offset(
-          clashCenterBase.dx + laneHalfExtent,
-          clashCenterBase.dy,
-        );
-        var markerPos = clashCenter;
-        if (_beautyContestTimer >= _strengthContestDuration) {
-          final revealT = Curves.easeOutCubic.transform(
-            ((_beautyContestTimer - _strengthContestDuration) / 1.0).clamp(
-              0.0,
-              1.0,
-            ),
-          );
-          final winner = _beautyContestPlayerWon
-              ? activeCompanion
-              : duelOpponent;
-          if (winner != null) {
-            markerPos = Offset.lerp(clashCenter, winner.position, revealT)!;
-          }
-        }
-
-        // Strength lane + neutral alchemical center marker.
-        canvas.drawLine(
-          laneLeft,
-          laneRight,
-          Paint()
-            ..color = const Color(
-              0xFFFFE0B2,
-            ).withValues(alpha: 0.08 * introFade)
-            ..strokeWidth = 5
-            ..strokeCap = StrokeCap.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-        );
-        canvas.drawLine(
-          laneLeft,
-          laneRight,
-          Paint()
-            ..color = const Color(
-              0xFFFFE0B2,
-            ).withValues(alpha: 0.16 * introFade)
-            ..strokeWidth = 2.2
-            ..strokeCap = StrokeCap.round,
-        );
-        for (var i = 0; i < 8; i++) {
-          final travel = (_elapsed * 0.24 + i / 8) % 1.0;
-          final laneX = laneLeft.dx + (laneRight.dx - laneLeft.dx) * travel;
-          final laneY = clashCenterBase.dy + sin(_elapsed * 2.8 + i) * 1.5;
-          paintSoftCircle(
-            canvas,
-            Offset(laneX, laneY),
-            1.8 + (i % 2) * 0.5,
-            const Color(
-              0xFFFFF3E0,
-            ).withValues(alpha: (0.10 + pulse * 0.06) * introFade),
-            2,
-          );
-        }
-        canvas.drawCircle(
-          clashCenterBase,
-          16,
-          Paint()
-            ..color = const Color(
-              0xFFFFF3E0,
-            ).withValues(alpha: 0.24 * introFade)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2,
-        );
-        final hexPath = Path();
-        for (var i = 0; i < 6; i++) {
-          final a = -pi / 2 + i * (pi * 2 / 6);
-          final pt = Offset(
-            clashCenterBase.dx + cos(a) * 8,
-            clashCenterBase.dy + sin(a) * 8,
-          );
-          if (i == 0) {
-            hexPath.moveTo(pt.dx, pt.dy);
-          } else {
-            hexPath.lineTo(pt.dx, pt.dy);
-          }
-        }
-        hexPath.close();
-        canvas.drawPath(
-          hexPath,
-          Paint()
-            ..color = const Color(
-              0xFFFFE0B2,
-            ).withValues(alpha: 0.36 * introFade)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6,
-        );
-
-        paintSoftCircle(
-          canvas,
-          clashCenter,
-          170,
-          const Color(
-            0xFFFFA65A,
-          ).withValues(alpha: (0.13 + pulse * 0.08) * introFade),
-          26,
-        );
-        paintSoftCircle(
-          canvas,
-          clashCenter,
-          108,
-          const Color(
-            0xFFFFE0B2,
-          ).withValues(alpha: (0.08 + pulse * 0.06) * introFade),
-          12,
-        );
-        for (var i = 0; i < 12; i++) {
-          final a = _elapsed * 2.4 + i * (pi * 2 / 12);
-          final p = Offset(
-            clashCenter.dx + cos(a) * 116,
-            clashCenter.dy + sin(a) * 62,
-          );
-          canvas.drawCircle(
-            p,
-            4.0 + (i % 3) * 0.8,
-            Paint()
-              ..color = const Color(
-                0xFFFFCC80,
-              ).withValues(alpha: (0.15 + pulse * 0.06) * introFade),
-          );
-        }
-
-        // Moving alchemical force marker tracks control of the center.
-        paintSoftCircle(
-          canvas,
-          markerPos,
-          20,
-          markerColor.withValues(alpha: (0.15 + pulse * 0.12) * introFade),
-          8,
-        );
-        canvas.drawCircle(
-          markerPos,
-          10.5,
-          Paint()..color = markerColor.withValues(alpha: 0.92 * introFade),
-        );
-        canvas.drawCircle(
-          markerPos,
-          4,
-          Paint()
-            ..color = const Color(
-              0xFFFFFFFF,
-            ).withValues(alpha: 0.92 * introFade),
-        );
-      } else if (_contestCinematicMode == _ContestCinematicMode.intelligence) {
-        final pulse = 0.5 + 0.5 * sin(_elapsed * 2.6);
-        final latticeCenter = Offset(center.dx, center.dy + 16);
-        final orbPos = _intelligenceContestOrbPos;
-        final biasNorm = ((_intelligenceContestBias + 1.0) * 0.5).clamp(
-          0.0,
-          1.0,
-        );
-        final orbColor = Color.lerp(
-          const Color(0xFF9FA8DA),
-          const Color(0xFFD1C4E9),
-          biasNorm,
-        )!;
-
-        paintSoftCircle(
-          canvas,
-          latticeCenter,
-          240,
-          const Color(
-            0xFF7E57C2,
-          ).withValues(alpha: (0.14 + pulse * 0.07) * introFade),
-          46,
-        );
-        paintSoftCircle(
-          canvas,
-          latticeCenter,
-          146,
-          const Color(
-            0xFFB3E5FC,
-          ).withValues(alpha: (0.08 + pulse * 0.04) * introFade),
-          24,
-        );
-
-        for (var i = 0; i < 3; i++) {
-          final radius = 62.0 + i * 44.0;
-          paintSoftRing(
-            canvas,
-            latticeCenter,
-            radius,
-            const Color(
-              0xFFD1C4E9,
-            ).withValues(alpha: (0.09 - i * 0.02) * introFade),
-            1.2,
-            2,
-          );
-        }
-
-        final nodePoints = <Offset>[];
-        for (var i = 0; i < 10; i++) {
-          final a = _elapsed * 0.78 + i * (pi * 2 / 10);
-          final p = Offset(
-            latticeCenter.dx + cos(a) * 168.0,
-            latticeCenter.dy + sin(a) * 92.0,
-          );
-          nodePoints.add(p);
-          canvas.drawCircle(
-            p,
-            2.8 + (i % 3) * 0.6,
-            Paint()
-              ..color = const Color(
-                0xFFEDE7F6,
-              ).withValues(alpha: (0.14 + pulse * 0.05) * introFade),
-          );
-          canvas.drawLine(
-            p,
-            orbPos,
-            Paint()
-              ..color = const Color(
-                0xFFB39DDB,
-              ).withValues(alpha: (0.08 + ((i % 4) * 0.01)) * introFade)
-              ..strokeWidth = 1.0,
-          );
-        }
-        for (var i = 0; i < nodePoints.length; i++) {
-          final a = nodePoints[i];
-          final b = nodePoints[(i + 2) % nodePoints.length];
-          canvas.drawLine(
-            a,
-            b,
-            Paint()
-              ..color = const Color(
-                0xFF9575CD,
-              ).withValues(alpha: 0.06 * introFade)
-              ..strokeWidth = 0.8,
-          );
-        }
-
-        paintSoftCircle(
-          canvas,
-          orbPos,
-          32,
-          orbColor.withValues(alpha: (0.22 + pulse * 0.09) * introFade),
-          12,
-        );
-        canvas.drawCircle(
-          orbPos,
-          14,
-          Paint()..color = orbColor.withValues(alpha: 0.95 * introFade),
-        );
-        canvas.drawCircle(
-          orbPos,
-          4.5,
-          Paint()
-            ..color = const Color(
-              0xFFFFFFFF,
-            ).withValues(alpha: 0.9 * introFade),
-        );
-      }
-    }
-
     // ── particle swarms ──
     final ww3 = world_.worldSize.width;
     final wh3 = world_.worldSize.height;
@@ -5217,6 +4974,29 @@ class CosmicGame extends FlameGame with PanDetector {
       // Batched: every mote in the swarm goes in one of six classes (two
       // sizes, three brightnesses) and each class is drawn once.
       final motes = _swarmDots..clear();
+
+      // The swarm's own light pooled under it, so it reads as one cloud and
+      // fades as it is gathered.
+      {
+        var relX = swarm.center.dx - cx, relY = swarm.center.dy - cy;
+        if (relX > ww3 / 2) relX -= ww3;
+        if (relX < -ww3 / 2) relX += ww3;
+        if (relY > wh3 / 2) relY -= wh3;
+        if (relY < -wh3 / 2) relY += wh3;
+        const reach = ParticleSwarm.cloudRadius * 1.2;
+        if (relX > -reach &&
+            relX < screenW + reach &&
+            relY > -reach &&
+            relY < screenH + reach) {
+          paintDisc(
+            canvas,
+            stoneLightFor(elColor).pool,
+            Offset(cx + relX, cy + relY),
+            reach,
+            pulseAlpha * swarm.remaining / max(1, swarm.motes.length),
+          );
+        }
+      }
 
       for (final mote in swarm.motes) {
         if (mote.collected) continue;
@@ -5351,6 +5131,7 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── galaxy whirls ──
+    final anyWhirlAwake = galaxyWhirls.any((w) => w.state == WhirlState.active);
     for (final whirl in galaxyWhirls) {
       final wp = whirl.position;
       if (isOutsideViewport(wp, cx, cy, screenW, screenH, margin: 1.5)) {
@@ -5360,144 +5141,79 @@ class CosmicGame extends FlameGame with PanDetector {
       final wColor = elementColor(whirl.element);
       final isActive = whirl.state == WhirlState.active;
       final isComplete = whirl.state == WhirlState.completed;
-      final baseAlpha = isComplete ? 0.15 : (isActive ? 1.0 : 0.6);
 
-      // Outer spiral arms: sixty soft dots, drawn in five steps from the
-      // bright heart outward, each step once.
-      final arms = _swarmDots..clear();
-      for (var arm = 0; arm < 3; arm++) {
-        final armOffset = arm * pi * 2 / 3;
-        for (var i = 0; i < 20; i++) {
-          final frac = i / 20.0;
-          final spiralAngle = whirl.rotation + armOffset + frac * pi * 2.5;
-          final spiralR = whirl.radius * (0.15 + frac * 0.85);
-          arms.add(
-            i ~/ 4,
-            wp.dx + cos(spiralAngle) * spiralR,
-            wp.dy + sin(spiralAngle) * spiralR,
-          );
-        }
-      }
-      for (var k = 0; k < 5; k++) {
-        final frac = (k * 4 + 1.5) / 20.0;
-        final dotSize = 2.5 + (1.0 - frac) * 2.0;
-        arms.drawGlow(
-          canvas,
-          k,
-          dotSize,
-          dotSize,
-          wColor.withValues(alpha: (1.0 - frac) * 0.5 * baseAlpha),
-        );
-      }
-
-      // Core glow
-      final coreSize = whirl.radius * (isActive ? 0.35 : 0.25);
-      final corePulse = 0.8 + 0.2 * sin(whirl.pulse * 3);
-      paintSoftCircle(
+      // A spiral galaxy of grains (landmark_art.dart). Asleep, a faint ring
+      // marks where it wakes — unless another whirl is already awake, for
+      // only one can be at a time.
+      paintGalaxyWhirl(
         canvas,
-        wp,
-        coreSize * corePulse,
-        wColor.withValues(alpha: 0.4 * baseAlpha),
-        coreSize,
+        at: wp,
+        radius: whirl.radius,
+        color: wColor,
+        spin: whirl.rotation,
+        t: whirl.pulse,
+        look: isActive
+            ? WhirlLook.active
+            : isComplete
+            ? WhirlLook.spent
+            : WhirlLook.dormant,
+        wake: whirl.state == WhirlState.dormant && !anyWhirlAwake
+            ? GalaxyWhirl.activationRadius
+            : null,
       );
-      canvas.drawCircle(
-        wp,
-        coreSize * 0.4,
-        Paint()..color = Colors.white.withValues(alpha: 0.5 * baseAlpha),
-      );
-
-      // Orbiting motes
-      for (var m = 0; m < 8; m++) {
-        final mAngle = whirl.rotation * 1.5 + m * pi / 4;
-        final mR = whirl.radius * (0.5 + 0.3 * sin(whirl.pulse * 2 + m));
-        canvas.drawCircle(
-          Offset(wp.dx + cos(mAngle) * mR, wp.dy + sin(mAngle) * mR),
-          2.0,
-          Paint()..color = wColor.withValues(alpha: 0.6 * baseAlpha),
-        );
-      }
+      final labelLift = whirl.radius * 2.4;
 
       // Status label / indicators
       if (isActive) {
-        // Activation ring
-        canvas.drawCircle(
-          wp,
-          GalaxyWhirl.activationRadius,
-          Paint()
-            ..color = wColor.withValues(alpha: 0.15)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2,
-        );
         // Wave indicator
-        final waveTp = TextPainter(
-          text: TextSpan(
-            text:
-                'Lv${whirl.level} ${whirl.hordeTypeName} ${whirl.currentWave + 1}/${whirl.totalWaves}',
-            style: TextStyle(
-              color: wColor.withValues(alpha: 0.9),
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.5,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final waveTp = _worldLabel(
+          'Lv${whirl.level} ${whirl.hordeTypeName} ${whirl.currentWave + 1}/${whirl.totalWaves}',
+          color: wColor.withValues(alpha: 0.9),
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.5,
+        );
         waveTp.paint(
           canvas,
-          Offset(wp.dx - waveTp.width / 2, wp.dy - whirl.radius - 20),
+          Offset(wp.dx - waveTp.width / 2, wp.dy - labelLift - 20),
         );
         // Timer
         final timerSec = whirl.waveTimer.ceil();
-        final timerTp = TextPainter(
-          text: TextSpan(
-            text: '${timerSec}s',
-            style: TextStyle(
-              color: timerSec <= 10
-                  ? Colors.redAccent
-                  : Colors.white.withValues(alpha: 0.8),
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final timerTp = _worldLabel(
+          '${timerSec}s',
+          color: timerSec <= 10
+              ? Colors.redAccent
+              : Colors.white.withValues(alpha: 0.8),
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        );
         timerTp.paint(
           canvas,
-          Offset(wp.dx - timerTp.width / 2, wp.dy - whirl.radius - 34),
+          Offset(wp.dx - timerTp.width / 2, wp.dy - labelLift - 34),
         );
       } else if (!isComplete) {
-        final dormantTp = TextPainter(
-          text: TextSpan(
-            text: 'Lv${whirl.level} ${whirl.hordeTypeName}',
-            style: TextStyle(
-              color: wColor.withValues(alpha: 0.5),
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final dormantTp = _worldLabel(
+          'Lv${whirl.level} ${whirl.hordeTypeName}',
+          color: wColor.withValues(alpha: 0.5),
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1,
+        );
         dormantTp.paint(
           canvas,
-          Offset(wp.dx - dormantTp.width / 2, wp.dy + whirl.radius + 8),
+          Offset(wp.dx - dormantTp.width / 2, wp.dy + labelLift + 8),
         );
       } else {
-        final completeTp = TextPainter(
-          text: TextSpan(
-            text: 'CLEARED',
-            style: TextStyle(
-              color: Colors.greenAccent.withValues(alpha: 0.6),
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.5,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final completeTp = _worldLabel(
+          'CLEARED',
+          color: Colors.greenAccent.withValues(alpha: 0.6),
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.5,
+        );
         completeTp.paint(
           canvas,
-          Offset(wp.dx - completeTp.width / 2, wp.dy + whirl.radius + 8),
+          Offset(wp.dx - completeTp.width / 2, wp.dy + labelLift + 8),
         );
       }
     }
@@ -5519,361 +5235,72 @@ class CosmicGame extends FlameGame with PanDetector {
 
       switch (poi.type) {
         case POIType.nebula:
-          final nColor = elementColor(poi.element);
-          final nAlpha = poi.interacted ? 0.24 : 0.3;
-          for (var layer = 0; layer < 5; layer++) {
-            final nR = poi.radius * (0.5 + layer * 0.3);
-            final drift = sin(poi.life * 0.2 + layer * 0.8) * 15;
-            paintSoftCircle(
-              canvas,
-              Offset(pp.dx + drift, pp.dy + drift * 0.7),
-              nR,
-              nColor.withValues(alpha: nAlpha * (1.0 - layer * 0.15)),
-              nR * 0.8,
-            );
-          }
-          for (var s = 0; s < 6; s++) {
-            final sa = poi.life * 0.3 + s * pi / 3;
-            final sr = poi.radius * 0.4 * (0.5 + 0.5 * sin(poi.life + s));
-            canvas.drawCircle(
-              Offset(pp.dx + cos(sa) * sr, pp.dy + sin(sa) * sr),
-              2,
-              Paint()
-                ..color = Colors.white.withValues(
-                  alpha: 0.3 + 0.2 * sin(poi.life * 2 + s),
-                ),
-            );
-          }
+          paintNebula(
+            canvas,
+            at: pp,
+            radius: poi.radius,
+            color: elementColor(poi.element),
+            t: poi.life,
+            spent: poi.interacted,
+            ship: ship.pos,
+          );
           if (!poi.interacted) {
-            final nebTp = TextPainter(
-              text: TextSpan(
-                text: '${poi.element.toUpperCase()} NEBULA',
-                style: TextStyle(
-                  color: nColor.withValues(alpha: 0.6),
-                  fontSize: 8,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                ),
-              ),
-              textDirection: TextDirection.ltr,
-            )..layout();
+            final nebTp = _worldLabel(
+              '${poi.element.toUpperCase()} NEBULA',
+              color: elementColor(poi.element).withValues(alpha: 0.7),
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+            );
             nebTp.paint(
               canvas,
-              Offset(pp.dx - nebTp.width / 2, pp.dy + poi.radius + 10),
+              Offset(pp.dx - nebTp.width / 2, pp.dy + poi.radius * 1.2 + 10),
             );
           }
           break;
         case POIType.derelict:
-          final dAlphaScale = poi.interacted ? 0.7 : 1.0;
-          // Ambient distress beacon glow
+          paintDerelict(canvas, at: pp, t: poi.life, looted: poi.interacted);
           if (!poi.interacted) {
-            final beaconPulse = 0.15 + 0.1 * sin(poi.life * 2.5);
-            paintSoftCircle(
-              canvas,
-              pp,
-              45,
-              const Color(0xFFFF6F00).withValues(alpha: beaconPulse),
-              25,
+            final derelictTp = _worldLabel(
+              'DERELICT',
+              color: const Color(0xFFB9CCDE).withValues(alpha: 0.7),
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.4,
             );
-          }
-          canvas.save();
-          canvas.translate(pp.dx, pp.dy);
-          canvas.rotate(sin(poi.life * 0.1) * 0.15);
-
-          // Main hull (larger)
-          final hullPath = Path()
-            ..moveTo(-22, -12)
-            ..lineTo(18, -10)
-            ..lineTo(28, -2)
-            ..lineTo(24, 6)
-            ..lineTo(14, 12)
-            ..lineTo(-8, 10)
-            ..lineTo(-18, 8)
-            ..lineTo(-26, 2)
-            ..close();
-          // Hull shadow
-          canvas.drawPath(
-            hullPath,
-            Paint()
-              ..color = const Color(
-                0xFF37474F,
-              ).withValues(alpha: 0.8 * dAlphaScale),
-          );
-          // Hull gradient overlay for depth
-          canvas.drawPath(
-            hullPath,
-            Paint()
-              ..shader = ui.Gradient.linear(
-                const Offset(-22, -12),
-                const Offset(24, 12),
-                [
-                  const Color(0xFF607D8B).withValues(alpha: 0.5 * dAlphaScale),
-                  const Color(0xFF263238).withValues(alpha: 0.6 * dAlphaScale),
-                ],
-              ),
-          );
-          // Hull edge
-          canvas.drawPath(
-            hullPath,
-            Paint()
-              ..color = const Color(
-                0xFF90A4AE,
-              ).withValues(alpha: 0.5 * dAlphaScale)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.2,
-          );
-
-          // Broken wing / fin piece (detached)
-          final finPath = Path()
-            ..moveTo(-10, -14)
-            ..lineTo(-4, -20)
-            ..lineTo(6, -18)
-            ..lineTo(2, -12)
-            ..close();
-          canvas.drawPath(
-            finPath,
-            Paint()
-              ..color = const Color(
-                0xFF546E7A,
-              ).withValues(alpha: 0.6 * dAlphaScale),
-          );
-          canvas.drawPath(
-            finPath,
-            Paint()
-              ..color = const Color(
-                0xFF90A4AE,
-              ).withValues(alpha: 0.3 * dAlphaScale)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8,
-          );
-
-          // Damage scorch marks
-          canvas.drawLine(
-            const Offset(-5, -6),
-            const Offset(8, 2),
-            Paint()
-              ..color = const Color(
-                0xFF1B1B1B,
-              ).withValues(alpha: 0.4 * dAlphaScale)
-              ..strokeWidth = 1.5
-              ..strokeCap = StrokeCap.round,
-          );
-          canvas.drawLine(
-            const Offset(10, -4),
-            const Offset(18, 4),
-            Paint()
-              ..color = const Color(
-                0xFF1B1B1B,
-              ).withValues(alpha: 0.3 * dAlphaScale)
-              ..strokeWidth = 1.0
-              ..strokeCap = StrokeCap.round,
-          );
-
-          // Flickering fire/sparks (multiple points)
-          final spark1 = sin(poi.life * 5) > 0.6;
-          final spark2 = sin(poi.life * 3.7 + 1.5) > 0.5;
-          if (spark1) {
-            paintSoftCircle(
-              canvas,
-              const Offset(8, -3),
-              4,
-              const Color(0xFFFF6F00).withValues(alpha: 0.6),
-              5,
-            );
-          }
-          if (spark2) {
-            paintSoftCircle(
-              canvas,
-              const Offset(-12, 4),
-              3,
-              const Color(0xFFFFAB00).withValues(alpha: 0.4),
-              3,
-            );
-          }
-
-          // Floating debris pieces
-          for (var d = 0; d < 6; d++) {
-            final da = poi.life * 0.12 + d * pi / 3;
-            final dr = 30.0 + 8 * sin(poi.life * 0.25 + d);
-            final debrisSize = 1.0 + (d % 3) * 0.8;
-            canvas.drawCircle(
-              Offset(cos(da) * dr, sin(da) * dr),
-              debrisSize,
-              Paint()..color = const Color(0xFF78909C).withValues(alpha: 0.4),
-            );
-          }
-
-          // Small blinking red distress light
-          if (!poi.interacted && sin(poi.life * 4) > 0.8) {
-            paintSoftCircle(
-              canvas,
-              const Offset(-20, -6),
-              2.5,
-              const Color(0xFFFF1744).withValues(alpha: 0.8),
-              3,
-            );
-          }
-
-          canvas.restore();
-          if (!poi.interacted) {
-            final derelictTp = TextPainter(
-              text: const TextSpan(
-                text: 'DERELICT',
-                style: TextStyle(
-                  color: Color(0xCC90A4AE),
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              textDirection: TextDirection.ltr,
-            )..layout();
             derelictTp.paint(
               canvas,
-              Offset(pp.dx - derelictTp.width / 2, pp.dy + 28),
+              Offset(pp.dx - derelictTp.width / 2, pp.dy + 64),
             );
           }
           break;
         case POIType.comet:
-          final mColor = elementColor(poi.element);
-          final zoneR = poi.radius;
-          final fallAngle = poi.angle + 0.35 * sin(poi.life * 0.2);
-          final baseDir = Offset(cos(fallAngle), sin(fallAngle));
-
-          // Broad atmospheric haze so it reads like a moving storm region.
-          paintSoftCircle(
+          // The shower falls thick while the encounter runs (speed is its
+          // clock; ten seconds).
+          final showering = poi.interacted && poi.speed < 10.0;
+          paintMeteorZone(
             canvas,
-            pp,
-            zoneR * 0.9,
-            mColor.withValues(alpha: 0.05),
-            zoneR * 0.22,
+            at: pp,
+            radius: poi.radius,
+            color: elementColor(poi.element),
+            fall: poi.angle + 0.35 * sin(poi.life * 0.2),
+            t: poi.life,
+            shower: showering ? 1 : 0,
           );
-          paintSoftCircle(
-            canvas,
-            pp,
-            zoneR * 0.45,
-            Colors.white.withValues(alpha: 0.03),
-            zoneR * 0.15,
-          );
-
-          // Meteors fly through one-after-another (not static floating dots).
-          const slots = 14;
-          const cycleSeconds = 14.0;
-          final spacing = cycleSeconds / slots;
-          final activeWindow =
-              spacing * 0.72; // leaves a short gap between meteors
-          final cycleT = poi.life % cycleSeconds;
-
-          for (var i = 0; i < slots; i++) {
-            var local = cycleT - i * spacing;
-            if (local < 0) local += cycleSeconds;
-            if (local > activeWindow) continue;
-
-            final t = local / activeWindow; // 0..1 for this meteor life
-            final smooth = t * t * (3 - 2 * t); // smoothstep
-            final fade = t < 0.2
-                ? (t / 0.2)
-                : (t > 0.82 ? ((1 - t) / 0.18).clamp(0.0, 1.0) : 1.0);
-
-            final lane = ((i * 37) % 100) / 100.0 * 2 - 1; // -1..1
-            final laneAngle = fallAngle + lane * 0.32;
-            final dir = Offset(cos(laneAngle), sin(laneAngle));
-            final perp = Offset(-dir.dy, dir.dx);
-
-            final travel = zoneR * 2.4;
-            final lateral = lane * zoneR * 0.55;
-            final start = pp - dir * (travel * 0.54) + perp * lateral;
-            final head = start + dir * (travel * smooth);
-            final tailLen = 70.0 + (i % 4) * 18.0;
-            final tail = head - dir * tailLen;
-            final alpha = (0.18 + (1 - t) * 0.52) * fade;
-
-            canvas.drawLine(
-              tail,
-              head,
-              Paint()
-                ..color = mColor.withValues(alpha: alpha * 0.95)
-                ..strokeWidth = 1.6 + (i % 2) * 0.5
-                ..strokeCap = StrokeCap.round
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.8),
-            );
-
-            canvas.drawLine(
-              head - dir * 16,
-              head,
-              Paint()
-                ..color = Colors.white.withValues(alpha: alpha * 0.9)
-                ..strokeWidth = 0.9
-                ..strokeCap = StrokeCap.round
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6),
-            );
-
-            paintSoftCircle(
-              canvas,
-              head,
-              1.9 + (i % 2) * 0.5,
-              Colors.white.withValues(alpha: alpha),
-              1.2,
-            );
-          }
-
-          // Light drifting dust behind the active stream direction.
-          for (var d = 0; d < 10; d++) {
-            final drift =
-                poi.life * (0.16 + d * 0.011) + d * 1.23 + baseDir.dx * 1.7;
-            final r = zoneR * (0.22 + (d % 7) * 0.09);
-            final p = Offset(
-              pp.dx + cos(drift) * r,
-              pp.dy + sin(drift * 1.2) * r * 0.7,
-            );
-            canvas.drawCircle(
-              p,
-              1.2 + (d % 3) * 0.35,
-              Paint()..color = mColor.withValues(alpha: 0.12),
-            );
-          }
           break;
         case POIType.warpAnomaly:
-          final wAlphaScale = poi.interacted ? 0.8 : 1.0;
-          for (var ring = 0; ring < 4; ring++) {
-            final anomR =
-                poi.radius * (0.3 + ring * 0.25) + sin(poi.life * 3 + ring) * 5;
-            paintSoftRing(
-              canvas,
-              pp,
-              anomR,
-              const Color(
-                0xFF7C4DFF,
-              ).withValues(alpha: (0.12 - ring * 0.02) * wAlphaScale),
-              2,
-              4,
-            );
-          }
-          paintSoftCircle(
-            canvas,
-            pp,
-            poi.radius * 0.2,
-            const Color(
-              0xFFB388FF,
-            ).withValues(alpha: 0.4 + 0.2 * sin(poi.life * 4)),
-            6,
-          );
+          paintWarpAnomaly(canvas, at: pp, radius: poi.radius, t: poi.life);
           if (!poi.interacted) {
-            final anomTp = TextPainter(
-              text: const TextSpan(
-                text: 'ANOMALY',
-                style: TextStyle(
-                  color: Color(0x99B388FF),
-                  fontSize: 8,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                ),
-              ),
-              textDirection: TextDirection.ltr,
-            )..layout();
+            final anomTp = _worldLabel(
+              'ANOMALY',
+              color: const Color(0xFFB388FF).withValues(alpha: 0.7),
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+            );
             anomTp.paint(
               canvas,
-              Offset(pp.dx - anomTp.width / 2, pp.dy + poi.radius + 10),
+              Offset(pp.dx - anomTp.width / 2, pp.dy + poi.radius * 1.6 + 10),
             );
           }
           break;
@@ -5883,176 +5310,67 @@ class CosmicGame extends FlameGame with PanDetector {
         case POIType.stardustScanner:
         case POIType.planetScanner:
         case POIType.goldConversion:
-          final mColor = poi.type == POIType.harvesterMarket
-              ? const Color(0xFFFFB300) // amber/gold
-              : poi.type == POIType.riftKeyMarket
-              ? const Color(0xFF7C4DFF) // purple
-              : poi.type == POIType.cosmicMarket
-              ? const Color(0xFF00E5FF) // cyan/teal for cosmic
-              : poi.type == POIType.stardustScanner
-              ? const Color(0xFF9CCC65) // green for stardust
-              : poi.type == POIType.goldConversion
-              ? const Color(0xFFFFD740) // gold for conversion
-              : const Color(0xFF64B5F6); // blue for planet scanner
-          // Rotating hexagonal station
-          canvas.save();
-          canvas.translate(pp.dx, pp.dy);
-          canvas.rotate(poi.life * 0.15);
-          // Outer hex
-          final hexPath = Path();
-          for (var i = 0; i < 6; i++) {
-            final a = i * pi / 3;
-            final hx = cos(a) * poi.radius * 0.7;
-            final hy = sin(a) * poi.radius * 0.7;
-            if (i == 0) {
-              hexPath.moveTo(hx, hy);
-            } else {
-              hexPath.lineTo(hx, hy);
-            }
-          }
-          hexPath.close();
-          canvas.drawPath(
-            hexPath,
-            Paint()
-              ..color = mColor.withValues(alpha: 0.15)
-              ..style = PaintingStyle.fill,
-          );
-          canvas.drawPath(
-            hexPath,
-            Paint()
-              ..color = mColor.withValues(alpha: 0.6)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.5,
-          );
-          // Inner glow
-          paintSoftCircle(
+          final kind = stationKindFor(poi.type)!;
+          final mColor = kind.accent;
+          final stationScale =
+              kind == StationKind.starDustScanner ||
+                  kind == StationKind.planetScanner
+              ? 1.6
+              : 1.5;
+          // A scanner that is tracking turns to its target.
+          final Offset? target = switch (kind) {
+            StationKind.starDustScanner => starDustScannerTarget?.position,
+            StationKind.planetScanner => planetScannerTarget?.position,
+            _ => null,
+          };
+          // The light inside rises as the ship comes alongside.
+          final dockReach = poi.radius * 2.5;
+          final shipGap = (ship.pos - pp).distance;
+          paintStation(
             canvas,
-            Offset.zero,
-            poi.radius * 0.3,
-            mColor.withValues(alpha: 0.3 + 0.15 * sin(poi.life * 2)),
-            8,
+            kind,
+            at: pp,
+            t: poi.life,
+            scale: stationScale,
+            wake: (1 - (shipGap - dockReach * 0.5) / dockReach).clamp(0.0, 1.0),
+            aim: target == null ? null : (target - pp).direction,
           );
-          // Center icon dot
-          canvas.drawCircle(
-            Offset.zero,
-            4,
-            Paint()..color = Colors.white.withValues(alpha: 0.8),
-          );
-          // Orbiting sparkles
-          for (var s = 0; s < 4; s++) {
-            final sa = poi.life * 0.5 + s * pi / 2;
-            final sr = poi.radius * 0.5;
-            canvas.drawCircle(
-              Offset(cos(sa) * sr, sin(sa) * sr),
-              1.5,
-              Paint()
-                ..color = mColor.withValues(
-                  alpha: 0.5 + 0.3 * sin(poi.life * 3 + s),
-                ),
-            );
-          }
-          canvas.restore();
           // Label
-          final marketLabel = poi.type == POIType.harvesterMarket
-              ? 'HARVESTER SHOP'
-              : poi.type == POIType.riftKeyMarket
-              ? 'RIFT KEY SHOP'
-              : poi.type == POIType.cosmicMarket
-              ? 'COSMIC MARKET'
-              : poi.type == POIType.stardustScanner
-              ? 'STAR DUST SCANNER'
-              : poi.type == POIType.goldConversion
-              ? 'GOLD CONVERSION'
-              : 'PLANET SCANNER';
-          final mTp = TextPainter(
-            text: TextSpan(
-              text: marketLabel,
-              style: TextStyle(
-                color: mColor.withValues(alpha: 0.7),
-                fontSize: 8,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
-            textDirection: TextDirection.ltr,
-          )..layout();
+          final mTp = _worldLabel(
+            kind.title,
+            color: mColor.withValues(alpha: 0.7),
+            fontSize: 8,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.2,
+          );
           mTp.paint(
             canvas,
-            Offset(pp.dx - mTp.width / 2, pp.dy + poi.radius * 0.8 + 8),
+            Offset(
+              pp.dx - mTp.width / 2,
+              pp.dy + kind.reach * stationScale * 0.82 + 6,
+            ),
           );
           break;
 
         case POIType.survivalPortal:
-          // Glowing purple portal ring
-          const portalColor = Color(0xFF8B5CF6);
-          const portalCore = Color(0xFFB388FF);
-
-          // Outer pulsing glow
-          paintSoftCircle(
+          final gateGap = (ship.pos - pp).distance;
+          paintSurvivalGate(
             canvas,
-            pp,
-            poi.radius * 1.8,
-            portalColor.withValues(alpha: 0.06 + 0.03 * sin(poi.life * 2)),
-            24,
+            at: pp,
+            t: poi.life,
+            near: (1 - (gateGap - 60) / 200).clamp(0.0, 1.0),
           );
-
-          // Concentric rings
-          for (var ring = 0; ring < 5; ring++) {
-            final ringR =
-                poi.radius * (0.4 + ring * 0.2) +
-                sin(poi.life * 2.5 + ring * 0.8) * 4;
-            paintSoftRing(
-              canvas,
-              pp,
-              ringR,
-              portalColor.withValues(alpha: 0.25 - ring * 0.04),
-              2.0 - ring * 0.2,
-              3,
-            );
-          }
-
-          // Inner vortex core
-          paintSoftCircle(
+          final portalTp = _worldLabel(
+            poi.discovered ? 'SURVIVAL PORTAL' : 'UNKNOWN SIGNAL',
+            color: const Color(0xFFB388FF).withValues(alpha: 0.75),
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.6,
+          );
+          portalTp.paint(
             canvas,
-            pp,
-            poi.radius * 0.25,
-            portalCore.withValues(alpha: 0.5 + 0.25 * sin(poi.life * 3)),
-            8,
+            Offset(pp.dx - portalTp.width / 2, pp.dy + 130),
           );
-
-          // Orbiting void sparks
-          for (var s = 0; s < 6; s++) {
-            final sa = poi.life * 0.8 + s * pi / 3;
-            final sr = poi.radius * 0.6;
-            canvas.drawCircle(
-              Offset(pp.dx + cos(sa) * sr, pp.dy + sin(sa) * sr),
-              2.0,
-              Paint()
-                ..color = portalCore.withValues(
-                  alpha: 0.6 + 0.3 * sin(poi.life * 4 + s),
-                ),
-            );
-          }
-
-          // Label
-          if (!poi.interacted) {
-            final portalTp = TextPainter(
-              text: TextSpan(
-                text: poi.discovered ? 'SURVIVAL PORTAL' : 'UNKNOWN SIGNAL',
-                style: const TextStyle(
-                  color: Color(0x99B388FF),
-                  fontSize: 8,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                ),
-              ),
-              textDirection: TextDirection.ltr,
-            )..layout();
-            portalTp.paint(
-              canvas,
-              Offset(pp.dx - portalTp.width / 2, pp.dy + poi.radius + 10),
-            );
-          }
           break;
       }
     }
@@ -6093,46 +5411,37 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    // ── elemental nexus (massive black portal – 5× scale, cached texture) ──
+    // ── elemental nexus ──
     {
       final nx = elementalNexus;
       final np = nx.position;
       if ((np.dx - cx - screenW / 2).abs() < screenW * 2.5 &&
           (np.dy - cy - screenH / 2).abs() < screenH * 2.5) {
-        // Rebuild cached texture ~10 fps
-        if (_nexusCachedImage == null ||
-            (_riftPulse - _nexusCacheTime).abs() >= _nexusCacheInterval) {
-          _nexusCachedImage?.dispose();
-          _nexusCachedImage = _buildNexusTexture(_riftPulse);
-          _nexusCacheTime = _riftPulse;
-        }
-
-        // Draw cached texture scaled to world coordinates
-        final img = _nexusCachedImage!;
-        const texR = _nexusTexWorldR;
-        canvas.save();
-        canvas.translate(np.dx - texR, np.dy - texR);
-        canvas.scale(texR * 2 / _nexusTexSize, texR * 2 / _nexusTexSize);
-        canvas.drawImage(img, Offset.zero, Paint());
-        canvas.restore();
+        // A black hole the four elements pour into (landmark_art.dart);
+        // the streams quicken when the meter carries all four in balance,
+        // which is what it asks to be let in.
+        final ready =
+            meter.isFull && nx.meetsRequirement(meter.breakdown, meter.total);
+        paintElementalNexus(
+          canvas,
+          at: np,
+          radius: 520,
+          t: _riftPulse,
+          near: ready ? 1 : 0,
+        );
 
         // Label when close (cheap — drawn every frame)
         if (_isNearNexus || (np - ship.pos).distance < 400) {
-          final textPainter = TextPainter(
-            text: const TextSpan(
-              text: 'NEXUS',
-              style: TextStyle(
-                color: Color(0x99FFFFFF),
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 2,
-              ),
-            ),
-            textDirection: TextDirection.ltr,
-          )..layout();
+          final textPainter = _worldLabel(
+            'NEXUS',
+            color: const Color(0x99FFFFFF),
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2,
+          );
           textPainter.paint(
             canvas,
-            Offset(np.dx - textPainter.width / 2, np.dy + 70),
+            Offset(np.dx - textPainter.width / 2, np.dy + 170),
           );
         }
       }
@@ -6144,146 +5453,83 @@ class CosmicGame extends FlameGame with PanDetector {
       final rp = ring.position;
       if ((rp.dx - cx - screenW / 2).abs() < screenW * 2.5 &&
           (rp.dy - cy - screenH / 2).abs() < screenH * 2.5) {
-        final pulse = 0.82 + 0.18 * sin(_riftPulse * 2.2);
-        final outerR =
-            BloodRing.visualRadius * (0.92 + 0.06 * sin(_riftPulse * 1.4));
-
-        // Outer blood haze
-        paintSoftCircle(
+        // The end of the game: a crown of blood-glass thorns round a well of
+        // blood and an eclipsed heart (landmark_art.dart). It stirs when a
+        // Mystic Blood companion is out, which is what the ritual needs; the
+        // ritual itself plays on it; once done, its heart is clear.
+        paintBloodRing(
           canvas,
-          rp,
-          outerR * 1.18,
-          const Color(0xFF7F0000).withValues(alpha: 0.22 * pulse),
-          28,
+          at: rp,
+          radius: BloodRing.visualRadius,
+          t: _riftPulse,
+          flow: _bloodFlow,
+          opened: ring.ritualCompleted && _bloodRitual == null,
+          armed: _bloodArmed,
+          ritual: _bloodRitual ?? 0,
         );
+        final outerR = BloodRing.visualRadius;
 
-        // Main ritual ring
-        canvas.drawCircle(
-          rp,
-          outerR,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 10
-            ..color = const Color(0xFFB71C1C).withValues(alpha: 0.8 * pulse),
-        );
-
-        // Inner ring
-        canvas.drawCircle(
-          rp,
-          outerR * 0.72,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3
-            ..color = const Color(0xFFFFCDD2).withValues(alpha: 0.5 * pulse),
-        );
-
-        // Orbiting ritual marks
-        for (var i = 0; i < 8; i++) {
-          final a = _riftPulse * 0.65 + (i * pi / 4);
-          final markPos = Offset(
-            rp.dx + cos(a) * (outerR + 24),
-            rp.dy + sin(a) * (outerR + 24),
-          );
-          canvas.drawCircle(
-            markPos,
-            4.5,
-            Paint()..color = const Color(0xFFFF8A80).withValues(alpha: 0.8),
-          );
-        }
-
-        // Core state changes after ending completion.
-        if (ring.ritualCompleted) {
-          canvas.drawCircle(
-            rp,
-            outerR * 0.24,
-            Paint()
-              ..shader = ui.Gradient.radial(rp, outerR * 0.26, [
-                const Color(0xFFB2EBF2).withValues(alpha: 0.85),
-                const Color(0xFF1A0000).withValues(alpha: 0.0),
-              ]),
-          );
-        } else {
-          canvas.drawCircle(
-            rp,
-            outerR * 0.18,
-            Paint()
-              ..color = const Color(0xFF4A0000).withValues(alpha: 0.65 * pulse),
-          );
-        }
-
-        if (_isNearBloodRing || (rp - ship.pos).distance < 550) {
+        if (_bloodRitual == null &&
+            (_isNearBloodRing || (rp - ship.pos).distance < 550)) {
           final label = ring.ritualCompleted ? 'BLOOD PORTAL' : 'BLOOD RING';
-          final textPainter = TextPainter(
-            text: TextSpan(
-              text: label,
-              style: const TextStyle(
-                color: Color(0x99FF8A80),
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 2.2,
-              ),
-            ),
-            textDirection: TextDirection.ltr,
-          )..layout();
+          final textPainter = _worldLabel(
+            label,
+            color: const Color(0x99FF8A80),
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 2.2,
+          );
           textPainter.paint(
             canvas,
-            Offset(rp.dx - textPainter.width / 2, rp.dy + outerR * 0.45),
+            Offset(rp.dx - textPainter.width / 2, rp.dy + outerR + 60),
           );
         }
       }
     }
 
     // ── trait contest arenas ──
+    // The arena is the contest's stage: in one, it rises to it and draws the
+    // point being fought over (contest_art.dart).
     for (final arena in contestArenas) {
       final ap = arena.position;
-      if ((ap.dx - cx - screenW / 2).abs() > screenW * 2.5 ||
-          (ap.dy - cy - screenH / 2).abs() > screenH * 2.5) {
+      if (isOutsideViewport(
+        ap,
+        cx,
+        cy,
+        screenW,
+        screenH,
+        margin: 1 + CosmicContestArena.visualRadius * 1.2 / screenW,
+      )) {
         continue;
       }
-
-      final col = arena.trait.color;
-      final pulse = 0.82 + 0.18 * sin(_riftPulse * 1.9 + arena.trait.index);
-
-      canvas.drawCircle(
-        ap,
-        CosmicContestArena.visualRadius * 0.95,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 7
-          ..color = col.withValues(alpha: 0.42 * pulse),
-      );
-      canvas.drawCircle(
-        ap,
-        CosmicContestArena.visualRadius * 0.62,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.2
-          ..color = col.withValues(alpha: 0.76 * pulse),
-      );
-      paintSoftCircle(
+      final staging =
+          _beautyContestCinematicActive &&
+          (ap - _beautyContestCenter).distance < 1;
+      paintContestArena(
         canvas,
-        ap,
-        CosmicContestArena.visualRadius * 0.22,
-        col.withValues(alpha: 0.28 * pulse),
-        8,
+        arena.trait,
+        at: ap,
+        t: _elapsed,
+        active: staging ? _contestStageLight : 0,
+        focus: staging ? _contestFocus() : null,
       );
 
-      if (nearContestArena == arena || (ap - ship.pos).distance < 520) {
-        final labelPainter = TextPainter(
-          text: TextSpan(
-            text: arena.trait.arenaLabel.toUpperCase(),
-            style: TextStyle(
-              color: col.withValues(alpha: 0.86),
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.8,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+      if (!staging &&
+          (nearContestArena == arena || (ap - ship.pos).distance < 520)) {
+        final col = arena.trait.color;
+        final labelPainter = _worldLabel(
+          arena.trait.arenaLabel.toUpperCase(),
+          color: col.withValues(alpha: 0.86),
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.8,
+        );
         labelPainter.paint(
           canvas,
-          Offset(ap.dx - labelPainter.width / 2, ap.dy + 90),
+          Offset(
+            ap.dx - labelPainter.width / 2,
+            ap.dy + CosmicContestArena.visualRadius + 14,
+          ),
         );
       }
     }
@@ -6296,19 +5542,7 @@ class CosmicGame extends FlameGame with PanDetector {
           (np.dy - cy - screenH / 2).abs() > screenH * 1.2) {
         continue;
       }
-      final nPulse = 0.5 + 0.5 * sin(_elapsed * 3.4 + note.id.hashCode * 0.01);
-      paintSoftCircle(
-        canvas,
-        np,
-        18 + nPulse * 4,
-        const Color(0xFFB3E5FC).withValues(alpha: 0.1 + nPulse * 0.1),
-        8,
-      );
-      canvas.drawCircle(
-        np,
-        4,
-        Paint()..color = const Color(0xFFE1F5FE).withValues(alpha: 0.9),
-      );
+      paintLoreNote(canvas, at: np, t: _elapsed, seed: note.id.length);
     }
 
     // ── home planet ──
@@ -6467,18 +5701,13 @@ class CosmicGame extends FlameGame with PanDetector {
         );
 
         // Label
-        final homeLabel = TextPainter(
-          text: TextSpan(
-            text: 'HOME',
-            style: TextStyle(
-              color: const Color(0xFF00E5FF).withValues(alpha: 0.9),
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final homeLabel = _worldLabel(
+          'HOME',
+          color: const Color(0xFF00E5FF).withValues(alpha: 0.9),
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 2,
+        );
         homeLabel.paint(
           canvas,
           Offset(hpPos.dx - homeLabel.width / 2, hpPos.dy + vr + 12),
@@ -6631,134 +5860,14 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── asteroids ──
-    // Rock color palettes (indexed by shape for variety)
-    const rockBaseColors = [
-      Color(0xFF5D4037), // warm brown
-      Color(0xFF616161), // grey
-      Color(0xFF4E342E), // dark brown
-    ];
-    const rockLightColors = [
-      Color(0xFF8D6E63), // light brown
-      Color(0xFF9E9E9E), // light grey
-      Color(0xFF795548), // medium brown
-    ];
-    const rockDarkColors = [
-      Color(0xFF3E2723), // very dark brown
-      Color(0xFF424242), // dark grey
-      Color(0xFF321911), // almost black brown
-    ];
-
-    for (final rock in asteroidBelt.asteroids) {
-      if (rock.destroyed) continue;
-      final rp = rock.position;
-      if ((rp.dx - cx - screenW / 2).abs() > screenW ||
-          (rp.dy - cy - screenH / 2).abs() > screenH) {
-        continue;
-      }
-
-      canvas.save();
-      canvas.translate(rp.dx, rp.dy);
-      final spin = rock.rotation + _elapsed * rock.rotSpeed;
-      canvas.rotate(spin);
-
-      final si = rock.shape % 3;
-      final healthFrac = rock.health.clamp(0.0, 1.0);
-      final baseColor = Color.lerp(
-        rockDarkColors[si],
-        rockBaseColors[si],
-        healthFrac,
-      )!;
-      final lightColor = rockLightColors[si];
-
-      // Jagged shape
-      final path = Path();
-      final r = rock.radius;
-      final int verts;
-      switch (rock.shape) {
-        case 0:
-          verts = 5;
-        case 1:
-          verts = 6;
-        default:
-          verts = 8;
-      }
-      final offsets = <Offset>[];
-      for (var i = 0; i < verts; i++) {
-        final a = i * pi * 2 / verts;
-        final rr =
-            r *
-            (0.7 +
-                0.3 *
-                    ((i.isEven ? 1.0 : 0.0) * 0.6 +
-                        0.4 * (i % 3 == 0 ? 1.0 : 0.5)));
-        final pt = Offset(cos(a) * rr, sin(a) * rr);
-        offsets.add(pt);
-        i == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
-      }
-      path.close();
-
-      // Radial gradient fill for depth
-      canvas.drawPath(
-        path,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            Offset(r * -0.2, r * -0.25), // light source offset
-            r * 1.4,
-            [lightColor.withValues(alpha: 0.9), baseColor],
-            [0.0, 1.0],
-          ),
-      );
-
-      // Surface cracks / detail lines (for rocks radius > 8)
-      if (r > 8) {
-        // Two crack lines across the surface
-        final crackPaint = Paint()
-          ..color = rockDarkColors[si].withValues(alpha: 0.4)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.8
-          ..strokeCap = StrokeCap.round;
-        // Crack 1: from vertex 0 towards center-ish
-        canvas.drawLine(
-          offsets[0] * 0.85,
-          offsets[verts ~/ 2] * 0.3,
-          crackPaint,
-        );
-        // Crack 2: perpendicular-ish
-        canvas.drawLine(
-          offsets[1] * 0.6,
-          offsets[(verts * 3 ~/ 4).clamp(0, verts - 1)] * 0.5,
-          crackPaint,
-        );
-        // Small crater dot
-        canvas.drawCircle(
-          Offset(r * 0.15, r * -0.1),
-          r * 0.12,
-          Paint()..color = rockDarkColors[si].withValues(alpha: 0.3),
-        );
-      }
-
-      // Edge highlight (lit side)
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = lightColor.withValues(alpha: 0.25)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0,
-      );
-
-      // Dark rim on shadow side (bottom-right)
-      if (r > 6) {
-        canvas.drawPath(
-          path,
-          Paint()
-            ..color = const Color(0xFF000000).withValues(alpha: 0.15)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.6,
-        );
-      }
-
-      canvas.restore();
-    }
+    // Near-black stone lit by the key light, and dust through the belt
+    // (asteroid_art.dart): the whole belt is one atlas draw.
+    paintAsteroidBelt(
+      canvas,
+      asteroidBelt,
+      view: Rect.fromLTWH(cx, cy, screenW, screenH),
+      elapsed: _elapsed,
+    );
 
     // ── loot drops ──
     for (final drop in lootDrops) {
@@ -6777,115 +5886,24 @@ class CosmicGame extends FlameGame with PanDetector {
 
       switch (drop.type) {
         case LootType.astralShard:
-          // Astral Shard — floating crystal with purple glow
-          final shimmer = 0.6 + 0.4 * sin(drop.life * 4.0);
-          final spin = drop.life * 2.5 + drop.position.dx * 0.02;
-          // Outer glow
-          paintSoftCircle(
+          paintAstralShard(
             canvas,
-            drawPos,
-            9.6,
-            const Color(0xFF7C4DFF).withValues(alpha: 0.3 * fadeAlpha),
-            8,
+            at: drawPos,
+            t: drop.life + drop.position.dx * 0.01,
+            alpha: fadeAlpha,
           );
-          // Diamond shape
-          canvas.save();
-          canvas.translate(drawPos.dx, drawPos.dy);
-          canvas.rotate(spin);
-          final shardPath = Path()
-            ..moveTo(0, -6)
-            ..lineTo(4.2, 0)
-            ..lineTo(0, 6)
-            ..lineTo(-4.2, 0)
-            ..close();
-          canvas.drawPath(
-            shardPath,
-            Paint()
-              ..shader =
-                  ui.Gradient.linear(const Offset(-3, -5), const Offset(3, 5), [
-                    Color.lerp(
-                      const Color(0xFFB388FF),
-                      Colors.white,
-                      shimmer,
-                    )!.withValues(alpha: fadeAlpha),
-                    const Color(0xFF7C4DFF).withValues(alpha: fadeAlpha),
-                  ]),
-          );
-          // Bright core
-          canvas.drawCircle(
-            Offset.zero,
-            1.8,
-            Paint()..color = Colors.white.withValues(alpha: 0.7 * fadeAlpha),
-          );
-          canvas.restore();
           break;
         case LootType.healthOrb:
-          // Health orb — soft red glowing orb
-          final hpPulse =
-              0.9 + 0.2 * sin(drop.life * 4.5 + drop.position.dy * 0.02);
-          paintSoftCircle(
-            canvas,
-            drawPos,
-            12,
-            drop.color.withValues(alpha: 0.22 * fadeAlpha * hpPulse),
-            10,
-          );
-          canvas.drawCircle(
-            drawPos,
-            6,
-            Paint()
-              ..shader = ui.Gradient.radial(
-                Offset(drawPos.dx - 1.0, drawPos.dy - 1.0),
-                6,
-                [
-                  Color.lerp(
-                    drop.color,
-                    Colors.white,
-                    0.45,
-                  )!.withValues(alpha: fadeAlpha * hpPulse),
-                  drop.color.withValues(alpha: fadeAlpha * hpPulse),
-                ],
-              ),
-          );
-          canvas.drawCircle(
-            drawPos,
-            2,
-            Paint()..color = Colors.white.withValues(alpha: 0.85 * fadeAlpha),
-          );
-          break;
         case LootType.elementParticle:
-          // Element orb — colored glow
-          final pulse =
-              0.8 + 0.2 * sin(drop.life * 4.5 + drop.position.dy * 0.02);
-          paintSoftCircle(
+          // A glass orb of light, grains of its colour circling it
+          // (poi_art.dart).
+          paintLootOrb(
             canvas,
-            drawPos,
-            10,
-            drop.color.withValues(alpha: 0.25 * fadeAlpha * pulse),
-            8,
-          );
-          canvas.drawCircle(
-            drawPos,
-            5,
-            Paint()
-              ..shader = ui.Gradient.radial(
-                Offset(drawPos.dx - 1.5, drawPos.dy - 1.5),
-                6,
-                [
-                  Color.lerp(
-                    drop.color,
-                    Colors.white,
-                    0.35,
-                  )!.withValues(alpha: fadeAlpha * pulse),
-                  drop.color.withValues(alpha: fadeAlpha * pulse),
-                ],
-              ),
-          );
-          // Tiny core
-          canvas.drawCircle(
-            drawPos,
-            2,
-            Paint()..color = Colors.white.withValues(alpha: 0.6 * fadeAlpha),
+            at: drawPos,
+            color: drop.color,
+            t: drop.life + drop.position.dy * 0.02,
+            r: drop.type == LootType.healthOrb ? 7.5 : 6.5,
+            alpha: fadeAlpha,
           );
           break;
         case LootType.item:
@@ -6926,78 +5944,25 @@ class CosmicGame extends FlameGame with PanDetector {
               tint.withValues(alpha: 0.28 * fadeAlpha * pulse),
               12,
             );
-            final tp = _itemIconPainter(offer.icon, tint);
-            if (fadeAlpha < 1.0) {
-              canvas.saveLayer(
-                Rect.fromCenter(
-                  center: drawPos,
-                  width: tp.width + 4,
-                  height: tp.height + 4,
-                ),
-                Paint()..color = Colors.black.withValues(alpha: fadeAlpha),
+            // One glyph, so its fade goes in its colour — no layer. Alpha in
+            // 1/32 steps keeps the painter cache to a few entries per icon.
+            final fadeQ = (fadeAlpha.clamp(0.0, 1.0) * 32).round() / 32;
+            if (fadeQ > 0) {
+              final tp = _itemIconPainter(
+                offer.icon,
+                fadeQ < 1 ? tint.withValues(alpha: tint.a * fadeQ) : tint,
               );
-              tp.paint(canvas, drawPos - Offset(tp.width / 2, tp.height / 2));
-              canvas.restore();
-            } else {
               tp.paint(canvas, drawPos - Offset(tp.width / 2, tp.height / 2));
             }
           } else {
-            // Fallback — pulsing hexagonal capsule with bright glow
-            final pulse = 0.7 + 0.3 * sin(drop.life * 5.0);
-            final spin = drop.life * 1.8;
-            // Large outer glow
-            paintSoftCircle(
+            paintLootOrb(
               canvas,
-              drawPos,
-              14,
-              drop.color.withValues(alpha: 0.3 * fadeAlpha * pulse),
-              12,
+              at: drawPos,
+              color: drop.color,
+              t: drop.life,
+              r: 8,
+              alpha: fadeAlpha,
             );
-            // Hexagonal shape
-            canvas.save();
-            canvas.translate(drawPos.dx, drawPos.dy);
-            canvas.rotate(spin);
-            final hexPath = Path();
-            for (var h = 0; h < 6; h++) {
-              final ha = h * pi / 3 - pi / 6;
-              final hp = Offset(cos(ha) * 6, sin(ha) * 6);
-              if (h == 0) {
-                hexPath.moveTo(hp.dx, hp.dy);
-              } else {
-                hexPath.lineTo(hp.dx, hp.dy);
-              }
-            }
-            hexPath.close();
-            canvas.drawPath(
-              hexPath,
-              Paint()
-                ..shader = ui.Gradient.linear(
-                  const Offset(-6, -6),
-                  const Offset(6, 6),
-                  [
-                    Colors.white.withValues(alpha: 0.9 * fadeAlpha),
-                    drop.color.withValues(alpha: fadeAlpha),
-                  ],
-                ),
-            );
-            // Outline
-            canvas.drawPath(
-              hexPath,
-              Paint()
-                ..color = Colors.white.withValues(alpha: 0.5 * fadeAlpha)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.0,
-            );
-            // Bright center star
-            canvas.drawCircle(
-              Offset.zero,
-              2.5,
-              Paint()
-                ..color = Colors.white.withValues(
-                  alpha: 0.9 * fadeAlpha * pulse,
-                ),
-            );
-            canvas.restore();
           }
           break;
       }
@@ -7026,7 +5991,21 @@ class CosmicGame extends FlameGame with PanDetector {
           (lp.dy - cy - screenH / 2).abs() > screenH * 1.5) {
         continue;
       }
-      drawBossLair(canvas: canvas, lair: lair, time: _elapsed);
+      paintBossLair(
+        canvas,
+        at: lp,
+        element: elementColor(lair.template.element),
+        wakeRadius: BossLair.activationRadius,
+        t: _elapsed,
+      );
+      final lairTp = _worldLabel(
+        'LV${lair.level} ${lair.template.name.toUpperCase()}',
+        color: const Color(0xFFFF6B5E).withValues(alpha: 0.8),
+        fontSize: 9,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.4,
+      );
+      lairTp.paint(canvas, Offset(lp.dx - lairTp.width / 2, lp.dy + 46));
     }
 
     // ── boss ──
@@ -7502,15 +6481,17 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       }
 
-      // Red-tinted aura glow (enemy)
-      final auraPulse = 0.5 + 0.3 * sin(_elapsed * 3.0);
-      paintSoftCircle(
-        canvas,
-        Offset.zero,
-        28 * summonScale,
-        const Color(0xFFFF4040).withValues(alpha: auraPulse * 0.25),
-        14,
-      );
+      // Red-tinted aura glow (enemy) — not on a contest rival.
+      if (!_beautyContestCinematicActive) {
+        final auraPulse = 0.5 + 0.3 * sin(_elapsed * 3.0);
+        paintSoftCircle(
+          canvas,
+          Offset.zero,
+          28 * summonScale,
+          const Color(0xFFFF4040).withValues(alpha: auraPulse * 0.25),
+          14,
+        );
+      }
 
       // What it wears of its own abilities, as a companion does.
       _renderKinOverlay(
@@ -7642,15 +6623,20 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── ship ──
-    if (!_shipDead) {
+    // Once a contest has begun the ship is parked at the arena's heart, where
+    // it would sit on the stage; it is left out until the contest ends.
+    final shipOffStage =
+        _beautyContestCinematicActive && !_beautyContestIntroActive;
+    if (!_shipDead && !shipOffStage) {
       // A Lava plate's glow, a tesla channel's current (cosmic_game_kin.dart).
       _renderKinShipOverlay(canvas);
       // Invincibility flash
-      if (_shipInvincible > 0) {
-        final flash = (sin(_elapsed * 30) > 0) ? 0.4 : 1.0;
+      // The flicker's dim half fades the ship as one piece; its bright
+      // half is full opacity, which needs no layer at all.
+      if (_shipInvincible > 0 && sin(_elapsed * 30) > 0) {
         canvas.saveLayer(
-          null,
-          Paint()..color = Colors.white.withValues(alpha: flash),
+          _shipLayerBounds(boost: _boostTrailVisual),
+          Paint()..color = Colors.white.withValues(alpha: 0.4),
         );
         ship.render(
           canvas,
@@ -7696,7 +6682,7 @@ class CosmicGame extends FlameGame with PanDetector {
       // Dead: show ghost outline pulsing
       final ghostAlpha = 0.15 + 0.1 * sin(_elapsed * 4);
       canvas.saveLayer(
-        null,
+        _shipLayerBounds(),
         Paint()..color = Colors.white.withValues(alpha: ghostAlpha),
       );
       ship.render(canvas, _elapsed, skin: activeShipSkin);
@@ -7782,7 +6768,8 @@ class CosmicGame extends FlameGame with PanDetector {
           final outerR = sw * 0.9;
           final streakWidth = 1.5 + 1.5 * sin(i * 3.7);
           final alpha = tunnelT * 0.35;
-          canvas.drawLine(
+          _softLine(
+            canvas,
             Offset(
               center.dx + cos(angle) * innerR,
               center.dy + sin(angle) * innerR,
@@ -7791,10 +6778,9 @@ class CosmicGame extends FlameGame with PanDetector {
               center.dx + cos(angle) * outerR,
               center.dy + sin(angle) * outerR,
             ),
-            Paint()
-              ..color = Color.fromRGBO(179, 136, 255, alpha)
-              ..strokeWidth = streakWidth
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+            Color.fromRGBO(179, 136, 255, alpha),
+            streakWidth,
+            3,
           );
         }
         // Vignette ring
@@ -7814,6 +6800,26 @@ class CosmicGame extends FlameGame with PanDetector {
     canvas.restore();
 
     _renderPortalTear(canvas);
+  }
+
+  /// World-space bounds for a layer that fades the whole ship: the hull
+  /// with its glow and engine plumes, and every grain of its wake. The wake
+  /// is advanced to this frame first (the render's own update is then free)
+  /// so the box holds what is about to be drawn.
+  Rect _shipLayerBounds({double boost = 0}) {
+    ship.wake.update(
+      _elapsed,
+      ship.pos,
+      ship.angle,
+      activeShipSkin,
+      boost: boost,
+    );
+    // Hulls are ~45 units tall; their light pool reaches 36 and a boosted
+    // plume ~30 past the tail. 96 covers all of it with room to spare.
+    final hull = Rect.fromCircle(center: ship.pos, radius: 96);
+    final wake = ship.wake.bounds;
+    // Grains are points up to ~8 across.
+    return wake == null ? hull : hull.expandToInclude(wake.inflate(12));
   }
 
   // ── fog ────────────────────────────────────────────────

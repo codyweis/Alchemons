@@ -221,14 +221,20 @@ class BracketTabs extends StatelessWidget {
                         ),
                         const SizedBox(width: 7),
                       ],
-                      Text(
-                        labels[i],
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: i == selected ? palette.ink : palette.muted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.6,
+                      // Shrinks rather than overflowing on a phone set to
+                      // large text.
+                      Flexible(
+                        child: Text(
+                          labels[i],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: i == selected ? palette.ink : palette.muted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.6,
+                          ),
                         ),
                       ),
                     ],
