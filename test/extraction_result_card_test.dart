@@ -175,7 +175,7 @@ void main() {
       expect(find.text('Firehorn'), findsOneWidget);
 
       // Still revealing: the button is there but cannot be pressed yet.
-      await tester.tap(find.text('EXTRACTION CONFIRMED'), warnIfMissed: false);
+      await tester.tap(find.text('CONTINUE'), warnIfMissed: false);
       await tester.pump();
       expect(find.byType(ExtractionResultCard), findsOneWidget);
 
@@ -194,7 +194,7 @@ void main() {
       );
       expect(reading.opacity, 1);
 
-      await tester.tap(find.text('EXTRACTION CONFIRMED'));
+      await tester.tap(find.text('CONTINUE'));
       for (var i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }

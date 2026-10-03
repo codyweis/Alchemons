@@ -15,9 +15,10 @@
 //   is the reveal while it plays (about a second and a half, batched points)
 //   and the sprite itself.
 //
-//   What is notable about it (a new discovery, a mutation, prismatic skin, a
-//   variant, its purity) is engraved along the foot of the stage in one quiet
-//   line, rather than as coloured badges stuck to its corners.
+//   The stage sits on the left with the stat profile beside it, as the old
+//   sprite dock did. What is notable about the specimen (a new discovery, a
+//   mutation, prismatic skin, a variant, its purity) is engraved in one quiet
+//   line under the two, rather than as coloured badges stuck to its corners.
 //
 // One card for every extraction, single or batch -- the batch awaits it once
 // per specimen -- so there is never a lesser second copy of it to drift.
@@ -58,9 +59,6 @@ const double _kMaxSizeGeneScale = 1.3;
 /// reveal runs from 1.05s to its landing at 2.2s, plus a frame or two to read
 /// the sprite. The reveal sound's lock is timed against this.
 const int _kRevealLandsMs = 1200;
-
-/// Height of the engraved line at the foot of the stage, when there is one.
-const double _kInscriptionH = 30;
 
 /// The extraction result for one specimen. Show it in a dialog
 /// ([showDialog], not dismissible): it closes itself from its own button.
@@ -228,10 +226,13 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
         ? theme.accent
         : BreedConstants.getTypeColor(element);
     final size = MediaQuery.sizeOf(context);
+    final cardW = size.width * 0.95;
     final cardH = size.height * 0.82;
-    final stageH = (cardH * 0.34).clamp(170.0, 280.0);
-    final inscriptionH = reading.marks.isEmpty ? 0.0 : _kInscriptionH;
-    final spriteBox = (stageH - inscriptionH) * 0.86;
+    // The specimen on the left, its stats on the right: side by side they
+    // leave the analysis below the room a full-width stage took from it.
+    final topH = (cardH * 0.3).clamp(180.0, 260.0);
+    final stageW = cardW * 0.5;
+    final spriteBox = math.min(stageW, topH) * 0.86;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -256,43 +257,62 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
                 children: [
                   _Header(name: _species.name, fc: fc),
                   SizedBox(
-                    height: stageH,
-                    child: _Stage(
-                      // A pale element's light vanishes into parchment; on
-                      // the light theme it pools in its readable shade.
-                      color: theme.isDark
-                          ? elementColor
-                          : tokens.readableAccent(elementColor),
-                      fc: fc,
-                      lit: _revealed,
-                      inscriptionH: inscriptionH,
-                      inscription: _Inscription(marks: reading.marks, fc: fc),
-                      child: SizedBox.square(
-                        dimension: spriteBox,
-                        child: ElementalEssence(
-                          key: ValueKey(_instance.instanceId),
-                          element: element,
-                          dark: theme.isDark,
-                          reveal: _reveal,
-                          hold: _hold,
-                          onRevealed: _onRevealed,
-                          maxGrains:
-                              widget.cinematicQuality ==
-                                  CinematicQuality.performance
-                              ? 1400
-                              : 2200,
-                          child: Center(
-                            child: InstanceSprite(
-                              creature: _species,
-                              instance: _instance,
-                              size: spriteBox / _kMaxSizeGeneScale,
+                    height: topH,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          width: stageW,
+                          child: _Stage(
+                            // A pale element's light vanishes into parchment;
+                            // on the light theme it pools in its readable
+                            // shade.
+                            color: theme.isDark
+                                ? elementColor
+                                : tokens.readableAccent(elementColor),
+                            fc: fc,
+                            lit: _revealed,
+                            child: SizedBox.square(
+                              dimension: spriteBox,
+                              child: ElementalEssence(
+                                key: ValueKey(_instance.instanceId),
+                                element: element,
+                                dark: theme.isDark,
+                                reveal: _reveal,
+                                hold: _hold,
+                                onRevealed: _onRevealed,
+                                maxGrains:
+                                    widget.cinematicQuality ==
+                                        CinematicQuality.performance
+                                    ? 1400
+                                    : 2200,
+                                child: Center(
+                                  child: InstanceSprite(
+                                    creature: _species,
+                                    instance: _instance,
+                                    size: spriteBox / _kMaxSizeGeneScale,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                        Expanded(
+                          child: _StatProfile(
+                            stats: reading.stats,
+                            fc: fc,
+                            shown: _revealed,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  _StatProfile(stats: reading.stats, fc: fc, shown: _revealed),
+                  if (reading.marks.isNotEmpty)
+                    _Inscription(
+                      marks: reading.marks,
+                      fc: fc,
+                      shown: _revealed,
+                    ),
                   Expanded(
                     child: AnimatedOpacity(
                       opacity: _revealed ? 1 : 0,
@@ -547,23 +567,19 @@ class _Header extends StatelessWidget {
 // ── stage ───────────────────────────────────────────────────────────────────
 
 /// Where the specimen stands: its element's light behind it and pooled on
-/// the floor under it, both gradients (never a ring), and what is notable
-/// about it engraved along the foot. Turned up once it has arrived.
+/// the floor under it, both gradients (never a ring). Turned up once it has
+/// arrived.
 class _Stage extends StatelessWidget {
   const _Stage({
     required this.color,
     required this.fc,
     required this.lit,
-    required this.inscriptionH,
-    required this.inscription,
     required this.child,
   });
 
   final Color color;
   final FC fc;
   final bool lit;
-  final double inscriptionH;
-  final Widget inscription;
   final Widget child;
 
   @override
@@ -571,70 +587,40 @@ class _Stage extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: fc.bg0,
-        border: Border(bottom: BorderSide(color: fc.borderDim)),
+        border: Border(
+          right: BorderSide(color: fc.borderDim),
+          bottom: BorderSide(color: fc.borderDim),
+        ),
       ),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          // The light is placed on the part above the inscription, where the
-          // specimen actually stands.
-          final standing = (box.maxHeight - inscriptionH) / box.maxHeight;
-          return TweenAnimationBuilder<double>(
-            tween: Tween(end: lit ? 1.0 : 0.45),
-            duration: const Duration(milliseconds: 700),
-            curve: Curves.easeOutCubic,
-            builder: (context, strength, child) => CustomPaint(
-              painter: _StageLightPainter(
-                color: color,
-                strength: strength,
-                standing: standing,
-              ),
-              child: child,
-            ),
-            child: Column(
-              children: [
-                Expanded(child: Center(child: child)),
-                if (inscriptionH > 0)
-                  SizedBox(
-                    height: inscriptionH,
-                    child: AnimatedOpacity(
-                      opacity: lit ? 1 : 0,
-                      duration: const Duration(milliseconds: 600),
-                      curve: Curves.easeOut,
-                      child: inscription,
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: lit ? 1.0 : 0.45),
+        duration: const Duration(milliseconds: 700),
+        curve: Curves.easeOutCubic,
+        builder: (context, strength, child) => CustomPaint(
+          painter: _StageLightPainter(color: color, strength: strength),
+          child: child,
+        ),
+        child: Center(child: child),
       ),
     );
   }
 }
 
 class _StageLightPainter extends CustomPainter {
-  const _StageLightPainter({
-    required this.color,
-    required this.strength,
-    required this.standing,
-  });
+  const _StageLightPainter({required this.color, required this.strength});
 
   final Color color;
   final double strength;
-
-  /// The fraction of the stage's height the specimen stands in.
-  final double standing;
 
   @override
   void paint(Canvas canvas, Size size) {
     // The light stays on the stage; the specimen's own grains may leave it.
     canvas.clipRect(Offset.zero & size);
     final k = strength;
-    final h = size.height * standing;
 
     // The light it gives off, behind it.
-    final back = Offset(size.width / 2, h * 0.46);
-    final backR = math.min(size.width, h) * 0.62;
+    final back = Offset(size.width / 2, size.height * 0.46);
+    final backR = math.min(size.width, size.height) * 0.62;
     canvas.drawCircle(
       back,
       backR,
@@ -650,8 +636,8 @@ class _StageLightPainter extends CustomPainter {
     );
 
     // Pooled on the floor where it stands.
-    final floor = Offset(size.width / 2, h * 0.86);
-    final floorR = math.min(size.width * 0.34, 160.0);
+    final floor = Offset(size.width / 2, size.height * 0.86);
+    final floorR = math.min(size.width * 0.38, 160.0);
     canvas.save();
     canvas.translate(floor.dx, floor.dy);
     canvas.scale(1, 0.2);
@@ -673,48 +659,64 @@ class _StageLightPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_StageLightPainter old) =>
-      old.color != color ||
-      old.strength != strength ||
-      old.standing != standing;
+      old.color != color || old.strength != strength;
 }
 
-/// The marks as one engraved line: small letterspaced capitals in the
-/// stage's muted ink, each after a small diamond of its own colour. No boxes,
-/// no fills -- the colour is in the diamond, the words stay quiet.
+/// The marks as one engraved line under the specimen and its stats: small
+/// letterspaced capitals in muted ink, each after a small diamond of its own
+/// colour. No boxes, no fills -- the colour is in the diamond, the words
+/// stay quiet.
 class _Inscription extends StatelessWidget {
-  const _Inscription({required this.marks, required this.fc});
+  const _Inscription({
+    required this.marks,
+    required this.fc,
+    required this.shown,
+  });
 
   final List<_MarkData> marks;
   final FC fc;
 
+  /// Engraved once the specimen has arrived; the line's room is kept from
+  /// the start so nothing moves when it is.
+  final bool shown;
+
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        // A long set (all five) shrinks to fit rather than wrapping onto a
-        // second line under the floor.
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = 0; i < marks.length; i++) ...[
-                if (i > 0) const SizedBox(width: 16),
-                _Diamond(mark: marks[i]),
-                const SizedBox(width: 7),
-                Text(
-                  marks[i].label,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: fc.textSecondary,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.8,
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: fc.bg0,
+        border: Border(bottom: BorderSide(color: fc.borderDim)),
+      ),
+      child: AnimatedOpacity(
+        opacity: shown ? 1 : 0,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOut,
+        child: Center(
+          // A long set (all five) shrinks to fit rather than wrapping.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < marks.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 16),
+                  _Diamond(mark: marks[i]),
+                  const SizedBox(width: 7),
+                  Text(
+                    marks[i].label,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: fc.textSecondary,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.8,
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -771,11 +773,8 @@ class _StatProfile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget cell(int i) => Expanded(
-      child: _StatRow(data: stats[i], fc: fc, shown: shown),
-    );
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       decoration: BoxDecoration(
         color: fc.bg1,
         border: Border(bottom: BorderSide(color: fc.borderDim)),
@@ -801,9 +800,28 @@ class _StatProfile extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Divider(height: 1, color: fc.borderDim),
-          const SizedBox(height: 3),
-          Row(children: [cell(0), const SizedBox(width: 18), cell(1)]),
-          Row(children: [cell(2), const SizedBox(width: 18), cell(3)]),
+          // The pane is as tall as the stage beside it. The rows share that
+          // height, and at a large font they shrink together rather than
+          // spill out of it.
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, box) => FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: box.maxWidth,
+                  height: math.max(box.maxHeight, 4 * 26.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      for (final stat in stats)
+                        _StatRow(data: stat, fc: fc, shown: shown),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1160,7 +1178,7 @@ class _Dock extends StatelessWidget {
                         const SizedBox(width: 10),
                         Flexible(
                           child: Text(
-                            'EXTRACTION CONFIRMED',
+                            'CONTINUE',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
