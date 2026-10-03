@@ -545,13 +545,15 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Text(
-              'Build your home base here to unlock ship and planet upgrades.',
+              'BUILD YOUR HOME HERE TO UNLOCK SHIP AND PLANET UPGRADES',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: CosmicScreenStyles.textPrimary,
-                fontSize: 13,
-                height: 1.3,
+                fontFamily: 'monospace',
+                color: CosmicScreenStyles.textPrimary.withValues(alpha: 0.8),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                height: 1.4,
               ),
             ),
           ),

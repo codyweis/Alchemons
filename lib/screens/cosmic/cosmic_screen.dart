@@ -288,6 +288,18 @@ class _CosmicScreenState extends State<CosmicScreen>
   final GlobalKey _coachGunKey = GlobalKey(debugLabel: 'coach.gun');
   final GlobalKey _coachTetherKey = GlobalKey(debugLabel: 'coach.tether');
   final GlobalKey _coachSlotKey = GlobalKey(debugLabel: 'coach.slot');
+  final GlobalKey _coachDepositKey = GlobalKey(debugLabel: 'coach.deposit');
+  final GlobalKey _coachDescendKey = GlobalKey(debugLabel: 'coach.descend');
+  final GlobalKey _coachHomeKey = GlobalKey(debugLabel: 'coach.home');
+
+  /// The first time the ship is home with the base's buttons showing, a
+  /// short tour points at each of them once: deposit, descend, home. A step
+  /// moves on when its button is tapped, or on its own after a few seconds,
+  /// so it never holds the player up. Null when no tour is on screen.
+  static const _homeTourDoneKey = 'cosmic_home_tour_done_v1';
+  bool _homeTourDone = true; // until prefs say otherwise
+  int? _homeTourStep;
+  Timer? _homeTourTimer;
   bool _survivalMapTapped = false;
   bool _survivalGuidanceActive = false;
   bool _survivalIntroCompleted = false;
@@ -686,6 +698,9 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!widget.memoryTutorial && homeRaw != null) {
       _homePlanet = HomePlanet.deserialise(homeRaw);
     }
+
+    _homeTourDone =
+        widget.memoryTutorial || (prefs.getBool(_homeTourDoneKey) ?? false);
 
     // Load customization state
     final customRaw = prefs.getString(_customizationPrefsKey);
@@ -5074,6 +5089,66 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {});
   }
 
+  static const _homeTourSteps = <(String, int)>[
+    ('Deposit banks your cargo and shards at home.', 0),
+    ('Descend to your home\'s surface and set out your Alchemons.', 1),
+    ('Your home: upgrades, and the lab to customize your ship and planet.', 2),
+  ];
+
+  GlobalKey _homeTourTarget(int step) => switch (step) {
+    0 => _coachDepositKey,
+    1 => _coachDescendKey,
+    _ => _coachHomeKey,
+  };
+
+  /// Starts the tour when the base's buttons are showing and nothing else
+  /// is teaching. Called from build; the change lands next frame.
+  void _maybeStartHomeTour({required bool homeActionsShowing}) {
+    if (_homeTourDone || _homeTourStep != null || !homeActionsShowing) return;
+    if (_runningCosmicIntro ||
+        _awaitingShipMenuTap ||
+        _awaitingBuildHomeTap ||
+        _awaitingSurvivalMapTap ||
+        _survivalSignalTutorialActive ||
+        _anyOverlayOpen) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _homeTourDone || _homeTourStep != null) return;
+      setState(() => _homeTourStep = 0);
+      _armHomeTourTimer();
+    });
+  }
+
+  void _armHomeTourTimer() {
+    _homeTourTimer?.cancel();
+    _homeTourTimer = Timer(const Duration(milliseconds: 5200), () {
+      final step = _homeTourStep;
+      if (mounted && step != null) _advanceHomeTour(from: step);
+    });
+  }
+
+  /// Moves past step [from] (if it is the one showing).
+  void _advanceHomeTour({required int from}) {
+    if (_homeTourStep != from) return;
+    final next = from + 1;
+    if (next >= _homeTourSteps.length) {
+      _homeTourTimer?.cancel();
+      setState(() {
+        _homeTourStep = null;
+        _homeTourDone = true;
+      });
+      unawaited(
+        SharedPreferences.getInstance().then(
+          (p) => p.setBool(_homeTourDoneKey, true),
+        ),
+      );
+      return;
+    }
+    setState(() => _homeTourStep = next);
+    _armHomeTourTimer();
+  }
+
   Widget _buildLeftActionRail({required bool showHomeActions}) {
     final home = _homePlanet;
     final canDeposit =
@@ -5112,8 +5187,12 @@ class _CosmicScreenState extends State<CosmicScreen>
         Tooltip(
           message: canDeposit ? 'Deposit' : 'Nothing to deposit',
           child: GestureDetector(
-            onTap: context.soundAction(_handleDepositAll),
+            onTap: context.soundAction(() {
+              _advanceHomeTour(from: 0);
+              _handleDepositAll();
+            }),
             child: _CosmicSquareHudButton(
+              key: _coachDepositKey,
               accent: CosmicScreenStyles.amber,
               active: canDeposit,
               disabled: !canDeposit,
@@ -5134,8 +5213,12 @@ class _CosmicScreenState extends State<CosmicScreen>
           message: 'Descend',
           child: GestureDetector(
             key: const ValueKey('cosmic.rail.descend'),
-            onTap: context.soundAction(() => unawaited(_descendHome())),
+            onTap: context.soundAction(() {
+              _advanceHomeTour(from: 1);
+              unawaited(_descendHome());
+            }),
             child: _CosmicSquareHudButton(
+              key: _coachDescendKey,
               accent: const Color(0xFFE4C16A),
               child: Icon(
                 Icons.south_rounded,
@@ -5149,10 +5232,12 @@ class _CosmicScreenState extends State<CosmicScreen>
           message: 'Home base',
           child: GestureDetector(
             onTap: context.soundAction(() {
+              _advanceHomeTour(from: 2);
               setState(() => _showHomeMenu = true);
               unawaited(_refreshWalletCurrencies());
             }),
             child: _CosmicSquareHudButton(
+              key: _coachHomeKey,
               accent: CosmicScreenStyles.amber,
               active: true,
               child: Container(
@@ -7528,6 +7613,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   @override
   void dispose() {
+    _homeTourTimer?.cancel();
     ambienceRouteObserver.unsubscribe(this);
     DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);
     _revealWhenReady.dispose();
@@ -9005,11 +9091,21 @@ class _CosmicScreenState extends State<CosmicScreen>
                       duration: const Duration(milliseconds: 350),
                       curve: Curves.easeOutCubic,
                       child: SafeArea(
-                        child: _buildLeftActionRail(
-                          showHomeActions:
-                              _isNearHome &&
-                              _homePlanet != null &&
-                              !_showElementsCaptured,
+                        child: Builder(
+                          builder: (context) {
+                            final homeActions =
+                                _isNearHome &&
+                                _homePlanet != null &&
+                                !_showElementsCaptured;
+                            if (showCosmicHud) {
+                              _maybeStartHomeTour(
+                                homeActionsShowing: homeActions,
+                              );
+                            }
+                            return _buildLeftActionRail(
+                              showHomeActions: homeActions,
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -9153,6 +9249,22 @@ class _CosmicScreenState extends State<CosmicScreen>
                     text: 'Open the map to find the signal.',
                     target: _coachMapKey,
                     accent: _signalColor,
+                  ),
+                ),
+
+              if (showCosmicHud &&
+                  _homeTourStep != null &&
+                  _isNearHome &&
+                  _homePlanet != null &&
+                  !_showElementsCaptured &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned.fill(
+                  child: CosmicCoachMark(
+                    key: ValueKey('home-tour-$_homeTourStep'),
+                    text: _homeTourSteps[_homeTourStep!].$1,
+                    target: _homeTourTarget(_homeTourStep!),
+                    accent: CosmicScreenStyles.amber,
                   ),
                 ),
 
