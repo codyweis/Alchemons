@@ -114,20 +114,22 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
         accent: const Color(0xFF96CEB4),
         group: ElementalGroup.oceanic,
       ),
+      // Each division in its realm's colours: Earthen the ochre of its
+      // strata, Verdant the green of the seeds its wind carries.
       make(
         FactionId.earthen,
         uiTitle: 'Earthen',
-        primary: const Color(0xFF95D5B2),
-        secondary: const Color(0xFF74C69D),
-        accent: const Color(0xFFB7E4C7),
+        primary: const Color(0xFFD6A35C),
+        secondary: const Color(0xFFC07E48),
+        accent: const Color(0xFFE6C690),
         group: ElementalGroup.earthen,
       ),
       make(
         FactionId.verdant,
         uiTitle: 'Verdant',
-        primary: const Color(0xFFF3E8FF),
-        secondary: const Color(0xFFD4C5F9),
-        accent: const Color(0xFFE5D9F2),
+        primary: const Color(0xFF86CF9C),
+        secondary: const Color(0xFF6BB886),
+        accent: const Color(0xFFB4E2C2),
         group: ElementalGroup.verdant,
       ),
     ];
@@ -207,17 +209,20 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
     final orbRect = box.localToGlobal(Offset.zero) & box.size;
     final (a, b) = chosen.elementalGroup.particleTypes;
     final theme = context.read<FactionTheme>();
+    final ink = !ForgeTokens(theme).isDark;
     StarterVialHandoff.instance.begin(
       context,
       faction: chosen.id,
-      ink: !ForgeTokens(theme).isDark,
+      ink: ink,
       field: _realm,
       vial: _starterVialFor(chosen),
       orbRect: orbRect,
       grainColors: [
         BreedConstants.getTypeColor(a),
         if (b != null) BreedConstants.getTypeColor(b),
-        const Color(0xFFE8DCC8),
+        // Parchment grains on the dark page; sepia ones on the light, where
+        // parchment would vanish into it.
+        ink ? const Color(0xFF4A3C30) : const Color(0xFFE8DCC8),
       ],
     );
     _realmHandedOff = true;
@@ -298,13 +303,20 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(28, 6, 28, 20),
-                          child: BracketButton(
-                            label: 'JOIN THE ${chosen.name} DIVISION',
-                            palette: palette,
-                            accent: accent,
-                            height: 50,
-                            enabled: !_committing,
-                            onTap: _selectFaction,
+                          // On the light page the button would sit on the
+                          // ground's stipple: give it paper under its wash.
+                          child: ColoredBox(
+                            color: palette.isDark
+                                ? const Color(0x00000000)
+                                : palette.chromeFill(),
+                            child: BracketButton(
+                              label: 'JOIN THE ${chosen.name} DIVISION',
+                              palette: palette,
+                              accent: accent,
+                              height: 50,
+                              enabled: !_committing,
+                              onTap: _selectFaction,
+                            ),
                           ),
                         ),
                       ],
@@ -443,7 +455,8 @@ class _Orb extends StatelessWidget {
           children: [
             AnimatedOpacity(
               duration: const Duration(milliseconds: 300),
-              opacity: chosen ? 1 : 0.55,
+              // (On paper a faded orb only turns grey: fade it less.)
+              opacity: chosen ? 1 : (palette.isDark ? 0.55 : 0.8),
               child: SizedBox.square(
                 key: orbKey,
                 dimension: side,
@@ -452,6 +465,7 @@ class _Orb extends StatelessWidget {
                   compact: !chosen,
                   showTags: false,
                   circular: true,
+                  onLight: !palette.isDark,
                 ),
               ),
             ),

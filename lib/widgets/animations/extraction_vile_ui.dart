@@ -189,6 +189,9 @@ class ExtractionVialCard extends StatelessWidget {
   /// the card would cut its own frame off.
   final bool circular;
 
+  /// Whether the [circular] lens sits on a light page.
+  final bool onLight;
+
   const ExtractionVialCard({
     super.key,
     required this.vial,
@@ -197,6 +200,7 @@ class ExtractionVialCard extends StatelessWidget {
     this.compact = false,
     this.showTags = true,
     this.circular = false,
+    this.onLight = false,
   });
 
   Color _scorchedAccent(Color base) {
@@ -224,17 +228,30 @@ class ExtractionVialCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    const DecoratedBox(
+                    DecoratedBox(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            kVialGlass,
-                            Color(0xCC0B0A10),
-                            Color(0x000B0A10),
-                          ],
-                          stops: [0.0, 0.62, 1.0],
-                        ),
+                        // On paper a long fade out of the dark is a grey
+                        // smudge: there the lens is a bead of smoked glass,
+                        // its rim catching a little light, with a short edge.
+                        gradient: onLight
+                            ? const RadialGradient(
+                                colors: [
+                                  Color(0xFF1C1922),
+                                  Color(0xF70B0A10),
+                                  Color(0xF7302B36),
+                                  Color(0x000B0A10),
+                                ],
+                                stops: [0.0, 0.76, 0.86, 0.93],
+                              )
+                            : const RadialGradient(
+                                colors: [
+                                  kVialGlass,
+                                  Color(0xCC0B0A10),
+                                  Color(0x000B0A10),
+                                ],
+                                stops: [0.0, 0.62, 1.0],
+                              ),
                       ),
                     ),
                     ExtractionVialOrb(vial: vial, size: side),

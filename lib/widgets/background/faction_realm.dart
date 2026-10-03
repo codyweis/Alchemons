@@ -64,6 +64,11 @@ class FactionRealmField {
   set ink(bool v) {
     if (v == _ink) return;
     _ink = v;
+    final c = _c, c2 = _c2;
+    _c = _cOther;
+    _c2 = _c2Other;
+    _cOther = c;
+    _c2Other = c2;
     _dropPictures();
   }
 
@@ -93,6 +98,8 @@ class FactionRealmField {
   Float32List _sz = Float32List(0), _ph = Float32List(0);
   Float32List _aux = Float32List(0);
   Int32List _c = Int32List(0), _c2 = Int32List(0);
+  // The grains' colours for the other page (ink while dark, and back).
+  Int32List _cOther = Int32List(0), _c2Other = Int32List(0);
   Uint8List _role = Uint8List(0), _busy = Uint8List(0);
 
   // Grains [0, _restEnd) hold still and are sorted by square; the rest
@@ -126,6 +133,10 @@ class FactionRealmField {
   @visibleForTesting
   int get grainCount => _n;
 
+  /// Grain [i]'s colour on the current page.
+  @visibleForTesting
+  int debugColourOf(int i) => _c[i];
+
   void layout(Size size) {
     if (size.isEmpty || size == _size) return;
     _size = size;
@@ -147,7 +158,7 @@ class FactionRealmField {
     }
   }
 
-  (Offset, double, int)? _pendingEmerge;
+  (Offset, double, int?)? _pendingEmerge;
 
   /// The realm gathers itself out of a knot of grains at [at]: every grain
   /// starts there, in [colour], and flies out to its place (the opening's
@@ -156,7 +167,7 @@ class FactionRealmField {
   void emergeFrom(
     Offset at, {
     double spread = 40,
-    int colour = 0xFFE8DCC8,
+    int? colour,
   }) {
     if (_n == 0 || _size.isEmpty) {
       _pendingEmerge = (at, spread, colour);
@@ -167,7 +178,10 @@ class FactionRealmField {
     _fx = Float32List(_n);
     _fy = Float32List(_n);
     _fs = Float32List(_n);
-    _fc = Int32List(_n)..fillRange(0, _n, colour);
+    // Parchment by default; sepia on the light page, where parchment
+    // would vanish into the paper.
+    final knot = colour ?? (_ink ? 0xFF4A3C30 : 0xFFE8DCC8);
+    _fc = Int32List(_n)..fillRange(0, _n, knot);
     for (var i = 0; i < _n; i++) {
       // A soft knot: dense at the middle, thinning out.
       final a = r.nextDouble() * math.pi * 2;
@@ -194,8 +208,10 @@ class FactionRealmField {
     _hy = comp.y;
     _sz = comp.s;
     _aux = comp.aux;
-    _c = comp.c;
-    _c2 = comp.c2;
+    _c = comp.colours(_ink);
+    _c2 = comp.colours2(_ink);
+    _cOther = comp.colours(!_ink);
+    _c2Other = comp.colours2(!_ink);
     _role = comp.role;
     _ph = Float32List(_n);
     for (var i = 0; i < _n; i++) {
@@ -241,6 +257,8 @@ class FactionRealmField {
     _aux = _permF(_aux, order);
     _c = _permI(_c, order);
     _c2 = _permI(_c2, order);
+    _cOther = _permI(_cOther, order);
+    _c2Other = _permI(_c2Other, order);
     _role = _permB(_role, order);
     _busy = _permB(_busy, order);
     _chunkFrom = Int32List(chunks)..fillRange(0, chunks, 0);
@@ -347,7 +365,7 @@ class FactionRealmField {
       _hx[i] = _fx[i] + (tg.x[j] - _fx[i]) * e;
       _hy[i] = _fy[i] + (tg.y[j] - _fy[i]) * e;
       _sz[i] = _fs[i] + (tg.s[j] - _fs[i]) * e;
-      _c[i] = _mix(_fc[i], tg.c[j], e);
+      _c[i] = _mix(_fc[i], tg.colours(_ink)[j], e);
     }
   }
 
@@ -909,24 +927,6 @@ class FactionRealmField {
   static final Paint _add = Paint()
     ..filterQuality = FilterQuality.medium
     ..blendMode = BlendMode.plus;
-  // Ink: the realm's own colours, lifted to mid tones and thinned, so the
-  // grains read as a tinted stipple on the page rather than soot.
-  static final Paint _inkOver = Paint()
-    ..filterQuality = FilterQuality.medium
-    ..colorFilter = const ColorFilter.matrix([
-      0.62, 0, 0, 0, 58, //
-      0, 0.6, 0, 0, 50, //
-      0, 0, 0.6, 0, 44, //
-      0, 0, 0, 0.62, 0, //
-    ]);
-  static final Paint _inkGlow = Paint()
-    ..filterQuality = FilterQuality.medium
-    ..colorFilter = const ColorFilter.matrix([
-      0.52, 0, 0, 0, 0, //
-      0, 0.4, 0, 0, 0, //
-      0, 0, 0.58, 0, 0, //
-      0, 0, 0, 0.5, 0, //
-    ]);
 
   final _Batch _dots = _Batch(_solid);
   final _Batch _glow = _Batch(_soft);
@@ -941,8 +941,8 @@ class FactionRealmField {
     final atlas = _atlas!;
     debugSprites = 0;
     debugPictures = 0;
-    final dots = _ink ? _inkOver : _over;
-    final glows = _ink ? _inkGlow : _add;
+    // Light on the dark page adds up; pigment on the light one lies over.
+    final glows = _ink ? _over : _add;
 
     _paintGround(canvas);
     _dots.clear();
@@ -987,8 +987,8 @@ class FactionRealmField {
     _emitWind();
     _emitMovers();
     debugSprites = _dots.n + _glow.n + _streaks.n;
-    _dots.draw(canvas, atlas, dots);
-    _streaks.draw(canvas, atlas, dots);
+    _dots.draw(canvas, atlas, _over);
+    _streaks.draw(canvas, atlas, _over);
     _glow.draw(canvas, atlas, glows);
   }
 
@@ -1003,7 +1003,7 @@ class FactionRealmField {
     for (var k = from; k < to; k++) {
       b.add(_hx[k], _hy[k], _sz[k], _c[k]);
     }
-    b.draw(c, _atlas!, _ink ? _inkOver : _over);
+    b.draw(c, _atlas!, _over);
   }
 
   // A still grain where the flow has it, lit when pushed fast.
@@ -1016,10 +1016,36 @@ class FactionRealmField {
       return;
     }
     final lit = math.min(1.0, (sp - 30) / 400);
-    _dots.add(x, y, _sz[k], _lighten(c, lit * 0.6, 0.35 * lit));
+    _dots.add(x, y, _sz[k], _lift(c, lit * 0.6, 0.35 * lit));
     if (lit > 0.5) {
-      _glow.add(x, y, _sz[k] * 3, _scaleAlpha(c | 0xFF000000, 0.22 * lit));
+      _glow.add(
+        x,
+        y,
+        _sz[k] * 3,
+        _ink
+            ? _scaleAlpha(_pigmentOf(_faction), 0.12 * lit)
+            : _scaleAlpha(c | 0xFF000000, 0.22 * lit),
+      );
     }
+  }
+
+  // The realm's own pigment on the light page: what a grain deepens
+  // toward when it is lit.
+  static int _pigmentOf(FactionId f) => switch (f) {
+    FactionId.volcanic => 0xFFD0401C, // vermilion
+    FactionId.oceanic => 0xFF1E5A86, // Prussian blue
+    FactionId.earthen => 0xFFB0602E, // burnt sienna
+    FactionId.verdant => 0xFF4E4A7E, // slate violet
+  };
+
+  /// A grain lit (pushed fast, or thrown between realms): lighter on the
+  /// dark page; deeper toward the realm's pigment on the light one, where
+  /// lighter would only fade it into the paper.
+  int _lift(int c, double t, double a) {
+    if (!_ink) return _lighten(c, t, a);
+    final al = (c >>> 24) / 255;
+    final m = _mix(c | 0xFF000000, _pigmentOf(_faction), t);
+    return _scaleAlpha(m, al + (1 - al) * a);
   }
 
   void _emitLive(int k) {
@@ -1035,7 +1061,8 @@ class FactionRealmField {
         final heat = (w * w) * _aux[k];
         final x = _hx[k] + _ox[k], y = _hy[k] + _oy[k];
         _dots.add(x, y, _sz[k], _mix(_c[k], _c2[k], heat));
-        if (heat > 0.42 && (k & 3) == 0) {
+        // (On paper a glow only smudges; the cinnabar is heat enough.)
+        if (!_ink && heat > 0.42 && (k & 3) == 0) {
           _glow.add(x, y, 9 + 6 * heat, _scaleAlpha(_c2[k], 0.16 * heat));
         }
       case _twinkle:
@@ -1066,17 +1093,18 @@ class FactionRealmField {
 
   void _emitReform() {
     final tg = _target!;
+    final to = tg.colours(_ink);
     for (var i = 0; i < _n; i++) {
       final e = _e(i), j = _targetOf[i];
       final x = _hx[i] + _ox[i], y = _hy[i] + _oy[i];
-      final c = _mix(_fc[i], tg.c[j], e);
+      final c = _mix(_fc[i], to[j], e);
       // Sand in the air catches the light.
       final air = math.sin(math.pi * e);
       _dots.add(
         x,
         y,
         _sz[i],
-        air > 0.05 ? _lighten(c, air * 0.35, 0.25 * air) : c,
+        air > 0.05 ? _lift(c, air * 0.35, 0.25 * air) : c,
       );
     }
   }
@@ -1092,7 +1120,12 @@ class FactionRealmField {
       final edge = math.min(1.0, math.min(u + 40, _size.width + 40 - u) / 90);
       final al = _wa[k] * a * edge;
       if (al < 0.02) continue;
-      _dots.add(x, y, _wsz[k], _argb(al, 0.86, 0.82, 0.95));
+      _dots.add(
+        x,
+        y,
+        _wsz[k],
+        _ink ? _argb(al * 1.1, 0.34, 0.31, 0.5) : _argb(al, 0.86, 0.82, 0.95),
+      );
     }
   }
 
@@ -1107,8 +1140,10 @@ class FactionRealmField {
                 ? 0.35
                 : (_flashAge < 0.28 ? 0.9 : 1 - (_flashAge - 0.28) / 0.22));
       final w = _size.width;
-      _glow.add(w * 0.3, -20, w * 1.3, _argb(0.11 * f, 1, 0.82, 0.66));
-      _glow.add(w * 0.8, 40, w * 0.9, _argb(0.07 * f, 1, 0.86, 0.72));
+      // (On the light page, a warm glare over the paper.)
+      final k = _ink ? 0.7 : 1.0;
+      _glow.add(w * 0.3, -20, w * 1.3, _argb(0.11 * f * k, 1, 0.82, 0.66));
+      _glow.add(w * 0.8, 40, w * 0.9, _argb(0.07 * f * k, 1, 0.86, 0.72));
     }
     final wind = tilt.dx.clamp(-1.0, 1.0) * 110 + 26;
     for (var i = 0; i < m.n; i++) {
@@ -1123,13 +1158,17 @@ class FactionRealmField {
             m.x[i],
             m.y[i],
             m.size[i],
-            _argb(a, 1, 0.45 + 0.35 * f, 0.15),
+            _ink
+                ? _argb(a, 0.84, 0.24 + 0.3 * f, 0.08)
+                : _argb(a, 1, 0.45 + 0.35 * f, 0.15),
           );
           _glow.add(
             m.x[i],
             m.y[i],
             m.size[i] * 5,
-            _argb(0.22 * a, 1, 0.4, 0.1),
+            _ink
+                ? _argb(0.1 * a, 0.86, 0.3, 0.1)
+                : _argb(0.22 * a, 1, 0.4, 0.1),
           );
         case _drop:
           if (m.y[i] < -10) continue;
@@ -1139,7 +1178,7 @@ class FactionRealmField {
             m.y[i],
             m.size[i] * 18,
             -ang,
-            _argb(0.24, 0.62, 0.8, 0.88),
+            _ink ? _argb(0.3, 0.22, 0.4, 0.54) : _argb(0.24, 0.62, 0.8, 0.88),
           );
         case _splash:
           final a = 1 - age / m.life[i];
@@ -1147,18 +1186,29 @@ class FactionRealmField {
             m.x[i],
             m.y[i],
             m.size[i],
-            _argb(0.7 * a, 0.75, 0.94, 0.95),
+            _ink
+                ? _argb(0.6 * a, 0.16, 0.36, 0.5)
+                : _argb(0.7 * a, 0.75, 0.94, 0.95),
           );
         case _mote:
           final f = age / m.life[i];
           final a = math.min(1.0, f * 4) * (1 - f) * 0.6;
-          _dots.add(m.x[i], m.y[i], m.size[i], _argb(a, 0.78, 0.66, 0.46));
+          _dots.add(
+            m.x[i],
+            m.y[i],
+            m.size[i],
+            _ink
+                ? _argb(0.9 * a, 0.56, 0.42, 0.26)
+                : _argb(a, 0.78, 0.66, 0.46),
+          );
           if ((i & 3) == 0) {
             _glow.add(
               m.x[i],
               m.y[i],
               m.size[i] * 4,
-              _argb(0.08 * a, 0.9, 0.75, 0.5),
+              _ink
+                  ? _argb(0.06 * a, 0.62, 0.46, 0.26)
+                  : _argb(0.08 * a, 0.9, 0.75, 0.5),
             );
           }
         case _seed:
@@ -1169,10 +1219,42 @@ class FactionRealmField {
               m.vy[i] * 0.4 +
               6 * _fsin(_t * 1.7 + m.seed[i] * 20);
           final a = _windAlpha * (0.55 + 0.35 * _fsin(_t * 3 + m.seed[i] * 30));
-          _dots.add(x, y, m.size[i], _argb(a, 0.5, 0.85, 0.62));
-          _glow.add(x, y, m.size[i] * 5, _argb(0.12 * a, 0.45, 0.9, 0.6));
+          if (_ink) {
+            _dots.add(x, y, m.size[i], _argb(a, 0.24, 0.52, 0.3));
+            _glow.add(x, y, m.size[i] * 5, _argb(0.08 * a, 0.3, 0.6, 0.36));
+          } else {
+            _dots.add(x, y, m.size[i], _argb(a, 0.5, 0.85, 0.62));
+            _glow.add(x, y, m.size[i] * 5, _argb(0.12 * a, 0.45, 0.9, 0.6));
+          }
       }
     }
+  }
+
+  final Paint _inkWashPaint = Paint();
+  Object? _inkWashKey;
+
+  // On the light page, a wash of the ground's own colour laid under its
+  // grains, so the ground reads as a body (earth, water) and not as loose
+  // specks on the paper. One gradient; no light breathes on paper.
+  void _paintInkWash(Canvas canvas, double p) {
+    final from = _inkWashOf(_reformT >= 0 ? _from : _faction);
+    final to = _inkWashOf(_faction);
+    final s0 = from.$1 + (to.$1 - from.$1) * p;
+    final s1 = from.$2 + (to.$2 - from.$2) * p;
+    final mid = _mix(from.$3, to.$3, p), low = _mix(from.$4, to.$4, p);
+    final h = _size.height;
+    final rect = Rect.fromLTRB(0, h * s0, _size.width, h);
+    final key = (_size, s0, s1, mid, low);
+    if (key != _inkWashKey) {
+      _inkWashKey = key;
+      _inkWashPaint.shader = ui.Gradient.linear(
+        rect.topCenter,
+        rect.bottomCenter,
+        [Color(mid & 0x00FFFFFF), Color(mid), Color(low)],
+        [0, ((s1 - s0) / (1 - s0)).clamp(0.0, 1.0), 1],
+      );
+    }
+    canvas.drawRect(rect, _inkWashPaint);
   }
 
   // The near-black ground of the page, warmed by the realm's light.
@@ -1191,7 +1273,10 @@ class FactionRealmField {
       ]);
     }
     canvas.drawRect(rect, _bg);
-    if (_ink) return;
+    if (_ink) {
+      _paintInkWash(canvas, p);
+      return;
+    }
     // A low light over the ground, breathing.
     _wash.clear();
     final w = _size.width, h = _size.height;
@@ -1256,11 +1341,12 @@ class FactionRealmField {
 
 /// (top, bottom) of each realm's page.
 (int, int) _paletteOf(FactionId f, bool ink) => ink
+    // Parchment, each faintly the realm's.
     ? switch (f) {
-        FactionId.volcanic => (0xFFF6EEE8, 0xFFEAD6CA),
-        FactionId.oceanic => (0xFFEEF4F5, 0xFFD6E5EA),
-        FactionId.earthen => (0xFFF3EFE7, 0xFFE2D8C6),
-        FactionId.verdant => (0xFFF3F1F7, 0xFFE2DEEC),
+        FactionId.volcanic => (0xFFF5EEE4, 0xFFEFE3D5),
+        FactionId.oceanic => (0xFFF2EFE6, 0xFFE9EAE3),
+        FactionId.earthen => (0xFFF4EEE2, 0xFFEEE4D3),
+        FactionId.verdant => (0xFFF2EFE9, 0xFFE8E5EA),
       }
     : switch (f) {
         FactionId.volcanic => (0xFF0B0605, 0xFF170805),
@@ -1268,6 +1354,15 @@ class FactionRealmField {
         FactionId.earthen => (0xFF070806, 0xFF0F0C08),
         FactionId.verdant => (0xFF09080F, 0xFF0E0C16),
       };
+
+/// The light page's wash under the ground: it starts (clear) at [$1] of the
+/// height, is [$3] by [$2], and [$4] at the foot.
+(double, double, int, int) _inkWashOf(FactionId f) => switch (f) {
+  FactionId.volcanic => (0.67, 0.78, 0x22A06A50, 0x34603A2C),
+  FactionId.oceanic => (0.655, 0.69, 0x2A2C6486, 0x3C1C4868),
+  FactionId.earthen => (0.67, 0.78, 0x24A87A48, 0x34584838),
+  FactionId.verdant => (0.45, 0.8, 0x0E6E6896, 0x1A5A5482),
+};
 
 class _Comp {
   _Comp(this.n)
@@ -1277,31 +1372,42 @@ class _Comp {
       aux = Float32List(n),
       c = Int32List(n),
       c2 = Int32List(n),
+      ic = Int32List(n),
+      ic2 = Int32List(n),
       role = Uint8List(n);
 
   final int n;
   final Float32List x, y, s, aux;
-  final Int32List c, c2;
+  // Each grain in two palettes: light on the dark page ([c], [c2]) and
+  // pigment on the light one ([ic], [ic2]).
+  final Int32List c, c2, ic, ic2;
   final Uint8List role;
   Float32List top = Float32List(0);
   double waterY = 0;
   int i = 0;
 
+  Int32List colours(bool ink) => ink ? ic : c;
+  Int32List colours2(bool ink) => ink ? ic2 : c2;
+
   void add(
     double px,
     double py,
     double size,
-    int col, [
+    int col, {
+    required int ink,
     int r = _still,
     int col2 = 0,
+    int ink2 = 0,
     double a = 0,
-  ]) {
+  }) {
     if (i >= n) return;
     x[i] = px;
     y[i] = py;
     s[i] = size;
     c[i] = col;
     c2[i] = col2 == 0 ? col : col2;
+    ic[i] = ink;
+    ic2[i] = ink2 == 0 ? ink : ink2;
     role[i] = r;
     aux[i] = a;
     i++;
@@ -1315,8 +1421,9 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
   final cols = (w / FactionRealmField._col).ceil() + 2;
   comp.top = Float32List(cols);
 
-  // A fine dust over [0, yMax), drifting in banks, denser low.
-  void dust(int count, double yMax, int Function(double d) colour) {
+  // A fine dust over [0, yMax), drifting in banks, denser low. [colour]
+  // gives (dark, ink).
+  void dust(int count, double yMax, (int, int) Function(double d) colour) {
     var tries = 0;
     while (comp.i < n && count > 0 && tries < count * 40) {
       tries++;
@@ -1324,11 +1431,17 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
       final d = _fbm(x / 120, y / 120, seed + 3);
       final p = (0.22 + 0.9 * d * d) * (0.3 + 0.7 * y / yMax);
       if (r.nextDouble() > p) continue;
-      comp.add(x, y, 1.0 + 1.1 * r.nextDouble(), colour(d));
+      final size = 1.0 + 1.1 * r.nextDouble();
+      final (dark, ink) = colour(d);
+      comp.add(x, y, size, dark, ink: ink);
       count--;
     }
   }
 
+  // On the light page each realm is a plate in ink and earth pigments: what
+  // glows on the dark page is the strongest colour on the light one (the
+  // seams cinnabar, the veins viridian, the waterline indigo), and the
+  // ground a stipple that deepens as it goes down.
   switch (f) {
     case FactionId.volcanic:
       double topAt(double x) =>
@@ -1361,28 +1474,54 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
             y,
             size,
             _mix(0xFF4A0E04, 0xFF8A2008, hot),
-            _seam,
-            _mix(0xFFFF5A14, 0xFFFFC870, hot * hot),
-            0.45 + 0.55 * hot,
+            ink: _mix(0xFF8A3624, 0xFFA82E18, hot),
+            r: _seam,
+            col2: _mix(0xFFFF5A14, 0xFFFFC870, hot * hot),
+            ink2: _mix(0xFFD8401A, 0xFFF08A24, hot * hot),
+            a: 0.45 + 0.55 * hot,
           );
         } else if (y < t + 2.5) {
-          comp.add(x, y, size, _mix(0xFF6A3220, 0xFF7E3A1E, r.nextDouble()));
+          final v = r.nextDouble();
+          comp.add(
+            x,
+            y,
+            size,
+            _mix(0xFF6A3220, 0xFF7E3A1E, v),
+            ink: _mix(0xFF3E2A22, 0xFF56362A, v),
+          );
         } else {
           // Each plate its own shade; warmed near its cracks.
           final warm = edge < width * 3
               ? 1 - (edge - width) / (width * 2)
               : 0.0;
+          final shade = depth * 0.7 + r.nextDouble() * 0.2;
           final base = _mix(
             _mix(0xFF35201A, 0xFF24140F, plate),
             0xFF120A07,
-            depth * 0.7 + r.nextDouble() * 0.2,
+            shade,
           );
-          comp.add(x, y, size, _mix(base, 0xFF5A2210, warm * warm * 0.85));
+          final inkBase = _mix(
+            _mix(0xFFB6ACA4, 0xFF948A84, plate),
+            0xFF5E5450,
+            shade * 0.75,
+          );
+          comp.add(
+            x,
+            y,
+            size,
+            _mix(base, 0xFF5A2210, warm * warm * 0.85),
+            ink: _mix(inkBase, 0xFFA86450, warm * warm * 0.3),
+          );
         }
       }
       dust(n - comp.i, h * 0.70, (d) {
-        if (r.nextDouble() < 0.02) return _argb(0.4, 1, 0.48, 0.22);
-        return _argb(0.08 + 0.22 * d, 0.42, 0.3, 0.26);
+        if (r.nextDouble() < 0.02) {
+          return (_argb(0.4, 1, 0.48, 0.22), _argb(0.5, 0.84, 0.3, 0.12));
+        }
+        return (
+          _argb(0.08 + 0.22 * d, 0.42, 0.3, 0.26),
+          _argb(0.1 + 0.26 * d, 0.38, 0.3, 0.27),
+        );
       });
     case FactionId.oceanic:
       final wy = h * 0.66;
@@ -1399,10 +1538,20 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
         final dy = y - wy;
         if (dy < band) {
           final weight = 1 - dy / band * 0.75;
-          final col = dy < 3.5
-              ? _argb(0.9, 0.56, 0.88, 0.85)
-              : _mix(0xFF2D8F9C, 0xFF12505E, dy / band);
-          comp.add(x, y, size, col, _surface, 0, weight);
+          final line = dy < 3.5;
+          comp.add(
+            x,
+            y,
+            size,
+            line
+                ? _argb(0.9, 0.56, 0.88, 0.85)
+                : _mix(0xFF2D8F9C, 0xFF12505E, dy / band),
+            ink: line
+                ? _argb(0.94, 0.09, 0.25, 0.37)
+                : _mix(0xFF2C6486, 0xFF7CA4B6, dy / band),
+            r: _surface,
+            a: weight,
+          );
           continue;
         }
         final d = ((y - wy) / (h - wy)).clamp(0.0, 1.0);
@@ -1412,9 +1561,11 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
             y,
             size,
             _mix(0xFF16505E, 0xFF0B2A34, d),
-            _twinkle,
-            0xFF8FE2EA,
-            0.3 + r.nextDouble(),
+            ink: _mix(0xFF4C7C96, 0xFF285472, d),
+            r: _twinkle,
+            col2: 0xFF8FE2EA,
+            ink2: 0xFFFFFDF6,
+            a: 0.3 + r.nextDouble(),
           );
           continue;
         }
@@ -1424,9 +1575,17 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
           y,
           size,
           _mix(_mix(0xFF0F3E4C, 0xFF061922, d), 0xFF1A5462, v * 0.35),
+          ink: _mix(_mix(0xFF80A8BA, 0xFF2C5A7A, d), 0xFFAECAD2, v * 0.35),
         );
       }
-      dust(n - comp.i, wy - 4, (d) => _argb(0.06 + 0.18 * d, 0.36, 0.5, 0.56));
+      dust(
+        n - comp.i,
+        wy - 4,
+        (d) => (
+          _argb(0.06 + 0.18 * d, 0.36, 0.5, 0.56),
+          _argb(0.08 + 0.2 * d, 0.32, 0.44, 0.52),
+        ),
+      );
     case FactionId.earthen:
       double topAt(double x) =>
           h * 0.69 +
@@ -1441,6 +1600,13 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
         0xFF7E6236, // ochre
         0xFF3F3A34, // grey clay
         0xFF1F1B17, // bedrock
+      ];
+      const inkLayers = <int>[
+        0xFF6E5646, // raw umber
+        0xFFA85E3C, // burnt sienna
+        0xFFC69C58, // yellow ochre
+        0xFF9C968E, // grey clay
+        0xFF6C655E, // bedrock
       ];
       const splits = [0.1, 0.3, 0.44, 0.66];
       // Crystal veins, slanting through the strata.
@@ -1482,17 +1648,33 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
               y,
               size + 0.3,
               0xFF4E8A6E,
-              _twinkle,
-              0xFFC8F0D8,
-              0.4 + r.nextDouble(),
+              ink: 0xFF267458,
+              r: _twinkle,
+              col2: 0xFFC8F0D8,
+              ink2: 0xFFE4FFF0,
+              a: 0.4 + r.nextDouble(),
             );
           } else {
-            comp.add(x, y, size, _mix(0xFF3E6A55, 0xFF64A07E, r.nextDouble()));
+            final v = r.nextDouble();
+            comp.add(
+              x,
+              y,
+              size,
+              _mix(0xFF3E6A55, 0xFF64A07E, v),
+              ink: _mix(0xFF2C6A54, 0xFF4A9276, v),
+            );
           }
           continue;
         }
         if (y < t + 2.5) {
-          comp.add(x, y, size, _mix(0xFF5E4830, 0xFF6E5638, r.nextDouble()));
+          final v = r.nextDouble();
+          comp.add(
+            x,
+            y,
+            size,
+            _mix(0xFF5E4830, 0xFF6E5638, v),
+            ink: _mix(0xFF4A3A2C, 0xFF5E4A38, v),
+          );
           continue;
         }
         final depth = ((y - t) / (h - t)).clamp(0.0, 1.0);
@@ -1501,20 +1683,29 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
         while (layer < splits.length && depth + wob > splits[layer]) {
           layer++;
         }
-        var col = _mix(layers[layer], 0xFF100D09, r.nextDouble() * 0.35);
-        // The top of each layer catches a little light.
+        final jit = r.nextDouble();
+        var col = _mix(layers[layer], 0xFF100D09, jit * 0.35);
+        var ink = _mix(inkLayers[layer], 0xFF3A322A, jit * 0.25);
+        // The top of each layer catches a little light (on the light page,
+        // a drawn line between the layers).
         if (layer > 0 && depth + wob - splits[layer - 1] < 0.012) {
           col = _mix(col, 0xFF8A7050, 0.45);
+          ink = _mix(ink, 0xFF3A2E24, 0.45);
         }
         if (r.nextDouble() < 0.035) {
-          col = _mix(0xFF7A5A30, 0xFF9A7A48, r.nextDouble());
+          final v = r.nextDouble();
+          col = _mix(0xFF7A5A30, 0xFF9A7A48, v);
+          ink = _mix(0xFFDCB678, 0xFFC08A40, v);
         }
-        comp.add(x, y, size, col);
+        comp.add(x, y, size, col, ink: ink);
       }
       dust(
         n - comp.i,
         h * 0.69,
-        (d) => _argb(0.07 + 0.2 * d, 0.42, 0.36, 0.27),
+        (d) => (
+          _argb(0.07 + 0.2 * d, 0.42, 0.36, 0.27),
+          _argb(0.09 + 0.22 * d, 0.42, 0.33, 0.24),
+        ),
       );
     case FactionId.verdant:
       // Banks of cloud: (centre x, centre y, radius) lobes, as shares.
@@ -1567,11 +1758,23 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
             0.24 + 0.46 * light,
             0.34 + 0.52 * light,
           ),
+          // A wash of slate ink, heaviest along the underside.
+          ink: _argb(
+            al * (1.3 - 0.4 * light),
+            0.3 + 0.38 * light,
+            0.28 + 0.36 * light,
+            0.42 + 0.34 * light,
+          ),
         );
       }
       dust(n - comp.i, h, (d) {
-        if (r.nextDouble() < 0.03) return _argb(0.32, 0.45, 0.78, 0.6);
-        return _argb(0.05 + 0.16 * d, 0.42, 0.39, 0.5);
+        if (r.nextDouble() < 0.03) {
+          return (_argb(0.32, 0.45, 0.78, 0.6), _argb(0.48, 0.28, 0.55, 0.36));
+        }
+        return (
+          _argb(0.05 + 0.16 * d, 0.42, 0.39, 0.5),
+          _argb(0.07 + 0.18 * d, 0.4, 0.37, 0.5),
+        );
       });
   }
   // Anything a sampler fell short on: plain dust.
@@ -1581,6 +1784,7 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
       r.nextDouble() * h,
       1.2,
       _argb(0.1, 0.4, 0.4, 0.4),
+      ink: _argb(0.12, 0.4, 0.38, 0.36),
     );
   }
   return comp;

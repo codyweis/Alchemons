@@ -43,6 +43,69 @@ void main() {
     });
   }
 
+  test('the light page has its own pigments, and gives the dark back', () {
+    for (final id in FactionId.values) {
+      final f = FactionRealmField(faction: id)..layout(size);
+      final dark = [for (var i = 0; i < f.grainCount; i++) f.debugColourOf(i)];
+      f.ink = true;
+      var changed = 0;
+      for (var i = 0; i < f.grainCount; i++) {
+        if (f.debugColourOf(i) != dark[i]) changed++;
+      }
+      expect(changed, greaterThan(f.grainCount * 0.9), reason: id.name);
+      f.ink = false;
+      for (var i = 0; i < f.grainCount; i++) {
+        expect(f.debugColourOf(i), dark[i], reason: '${id.name} grain $i');
+      }
+      f.dispose();
+    }
+  });
+
+  // On paper the ground has to be a body darker than the paper, not a few
+  // specks: compare the foot of the page with its top.
+  test('on the light page the ground reads darker than the paper', () async {
+    for (final id in [
+      FactionId.volcanic,
+      FactionId.oceanic,
+      FactionId.earthen,
+    ]) {
+      final f = FactionRealmField(faction: id, ink: true)..layout(size);
+      frame(f, 30);
+      final rec = ui.PictureRecorder();
+      f.paint(Canvas(rec));
+      final image = rec.endRecording().toImageSync(
+        size.width.toInt(),
+        size.height.toInt(),
+      );
+      final bytes = (await image.toByteData())!;
+      double band(double from, double to) {
+        var sum = 0.0, n = 0;
+        final w = image.width;
+        for (
+          var y = (from * image.height).toInt();
+          y < (to * image.height).toInt();
+          y += 2
+        ) {
+          for (var x = 0; x < w; x += 2) {
+            final o = (y * w + x) * 4;
+            sum +=
+                0.2126 * bytes.getUint8(o) +
+                0.7152 * bytes.getUint8(o + 1) +
+                0.0722 * bytes.getUint8(o + 2);
+            n++;
+          }
+        }
+        return sum / n / 255;
+      }
+
+      final paper = band(0.05, 0.2), ground = band(0.8, 0.95);
+      expect(paper, greaterThan(0.85), reason: id.name);
+      expect(ground, lessThan(paper - 0.12), reason: id.name);
+      image.dispose();
+      f.dispose();
+    }
+  });
+
   test('a new faction flies the same grains into the new realm', () {
     final f = FactionRealmField()..layout(size);
     frame(f, 10);

@@ -337,6 +337,7 @@ class _HandoffViewState extends State<_HandoffView>
                   vial: widget.vial,
                   showTags: false,
                   circular: true,
+                  onLight: widget.ink,
                 ),
               ),
             ),

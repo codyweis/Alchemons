@@ -86,8 +86,7 @@ void main() {
         await frames(200);
         final tag = '${ink ? 'ink_' : ''}${id.name}';
         await shoot(key, '${tag}_rest');
-        if (ink) continue;
-        cost(field, '$tag rest');
+        if (!ink) cost(field, '$tag rest');
         // A finger dragged across the ground and up through the dust.
         final g = await tester.startGesture(const Offset(30, 640));
         for (var i = 0; i < 18; i++) {
@@ -97,30 +96,32 @@ void main() {
         await g.up();
         await frames(4);
         await shoot(key, '${tag}_stir');
-        cost(field, '$tag stirred');
+        if (!ink) cost(field, '$tag stirred');
       }
     }
 
     // Volcanic into Oceanic, part way.
-    final key = GlobalKey();
-    final field = FactionRealmField();
-    Widget host(FactionId id) => MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: RepaintBoundary(
-        key: key,
-        child: FactionRealmView(faction: id, field: field),
-      ),
-    );
-    await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(host(FactionId.volcanic));
-    await frames(60);
-    await tester.pumpWidget(host(FactionId.oceanic));
-    for (final (i, n) in [(0, 25), (1, 25), (2, 30)]) {
-      await frames(n);
-      await shoot(key, 'reform_$i');
+    for (final ink in [false, true]) {
+      final key = GlobalKey();
+      final field = FactionRealmField(ink: ink);
+      Widget host(FactionId id) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: RepaintBoundary(
+          key: key,
+          child: FactionRealmView(faction: id, ink: ink, field: field),
+        ),
+      );
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(host(FactionId.volcanic));
+      await frames(60);
+      await tester.pumpWidget(host(FactionId.oceanic));
+      for (final (i, n) in [(0, 25), (1, 25), (2, 30)]) {
+        await frames(n);
+        await shoot(key, '${ink ? 'ink_' : ''}reform_$i');
+      }
+      if (!ink) cost(field, 'reform tail');
+      await frames(120);
+      await tester.pumpWidget(const SizedBox());
     }
-    cost(field, 'reform tail');
-    await frames(120);
-    await tester.pumpWidget(const SizedBox());
   });
 }
