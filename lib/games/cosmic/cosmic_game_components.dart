@@ -85,12 +85,8 @@ class PlanetComponent {
     final r = planet.radius;
     final color = planet.color;
 
-    // ── particle field ring ──
-    final ringPaint = Paint()
-      ..color = color.withValues(alpha: 0.06)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawCircle(pos, planet.particleFieldRadius, ringPaint);
+    // The edge of its pull is drawn in grains, in its own pass (the ring is
+    // far wider than the planet's cull): CosmicGame._renderGravityRings.
 
     art.paintBack(canvas, pos, r, elapsed);
     art.paintBody(canvas, pos, r, elapsed);

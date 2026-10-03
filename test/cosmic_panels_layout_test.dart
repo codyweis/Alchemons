@@ -21,39 +21,50 @@ Widget _host(AlchemonsDatabase db, Widget panel) => Provider.value(
   ),
 );
 
-ShipMenuOverlay _console({bool hasHome = true, bool tutorial = false}) =>
-    ShipMenuOverlay(
-      hasHomePlanet: hasHome,
-      meterFill: 0.5,
-      walletShards: 80,
-      shipHealth: 40,
-      shipMaxHealth: 100,
-      fuelFraction: 0.3,
-      activeWeaponName: 'STANDARD GUN',
-      orbitalStockpile: 2,
-      orbitalActive: 1,
-      hasBooster: true,
-      hasOrbitals: true,
-      hasMissiles: true,
-      missileAmmo: 3,
-      cargoLevel: 0,
-      isNearHome: true,
-      hasParty: true,
-      onParty: () => _calls.add('party'),
-      hasMatterInjector: true,
-      onToggleMatterBoost: (v) => _calls.add('boost $v'),
-      tutorialBuildHomeMode: tutorial,
-      elementStorage: ElementStorage(stored: const {'Fire': 50}),
-      onClose: () => _calls.add('close'),
-      onBuildHome: () => _calls.add('build'),
-      onRelocateHome: () => _calls.add('move'),
-      onJettisonCargo: () {},
-      onDumpWallet: () {},
-      onRefuel: () => _calls.add('refuel'),
-      onCraftMissiles: () => _calls.add('missiles'),
-      onCraftSentinels: () => _calls.add('sentinels'),
-      onUpgradeCargo: () {},
-    );
+final _pullPlanet = CosmicPlanet(
+  element: 'Water',
+  position: Offset.zero,
+  radius: 260,
+);
+
+ShipMenuOverlay _console({
+  bool hasHome = true,
+  bool tutorial = false,
+  CosmicPlanet? pull,
+}) => ShipMenuOverlay(
+  hasHomePlanet: hasHome,
+  pullPlanet: pull,
+  onFlyElsewhere: () => _calls.add('fly'),
+  meterFill: 0.5,
+  walletShards: 80,
+  shipHealth: 40,
+  shipMaxHealth: 100,
+  fuelFraction: 0.3,
+  activeWeaponName: 'STANDARD GUN',
+  orbitalStockpile: 2,
+  orbitalActive: 1,
+  hasBooster: true,
+  hasOrbitals: true,
+  hasMissiles: true,
+  missileAmmo: 3,
+  cargoLevel: 0,
+  isNearHome: true,
+  hasParty: true,
+  onParty: () => _calls.add('party'),
+  hasMatterInjector: true,
+  onToggleMatterBoost: (v) => _calls.add('boost $v'),
+  tutorialBuildHomeMode: tutorial,
+  elementStorage: ElementStorage(stored: const {'Fire': 50}),
+  onClose: () => _calls.add('close'),
+  onBuildHome: () => _calls.add('build'),
+  onRelocateHome: () => _calls.add('move'),
+  onJettisonCargo: () {},
+  onDumpWallet: () {},
+  onRefuel: () => _calls.add('refuel'),
+  onCraftMissiles: () => _calls.add('missiles'),
+  onCraftSentinels: () => _calls.add('sentinels'),
+  onUpgradeCargo: () {},
+);
 
 HomePlanetMenuOverlay _home() => HomePlanetMenuOverlay(
   homePlanet: HomePlanet(position: Offset.zero, activeColor: 'Fire'),
@@ -99,6 +110,8 @@ void main() {
       for (final panel in [
         _console(),
         _console(hasHome: false, tutorial: true),
+        _console(hasHome: false, tutorial: true, pull: _pullPlanet),
+        _console(pull: _pullPlanet),
         _home(),
       ]) {
         await tester.pumpWidget(_host(db, panel));
@@ -132,6 +145,23 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('ship.buildHome')));
     await _settle(tester);
     expect(_calls, ['build']);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('inside a pull, the console says the home will orbit and '
+      'offers a way out', (tester) async {
+    await tester.pumpWidget(
+      _host(db, _console(hasHome: false, tutorial: true, pull: _pullPlanet)),
+    );
+    await _settle(tester);
+    expect(
+      find.textContaining("inside ${planetName('Water')}'s pull"),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('ship.flyElsewhere')));
+    await tester.tap(find.byKey(const ValueKey('ship.buildHome')));
+    await _settle(tester);
+    expect(_calls, ['fly', 'build']);
     await tester.pumpWidget(const SizedBox());
   });
 
