@@ -47,8 +47,8 @@ Future<void> showDatabaseTutorial(BuildContext context, FactionTheme theme) {
           icon: AppIcons.grid_view_rounded,
           title: 'Specimens',
           body:
-              'The database opens on every Alchemon you own. Search, sort '
-              'and filter them from the bar at the top.',
+              'The first tab is every Alchemon you own. Search from the bar '
+              'at the top; sort and filter just above them.',
         ),
         const SizedBox(height: 12),
         _TutorialRow(
@@ -57,8 +57,8 @@ Future<void> showDatabaseTutorial(BuildContext context, FactionTheme theme) {
           icon: AppIcons.category_rounded,
           title: 'Species catalog',
           body:
-              'The top-left button switches to every species, found or not. '
-              'Tap one you have found to see your specimens of it.',
+              'The second tab is every species: families across, elements '
+              'down. Tap one you have found to see your specimens of it.',
         ),
         const SizedBox(height: 12),
         _TutorialRow(
@@ -66,7 +66,9 @@ Future<void> showDatabaseTutorial(BuildContext context, FactionTheme theme) {
           accent: accent,
           icon: AppIcons.show_chart_rounded,
           title: 'Breeding milestones',
-          body: 'The chart button in the catalog tracks them per species.',
+          body:
+              'Open a species from the catalog; the button beside its name '
+              'tracks them.',
         ),
         const SizedBox(height: 20),
         BracketButton(

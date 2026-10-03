@@ -36,7 +36,6 @@ Widget _lab(
       cargoLevel: 0,
       isNearHome: true,
       onUpgradeCargo: () {},
-      onChambers: () {},
       onUpgradePowerUp: (_) {},
       onGarrison: () {},
       initialTab: tab,

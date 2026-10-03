@@ -141,7 +141,6 @@ void main() {
               cargoLevel: 1,
               isNearHome: true,
               onUpgradeCargo: () {},
-              onChambers: () {},
               onUpgradePowerUp: (_) {},
               onGarrison: () {},
               garrisonStationed: 1,

@@ -35,7 +35,6 @@ class _HostState extends State<_Host> {
                 cargoLevel: 0,
                 isNearHome: true,
                 onUpgradeCargo: () {},
-                onChambers: () {},
                 onUpgradePowerUp: (_) {},
                 onGarrison: () {},
                 initialTab: labTab,

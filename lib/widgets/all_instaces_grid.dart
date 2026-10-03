@@ -7,6 +7,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/filterchip_solod.dart';
 import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dart';
+import 'package:alchemons/widgets/instance_widgets/specimen_case.dart';
 import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -66,6 +67,10 @@ class AllCreatureInstances extends StatefulWidget {
   final Widget? Function(CreatureInstance inst, Creature species)?
   cardBadgeBuilder;
 
+  /// Specimens as lit display cases, three across, with a one-line sort row
+  /// — the Creatures tab's look. Off, every picker keeps its detail cards.
+  final bool caseCards;
+
   const AllCreatureInstances({
     super.key,
     required this.theme,
@@ -86,6 +91,7 @@ class AllCreatureInstances extends StatefulWidget {
     this.initialDetailMode = InstanceDetailMode.genetics,
     this.allowEnhancementMode = false,
     this.cardBadgeBuilder,
+    this.caseCards = false,
   });
 
   @override
@@ -578,6 +584,114 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     return {for (final type in sorted) type: type};
   }
 
+  void _openOrSelect(
+    CreatureInstance inst,
+    Creature creature,
+    List<CreatureInstance> siblings,
+  ) {
+    if (widget.selectionMode) {
+      _handleInstanceTap(inst);
+    } else if (widget.onTap != null) {
+      widget.onTap!(inst);
+    } else {
+      showQuickInstanceDialog(
+        context: context,
+        theme: widget.theme,
+        creature: creature,
+        instance: inst,
+        siblings: siblings,
+      );
+    }
+  }
+
+  void _longPress(
+    CreatureInstance inst,
+    Creature creature,
+    List<CreatureInstance> siblings,
+  ) {
+    if (widget.selectionMode) {
+      widget.onLongPress?.call();
+    } else if (widget.onTap != null) {
+      showQuickInstanceDialog(
+        context: context,
+        theme: widget.theme,
+        creature: creature,
+        instance: inst,
+        siblings: siblings,
+      );
+    } else {
+      CreatureDetailsDialog.show(
+        context,
+        creature,
+        true,
+        instanceId: inst.instanceId,
+      );
+    }
+  }
+
+  /// The case view's sort row: words on one line, the active one lit.
+  Widget _caseSortRow(bool hasPotentialAnalyzer) {
+    final palette = BracketPalette.fromTheme(widget.theme);
+    final accent = bracketReadableAccent(widget.theme);
+    Widget word(String label, bool on, VoidCallback onTap) => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 8, 10, 8),
+        child: Text(
+          label,
+          style: caseMono(10.5, on ? accent : palette.muted, spacing: 1.2),
+        ),
+      ),
+    );
+    final levelOn = _sortBy == SortBy.levelHigh || _sortBy == SortBy.levelLow;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+      child: Row(
+        children: [
+          word(
+            _sortBy == SortBy.oldest ? 'OLDEST' : 'NEWEST',
+            _sortBy == SortBy.newest || _sortBy == SortBy.oldest,
+            () => _mutate(() {
+              _sortBy = _sortBy == SortBy.newest
+                  ? SortBy.oldest
+                  : SortBy.newest;
+            }),
+          ),
+          word(
+            levelOn && _sortBy == SortBy.levelLow ? 'LEVEL ↑' : 'LEVEL',
+            levelOn,
+            () => _mutate(() {
+              _sortBy = _sortBy == SortBy.levelHigh
+                  ? SortBy.levelLow
+                  : SortBy.levelHigh;
+            }),
+          ),
+          word(
+            _sortBy.isStatSort ? _sortBy.shortLabel : 'STATS',
+            _sortBy.isStatSort,
+            () => _mutate(() {
+              _sortBy = _sortBy.nextStatSort(
+                includePotential: hasPotentialAnalyzer,
+              );
+            }),
+          ),
+          word(
+            'STAMINA',
+            _sortBy == SortBy.staminaHigh,
+            () => _mutate(() => _sortBy = SortBy.staminaHigh),
+          ),
+          const Spacer(),
+          word(
+            _filtersOpen ? 'FILTER ▴' : 'FILTER ▾',
+            _filtersOpen || _hasAdvancedFilters || _hasBrowseChipSelection,
+            () => _mutate(() => _filtersOpen = !_filtersOpen),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
@@ -694,129 +808,136 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
             ],
 
             // Top controls
-            Container(
-              padding: const EdgeInsets.only(top: 9, bottom: 3),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    BracketControlChip(
-                      label: _sortBy == SortBy.oldest ? 'OLDEST' : 'NEWEST',
-                      accentColor: widget.theme.primary,
-                      labelFontSize: 10.5,
-                      selected:
-                          _sortBy == SortBy.newest || _sortBy == SortBy.oldest,
-                      onTap: () => _mutate(() {
-                        _sortBy = _sortBy == SortBy.oldest
-                            ? SortBy.newest
-                            : SortBy.oldest;
-                      }),
-                      theme: widget.theme,
-                    ),
-                    BracketControlChip(
-                      label: 'STM ↓',
-                      accentColor: const Color(0xFF34D399),
-                      labelFontSize: 10.5,
-                      selected: _sortBy == SortBy.staminaHigh,
-                      onTap: () => _mutate(() => _sortBy = SortBy.staminaHigh),
-                      theme: widget.theme,
-                    ),
-                    BracketControlChip(
-                      label: _sortBy == SortBy.levelLow ? 'LV ↓' : 'LV ↑',
-                      accentColor: const Color(0xFFFDE047),
-                      labelFontSize: 10.5,
-                      selected:
-                          _sortBy == SortBy.levelHigh ||
-                          _sortBy == SortBy.levelLow,
-                      onTap: () => _mutate(() {
-                        _sortBy = _sortBy == SortBy.levelHigh
-                            ? SortBy.levelLow
-                            : SortBy.levelHigh;
-                      }),
-                      theme: widget.theme,
-                    ),
-                    BracketControlChip(
-                      label: switch (_sortBy) {
-                        _ when _sortBy.isStatSort => '${_sortBy.shortLabel} ↓',
-                        _ => 'STAT',
-                      },
-                      accentColor: switch (_sortBy) {
-                        SortBy.combinedPotential => const Color(0xFF67E8F9),
-                        _ when _sortBy.statFamily == 'intelligence' =>
-                          const Color(0xFFC084FC),
-                        _ when _sortBy.statFamily == 'strength' => const Color(
-                          0xFFF87171,
-                        ),
-                        _ when _sortBy.statFamily == 'beauty' => const Color(
-                          0xFFF9A8D4,
-                        ),
-                        _ when _sortBy.statFamily == 'speed' => const Color(
-                          0xFFFDE047,
-                        ),
-                        _ => widget.theme.textMuted,
-                      },
-                      labelFontSize: 10.5,
-                      selected: _sortBy.isStatSort,
-                      onTap: () => _mutate(() {
-                        _sortBy = _sortBy.nextStatSort(
-                          includePotential: hasPotentialAnalyzer,
-                        );
-                      }),
-                      theme: widget.theme,
-                    ),
-                    BracketControlChip(
-                      label: switch (_detailMode) {
-                        InstanceDetailMode.genetics => 'GENETICS',
-                        InstanceDetailMode.enhancement => 'ENHANCE',
-                        _ => 'STATS',
-                      },
-                      accentColor: switch (_detailMode) {
-                        InstanceDetailMode.genetics => const Color(0xFFC084FC),
-                        InstanceDetailMode.enhancement => const Color(
-                          0xFF38BDF8,
-                        ),
-                        _ => const Color(0xFFFDE047),
-                      },
-                      labelFontSize: 10.5,
-                      selected: true,
-                      onTap: () => _mutate(() {
-                        _detailMode = switch (_detailMode) {
-                          InstanceDetailMode.genetics =>
-                            InstanceDetailMode.stats,
-                          InstanceDetailMode.stats
-                              when widget.allowEnhancementMode =>
-                            InstanceDetailMode.enhancement,
-                          _ => InstanceDetailMode.genetics,
-                        };
-                      }),
-                      theme: widget.theme,
-                    ),
-                    BracketControlChip(
-                      label: 'FILTERS',
-                      accentColor: widget.theme.primary,
-                      labelFontSize: 10.5,
-                      selected: _filtersOpen,
-                      showBracketWhenSelected: true,
-                      trailing: Icon(
-                        _filtersOpen
-                            ? AppIcons.keyboard_arrow_up_rounded
-                            : AppIcons.keyboard_arrow_down_rounded,
-                        size: 12,
-                        color: _filtersOpen
-                            ? widget.theme.primary
-                            : widget.theme.text,
+            if (widget.caseCards)
+              _caseSortRow(hasPotentialAnalyzer)
+            else
+              Container(
+                padding: const EdgeInsets.only(top: 9, bottom: 3),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      BracketControlChip(
+                        label: _sortBy == SortBy.oldest ? 'OLDEST' : 'NEWEST',
+                        accentColor: widget.theme.primary,
+                        labelFontSize: 10.5,
+                        selected:
+                            _sortBy == SortBy.newest ||
+                            _sortBy == SortBy.oldest,
+                        onTap: () => _mutate(() {
+                          _sortBy = _sortBy == SortBy.oldest
+                              ? SortBy.newest
+                              : SortBy.oldest;
+                        }),
+                        theme: widget.theme,
                       ),
-                      onTap: () => _mutate(() {
-                        _filtersOpen = !_filtersOpen;
-                      }),
-                      theme: widget.theme,
-                    ),
-                  ],
+                      BracketControlChip(
+                        label: 'STM ↓',
+                        accentColor: const Color(0xFF34D399),
+                        labelFontSize: 10.5,
+                        selected: _sortBy == SortBy.staminaHigh,
+                        onTap: () =>
+                            _mutate(() => _sortBy = SortBy.staminaHigh),
+                        theme: widget.theme,
+                      ),
+                      BracketControlChip(
+                        label: _sortBy == SortBy.levelLow ? 'LV ↓' : 'LV ↑',
+                        accentColor: const Color(0xFFFDE047),
+                        labelFontSize: 10.5,
+                        selected:
+                            _sortBy == SortBy.levelHigh ||
+                            _sortBy == SortBy.levelLow,
+                        onTap: () => _mutate(() {
+                          _sortBy = _sortBy == SortBy.levelHigh
+                              ? SortBy.levelLow
+                              : SortBy.levelHigh;
+                        }),
+                        theme: widget.theme,
+                      ),
+                      BracketControlChip(
+                        label: switch (_sortBy) {
+                          _ when _sortBy.isStatSort =>
+                            '${_sortBy.shortLabel} ↓',
+                          _ => 'STAT',
+                        },
+                        accentColor: switch (_sortBy) {
+                          SortBy.combinedPotential => const Color(0xFF67E8F9),
+                          _ when _sortBy.statFamily == 'intelligence' =>
+                            const Color(0xFFC084FC),
+                          _ when _sortBy.statFamily == 'strength' =>
+                            const Color(0xFFF87171),
+                          _ when _sortBy.statFamily == 'beauty' => const Color(
+                            0xFFF9A8D4,
+                          ),
+                          _ when _sortBy.statFamily == 'speed' => const Color(
+                            0xFFFDE047,
+                          ),
+                          _ => widget.theme.textMuted,
+                        },
+                        labelFontSize: 10.5,
+                        selected: _sortBy.isStatSort,
+                        onTap: () => _mutate(() {
+                          _sortBy = _sortBy.nextStatSort(
+                            includePotential: hasPotentialAnalyzer,
+                          );
+                        }),
+                        theme: widget.theme,
+                      ),
+                      BracketControlChip(
+                        label: switch (_detailMode) {
+                          InstanceDetailMode.genetics => 'GENETICS',
+                          InstanceDetailMode.enhancement => 'ENHANCE',
+                          _ => 'STATS',
+                        },
+                        accentColor: switch (_detailMode) {
+                          InstanceDetailMode.genetics => const Color(
+                            0xFFC084FC,
+                          ),
+                          InstanceDetailMode.enhancement => const Color(
+                            0xFF38BDF8,
+                          ),
+                          _ => const Color(0xFFFDE047),
+                        },
+                        labelFontSize: 10.5,
+                        selected: true,
+                        onTap: () => _mutate(() {
+                          _detailMode = switch (_detailMode) {
+                            InstanceDetailMode.genetics =>
+                              InstanceDetailMode.stats,
+                            InstanceDetailMode.stats
+                                when widget.allowEnhancementMode =>
+                              InstanceDetailMode.enhancement,
+                            _ => InstanceDetailMode.genetics,
+                          };
+                        }),
+                        theme: widget.theme,
+                      ),
+                      BracketControlChip(
+                        label: 'FILTERS',
+                        accentColor: widget.theme.primary,
+                        labelFontSize: 10.5,
+                        selected: _filtersOpen,
+                        showBracketWhenSelected: true,
+                        trailing: Icon(
+                          _filtersOpen
+                              ? AppIcons.keyboard_arrow_up_rounded
+                              : AppIcons.keyboard_arrow_down_rounded,
+                          size: 12,
+                          color: _filtersOpen
+                              ? widget.theme.primary
+                              : widget.theme.text,
+                        ),
+                        onTap: () => _mutate(() {
+                          _filtersOpen = !_filtersOpen;
+                        }),
+                        theme: widget.theme,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
 
             // Filter panel
             if (_filtersOpen) ...[
@@ -940,15 +1061,25 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       physics: const BouncingScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(10, 8, 10, 24),
                       itemCount: instances.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: responsiveCrossAxisCount(
-                          context,
-                          phoneCols: 2,
-                        ),
-                        childAspectRatio: 1,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
-                      ),
+                      gridDelegate: widget.caseCards
+                          ? SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: responsiveCrossAxisCount(
+                                context,
+                                phoneCols: 3,
+                              ),
+                              childAspectRatio: 0.74,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 10,
+                            )
+                          : SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: responsiveCrossAxisCount(
+                                context,
+                                phoneCols: 2,
+                              ),
+                              childAspectRatio: 1,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                            ),
                       itemBuilder: (_, i) {
                         final inst = instances[i];
                         final creature = repo.getCreatureById(inst.baseId);
@@ -975,6 +1106,25 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                           selectionNumber = index + 1;
                         }
 
+                        if (widget.caseCards) {
+                          return SpecimenCase(
+                            key: ValueKey(inst.instanceId),
+                            species: creature,
+                            instance: inst,
+                            palette: BracketPalette.fromTheme(widget.theme),
+                            isSelected: isSelected,
+                            selectionNumber: selectionNumber,
+                            cornerBadge: widget.cardBadgeBuilder?.call(
+                              inst,
+                              creature,
+                            ),
+                            onTap: () =>
+                                _openOrSelect(inst, creature, instances),
+                            onLongPress: () =>
+                                _longPress(inst, creature, instances),
+                          );
+                        }
+
                         return RepaintBoundary(
                           child: InstanceCard(
                             key: ValueKey(inst.instanceId),
@@ -989,41 +1139,10 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                               inst,
                               creature,
                             ),
-                            onTap: () {
-                              if (widget.selectionMode) {
-                                _handleInstanceTap(inst);
-                              } else if (widget.onTap != null) {
-                                widget.onTap!(inst);
-                              } else {
-                                showQuickInstanceDialog(
-                                  context: context,
-                                  theme: widget.theme,
-                                  creature: creature,
-                                  instance: inst,
-                                  siblings: instances,
-                                );
-                              }
-                            },
-                            onLongPress: () {
-                              if (widget.selectionMode) {
-                                widget.onLongPress?.call();
-                              } else if (widget.onTap != null) {
-                                showQuickInstanceDialog(
-                                  context: context,
-                                  theme: widget.theme,
-                                  creature: creature,
-                                  instance: inst,
-                                  siblings: instances,
-                                );
-                              } else {
-                                CreatureDetailsDialog.show(
-                                  context,
-                                  creature,
-                                  true,
-                                  instanceId: inst.instanceId,
-                                );
-                              }
-                            },
+                            onTap: () =>
+                                _openOrSelect(inst, creature, instances),
+                            onLongPress: () =>
+                                _longPress(inst, creature, instances),
                           ),
                         );
                       },

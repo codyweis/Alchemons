@@ -47,7 +47,6 @@ import 'package:alchemons/games/planet_dungeon/dungeon_debug_party.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/stat_system.dart';
-import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -113,7 +112,7 @@ class CosmicScreen extends StatefulWidget {
 
 /// Panels that a sub-panel can return to when the player backs out.
 ///
-/// The cosmic panels nest — home base → customization lab → chamber picker,
+/// The cosmic panels nest — home base → customization lab → garrison picker,
 /// ship console → party picker — and the same picker is reachable from more
 /// than one parent, so BACK cannot be hardcoded to one destination.
 enum _CosmicPanel { none, home, ship, lab }
@@ -268,7 +267,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   HomeCustomizationState _customizationState = HomeCustomizationState();
   static const _customizationPrefsKey = 'cosmic_home_customization_v1';
   bool _showCustomizationMenu = false;
-  bool _showChamberPicker = false;
   bool _showShipMenu = false;
   bool _showSettingsMenu = false;
   bool _showSandboxPanel = false;
@@ -323,7 +321,6 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   bool get _anyOverlayOpen =>
       _showCustomizationMenu ||
-      _showChamberPicker ||
       _showShipMenu ||
       _showSettingsMenu ||
       _showSandboxPanel ||
@@ -343,7 +340,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// purpose — they exist to show the live world.
   bool get _worldCoveredByPanel =>
       _showCustomizationMenu ||
-      _showChamberPicker ||
       _showShipMenu ||
       _showSettingsMenu ||
       _showHomeMenu ||
@@ -956,7 +952,6 @@ class _CosmicScreenState extends State<CosmicScreen>
         // Restore home planet
         if (_homePlanet != null) {
           game.restoreHomePlanet(_homePlanet!);
-          _initOrbitalChambers();
         }
         _initCosmicParty();
         _initGarrison();
@@ -971,7 +966,6 @@ class _CosmicScreenState extends State<CosmicScreen>
         }
         if (_homePlanet != null) {
           game.restoreHomePlanet(_homePlanet!);
-          _initOrbitalChambers();
         }
         _initCosmicParty();
         _initGarrison();
@@ -986,77 +980,6 @@ class _CosmicScreenState extends State<CosmicScreen>
         unawaited(_runFirstCrossingThenIntro());
       }
     });
-  }
-
-  /// Load creature blob slots and spawn orbital chambers around home planet.
-  Future<void> _initOrbitalChambers() async {
-    if (_game == null || _homePlanet == null || !mounted) return;
-    final db = context.read<AlchemonsDatabase>();
-    final catalog = context.read<CreatureCatalog>();
-
-    // Load unlocked blob slots (1–3)
-    final slots = await db.settingsDao.getBlobSlotsUnlocked();
-    final savedIds = await db.settingsDao.getBlobInstanceSlots();
-
-    final chamberData =
-        <(Color, String?, String?, String?, String?, SpriteVisuals?)>[];
-
-    for (var i = 0; i < slots; i++) {
-      final id = i < savedIds.length ? savedIds[i] : null;
-      if (id != null) {
-        final inst = await db.creatureDao.getInstance(id);
-        if (inst != null) {
-          final base = catalog.getCreatureById(inst.baseId);
-          final typeName = (base?.types.isNotEmpty ?? false)
-              ? base!.types.first
-              : 'Earth';
-          final color = BreedConstants.getTypeColor(typeName);
-          final name = inst.nickname ?? base?.name ?? inst.baseId;
-          final imgPath = base?.image;
-          final visuals = visualsFromInstance(base, inst);
-          chamberData.add((
-            color,
-            inst.instanceId,
-            inst.baseId,
-            name,
-            imgPath,
-            visuals,
-          ));
-          continue;
-        }
-      }
-      // Empty / unassigned slot — tracked for picker but not rendered
-      chamberData.add((
-        Colors.white.withValues(alpha: 0.35),
-        null,
-        null,
-        null,
-        null,
-        null,
-      ));
-    }
-
-    _game!.spawnOrbitalChambers(chamberData);
-  }
-
-  /// Assign a creature instance to an orbital chamber slot.
-  Future<void> _handleAssignChamber(int slotIndex, String instanceId) async {
-    if (!mounted) return;
-    final db = context.read<AlchemonsDatabase>();
-    // Save to blob slot in DB
-    await db.settingsDao.setBlobSlotInstance(slotIndex, instanceId);
-    // Re-init chambers to refresh
-    await _initOrbitalChambers();
-    if (mounted) setState(() {});
-  }
-
-  /// Clear a chamber slot.
-  Future<void> _handleClearChamber(int slotIndex) async {
-    if (!mounted) return;
-    final db = context.read<AlchemonsDatabase>();
-    await db.settingsDao.setBlobSlotInstance(slotIndex, null);
-    await _initOrbitalChambers();
-    if (mounted) setState(() {});
   }
 
   // ── Cosmic Party ──
@@ -4274,7 +4197,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   void _onHomePlanetBuilt(HomePlanet planet) {
     _homePlanet = planet;
     _saveHomePlanet();
-    _initOrbitalChambers();
     if (mounted) {
       final shouldShowTutorial = _awaitingBuildHomeTap;
       _awaitingBuildHomeTap = false;
@@ -6052,7 +5974,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showCustomizationMenu = false;
       _showGarrisonPicker = false;
       _showPartyPicker = false;
-      _showChamberPicker = false;
       _showHomeMenu = false;
       _showShipMenu = false;
       _homePreviewDirty = false;
@@ -6068,7 +5989,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showCustomizationMenu = false;
       _showGarrisonPicker = false;
       _showPartyPicker = false;
-      _showChamberPicker = false;
       _homePreviewDirty = false;
       switch (parent) {
         case _CosmicPanel.home:
@@ -7708,7 +7628,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     // return stack.
     if (_showGarrisonPicker ||
         _showPartyPicker ||
-        _showChamberPicker ||
         _showCustomizationMenu) {
       _closeSubPanel();
       return true;
@@ -8522,10 +8441,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                       await _handleUpgradeCargo();
                       if (mounted) setState(() {});
                     },
-                    onChambers: () => _openSubPanel(_CosmicPanel.lab, () {
-                      _showCustomizationMenu = false;
-                      _showChamberPicker = true;
-                    }),
                     onUpgradePowerUp: _handleUpgradePowerUp,
                     onGarrison: () => _openSubPanel(_CosmicPanel.lab, () {
                       _showCustomizationMenu = false;
@@ -8538,17 +8453,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                     // The lab's stage and effect pictures are the real
                     // home planet, drawn by the game.
                     paintHome: _game?.paintHomeShowcase,
-                  ),
-                ),
-
-              // ── Chamber picker overlay ──
-              if (showCosmicHud && _showChamberPicker)
-                Positioned.fill(
-                  child: ChamberPickerOverlay(
-                    chambers: _game?.orbitalChambers ?? [],
-                    onAssign: _handleAssignChamber,
-                    onClear: _handleClearChamber,
-                    onClose: _closeSubPanel,
                   ),
                 ),
 

@@ -1,39 +1,34 @@
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/creatures_screen.dart
 //
-// The Alchemon Database: every specimen you own (the default view) and the
-// species catalog. Bracket-frame language throughout (bracket_frame.dart,
-// bracket_controls.dart), including its two dialogs (database_dialogs.dart).
-// Public widget APIs (SectionCard, ProgressBar, SearchFieldSolid, etc.) preserved.
+// The Creatures tab (the Alchemon Database): one header — a search field and
+// two tabs — over two views.
 //
+//   SPECIMENS  every Alchemon you own, as lit display cases
+//              (specimen_case.dart, through AllCreatureInstances).
+//   CATALOG    every species as a table, families across and elements down
+//              (species_table.dart). Progress is the table filling in.
+//
+// Its two dialogs live in database_dialogs.dart.
 
 import 'dart:async';
-import 'dart:convert';
-import 'dart:math' as math;
+
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/screens/breeding_milestones_screen.dart';
 import 'package:alchemons/screens/database_dialogs.dart';
 import 'package:alchemons/screens/progress_overview_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
-import 'package:alchemons/widgets/all_specimens_page.dart';
-import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
+import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
-import 'package:alchemons/widgets/creature_image.dart';
-import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/catalog/species_table.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
-import 'package:alchemons/widgets/silhouette_widget.dart';
-import 'package:flame/image_composition.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/utils/responsive_grid.dart';
-import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
@@ -42,25 +37,6 @@ import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import '../models/creature.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
-// ──────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS
-// ──────────────────────────────────────────────────────────────────────────────
-
-// 17 species are Mystic. This listed 'mythic', which no species is, so every
-// Mystic wore Common's grey.
-Color _rarityColor(String rarity) => switch (rarity.toLowerCase()) {
-  'common' => const Color(0xFF6B7280),
-  'uncommon' => const Color(0xFF34D399),
-  'rare' => const Color(0xFF60A5FA),
-  'legendary' => const Color(0xFFF59E0B),
-  'mystic' => const Color(0xFFE879F9),
-  _ => const Color(0xFF6B7280),
-};
-
-// ──────────────────────────────────────────────────────────────────────────────
-// SCREEN STATE
-// ──────────────────────────────────────────────────────────────────────────────
-
 class CreaturesScreen extends StatefulWidget {
   const CreaturesScreen({super.key});
 
@@ -68,8 +44,7 @@ class CreaturesScreen extends StatefulWidget {
   State<CreaturesScreen> createState() => CreaturesScreenState();
 }
 
-class CreaturesScreenState extends State<CreaturesScreen>
-    with SingleTickerProviderStateMixin {
+class CreaturesScreenState extends State<CreaturesScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
 
@@ -83,85 +58,24 @@ class CreaturesScreenState extends State<CreaturesScreen>
   Map<String, int> _instanceCounts = const {};
 
   bool _creaturesTutorialChecked = false;
-  bool _highlightViewSwitch = false;
-  bool _tutorialScheduled = false;
-  bool _showCatalogView = false;
+
+  /// 0 specimens, 1 catalog.
+  int _tab = 0;
+
+  /// The catalog is built the first time it is opened, then kept.
+  bool _catalogBuilt = false;
+
+  String _query = '';
+
+  /// Bumped to clear the specimens' sort, filters and search together.
+  int _clearVersion = 0;
+  bool _specimensResettable = false;
 
   String? _revealCreatureId;
   Timer? _revealClearTimer;
   final ScrollController _catalogScrollCtl = ScrollController();
 
-  /// On the catalog grid sliver, so a reveal can ask the grid where an entry
-  /// *will* be rather than where it currently is on screen.
-  final GlobalKey _catalogGridKey = GlobalKey(debugLabel: 'catalog_grid');
-
-  /// The entries the catalog last laid out, in the order it laid them out.
-  /// A reveal needs the revealed species' row, and only build knows the
-  /// filtered order.
-  List<CreatureEntry> _lastFiltered = const [];
-
-  String _scope = 'Catalogued';
-  String _sort = 'Acquisition Order';
-  bool _isGrid = true;
-  bool _showCounts = true;
-  String _query = '';
-  String? _typeFilter;
-
   late SettingsDao _settings;
-  Timer? _saveTimer;
-
-  static const _prefsKey = 'creatures_screen_prefs_v1';
-
-  Map<String, dynamic> _toPrefs() => {
-    'scope': _scope,
-    'sort': _sort,
-    'isGrid': _isGrid,
-    'showCounts': _showCounts,
-    'query': _query,
-    'typeFilter': _typeFilter,
-  };
-
-  void _fromPrefs(Map<String, dynamic> p) {
-    _scope = (p['scope'] as String?) ?? _scope;
-    _sort = (p['sort'] as String?) ?? _sort;
-    _isGrid = (p['isGrid'] as bool?) ?? _isGrid;
-    _showCounts = (p['showCounts'] as bool?) ?? _showCounts;
-    _query = (p['query'] as String?) ?? _query;
-    _typeFilter = p['typeFilter'] as String?;
-    _searchCtrl.text = _query;
-  }
-
-  void _queueSave() {
-    _saveTimer?.cancel();
-    _saveTimer = Timer(const Duration(milliseconds: 300), () async {
-      await _settings.setSetting(_prefsKey, jsonEncode(_toPrefs()));
-    });
-  }
-
-  void _mutate(VoidCallback fn) {
-    setState(fn);
-    _queueSave();
-  }
-
-  void _cycleScope() {
-    const scopes = ['All', 'Catalogued', 'Unknown'];
-    _mutate(() {
-      _scope = scopes[(scopes.indexOf(_scope) + 1) % scopes.length];
-    });
-  }
-
-  void _cycleSort() {
-    const options = [
-      'Name',
-      'Classification',
-      'Type',
-      'Count',
-      'Acquisition Order',
-    ];
-    _mutate(() {
-      _sort = options[(options.indexOf(_sort) + 1) % options.length];
-    });
-  }
 
   @override
   void initState() {
@@ -176,12 +90,14 @@ class CreaturesScreenState extends State<CreaturesScreen>
     super.didChangeDependencies();
     _settings = context.read<AlchemonsDatabase>().settingsDao;
     _bindInstanceCounts();
-    () async {
-      final raw = await _settings.getSetting(_prefsKey);
-      if (!mounted || raw == null || raw.isEmpty) return;
-      setState(() => _fromPrefs(jsonDecode(raw) as Map<String, dynamic>));
-    }();
-    if (!_tutorialScheduled) _tutorialScheduled = true;
+  }
+
+  void _selectTab(int tab) {
+    unfocusSearch();
+    setState(() {
+      _tab = tab;
+      if (tab == 1) _catalogBuilt = true;
+    });
   }
 
   void _onPendingReveal() {
@@ -189,59 +105,15 @@ class CreaturesScreenState extends State<CreaturesScreen>
     if (id == null || !mounted) return;
     setState(() {
       _revealCreatureId = id;
-      _showCatalogView = true;
+      _tab = 1;
+      _catalogBuilt = true;
     });
-    // Still no scroll-to-TOP — the user's place is worth keeping — but the
-    // revealed entry itself is brought into view. The card flies to that cell,
-    // and it cannot land on something scrolled off the screen.
+    // The user's place is worth keeping, but the revealed cell is brought
+    // into view: the card flies to that cell and cannot land on something
+    // scrolled off the screen. The table builds every cell, so the cell's
+    // own key is enough to find it.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _scrollRevealIntoView(id);
-    });
-    _revealClearTimer?.cancel();
-    _revealClearTimer = Timer(const Duration(milliseconds: 2600), () {
-      if (!mounted) return;
-      NewDiscoveryReveal.instance.pendingRevealCreatureId.value = null;
-      NewDiscoveryReveal.instance.revealTileKey = null;
-      setState(() => _revealCreatureId = null);
-    });
-  }
-
-  /// Bring the revealed species into view before the filing-away card flies
-  /// at it.
-  ///
-  /// Scrollable.ensureVisible cannot do this on its own: a SliverGrid builds
-  /// lazily, so a species that is off screen has no tile, no context, and
-  /// nothing to make visible — the scroll silently did nothing and the card
-  /// fell back to the nav button. The grid delegate, though, knows where every
-  /// index lands whether or not it has been built, so ask it and scroll to the
-  /// offset directly. The tile then builds on the way and the flight retargets
-  /// onto it.
-  void _scrollRevealIntoView(String creatureId) {
-    if (!_catalogScrollCtl.hasClients) return;
-    final position = _catalogScrollCtl.position;
-    final index = _lastFiltered.indexWhere((e) => e.creature.id == creatureId);
-
-    double? target;
-    if (index >= 0) {
-      final sliver = _catalogGridKey.currentContext?.findRenderObject();
-      if (sliver is RenderSliverGrid && sliver.geometry != null) {
-        final constraints = sliver.constraints;
-        final tile = sliver.gridDelegate
-            .getLayout(constraints)
-            .getGeometryForChildIndex(index);
-        // Centre the row, the same framing ensureVisible(alignment: 0.5) gave
-        // when the tile happened to already exist.
-        target =
-            constraints.precedingScrollExtent +
-            tile.scrollOffset -
-            (position.viewportDimension - tile.mainAxisExtent) / 2;
-      }
-    }
-
-    if (target == null) {
-      // List mode, or an entry the current filter hides. Fall back to moving
-      // whatever tile does exist, which is what this used to do.
       final ctx = NewDiscoveryReveal.instance.revealTileKey?.currentContext;
       if (ctx == null) return;
       Scrollable.ensureVisible(
@@ -250,19 +122,14 @@ class CreaturesScreenState extends State<CreaturesScreen>
         curve: Curves.easeOutCubic,
         alignment: 0.5,
       );
-      return;
-    }
-
-    final clamped = target.clamp(
-      position.minScrollExtent,
-      position.maxScrollExtent,
-    );
-    if ((clamped - position.pixels).abs() < 1) return;
-    _catalogScrollCtl.animateTo(
-      clamped,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-    );
+    });
+    _revealClearTimer?.cancel();
+    _revealClearTimer = Timer(const Duration(milliseconds: 2600), () {
+      if (!mounted) return;
+      NewDiscoveryReveal.instance.pendingRevealCreatureId.value = null;
+      NewDiscoveryReveal.instance.revealTileKey = null;
+      setState(() => _revealCreatureId = null);
+    });
   }
 
   void _bindInstanceCounts() {
@@ -303,12 +170,6 @@ class CreaturesScreenState extends State<CreaturesScreen>
 
     if (!mounted) return;
     await _settings.setCreaturesTutorialSeen();
-    if (!mounted) return;
-    setState(() => _highlightViewSwitch = true);
-    Future.delayed(const Duration(seconds: 3), () {
-      if (!mounted) return;
-      setState(() => _highlightViewSwitch = false);
-    });
   }
 
   @override
@@ -319,7 +180,6 @@ class CreaturesScreenState extends State<CreaturesScreen>
     _revealClearTimer?.cancel();
     _catalogScrollCtl.dispose();
     _instanceCountsSub?.cancel();
-    _saveTimer?.cancel();
     _searchCtrl.dispose();
     _searchFocus.dispose();
     _debounce?.cancel();
@@ -341,118 +201,106 @@ class CreaturesScreenState extends State<CreaturesScreen>
             required entries,
             required discovered,
           }) {
-            final total = entries.length;
-            final discoveredCount = discovered.length;
-            final pct = total == 0
-                ? 0.0
-                : (discoveredCount / total).clamp(0.0, 1.0);
-            final ownedCount = _instanceCounts.values.fold<int>(
-              0,
-              (sum, count) => sum + count,
-            );
+            final palette = BracketPalette.fromTheme(theme);
+            final accent = bracketReadableAccent(theme);
+            final owned = _instanceCounts.values.fold<int>(0, (a, b) => a + b);
 
-            final filtered = _filterAndSort(entries, _instanceCounts);
-            _lastFiltered = filtered;
-
-            if (!_showCatalogView) {
-              return AllSpecimensPage(
-                theme: theme,
-                instancePrefsScopeKey: 'creatures_all_specimens',
-                showFloatingCloseButton: false,
-                leadingIcon: AppIcons.category_rounded,
-                leadingTooltip: 'Species Catalog',
-                leadingHighlighted: _highlightViewSwitch,
-                onLeadingTap: () {
-                  unfocusSearch();
-                  setState(() => _showCatalogView = true);
-                },
-                onInstanceTap: (inst) {
-                  final creature = context
-                      .read<CreatureCatalog>()
-                      .getCreatureById(inst.baseId);
-                  if (creature != null) {
-                    _openDetailsForInstance(creature, inst);
-                  }
-                },
-              );
-            }
-
-            return ParticleBackgroundScaffold(
-              whiteBackground: theme.brightness == Brightness.light,
-              body: Scaffold(
-                backgroundColor: Colors.transparent,
-                body: SafeArea(
-                  child: CustomScrollView(
-                    controller: _catalogScrollCtl,
-                    physics: const BouncingScrollPhysics(
-                      parent: AlwaysScrollableScrollPhysics(),
-                    ),
-                    slivers: [
-                      _SolidHeader(
-                        theme: theme,
+            return Scaffold(
+              backgroundColor: palette.bg1,
+              body: SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                      child: _SearchBar(
+                        palette: palette,
+                        accent: accent,
                         controller: _searchCtrl,
                         focusNode: _searchFocus,
-                        onQueryChanged: _onQueryChanged,
-                        highlightAllInstances: _highlightViewSwitch,
-                        onOpenAllInstances: () {
-                          unfocusSearch();
-                          setState(() => _showCatalogView = false);
+                        hint: _tab == 0
+                            ? 'Search your specimens'
+                            : 'Search found species',
+                        onChanged: _onQueryChanged,
+                        showReset: _tab == 0 && _specimensResettable,
+                        onReset: () {
+                          _searchCtrl.clear();
+                          setState(() {
+                            _query = '';
+                            _clearVersion++;
+                          });
                         },
                       ),
-                      SliverToBoxAdapter(
-                        child: _StatsHeaderSolid(
-                          theme: theme,
-                          percent: pct,
-                          discovered: discoveredCount,
-                          total: total,
-                          ownedCount: ownedCount,
-                        ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+                      child: BracketTabs(
+                        labels: [
+                          'SPECIMENS  $owned',
+                          'CATALOG  ${discovered.length}/${entries.length}',
+                        ],
+                        selected: _tab,
+                        onSelect: _selectTab,
+                        palette: palette,
+                        accent: accent,
                       ),
-                      SliverToBoxAdapter(
-                        child: _FilterBarSolid(
-                          theme: theme,
-                          scope: _scope,
-                          sort: _sort,
-                          isGrid: _isGrid,
-                          showCounts: _showCounts,
-                          onScopeChanged: _cycleScope,
-                          onSortTap: _cycleSort,
-                          onToggleView: () => _mutate(() => _isGrid = !_isGrid),
-                          onToggleCounts: () =>
-                              _mutate(() => _showCounts = !_showCounts),
-                        ),
-                      ),
-                      if (filtered.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _EmptyState(theme: theme),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(1, 0, 1, 16),
-                          sliver: _isGrid
-                              ? _CreatureGrid(
-                                  key: _catalogGridKey,
-                                  theme: theme,
-                                  creatures: filtered,
-                                  showCounts: _showCounts,
-                                  instanceCounts: _instanceCounts,
-                                  revealCreatureId: _revealCreatureId,
-                                  onTap: (c, isDiscovered) =>
-                                      _handleTap(c, isDiscovered, theme),
-                                )
-                              : _CreatureList(
-                                  theme: theme,
-                                  creatures: filtered,
-                                  showCounts: _showCounts,
-                                  instanceCounts: _instanceCounts,
-                                  revealCreatureId: _revealCreatureId,
-                                  onTap: (c, isDiscovered) =>
-                                      _handleTap(c, isDiscovered, theme),
+                    ),
+                    Expanded(
+                      child: IndexedStack(
+                        index: _tab,
+                        children: [
+                          TickerMode(
+                            enabled: _tab == 0,
+                            child: AllCreatureInstances(
+                              theme: theme,
+                              caseCards: true,
+                              prefsScopeKey: 'creatures_all_specimens',
+                              searchTextOverride: _query,
+                              showInternalSearchBar: false,
+                              clearVersion: _clearVersion,
+                              onResettableStateChanged: (value) {
+                                if (!mounted || _specimensResettable == value) {
+                                  return;
+                                }
+                                setState(() => _specimensResettable = value);
+                              },
+                              onTap: (inst) {
+                                final creature = context
+                                    .read<CreatureCatalog>()
+                                    .getCreatureById(inst.baseId);
+                                if (creature != null) {
+                                  _openDetailsForInstance(creature, inst);
+                                }
+                              },
+                            ),
+                          ),
+                          if (_catalogBuilt)
+                            TickerMode(
+                              enabled: _tab == 1,
+                              child: SpeciesTable(
+                                entries: entries,
+                                counts: _instanceCounts,
+                                palette: palette,
+                                query: _query,
+                                revealCreatureId: _revealCreatureId,
+                                controller: _catalogScrollCtl,
+                                onTap: (c, isDiscovered) =>
+                                    _handleTap(c, isDiscovered, theme),
+                                onOpenProgress: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ConstellationProgressOverviewScreen(),
+                                  ),
                                 ),
-                        ),
-                    ],
-                  ),
+                              ),
+                            )
+                          else
+                            const SizedBox(),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -460,12 +308,13 @@ class CreaturesScreenState extends State<CreaturesScreen>
     );
   }
 
-  // ── LOGIC (unchanged) ──────────────────────────────────────────────────────
+  // ── LOGIC ──────────────────────────────────────────────────────────────────
 
   void _onQueryChanged(String text) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 220), () {
-      _mutate(() => _query = text.trim());
+      if (!mounted) return;
+      setState(() => _query = text.trim());
     });
   }
 
@@ -474,73 +323,9 @@ class CreaturesScreenState extends State<CreaturesScreen>
     if (isDiscovered) {
       _showInstancesSheet(species, theme);
     } else {
-      _showSilhouettePopup(species, theme);
+      showUnknownSpeciesDialog(context, theme, species);
     }
   }
-
-  void _showSilhouettePopup(Creature species, FactionTheme theme) =>
-      showUnknownSpeciesDialog(context, theme, species);
-
-  List<CreatureEntry> _filterAndSort(
-    List<CreatureEntry> all,
-    Map<String, int> instanceCounts,
-  ) {
-    final scoped = all.where((m) {
-      final isDiscovered = m.player.discovered == true;
-      return switch (_scope) {
-        'Catalogued' => isDiscovered,
-        'Unknown' => !isDiscovered,
-        _ => true,
-      };
-    });
-    final q = _query.toLowerCase();
-    final searched = q.isEmpty
-        ? scoped
-        : scoped.where((m) {
-            final c = m.creature;
-            return c.id.toLowerCase().contains(q) ||
-                c.name.toLowerCase().contains(q) ||
-                c.types.any((t) => t.toLowerCase().contains(q)) ||
-                c.rarity.toLowerCase().contains(q);
-          });
-    final list = searched.toList();
-    list.sort((a, b) {
-      final A = a.creature;
-      final B = b.creature;
-      return switch (_sort) {
-        'Name' => A.name.compareTo(B.name),
-        'Classification' => _rarityRank(
-          A.rarity,
-        ).compareTo(_rarityRank(B.rarity)),
-        'Type' => A.types.first.compareTo(B.types.first),
-        'Count' => () {
-          final diff = (instanceCounts[B.id] ?? 0).compareTo(
-            instanceCounts[A.id] ?? 0,
-          );
-          return diff != 0 ? diff : A.name.compareTo(B.name);
-        }(),
-        'Acquisition Order' => () {
-          final ad = a.player.discovered == true;
-          final bd = b.player.discovered == true;
-          if (ad && !bd) return -1;
-          if (!ad && bd) return 1;
-          return A.name.compareTo(B.name);
-        }(),
-        _ => 0,
-      };
-    });
-    return list;
-  }
-
-  int _rarityRank(String rarity) => switch (rarity.toLowerCase()) {
-    'common' => 0,
-    'uncommon' => 1,
-    'rare' => 2,
-    'mythic' => 3,
-    'legendary' => 4,
-    'mystic' => 5,
-    _ => 0,
-  };
 
   void _showInstancesSheet(Creature species, FactionTheme theme) {
     unfocusSearch();
@@ -603,1514 +388,136 @@ class CreaturesScreenState extends State<CreaturesScreen>
 // HEADER
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _SolidHeader extends StatelessWidget {
-  final FactionTheme theme;
-  final TextEditingController controller;
-  final FocusNode? focusNode;
-  final ValueChanged<String> onQueryChanged;
-  final bool highlightAllInstances;
-  final VoidCallback onOpenAllInstances;
-
-  const _SolidHeader({
-    required this.theme,
+class _SearchBar extends StatefulWidget {
+  const _SearchBar({
+    required this.palette,
+    required this.accent,
     required this.controller,
-    this.focusNode,
-    required this.onQueryChanged,
-    required this.onOpenAllInstances,
-    this.highlightAllInstances = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(theme);
-    return SliverAppBar(
-      pinned: false,
-      elevation: 0,
-      backgroundColor: Colors.transparent,
-      automaticallyImplyLeading: false,
-      toolbarHeight: 68,
-      flexibleSpace: Container(
-        decoration: BoxDecoration(
-          color: palette.bg0,
-          border: Border(
-            bottom: BorderSide(color: palette.line.withValues(alpha: 0.5)),
-          ),
-        ),
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        child: Row(
-          children: [
-            _HeaderIconSquare(
-              icon: AppIcons.grid_view_rounded,
-              palette: palette,
-              accent: highlightAllInstances ? theme.accent : theme.accentSoft,
-              highlighted: highlightAllInstances,
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onOpenAllInstances();
-              },
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _HeaderSearchField(
-                theme: theme,
-                controller: controller,
-                focusNode: focusNode,
-                onChanged: onQueryChanged,
-              ),
-            ),
-            const SizedBox(width: 10),
-            _HeaderIconSquare(
-              icon: AppIcons.show_chart_rounded,
-              palette: palette,
-              accent: theme.accentSoft,
-              highlighted: true,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ConstellationProgressOverviewScreen(),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HeaderSearchField extends StatefulWidget {
-  final FactionTheme theme;
-  final TextEditingController controller;
-  final FocusNode? focusNode;
-  final ValueChanged<String> onChanged;
-
-  const _HeaderSearchField({
-    required this.theme,
-    required this.controller,
-    this.focusNode,
+    required this.focusNode,
+    required this.hint,
     required this.onChanged,
+    required this.showReset,
+    required this.onReset,
   });
 
+  final BracketPalette palette;
+  final Color accent;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String hint;
+  final ValueChanged<String> onChanged;
+  final bool showReset;
+  final VoidCallback onReset;
+
   @override
-  State<_HeaderSearchField> createState() => _HeaderSearchFieldState();
+  State<_SearchBar> createState() => _SearchBarState();
 }
 
-class _HeaderSearchFieldState extends State<_HeaderSearchField> {
+class _SearchBarState extends State<_SearchBar> {
   @override
   void initState() {
     super.initState();
-    widget.controller.addListener(_onTextChanged);
-  }
-
-  @override
-  void didUpdateWidget(covariant _HeaderSearchField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller == widget.controller) return;
-    oldWidget.controller.removeListener(_onTextChanged);
-    widget.controller.addListener(_onTextChanged);
+    widget.controller.addListener(_onText);
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_onTextChanged);
+    widget.controller.removeListener(_onText);
     super.dispose();
   }
 
-  void _onTextChanged() {
+  void _onText() {
     if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(widget.theme);
-    final activeAccent = bracketReadableAccent(widget.theme);
-    final hasQuery = widget.controller.text.trim().isNotEmpty;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: context.soundAction(() => widget.focusNode?.requestFocus()),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(width: 6, height: 6, color: widget.theme.accent),
-              const SizedBox(width: 7),
-              Expanded(
-                child: TextField(
-                  controller: widget.controller,
-                  focusNode: widget.focusNode,
-                  onChanged: widget.onChanged,
-                  cursorColor: activeAccent,
-                  style: bracketText(
-                    context,
-                    15,
-                    palette.ink,
-                    weight: FontWeight.w700,
-                    letterSpacing: 0.4,
-                  ),
-                  decoration: InputDecoration(
-                    isCollapsed: true,
-                    border: InputBorder.none,
-                    hintText: 'Alchemon Database',
-                    hintStyle: bracketText(
-                      context,
-                      15,
-                      palette.ink,
-                      weight: FontWeight.w700,
-                      letterSpacing: 0.4,
+    final palette = widget.palette;
+    final hasText = widget.controller.text.isNotEmpty;
+    final style = TextStyle(
+      fontFamily: 'monospace',
+      fontSize: 12.5,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.4,
+      color: palette.ink,
+    );
+    return Row(
+      children: [
+        Expanded(
+          child: CustomPaint(
+            foregroundPainter: BracketFramePainter(
+              color: palette.line.withValues(alpha: 0.6),
+              bracketSize: 8,
+            ),
+            child: Container(
+              height: 40,
+              color: palette.chromeMutedFill(),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Icon(AppIcons.search_rounded, size: 15, color: palette.muted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: widget.focusNode,
+                      onChanged: widget.onChanged,
+                      cursorColor: widget.accent,
+                      style: style,
+                      decoration: InputDecoration(
+                        isCollapsed: true,
+                        border: InputBorder.none,
+                        hintText: widget.hint,
+                        hintStyle: style.copyWith(color: palette.muted),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              if (hasQuery) ...[
-                const SizedBox(width: 6),
-                GestureDetector(
-                  onTap: context.soundAction(() {
-                    widget.controller.clear();
-                    widget.onChanged('');
-                    widget.focusNode?.requestFocus();
-                  }),
-                  child: Icon(
-                    AppIcons.close_rounded,
-                    size: 16,
-                    color: palette.muted,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            hasQuery
-                ? 'Searching specimen records'
-                : 'Specimen cataloguing system',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: bracketText(
-              context,
-              11.5,
-              palette.muted,
-              weight: FontWeight.w500,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderIconSquare extends StatelessWidget {
-  const _HeaderIconSquare({
-    required this.icon,
-    required this.palette,
-    required this.accent,
-    required this.onTap,
-    this.highlighted = false,
-  });
-
-  final IconData icon;
-  final BracketPalette palette;
-  final Color accent;
-  final VoidCallback onTap;
-  final bool highlighted;
-
-  @override
-  Widget build(BuildContext context) {
-    final frameAccent = highlighted
-        ? bracketReadableAccent(context.read<FactionTheme>(), color: accent)
-        : palette.muted;
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: highlighted
-              ? frameAccent
-              : palette.line.withValues(alpha: 0.6),
-          bracketSize: 7,
-          strokeWidth: highlighted ? 1.2 : 1.0,
-        ),
-        child: Container(
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          color: highlighted
-              ? palette.accentWash(frameAccent)
-              : palette.surfaceMutedFill(),
-          child: Icon(
-            icon,
-            size: 17,
-            color: highlighted ? frameAccent : palette.muted,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// STATS HEADER
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _StatsHeaderSolid extends StatefulWidget {
-  final FactionTheme theme;
-  final double percent;
-  final int discovered;
-  final int total;
-  final int ownedCount;
-  const _StatsHeaderSolid({
-    required this.theme,
-    required this.percent,
-    required this.discovered,
-    required this.total,
-    required this.ownedCount,
-  });
-
-  @override
-  State<_StatsHeaderSolid> createState() => _StatsHeaderSolidState();
-}
-
-class _StatsHeaderSolidState extends State<_StatsHeaderSolid> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(widget.theme);
-    final activeAccent = bracketReadableAccent(widget.theme);
-    final db = context.read<AlchemonsDatabase>();
-    final remaining = math.max(0, widget.total - widget.discovered);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: palette.line.withValues(alpha: 0.85),
-          bracketSize: 10,
-          strokeWidth: 1.05,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: context.soundAction(() {
-              HapticFeedback.selectionClick();
-              setState(() => _expanded = !_expanded);
-            }),
-            child: AnimatedSize(
-              duration: const Duration(milliseconds: 240),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              child: Container(
-                color: palette.surfaceFill(),
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 54,
-                          height: 54,
-                          child: CustomPaint(
-                            painter: _ArcPainter(
-                              progress: widget.percent,
-                              color: activeAccent,
-                              trackColor: palette.lineSoft,
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${widget.discovered}',
-                                style: bracketText(
-                                  context,
-                                  15,
-                                  palette.ink,
-                                  weight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ),
+                  if (hasText)
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: context.soundAction(() {
+                        widget.controller.clear();
+                        widget.onChanged('');
+                      }),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Icon(
+                          AppIcons.close_rounded,
+                          size: 14,
+                          color: palette.muted,
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'Discovery progress',
-                                    style: bracketText(
-                                      context,
-                                      12,
-                                      palette.muted,
-                                      weight: FontWeight.w700,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    '${widget.discovered} / ${widget.total}',
-                                    style: bracketText(
-                                      context,
-                                      12.5,
-                                      palette.ink,
-                                      weight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              ProgressBar(
-                                theme: widget.theme,
-                                value: widget.percent,
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Text(
-                                    _expanded
-                                        ? 'Tap to hide extended stats'
-                                        : 'Tap to expand extended stats',
-                                    style: bracketText(
-                                      context,
-                                      11.5,
-                                      palette.muted,
-                                      weight: FontWeight.w500,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  AnimatedRotation(
-                                    turns: _expanded ? 0.5 : 0.0,
-                                    duration: const Duration(milliseconds: 240),
-                                    curve: Curves.easeOutCubic,
-                                    child: Icon(
-                                      AppIcons.keyboard_arrow_down_rounded,
-                                      color: palette.muted,
-                                      size: 18,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                    if (_expanded) ...[
-                      const SizedBox(height: 14),
-                      Container(height: 1, color: palette.lineSoft),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _ExpandedStatTile(
-                              theme: widget.theme,
-                              label: 'Current specimens',
-                              value: '${widget.ownedCount}',
-                              accent: widget.theme.accentSoft,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _ExpandedStatTile(
-                              theme: widget.theme,
-                              label: 'Remaining unknown',
-                              value: '$remaining',
-                              accent: palette.muted,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: StreamBuilder<int>(
-                              stream: db.constellationDao.watchTotalBredCount(),
-                              initialData: 0,
-                              builder: (context, snapshot) {
-                                return _ExpandedStatTile(
-                                  theme: widget.theme,
-                                  label: 'Total alchemons bred',
-                                  value: '${snapshot.data ?? 0}',
-                                  accent: widget.theme.secondary,
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: StreamBuilder<int>(
-                              stream: db.creatureDao
-                                  .watchPrismaticInstanceCount(),
-                              initialData: 0,
-                              builder: (context, snapshot) {
-                                return _ExpandedStatTile(
-                                  theme: widget.theme,
-                                  label: 'Current prismatics',
-                                  value: '${snapshot.data ?? 0}',
-                                  accent: const Color(0xFFE879F9),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
+                ],
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ExpandedStatTile extends StatelessWidget {
-  final FactionTheme theme;
-  final String label;
-  final String value;
-  final Color accent;
-
-  const _ExpandedStatTile({
-    required this.theme,
-    required this.label,
-    required this.value,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(theme);
-    final displayAccent = bracketReadableAccent(theme, color: accent);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-      decoration: BoxDecoration(
-        color: palette.chromeMutedFill(),
-        border: Border(left: BorderSide(color: displayAccent, width: 2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: bracketText(
-              context,
-              10.5,
-              palette.muted,
-              weight: FontWeight.w700,
-              letterSpacing: 0.6,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: bracketText(
-              context,
-              17,
-              palette.ink,
-              weight: FontWeight.w800,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// FILTER BAR
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _FilterBarSolid extends StatelessWidget {
-  final FactionTheme theme;
-  final String scope;
-  final String sort;
-  final bool isGrid;
-  final bool showCounts;
-  final VoidCallback onScopeChanged;
-  final VoidCallback onSortTap;
-  final VoidCallback onToggleView;
-  final VoidCallback onToggleCounts;
-
-  const _FilterBarSolid({
-    required this.theme,
-    required this.scope,
-    required this.sort,
-    required this.isGrid,
-    required this.showCounts,
-    required this.onScopeChanged,
-    required this.onSortTap,
-    required this.onToggleView,
-    required this.onToggleCounts,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-      child: Row(
-        children: [
-          PillButton(
-            theme: theme,
-            label: scope,
-            icon: AppIcons.filter_list_rounded,
-            onTap: context.soundTap(onScopeChanged),
-          ),
-          const SizedBox(width: 6),
-          IconButtonSolid(
-            theme: theme,
-            icon: showCounts
-                ? AppIcons.numbers_rounded
-                : AppIcons.numbers_outlined,
-            onTap: context.soundTap(onToggleCounts),
-          ),
-          const SizedBox(width: 6),
-          IconButtonSolid(
-            theme: theme,
-            icon: isGrid
-                ? AppIcons.view_list_rounded
-                : AppIcons.grid_view_rounded,
-            onTap: context.soundTap(onToggleView),
-          ),
-          const SizedBox(width: 6),
-          IconButtonSolid(
-            theme: theme,
-            icon: AppIcons.sort_rounded,
-            onTap: context.soundTap(onSortTap),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// GRID / LIST
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _CreatureGrid extends StatelessWidget {
-  final FactionTheme theme;
-  final List<CreatureEntry> creatures;
-  final bool showCounts;
-  final Map<String, int> instanceCounts;
-  final void Function(Creature, bool) onTap;
-  final String? revealCreatureId;
-  const _CreatureGrid({
-    super.key,
-    required this.theme,
-    required this.creatures,
-    required this.showCounts,
-    required this.instanceCounts,
-    required this.onTap,
-    this.revealCreatureId,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SliverGrid(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: responsiveCrossAxisCount(context),
-        crossAxisSpacing: 1,
-        mainAxisSpacing: 1,
-        childAspectRatio: .88,
-      ),
-      delegate: SliverChildBuilderDelegate((ctx, i) {
-        final data = creatures[i];
-        final c = data.creature;
-        final isDiscovered = data.player.discovered == true;
-        final isRevealing = revealCreatureId == c.id;
-        // Keyed so the filing-away card can find this exact cell and land on
-        // it, instead of stopping at the tab button.
-        if (isRevealing) {
-          NewDiscoveryReveal.instance.revealTileKey ??= GlobalKey(
-            debugLabel: 'reveal-tile-${c.id}',
-          );
-        }
-        final card = _CreatureCard(
-          key: ValueKey<String>('species:${c.id}'),
-          theme: theme,
-          c: c,
-          discovered: isDiscovered,
-          instanceCount: instanceCounts[c.id] ?? 0,
-          showCount: showCounts,
-          onTap: context.soundTap(() => onTap(c, isDiscovered)),
-        );
-        if (!isRevealing) return card;
-        return _RevealPulse(
-          key: NewDiscoveryReveal.instance.revealTileKey,
-          theme: theme,
-          child: card,
-        );
-      }, childCount: creatures.length),
-    );
-  }
-}
-
-class _CreatureList extends StatelessWidget {
-  final FactionTheme theme;
-  final List<CreatureEntry> creatures;
-  final bool showCounts;
-  final Map<String, int> instanceCounts;
-  final void Function(Creature, bool) onTap;
-  final String? revealCreatureId;
-  const _CreatureList({
-    required this.theme,
-    required this.creatures,
-    required this.showCounts,
-    required this.instanceCounts,
-    required this.onTap,
-    this.revealCreatureId,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SliverList(
-      delegate: SliverChildBuilderDelegate((ctx, i) {
-        final data = creatures[i];
-        final c = data.creature;
-        final isDiscovered = data.player.discovered == true;
-        final isRevealing = revealCreatureId == c.id;
-        final row = Padding(
-          padding: const EdgeInsets.only(bottom: 1),
-          child: _CreatureRow(
-            key: ValueKey<String>('species:${c.id}'),
-            theme: theme,
-            c: c,
-            discovered: isDiscovered,
-            instanceCount: instanceCounts[c.id] ?? 0,
-            showCount: showCounts,
-            onTap: context.soundTap(() => onTap(c, isDiscovered)),
-          ),
-        );
-        if (!isRevealing) return row;
-        return _RevealPulse(theme: theme, child: row);
-      }, childCount: creatures.length),
-    );
-  }
-}
-
-class _CreatureCard extends StatelessWidget {
-  final FactionTheme theme;
-  final Creature c;
-  final bool discovered;
-  final int instanceCount;
-  final bool showCount;
-  final VoidCallback onTap;
-  const _CreatureCard({
-    super.key,
-    required this.theme,
-    required this.c,
-    required this.discovered,
-    required this.instanceCount,
-    required this.showCount,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(theme);
-    final spriteData = c.spriteData;
-
-    return Padding(
-      padding: const EdgeInsets.all(4),
-      child: GestureDetector(
-        onTap: context.soundAction(onTap),
-        child: CustomPaint(
-          painter: BracketFramePainter(
-            color: palette.line.withValues(alpha: 0.75),
-            bracketSize: 9,
-            strokeWidth: 1.05,
-          ),
-          child: Container(
-            color: palette.surfaceMutedFill(),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Center(
-                          child: Silhouette(
-                            enabled: !discovered,
-                            child: RepaintBoundary(
-                              child: spriteData != null
-                                  ? CreatureSprite(
-                                      spritePath: spriteData.spriteSheetPath,
-                                      totalFrames: spriteData.totalFrames,
-                                      rows: spriteData.rows,
-                                      frameSize: Vector2(
-                                        spriteData.frameWidth.toDouble(),
-                                        spriteData.frameHeight.toDouble(),
-                                      ),
-                                      stepTime:
-                                          spriteData.frameDurationMs / 1000.0,
-                                    )
-                                  : CreatureImage(
-                                      c: c,
-                                      discovered: discovered,
-                                      rounded: 3,
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        discovered ? c.name : 'Unknown',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: bracketText(
-                          context,
-                          13,
-                          discovered ? palette.ink : palette.muted,
-                          weight: FontWeight.w700,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      _RarityPill(rarity: discovered ? c.rarity : 'CLASS ?'),
-                    ],
-                  ),
-                ),
-                if (showCount && discovered && instanceCount > 0)
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: _CountBadge(theme: theme, count: instanceCount),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CreatureRow extends StatelessWidget {
-  final FactionTheme theme;
-  final Creature c;
-  final bool discovered;
-  final int instanceCount;
-  final bool showCount;
-  final VoidCallback onTap;
-  const _CreatureRow({
-    super.key,
-    required this.theme,
-    required this.c,
-    required this.discovered,
-    required this.instanceCount,
-    required this.showCount,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(theme);
-    final spriteData = c.spriteData;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
-      child: GestureDetector(
-        onTap: context.soundAction(onTap),
-        child: CustomPaint(
-          painter: BracketFramePainter(
-            color: palette.line.withValues(alpha: 0.75),
-            bracketSize: 9,
-            strokeWidth: 1.05,
-          ),
-          child: Container(
-            color: palette.surfaceMutedFill(),
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 50,
-                  height: 50,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned.fill(
-                        child: Center(
-                          child: Silhouette(
-                            enabled: !discovered,
-                            child: RepaintBoundary(
-                              child: spriteData != null
-                                  ? CreatureSprite(
-                                      spritePath: spriteData.spriteSheetPath,
-                                      totalFrames: spriteData.totalFrames,
-                                      rows: spriteData.rows,
-                                      frameSize: Vector2(
-                                        spriteData.frameWidth.toDouble(),
-                                        spriteData.frameHeight.toDouble(),
-                                      ),
-                                      stepTime:
-                                          spriteData.frameDurationMs / 1000.0,
-                                    )
-                                  : CreatureImage(
-                                      c: c,
-                                      discovered: discovered,
-                                      rounded: 3,
-                                      size: 42,
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (showCount && discovered && instanceCount > 0)
-                        Positioned(
-                          top: -4,
-                          right: -4,
-                          child: _CountBadge(
-                            theme: theme,
-                            count: instanceCount,
-                            small: true,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        discovered ? c.name : 'Unknown specimen',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: bracketText(
-                          context,
-                          14,
-                          discovered ? palette.ink : palette.muted,
-                          weight: FontWeight.w700,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      if (discovered)
-                        Wrap(
-                          spacing: 5,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            ...c.types.take(2).map((t) => _TypeTiny(label: t)),
-                            _RarityPill(rarity: c.rarity, small: true),
-                          ],
-                        )
-                      else
-                        Text(
-                          ', ',
-                          style: bracketText(
-                            context,
-                            12,
-                            palette.muted,
-                            weight: FontWeight.w500,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  AppIcons.chevron_right_rounded,
-                  color: palette.muted,
-                  size: 18,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// PUBLIC SHARED WIDGETS
-// ──────────────────────────────────────────────────────────────────────────────
-
-/// Section card — thin wrapper used by filter bar + stats header.
-class SectionCard extends StatelessWidget {
-  final FactionTheme theme;
-  final EdgeInsets padding;
-  final Widget child;
-  final bool elevated;
-  const SectionCard({
-    super.key,
-    required this.theme,
-    required this.child,
-    this.padding = const EdgeInsets.all(12),
-    this.elevated = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    final surfaceColor = elevated
-        ? (t.isDark ? const Color(0xFF171C26) : Colors.white)
-        : t.bg1;
-    final surfaceBorder = elevated
-        ? (t.isDark
-              ? t.borderMid.withValues(alpha: 0.9)
-              : Colors.black.withValues(alpha: 0.08))
-        : Colors.transparent;
-    final surfaceShadow = elevated && !t.isDark
-        ? [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ]
-        : const <BoxShadow>[];
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(5, 6, 5, 4),
-      child: Container(
-        padding: padding,
-        decoration: BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.circular(elevated ? 8 : 0),
-          border: Border.all(color: surfaceBorder),
-          boxShadow: surfaceShadow,
-        ),
-        child: child,
-      ),
-    );
-  }
-}
-
-/// Slim progress bar — amber fill by default.
-class ProgressBar extends StatelessWidget {
-  final FactionTheme theme;
-  final double value;
-  const ProgressBar({super.key, required this.theme, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(theme);
-    final activeAccent = bracketReadableAccent(theme);
-    final v = value.clamp(0.0, 1.0);
-    return SizedBox(
-      height: 5,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          double w = constraints.maxWidth * v;
-          if (v > 0 && w < 2) w = 2;
-          return Stack(
-            children: [
-              Positioned.fill(child: Container(color: palette.lineSoft)),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Container(width: w, height: 5, color: activeAccent),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Search field.
-class SearchFieldSolid extends StatelessWidget {
-  final FactionTheme theme;
-  final TextEditingController controller;
-  final FocusNode? focusNode;
-  final String hint;
-  final ValueChanged<String> onChanged;
-  const SearchFieldSolid({
-    super.key,
-    required this.theme,
-    required this.controller,
-    this.focusNode,
-    required this.hint,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(theme);
-    final activeAccent = bracketReadableAccent(theme);
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: palette.line.withValues(alpha: 0.7),
-        bracketSize: 8,
-        strokeWidth: 1.05,
-      ),
-      child: Container(
-        height: 40,
-        color: palette.surfaceMutedFill(),
-        child: Row(
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: Icon(
-                AppIcons.search_rounded,
-                color: palette.muted,
-                size: 16,
-              ),
-            ),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                onChanged: onChanged,
-                cursorColor: activeAccent,
-                style: bracketText(
-                  context,
-                  13,
-                  palette.ink,
-                  weight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                ),
-                decoration: InputDecoration(
-                  hintText: hint,
-                  hintStyle: bracketText(
-                    context,
-                    13,
-                    palette.muted,
-                    weight: FontWeight.w600,
-                    letterSpacing: 0.2,
-                  ),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 0,
-                  ),
-                ),
-              ),
-            ),
-            if (controller.text.isNotEmpty)
-              GestureDetector(
-                onTap: context.soundAction(() {
-                  controller.clear();
-                  onChanged('');
-                }),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Icon(
-                    AppIcons.close_rounded,
-                    color: palette.muted,
-                    size: 14,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Icon-only button.
-class IconButtonSolid extends StatelessWidget {
-  final FactionTheme theme;
-  final IconData icon;
-  final VoidCallback onTap;
-  const IconButtonSolid({
-    super.key,
-    required this.theme,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(theme);
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: palette.line.withValues(alpha: 0.65),
-          bracketSize: 7,
-          strokeWidth: 1,
-        ),
-        child: Container(
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          color: palette.surfaceMutedFill(),
-          child: Icon(icon, color: palette.muted, size: 16),
-        ),
-      ),
-    );
-  }
-}
-
-/// Pill button (scope toggle etc).
-class PillButton extends StatelessWidget {
-  final FactionTheme theme;
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  const PillButton({
-    super.key,
-    required this.theme,
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(theme);
-    final activeAccent = bracketReadableAccent(theme);
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: activeAccent,
-          bracketSize: 7,
-          strokeWidth: 1.2,
-        ),
-        child: Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          color: palette.accentWash(theme.accent),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 13, color: activeAccent),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: bracketText(
-                  context,
-                  12.5,
-                  palette.ink,
-                  weight: FontWeight.w700,
-                  letterSpacing: 0.4,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// SMALL PRIVATE WIDGETS
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _CountBadge extends StatelessWidget {
-  final int count;
-  final bool small;
-  final FactionTheme theme;
-  const _CountBadge({
-    required this.count,
-    required this.theme,
-    this.small = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(theme);
-    final activeAccent = bracketReadableAccent(theme);
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: small ? 5 : 6, vertical: 2),
-      color: activeAccent,
-      child: Text(
-        '$count',
-        style: bracketText(
-          context,
-          small ? 10 : 11,
-          palette.bg0,
-          weight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
-class _RarityPill extends StatelessWidget {
-  final String rarity;
-  final bool small;
-  const _RarityPill({required this.rarity, this.small = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _rarityColor(rarity);
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: small ? 6 : 8,
-        vertical: small ? 2 : 3,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        border: Border(left: BorderSide(color: color, width: 2)),
-      ),
-      child: Text(
-        rarity.toUpperCase(),
-        style: bracketText(
-          context,
-          small ? 9.5 : 10.5,
-          color,
-          weight: FontWeight.w700,
-          letterSpacing: 0.6,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-}
-
-class _TypeTiny extends StatelessWidget {
-  final String label;
-  const _TypeTiny({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = BreedConstants.getTypeColor(label);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        border: Border(left: BorderSide(color: color, width: 2)),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        style: bracketText(
-          context,
-          10.5,
-          color,
-          weight: FontWeight.w700,
-          letterSpacing: 0.4,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.visible,
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// ARC PAINTER  (unchanged logic, amber color injected)
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _ArcPainter extends CustomPainter {
-  final double progress;
-  final Color color;
-  final Color trackColor;
-  _ArcPainter({
-    required this.progress,
-    required this.color,
-    required this.trackColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final r = (size.shortestSide / 2) - 4;
-
-    // Track
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: r),
-      -math.pi / 2,
-      math.pi * 2,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 7
-        ..color = trackColor,
-    );
-
-    final sweep = progress.clamp(0.0, 1.0) * math.pi * 2;
-
-    // Glow
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: r),
-      -math.pi / 2,
-      sweep,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 9
-        ..strokeCap = StrokeCap.round
-        ..color = color.withValues(alpha: 0.25),
-    );
-
-    // Fill
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: r),
-      -math.pi / 2,
-      sweep,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 7
-        ..strokeCap = StrokeCap.round
-        ..shader = SweepGradient(
-          startAngle: -math.pi / 2,
-          endAngle: -math.pi / 2 + math.pi * 2,
-          colors: [
-            color.withValues(alpha: 0.3),
-            color,
-            color.withValues(alpha: 0.9),
-          ],
-          stops: const [0, .7, 1],
-        ).createShader(Rect.fromCircle(center: center, radius: r)),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _ArcPainter old) =>
-      old.progress != progress || old.color != color;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// EMPTY STATE
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _EmptyState extends StatelessWidget {
-  final FactionTheme theme;
-  const _EmptyState({required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(theme);
-    final activeAccent = bracketReadableAccent(theme);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CustomPaint(
-              painter: BracketFramePainter(
-                color: activeAccent.withValues(alpha: 0.82),
-                bracketSize: 10,
-                strokeWidth: 1.1,
+        if (widget.showReset) ...[
+          const SizedBox(width: 10),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: context.soundAction(widget.onReset),
+            child: CustomPaint(
+              foregroundPainter: BracketFramePainter(
+                color: widget.accent,
+                bracketSize: 7,
+                strokeWidth: 1.2,
               ),
               child: Container(
-                padding: const EdgeInsets.all(20),
-                color: palette.surfaceFill(),
-                child: Icon(
-                  AppIcons.search_off_rounded,
-                  size: 30,
-                  color: palette.muted,
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                alignment: Alignment.center,
+                color: palette.accentWash(widget.accent),
+                child: Text(
+                  'RESET',
+                  style: style.copyWith(fontSize: 11, letterSpacing: 1.2),
                 ),
               ),
             ),
-            const SizedBox(height: 14),
-            Text(
-              'No matching specimens',
-              style: bracketText(
-                context,
-                14,
-                palette.ink,
-                weight: FontWeight.w700,
-                letterSpacing: 0.4,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Try a different search, adjust filters,\nor clear the type chip.',
-              textAlign: TextAlign.center,
-              style: bracketText(
-                context,
-                12.5,
-                palette.muted,
-                weight: FontWeight.w500,
-                fontStyle: FontStyle.italic,
-              ),
-              strutStyle: const StrutStyle(height: 1.45),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// REVEAL PULSE — animates a glowing ring + scale pop on a newly discovered tile
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _RevealPulse extends StatefulWidget {
-  final Widget child;
-  final FactionTheme theme;
-  const _RevealPulse({super.key, required this.child, required this.theme});
-
-  @override
-  State<_RevealPulse> createState() => _RevealPulseState();
-}
-
-class _RevealPulseState extends State<_RevealPulse>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = ForgeTokens(widget.theme).amberBright;
-    return AnimatedBuilder(
-      animation: _ctl,
-      builder: (context, child) {
-        final t = _ctl.value;
-        // Pop scale: 0.85 → 1.06 → 1.0
-        double scale;
-        if (t < 0.25) {
-          scale = 0.85 + (1.06 - 0.85) * (t / 0.25);
-        } else if (t < 0.45) {
-          scale = 1.06 - (1.06 - 1.0) * ((t - 0.25) / 0.20);
-        } else {
-          scale = 1.0;
-        }
-        // Two-cycle glow that fades out.
-        final pulse = (0.5 + 0.5 * math.sin(t * math.pi * 4)) * (1 - t);
-        final glow = pulse.clamp(0.0, 1.0);
-        return Transform.scale(
-          scale: scale,
-          child: Container(
-            decoration: BoxDecoration(
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.55 * glow),
-                  blurRadius: 18 * glow,
-                  spreadRadius: 2 * glow,
-                ),
-              ],
-            ),
-            child: child,
           ),
-        );
-      },
-      child: widget.child,
+        ],
+      ],
     );
   }
 }

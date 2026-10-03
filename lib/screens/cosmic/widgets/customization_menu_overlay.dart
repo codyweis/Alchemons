@@ -47,7 +47,6 @@ class CustomizationMenuOverlay extends StatefulWidget {
     required this.cargoLevel,
     required this.isNearHome,
     required this.onUpgradeCargo,
-    required this.onChambers,
     required this.onUpgradePowerUp,
     required this.onGarrison,
     this.garrisonStationed = 0,
@@ -91,7 +90,6 @@ class CustomizationMenuOverlay extends StatefulWidget {
   /// Step up one level to whatever opened this. Falls back to [onClose].
   final VoidCallback? onBack;
   final VoidCallback onUpgradeCargo;
-  final VoidCallback onChambers;
   final void Function(String type) onUpgradePowerUp;
 
   /// Opens the garrison picker. Who is stationed on the planet is part of
@@ -562,43 +560,25 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
       key: const PageStorageKey<String>('cosmic.lab.home'),
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: BracketButton(
-                key: const ValueKey('lab.garrison'),
-                label: 'GARRISON',
-                icon: AppIcons.shield,
-                primary: false,
-                height: 38,
-                palette: _palette,
-                accent: _homeAccent,
-                trailing: Text(
-                  '${widget.garrisonStationed}/${widget.garrisonSlots}',
-                  style: panelLabel(
-                    11.5,
-                    widget.garrisonSlots > 0 &&
-                            widget.garrisonStationed >= widget.garrisonSlots
-                        ? CosmicScreenStyles.success
-                        : _homeAccent,
-                  ),
-                ),
-                onTap: widget.onGarrison,
-              ),
+        BracketButton(
+          key: const ValueKey('lab.garrison'),
+          label: 'GARRISON',
+          icon: AppIcons.shield,
+          primary: false,
+          height: 38,
+          palette: _palette,
+          accent: _homeAccent,
+          trailing: Text(
+            '${widget.garrisonStationed}/${widget.garrisonSlots}',
+            style: panelLabel(
+              11.5,
+              widget.garrisonSlots > 0 &&
+                      widget.garrisonStationed >= widget.garrisonSlots
+                  ? CosmicScreenStyles.success
+                  : _homeAccent,
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: BracketButton(
-                label: 'CHAMBERS',
-                icon: AppIcons.bubble_chart_rounded,
-                primary: false,
-                height: 38,
-                palette: _palette,
-                accent: _homeAccent,
-                onTap: widget.onChambers,
-              ),
-            ),
-          ],
+          ),
+          onTap: widget.onGarrison,
         ),
         if (planet != null) ...[
           const SizedBox(height: 14),

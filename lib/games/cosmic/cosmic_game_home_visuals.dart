@@ -193,60 +193,6 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     _setupOrbitalRelationship(hp.position);
   }
 
-  // ── Orbital chambers ──────────────────────────────────────────────────────
-
-  /// Spawn orbital chambers around the home planet.
-  /// Each entry is:
-  /// (color, instanceId?, baseCreatureId?, displayName?, imagePath?, spriteVisuals?)
-  void spawnOrbitalChambers(
-    List<(Color, String?, String?, String?, String?, SpriteVisuals?)>
-    chamberData,
-  ) {
-    if (homePlanet == null) return;
-    orbitalChambers.clear();
-    final hp = homePlanet!.position;
-    final vr = homePlanet!.visualRadius;
-    final rng = Random();
-    for (var i = 0; i < chamberData.length; i++) {
-      final (color, instId, baseId, name, imgPath, spriteVisuals) =
-          chamberData[i];
-      final angle = (i / chamberData.length) * pi * 2 + rng.nextDouble() * 0.3;
-      final orbitDist = vr + 120 + rng.nextDouble() * 40;
-      final pos = Offset(
-        hp.dx + cos(angle) * orbitDist,
-        hp.dy + sin(angle) * orbitDist,
-      );
-      final tangent = Offset(-sin(angle), cos(angle));
-      final orbitalSpeed = 15.0 + rng.nextDouble() * 10;
-      orbitalChambers.add(
-        OrbitalChamber(
-          position: pos,
-          velocity: tangent * orbitalSpeed,
-          radius: 18 + rng.nextDouble() * 4,
-          color: color,
-          seed: rng.nextDouble() * pi * 2,
-          instanceId: instId,
-          baseCreatureId: baseId,
-          displayName: name,
-          imagePath: imgPath,
-          spriteVisuals: spriteVisuals,
-          orbitDistance: orbitDist,
-        ),
-      );
-      if (imgPath != null && !_chamberSpriteCache.containsKey(imgPath)) {
-        _loadChamberSprite(imgPath);
-      }
-    }
-  }
-
-  Future<void> _loadChamberSprite(String path) async {
-    try {
-      _chamberSpriteCache[path] = await images.load(path);
-    } catch (_) {
-      // Image not available — chamber renders without sprite.
-    }
-  }
-
   // ── Proximity check ───────────────────────────────────────────────────────
 
   bool get isNearHome {

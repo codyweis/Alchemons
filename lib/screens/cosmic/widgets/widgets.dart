@@ -3,7 +3,6 @@ export 'meter_breakdown_sheet.dart';
 export 'mini_map_overlay.dart';
 export 'planet_recipe_strip.dart';
 export 'home_planet_menu_overlay.dart';
-export 'chamber_picker_overlay.dart';
 export 'elements_captured_popup.dart';
 export 'customization_menu_overlay.dart';
 export 'cosmic_screen_styles.dart';

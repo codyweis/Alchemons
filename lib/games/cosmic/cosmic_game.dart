@@ -374,12 +374,6 @@ class CosmicGame extends FlameGame with PanDetector {
   final List<PlanetComponent> planetComps = [];
   final List<ElementParticle> elemParticles = [];
 
-  // Orbital alchemy chambers (floating creature bubbles around home planet)
-  final List<OrbitalChamber> orbitalChambers = [];
-
-  // Cached creature images for orbital chamber sprites
-  final Map<String, ui.Image> _chamberSpriteCache = {};
-
   // Stars stored in spatial grid for fast rendering
   static const double _starChunkSize = 800.0;
   late int _starGridW;
@@ -3237,23 +3231,6 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       }
 
-      // ── projectile vs orbital chamber collision ──
-      if (i < projectiles.length && projectiles[i] == p) {
-        for (final chamber in orbitalChambers) {
-          final cdx = p.position.dx - chamber.position.dx;
-          final cdy = p.position.dy - chamber.position.dy;
-          final cHitR = chamber.radius + Projectile.radius;
-          if (cdx * cdx + cdy * cdy < cHitR * cHitR) {
-            // Apply impulse in projectile direction
-            final pDir = Offset(cos(p.angle), sin(p.angle));
-            chamber.applyImpulse(pDir * 280.0);
-            _spawnHitSpark(p.position, chamber.color);
-            projectiles.removeAt(i);
-            break;
-          }
-        }
-      }
-
       // ── projectile vs boss collision ──
       if (activeBoss != null &&
           !activeBoss!.dead &&
@@ -4235,7 +4212,6 @@ class CosmicGame extends FlameGame with PanDetector {
       _orbitAngle += _orbitSpeed * dt;
       if (_homeOrbitsPartner) {
         // Home planet orbits the larger cosmic planet
-        final oldHP = homePlanet!.position;
         final center = _orbitalPartner!.position;
         homePlanet!.position = _wrap(
           Offset(
@@ -4243,12 +4219,6 @@ class CosmicGame extends FlameGame with PanDetector {
             center.dy + sin(_orbitAngle) * _orbitRadius,
           ),
         );
-        // Shift orbital chambers by the same delta so they rigidly
-        // follow the home planet's orbital motion instead of lagging.
-        final hpDelta = homePlanet!.position - oldHP;
-        for (final c in orbitalChambers) {
-          c.position = _wrap(c.position + hpDelta);
-        }
       } else {
         // Cosmic planet orbits the larger home planet
         final center = homePlanet!.position;
@@ -4258,58 +4228,6 @@ class CosmicGame extends FlameGame with PanDetector {
             center.dy + sin(_orbitAngle) * _orbitRadius,
           ),
         );
-      }
-    }
-
-    // ── orbital chambers physics ──
-    if (homePlanet != null && orbitalChambers.isNotEmpty) {
-      final hpCentre = homePlanet!.position;
-      for (final c in orbitalChambers) {
-        c.update(dt, hpCentre);
-        // Wrap to toroidal world
-        c.position = _wrap(c.position);
-      }
-      // Chamber-chamber elastic collision
-      for (var i = 0; i < orbitalChambers.length; i++) {
-        for (var j = i + 1; j < orbitalChambers.length; j++) {
-          final a = orbitalChambers[i];
-          final b = orbitalChambers[j];
-          final delta = b.position - a.position;
-          final dist = delta.distance;
-          final minDist = a.radius + b.radius;
-          if (dist > 0 && dist < minDist) {
-            final n = delta / dist;
-            final push = (minDist - dist) * 0.6;
-            a.position -= n * push * 0.5;
-            b.position += n * push * 0.5;
-            // Exchange velocity along normal
-            final va = a.velocity.dx * n.dx + a.velocity.dy * n.dy;
-            final vb = b.velocity.dx * n.dx + b.velocity.dy * n.dy;
-            final impulse = (vb - va) * 0.75;
-            a.velocity += n * impulse;
-            b.velocity -= n * impulse;
-            _spawnHitSpark(
-              (a.position + b.position) / 2.0,
-              Color.lerp(a.color, b.color, 0.5)!,
-            );
-          }
-        }
-      }
-      // Chamber-ship collision (bounce off each other)
-      if (!_shipDead) {
-        for (final c in orbitalChambers) {
-          final delta = ship.pos - c.position;
-          final dist = delta.distance;
-          final minDist = c.radius + 14.0; // ship radius ~14
-          if (dist > 0 && dist < minDist) {
-            final n = delta / dist;
-            final push = (minDist - dist) * 0.6;
-            c.position -= n * push;
-            c.velocity -= n * 60.0; // gentle bounce away
-            c.knocked = true;
-            c.knockTimer = 0.5;
-          }
-        }
       }
     }
 
@@ -5729,131 +5647,6 @@ class CosmicGame extends FlameGame with PanDetector {
           canvas,
           Offset(hpPos.dx - homeLabel.width / 2, hpPos.dy + vr + 12),
         );
-      }
-    }
-
-    // ── orbital chambers ──
-    for (final chamber in orbitalChambers) {
-      // Skip empty (unassigned) chambers — no visual orb
-      if (chamber.instanceId == null) continue;
-      final cp = chamber.position;
-      // Cull off-screen
-      if ((cp.dx - cx - screenW / 2).abs() > screenW ||
-          (cp.dy - cy - screenH / 2).abs() > screenH) {
-        continue;
-      }
-
-      final r = chamber.radius;
-      final col = chamber.color;
-      final pulse = 1.0 + sin(chamber.life * 1.5 + chamber.seed) * 0.15;
-      final chamberVisuals = chamber.spriteVisuals;
-
-      // 1. Outer aura (pulsing glow)
-      paintSoftCircle(
-        canvas,
-        cp,
-        r * 2.5 * pulse,
-        col.withValues(alpha: 0.18),
-        r * 1.5,
-      );
-
-      if (chamberVisuals?.alchemyEffect != null) {
-        // Round the chamber: this pass draws in world space.
-        canvas.save();
-        canvas.translate(cp.dx, cp.dy);
-        _drawAlchemyEffectCanvas(
-          canvas: canvas,
-          effect: chamberVisuals!.alchemyEffect!,
-          spriteScale: (r * 1.7) / 40.0,
-          baseSpriteSize: 40.0,
-          auraElement: chamberVisuals.auraElement,
-          elapsed: _elapsed + chamber.seed,
-          opacity: 0.9,
-        );
-        canvas.restore();
-      }
-
-      // 2. Glass orb body — radial gradient sphere
-      final bodyPaint = Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(cp.dx - r * 0.3, cp.dy - r * 0.3),
-          r * 1.5,
-          [
-            Color.lerp(col, Colors.white, 0.25)!,
-            col,
-            Color.lerp(col, Colors.black, 0.4)!,
-          ],
-          [0.0, 0.65, 1.0],
-        );
-      canvas.drawCircle(cp, r, bodyPaint);
-
-      // 2b. Creature sprite inside the orb (clipped to circle)
-      if (chamber.imagePath != null &&
-          _chamberSpriteCache.containsKey(chamber.imagePath)) {
-        final img = _chamberSpriteCache[chamber.imagePath]!;
-        final paint = Paint()..filterQuality = ui.FilterQuality.high;
-        if (chamberVisuals != null) {
-          final isAlbino =
-              chamberVisuals.brightness == 1.45 && !chamberVisuals.isPrismatic;
-          if (isAlbino) {
-            paint.colorFilter = _albinoColorFilter(chamberVisuals.brightness);
-          } else {
-            paint.colorFilter = _geneticsColorFilter(chamberVisuals);
-          }
-        }
-        canvas.save();
-        final clipPath = Path()
-          ..addOval(Rect.fromCircle(center: cp, radius: r * 0.85));
-        canvas.clipPath(clipPath);
-        // Draw creature image centered and scaled to fill the orb
-        final imgSize = r * 1.7;
-        final srcRect = Rect.fromLTWH(
-          0,
-          0,
-          img.width.toDouble(),
-          img.height.toDouble(),
-        );
-        final dstRect = Rect.fromCenter(
-          center: cp,
-          width: imgSize,
-          height: imgSize,
-        );
-        canvas.drawImageRect(img, srcRect, dstRect, paint);
-        canvas.restore();
-      }
-      if (chamberVisuals?.alchemyEffect != null) {
-        canvas.save();
-        canvas.translate(cp.dx, cp.dy);
-        _drawAlchemyEffectCanvas(
-          canvas: canvas,
-          effect: chamberVisuals!.alchemyEffect!,
-          spriteScale: (r * 1.7) / 40.0,
-          baseSpriteSize: 40.0,
-          auraElement: chamberVisuals.auraElement,
-          elapsed: _elapsed + chamber.seed,
-          opacity: 0.9,
-          front: true,
-        );
-        canvas.restore();
-      }
-
-      // 3. Orbit ring indicator (faint) when near home planet
-      if (homePlanet != null) {
-        final distToHome = (cp - homePlanet!.position).distance;
-        if (distToHome < chamber.orbitDistance * 2) {
-          final ringAlpha =
-              (0.12 *
-              (1.0 -
-                  (distToHome / (chamber.orbitDistance * 2)).clamp(0.0, 1.0)));
-          canvas.drawCircle(
-            homePlanet!.position,
-            chamber.orbitDistance,
-            Paint()
-              ..color = col.withValues(alpha: ringAlpha)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8,
-          );
-        }
       }
     }
 
