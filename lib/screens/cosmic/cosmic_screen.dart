@@ -18,7 +18,6 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_rewards.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
-import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/services/raid_service.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_screen.dart';
@@ -6799,148 +6798,36 @@ class _CosmicScreenState extends State<CosmicScreen>
     await _refreshRaidState();
   }
 
-  /// Compact "sealed" chip shown when near a dungeon-gated planet without the
-  /// required element trio in the cosmic party. Checks off elements carried.
-  /// Space-view raid alert: which planet is overrun and how long remains.
-  /// Live-raid badge, parked under the mini-map radar.
-  ///
-  /// It used to be a full-width strip banded into the top HUD, which made the
-  /// HUD grow and pushed everything below it around. As a badge it costs the
-  /// layout nothing, and it collapses away with the rest of the HUD chrome.
-  Widget _raidBadge() {
-    final raid = _raid!;
-    final now = DateTime.now().toUtc();
-    final coolingDown = raid.isCoolingDown(now);
-    final left = coolingDown ? raid.respawnRemaining(now) : raid.remaining(now);
-    String two(int v) => v.toString().padLeft(2, '0');
-    final clock =
-        '${two(left.inHours)}:${two(left.inMinutes % 60)}:${two(left.inSeconds % 60)}';
-    final closing = !coolingDown && left.inMinutes < 60;
-
-    const ember = Color(0xFFE25544);
-    final font = appFontFamily(context);
-
-    return CustomPaint(
-      foregroundPainter: const DungeonBracketPainter(
-        color: ember,
-        bracketSize: 6,
-        strokeWidth: 1.1,
-      ),
-      child: Container(
-        width: 124,
-        padding: const EdgeInsets.fromLTRB(0, 5, 7, 5),
-        decoration: BoxDecoration(
-          color: CosmicScreenStyles.bg1.withValues(alpha: 0.92),
-          border: Border.all(color: ember.withValues(alpha: 0.45)),
-        ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(width: 3, color: ember),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'RAID L${raid.level}',
-                          style: TextStyle(
-                            fontFamily: font,
-                            color: ember,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.8,
-                            height: 1.0,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            planetName(raid.element).toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: font,
-                              color: CosmicScreenStyles.textPrimary,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                              height: 1.0,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      coolingDown ? 'ECHO $clock' : clock,
-                      style: TextStyle(
-                        color: closing
-                            ? ember
-                            : CosmicScreenStyles.textSecondary,
-                        fontFamily: 'monospace',
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                        height: 1.0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// A soft, glowing planet-surface CTA (DESCEND / ENTER RAID / SUMMON RAID).
-  /// A translucent lozenge with a colored halo — meant to float over the scene
-  /// rather than sit in a hard-edged box.
+  /// A planet-surface action (DESCEND / ENTER RAID / SUMMON RAID): a plate of
+  /// dark glass washed with its colour, in accent brackets, the word in the
+  /// console's type — the same button as the station sheets and the lab.
   Widget _planetCta({
     required String label,
     required Color accent,
-    required Color glow,
     required VoidCallback onTap,
     IconData? icon,
     bool compact = false,
     bool fullWidth = false,
   }) {
-    final fontSize = compact ? 12.0 : 13.5;
-    // Square, hard-edged alchemical plate with bracketed corners — matches the
-    // dungeon/raid popup chrome instead of the old rounded lozenge.
+    final fontSize = compact ? 11.0 : 12.5;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(onTap),
       child: CustomPaint(
-        foregroundPainter: DungeonBracketPainter(
+        foregroundPainter: BracketFramePainter(
           color: accent.withValues(alpha: 0.9),
           bracketSize: compact ? 8 : 10,
-          strokeWidth: 1.4,
+          strokeWidth: 1.3,
         ),
         child: Container(
           width: fullWidth ? double.infinity : null,
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 16 : 20,
-            vertical: compact ? 9 : 12,
+            vertical: compact ? 10 : 13,
           ),
-          decoration: BoxDecoration(
-            color: const Color(0xFF100E0C).withValues(alpha: 0.92),
-            border: Border.all(
-              color: accent.withValues(alpha: 0.7),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: glow.withValues(alpha: 0.35),
-                blurRadius: 16,
-                spreadRadius: -2,
-              ),
-            ],
+          color: Color.alphaBlend(
+            accent.withValues(alpha: compact ? 0.1 : 0.16),
+            panelPalette.bg0.withValues(alpha: 0.9),
           ),
           child: Row(
             mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
@@ -6948,16 +6835,14 @@ class _CosmicScreenState extends State<CosmicScreen>
             children: [
               if (icon != null) ...[
                 Icon(icon, color: accent, size: fontSize + 3),
-                const SizedBox(width: 8),
+                const SizedBox(width: 9),
               ],
-              Text(
-                label,
-                style: TextStyle(
-                  color: accent,
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                  shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: panelLabel(fontSize, panelPalette.ink, spacing: 1.6),
                 ),
               ),
             ],
@@ -7101,55 +6986,42 @@ class _CosmicScreenState extends State<CosmicScreen>
         : 'ENTER RAID  ·  LEVEL ${raid?.level}'
               '${(raid?.level3Clears ?? 0) > 0 ? ' ECHO' : ''}';
 
-    // Minimized: a soft glowing pill (name + stars) that taps back open.
+    // Minimized: a slip with the name and stars that taps back open.
     if (_descentPlacardMinimized) {
       return GestureDetector(
         onTap: context.soundAction(
           () => setState(() => _descentPlacardMinimized = false),
         ),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 8, 13, 8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                color.withValues(alpha: 0.2),
-                const Color(0xFF0A0A0A).withValues(alpha: 0.5),
+        child: CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: elementInk(planet.element).withValues(alpha: 0.75),
+            bracketSize: 7,
+            strokeWidth: 1.1,
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+            color: panelPalette.bg0.withValues(alpha: 0.86),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  planetTitle,
+                  style: panelLabel(
+                    11.5,
+                    elementInk(planet.element),
+                    spacing: 2.2,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _planetStarRow(planet.element, size: 13),
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.unfold_more_rounded,
+                  size: 18,
+                  color: panelPalette.muted,
+                ),
               ],
             ),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: color.withValues(alpha: 0.45)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.28),
-                blurRadius: 18,
-                spreadRadius: -2,
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                planetTitle,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.8,
-                  shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
-                ),
-              ),
-              const SizedBox(width: 10),
-              _planetStarRow(planet.element, size: 13),
-              const SizedBox(width: 6),
-              Icon(
-                Icons.unfold_more_rounded,
-                size: 18,
-                color: color.withValues(alpha: 0.9),
-              ),
-            ],
           ),
         ),
       );
@@ -7296,7 +7168,6 @@ class _CosmicScreenState extends State<CosmicScreen>
             _planetCta(
               label: raidActionLabel,
               accent: const Color(0xFFE25544),
-              glow: const Color(0xFFE25544),
               icon: Icons.whatshot_rounded,
               fullWidth: true,
               onTap: context.soundTap(() => unawaited(_enterRaid(planet))),
@@ -7306,7 +7177,6 @@ class _CosmicScreenState extends State<CosmicScreen>
             _planetCta(
               label: 'DESCEND',
               accent: const Color(0xFFE4C16A),
-              glow: color,
               icon: Icons.south_rounded,
               fullWidth: true,
               onTap: context.soundTap(() => unawaited(_enterDungeon(planet))),
@@ -7316,7 +7186,6 @@ class _CosmicScreenState extends State<CosmicScreen>
               _planetCta(
                 label: 'SUMMON RAID  ·  $_raidBeaconQty',
                 accent: const Color(0xFFE25544),
-                glow: const Color(0xFFE25544),
                 icon: Icons.local_fire_department_rounded,
                 compact: true,
                 fullWidth: true,
@@ -7327,7 +7196,6 @@ class _CosmicScreenState extends State<CosmicScreen>
               _planetCta(
                 label: 'RAID (DEBUG)',
                 accent: const Color(0xFF5BC8E8),
-                glow: const Color(0xFF5BC8E8),
                 icon: Icons.local_fire_department_rounded,
                 compact: true,
                 fullWidth: true,
@@ -7884,7 +7752,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                   // button, or the 84pt pinned radar.
                   top: mapColumnTop + (_showPinnedMiniMap ? 84 : 44) + 6,
                   left: 12,
-                  child: SafeArea(child: _raidBadge()),
+                  child: SafeArea(
+                    child: RaidBadge(raid: _raid!, now: DateTime.now().toUtc()),
+                  ),
                 ),
 
               // ── Map button (hidden when pinned mini-map is active) ──
@@ -8276,7 +8146,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                       child: _planetCta(
                         label: 'UNSEAL GATE',
                         accent: const Color(0xFFE4C16A),
-                        glow: hudPlanet.color,
                         icon: AppIcons.lock_open_rounded,
                         onTap: _triggerScreenShakeAndSummon,
                       ),

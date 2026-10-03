@@ -1,12 +1,19 @@
 import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' as ui;
 
+import 'package:alchemons/games/cosmic/contest_art.dart'
+    show kContestChampionGold;
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
+import 'package:alchemons/games/cosmic/obsidian_kit.dart';
 import 'package:alchemons/games/cosmic/station_art.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
+
+import 'star_chart_art.dart';
 
 class CosmicMiniMapCircle extends StatefulWidget {
   const CosmicMiniMapCircle({
@@ -61,24 +68,17 @@ class _CosmicMiniMapCircleState extends State<CosmicMiniMapCircle> {
         height: 84,
         child: Center(
           child: RepaintBoundary(
-            child: Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFFFFB300).withValues(alpha: 0.7),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    blurRadius: 16,
-                    spreadRadius: 1,
-                  ),
-                ],
+            // A dark lens in the HUD's bracket frame: the radar is a window
+            // onto the chart, not a badge.
+            child: CustomPaint(
+              foregroundPainter: BracketFramePainter(
+                color: BracketPalette.dark.line.withValues(alpha: 0.75),
+                bracketSize: 8,
+                strokeWidth: 1.05,
               ),
-              child: ClipOval(
+              child: SizedBox(
+                width: 76,
+                height: 76,
                 child: CustomPaint(
                   isComplex: true,
                   painter: _MiniCirclePainter(
@@ -109,17 +109,36 @@ class _MiniCirclePainter extends CustomPainter {
   final CosmicGame game;
   final Offset? tutorialTargetPos;
 
+  /// Dark glass, its rim catching a little light: the lens's edge is drawn
+  /// by the glass, not by a ring round it.
+  static final ui.Shader _lens = ui.Gradient.radial(
+    Offset.zero,
+    1,
+    const [
+      Color(0xF00C0D15),
+      Color(0xF0101119),
+      Color(0xF01A1B28),
+      Color(0xE8262838),
+      Color(0x00262838),
+    ],
+    const [0.0, 0.62, 0.86, 0.95, 1.0],
+  );
+
+  static final Map<Color, ui.Shader> _territory = {};
+
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0xDD060820),
-    );
-
     final shipPos = game.ship.pos;
     final center = Offset(size.width / 2, size.height / 2);
+    final viewR = size.shortestSide / 2;
     const visibleRadiusWorld = 2600.0;
     final mapScale = (size.shortestSide * 0.46) / visibleRadiusWorld;
+
+    paintDisc(canvas, _lens, center, viewR);
+    canvas.save();
+    canvas.clipPath(
+      Path()..addOval(Rect.fromCircle(center: center, radius: viewR - 2)),
+    );
 
     final ww = world.worldSize.width;
     final wh = world.worldSize.height;
@@ -133,45 +152,50 @@ class _MiniCirclePainter extends CustomPainter {
       return Offset(center.dx + dx * mapScale, center.dy + dy * mapScale);
     }
 
-    final viewR = size.shortestSide / 2;
+    bool inView(Offset p, [double pad = 8]) =>
+        (p - center).distance <= viewR + pad;
 
-    // The territory the radar sits in shows as a wash of its element.
+    // The territory the radar sits in shows as a pool of its element.
     for (final planet in world.planets) {
       if (!planet.discovered) continue;
       final p = toMini(planet.position);
       final tr = kPlanetTerritoryRadius * mapScale;
-      if ((p - center).distance > viewR + tr) continue;
-      canvas.drawCircle(
-        p,
-        tr,
-        Paint()..color = planet.color.withValues(alpha: 0.12),
+      if (!inView(p, tr)) continue;
+      final shader = _territory[planet.color] ??= ui.Gradient.radial(
+        Offset.zero,
+        1,
+        [
+          planet.color.withValues(alpha: 0.22),
+          planet.color.withValues(alpha: 0.08),
+          planet.color.withValues(alpha: 0),
+        ],
+        const [0.0, 0.6, 1.0],
       );
+      paintDisc(canvas, shader, p, tr);
     }
 
     for (final planet in world.planets) {
       if (!planet.discovered) continue;
       final p = toMini(planet.position);
-      if ((p - center).distance > viewR + 8) continue;
-      canvas.drawCircle(
-        p,
-        (planet.radius * mapScale).clamp(1.3, 3.2),
-        Paint()..color = planet.color.withValues(alpha: 0.95),
-      );
+      if (!inView(p)) continue;
+      final m = stoneLightFor(planet.color);
+      final r = (planet.radius * mapScale * 1.4).clamp(2.0, 3.6);
+      paintDisc(canvas, m.leak, p, r * 2.4, 0.6);
+      paintOrb(canvas, m, p, r);
     }
 
-    if (game.homePlanet != null) {
-      final hp = toMini(game.homePlanet!.position);
-      if ((hp - center).distance <= viewR + 8) {
-        canvas.drawCircle(hp, 3.8, Paint()..color = const Color(0xFF00E5FF));
-        canvas.drawCircle(
-          hp,
-          5.4,
-          Paint()
-            ..color = const Color(0xFF00E5FF).withValues(alpha: 0.4)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0,
-        );
+    if (game.homePlanet case final hp?) {
+      final p = toMini(hp.position);
+      if (inView(p)) {
+        paintChartGlyph(canvas, ChartGlyph.home, p, kChartAmber, r: 3.2);
       }
+    }
+
+    // Lights: a station, a landmark — each a small point of its own light.
+    void light(Offset p, Color c, double r) {
+      final m = stoneLightFor(c);
+      paintDisc(canvas, m.leak, p, r * 2.4, 0.7);
+      paintDisc(canvas, m.spark, p, r, 1);
     }
 
     for (final poi in game.spacePOIs) {
@@ -179,69 +203,25 @@ class _MiniCirclePainter extends CustomPainter {
           poi.type == POIType.stardustScanner ||
           poi.type == POIType.planetScanner;
       if (poi.type == POIType.comet) continue;
-      final isMarket =
-          poi.type == POIType.harvesterMarket ||
-          poi.type == POIType.riftKeyMarket ||
-          poi.type == POIType.cosmicMarket ||
-          poi.type == POIType.goldConversion;
+      final kind = stationKindFor(poi.type);
+      final isShop = kind != null && !isScanner;
       final p = toMini(poi.position);
       final isSurvivalPortal = poi.type == POIType.survivalPortal;
       final scannerNearby = isScanner && (p - center).distance <= viewR * 0.9;
-      if (!poi.discovered && !isMarket && !scannerNearby && !isSurvivalPortal) {
+      if (!poi.discovered && !isShop && !scannerNearby && !isSurvivalPortal) {
         continue;
       }
-      if ((p - center).distance > viewR + 8) continue;
-
-      Color c;
-      switch (poi.type) {
-        case POIType.nebula:
-          c = elementColor(poi.element).withValues(alpha: 0.75);
-          break;
-        case POIType.derelict:
-          c = const Color(0xFF90A4AE);
-          break;
-        case POIType.comet:
-          c = elementColor(poi.element).withValues(alpha: 0.8);
-          break;
-        case POIType.warpAnomaly:
-          c = const Color(0xFFB388FF);
-          break;
-        case POIType.harvesterMarket:
-          c = const Color(0xFFFFB300);
-          break;
-        case POIType.riftKeyMarket:
-          c = const Color(0xFF7C4DFF);
-          break;
-        case POIType.cosmicMarket:
-          c = const Color(0xFF00E5FF);
-          break;
-        case POIType.goldConversion:
-          c = const Color(0xFFFFD740);
-          break;
-        case POIType.stardustScanner:
-          c = const Color(0xFF9CCC65);
-          break;
-        case POIType.planetScanner:
-          c = const Color(0xFF64B5F6);
-          break;
-        case POIType.survivalPortal:
-          c = const Color(0xFF8B5CF6);
-          break;
-      }
+      if (!inView(p)) continue;
       // A station is the colour it is lit in space.
-      c = stationKindFor(poi.type)?.accent ?? c;
-      final r = isScanner ? 3.0 : (isMarket ? 2.6 : 2.1);
-      canvas.drawCircle(p, r, Paint()..color = c);
-      if (isScanner) {
-        canvas.drawCircle(
-          p,
-          5.4,
-          Paint()
-            ..color = c.withValues(alpha: 0.35)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0,
-        );
-      }
+      final c =
+          kind?.accent ??
+          switch (poi.type) {
+            POIType.nebula => elementColor(poi.element),
+            POIType.derelict => const Color(0xFF8FA3B0),
+            POIType.warpAnomaly => const Color(0xFFB388FF),
+            _ => const Color(0xFF8B5CF6),
+          };
+      light(p, c, isScanner || isShop ? 2.6 : 2.0);
     }
 
     // Sealed elemental caches — the radar picks them up whenever they are in
@@ -249,195 +229,30 @@ class _MiniCirclePainter extends CustomPainter {
     for (final cache in game.elementalCacheField.caches) {
       if (!cache.isPresent) continue;
       final p = toMini(cache.position);
-      if ((p - center).distance > viewR + 8) continue;
-      final c = cache.color;
+      if (!inView(p)) continue;
+      final m = stoneLightFor(cache.color);
       final pulse = 0.55 + 0.45 * sin(cache.life * 2.2);
-      canvas.drawCircle(p, 2.2, Paint()..color = c.withValues(alpha: 0.95));
-      canvas.drawCircle(
-        p,
-        5.2,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0
-          ..color = c.withValues(alpha: 0.25 + 0.4 * pulse),
-      );
+      paintDisc(canvas, m.leak, p, 5 + 2 * pulse, 0.5 + 0.4 * pulse);
+      paintOrb(canvas, m, p, 2.0);
     }
 
     for (final arena in world.contestArenas) {
       if (!arena.discovered) continue;
       final p = toMini(arena.position);
-      if ((p - center).distance > viewR + 8) continue;
-      final c = arena.trait.color;
-      canvas.drawCircle(p, 2.6, Paint()..color = c.withValues(alpha: 0.9));
-      canvas.drawCircle(
+      if (!inView(p)) continue;
+      // A mastered arena burns in the champion's gold.
+      light(
         p,
-        4.7,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.9
-          ..color = c.withValues(alpha: 0.38),
+        arena.masteredAt != null ? kContestChampionGold : arena.trait.color,
+        2.4,
       );
-    }
-
-    // Active scanner lock: radar beeper points to the tracked star dust.
-    final targetDust = game.starDustScannerTarget;
-    if (targetDust != null) {
-      final tp = toMini(targetDust.position);
-      final dv = tp - center;
-      final dist = dv.distance;
-      final pulse =
-          0.55 + 0.45 * sin(DateTime.now().millisecondsSinceEpoch / 170.0);
-      const targetColor = Color(0xFFFFE082);
-
-      if (dist <= viewR - 6) {
-        canvas.drawCircle(
-          tp,
-          2.8 + pulse * 1.4,
-          Paint()..color = targetColor.withValues(alpha: 0.85),
-        );
-        canvas.drawCircle(
-          tp,
-          5.5 + pulse * 1.8,
-          Paint()
-            ..color = targetColor.withValues(alpha: 0.35)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0,
-        );
-      } else if (dist > 0.001) {
-        final dir = Offset(dv.dx / dist, dv.dy / dist);
-        final edge = center + dir * (viewR - 5);
-        final perp = Offset(-dir.dy, dir.dx);
-
-        final tip = edge;
-        final back = edge - dir * 8;
-        final tri = Path()
-          ..moveTo(tip.dx, tip.dy)
-          ..lineTo(back.dx + perp.dx * 3.6, back.dy + perp.dy * 3.6)
-          ..lineTo(back.dx - perp.dx * 3.6, back.dy - perp.dy * 3.6)
-          ..close();
-        canvas.drawPath(
-          tri,
-          Paint()..color = targetColor.withValues(alpha: 0.9),
-        );
-        canvas.drawCircle(
-          edge,
-          3.8 + pulse * 1.9,
-          Paint()
-            ..color = targetColor.withValues(alpha: 0.3)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0,
-        );
-      }
-    }
-
-    final targetPlanet = game.planetScannerTarget;
-    if (targetPlanet != null) {
-      final tp = toMini(targetPlanet.position);
-      final dv = tp - center;
-      final dist = dv.distance;
-      final pulse =
-          0.55 + 0.45 * sin(DateTime.now().millisecondsSinceEpoch / 210.0);
-      const targetColor = Color(0xFF90CAF9);
-
-      if (dist <= viewR - 6) {
-        canvas.drawCircle(
-          tp,
-          3.0 + pulse * 1.6,
-          Paint()..color = targetColor.withValues(alpha: 0.88),
-        );
-        canvas.drawCircle(
-          tp,
-          6.4 + pulse * 2.1,
-          Paint()
-            ..color = targetColor.withValues(alpha: 0.35)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.1,
-        );
-      } else if (dist > 0.001) {
-        final dir = Offset(dv.dx / dist, dv.dy / dist);
-        final edge = center + dir * (viewR - 5);
-        final perp = Offset(-dir.dy, dir.dx);
-
-        final tip = edge;
-        final back = edge - dir * 8;
-        final tri = Path()
-          ..moveTo(tip.dx, tip.dy)
-          ..lineTo(back.dx + perp.dx * 3.6, back.dy + perp.dy * 3.6)
-          ..lineTo(back.dx - perp.dx * 3.6, back.dy - perp.dy * 3.6)
-          ..close();
-        canvas.drawPath(
-          tri,
-          Paint()..color = targetColor.withValues(alpha: 0.92),
-        );
-        canvas.drawCircle(
-          edge,
-          4.0 + pulse * 2.1,
-          Paint()
-            ..color = targetColor.withValues(alpha: 0.3)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0,
-        );
-      }
-    }
-
-    if (tutorialTargetPos != null) {
-      final tp = toMini(tutorialTargetPos!);
-      final dv = tp - center;
-      final dist = dv.distance;
-      final pulse =
-          0.55 + 0.45 * sin(DateTime.now().millisecondsSinceEpoch / 180.0);
-      const targetColor = Color(0xFF8B5CF6);
-
-      if (dist <= viewR - 6) {
-        canvas.drawCircle(
-          tp,
-          3.0 + pulse * 1.5,
-          Paint()..color = targetColor.withValues(alpha: 0.9),
-        );
-        canvas.drawCircle(
-          tp,
-          6.2 + pulse * 2.0,
-          Paint()
-            ..color = targetColor.withValues(alpha: 0.35)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.1,
-        );
-      } else if (dist > 0.001) {
-        final dir = Offset(dv.dx / dist, dv.dy / dist);
-        final edge = center + dir * (viewR - 5);
-        final perp = Offset(-dir.dy, dir.dx);
-
-        final tip = edge;
-        final back = edge - dir * 8;
-        final tri = Path()
-          ..moveTo(tip.dx, tip.dy)
-          ..lineTo(back.dx + perp.dx * 3.6, back.dy + perp.dy * 3.6)
-          ..lineTo(back.dx - perp.dx * 3.6, back.dy - perp.dy * 3.6)
-          ..close();
-        canvas.drawPath(
-          tri,
-          Paint()..color = targetColor.withValues(alpha: 0.9),
-        );
-        canvas.drawCircle(
-          edge,
-          4.0 + pulse * 2.0,
-          Paint()
-            ..color = targetColor.withValues(alpha: 0.32)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0,
-        );
-      }
     }
 
     for (final whirl in game.galaxyWhirls) {
       if (whirl.state == WhirlState.completed) continue;
       final p = toMini(whirl.position);
-      if ((p - center).distance > viewR + 8) continue;
-      canvas.drawCircle(
-        p,
-        2.3,
-        Paint()..color = elementColor(whirl.element).withValues(alpha: 0.8),
-      );
+      if (!inView(p)) continue;
+      light(p, elementColor(whirl.element), 2.2);
     }
 
     BossLair? nearestLair;
@@ -452,59 +267,61 @@ class _MiniCirclePainter extends CustomPainter {
     }
     if (nearestLair != null) {
       final p = toMini(nearestLair.position);
-      if ((p - center).distance <= viewR + 8) {
-        canvas.drawCircle(
-          p,
-          2.8,
-          Paint()..color = const Color(0xFFFF5252).withValues(alpha: 0.9),
-        );
-      }
+      if (inView(p)) light(p, const Color(0xFFE0453A), 2.8);
     }
 
     if (game.prismaticField.discovered && !game.prismaticField.rewardClaimed) {
       final p = toMini(game.prismaticField.position);
-      if ((p - center).distance <= viewR + 8) {
-        canvas.drawCircle(
-          p,
-          2.8,
-          Paint()..color = const Color(0xFFFF00CC).withValues(alpha: 0.8),
-        );
-      }
+      if (inView(p)) light(p, const Color(0xFFFF5FD2), 2.6);
     }
 
     if (world.elementalNexus.discovered) {
       final p = toMini(world.elementalNexus.position);
-      if ((p - center).distance <= viewR + 8) {
-        canvas.drawCircle(
-          p,
-          2.8,
-          Paint()..color = const Color(0xFFB388FF).withValues(alpha: 0.8),
+      if (inView(p)) light(p, const Color(0xFFB388FF), 2.6);
+    }
+
+    // Locks: the scanners' targets and the tutorial signal. In range they
+    // breathe where they are; out of range an arrow on the rim points the
+    // way.
+    final now = DateTime.now().millisecondsSinceEpoch;
+    void lock(Offset world, Color col, double period) {
+      final tp = toMini(world);
+      final dv = tp - center;
+      final dist = dv.distance;
+      final m = stoneLightFor(col);
+      final pulse = 0.55 + 0.45 * sin(now / period);
+      if (dist <= viewR - 6) {
+        paintDisc(canvas, m.leak, tp, 6 + pulse * 3, 0.9);
+        paintDisc(canvas, m.spark, tp, 3 + pulse, 1);
+      } else if (dist > 0.001) {
+        final dir = dv / dist;
+        final tip = center + dir * (viewR - 4);
+        final back = tip - dir * 8;
+        final perp = Offset(-dir.dy, dir.dx);
+        paintDisc(canvas, m.leak, tip - dir * 4, 7 + pulse * 2, 0.8);
+        canvas.drawPath(
+          Path()
+            ..moveTo(tip.dx, tip.dy)
+            ..lineTo(back.dx + perp.dx * 3.6, back.dy + perp.dy * 3.6)
+            ..lineTo(back.dx - perp.dx * 3.6, back.dy - perp.dy * 3.6)
+            ..close(),
+          Paint()..color = Color.lerp(col, const Color(0xFFFFFFFF), 0.25)!,
         );
       }
     }
 
-    // Radar rings around player center.
-    for (final ring in [0.33, 0.66, 1.0]) {
-      canvas.drawCircle(
-        center,
-        viewR * ring,
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.08)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.8,
-      );
+    if (game.starDustScannerTarget case final dust?) {
+      lock(dust.position, const Color(0xFFFFE082), 170);
+    }
+    if (game.planetScannerTarget case final planet?) {
+      lock(planet.position, const Color(0xFF90CAF9), 210);
+    }
+    if (tutorialTargetPos case final target?) {
+      lock(target, const Color(0xFF8B5CF6), 180);
     }
 
-    final ship = center;
-    canvas.drawCircle(ship, 3.0, Paint()..color = Colors.white);
-    canvas.drawCircle(
-      ship,
-      5.5,
-      Paint()
-        ..color = const Color(0xFFFFF176).withValues(alpha: 0.7)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
-    );
+    canvas.restore();
+    paintChartShip(canvas, center, game.ship.angle, r: 5);
   }
 
   @override

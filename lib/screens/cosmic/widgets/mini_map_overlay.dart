@@ -1,22 +1,26 @@
 import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
+import 'package:alchemons/games/cosmic/contest_art.dart'
+    show kContestChampionGold;
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:alchemons/games/cosmic/station_art.dart';
+import 'package:alchemons/games/cosmic/obsidian_kit.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
-import 'package:alchemons/games/cosmic/planets/planet_art.dart'
-    show paintSoftCircle;
-import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:flutter/services.dart';
-import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'cosmic_overlay_chrome.dart';
+import 'cosmic_panel_kit.dart' show panelLabel, panelPalette;
+import 'package:alchemons/widgets/bracket_controls.dart' show BracketButton;
 import 'cosmic_screen_styles.dart';
+import 'star_chart_art.dart';
 import '../models/map_marker.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
@@ -533,6 +537,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             _Header(
               hasHomePlanet: widget.hasHomePlanet,
               discoveredCount: _discoveredPlanets.length,
+              planetTotal: widget.world.totalCount,
               markerCount: widget.markers.length,
               starTotal: widget.dungeonStarTotal,
               starMax: widget.dungeonStarMax,
@@ -771,13 +776,16 @@ class _MiniMapTravelPromptData {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HEADER  (redesigned)
+// HEADER
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// The chart's title row, in the ship console's type: the name in spaced
+/// ink with its readings under it, HOME and the close cross at the end.
 class _Header extends StatelessWidget {
   const _Header({
     required this.hasHomePlanet,
     required this.discoveredCount,
+    required this.planetTotal,
     required this.markerCount,
     this.starTotal = 0,
     this.starMax = 0,
@@ -787,6 +795,7 @@ class _Header extends StatelessWidget {
 
   final bool hasHomePlanet;
   final int discoveredCount;
+  final int planetTotal;
   final int markerCount;
   final int starTotal;
   final int starMax;
@@ -795,162 +804,129 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: CosmicScreenStyles.borderMid.withValues(alpha: 0.7),
-            width: 1,
-          ),
+    InlineSpan reading(String value, String label, Color color) => TextSpan(
+      children: [
+        TextSpan(text: value, style: panelLabel(11.5, color, spacing: 0.6)),
+        TextSpan(
+          text: ' $label',
+          style: panelLabel(9, panelPalette.muted, spacing: 1.4),
         ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Top row: home | title block | close ──────────────────────────
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+      ],
+    );
+    const gap = TextSpan(text: '    ');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 4, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Home button
-                if (hasHomePlanet)
-                  _IconBtn(
-                    icon: AppIcons.home_rounded,
-                    onTap: context.soundTap(onGoHome),
-                    accent: const Color(0xFFF6D55C),
-                    tooltip: 'Home',
-                  )
-                else
-                  const SizedBox(width: 42),
-
-                const SizedBox(width: 12),
-
-                // Title + subtitle
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Decorative top rule
-                      Row(
-                        children: [
-                          Container(
-                            width: 18,
-                            height: 1,
-                            color: CosmicScreenStyles.amber.withValues(
-                              alpha: 0.55,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'COSMIC NAVIGATION',
-                            style: TextStyle(
-                              fontFamily: appFontFamily(context),
-                              color: CosmicScreenStyles.amber.withValues(
-                                alpha: 0.68,
-                              ),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 2.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      // Main title with gradient-ish layering
-                      Text(
-                        'STAR MAP',
-                        style: TextStyle(
-                          fontFamily: appFontFamily(context),
-                          color: CosmicScreenStyles.textPrimary,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 3.2,
-                          height: 1.0,
-                        ),
-                      ),
-                    ],
-                  ),
+                Text(
+                  'STAR CHART',
+                  style: panelLabel(13, panelPalette.ink, spacing: 2.6),
                 ),
-
-                const SizedBox(width: 12),
-
-                // Close button
-                _IconBtn(
-                  icon: AppIcons.close_rounded,
-                  onTap: context.soundTap(onClose),
-                  accent: Colors.white,
-                  tooltip: 'Close',
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            // ── Stats row ────────────────────────────────────────────────────
-            // Overflow-proof: the chip cluster scales down on narrow phones
-            // and the decorative LY readout is the first thing to clip.
-            Row(
-              children: [
-                // The chip cluster keeps its natural size whenever it fits
-                // (flex 5 of 7); only genuinely narrow screens scale it.
-                Flexible(
-                  flex: 5,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                const SizedBox(height: 5),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text.rich(
+                    TextSpan(
                       children: [
-                        _StatChip(
-                          icon: AppIcons.public_rounded,
-                          label: '$discoveredCount PLANETS',
-                          color: CosmicScreenStyles.amber,
-                        ),
-                        const SizedBox(width: 8),
-                        _StatChip(
-                          icon: AppIcons.push_pin_rounded,
-                          label: '$markerCount MARKERS',
-                          color: CosmicScreenStyles.teal,
+                        reading(
+                          '$discoveredCount/$planetTotal',
+                          'PLANETS',
+                          panelPalette.ink,
                         ),
                         if (starMax > 0) ...[
-                          const SizedBox(width: 8),
-                          // Campaign star tally across every dungeon planet.
-                          _StatChip(
-                            icon: AppIcons.star_rounded,
-                            label: '$starTotal/$starMax STARS',
-                            color: const Color(0xFFE4C16A),
-                          ),
+                          gap,
+                          reading('$starTotal/$starMax', 'STARS', kChartAmber),
                         ],
+                        gap,
+                        reading('$markerCount', 'MARKERS', panelPalette.ink),
                       ],
                     ),
-                  ),
-                ),
-                // Gap so the LY readout never crowds the STARS badge.
-                const SizedBox(width: 12),
-                // Tiny coordinate-style decoration — clipped when tight.
-                Flexible(
-                  flex: 2,
-                  child: Text(
-                    '${DateTime.now().millisecondsSinceEpoch % 9999 + 1000} LY',
-                    textAlign: TextAlign.end,
                     maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.fade,
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: CosmicScreenStyles.amber.withValues(alpha: 0.38),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.4,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
                   ),
                 ),
               ],
             ),
+          ),
+          if (hasHomePlanet) ...[
+            const SizedBox(width: 8),
+            _ChartChip(
+              label: 'HOME',
+              icon: AppIcons.home_rounded,
+              accent: kChartAmber,
+              active: true,
+              height: 32,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                onGoHome();
+              },
+            ),
           ],
+          CosmicCloseButton(onTap: onClose),
+        ],
+      ),
+    );
+  }
+}
+
+/// A small control in the chart's bracket frame: an icon, a word, or both.
+/// [active] lights its frame in [accent].
+class _ChartChip extends StatelessWidget {
+  const _ChartChip({
+    this.icon,
+    this.label,
+    required this.accent,
+    required this.onTap,
+    this.active = false,
+    this.height = 30,
+    this.width,
+  });
+
+  final IconData? icon;
+  final String? label;
+  final Color accent;
+  final VoidCallback onTap;
+  final bool active;
+  final double height;
+  final double? width;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = active ? accent : panelPalette.muted;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: active
+              ? accent.withValues(alpha: 0.85)
+              : panelPalette.line.withValues(alpha: 0.75),
+          bracketSize: 6,
+          strokeWidth: active ? 1.2 : 1,
+        ),
+        child: Container(
+          height: height,
+          width: width,
+          padding: EdgeInsets.symmetric(horizontal: label == null ? 0 : 10),
+          alignment: Alignment.center,
+          color: active
+              ? accent.withValues(alpha: 0.12)
+              : panelPalette.bg1.withValues(alpha: 0.8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) Icon(icon, size: 14, color: ink),
+              if (icon != null && label != null) const SizedBox(width: 6),
+              if (label != null)
+                Text(label!, style: panelLabel(10, ink, spacing: 1.4)),
+            ],
+          ),
         ),
       ),
     );
@@ -993,30 +969,39 @@ class _ChartToolRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accent = CosmicScreenStyles.amber;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 4, 14, 6),
+      padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
       child: SizedBox(
-        height: 34,
+        height: 32,
         child: Row(
           children: [
             if (showMarkerTools) ...[
-              _ModeButton(
+              _ChartChip(
                 icon: AppIcons.push_pin,
+                width: 32,
+                height: 32,
                 active: markerMode,
                 accent: MapMarker
                     .colors[selectedColor.clamp(0, MapMarker.typeCount - 1)],
-                onTap: context.soundTap(onToggleMarkerMode),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onToggleMarkerMode();
+                },
               ),
               const SizedBox(width: 6),
               // Erase mode — one marker at a time. Removal used to exist only
               // as a long-press, which competes with the map's own pan gesture
               // and so was close to unusable; this makes it explicit.
-              _ModeButton(
+              _ChartChip(
                 icon: AppIcons.delete_outline_rounded,
+                width: 32,
+                height: 32,
                 active: eraseMode,
                 accent: const Color(0xFFFF6B6B),
-                onTap: context.soundTap(onToggleErase),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onToggleErase();
+                },
               ),
               const SizedBox(width: 6),
               if (showMarkerColors)
@@ -1044,180 +1029,32 @@ class _ChartToolRow extends StatelessWidget {
                 const Spacer(),
               if (hasMarkers) ...[
                 const SizedBox(width: 6),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: context.soundAction(() {
+                // Small and quiet: it wipes every marker, so it should not be
+                // the most inviting control in the row.
+                _ChartChip(
+                  label: 'CLEAR',
+                  height: 26,
+                  accent: panelPalette.muted,
+                  onTap: () {
                     HapticFeedback.mediumImpact();
                     onClearAll();
-                  }),
-                  // Small and quiet: it wipes every marker, so it should not
-                  // be the most inviting control in the row.
-                  child: Container(
-                    height: 26,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: CosmicScreenStyles.bg2,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: CosmicScreenStyles.borderMid.withValues(
-                          alpha: 0.7,
-                        ),
-                      ),
-                    ),
-                    child: Text(
-                      'CLEAR',
-                      style: TextStyle(
-                        fontFamily: appFontFamily(context),
-                        color: CosmicScreenStyles.textMuted.withValues(
-                          alpha: 0.85,
-                        ),
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ),
+                  },
                 ),
               ],
             ] else
               const Spacer(),
             if (onToggle != null) ...[
               const SizedBox(width: 8),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: context.soundAction(onToggle),
-                child: Container(
-                  height: 28,
-                  padding: const EdgeInsets.symmetric(horizontal: 9),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: accent.withValues(alpha: 0.32),
-                      width: 1.0,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        AppIcons.public_rounded,
-                        size: 13,
-                        color: accent.withValues(alpha: 0.8),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        collapsed
-                            ? AppIcons.keyboard_arrow_down_rounded
-                            : AppIcons.keyboard_arrow_up_rounded,
-                        size: 15,
-                        color: accent.withValues(alpha: 0.9),
-                      ),
-                    ],
-                  ),
-                ),
+              _ChartChip(
+                label: 'PLANETS',
+                icon: collapsed
+                    ? AppIcons.keyboard_arrow_down_rounded
+                    : AppIcons.keyboard_arrow_up_rounded,
+                accent: kChartAmber,
+                active: !collapsed,
+                onTap: onToggle!,
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _IconBtn extends StatelessWidget {
-  const _IconBtn({
-    required this.icon,
-    required this.onTap,
-    required this.accent,
-    required this.tooltip,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final Color accent;
-  final String tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: context.soundAction(() {
-        HapticFeedback.lightImpact();
-        onTap();
-      }),
-      child: CustomPaint(
-        foregroundPainter: DungeonBracketPainter(
-          color: accent.withValues(alpha: 0.9),
-          bracketSize: 8,
-          strokeWidth: 1.3,
-        ),
-        child: Container(
-          width: 42,
-          height: 42,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: CosmicScreenStyles.bg2,
-            border: Border.all(
-              color: accent.withValues(alpha: 0.4),
-              width: 1.1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: 0.14),
-                blurRadius: 12,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Icon(icon, color: accent.withValues(alpha: 0.88), size: 20),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  const _StatChip({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      foregroundPainter: DungeonBracketPainter(
-        color: color.withValues(alpha: 0.85),
-        bracketSize: 6,
-        strokeWidth: 1.0,
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.10),
-          border: Border.all(color: color.withValues(alpha: 0.32), width: 1.0),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color.withValues(alpha: 0.85), size: 11),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: color.withValues(alpha: 0.9),
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-              ),
-            ),
           ],
         ),
       ),
@@ -1228,53 +1065,6 @@ class _StatChip extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // MARKER TOOLBAR
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _ModeButton extends StatelessWidget {
-  const _ModeButton({
-    required this.icon,
-    required this.active,
-    required this.accent,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final bool active;
-  final Color accent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: context.soundAction(() {
-        HapticFeedback.selectionClick();
-        onTap();
-      }),
-      child: Container(
-        width: 38,
-        height: 38,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: active
-              ? accent.withValues(alpha: 0.18)
-              : CosmicScreenStyles.bg2,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: active
-                ? accent.withValues(alpha: 0.95)
-                : CosmicScreenStyles.borderMid,
-            width: active ? 1.5 : 1.0,
-          ),
-        ),
-        child: Icon(
-          icon,
-          color: active ? accent : CosmicScreenStyles.textMuted,
-          size: 16,
-        ),
-      ),
-    );
-  }
-}
 
 /// One of the six marker types, drawn as its real silhouette so the picker
 /// shows exactly what will land on the chart.
@@ -1295,27 +1085,31 @@ class _MarkerSwatch extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(onTap),
-      child: Container(
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: selected ? 0.24 : 0.08),
-          border: Border.all(
-            color: selected
-                ? color.withValues(alpha: 0.95)
-                : CosmicScreenStyles.borderMid.withValues(alpha: 0.7),
-            width: selected ? 1.6 : 1.0,
-          ),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: selected
+              ? color.withValues(alpha: 0.9)
+              : panelPalette.line.withValues(alpha: 0.6),
+          bracketSize: 5,
+          strokeWidth: selected ? 1.3 : 1,
         ),
-        // Shape only. At the size these swatches get, 6.5px labels were
-        // unreadable anyway, and the silhouette already carries the identity.
-        child: Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CustomPaint(
-              painter: _SwatchPainter(
-                shape: MapMarker.shapes[index],
-                color: color,
-                dim: !selected,
+        child: Container(
+          color: selected
+              ? color.withValues(alpha: 0.16)
+              : panelPalette.bg1.withValues(alpha: 0.8),
+          // Shape only. At the size these swatches get, 6.5px labels were
+          // unreadable anyway, and the silhouette already carries the
+          // identity.
+          child: Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CustomPaint(
+                painter: _SwatchPainter(
+                  shape: MapMarker.shapes[index],
+                  color: color,
+                  dim: !selected,
+                ),
               ),
             ),
           ),
@@ -1345,7 +1139,7 @@ class _SwatchPainter extends CustomPainter {
       shape,
       Paint()..color = color.withValues(alpha: dim ? 0.6 : 1.0),
       Paint()
-        ..color = Colors.white.withValues(alpha: dim ? 0.25 : 0.6)
+        ..color = Colors.black.withValues(alpha: 0.5)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.9,
     );
@@ -1517,14 +1311,12 @@ class _PlanetCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: isSelected
-                      ? CosmicScreenStyles.textPrimary
-                      : CosmicScreenStyles.textMuted.withValues(alpha: 0.58),
-                  fontFamily: appFontFamily(context),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.7,
+                style: panelLabel(
+                  10.5,
+                  isSelected
+                      ? elementInk(planet.element)
+                      : panelPalette.muted.withValues(alpha: 0.6),
+                  spacing: 1.4,
                 ),
               ),
             ),
@@ -1581,53 +1373,18 @@ class _NavigateButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final col = planet.color;
     return Center(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: context.soundAction(() {
-          HapticFeedback.lightImpact();
-          onTap();
-        }),
-        child: CustomPaint(
-          foregroundPainter: DungeonBracketPainter(
-            color: col.withValues(alpha: 0.9),
-            bracketSize: 9,
-            strokeWidth: 1.3,
-          ),
-          child: Container(
-            height: 34,
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              border: Border.all(color: col.withValues(alpha: 0.5), width: 1.1),
-              boxShadow: [
-                BoxShadow(
-                  color: col.withValues(alpha: 0.18),
-                  blurRadius: 14,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(AppIcons.navigation_rounded, color: col, size: 12),
-                const SizedBox(width: 6),
-                Text(
-                  'NAVIGATE TO ${planetName(planet.element).toUpperCase()}',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: col,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ],
-            ),
-          ),
+      child: IntrinsicWidth(
+        child: BracketButton(
+          label: 'NAVIGATE TO ${planetName(planet.element).toUpperCase()}',
+          icon: AppIcons.navigation_rounded,
+          palette: panelPalette,
+          accent: elementInk(planet.element),
+          height: 36,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
         ),
       ),
     );
@@ -1647,126 +1404,74 @@ class _TravelPromptCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = prompt.accent;
+    final accent = Color.lerp(prompt.accent, Colors.white, 0.18)!;
     final canConfirm = prompt.onConfirm != null;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: CosmicScreenStyles.bg2.withValues(alpha: 0.97),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: accent.withValues(alpha: 0.5), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.55),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-          BoxShadow(
-            color: accent.withValues(alpha: 0.12),
-            blurRadius: 22,
-            spreadRadius: 1,
-          ),
-        ],
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: accent.withValues(alpha: 0.75),
+        bracketSize: 9,
+        strokeWidth: 1.2,
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: accent.withValues(alpha: 0.32)),
-            ),
-            child: Icon(prompt.icon, color: accent, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  prompt.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.9,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 9, 9, 9),
+        color: panelPalette.bg0.withValues(alpha: 0.94),
+        child: Row(
+          children: [
+            Icon(prompt.icon, color: accent, size: 18),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    prompt.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: panelLabel(11.5, panelPalette.ink, spacing: 1.2),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  prompt.subtitle.toUpperCase(),
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
+                  const SizedBox(height: 4),
+                  Text(
+                    prompt.subtitle.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: panelLabel(9, panelPalette.muted, spacing: 1.4),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: context.soundAction(() {
-              HapticFeedback.selectionClick();
-              onDismiss();
-            }),
-            child: Container(
-              width: 34,
-              height: 34,
-              alignment: Alignment.center,
-              child: Icon(
-                AppIcons.close_rounded,
-                color: CosmicScreenStyles.textMuted,
-                size: 18,
+                ],
               ),
             ),
-          ),
-          if (canConfirm) ...[
-            const SizedBox(width: 4),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: context.soundAction(() {
-                HapticFeedback.mediumImpact();
-                onConfirm();
+                HapticFeedback.selectionClick();
+                onDismiss();
               }),
-              child: Container(
-                height: 38,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: accent.withValues(alpha: 0.55)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(AppIcons.navigation_rounded, color: accent, size: 13),
-                    const SizedBox(width: 6),
-                    Text(
-                      prompt.actionLabel ?? 'TRAVEL',
-                      style: TextStyle(
-                        fontFamily: appFontFamily(context),
-                        color: accent,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.9,
-                      ),
-                    ),
-                  ],
+              child: SizedBox(
+                width: 34,
+                height: 34,
+                child: Icon(
+                  AppIcons.close_rounded,
+                  color: panelPalette.muted,
+                  size: 17,
                 ),
               ),
             ),
+            if (canConfirm) ...[
+              const SizedBox(width: 4),
+              BracketButton(
+                label: prompt.actionLabel ?? 'TRAVEL',
+                icon: AppIcons.navigation_rounded,
+                palette: panelPalette,
+                accent: accent,
+                height: 34,
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  onConfirm();
+                },
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1833,8 +1538,8 @@ class _MapViewState extends State<_MapView> {
 
   /// The tutorial target is the only thing on the chart that pulses, so the
   /// pulse runs only while there is one. It steps [_pulseTick], which
-  /// repaints the live layer alone — not the map, not the fog. The timer
-  /// dies with the map (closing it removes this widget).
+  /// repaints the pin layer alone — not the chart body. The timer dies with
+  /// the map (closing it removes this widget).
   void _syncPulse() {
     final wantsPulse = widget.tutorialTargetPos != null;
     if (wantsPulse && _pulseTimer == null) {
@@ -1870,7 +1575,6 @@ class _MapViewState extends State<_MapView> {
         final scale = max(vw / worldW, vh / worldH);
         final contentW = worldW * scale;
         final contentH = worldH * scale;
-        final discoveredPlanetCount = widget.world.discoveredCount;
 
         if (_lastFitSize != scale) {
           _lastFitSize = scale;
@@ -1888,7 +1592,11 @@ class _MapViewState extends State<_MapView> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              ColoredBox(color: CosmicScreenStyles.bg1),
+              const ColoredBox(color: CosmicScreenStyles.bg0),
+              // Far stars, fixed to the glass rather than the chart.
+              const RepaintBoundary(
+                child: CustomPaint(painter: _ChartStarsPainter()),
+              ),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTapDown: (d) => widget.onTapDown(d, scale),
@@ -1900,50 +1608,49 @@ class _MapViewState extends State<_MapView> {
                   maxScale: 8.0,
                   boundaryMargin: EdgeInsets.zero,
                   constrained: false,
+                  // The chart body — explored haze, territories, the belt,
+                  // the planets as they look in space — zooms with the
+                  // fingers and is recorded once per open.
                   child: RepaintBoundary(
                     child: SizedBox(
                       width: contentW,
                       height: contentH,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // The chart itself — fog, planets, landmarks, all
-                          // their glows — in a layer of its own, so the
-                          // pulse above never re-records it.
-                          RepaintBoundary(
-                            child: CustomPaint(
-                              isComplex: true,
-                              painter: _MiniMapPainter(
-                                world: widget.world,
-                                game: widget.game,
-                                scale: scale,
-                                shipPos: widget.game.ship.pos,
-                                revealedCellCount:
-                                    widget.game.revealedCells.length,
-                                discoveredPlanetCount: discoveredPlanetCount,
-                                showAllContestArenasOnMap:
-                                    widget.showAllContestArenas,
-                                markers: widget.markers,
-                              ),
-                            ),
-                          ),
-                          CustomPaint(
-                            painter: _MiniMapLivePainter(
-                              scale: scale,
-                              shipPos: widget.game.ship.pos,
-                              pulse: _pulseTick,
-                              tutorialTargetPos: widget.tutorialTargetPos,
-                              tutorialTargetColor: widget.tutorialTargetColor,
-                              tutorialTargetLabel: widget.tutorialTargetLabel,
-                            ),
-                          ),
-                        ],
+                      child: CustomPaint(
+                        isComplex: true,
+                        willChange: false,
+                        painter: _ChartBodyPainter(
+                          world: widget.world,
+                          game: widget.game,
+                          scale: scale,
+                          revealedCellCount: widget.game.revealedCells.length,
+                          discoveredPlanetCount: widget.world.discoveredCount,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-              // Star-chart chrome, now drawn against the real screen edges.
+              // Everything you navigate BY — stations, landmarks, labels,
+              // markers, the ship — stays one size on the glass however far
+              // the chart is zoomed, and moves with it.
+              IgnorePointer(
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: _ChartPinsPainter(
+                      world: widget.world,
+                      game: widget.game,
+                      scale: scale,
+                      transform: widget.transformCtrl,
+                      pulse: _pulseTick,
+                      markers: widget.markers,
+                      showAllContestArenas: widget.showAllContestArenas,
+                      tutorialTargetPos: widget.tutorialTargetPos,
+                      tutorialTargetColor: widget.tutorialTargetColor,
+                      tutorialTargetLabel: widget.tutorialTargetLabel,
+                    ),
+                  ),
+                ),
+              ),
               const IgnorePointer(
                 child: CustomPaint(painter: _ChartFramePainter()),
               ),
@@ -1955,64 +1662,52 @@ class _MapViewState extends State<_MapView> {
   }
 }
 
-/// Star-chart chrome over the map: amber corner brackets, faint range rings
-/// with cardinal tick marks, and an edge vignette — purely decorative,
-/// painted once per frame with a handful of strokes.
+/// A sparse field of far stars behind the chart, painted once.
+class _ChartStarsPainter extends CustomPainter {
+  const _ChartStarsPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final dim = PointBatch(260);
+    final bright = PointBatch(40);
+    for (var i = 0; i < 300; i++) {
+      final x = hash01(i, 21) * size.width;
+      final y = hash01(i, 43) * size.height;
+      (hash01(i, 67) < 0.13 ? bright : dim).add(x, y);
+    }
+    dim.draw(canvas, 1.0, const Color(0x38D8D0E8));
+    bright.draw(canvas, 1.5, const Color(0x70E8DCC8));
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChartStarsPainter oldDelegate) => false;
+}
+
+/// The chart's frame: an edge vignette and amber corner brackets, against
+/// the real screen edges.
 class _ChartFramePainter extends CustomPainter {
   const _ChartFramePainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    const amber = Color(0xFFE4C16A);
-
     // Edge vignette so the chart melts into the console.
     canvas.drawRect(
       Offset.zero & size,
       Paint()
         ..shader = RadialGradient(
           radius: 0.85,
-          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.35)],
-          stops: const [0.72, 1.0],
+          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.4)],
+          stops: const [0.68, 1.0],
         ).createShader(Offset.zero & size),
     );
-
-    // Range rings + cardinal ticks.
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = amber.withValues(alpha: 0.07);
-    for (final f in const [0.28, 0.52, 0.76]) {
-      canvas.drawCircle(c, size.width * f * 0.5, ring);
-    }
-    final tick = Paint()
-      ..strokeWidth = 1.2
-      ..strokeCap = StrokeCap.round
-      ..color = amber.withValues(alpha: 0.22);
-    for (var i = 0; i < 4; i++) {
-      final a = i * pi / 2;
-      final dir = Offset(cos(a), sin(a));
-      final r = size.width * 0.76 * 0.5;
-      canvas.drawLine(c + dir * (r - 6), c + dir * (r + 6), tick);
-    }
-
-    // Corner brackets — the game-map frame.
-    final bracket = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..strokeCap = StrokeCap.round
-      ..color = amber.withValues(alpha: 0.55);
-    const inset = 10.0;
-    const arm = 16.0;
-    void corner(Offset p, double sx, double sy) {
-      canvas.drawLine(p, p + Offset(arm * sx, 0), bracket);
-      canvas.drawLine(p, p + Offset(0, arm * sy), bracket);
-    }
-
-    corner(const Offset(inset, inset), 1, 1);
-    corner(Offset(size.width - inset, inset), -1, 1);
-    corner(Offset(inset, size.height - inset), 1, -1);
-    corner(Offset(size.width - inset, size.height - inset), -1, -1);
+    canvas.save();
+    canvas.translate(10, 10);
+    BracketFramePainter(
+      color: kChartAmber.withValues(alpha: 0.42),
+      bracketSize: 16,
+      strokeWidth: 1.2,
+    ).paint(canvas, Size(size.width - 20, size.height - 20));
+    canvas.restore();
   }
 
   @override
@@ -2036,32 +1731,25 @@ class _Legend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hint = eraseMode
-        ? 'Tap a marker to remove it'
+        ? 'TAP A MARKER TO REMOVE IT'
         : markerMode
-        ? 'Tap to place  •  Long-press a marker to remove'
+        ? 'TAP TO PLACE  ·  LONG-PRESS A MARKER TO REMOVE'
         : showContestTip
-        ? 'Tap destination, then travel  •  Pinch to zoom'
-        : 'Tap destination, then travel  •  Pinch to zoom  •  Drag to pan';
+        ? 'TAP A PLACE TO TRAVEL  ·  PINCH TO ZOOM'
+        : 'TAP A PLACE TO TRAVEL  ·  PINCH TO ZOOM  ·  DRAG TO PAN';
 
-    // No top rule: the legend floats over the chart on its own scrim now, and
-    // a hard divider line across the map was exactly the boxed-in edge this
-    // layout is getting rid of.
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            hint,
-            style: TextStyle(
-              fontFamily: appFontFamily(context),
-              color: CosmicScreenStyles.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
+    // No top rule: the legend floats over the chart on its own scrim, and a
+    // hard divider line across the map was exactly the boxed-in edge this
+    // layout got rid of.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          hint,
+          maxLines: 1,
+          style: panelLabel(9, panelPalette.muted, spacing: 1.3),
+        ),
       ),
     );
   }
@@ -2108,11 +1796,9 @@ class _PlanetPreviewPainter extends CustomPainter {
       width: size.width + 40,
       height: size.height + 40,
     );
-    canvas.save();
-    canvas.clipRect(bounds);
-    if (alpha < 1) {
-      canvas.saveLayer(bounds, Paint()..color = Color.fromRGBO(0, 0, 0, alpha));
-    }
+    // The planet's light fades out before the card's edge instead of being
+    // cut off square there.
+    canvas.saveLayer(bounds, Paint()..color = Color.fromRGBO(0, 0, 0, alpha));
     if (highlighted) {
       // Selected: lifted by a soft pool of its own light, not a ring.
       final glow = r * 1.9;
@@ -2131,7 +1817,17 @@ class _PlanetPreviewPainter extends CustomPainter {
     art.paintBack(canvas, c, r, t);
     art.paintBody(canvas, c, r, t);
     art.paintFront(canvas, c, r, t);
-    if (alpha < 1) canvas.restore();
+    canvas.drawRect(
+      bounds,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = ui.Gradient.radial(
+          c,
+          bounds.shortestSide / 2,
+          const [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+          const [0.0, 0.6, 1.0],
+        ),
+    );
     canvas.restore();
   }
 
@@ -2145,308 +1841,474 @@ class _PlanetPreviewPainter extends CustomPainter {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MINIMAP PAINTER
+// CHART PAINTERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MiniMapPainter extends CustomPainter {
-  const _MiniMapPainter({
+/// The chart body, in chart units (world × [scale]), zoomed by the viewer:
+/// explored space as a haze, each found planet's territory as a pool of its
+/// own light, the belt as dust, and the planets themselves — the same art as
+/// in space, at chart size. Recorded once per open, re-recorded only when a
+/// cell is revealed or a planet found.
+class _ChartBodyPainter extends CustomPainter {
+  const _ChartBodyPainter({
     required this.world,
     required this.game,
     required this.scale,
-    required this.shipPos,
     required this.revealedCellCount,
     required this.discoveredPlanetCount,
-    this.showAllContestArenasOnMap = false,
-    this.markers = const [],
   });
 
   final CosmicWorld world;
   final CosmicGame game;
   final double scale;
-  final Offset shipPos;
   final int revealedCellCount;
   final int discoveredPlanetCount;
-  final bool showAllContestArenasOnMap;
+
+  /// The moment each planet is shown at, the same as the carousel cards.
+  static const double _moment = 2.7;
+
+  /// The radius planet art is drawn at before it is scaled down, so its
+  /// grains and rings keep their proportions.
+  static const double _artR = 30;
+
+  static final Map<Color, ui.Shader> _territory = {};
+
+  /// A planet on the chart is drawn this much bigger than it is in the
+  /// world, so it reads at a glance.
+  static double planetRadius(double worldRadius, double scale) =>
+      max(4.0, worldRadius * scale * 1.5);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final ws = world.worldSize;
+    final gw = (ws.width / CosmicGame.fogCellSize).ceil();
+    final gh = (ws.height / CosmicGame.fogCellSize).ceil();
+    ChartFog.paint(
+      canvas,
+      Rect.fromLTWH(0, 0, ws.width * scale, ws.height * scale),
+      game.revealedCells,
+      gw,
+      gh,
+    );
+
+    // Territories: a pool of each planet's own tint, strongest at its heart,
+    // gone at its border — so the map shows where each element's wild
+    // Alchemons live without drawing a line round them.
+    for (final planet in world.planets) {
+      if (!planet.discovered) continue;
+      final art = planetArtFor(planet);
+      final tint = art.territoryTint;
+      final s = (art.territoryStrength * 5).clamp(0.25, 0.6);
+      final shader = _territory[tint] ??= ui.Gradient.radial(
+        Offset.zero,
+        1,
+        [
+          tint.withValues(alpha: s),
+          tint.withValues(alpha: s * 0.45),
+          tint.withValues(alpha: 0),
+        ],
+        const [0.0, 0.55, 1.0],
+      );
+      paintDisc(
+        canvas,
+        shader,
+        planet.position * scale,
+        kPlanetTerritoryRadius * scale,
+      );
+    }
+
+    // The asteroid belt: a faint band of dust with its rocks as grains.
+    final belt = game.asteroidBelt;
+    final bc = belt.center * scale;
+    final ri = belt.innerRadius * scale, ro = belt.outerRadius * scale;
+    canvas.drawCircle(
+      bc,
+      ro,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          bc,
+          ro,
+          const [
+            Color(0x00A08C74),
+            Color(0x00A08C74),
+            Color(0x1CA08C74),
+            Color(0x00A08C74),
+          ],
+          [0.0, ri / ro * 0.97, (ri / ro + 1) / 2, 1.0],
+        ),
+    );
+    final rocks = PointBatch(700);
+    for (var i = 0; i < 700; i++) {
+      final rr = ri + (ro - ri) * hash01(i, 71);
+      final a = hash01(i, 73) * 2 * pi;
+      rocks.add(bc.dx + cos(a) * rr, bc.dy + sin(a) * rr);
+    }
+    rocks.draw(canvas, 0.7, const Color(0x80A8957D));
+
+    // The planets, as they look in space.
+    for (final planet in world.planets) {
+      if (!planet.discovered) continue;
+      final art = planetArtFor(planet);
+      final r = planetRadius(planet.radius, scale);
+      final saved = art.wake;
+      art.wake = null;
+      canvas.save();
+      canvas.translate(planet.position.dx * scale, planet.position.dy * scale);
+      canvas.scale(r / _artR);
+      art.paintBack(canvas, Offset.zero, _artR, _moment);
+      art.paintBody(canvas, Offset.zero, _artR, _moment);
+      art.paintFront(canvas, Offset.zero, _artR, _moment);
+      canvas.restore();
+      art.wake = saved;
+    }
+
+    // Home, wearing what it wears.
+    if (game.homePlanet case final hp?) {
+      final r = planetRadius(hp.visualRadius, scale);
+      game.paintHomeShowcase(
+        canvas,
+        Rect.fromCircle(center: hp.position * scale, radius: r * 2.6),
+        _moment,
+        wearing: game.activeCustomizations,
+        color: hp.activeColor,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChartBodyPainter old) =>
+      scale != old.scale ||
+      revealedCellCount != old.revealedCellCount ||
+      discoveredPlanetCount != old.discoveredPlanetCount ||
+      !identical(game, old.game);
+}
+
+/// Everything you navigate by, on the glass: one size however far the chart
+/// is zoomed, carried along with it by [transform]. Labels come in as the
+/// chart is zoomed — planets always, stations next, then the lesser places —
+/// so a whole-galaxy view is never a wall of words.
+class _ChartPinsPainter extends CustomPainter {
+  _ChartPinsPainter({
+    required this.world,
+    required this.game,
+    required this.scale,
+    required this.transform,
+    required ValueListenable<int> pulse,
+    required this.markers,
+    required this.showAllContestArenas,
+    this.tutorialTargetPos,
+    this.tutorialTargetColor,
+    this.tutorialTargetLabel,
+  }) : _pulse = pulse,
+       super(repaint: Listenable.merge([transform, pulse]));
+
+  final CosmicWorld world;
+  final CosmicGame game;
+  final double scale;
+  final TransformationController transform;
+  final ValueListenable<int> _pulse;
   final List<MapMarker> markers;
+  final bool showAllContestArenas;
+  final Offset? tutorialTargetPos;
+  final Color? tutorialTargetColor;
+  final String? tutorialTargetLabel;
+
+  static const Color _derelict = Color(0xFF8FA3B0);
+  static const Color _anomaly = Color(0xFFB388FF);
+  static const Color _portal = Color(0xFF8B5CF6);
+  static const Color _lair = Color(0xFFE0453A);
+  static const Color _prismatic = Color(0xFFFF5FD2);
+  static const Color _nexus = Color(0xFFB388FF);
+  static const Color _blood = Color(0xFFC62828);
 
   static final _tpCache = <int, TextPainter>{};
 
-  static TextPainter _tp(
-    String text,
-    TextStyle style, {
-    TextAlign align = TextAlign.left,
-  }) {
-    final key = Object.hash(
-      text,
-      style.fontSize,
-      style.color,
-      style.fontWeight?.value,
-      align.name,
-    );
+  static TextPainter _tp(String text, Color color, double size) {
+    final key = Object.hash(text, color, size);
     return _tpCache.putIfAbsent(
       key,
       () => TextPainter(
-        text: TextSpan(text: text, style: style),
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: color,
+            fontSize: size,
+            fontWeight: FontWeight.w700,
+            letterSpacing: size * 0.16,
+            height: 1.0,
+          ),
+        ),
         textDirection: TextDirection.ltr,
-        textAlign: align,
       )..layout(),
     );
   }
 
-  /// The soft halo under a chart mark: what a circle under
-  /// `MaskFilter.blur(BlurStyle.normal, sigma)` drew, as one radial
-  /// gradient instead of a gaussian pass per glow.
-  static void _glow(
-    Canvas canvas,
-    Offset at,
-    double radius,
-    Color color,
-    double alpha,
-    double sigma,
-  ) => paintSoftCircle(
-    canvas,
-    at,
-    radius,
-    color.withValues(alpha: alpha),
-    sigma,
-  );
-
-  static void _paintLabel(
-    Canvas canvas,
+  /// [text] centred under a mark of radius [r] at [at].
+  static void _label(
+    Canvas c,
     String text,
     Color color,
-    double alpha,
-    Offset pos,
-    double dotR, {
-    double fontSize = 6,
+    Offset at,
+    double r, {
+    double size = 8,
   }) {
-    final tp = _tp(
-      text,
-      TextStyle(
-        color: color.withValues(alpha: alpha),
-        fontSize: fontSize,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.5,
-      ),
-    );
-    tp.paint(canvas, Offset(pos.dx - tp.width / 2, pos.dy + dotR + 2));
-  }
-
-  void _paintHexMarker(
-    Canvas canvas,
-    Offset pos,
-    Color color,
-    double alpha,
-    bool discovered,
-  ) {
-    final hexPath = Path();
-    for (int i = 0; i < 6; i++) {
-      final a = pi / 3 * i - pi / 6;
-      final pt = Offset(pos.dx + 5.0 * cos(a), pos.dy + 5.0 * sin(a));
-      if (i == 0) {
-        hexPath.moveTo(pt.dx, pt.dy);
-      } else {
-        hexPath.lineTo(pt.dx, pt.dy);
-      }
-    }
-    hexPath.close();
-    canvas
-      ..drawPath(hexPath, Paint()..color = color.withValues(alpha: alpha))
-      ..drawPath(
-        hexPath,
-        Paint()
-          ..color = color.withValues(alpha: discovered ? 1.0 : 0.35)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0,
-      );
+    final tp = _tp(text, color, size);
+    tp.paint(c, Offset(at.dx - tp.width / 2, at.dy + r + 4));
   }
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Background
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = const Color(0xFF040613),
-    );
+    final m = transform.value;
+    final zoom = m.getMaxScaleOnAxis();
+    // How many screen pixels a world unit is right now.
+    final es = scale * zoom;
+    final view = (Offset.zero & size).inflate(28);
+    Offset at(Offset world) => MatrixUtils.transformPoint(m, world * scale);
+    // Marks grow a little as the chart is zoomed in, never a lot.
+    final k = (0.85 + 0.1 * zoom).clamp(0.9, 1.25);
 
-    // Revealed fog cells
-    final fogCellScaled = CosmicGame.fogCellSize * scale;
-    final gridW = (world.worldSize.width / CosmicGame.fogCellSize).ceil();
-    final revealPaint = Paint()
-      ..color = const Color(0xFF141C46).withValues(alpha: 0.52);
-    final revealEdgePaint = Paint()
-      ..color = const Color(0x331E2D70).withValues(alpha: 0.38)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8;
-    final showFogEdges = fogCellScaled >= 2.0 && revealedCellCount <= 5000;
-    if (fogCellScaled < 2.0) {
-      final bucketSide = max(1, (3.0 / fogCellScaled).ceil());
-      final bucketGridW = (gridW / bucketSide).ceil();
-      final bucketSize = fogCellScaled * bucketSide;
-      final paintedBuckets = <int>{};
-      for (final key in game.revealedCells) {
-        final gx = key % gridW;
-        final gy = key ~/ gridW;
-        final bx = gx ~/ bucketSide;
-        final by = gy ~/ bucketSide;
-        final bucketKey = by * bucketGridW + bx;
-        if (!paintedBuckets.add(bucketKey)) continue;
-        canvas.drawRect(
-          Rect.fromLTWH(
-            bx * bucketSize,
-            by * bucketSize,
-            bucketSize,
-            bucketSize,
-          ),
-          revealPaint,
+    final stationLabels = es >= 0.024;
+    final landmarkLabels = es >= 0.03;
+    final minorLabels = es >= 0.04;
+
+    // Sealed elemental caches — pinned once the ship has been right on top
+    // of one.
+    for (final cache in game.elementalCacheField.caches) {
+      if (!cache.discovered || !cache.isPresent) continue;
+      final p = at(cache.position);
+      if (!view.contains(p)) continue;
+      paintChartGlyph(canvas, ChartGlyph.cache, p, cache.color, r: 4.6 * k);
+      if (landmarkLabels) {
+        // Named by its riddle, not its element — the chart should not hand
+        // you the answer the seal is asking for.
+        _label(
+          canvas,
+          cacheHintFor(cache.element).toUpperCase(),
+          elementInk(cache.element).withValues(alpha: 0.75),
+          p,
+          4.6 * k,
+          size: 7,
         );
       }
-    } else {
-      for (final key in game.revealedCells) {
-        final gx = key % gridW;
-        final gy = key ~/ gridW;
-        final rect = Rect.fromLTWH(
-          gx * fogCellScaled,
-          gy * fogCellScaled,
-          fogCellScaled,
-          fogCellScaled,
+    }
+
+    // Galaxy whirls.
+    for (final whirl in game.galaxyWhirls) {
+      if (whirl.state == WhirlState.completed) continue;
+      final p = at(whirl.position);
+      if (!view.contains(p)) continue;
+      final col = elementColor(whirl.element);
+      paintChartGlyph(canvas, ChartGlyph.whirl, p, col, r: 5.5 * k);
+      if (landmarkLabels) {
+        _label(
+          canvas,
+          'LV${whirl.level} ${whirl.hordeTypeName.toUpperCase()}',
+          elementInk(whirl.element).withValues(alpha: 0.8),
+          p,
+          6 * k,
+          size: 7,
         );
-        canvas.drawRect(rect, revealPaint);
-        if (showFogEdges) {
-          canvas.drawRect(rect.deflate(0.2), revealEdgePaint);
+      }
+    }
+
+    // Contest arenas.
+    for (final arena in world.contestArenas) {
+      if (!showAllContestArenas && !arena.discovered) continue;
+      final p = at(arena.position);
+      if (!view.contains(p)) continue;
+      // A mastered arena burns in the champion's gold.
+      final col = arena.masteredAt != null
+          ? kContestChampionGold
+          : arena.trait.color;
+      paintChartGlyph(canvas, ChartGlyph.contest, p, col, r: 5 * k);
+      if (minorLabels) {
+        _label(
+          canvas,
+          '${arena.trait.label.toUpperCase()} CONTEST',
+          col.withValues(alpha: 0.8),
+          p,
+          5 * k,
+          size: 7,
+        );
+      }
+    }
+
+    // Space POIs: stations, the survival portal, and the lesser places.
+    for (final poi in game.spacePOIs) {
+      if (poi.type == POIType.comet || poi.type == POIType.stardustScanner) {
+        continue;
+      }
+      final kind = stationKindFor(poi.type);
+      final isShop = kind != null && kind != StationKind.planetScanner;
+      final isPortal = poi.type == POIType.survivalPortal;
+      if (!poi.discovered && !isShop && !isPortal) continue;
+      final p = at(poi.position);
+      if (!view.contains(p)) continue;
+      final spent = poi.interacted ? 0.45 : 1.0;
+
+      switch (poi.type) {
+        case POIType.nebula:
+          final col = elementColor(poi.element);
+          paintChartGlyph(
+            canvas,
+            ChartGlyph.nebula,
+            p,
+            col,
+            r: 4.6 * k,
+            dim: spent,
+            salt: poi.position.dx.toInt() & 63,
+          );
+          if (minorLabels) {
+            _label(
+              canvas,
+              '${poi.element.toUpperCase()} NEBULA',
+              elementInk(poi.element).withValues(alpha: 0.7 * spent),
+              p,
+              5 * k,
+              size: 7,
+            );
+          }
+        case POIType.derelict:
+          paintChartGlyph(
+            canvas,
+            ChartGlyph.derelict,
+            p,
+            _derelict,
+            r: 4.6 * k,
+            dim: spent,
+          );
+          if (minorLabels) {
+            _label(
+              canvas,
+              'DERELICT',
+              _derelict.withValues(alpha: 0.75 * spent),
+              p,
+              4.6 * k,
+              size: 7,
+            );
+          }
+        case POIType.warpAnomaly:
+          paintChartGlyph(
+            canvas,
+            ChartGlyph.anomaly,
+            p,
+            _anomaly,
+            r: 4.4 * k,
+            dim: spent,
+          );
+          if (minorLabels) {
+            _label(
+              canvas,
+              'ANOMALY',
+              _anomaly.withValues(alpha: 0.75 * spent),
+              p,
+              5.5 * k,
+              size: 7,
+            );
+          }
+        case POIType.survivalPortal:
+          if (poi.discovered) {
+            paintChartGlyph(canvas, ChartGlyph.portal, p, _portal, r: 5 * k);
+          } else {
+            paintChartGlyph(canvas, ChartGlyph.signal, p, _portal, r: 5 * k);
+          }
+          if (stationLabels) {
+            _label(
+              canvas,
+              poi.discovered ? 'SURVIVAL PORTAL' : 'UNKNOWN SIGNAL',
+              const Color(
+                0xFFC4A8FF,
+              ).withValues(alpha: poi.discovered ? 0.9 : 0.5),
+              p,
+              6.5 * k,
+            );
+          }
+        default:
+          if (kind == null) continue;
+          paintChartGlyph(
+            canvas,
+            ChartGlyph.station,
+            p,
+            kind.accent,
+            r: 5.6 * k,
+            dim: poi.discovered ? 1 : 0.35,
+          );
+          if (stationLabels && poi.discovered) {
+            _label(
+              canvas,
+              kind.title,
+              Color.lerp(kind.accent, Colors.white, 0.25)!,
+              p,
+              5.6 * k,
+            );
+          }
+      }
+    }
+
+    // Prismatic field.
+    final pf = game.prismaticField;
+    if (pf.discovered) {
+      final p = at(pf.position);
+      if (view.contains(p)) {
+        final r = max(6.0 * k, pf.radius * es * 0.35);
+        paintChartGlyph(canvas, ChartGlyph.prismatic, p, _prismatic, r: r);
+        if (landmarkLabels) {
+          _label(
+            canvas,
+            'PRISMATIC AURORA',
+            const Color(0xFFFFA8E6),
+            p,
+            r * 1.4,
+            size: 7.5,
+          );
         }
       }
     }
 
-    final showPlanetLabels = scale >= 0.012;
-    final showStructureLabels = scale >= 0.014;
-    final showPoiLabels = scale >= 0.016;
-    final showContestLabels = scale >= 0.018;
-
-    // Territories under the planets, so the map shows where each
-    // element's wild Alchemons live.
-    for (final planet in world.planets) {
-      if (!planet.discovered) continue;
-      canvas.drawCircle(
-        planet.position * scale,
-        kPlanetTerritoryRadius * scale,
-        Paint()..color = planet.color.withValues(alpha: 0.10),
-      );
-    }
-
-    // Planets
-    for (final planet in world.planets) {
-      if (!planet.discovered) continue;
-      final px = planet.position.dx * scale;
-      final py = planet.position.dy * scale;
-      final pr = max(3.0, planet.radius * scale);
-      final pos = Offset(px, py);
-
-      _glow(canvas, pos, pr * 3, planet.color, 0.2, 6);
-
-      canvas.drawCircle(pos, pr, Paint()..color = planet.color);
-
-      if (showPlanetLabels) {
-        _paintLabel(
-          canvas,
-          planetName(planet.element),
-          planet.color,
-          0.8,
-          pos,
-          pr,
-        );
+    // Elemental Nexus.
+    final nx = world.elementalNexus;
+    if (nx.discovered) {
+      final p = at(nx.position);
+      if (view.contains(p)) {
+        paintChartGlyph(canvas, ChartGlyph.nexus, p, _nexus, r: 5.2 * k);
+        if (landmarkLabels) {
+          _label(
+            canvas,
+            'ELEMENTAL NEXUS',
+            const Color(0xFFCDB4FF),
+            p,
+            9 * k,
+            size: 7.5,
+          );
+        }
       }
     }
 
-    // Asteroid belt
-    final belt = game.asteroidBelt;
-    canvas.drawCircle(
-      Offset(belt.center.dx * scale, belt.center.dy * scale),
-      belt.innerRadius * scale,
-      Paint()
-        ..color = const Color(0xFF5D4037).withValues(alpha: 0.2)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = (belt.outerRadius - belt.innerRadius) * scale,
-    );
-
-    // Home planet
-    if (game.homePlanet case final hp?) {
-      final hx = hp.position.dx * scale;
-      final hy = hp.position.dy * scale;
-      final hr = max(4.0, hp.visualRadius * scale);
-      final hPos = Offset(hx, hy);
-
-      _glow(canvas, hPos, hr * 3, const Color(0xFF00E5FF), 0.3, 6);
-
-      canvas.drawCircle(hPos, hr, Paint()..color = hp.blendedColor);
-
-      _paintLabel(
-        canvas,
-        'HOME',
-        const Color(0xFF00E5FF),
-        1.0,
-        hPos,
-        hr,
-        fontSize: 12,
-      );
-    }
-
-    // Map markers — each type has its own silhouette as well as its own
-    // colour, so they stay distinguishable at chart scale and without relying
-    // on hue alone.
-    for (final marker in markers) {
-      final mPos = marker.worldPos * scale;
-      _glow(canvas, mPos, 9, marker.color, 0.35, 5);
-      paintMarkerShape(
-        canvas,
-        mPos,
-        4.6,
-        marker.shape,
-        Paint()..color = marker.color,
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.62)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1,
-      );
-    }
-
-    // Galaxy whirls
-    for (final whirl in game.galaxyWhirls) {
-      if (whirl.state == WhirlState.completed) continue;
-      final wPos = whirl.position * scale;
-      final wColor = elementColor(whirl.element);
-
-      _glow(canvas, wPos, 10, wColor, 0.3, 8);
-
-      final spiralPaint = Paint()
-        ..color = wColor.withValues(alpha: 0.8)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5;
-      for (var i = 0; i < 3; i++) {
-        canvas.drawArc(
-          Rect.fromCircle(center: wPos, radius: 5),
-          i * (pi * 2 / 3),
-          pi * 0.7,
-          false,
-          spiralPaint,
-        );
-      }
-      canvas.drawCircle(wPos, 2, Paint()..color = wColor);
-      if (showStructureLabels) {
-        _paintLabel(
-          canvas,
-          'Lv${whirl.level} ${whirl.hordeTypeName}',
-          wColor,
-          0.7,
-          wPos,
-          8,
-        );
+    // The Blood Ring: only a faint warmth in the dark until it is found.
+    final ring = world.bloodRing;
+    final ringAt = at(ring.position);
+    if (view.contains(ringAt)) {
+      if (!ring.discovered) {
+        paintChartGlyph(canvas, ChartGlyph.bloodHint, ringAt, _blood, r: 6);
+      } else {
+        paintChartGlyph(canvas, ChartGlyph.bloodRing, ringAt, _blood, r: 6 * k);
+        if (landmarkLabels) {
+          _label(
+            canvas,
+            ring.ritualCompleted ? 'BLOOD PORTAL' : 'BLOOD RING',
+            const Color(0xFFFF8A80),
+            ringAt,
+            8 * k,
+            size: 7.5,
+          );
+        }
       }
     }
 
-    // Nearest waiting boss lair
+    // The nearest waiting boss lair.
     BossLair? nearestLair;
-    double nearestDist = double.infinity;
+    var nearestDist = double.infinity;
     for (final lair in game.bossLairs) {
       if (lair.state != BossLairState.waiting) continue;
       final d = (lair.position - game.ship.pos).distance;
@@ -2456,481 +2318,87 @@ class _MiniMapPainter extends CustomPainter {
       }
     }
     if (nearestLair != null) {
-      final lair = nearestLair;
-      final lPos = lair.position * scale;
-      final bColor = elementColor(lair.template.element);
-
-      _glow(canvas, lPos, 12, const Color(0xFFFF1744), 0.35, 10);
-
-      final diamond = Path()
-        ..moveTo(lPos.dx, lPos.dy - 6)
-        ..lineTo(lPos.dx + 5, lPos.dy)
-        ..lineTo(lPos.dx, lPos.dy + 6)
-        ..lineTo(lPos.dx - 5, lPos.dy)
-        ..close();
-      canvas
-        ..drawPath(diamond, Paint()..color = bColor.withValues(alpha: 0.7))
-        ..drawPath(
-          diamond,
-          Paint()
-            ..color = const Color(0xFFFF1744).withValues(alpha: 0.6)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5,
-        );
-
-      if (showStructureLabels) {
-        // No boss-type emoji here either — this was the third copy of that
-        // same six-emoji switch, after the survival label and the open-world
-        // ones.
-        _paintLabel(
-          canvas,
-          'Lv${lair.level} ${lair.template.name.toUpperCase()}',
-          const Color(0xFFFF5252),
-          1.0,
-          lPos,
-          9,
-        );
-      }
-    }
-
-    // Space POIs
-    for (final poi in game.spacePOIs) {
-      if (poi.type == POIType.comet || poi.type == POIType.stardustScanner) {
-        continue;
-      }
-
-      final isMarket =
-          poi.type == POIType.harvesterMarket ||
-          poi.type == POIType.riftKeyMarket ||
-          poi.type == POIType.cosmicMarket ||
-          poi.type == POIType.goldConversion;
-      final isSurvivalPortal = poi.type == POIType.survivalPortal;
-      if (!poi.discovered && !isMarket && !isSurvivalPortal) continue;
-
-      final poiPos = poi.position * scale;
-      late Color poiColor;
-      late String poiLabel;
-      late double poiDotR;
-
-      switch (poi.type) {
-        case POIType.nebula:
-          poiColor = elementColor(poi.element);
-          poiLabel = '${poi.element.toUpperCase()} NEBULA';
-          poiDotR = 4.0;
-          _glow(canvas, poiPos, 10, poiColor, poi.interacted ? 0.12 : 0.25, 8);
-          canvas.drawCircle(
-            poiPos,
-            poiDotR,
-            Paint()
-              ..color = poiColor.withValues(alpha: poi.interacted ? 0.4 : 0.8),
-          );
-
-        case POIType.derelict:
-          poiColor = const Color(0xFF78909C);
-          poiLabel = 'DERELICT';
-          poiDotR = 3.0;
-          canvas.drawRect(
-            Rect.fromCenter(center: poiPos, width: 6, height: 6),
-            Paint()
-              ..color = poiColor.withValues(alpha: poi.interacted ? 0.35 : 0.7),
-          );
-
-        case POIType.warpAnomaly:
-          poiColor = const Color(0xFFB388FF);
-          poiLabel = 'ANOMALY';
-          poiDotR = 4.0;
-          canvas
-            ..drawCircle(
-              poiPos,
-              poiDotR,
-              Paint()
-                ..color = poiColor.withValues(alpha: poi.interacted ? 0.3 : 0.6)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.5,
-            )
-            ..drawCircle(
-              poiPos,
-              2,
-              Paint()
-                ..color = poiColor.withValues(
-                  alpha: poi.interacted ? 0.3 : 0.7,
-                ),
-            );
-
-        case POIType.harvesterMarket:
-          poiColor = StationKind.harvester.accent;
-          poiLabel = 'HARVESTER SHOP';
-          poiDotR = 5.0;
-          _paintHexMarker(
+      final p = at(nearestLair.position);
+      if (view.contains(p)) {
+        paintChartGlyph(canvas, ChartGlyph.lair, p, _lair, r: 5.6 * k);
+        if (landmarkLabels) {
+          _label(
             canvas,
-            poiPos,
-            poiColor,
-            poi.discovered ? 0.7 : 0.25,
-            poi.discovered,
+            'LV${nearestLair.level} '
+            '${nearestLair.template.name.toUpperCase()}',
+            const Color(0xFFFF7A6E),
+            p,
+            6 * k,
+            size: 7.5,
           );
-
-        case POIType.riftKeyMarket:
-          poiColor = StationKind.riftKey.accent;
-          poiLabel = 'RIFT KEY SHOP';
-          poiDotR = 5.0;
-          _paintHexMarker(
-            canvas,
-            poiPos,
-            poiColor,
-            poi.discovered ? 0.7 : 0.25,
-            poi.discovered,
-          );
-
-        case POIType.cosmicMarket:
-          poiColor = StationKind.market.accent;
-          poiLabel = 'COSMIC MARKET';
-          poiDotR = 5.0;
-          _paintHexMarker(
-            canvas,
-            poiPos,
-            poiColor,
-            poi.discovered ? 0.7 : 0.25,
-            poi.discovered,
-          );
-
-        case POIType.goldConversion:
-          poiColor = StationKind.goldConversion.accent;
-          poiLabel = 'GOLD CONVERSION';
-          poiDotR = 5.0;
-          _paintHexMarker(
-            canvas,
-            poiPos,
-            poiColor,
-            poi.discovered ? 0.7 : 0.25,
-            poi.discovered,
-          );
-
-        case POIType.survivalPortal:
-          poiColor = const Color(0xFF8B5CF6);
-          poiLabel = poi.discovered ? 'SURVIVAL PORTAL' : 'UNKNOWN SIGNAL';
-          poiDotR = 5.0;
-          _glow(canvas, poiPos, 8, poiColor, poi.discovered ? 0.35 : 0.18, 10);
-          canvas
-            ..drawCircle(
-              poiPos,
-              poiDotR,
-              Paint()
-                ..color = poiColor.withValues(
-                  alpha: poi.discovered ? 0.8 : 0.4,
-                ),
-            )
-            ..drawCircle(
-              poiPos,
-              7,
-              Paint()
-                ..color = poiColor.withValues(
-                  alpha: poi.discovered ? 0.35 : 0.15,
-                )
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.2,
-            );
-
-        default:
-          continue;
-      }
-
-      if (showPoiLabels) {
-        if (poi.discovered || !isMarket) {
-          _paintLabel(
-            canvas,
-            poiLabel,
-            poiColor,
-            poi.interacted ? 0.35 : 0.65,
-            poiPos,
-            poiDotR,
-          );
-        } else {
-          _paintLabel(canvas, '?', poiColor, 0.4, poiPos, poiDotR, fontSize: 7);
         }
       }
     }
 
-    // Sealed elemental caches — pinned to the chart for good once the ship
-    // has been right on top of one.
-    for (final cache in game.elementalCacheField.caches) {
-      if (!cache.discovered || !cache.isPresent) continue;
-      final cPos = cache.position * scale;
-      final cColor = cache.color;
-      _glow(canvas, cPos, 7, cColor, 0.18, 4);
-      canvas
-        ..drawCircle(
-          cPos,
-          5,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.2
-            ..color = cColor.withValues(alpha: 0.75),
-        )
-        ..drawCircle(
-          cPos,
-          1.8,
-          Paint()..color = cColor.withValues(alpha: 0.95),
-        );
-      if (showStructureLabels) {
-        // Named by its riddle, not its element — the chart should not hand
-        // you the answer the seal is asking for.
-        _paintLabel(
-          canvas,
-          cacheHintFor(cache.element).toUpperCase(),
-          cColor,
-          0.7,
-          cPos,
-          5,
-        );
-      }
-    }
-
-    // Prismatic field
-    if (game.prismaticField.discovered) {
-      final pf = game.prismaticField;
-      final pfPos = pf.position * scale;
-      final pfr = max(6.0, pf.radius * scale);
-      const pfColor = Color(0xFFFF00CC);
-
-      _glow(canvas, pfPos, pfr, pfColor, 0.15, pfr * 0.5);
-
-      canvas
-        ..drawCircle(
-          pfPos,
-          pfr,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.0
-            ..color = pfColor.withValues(alpha: 0.6),
-        )
-        ..drawCircle(
-          pfPos,
-          3,
-          Paint()..color = const Color(0xFFFFDD00).withValues(alpha: 0.8),
-        );
-
-      if (showStructureLabels) {
-        _paintLabel(canvas, 'PRISMATIC AURORA', pfColor, 0.7, pfPos, pfr);
-      }
-    }
-
-    // Elemental Nexus
-    final nx = world.elementalNexus;
-    if (nx.discovered) {
-      final nxPos = nx.position * scale;
-      const nexusColor = Color(0xFFB388FF);
-
-      _glow(canvas, nxPos, 14, const Color(0xFF7C4DFF), 0.3, 10);
-
-      canvas
-        ..drawCircle(nxPos, 6, Paint()..color = const Color(0xFF0A0A0A))
-        ..drawCircle(
-          nxPos,
-          7,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.0
-            ..color = nexusColor.withValues(alpha: 0.7),
-        );
-
-      const dotColors = [
-        Color(0xFFFF6D00),
-        Color(0xFF2196F3),
-        Color(0xFF4CAF50),
-        Color(0xFF90CAF9),
-      ];
-      for (var i = 0; i < 4; i++) {
-        final a = i * pi / 2;
-        canvas.drawCircle(
-          Offset(nxPos.dx + 10 * cos(a), nxPos.dy + 10 * sin(a)),
-          2,
-          Paint()..color = dotColors[i].withValues(alpha: 0.8),
-        );
-      }
-      if (showStructureLabels) {
-        _paintLabel(canvas, 'ELEMENTAL NEXUS', nexusColor, 0.7, nxPos, 12);
-      }
-    }
-
-    // Contest arenas
-    for (final arena in world.contestArenas) {
-      if (!showAllContestArenasOnMap && !arena.discovered) continue;
-      final aPos = arena.position * scale;
-      final aColor = arena.trait.color;
-
-      _glow(canvas, aPos, 11, aColor, 0.22, 7);
-
-      canvas
-        ..drawCircle(
-          aPos,
-          7.5,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5
-            ..color = aColor.withValues(alpha: 0.9),
-        )
-        ..drawCircle(
-          aPos,
-          2.2,
-          Paint()..color = aColor.withValues(alpha: 0.92),
-        );
-
-      if (showContestLabels) {
-        _paintLabel(
-          canvas,
-          '${arena.trait.label.toUpperCase()} CONTEST',
-          aColor,
-          0.78,
-          aPos,
-          12,
-        );
-      }
-    }
-
-    // Blood Ring – subtle red ring hint even before discovery
-    final ring = world.bloodRing;
-    if (!ring.discovered) {
-      final ringPos = ring.position * scale;
-      canvas.drawCircle(
-        ringPos,
-        6,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0
-          ..color = const Color(0xFFB71C1C).withValues(alpha: 0.18),
+    // Planet names, under the planets the body draws.
+    for (final planet in world.planets) {
+      if (!planet.discovered) continue;
+      final p = at(planet.position);
+      if (!view.contains(p)) continue;
+      final r =
+          _ChartBodyPainter.planetRadius(planet.radius, scale) *
+          zoom *
+          planetArtFor(planet).cardReach;
+      _label(
+        canvas,
+        planetName(planet.element).toUpperCase(),
+        elementInk(planet.element),
+        p,
+        r,
+        size: 8.5,
       );
     }
-    if (ring.discovered) {
-      final ringPos = ring.position * scale;
-      const ringColor = Color(0xFFFF8A80);
 
-      _glow(canvas, ringPos, 12, const Color(0xFFB71C1C), 0.26, 8);
-
-      canvas
-        ..drawCircle(
-          ringPos,
-          8,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = ringColor.withValues(alpha: 0.9),
-        )
-        ..drawCircle(
-          ringPos,
-          2.5,
-          Paint()..color = const Color(0xFFFFCDD2).withValues(alpha: 0.85),
-        );
-
-      if (showStructureLabels) {
-        _paintLabel(
-          canvas,
-          ring.ritualCompleted ? 'BLOOD PORTAL' : 'BLOOD RING',
-          ringColor,
-          0.7,
-          ringPos,
-          12,
-        );
-      }
-    }
-    // The tutorial SIGNAL and the ship are drawn on top of all this by
-    // [_MiniMapLivePainter], in their own layer: the chart under them is
-    // recorded once per open and only replayed while the signal pulses.
-  }
-
-  @override
-  bool shouldRepaint(covariant _MiniMapPainter old) {
-    if (scale != old.scale) return true;
-    if (revealedCellCount != old.revealedCellCount) return true;
-    if (discoveredPlanetCount != old.discoveredPlanetCount) return true;
-    if (showAllContestArenasOnMap != old.showAllContestArenasOnMap) return true;
-    if (!identical(markers, old.markers)) return true;
-    // The nearest boss lair is picked from where the ship is.
-    return (shipPos - old.shipPos).distance * scale > 0.5;
-  }
-}
-
-/// The two marks on the chart that move: the tutorial target, which pulses,
-/// and the ship. Kept apart from [_MiniMapPainter] so the pulse repaints a
-/// couple of circles instead of every revealed fog cell, and repainted by
-/// [pulse] directly rather than by rebuilding the map.
-class _MiniMapLivePainter extends CustomPainter {
-  _MiniMapLivePainter({
-    required this.scale,
-    required this.shipPos,
-    required this.pulse,
-    this.tutorialTargetPos,
-    this.tutorialTargetColor,
-    this.tutorialTargetLabel,
-  }) : super(repaint: pulse);
-
-  final double scale;
-  final Offset shipPos;
-  final ValueListenable<int> pulse;
-  final Offset? tutorialTargetPos;
-  final Color? tutorialTargetColor;
-  final String? tutorialTargetLabel;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final showPoiLabels = scale >= 0.016;
-
-    if (tutorialTargetPos != null) {
-      final targetPos = tutorialTargetPos! * scale;
-      final color = tutorialTargetColor ?? const Color(0xFF8B5CF6);
-      final pulse = 0.55 + 0.45 * sin(this.pulse.value * 0.42);
-      final outerRadius = 10.0 + pulse * 8.0;
-
-      _MiniMapPainter._glow(canvas, targetPos, outerRadius, color, 0.28, 10);
-
-      canvas
-        ..drawCircle(
-          targetPos,
-          6.4 + pulse * 2.0,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = color.withValues(alpha: 0.92),
-        )
-        ..drawCircle(
-          targetPos,
-          3.0,
-          Paint()..color = Colors.white.withValues(alpha: 0.95),
-        );
-
-      if (showPoiLabels && tutorialTargetLabel != null) {
-        _MiniMapPainter._paintLabel(
-          canvas,
-          tutorialTargetLabel!,
-          color,
-          0.95,
-          targetPos,
-          9,
-          fontSize: 7,
-        );
+    if (game.homePlanet case final hp?) {
+      final p = at(hp.position);
+      if (view.contains(p)) {
+        final r = _ChartBodyPainter.planetRadius(hp.visualRadius, scale) * zoom;
+        _label(canvas, 'HOME', kChartAmber, p, r * 1.15, size: 9);
       }
     }
 
-    // Ship
-    final shipScaled = shipPos * scale;
-    _MiniMapPainter._glow(
-      canvas,
-      shipScaled,
-      5,
-      const Color(0xFF00E5FF),
-      1.0,
-      4,
-    );
-    canvas.drawCircle(shipScaled, 3, Paint()..color = Colors.white);
+    // Markers — each type has its own silhouette as well as its own colour,
+    // so they stay distinguishable without relying on hue alone.
+    final markerInk = Paint()
+      ..color = Colors.black.withValues(alpha: 0.55)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (final marker in markers) {
+      final p = at(marker.worldPos);
+      if (!view.contains(p)) continue;
+      paintDisc(canvas, stoneLightFor(marker.color).leak, p, 12, 0.6);
+      paintMarkerShape(
+        canvas,
+        p,
+        5,
+        marker.shape,
+        Paint()..color = marker.color,
+        markerInk,
+      );
+    }
+
+    // The tutorial signal, breathing.
+    if (tutorialTargetPos case final target?) {
+      final p = at(target);
+      final col = tutorialTargetColor ?? _portal;
+      final light = stoneLightFor(col);
+      final breath = 0.55 + 0.45 * sin(_pulse.value * 0.42);
+      paintDisc(canvas, light.leak, p, 12 + breath * 9, 0.9);
+      paintDisc(canvas, light.spark, p, 4.5 + breath * 1.5, 1);
+      if (tutorialTargetLabel case final label?) {
+        _label(canvas, label, Color.lerp(col, Colors.white, 0.3)!, p, 9);
+      }
+    }
+
+    // The ship, on top of everything.
+    paintChartShip(canvas, at(game.ship.pos), game.ship.angle);
   }
 
   @override
-  bool shouldRepaint(covariant _MiniMapLivePainter old) {
-    if (scale != old.scale) return true;
-    if (!identical(pulse, old.pulse)) return true;
-    if (tutorialTargetPos != old.tutorialTargetPos) return true;
-    if (tutorialTargetColor != old.tutorialTargetColor) return true;
-    if (tutorialTargetLabel != old.tutorialTargetLabel) return true;
-    // Only repaint when ship has moved a visible amount on the minimap.
-    return (shipPos - old.shipPos).distance * scale > 0.5;
-  }
+  bool shouldRepaint(covariant _ChartPinsPainter old) => true;
 }

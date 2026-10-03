@@ -1,9 +1,15 @@
+import 'dart:ui' as ui;
+
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/games/cosmic/obsidian_kit.dart';
+import 'package:alchemons/games/cosmic/poi_art.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'cosmic_panel_kit.dart' show panelLabel;
 import 'cosmic_screen_styles.dart';
+import 'star_chart_art.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 // Cosmic HUD always renders on the dark space backdrop.
@@ -126,31 +132,16 @@ class TopHudState extends State<TopHud> {
                 strokeWidth: 1.05,
               ),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                color: _palette.bg0,
+                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                color: _palette.bg0.withValues(alpha: 0.86),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      AppIcons.public_rounded,
-                      color: _palette.muted,
-                      size: 14,
-                    ),
-                    const SizedBox(width: 7),
                     Text(
-                      'Cosmos',
-                      style: bracketText(
-                        context,
-                        12,
-                        _palette.ink,
-                        weight: FontWeight.w700,
-                        letterSpacing: 0.4,
-                      ),
+                      'COSMOS',
+                      style: panelLabel(11, _palette.ink, spacing: 2.4),
                     ),
-                    const SizedBox(width: 7),
+                    const SizedBox(width: 6),
                     Icon(
                       AppIcons.keyboard_arrow_down_rounded,
                       color: _palette.muted,
@@ -165,6 +156,7 @@ class TopHudState extends State<TopHud> {
       );
     }
 
+    final full = widget.meter.isFull;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
       child: CustomPaint(
@@ -174,8 +166,8 @@ class TopHudState extends State<TopHud> {
           strokeWidth: 1.05,
         ),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-          color: _palette.bg0,
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
+          color: _palette.bg0.withValues(alpha: 0.86),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -183,75 +175,63 @@ class TopHudState extends State<TopHud> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Settings button
                   _HudIconButton(
                     icon: AppIcons.settings_rounded,
                     onTap: context.soundTap(widget.onSettings),
                   ),
                   const SizedBox(width: 10),
-                  // Title + stats
+                  // Title + where the voyage stands. When the meter is full
+                  // the second line says what to do about it.
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Cosmos',
-                          style: bracketText(
-                            context,
-                            15,
-                            _palette.ink,
-                            weight: FontWeight.w700,
-                            letterSpacing: 0.4,
-                          ),
+                          'COSMOS',
+                          style: panelLabel(13, _palette.ink, spacing: 2.6),
                         ),
-                        const SizedBox(height: 1),
-                        Text(
-                          '${widget.planetsFound}/${widget.planetsTotal} planets  ·  ${(widget.discoveryPct * 100).toStringAsFixed(1)}% explored',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: bracketText(
-                            context,
-                            11,
-                            _palette.muted,
-                            weight: FontWeight.w500,
+                        const SizedBox(height: 4),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            full
+                                ? 'FULL · FLY TO A PLANET'
+                                : '${widget.planetsFound}/${widget.planetsTotal} '
+                                      'PLANETS · '
+                                      '${(widget.discoveryPct * 100).toStringAsFixed(0)}%',
+                            maxLines: 1,
+                            style: panelLabel(
+                              9,
+                              full ? kChartAmber : _palette.muted,
+                              spacing: 1.1,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  // Resource chips
                   if (widget.dustCollected > 0) ...[
-                    _ResourceChip(
-                      icon: AppIcons.auto_awesome,
-                      iconColor: const Color(0xFFFFD54F),
+                    _HudReading(
+                      symbol: const ChartSymbolPainter(paintDustGlyph),
                       label:
                           '${widget.dustCollected}/'
                           '${widget.dustTotal <= 0 ? 50 : widget.dustTotal}',
-                      labelColor: const Color(0xFFFFD54F),
-                      borderColor: const Color(
-                        0xFFFFD54F,
-                      ).withValues(alpha: 0.28),
+                      color: CosmicScreenStyles.amberBright,
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 10),
                   ],
                   if (widget.wallet.shards > 0) ...[
-                    _ResourceChip(
-                      icon: CosmicScreenStyles.astralShardIcon,
-                      iconColor: CosmicScreenStyles.astralShardColor,
+                    _HudReading(
+                      symbol: const ChartSymbolPainter(_paintShardGlyph),
                       label: '${widget.wallet.shards}',
-                      labelColor: widget.wallet.shardsFull
-                          ? Colors.redAccent
-                          : CosmicScreenStyles.astralShardColor,
-                      borderColor: widget.wallet.shardsFull
-                          ? Colors.redAccent.withValues(alpha: 0.35)
-                          : CosmicScreenStyles.astralShardColor.withValues(
-                              alpha: 0.25,
-                            ),
+                      color: widget.wallet.shardsFull
+                          ? CosmicScreenStyles.danger
+                          : const Color(0xFFCDB0FF),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 10),
                   ],
-                  // Zoom button
                   if (widget.onZoomCycle != null) ...[
                     _HudIconButton(
                       icon: switch (widget.zoomLevel) {
@@ -259,12 +239,10 @@ class TopHudState extends State<TopHud> {
                         1 => AppIcons.zoom_out_map_rounded,
                         _ => AppIcons.zoom_in_map_rounded,
                       },
-                      iconColor: const Color(0xFF5BC8E8),
                       onTap: widget.onZoomCycle!,
                     ),
                     const SizedBox(width: 6),
                   ],
-                  // Collapse button
                   _HudIconButton(
                     icon: AppIcons.keyboard_arrow_up_rounded,
                     onTap: context.soundTap(() => _setCollapsed(true)),
@@ -274,109 +252,75 @@ class TopHudState extends State<TopHud> {
 
               // Alchemical meter
               if (widget.showMeter) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 9),
                 GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: context.soundAction(widget.onMeterTap),
-                  // The full-meter breath repaints this bar alone, not the
-                  // whole HUD.
-                  child: RepaintBoundary(
-                    child: AnimatedBuilder(
-                      animation: widget.meterPulse,
-                      builder: (context, child) {
-                        final full = widget.meter.isFull;
-                        final glow = full ? widget.meterPulse.value : 0.0;
-                        return CustomPaint(
-                          painter: BracketFramePainter(
-                            color: full
-                                ? const Color(
-                                    0xFFE4C16A,
-                                  ).withValues(alpha: 0.6 + glow * 0.4)
-                                : _palette.line.withValues(alpha: 0.7),
-                            bracketSize: 6,
-                            strokeWidth: 1.05,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        // The full-meter breath repaints the tube's frame
+                        // alone, not the whole HUD.
+                        child: RepaintBoundary(
+                          child: AnimatedBuilder(
+                            animation: widget.meterPulse,
+                            builder: (context, child) {
+                              final glow = full ? widget.meterPulse.value : 0.0;
+                              return CustomPaint(
+                                foregroundPainter: BracketFramePainter(
+                                  color: full
+                                      ? kChartAmber.withValues(
+                                          alpha: 0.55 + glow * 0.45,
+                                        )
+                                      : _palette.line.withValues(alpha: 0.7),
+                                  bracketSize: 6,
+                                  strokeWidth: 1.05,
+                                ),
+                                child: child,
+                              );
+                            },
+                            child: SizedBox(
+                              height: 20,
+                              child: CustomPaint(
+                                painter: _MeterTubePainter(
+                                  segments: meterSegmentsInDrawOrder(
+                                    widget.meter,
+                                  ),
+                                  recipe: widget.recipe,
+                                ),
+                                child: widget.meter.total <= 0
+                                    ? Center(
+                                        child: Text(
+                                          'ALCHEMICAL METER',
+                                          style: panelLabel(
+                                            8.5,
+                                            _palette.muted,
+                                            spacing: 1.6,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                            ),
                           ),
-                          child: SizedBox(height: 24, child: child),
-                        );
-                      },
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final total = widget.meter.total;
-                          if (total <= 0) {
-                            return ColoredBox(
-                              color: _palette.bg1,
-                              child: Center(
-                                child: Text(
-                                  'Alchemical meter',
-                                  style: bracketText(
-                                    context,
-                                    10.5,
-                                    _palette.muted,
-                                    weight: FontWeight.w700,
-                                    letterSpacing: 1.0,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-
-                          final sorted = meterSegmentsInDrawOrder(widget.meter);
-
-                          return Stack(
-                            children: [
-                              Positioned.fill(
-                                child: ColoredBox(color: _palette.bg1),
-                              ),
-                              // Filled element segments — stretched to the full
-                              // bar height so the colour actually shows.
-                              Positioned.fill(
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: sorted.map((e) {
-                                    final pct =
-                                        e.value / ElementMeter.maxCapacity;
-                                    return Expanded(
-                                      flex: (pct * 1000).round().clamp(1, 1000),
-                                      child: ColoredBox(
-                                        color: elementColor(e.key),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                              // Recipe targets, drawn over the fill.
-                              if (widget.recipe != null)
-                                Positioned.fill(
-                                  child: CustomPaint(
-                                    painter: _RecipeTargetPainter(
-                                      recipe: widget.recipe!,
-                                    ),
-                                  ),
-                                ),
-                              Center(
-                                child: Text(
-                                  widget.meter.isFull
-                                      ? 'METER FULL, FLY TO A PLANET'
-                                      : '${(widget.meter.fillPct * 100).toStringAsFixed(0)}% ALCHEMICAL',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.8,
-                                    shadows: [
-                                      Shadow(
-                                        color: Colors.black,
-                                        blurRadius: 4,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 36,
+                        child: Text(
+                          full
+                              ? 'FULL'
+                              : '${(widget.meter.fillPct * 100).toStringAsFixed(0)}%',
+                          textAlign: TextAlign.right,
+                          style: panelLabel(
+                            11,
+                            full ? kChartAmber : _palette.ink,
+                            spacing: 0.6,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -388,51 +332,150 @@ class TopHudState extends State<TopHud> {
   }
 }
 
-/// Draws the active recipe's target percentages onto the alchemical meter as
-/// notches: a hairline at each cumulative target boundary with an element-tinted
-/// cap above it. Read against the coloured fill underneath, a segment that stops
-/// short of its notch is under-filled and one that runs past it is over.
-class _RecipeTargetPainter extends CustomPainter {
-  const _RecipeTargetPainter({required this.recipe});
+void _paintShardGlyph(Canvas c, Offset at, double s) {
+  c.save();
+  c.translate(at.dx, at.dy);
+  c.scale(s / 30);
+  paintAstralShard(c, at: Offset.zero, t: 0.4);
+  c.restore();
+}
 
-  final PlanetRecipe recipe;
+/// The alchemical meter as a tube of glass with the essences packed into it
+/// in bands, lit from above, flecked with their grains. The active recipe's
+/// targets sit on it as small notches above and below, with a dark cut
+/// through the fill at each one: a band that stops short of its notch is
+/// under, one that runs past it is over.
+class _MeterTubePainter extends CustomPainter {
+  _MeterTubePainter({required this.segments, this.recipe});
+
+  final List<MapEntry<String, double>> segments;
+  final PlanetRecipe? recipe;
+
+  static final PointBatch _flecks = PointBatch(200);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final entries = recipeTargetsInDrawOrder(recipe);
+    final rect = Offset.zero & size;
+    // The empty glass.
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          rect.topCenter,
+          rect.bottomCenter,
+          const [Color(0xFF181A24), Color(0xFF090A0F), Color(0xFF10111A)],
+          const [0.0, 0.6, 1.0],
+        ),
+    );
 
-    final line = Paint()
-      ..strokeWidth = 1.4
-      ..color = Colors.white.withValues(alpha: 0.85);
-
-    var cumulative = 0.0;
-    for (final e in entries) {
-      cumulative += e.value;
-      if (cumulative >= 100) break;
-      final x = size.width * (cumulative / 100);
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), line);
-      // Element-tinted cap so you can tell which boundary is which.
+    var x = 0.0;
+    for (final e in segments) {
+      final w = size.width * (e.value / ElementMeter.maxCapacity);
+      if (w <= 0.2) continue;
+      final band = Rect.fromLTWH(x, 0, w, size.height);
+      // Muted toward the glass, so a band reads as matter in a tube rather
+      // than a flat swatch.
+      final col = Color.lerp(
+        elementColor(e.key),
+        const Color(0xFF16141E),
+        0.18,
+      )!;
+      final hsl = HSLColor.fromColor(col);
+      final lit = hsl
+          .withLightness((hsl.lightness + 0.18).clamp(0.0, 0.85))
+          .toColor();
+      final deep = hsl
+          .withLightness((hsl.lightness * 0.45).clamp(0.0, 1.0))
+          .toColor();
       canvas.drawRect(
-        Rect.fromLTWH(x - 2.5, 0, 5, 3),
-        Paint()..color = elementColor(e.key),
+        band,
+        Paint()
+          ..shader = ui.Gradient.linear(
+            band.topCenter,
+            band.bottomCenter,
+            [lit, col, deep],
+            const [0.0, 0.42, 1.0],
+          ),
       );
+      // Its grains, settled through the band.
+      _flecks.clear();
+      final n = (w / 3).clamp(1, 60).toInt();
+      final salt = e.key.codeUnitAt(0) * 7 + e.key.length;
+      for (var i = 0; i < n; i++) {
+        _flecks.add(
+          x + hash01(i, salt) * w,
+          size.height * (0.15 + 0.8 * hash01(i, salt + 3)),
+        );
+      }
+      _flecks.draw(canvas, 1.3, lit.withValues(alpha: 0.75));
+      x += w;
+    }
+
+    // The glass's own highlight along the top.
+    canvas.drawRect(
+      Rect.fromLTWH(0, 1, size.width, size.height * 0.28),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          rect.topCenter,
+          Offset(0, size.height * 0.3),
+          const [Color(0x1FFFFFFF), Color(0x00FFFFFF)],
+        ),
+    );
+
+    final r = recipe;
+    if (r != null) {
+      var cumulative = 0.0;
+      final cut = Paint()
+        ..color = const Color(0xCC050507)
+        ..strokeWidth = 1.6;
+      for (final e in recipeTargetsInDrawOrder(r)) {
+        cumulative += e.value;
+        if (cumulative >= 100) break;
+        final nx = size.width * (cumulative / 100);
+        canvas.drawLine(Offset(nx, 0), Offset(nx, size.height), cut);
+        final ink = Paint()..color = elementInk(e.key);
+        // Notches outside the glass, pointing in, so the fill never hides
+        // them.
+        canvas.drawPath(
+          Path()
+            ..moveTo(nx, 0)
+            ..lineTo(nx - 3.5, -5)
+            ..lineTo(nx + 3.5, -5)
+            ..close(),
+          ink,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(nx, size.height)
+            ..lineTo(nx - 3.5, size.height + 5)
+            ..lineTo(nx + 3.5, size.height + 5)
+            ..close(),
+          ink,
+        );
+      }
     }
   }
 
   @override
-  bool shouldRepaint(_RecipeTargetPainter old) => old.recipe != recipe;
+  bool shouldRepaint(_MeterTubePainter old) {
+    if (old.recipe != recipe || old.segments.length != segments.length) {
+      return true;
+    }
+    for (var i = 0; i < segments.length; i++) {
+      if (old.segments[i].key != segments[i].key ||
+          old.segments[i].value != segments[i].value) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
 class _HudIconButton extends StatelessWidget {
-  const _HudIconButton({
-    required this.icon,
-    required this.onTap,
-    this.iconColor,
-  });
+  const _HudIconButton({required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;
-  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -450,53 +493,34 @@ class _HudIconButton extends StatelessWidget {
           height: 34,
           alignment: Alignment.center,
           color: _palette.surfaceMutedFill(),
-          child: Icon(icon, color: iconColor ?? _palette.muted, size: 16),
+          child: Icon(icon, color: _palette.muted, size: 16),
         ),
       ),
     );
   }
 }
 
-// ── Reusable resource chip ──────────────────────────────
-class _ResourceChip extends StatelessWidget {
-  const _ResourceChip({
-    required this.icon,
-    required this.iconColor,
+/// A count with its symbol: the thing itself, drawn small, then the figure.
+class _HudReading extends StatelessWidget {
+  const _HudReading({
+    required this.symbol,
     required this.label,
-    required this.labelColor,
-    required this.borderColor,
+    required this.color,
   });
 
-  final IconData icon;
-  final Color iconColor;
+  final CustomPainter symbol;
   final String label;
-  final Color labelColor;
-  final Color borderColor;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: iconColor.withValues(alpha: 0.12),
-        border: Border(left: BorderSide(color: iconColor, width: 2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: iconColor, size: 12),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: bracketText(
-              context,
-              11.5,
-              labelColor,
-              weight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(width: 18, height: 18, child: CustomPaint(painter: symbol)),
+        const SizedBox(width: 4),
+        Text(label, style: panelLabel(11.5, color, spacing: 0.4)),
+      ],
     );
   }
 }
