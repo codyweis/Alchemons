@@ -793,6 +793,11 @@ class CosmicGame extends FlameGame with PanDetector {
   /// the edge — roughly three screens out.
   static const double _enemyCullDist = 3600.0;
   static const double _enemyCullDistSq = _enemyCullDist * _enemyCullDist;
+
+  /// The ring round a contest that is kept clear of enemies while it plays.
+  static const double _contestClearDist = _enemyCullDist;
+  static const double _contestClearDistSq =
+      _contestClearDist * _contestClearDist;
   static const double _enemySpawnInterval = 1.0; // seconds between checks
   static const double _meterPickupMultiplier = 3.0;
 
@@ -3853,8 +3858,9 @@ class CosmicGame extends FlameGame with PanDetector {
 
     _updateWildAlchemons(dt);
 
-    // ── enemy spawning (random, scattered) — paused mid-duel ──
-    if (!wildDuelActive && !sandboxMode) {
+    // ── enemy spawning (random, scattered) — paused mid-duel and while a
+    // contest plays ──
+    if (!wildDuelActive && !sandboxMode && !_beautyContestCinematicActive) {
       _enemySpawnTimer += dt;
       if (_enemySpawnTimer >= _enemySpawnInterval &&
           enemies.length < _maxEnemies) {
@@ -3882,6 +3888,13 @@ class CosmicGame extends FlameGame with PanDetector {
     for (var i = enemies.length - 1; i >= 0; i--) {
       final e = enemies[i];
       if (e.dead) {
+        enemies.removeAt(i);
+        continue;
+      }
+      // A contest's surroundings stay clear (_clearContestHostiles).
+      if (_beautyContestCinematicActive &&
+          _wrappedDistanceSq(e.position, _beautyContestCenter) <
+              _contestClearDistSq) {
         enemies.removeAt(i);
         continue;
       }
@@ -3945,7 +3958,7 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── periodic swarm cluster spawns ──
-    if (!sandboxMode) {
+    if (!sandboxMode && !_beautyContestCinematicActive) {
       _swarmSpawnTimer += dt;
       if (_swarmSpawnTimer >= _swarmSpawnInterval &&
           enemies.length < _maxEnemies) {
@@ -3961,7 +3974,7 @@ class CosmicGame extends FlameGame with PanDetector {
     _updateBossLairs(dt);
 
     // ── random boss spawn (in addition to lairs) ──
-    if (!sandboxMode) {
+    if (!sandboxMode && !_beautyContestCinematicActive) {
       _bossSpawnTimer += dt;
       if (_bossSpawnTimer >= _bossSpawnInterval) {
         _bossSpawnTimer = 0;
@@ -5433,13 +5446,15 @@ class CosmicGame extends FlameGame with PanDetector {
         cy,
         screenW,
         screenH,
-        margin: 1 + CosmicContestArena.visualRadius * 1.2 / screenW,
+        // A mastered arena's beacon climbs well above its rim.
+        margin: 1 + CosmicContestArena.visualRadius * 1.7 / screenW,
       )) {
         continue;
       }
       final staging =
           _beautyContestCinematicActive &&
           (ap - _beautyContestCenter).distance < 1;
+      final masteredAt = arena.masteredAt;
       paintContestArena(
         canvas,
         arena.trait,
@@ -5447,13 +5462,20 @@ class CosmicGame extends FlameGame with PanDetector {
         t: _elapsed,
         active: staging ? _contestStageLight : 0,
         focus: staging ? _contestFocus() : null,
+        // Held back while a contest is staged in it: it is the stage then.
+        mastery: masteredAt == null || staging
+            ? null
+            : _elapsed - masteredAt,
       );
 
       if (!staging &&
           (nearContestArena == arena || (ap - ship.pos).distance < 520)) {
-        final col = arena.trait.color;
+        final mastered = arena.masteredAt != null;
+        final col = mastered ? kContestChampionGold : arena.trait.color;
         final labelPainter = _worldLabel(
-          arena.trait.arenaLabel.toUpperCase(),
+          mastered
+              ? '${arena.trait.arenaLabel.toUpperCase()} · MASTERED'
+              : arena.trait.arenaLabel.toUpperCase(),
           color: col.withValues(alpha: 0.86),
           fontSize: 10,
           fontWeight: FontWeight.w800,

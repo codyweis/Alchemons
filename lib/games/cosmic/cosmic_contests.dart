@@ -48,6 +48,11 @@ class CosmicContestArena {
   final CosmicContestTrait trait;
   bool discovered;
 
+  /// Game time the arena's five levels were all won, for the mastery
+  /// unveiling (contest_art.dart); far in the past for one mastered in an
+  /// earlier session. Null while there is still a level to win.
+  double? masteredAt;
+
   CosmicContestArena({
     required this.position,
     required this.trait,

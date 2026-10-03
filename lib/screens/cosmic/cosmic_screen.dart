@@ -949,6 +949,9 @@ class _CosmicScreenState extends State<CosmicScreen>
         if (_knownContestHintIds.isNotEmpty) {
           game.restoreCollectedContestHints(_knownContestHintIds);
         }
+        game.restoreMasteredContests(
+          CosmicContestTrait.values.where(_contestProgress.isMastered),
+        );
         // Restore home planet
         if (_homePlanet != null) {
           game.restoreHomePlanet(_homePlanet!);
@@ -964,6 +967,9 @@ class _CosmicScreenState extends State<CosmicScreen>
         if (_knownContestHintIds.isNotEmpty) {
           game.restoreCollectedContestHints(_knownContestHintIds);
         }
+        game.restoreMasteredContests(
+          CosmicContestTrait.values.where(_contestProgress.isMastered),
+        );
         if (_homePlanet != null) {
           game.restoreHomePlanet(_homePlanet!);
         }
@@ -2818,6 +2824,19 @@ class _CosmicScreenState extends State<CosmicScreen>
     return shop.unlockContestEffectOffer(offerId, freeQty: 1);
   }
 
+  /// Contest shards go straight into the home bank. Before there is a home
+  /// they fall back to the hold.
+  void _bankContestShards(int shards) {
+    if (shards <= 0) return;
+    final home = _homePlanet;
+    if (home == null) {
+      _game?.shipWallet.addShards(shards);
+      return;
+    }
+    home.astralBank += shards;
+    _saveHomePlanet();
+  }
+
   /// Contest gold lands in the persistent wallet, not the ship's shard purse,
   /// so it survives leaving open space.
   Future<void> _grantContestGold(int gold) async {
@@ -3742,12 +3761,15 @@ class _CosmicScreenState extends State<CosmicScreen>
       final nextCompleted = completed + 1;
       _contestProgress = _contestProgress.withCompleted(trait, nextCompleted);
       await _saveContestProgress();
-      // Into the hold, as far as it has room.
-      _game!.shipWallet.addShards(level.rewardShards);
+      // Banked at home, not carried: a level-4 or -5 prize is more than the
+      // hold's 50, and the hold drops whatever it has no room for.
+      _bankContestShards(level.rewardShards);
       final goldReward = cosmicContestGoldReward(level.level);
       await _grantContestGold(goldReward);
       String masteryUnlockText = '';
       if (nextCompleted >= levels.length) {
+        // The arena crowns itself where the player stands.
+        _game!.unveilContestMastery(trait);
         final unlockedEffectName = await _unlockContestMasteryEffect(trait);
         if (unlockedEffectName != null && unlockedEffectName.isNotEmpty) {
           masteryUnlockText =
@@ -3757,7 +3779,10 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showQuote(
         '${trait.label} Lv${level.level}: ${member.displayName} defeated $opponentLabel '
         '(${playerScore.toStringAsFixed(2)} vs ${opponentScore.toStringAsFixed(2)}). '
-        '+${level.rewardShards} shards, +$goldReward gold.$masteryUnlockText',
+        '+${level.rewardShards} shards '
+        '${_homePlanet != null ? 'banked at home' : 'into the hold'}, '
+        '+$goldReward gold.'
+        '$masteryUnlockText',
       );
       HapticFeedback.heavyImpact();
     } else {

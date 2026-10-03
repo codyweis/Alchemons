@@ -13,6 +13,50 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
   Offset _arenaAt(double x, double y) =>
       _beautyContestCenter + Offset(x, y) * kContestArenaScale;
 
+  /// Nothing hostile stands in or near a contest. Everything within
+  /// [CosmicGame._contestClearDist] of the arena goes as it starts; spawning
+  /// is paused while it plays, and the enemy update clears anything that
+  /// wanders into that ring (it is about three screens out, so nothing is
+  /// seen to vanish).
+  void _clearContestHostiles() {
+    final center = _beautyContestCenter;
+    enemies.removeWhere(
+      (e) =>
+          _wrappedDistanceSq(e.position, center) <
+          CosmicGame._contestClearDistSq,
+    );
+    final boss = activeBoss;
+    if (boss != null &&
+        _wrappedDistanceSq(boss.position, center) <
+            CosmicGame._contestClearDistSq) {
+      _despawnActiveBoss();
+    }
+    bossProjectiles.clear();
+    final whirl = activeWhirl;
+    if (whirl != null && whirl.state == WhirlState.active) {
+      whirl.state = WhirlState.dormant;
+      whirl.currentWave = 0;
+      activeWhirl = null;
+    }
+  }
+
+  /// The arenas of every trait in [traits] were mastered in an earlier
+  /// session: they stand crowned from the start, with no unveiling.
+  void restoreMasteredContests(Iterable<CosmicContestTrait> traits) {
+    final set = traits.toSet();
+    for (final arena in contestArenas) {
+      if (set.contains(arena.trait)) arena.masteredAt ??= -1e6;
+    }
+  }
+
+  /// The last level of [trait] was just won: its arena is crowned now, and
+  /// plays the unveiling (contest_art.dart).
+  void unveilContestMastery(CosmicContestTrait trait) {
+    for (final arena in contestArenas) {
+      if (arena.trait == trait) arena.masteredAt = _elapsed;
+    }
+  }
+
   /// How far the contest arena has risen to its contest: up over the intro,
   /// then held.
   double get _contestStageLight => _beautyContestIntroActive
@@ -438,6 +482,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     if (activeCompanion == null) return;
     _beautyContestCinematicActive = true;
     _beautyContestCenter = arenaCenter;
+    _clearContestHostiles();
     _beautyContestPlayerWon = playerWon;
     _beautyContestTimer = 0;
     _beautyContestCompAbilityA = false;
@@ -466,8 +511,14 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
 
     const orbitR = 170.0;
     const introOppOffset = Offset(220, -80);
-    final compIntroTarget = _arenaAt(0 + cos(pi) * orbitR, 0 + sin(pi) * orbitR * 0.48);
-    final oppIntroTarget = _arenaAt(0 + cos(0) * orbitR, 0 + sin(0) * orbitR * 0.48);
+    final compIntroTarget = _arenaAt(
+      0 + cos(pi) * orbitR,
+      0 + sin(pi) * orbitR * 0.48,
+    );
+    final oppIntroTarget = _arenaAt(
+      0 + cos(0) * orbitR,
+      0 + sin(0) * orbitR * 0.48,
+    );
 
     final comp = activeCompanion!;
     _beautyContestCompIntroStart = comp.position;
@@ -510,6 +561,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     if (activeCompanion == null) return;
     _beautyContestCinematicActive = true;
     _beautyContestCenter = arenaCenter;
+    _clearContestHostiles();
     _beautyContestPlayerWon = playerWon;
     _beautyContestTimer = 0;
     _beautyContestCompAbilityA = false;
@@ -551,8 +603,14 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     const outerRx = 222.0;
     const outerRy = 124.0;
     const introOppOffset = Offset(240, -60);
-    final compIntroTarget = _arenaAt(0 + cos(pi * 0.5) * outerRx, 0 + sin(pi * 0.5) * outerRy);
-    final oppIntroTarget = _arenaAt(0 + cos(pi * 0.5 - 0.18) * (outerRx - 32), 0 + sin(pi * 0.5 - 0.18) * (outerRy - 22));
+    final compIntroTarget = _arenaAt(
+      0 + cos(pi * 0.5) * outerRx,
+      0 + sin(pi * 0.5) * outerRy,
+    );
+    final oppIntroTarget = _arenaAt(
+      0 + cos(pi * 0.5 - 0.18) * (outerRx - 32),
+      0 + sin(pi * 0.5 - 0.18) * (outerRy - 22),
+    );
 
     final comp = activeCompanion!;
     _beautyContestCompIntroStart = comp.position;
@@ -594,6 +652,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     if (activeCompanion == null) return;
     _beautyContestCinematicActive = true;
     _beautyContestCenter = arenaCenter;
+    _clearContestHostiles();
     _beautyContestPlayerWon = playerWon;
     _beautyContestTimer = 0;
     _beautyContestCompAbilityA = false;
@@ -675,6 +734,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     if (activeCompanion == null) return;
     _beautyContestCinematicActive = true;
     _beautyContestCenter = arenaCenter;
+    _clearContestHostiles();
     _beautyContestPlayerWon = playerWon;
     _beautyContestTimer = 0;
     _beautyContestCompAbilityA = false;
@@ -819,16 +879,28 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
             .clamp(0.0, 1.0),
       );
       final compTarget = switch (_contestCinematicMode) {
-        _ContestCinematicMode.speed => _arenaAt(0 + cos(pi * 0.5) * 222.0, 0 + sin(pi * 0.5) * 124.0),
+        _ContestCinematicMode.speed => _arenaAt(
+          0 + cos(pi * 0.5) * 222.0,
+          0 + sin(pi * 0.5) * 124.0,
+        ),
         _ContestCinematicMode.strength => _arenaAt(0 - 128, 0 + 20),
         _ContestCinematicMode.intelligence => _arenaAt(0 - 144, 0 + 12),
-        _ContestCinematicMode.beauty => _arenaAt(0 + cos(pi) * 170.0, 0 + sin(pi) * 170.0 * 0.48),
+        _ContestCinematicMode.beauty => _arenaAt(
+          0 + cos(pi) * 170.0,
+          0 + sin(pi) * 170.0 * 0.48,
+        ),
       };
       final oppTarget = switch (_contestCinematicMode) {
-        _ContestCinematicMode.speed => _arenaAt(0 + cos(pi * 0.5 - 0.18) * (222.0 - 32), 0 + sin(pi * 0.5 - 0.18) * (124.0 - 22)),
+        _ContestCinematicMode.speed => _arenaAt(
+          0 + cos(pi * 0.5 - 0.18) * (222.0 - 32),
+          0 + sin(pi * 0.5 - 0.18) * (124.0 - 22),
+        ),
         _ContestCinematicMode.strength => _arenaAt(0 + 128, 0 + 20),
         _ContestCinematicMode.intelligence => _arenaAt(0 + 144, 0 + 12),
-        _ContestCinematicMode.beauty => _arenaAt(0 + cos(0) * 170.0, 0 + sin(0) * 170.0 * 0.48),
+        _ContestCinematicMode.beauty => _arenaAt(
+          0 + cos(0) * 170.0,
+          0 + sin(0) * 170.0 * 0.48,
+        ),
       };
       ship.pos = _toroidalLerp(
         _beautyContestShipIntroStart,
@@ -885,7 +957,9 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
 
     final orbitA = _beautyContestTimer * CosmicGame._beautyContestOrbitSpeed;
     const orbitR = 170.0;
-    final compPos = _arenaAt(0 + cos(orbitA + pi) * orbitR, 0 +
+    final compPos = _arenaAt(
+      0 + cos(orbitA + pi) * orbitR,
+      0 +
           sin(orbitA + pi) * orbitR * 0.48 -
           sin(
                 (1 -
@@ -894,8 +968,11 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
                             .clamp(0.0, 1.0)) *
                     pi,
               ) *
-              CosmicGame._beautyContestHopHeight);
-    final oppPos = _arenaAt(0 + cos(orbitA) * orbitR, 0 +
+              CosmicGame._beautyContestHopHeight,
+    );
+    final oppPos = _arenaAt(
+      0 + cos(orbitA) * orbitR,
+      0 +
           sin(orbitA) * orbitR * 0.48 -
           sin(
                 (1 -
@@ -904,7 +981,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
                             .clamp(0.0, 1.0)) *
                     pi,
               ) *
-              CosmicGame._beautyContestHopHeight);
+              CosmicGame._beautyContestHopHeight,
+    );
 
     Offset resolvedCompPos = compPos;
     Offset resolvedOppPos = oppPos;
@@ -1099,12 +1177,14 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       final compBob = sin(_beautyContestTimer * 8.2) * 4.0;
       final oppBob = sin(_beautyContestTimer * 8.2 + 1.2) * 4.0;
 
-      comp.position = _arenaAt(0 + cos(_speedContestCompProgress) * outerRx, 0 +
-            sin(_speedContestCompProgress) * outerRy -
-            compBob);
-      opp.position = _arenaAt(0 + cos(_speedContestOppProgress) * innerRx, 0 +
-            sin(_speedContestOppProgress) * innerRy -
-            oppBob);
+      comp.position = _arenaAt(
+        0 + cos(_speedContestCompProgress) * outerRx,
+        0 + sin(_speedContestCompProgress) * outerRy - compBob,
+      );
+      opp.position = _arenaAt(
+        0 + cos(_speedContestOppProgress) * innerRx,
+        0 + sin(_speedContestOppProgress) * innerRy - oppBob,
+      );
 
       comp.angle = atan2(
         outerRy * cos(_speedContestCompProgress),
@@ -1122,8 +1202,14 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         ),
       );
 
-      final compTrackPos = _arenaAt(0 + cos(_speedContestCompProgress) * outerRx, 0 + sin(_speedContestCompProgress) * outerRy);
-      final oppTrackPos = _arenaAt(0 + cos(_speedContestOppProgress) * innerRx, 0 + sin(_speedContestOppProgress) * innerRy);
+      final compTrackPos = _arenaAt(
+        0 + cos(_speedContestCompProgress) * outerRx,
+        0 + sin(_speedContestCompProgress) * outerRy,
+      );
+      final oppTrackPos = _arenaAt(
+        0 + cos(_speedContestOppProgress) * innerRx,
+        0 + sin(_speedContestOppProgress) * innerRy,
+      );
 
       final winnerPos = _arenaAt(0, 0 - 124);
       final loserPos = _arenaAt(0, 0 + 154);
@@ -1254,11 +1340,12 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     _intelligenceContestOrbit += dt * 1.55;
 
     _intelligenceContestBias = _intelligenceContestBias.clamp(-1.0, 1.0);
-    var orbPos = _arenaAt(0 +
+    var orbPos = _arenaAt(
+      0 +
           _intelligenceContestBias * 82.0 +
-          cos(_intelligenceContestOrbit * 1.8) * 34.0, 0 +
-          baseY +
-          sin(_intelligenceContestOrbit * 2.2 + 0.9) * 22.0);
+          cos(_intelligenceContestOrbit * 1.8) * 34.0,
+      0 + baseY + sin(_intelligenceContestOrbit * 2.2 + 0.9) * 22.0,
+    );
 
     if (_beautyContestTimer < _intelligenceContestDuration) {
       final focusDelta =
@@ -1269,24 +1356,21 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       final compThrum = sin(_beautyContestTimer * 5.4) * 3.4;
       final oppThrum = sin(_beautyContestTimer * 5.4 + 1.4) * 3.4;
 
-      comp.position = _arenaAt(0 -
-            baseHalf +
-            cos(_intelligenceContestOrbit + pi) * orbitRx, 0 +
-            baseY +
-            sin(_intelligenceContestOrbit + pi) * orbitRy +
-            compThrum);
-      opp.position = _arenaAt(0 +
-            baseHalf +
-            cos(_intelligenceContestOrbit) * orbitRx, 0 +
-            baseY +
-            sin(_intelligenceContestOrbit) * orbitRy +
-            oppThrum);
+      comp.position = _arenaAt(
+        0 - baseHalf + cos(_intelligenceContestOrbit + pi) * orbitRx,
+        0 + baseY + sin(_intelligenceContestOrbit + pi) * orbitRy + compThrum,
+      );
+      opp.position = _arenaAt(
+        0 + baseHalf + cos(_intelligenceContestOrbit) * orbitRx,
+        0 + baseY + sin(_intelligenceContestOrbit) * orbitRy + oppThrum,
+      );
 
-      orbPos = _arenaAt(0 +
+      orbPos = _arenaAt(
+        0 +
             _intelligenceContestBias * 82.0 +
-            cos(_intelligenceContestOrbit * 1.8) * 34.0, 0 +
-            baseY +
-            sin(_intelligenceContestOrbit * 2.2 + 0.9) * 22.0);
+            cos(_intelligenceContestOrbit * 1.8) * 34.0,
+        0 + baseY + sin(_intelligenceContestOrbit * 2.2 + 0.9) * 22.0,
+      );
       comp.angle = atan2(
         orbPos.dy - comp.position.dy,
         orbPos.dx - comp.position.dx,
@@ -1320,16 +1404,14 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         ),
       );
 
-      final compMindPos = _arenaAt(0 -
-            baseHalf +
-            cos(_intelligenceContestOrbit + pi) * orbitRx, 0 +
-            baseY +
-            sin(_intelligenceContestOrbit + pi) * orbitRy);
-      final oppMindPos = _arenaAt(0 +
-            baseHalf +
-            cos(_intelligenceContestOrbit) * orbitRx, 0 +
-            baseY +
-            sin(_intelligenceContestOrbit) * orbitRy);
+      final compMindPos = _arenaAt(
+        0 - baseHalf + cos(_intelligenceContestOrbit + pi) * orbitRx,
+        0 + baseY + sin(_intelligenceContestOrbit + pi) * orbitRy,
+      );
+      final oppMindPos = _arenaAt(
+        0 + baseHalf + cos(_intelligenceContestOrbit) * orbitRx,
+        0 + baseY + sin(_intelligenceContestOrbit) * orbitRy,
+      );
       final winnerPos = _arenaAt(0, 0 - 124);
       final loserPos = _arenaAt(0, 0 + 154);
       final playerTarget = _beautyContestPlayerWon ? winnerPos : loserPos;

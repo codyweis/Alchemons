@@ -14,12 +14,19 @@
 // [active] (0..1) is how far into a contest it is: the light rises, the
 // grains quicken. The stones are painted once per shape and laid down
 // turned; a frame costs a few dozen draws and a handful of point passes.
+//
+// An arena whose five levels are all won is crowned (_Crown): a laurel of
+// gold leaves round its rim, a gold relic at its heart, and a double helix
+// of gold grains rising off the relic as a beacon. The crown unveils itself
+// the moment the last level falls — a burst of grains, then the leaves
+// growing up both sides one by one.
 
 import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/obsidian_kit.dart';
+import 'package:flutter/animation.dart';
 import 'package:flutter/painting.dart';
 
 extension ContestTraitLight on CosmicContestTrait {
@@ -33,8 +40,13 @@ extension ContestTraitLight on CosmicContestTrait {
   };
 }
 
+/// A mastered arena's gold: its laurel, relic, beacon and world label.
+const Color kContestChampionGold = Color(0xFFF0C766);
+
 /// Draws the [trait]'s arena centred on [at] (radius
-/// CosmicContestArena.visualRadius).
+/// CosmicContestArena.visualRadius). [mastery] is the seconds since the
+/// arena was mastered (null while it is not): it is crowned, and in the
+/// first seconds the crown unveils itself.
 void paintContestArena(
   Canvas c,
   CosmicContestTrait trait, {
@@ -42,6 +54,7 @@ void paintContestArena(
   required double t,
   double active = 0,
   Offset? focus,
+  double? mastery,
 }) {
   final art = _arenas[trait] ??= switch (trait) {
     CosmicContestTrait.beauty => _BeautyArena(),
@@ -58,10 +71,14 @@ void paintContestArena(
     active.clamp(0.0, 1.0),
     focus == null ? null : focus / kContestArenaScale,
   );
+  if (mastery != null) {
+    (_crown ??= _Crown()).paint(c, trait, t, max(0.0, mastery));
+  }
   c.restore();
 }
 
 final Map<CosmicContestTrait, _Arena> _arenas = {};
+_Crown? _crown;
 
 /// The arena's radius in its own units; it is drawn [kContestArenaScale]
 /// times that in the world.
@@ -197,19 +214,18 @@ class _BeautyArena extends _Arena {
     ],
     const [0.0, 0.35, 0.7, 1.0],
   );
-  late final BakedArt _dais = BakedArt(
-    const Rect.fromLTRB(-62, -62, 62, 62),
-    (c) {
-      CutStone.gem(m, [
-        for (var i = 0; i < 12; i++) polar(56, i * 2 * pi / 12),
-      ], Offset.zero).paint(c, 0, glow: 0.35, reach: 60);
-      stonePaint
-        ..shader = _mirror
-        ..color = const Color(0xFFFFFFFF);
-      c.drawCircle(Offset.zero, 46, stonePaint);
-      stonePaint.shader = null;
-    },
-  );
+  late final BakedArt _dais = BakedArt(const Rect.fromLTRB(-62, -62, 62, 62), (
+    c,
+  ) {
+    CutStone.gem(m, [
+      for (var i = 0; i < 12; i++) polar(56, i * 2 * pi / 12),
+    ], Offset.zero).paint(c, 0, glow: 0.35, reach: 60);
+    stonePaint
+      ..shader = _mirror
+      ..color = const Color(0xFFFFFFFF);
+    c.drawCircle(Offset.zero, 46, stonePaint);
+    stonePaint.shader = null;
+  });
 
   final PointBatch _motes = PointBatch(140);
   final PointBatch _motesHot = PointBatch(40);
@@ -508,6 +524,244 @@ class _IntelligenceArena extends _Arena {
       paintDisc(c, m.pool, focus, 50, 2.4);
       paintOrb(c, m, focus, 14);
       paintDisc(c, m.spark, focus, 6);
+    }
+  }
+}
+
+// ── Mastery ─────────────────────────────────────────────────────────────────
+
+/// What a mastered arena wears, over its own art and in its own units.
+class _Crown {
+  final StoneLight m = StoneLight(kContestChampionGold, warm: 0.05);
+
+  /// How long the unveiling takes, in seconds.
+  static const double unveil = 4.6;
+
+  /// Leaves up each side of the laurel.
+  static const int _leaves = 16;
+
+  /// The laurel's radius: just outside the dust ring.
+  static const double _laurelR = _r * 1.05;
+
+  /// The beacon's height above the relic.
+  static const double _beaconH = 430;
+
+  /// A laurel leaf, its stem at the origin, pointing along +x.
+  late final BakedArt _leaf = BakedArt(
+    const Rect.fromLTRB(-6, -12, 40, 12),
+    (c) => CutStone.gem(m, const [
+      Offset(0, 0),
+      Offset(8, -5.5),
+      Offset(21, -5),
+      Offset(33, 0),
+      Offset(21, 5),
+      Offset(8, 5.5),
+    ], const Offset(13, 0)).paint(c, 0, glow: 1.3, reach: 18),
+  );
+
+  /// A petal of the beauty relic's bloom — a short, broad leaf.
+  late final BakedArt _petal = BakedArt(
+    const Rect.fromLTRB(-4, -10, 26, 10),
+    (c) => CutStone.gem(m, const [
+      Offset(0, 0),
+      Offset(7, -7),
+      Offset(17, -6),
+      Offset(22, 0),
+      Offset(17, 6),
+      Offset(7, 7),
+    ], const Offset(9, 0)).paint(c, 0, glow: 1, reach: 14),
+  );
+
+  final PointBatch _ring = PointBatch(_ringCount);
+  final PointBatch _ringHot = PointBatch(_ringCount);
+  final PointBatch _beamHot = PointBatch(_beamCount);
+  final PointBatch _beam = PointBatch(_beamCount);
+  final PointBatch _beamFaint = PointBatch(_beamCount);
+  final PointBatch _burst = PointBatch(_burstCount);
+  final PointBatch _trail = PointBatch(60);
+
+  static const int _ringCount = 260;
+  static const int _beamCount = 300;
+  static const int _burstCount = 220;
+
+  /// Where the relic sits: over the dais, in the strength groove, at the
+  /// heart of the intelligence prism.
+  Offset _relicAt(CosmicContestTrait trait, double t) => switch (trait) {
+    CosmicContestTrait.strength => const Offset(0, _StrengthArena._y),
+    CosmicContestTrait.intelligence => const Offset(0, -4),
+    _ => Offset(0, -16 + sin(t * 1.2) * 4),
+  };
+
+  void paint(Canvas c, CosmicContestTrait trait, double t, double age) {
+    final u = (age / unveil).clamp(0.0, 1.0);
+    double phase(double from, double to) =>
+        Curves.easeOutCubic.transform(((u - from) / (to - from)).clamp(0, 1));
+    final relic = _relicAt(trait, t);
+
+    // The gold the arena now lies in.
+    paintDisc(c, m.pool, Offset.zero, _r * 1.3, 0.45 * phase(0, 0.4));
+
+    _goldRing(c, t, phase(0.1, 0.6));
+    _laurel(c, age);
+    _signature(c, trait, t, phase(0.35, 0.8), relic);
+    _beacon(c, t, phase(0.25, 0.95), relic);
+
+    // The relic: a gold orb with its light round it.
+    final r = phase(0.3, 0.7);
+    if (r > 0) {
+      paintDisc(
+        c,
+        m.pool,
+        relic,
+        trait == CosmicContestTrait.beauty ? 34 : 54,
+        (trait == CosmicContestTrait.beauty ? 1.2 : 2.0) * r,
+      );
+      if (trait == CosmicContestTrait.beauty) {
+        // Its reflection in the mirror pool.
+        paintDisc(c, m.leak, Offset(0, 18 - relic.dy * 0.4), 14, 0.35 * r);
+      }
+      paintOrb(c, m, relic, 12 * r);
+      paintDisc(c, m.spark, relic, 7 * r, 0.8);
+    }
+
+    // The unveiling: a flash at the heart and a ring of grains thrown out
+    // past the rim.
+    if (age < 1.8) {
+      final f = age / 1.8;
+      paintDisc(c, m.spark, relic, 30 + 60 * f, (1 - f) * (1 - f));
+      _burst.clear();
+      for (var i = 0; i < _burstCount; i++) {
+        final a = hash01(i, 31) * 2 * pi;
+        final reach = 0.75 + 0.5 * hash01(i, 32);
+        final d = Curves.easeOutCubic.transform(f) * _r * 1.35 * reach;
+        _burst.add(relic.dx + cos(a) * d, relic.dy + sin(a) * d);
+      }
+      _burst.draw(c, 2.3, m.grainHot.withValues(alpha: pow(1 - f, 1.4) * 1.0));
+    }
+  }
+
+  /// A thin band of gold grains turning the other way, outside the laurel.
+  void _goldRing(Canvas c, double t, double alpha) {
+    if (alpha <= 0) return;
+    _ring.clear();
+    _ringHot.clear();
+    for (var i = 0; i < _ringCount; i++) {
+      final rad = _r * (1.17 + 0.07 * hash01(i, 33));
+      final a = hash01(i, 34) * 2 * pi - t * (0.025 + 0.02 * hash01(i, 35));
+      (i % 6 == 0 ? _ringHot : _ring).add(cos(a) * rad, sin(a) * rad);
+    }
+    _ring.draw(c, 1.4, m.grainDim.withValues(alpha: 0.55 * alpha));
+    _ringHot.draw(c, 2.2, m.grainHot.withValues(alpha: 0.8 * alpha));
+  }
+
+  /// Two branches of gold leaves, from the foot of the arena up both sides,
+  /// meeting short of the top. Each leaf grows in after the one below it.
+  void _laurel(Canvas c, double age) {
+    const foot = pi / 2; // the arena's foot (screen down)
+    for (var k = 0; k < _leaves; k++) {
+      final grow = Curves.easeOutBack.transform(
+        ((age - 0.7 - k * 0.17) / 0.45).clamp(0.0, 1.0),
+      );
+      if (grow <= 0) continue;
+      final f = k / (_leaves - 1);
+      final size = (1.3 - 0.45 * f) * grow;
+      for (final side in const [1.0, -1.0]) {
+        final a = foot + side * (0.24 + f * (pi - 0.62));
+        // Along the branch, toward the top.
+        final along = atan2(cos(a), -sin(a)) + (side < 0 ? pi : 0);
+        for (final (out, tilt) in const [(8.0, 0.6), (-8.0, -0.6)]) {
+          final p = polar(_laurelR + out, a);
+          c.save();
+          c.translate(p.dx, p.dy);
+          // Positive tilt leans the leaf out of the ring.
+          c.rotate(along - side * tilt);
+          c.scale(size);
+          _leaf.draw(c, grow.clamp(0.0, 1.0));
+          c.restore();
+        }
+      }
+    }
+    // The knot the two branches grow from.
+    final knot = ((age - 0.5) / 0.4).clamp(0.0, 1.0);
+    if (knot > 0) {
+      final at = polar(_laurelR, foot);
+      paintDisc(c, m.pool, at, 30, 1.4 * knot);
+      paintOrb(c, m, at, 7 * knot);
+    }
+  }
+
+  /// A double helix of gold grains climbing off the relic and thinning out.
+  void _beacon(Canvas c, double t, double grow, Offset from) {
+    if (grow <= 0) return;
+    _beamHot.clear();
+    _beam.clear();
+    _beamFaint.clear();
+    final h = _beaconH * grow;
+    for (var i = 0; i < _beamCount; i++) {
+      final ph = (t * (0.11 + 0.05 * hash01(i, 36)) + hash01(i, 37)) % 1.0;
+      final a = ph * 5 * pi + t * 0.9 + (i.isEven ? 0 : pi);
+      final w = 28 * (1 - 0.6 * ph);
+      final p = from + Offset(cos(a) * w, -ph * h);
+      final front = sin(a) > 0;
+      (ph > 0.7
+              ? _beamFaint
+              : front
+              ? _beamHot
+              : _beam)
+          .add(p.dx, p.dy);
+    }
+    _beamFaint.draw(c, 1.4, m.grainDim.withValues(alpha: 0.3 * grow));
+    _beam.draw(c, 1.5, m.grainDim.withValues(alpha: 0.6 * grow));
+    _beamHot.draw(c, 2.3, m.grainHot.withValues(alpha: grow));
+  }
+
+  /// What each trait's crown adds of its own.
+  void _signature(
+    Canvas c,
+    CosmicContestTrait trait,
+    double t,
+    double alpha,
+    Offset relic,
+  ) {
+    if (alpha <= 0) return;
+    switch (trait) {
+      case CosmicContestTrait.beauty:
+        // A bloom of gold petals round the relic, slowly turning.
+        for (var i = 0; i < 6; i++) {
+          final a = t * 0.18 + i * pi / 3;
+          c.save();
+          c.translate(relic.dx, relic.dy);
+          c.rotate(a);
+          c.translate(9, 0);
+          c.scale(alpha);
+          _petal.draw(c, alpha);
+          c.restore();
+        }
+      case CosmicContestTrait.speed:
+        // A gold comet that laps the track for ever.
+        const flat = _SpeedArena._flat;
+        const rad = 205.0;
+        _trail.clear();
+        final head = t * 0.9;
+        for (var k = 0; k < 60; k++) {
+          final a = head - k * 0.016;
+          _trail.add(cos(a) * rad, sin(a) * rad * flat);
+        }
+        _trail.draw(c, 2.4, m.grainHot.withValues(alpha: 0.75 * alpha));
+        final at = Offset(cos(head) * rad, sin(head) * rad * flat);
+        paintDisc(c, m.pool, at, 34, 1.6 * alpha);
+        paintOrb(c, m, at, 6 * alpha);
+      case CosmicContestTrait.strength:
+        // The groove runs gold: the bead was forged there.
+        paintDisc(c, m.leak, relic, 120, 0.7 * alpha);
+      case CosmicContestTrait.intelligence:
+        // Every node holds a gold spark.
+        for (var i = 0; i < _IntelligenceArena._nodes; i++) {
+          final a = i * 2 * pi / _IntelligenceArena._nodes - pi / 2 + t * 0.03;
+          final p = polar(_r * (0.76 + 0.04 * sin(t * 0.6 + i)), a);
+          paintDisc(c, m.pool, p, 22, 1.4 * alpha);
+          paintDisc(c, m.spark, p + const Offset(-2, -3), 5.5, alpha);
+        }
     }
   }
 }

@@ -83,4 +83,51 @@ void main() {
     final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
     File('$out/sheet.png').writeAsBytesSync(bytes!.buffer.asUint8List());
   });
+
+  // mastered.png: each arena crowned — three moments of the unveiling
+  // (burst, leaves growing, settled) and then at rest long after.
+  test('mastered contest arena previews', () async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    // Pulled back to the camera's contest framing, so the whole crown shows.
+    const unit = 0.45 * 2;
+    const cw = 412.0 * 2, ch = 720.0 * 2;
+    const ages = [0.6, 2.2, 4.0, 1000.0];
+    final traits = CosmicContestTrait.values;
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    final sheet = Rect.fromLTWH(0, 0, cw * ages.length, ch * traits.length);
+    space(c, sheet, 5);
+    for (var i = 0; i < traits.length; i++) {
+      for (var j = 0; j < ages.length; j++) {
+        final centre = Offset(j * cw + cw / 2, i * ch + ch / 2 + 60);
+        c.save();
+        c.clipRect(
+          Rect.fromCenter(
+            center: centre - const Offset(0, 60),
+            width: cw,
+            height: ch,
+          ),
+        );
+        c.translate(centre.dx, centre.dy);
+        c.scale(unit);
+        paintContestArena(
+          c,
+          traits[i],
+          at: Offset.zero,
+          t: 7.3 + i + ages[j],
+          mastery: ages[j],
+        );
+        c.save();
+        c.translate(-150, 120);
+        paintShipHull(c, null, 3);
+        c.restore();
+        c.restore();
+      }
+    }
+    final pic = rec.endRecording();
+    final img = pic.toImageSync(sheet.width.round(), sheet.height.round());
+    final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+    File('$out/mastered.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+  });
 }

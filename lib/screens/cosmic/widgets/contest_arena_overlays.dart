@@ -750,8 +750,20 @@ class _ContestScorecardState extends State<_ContestScorecard>
               fontSize: 12.5,
             ),
           )
-        else if (rewards.isNotEmpty)
+        else if (rewards.isNotEmpty) ...[
           Wrap(alignment: WrapAlignment.center, spacing: 14, children: rewards),
+          if (stakes != null && stakes.shards > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Shards are banked at home.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: CosmicScreenStyles.textSecondary,
+                fontSize: 11.5,
+              ),
+            ),
+          ],
+        ],
         if (_won && stakes?.unlock != null) ...[
           const SizedBox(height: 6),
           Text(
