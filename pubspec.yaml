@@ -33,6 +33,7 @@ dependencies:
   graphx: ^1.0.14
   flutter_svg: ^2.0.10+1
   phosphoricons_flutter: ^1.0.0
+  package_info_plus: ^10.2.2
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4

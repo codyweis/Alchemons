@@ -36,7 +36,7 @@ class _VoiceUse {
   final SoundVoice voice;
   final String asset;
   final SoundCue cue;
-  final Object? owner;
+  Object? owner;
 }
 
 /// At most six active effects and eight cached players. Warnings may displace
@@ -74,6 +74,15 @@ class SoundEffectsPlayer {
     _active.removeWhere((v) => identical(v.owner, owner));
     for (final v in stopped) {
       unawaited(_disposeVoice(v.voice));
+    }
+  }
+
+  /// Lets [owner]'s playing effects run to their end: a later [stopOwner]
+  /// for it no longer cuts them. For a cue whose tail is meant to carry past
+  /// the screen that started it.
+  void releaseOwner(Object owner) {
+    for (final v in _active) {
+      if (identical(v.owner, owner)) v.owner = null;
     }
   }
 

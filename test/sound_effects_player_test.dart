@@ -140,6 +140,32 @@ void main() {
     engine.dispose();
   });
 
+  test('a released owner no longer cuts its effects', () async {
+    final voices = <FakeVoice>[];
+    final engine = SoundEffectsPlayer(
+      createVoice: () {
+        final v = FakeVoice();
+        voices.add(v);
+        return v;
+      },
+    );
+    final owner = Object();
+    unawaited(engine.play(SoundCue.extractionCeremony, owner: owner));
+    await flush();
+    engine.releaseOwner(owner);
+    engine.stopOwner(owner);
+    await flush();
+    expect(voices.single.disposals, 0);
+    // Its own later effects are still its to stop.
+    unawaited(engine.play(SoundCue.uiTap, owner: owner));
+    await flush();
+    engine.stopOwner(owner);
+    await flush();
+    expect(voices.last.disposals, 1);
+    expect(voices.first.disposals, 0);
+    engine.dispose();
+  });
+
   test('completed voices are reused and disabling clears the cache', () async {
     var now = 1000;
     final voices = <FakeVoice>[];

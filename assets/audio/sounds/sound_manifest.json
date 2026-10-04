@@ -1275,5 +1275,17 @@
     "peak_db": -16.48,
     "rms_db": -26.04,
     "sha256": "df86ba66a1a680a5a7e7078fdbef9095bcca278051fa090766ffd0f24be6ee0c"
+  },
+  {
+    "name": "sfx_extraction_ceremony",
+    "category": "Alchemical extraction",
+    "description": "Two parents' grains gather into one shell, settle as it cinches, and ring it open as it unravels",
+    "path": "assets/audio/sounds/sfx_extraction_ceremony.wav",
+    "duration": 7.155,
+    "loop": false,
+    "peak_db": -5.48,
+    "rms_db": -26.14,
+    "sha256": "6a30da370a6a410475d14ca174d8fe8181b4364881ddb9f01b70dbb81c874be7",
+    "source": "tool/material_sounds.py"
   }
 ]

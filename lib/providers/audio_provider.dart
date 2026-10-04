@@ -9,6 +9,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 enum MusicCue {
   home,
@@ -33,6 +34,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   static const String _kMusicEnabled = 'audio.music_enabled';
   static const String _kSoundsEnabled = 'audio.sounds_enabled';
   static const String _kHapticsEnabled = 'audio.haptics_enabled';
+  static const String _kAssetCacheBuild = 'audio.asset_cache_build';
   static const String _kCosmicMusicCycleIndex =
       'audio.cosmic_music_cycle_index';
 
@@ -125,6 +127,27 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     _bootstrapFuture = _bootstrap();
   }
 
+  /// just_audio copies each asset into a cache file the first time it plays
+  /// and never looks at it again, so a sound changed in an update would keep
+  /// playing its old copy forever. Clear that cache whenever the build
+  /// changes -- and on every debug launch, where sounds change without the
+  /// build number moving. Runs before anything can play.
+  Future<void> _refreshAssetCacheIfStale() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final build = '${info.version}+${info.buildNumber}';
+      if (!kDebugMode &&
+          await _db.settingsDao.getSetting(_kAssetCacheBuild) == build) {
+        return;
+      }
+      await AudioPlayer.clearAssetCache();
+      await _db.settingsDao.setSetting(_kAssetCacheBuild, build);
+    } catch (e) {
+      // No cache yet, or no temp directory: nothing stale to clear.
+      debugPrint('Audio asset cache refresh skipped: $e');
+    }
+  }
+
   bool get isLoaded => _isLoaded;
   bool get masterEnabled => _masterEnabled;
   bool get musicEnabled => _musicEnabled;
@@ -153,6 +176,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _bootstrap() async {
+    await _refreshAssetCacheIfStale();
     _masterEnabled = await _readBoolSetting(
       _kMasterEnabled,
       defaultValue: true,
@@ -343,6 +367,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void stopSoundOwner(Object owner) => _sounds.stopOwner(owner);
+  void releaseSoundOwner(Object owner) => _sounds.releaseOwner(owner);
   void stopSounds() => _sounds.stopAll();
   void setAmbience(Object owner, AmbienceCue cue) =>
       _ambience.setScene(owner, cue);

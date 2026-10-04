@@ -196,6 +196,10 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
   /// the timeline running out or by SKIP jumping it forward.
   bool _handedOver = false;
 
+  /// Set by SKIP: the cue is mid-ceremony, so it is cut at the handover
+  /// rather than left to ring on under the card.
+  bool _skipped = false;
+
   /// THE CULTIVATION IT STARTS FROM. The extraction dialog hands its sphere
   /// on — the same grains, turned to where they were, standing where they
   /// stood — and the ceremony opens on it rather than on black: held in
@@ -456,6 +460,14 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
       if (_timeline.value < _kHandoverAt) return;
       _handedOver = true;
       _timeline.removeListener(handOver);
+      // The cue rings on past the handover, under the card coming up: cut
+      // here, the ceremony drops to silence before the card has anything to
+      // say. A skipped one is mid-ceremony, and is cut.
+      if (_skipped) {
+        _audio?.stopSoundOwner(this);
+      } else {
+        _audio?.releaseSoundOwner(this);
+      }
       final done = widget.onComplete;
       if (done != null) {
         done();
@@ -787,12 +799,13 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                     bottom: 24,
                     right: 24,
                     child: GestureDetector(
-                      onTap: context.soundAction(
-                        () => _timeline.animateTo(
+                      onTap: context.soundAction(() {
+                        _skipped = true;
+                        _timeline.animateTo(
                           1.0,
                           duration: const Duration(milliseconds: 150),
-                        ),
-                      ),
+                        );
+                      }),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,

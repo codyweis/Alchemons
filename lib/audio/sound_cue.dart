@@ -78,10 +78,12 @@ enum SoundCue {
   harvestCollect('assets/audio/sounds/sfx_harvest_collect.wav'),
   extractionComplete('assets/audio/sounds/sfx_extraction_complete.wav'),
 
-  /// The whole hatching ceremony, scored to the cinematic's own beats rather
-  /// than fired as separate hits: hum and motes, the chord assembling, the
-  /// burst at 3.85s, and the silhouette's bell cluster at 5.24s. One cue, so
-  /// the ceremony cannot drift out of sync with itself.
+  /// The whole hatching ceremony, scored to the shell's own beats rather
+  /// than fired as separate hits: the parents' motes, their strands swirling
+  /// in, the settle as the shell cinches at 4.25s, and the glass ringing it
+  /// open as it unravels at 5.24s; gone before the 6.05s handover cuts it.
+  /// One cue, so the ceremony cannot drift out of sync with itself. Built by
+  /// tool/material_sounds.py, where the beat times live.
   extractionCeremony('assets/audio/sounds/sfx_extraction_ceremony.wav'),
   extractionReactionStart(
     'assets/audio/sounds/sfx_extraction_reaction_start.wav',
