@@ -184,6 +184,7 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
     );
 
     HapticFeedback.mediumImpact();
+    HarvestParticleField.announce(HarvestBeat.engage);
     _seize.forward();
 
     () async {
@@ -225,6 +226,9 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
         milliseconds: (HarvestParticleField.takeSeconds * 1000).round(),
       );
     }
+    HarvestParticleField.announce(
+      (_success ?? false) ? HarvestBeat.take : HarvestBeat.shatter,
+    );
     await _resolve.forward(from: 0);
     // A specimen that broke free is handed back whole. One that was taken is
     // left cut away: the host hides it, or it would flash back as this goes.

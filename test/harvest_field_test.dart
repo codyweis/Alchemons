@@ -9,6 +9,7 @@
 import 'package:alchemons/games/wilderness/harvest_field.dart';
 import 'package:alchemons/games/wilderness/particle_fusion_effect.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
+import 'package:alchemons/widgets/fx/harvest_particles.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -61,6 +62,31 @@ void main() {
       isFalse,
       reason: 'the creature standing in the scene has to be the thing acting',
     );
+  });
+
+  test('it announces its beats on the frames they happen', () async {
+    // Sound is played on these, so a take must not be announced before the
+    // seize has run, and a break must be announced as it starts, not after.
+    for (final held in [true, false]) {
+      final heard = <(HarvestBeat, double)>[];
+      var clock = 0.0;
+      final sub = HarvestParticleField.beats.listen(
+        (b) => heard.add((b, clock)),
+      );
+      final (game, _, fx) = await _rig(() async => held);
+      for (var i = 0; i < 200; i++) {
+        clock += 1 / 60;
+        game.update(1 / 60);
+      }
+      await fx.result;
+      await sub.cancel();
+      expect(heard.map((h) => h.$1), [
+        HarvestBeat.engage,
+        held ? HarvestBeat.take : HarvestBeat.shatter,
+      ]);
+      // minSeize 0.4: the outcome lands just after it.
+      expect(heard.last.$2, inInclusiveRange(0.4, 0.4 + 0.1));
+    }
   });
 
   test('a success takes it out of the world', () async {

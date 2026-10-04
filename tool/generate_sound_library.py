@@ -31,7 +31,10 @@ COSMIC = {n for n in APPROVED if n.startswith('sfx_cosmic_')}
 # leaves their files alone and only reads them back for the manifest.
 MATERIAL = {'sfx_extraction_creature_reveal', 'sfx_extraction_rare_reveal',
             'sfx_extraction_ceremony', 'sfx_fusion_merge',
-            'sfx_fusion_eruption'}
+            'sfx_fusion_eruption', 'sfx_fusion_calibrate', 'sfx_fusion_pour',
+            'sfx_fusion_recoil', 'sfx_capture_throw', 'sfx_capture_attempt',
+            'sfx_capture_success', 'sfx_capture_escape', 'sfx_harvest_collect',
+            'sfx_extraction_complete', 'sfx_reward_flight'}
 
 
 def asset_path(name):
@@ -236,10 +239,6 @@ recipe('dungeon_step_stone', .14, .18, lambda s: s.impact(size=.36, amp=.35).noi
 recipe('dungeon_step_water', .20, .18, lambda s: s.noise(decay=.026, amp=.40, low=350, high=3800).bubbles(2, start=.016, span=.025, base=650, amp=.13))
 
 recipe('creature_summon', .80, .27, lambda s: s.noise(decay=.08, amp=.15, attack=.012, low=900, high=4600).notes([440, 659.25, 880], gap=.07, decay=.095))
-recipe('capture_throw', .30, .24, lambda s: s.noise(decay=.052, amp=.35, low=600, high=4500, attack=.008).tone(620, decay=.035, end=300, amp=.14))
-recipe('capture_attempt', .80, .26, lambda s: s.tone(220, decay=.12, attack=.012, amp=.50, end=293.66, glide=.09).tone(587.33, start=.055, decay=.085, amp=.15))
-recipe('capture_success', 1.60, .32, lambda s: s.impact(size=.35, amp=.3).notes([523.25, 659.25, 783.99, 1046.5], start=.10, gap=.12, decay=.18))
-recipe('capture_escape', .70, .27, lambda s: s.debris(4, span=.08, high=4700, amp=.2).noise(start=.04, decay=.10, amp=.25, low=900, high=4500).tone(600, decay=.07, end=210, amp=.30))
 recipe('breeding_start', 1.20, .28, lambda s: s.tone(440, decay=.20, attack=.025, amp=.4, end=587.33, glide=.16).tone(739.99, decay=.20, attack=.025, amp=.30, end=587.33, glide=.16).tone(1174.66, start=.35, decay=.12, amp=.10))
 def reaction_start(s):
     s.bubbles(8, span=.55, base=230, amp=.15)
@@ -259,8 +258,6 @@ def reaction_burst(s):
 
 recipe('extraction_reaction_start', 1.60, .28, reaction_start)
 recipe('extraction_reaction_burst', .75, .34, reaction_burst)
-recipe('harvest_collect', .45, .23, lambda s: s.noise(decay=.022, amp=.14, low=600, high=3600).tone(680, decay=.035, end=450, amp=.3).tone(1174.66, start=.07, decay=.04, amp=.18))
-recipe('extraction_complete', 1.05, .29, lambda s: s.tone(165, decay=.075, end=82, amp=.25).impact(start=.13, size=.4, amp=.2).notes([587.33, 880], gap=.10, start=.20, decay=.12))
 
 recipe('element_fire', .65, .30, lambda s: s.noise(decay=.11, amp=.6, low=80, high=2600, attack=.009).debris(5, span=.22, low=600, high=4200, amp=.2).tone(120, decay=.055, amp=.2, end=65))
 recipe('element_water', .65, .28, lambda s: s.noise(decay=.07, amp=.4, low=300, high=3400).bubbles(7, span=.30, base=660, amp=.23))
@@ -427,7 +424,7 @@ def catalog():
             cells = [c.strip() for c in line.split('|')[1:-1]]
             rows.append({'name': match[1], 'category': section, 'description': cells[-1],
                          'target': cells[-2]})
-    assert len(rows) == 102, len(rows)
+    assert len(rows) == 106, len(rows)
     return rows
 
 

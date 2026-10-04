@@ -70,7 +70,12 @@ enum SoundCue {
   dungeonStepStone('assets/audio/sounds/sfx_dungeon_step_stone.wav'),
   dungeonStepWater('assets/audio/sounds/sfx_dungeon_step_water.wav'),
   creatureSummon('assets/audio/sounds/sfx_creature_summon.wav'),
+  /// A harvester chosen, before the field engages.
   captureThrow('assets/audio/sounds/sfx_capture_throw.wav'),
+
+  /// The harvest's seize, its take and its break: played on
+  /// [HarvestParticleField.beats], so each lands on its frame. Built by
+  /// tool/material_sounds.py from the field's own timing.
   captureAttempt('assets/audio/sounds/sfx_capture_attempt.wav'),
   captureSuccess('assets/audio/sounds/sfx_capture_success.wav'),
   captureEscape('assets/audio/sounds/sfx_capture_escape.wav'),
@@ -85,7 +90,19 @@ enum SoundCue {
   /// The fusion cinematic from the moment its particles take over
   /// (FusionBurstField): knot, eruption, gather, the sigil's lock.
   fusionEruption('assets/audio/sounds/sfx_fusion_eruption.wav'),
+
+  /// A wild fusion, which plays the merge in two pieces either side of its
+  /// verdict (ParticleFusionEffect): the pair turn to grains and stand, then
+  /// pour together -- or the grains run back into them.
+  fusionCalibrate('assets/audio/sounds/sfx_fusion_calibrate.wav'),
+  fusionPour('assets/audio/sounds/sfx_fusion_pour.wav'),
+  fusionRecoil('assets/audio/sounds/sfx_fusion_recoil.wav'),
   harvestCollect('assets/audio/sounds/sfx_harvest_collect.wav'),
+
+  /// A reward flying from its card to its total (playRewardCollect): thrown
+  /// out, drawn in, every piece arriving at once at 0.98 s. Played by the
+  /// flight itself, so every screen that uses it sounds the same.
+  rewardFlight('assets/audio/sounds/sfx_reward_flight.wav'),
   extractionComplete('assets/audio/sounds/sfx_extraction_complete.wav'),
 
   /// The whole hatching ceremony, scored to the shell's own beats rather
@@ -181,6 +198,12 @@ enum SoundCue {
     SoundCue.extractionCeremony ||
     SoundCue.fusionMerge ||
     SoundCue.fusionEruption ||
+    SoundCue.fusionCalibrate ||
+    SoundCue.fusionPour ||
+    SoundCue.fusionRecoil ||
+    SoundCue.captureAttempt ||
+    SoundCue.captureSuccess ||
+    SoundCue.captureEscape ||
     SoundCue.extractionReactionStart ||
     SoundCue.extractionReactionBurst ||
     SoundCue.extractionCreatureReveal ||

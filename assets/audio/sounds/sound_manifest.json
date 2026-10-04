@@ -833,50 +833,54 @@
   {
     "name": "sfx_capture_throw",
     "category": "Creatures, breeding, and everyday progression",
-    "description": "Swift arc and soft energy release",
+    "description": "A harvester chosen: a pinch of grains into glass",
     "target": "0.20\u20130.45 s",
     "path": "assets/audio/sounds/sfx_capture_throw.wav",
-    "duration": 0.3,
+    "duration": 0.5,
     "loop": false,
-    "peak_db": -12.4,
-    "rms_db": -29.1,
-    "sha256": "62859220287f9ae3d2a45edc9d96ab771ccb5615670796f43f6099941c90a7db"
+    "peak_db": -10.54,
+    "rms_db": -33.94,
+    "sha256": "05a48d423303f84520c3c762be9ffe8a4824e92cd5cd8e400da9961ef4c61af7",
+    "source": "tool/material_sounds.py"
   },
   {
     "name": "sfx_capture_attempt",
     "category": "Creatures, breeding, and everyday progression",
-    "description": "One containment pulse; repeat in code if needed",
+    "description": "Rings of motes close on the specimen, bite, and strain as it shoves",
     "target": "0.60\u20131.00 s",
     "path": "assets/audio/sounds/sfx_capture_attempt.wav",
-    "duration": 0.8,
+    "duration": 2.25,
     "loop": false,
-    "peak_db": -11.7,
-    "rms_db": -25.87,
-    "sha256": "4be767e96281f2aa354b96e88bec4d712378e66b7a76e78c3475b9461b5e8e72"
+    "peak_db": -7.84,
+    "rms_db": -29.16,
+    "sha256": "74bfaa27b4ad4b41f66920e52fd9214ff10da9866bf875903d922bb1aac6ca8f",
+    "source": "tool/material_sounds.py"
   },
   {
     "name": "sfx_capture_success",
     "category": "Creatures, breeding, and everyday progression",
-    "description": "Secure click resolving into cheerful sparkle",
+    "description": "The specimen turned to grains and drawn down, turning, into the harvester, sealed with a small glass",
     "target": "1.20\u20132.00 s",
     "path": "assets/audio/sounds/sfx_capture_success.wav",
-    "duration": 1.6,
+    "duration": 2.1,
     "loop": false,
-    "peak_db": -9.9,
-    "rms_db": -24.51,
-    "sha256": "1026acb5b72df0ecf4006e5a472192d9f9e99891b5791c03e23d5da7f31c436c"
+    "peak_db": -6.16,
+    "rms_db": -27.59,
+    "sha256": "329e073d93c4df6368dc255e93c716a2555d9c6b7d0c3cb298b36d04c8bd4ee0",
+    "source": "tool/material_sounds.py"
   },
   {
     "name": "sfx_capture_escape",
     "category": "Creatures, breeding, and everyday progression",
-    "description": "Containment breaking with an airy release",
+    "description": "The field thrown apart with a breath of heat; the specimen shrugs it off",
     "target": "0.50\u20130.90 s",
     "path": "assets/audio/sounds/sfx_capture_escape.wav",
-    "duration": 0.7,
+    "duration": 1.5,
     "loop": false,
-    "peak_db": -11.37,
-    "rms_db": -27.36,
-    "sha256": "1523def2a4496d4e4e8a48eca029e6109f1e8f52dec9fc8661d6f9db47ec1baa"
+    "peak_db": -7.46,
+    "rms_db": -30.2,
+    "sha256": "bff8a6ab56e8b3bf3261e0c77138fc9fbb9d2d5247b76e9c61717f8051a8412d",
+    "source": "tool/material_sounds.py"
   },
   {
     "name": "sfx_breeding_start",
@@ -893,26 +897,28 @@
   {
     "name": "sfx_harvest_collect",
     "category": "Creatures, breeding, and everyday progression",
-    "description": "Organic pluck and tiny sparkle",
+    "description": "A chamber collected: the flask drains, its essence venting up out of the surface",
     "target": "0.30\u20130.60 s",
     "path": "assets/audio/sounds/sfx_harvest_collect.wav",
-    "duration": 0.45,
+    "duration": 1.6,
     "loop": false,
-    "peak_db": -12.77,
-    "rms_db": -29.45,
-    "sha256": "76e3d552e2c84c9c2e930ad44d4c09683c3aaec08ac7cf345c5112d2b9d1fe68"
+    "peak_db": -7.42,
+    "rms_db": -29.85,
+    "sha256": "4efce8bbf3ff488959c32d844fd7f435113ddaaca0244a248f3c8d4d5e657fb2",
+    "source": "tool/material_sounds.py"
   },
   {
     "name": "sfx_extraction_complete",
     "category": "Creatures, breeding, and everyday progression",
-    "description": "Machine settling and a clean success chime",
+    "description": "Collect all: every finished chamber lets go at once",
     "target": "0.80\u20131.30 s",
     "path": "assets/audio/sounds/sfx_extraction_complete.wav",
-    "duration": 1.05,
+    "duration": 0.8,
     "loop": false,
-    "peak_db": -10.75,
-    "rms_db": -25.34,
-    "sha256": "4a23bf5cb6f26483f2186c439e3ccca85c74d6eaa4befddaf8814f52523d6d40"
+    "peak_db": -11.21,
+    "rms_db": -30.45,
+    "sha256": "250c15f912d70e1b99b0791c624df184cac63d23ece74e2e0b0bfce909a71eb6",
+    "source": "tool/material_sounds.py"
   },
   {
     "name": "sfx_extraction_reaction_start",
@@ -1295,9 +1301,9 @@
     "path": "assets/audio/sounds/sfx_fusion_merge.wav",
     "duration": 3.15,
     "loop": false,
-    "peak_db": -6.57,
-    "rms_db": -27.52,
-    "sha256": "c1f6470cb72d14288dbe5520a9ef3aa882b172f05d6f22ca787bfbbc00eaf4f4",
+    "peak_db": -5.74,
+    "rms_db": -27.57,
+    "sha256": "5ed7539460eb8c961910081530544f96d3c924804cf8b51a7986c24be0c70496",
     "source": "tool/material_sounds.py"
   },
   {
@@ -1310,6 +1316,54 @@
     "peak_db": -5.97,
     "rms_db": -27.42,
     "sha256": "49edaf92c82d7c4a7aae555b8398202b1d85ecd2a35f1282a0c32f0a5221131c",
+    "source": "tool/material_sounds.py"
+  },
+  {
+    "name": "sfx_fusion_calibrate",
+    "category": "Alchemical extraction",
+    "description": "A wild fusion's catalyst spent: both turn to grains where they stand and glint while the verdict is out",
+    "path": "assets/audio/sounds/sfx_fusion_calibrate.wav",
+    "duration": 2.02,
+    "loop": false,
+    "peak_db": -4.9,
+    "rms_db": -29.97,
+    "sha256": "03f92cdce3bf1b0860c164fe58f5d8c5dbb1ff029220587f1699f6fc06604268",
+    "source": "tool/material_sounds.py"
+  },
+  {
+    "name": "sfx_fusion_pour",
+    "category": "Alchemical extraction",
+    "description": "The verdict held: the standing pair pour together, circle and fall in to a bloom",
+    "path": "assets/audio/sounds/sfx_fusion_pour.wav",
+    "duration": 2.53,
+    "loop": false,
+    "peak_db": -5.8,
+    "rms_db": -27.62,
+    "sha256": "6abc46889c2270c3a50674c326d374bbe6119286b8489436d8bd61177b9bf210",
+    "source": "tool/material_sounds.py"
+  },
+  {
+    "name": "sfx_fusion_recoil",
+    "category": "Alchemical extraction",
+    "description": "The verdict failed: the grains run back up into the pair and they settle, whole",
+    "path": "assets/audio/sounds/sfx_fusion_recoil.wav",
+    "duration": 1.2,
+    "loop": false,
+    "peak_db": -9.25,
+    "rms_db": -30.59,
+    "sha256": "1ee72dc17c91fe15f0978d966eb1e1090523fc3930e6cb4b2c457a1b392c2454",
+    "source": "tool/material_sounds.py"
+  },
+  {
+    "name": "sfx_reward_flight",
+    "category": "Alchemical extraction",
+    "description": "A reward thrown out of its card, drawn in faster and faster, and settled into its total",
+    "path": "assets/audio/sounds/sfx_reward_flight.wav",
+    "duration": 1.58,
+    "loop": false,
+    "peak_db": -7.8,
+    "rms_db": -31.31,
+    "sha256": "95cc518ad1cb8b33321f47e657545839ec84b0005bd1eac8cb4f12767ffcfc0f",
     "source": "tool/material_sounds.py"
   }
 ]

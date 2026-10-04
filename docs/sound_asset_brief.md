@@ -133,13 +133,13 @@ Use UI denied for unmet gates, shared danger for guardian telegraphs, shared vic
 | Priority | Filename | Length | Sound / use |
 |---|---|---|---|
 | P2 | `sfx_creature_summon.wav` | 0.50–1.00 s | Friendly magical materialization |
-| P1 | `sfx_capture_throw.wav` | 0.20–0.45 s | Swift arc and soft energy release |
-| P2 | `sfx_capture_attempt.wav` | 0.60–1.00 s | One containment pulse; repeat in code if needed |
-| P1 | `sfx_capture_success.wav` | 1.20–2.00 s | Secure click resolving into cheerful sparkle |
-| P2 | `sfx_capture_escape.wav` | 0.50–0.90 s | Containment breaking with an airy release |
+| P1 | `sfx_capture_throw.wav` | 0.20–0.45 s | A harvester chosen: a pinch of grains into glass |
+| P2 | `sfx_capture_attempt.wav` | 0.60–1.00 s | Rings of motes close on the specimen, bite, and strain as it shoves (on HarvestParticleField.beats engage) |
+| P1 | `sfx_capture_success.wav` | 1.20–2.00 s | The specimen turned to grains and drawn down, turning, into the harvester, sealed with a small glass (on the take beat) |
+| P2 | `sfx_capture_escape.wav` | 0.50–0.90 s | The field thrown apart with a breath of heat; the specimen shrugs it off (on the shatter beat) |
 | P2 | `sfx_breeding_start.wav` | 0.80–1.50 s | Two tones blending into a pulsing shimmer |
-| P2 | `sfx_harvest_collect.wav` | 0.30–0.60 s | Organic pluck and tiny sparkle |
-| P2 | `sfx_extraction_complete.wav` | 0.80–1.30 s | Machine settling and a clean success chime |
+| P2 | `sfx_harvest_collect.wav` | 0.30–0.60 s | A chamber collected: the flask drains (1.1 s), its essence venting up out of the surface |
+| P2 | `sfx_extraction_complete.wav` | 0.80–1.30 s | Collect all: every finished chamber lets go at once; the reward flights carry the landing |
 
 ## Alchemical extraction
 
@@ -154,6 +154,10 @@ The reveal animation depicts an alchemical extraction reaction, not a shell crac
 | P1 | `sfx_extraction_ceremony.wav` | 6.05 s | Two parents' grains gather into one shell, settle as it cinches (4.25 s), and ring it open as it unravels (5.24 s) |
 | P1 | `sfx_fusion_merge.wav` | 3.15 s | The breed tab's merge: grains made, standing, poured over the gap, circling the orb, falling in to a bloom (2.5 s); measured from FusionParticleField |
 | P1 | `sfx_fusion_eruption.wav` | 3.7 s | The fusion cinematic from the core: shivering knot, eruption (0.45 s), gather, the sigil's glinting lock (1.55–1.95 s) |
+| P1 | `sfx_fusion_calibrate.wav` | 2.0 s | A wild fusion's catalyst spent: the merge's first 0.62 s, then glints while the verdict is out |
+| P1 | `sfx_fusion_pour.wav` | 2.5 s | The verdict held: the merge from 0.62 s on, to the bloom |
+| P1 | `sfx_fusion_recoil.wav` | 1.2 s | The verdict failed: grains run back up into the pair, which settle whole |
+| P1 | `sfx_reward_flight.wav` | 1.6 s | Any reward flight (playRewardCollect): thrown out of its card, drawn in faster and faster, settled into its total at 0.98 s |
 
 The two reveals are built from materials by `tool/material_sounds.py` (grains, struck glass, body, room; no tones, sweeps or note runs), timed to the card's essence reveal: grains land at 1.20 s, or 1.77 s after a rare specimen's held beat. `generate_sound_library.py` leaves them alone. The prior egg-crack, egg-hatch, and creature-rare-reveal prototypes are retired from the active library. Their backups are in `build/audio_review/retired/`. Regenerate the two reaction cues with `tool/generate_sound_library.py --only-extraction`, and the reveals with `tool/material_sounds.py`.
 

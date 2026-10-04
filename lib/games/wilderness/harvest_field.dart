@@ -79,6 +79,7 @@ class HarvestFieldEffect extends PositionComponent {
   bool _taskDone = false;
   bool _resolving = false;
   bool _finished = false;
+  bool _announcedOutcome = false;
 
   /// Where the FIELD stands: the creature's absolute centre, mapped into
   /// whatever space this component was parented into.
@@ -120,6 +121,7 @@ class HarvestFieldEffect extends PositionComponent {
       ..position = position.clone()
       ..size = size.clone();
     parent?.add(_front);
+    HarvestParticleField.announce(HarvestBeat.engage);
     unawaited(_runTask());
   }
 
@@ -171,6 +173,13 @@ class HarvestFieldEffect extends PositionComponent {
       _readWait += dt;
       if (_readWait > 0.4) _reading = false;
     } else {
+      if (!_announcedOutcome) {
+        // The first frame of the take (its read done) or of the break.
+        _announcedOutcome = true;
+        HarvestParticleField.announce(
+          (_success ?? false) ? HarvestBeat.take : HarvestBeat.shatter,
+        );
+      }
       _r += dt;
       if (_r >= _resolveSeconds + 0.25) {
         _finish();

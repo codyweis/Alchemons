@@ -880,6 +880,8 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     // is not awaited until the particles are already on their way. Awaiting it
     // first left a second of dead air before anything moved.
     final drain = _pour(VesselMode.ready);
+    // On the drain, not on the write that comes back after it has started.
+    context.sound(SoundCue.harvestCollect, owner: this);
 
     final got = await widget.service.collect(widget.farm.biome);
     if (!mounted) {
@@ -887,10 +889,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
       return;
     }
     HapticFeedback.lightImpact();
-    // Collecting one chamber had no sound at all — the cue existed but its only
-    // caller was the old BiomeDetailScreen, which nothing routed to any more.
-    // Collect All still uses the louder extractionComplete.
-    context.sound(SoundCue.harvestCollect, owner: this);
 
     // The resources visibly leave the chamber and land on the total they are
     // added to, in the biome's own colour. A beat in, so they come out of the

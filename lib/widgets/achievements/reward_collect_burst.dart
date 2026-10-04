@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -50,6 +51,9 @@ Future<void> playRewardCollect(
     ),
   );
   overlay.insert(entry);
+  // Several flights launched together (Collect all) are one sound: the
+  // cue's cooldown drops the rest.
+  context.sound(SoundCue.rewardFlight);
   return completer.future;
 }
 

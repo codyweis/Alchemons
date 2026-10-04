@@ -1,9 +1,14 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:flutter/rendering.dart';
+
+/// A moment of a harvest, as it happens on screen (see
+/// [HarvestParticleField.beats]).
+enum HarvestBeat { engage, take, shatter }
 
 /// THE HARVEST, IN PARTICLES.
 ///
@@ -46,6 +51,17 @@ class HarvestParticleField {
   /// not, in seconds.
   static const double takeSeconds = 1.3;
   static const double breakSeconds = 0.9;
+
+  static final StreamController<HarvestBeat> _beats =
+      StreamController<HarvestBeat>.broadcast(sync: true);
+
+  /// A harvest's moments, announced by whichever host is playing it (the
+  /// scene's HarvestFieldEffect or the overlay) on the frame they happen --
+  /// so a sound lands on the picture, not on a guess at how long the picture
+  /// takes. The take is announced when its crest starts, after the specimen
+  /// has been read, not when the roll comes back.
+  static Stream<HarvestBeat> get beats => _beats.stream;
+  static void announce(HarvestBeat beat) => _beats.add(beat);
 
   static const Color _amber = Color(0xFFE4C16A);
   static const Color _ember = Color(0xFFD07A4A);

@@ -35,6 +35,7 @@ import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
+import 'package:alchemons/widgets/fx/harvest_particles.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:alchemons/games/wilderness/encounter_top_hud.dart';
 import 'package:alchemons/widgets/harvester_glyph.dart';
@@ -905,23 +906,13 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       widget.onPreRollShake?.call();
       widget.onFusionCalibrating?.call();
       HapticFeedback.mediumImpact();
-      // Fusion had no voice at all — only the harvest did, so half the
-      // encounter played silent. The same three beats the harvest uses: the
-      // device engaging, the hold while it decides, and the result. The
-      // opening cue is the one the lab fusion opens on, so a wild fusion and
-      // a chamber fusion sound like the same act.
-      if (ctx.mounted) ctx.sound(SoundCue.breedingStart, owner: this);
-      // The tense beat between the catalyst and the verdict.
-      if (ctx.mounted) {
-        ctx.sound(SoundCue.extractionReactionStart, owner: this);
-      }
+      // The pair turn to grains where they stand and wait on the verdict:
+      // the first piece of the same merge the breed chamber plays.
+      if (ctx.mounted) ctx.sound(SoundCue.fusionCalibrate, owner: this);
       await Future.delayed(const Duration(milliseconds: 650));
 
       final success = wilderness.rollSuccess(p);
       if (success) {
-        if (ctx.mounted) {
-          ctx.sound(SoundCue.extractionReactionBurst, owner: this);
-        }
         // The achievement is for fusions that landed, not charges spent.
         await CampaignJournalService.bump(
           wilderness.db.settingsDao,
@@ -971,6 +962,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           _fadeController.reverse();
           await Future<void>.delayed(const Duration(milliseconds: 260));
           if (!mounted) return;
+        }
+        // The rest of the merge, from where the pair have been standing.
+        if (mergeInScene != null && ctx.mounted) {
+          ctx.sound(SoundCue.fusionPour, owner: this);
         }
         final handoff = mergeInScene == null
             ? null
@@ -1025,8 +1020,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         _hide(true);
       } else {
         HapticFeedback.lightImpact();
-        // Same failure tone as a specimen breaking out of a harvester.
-        if (ctx.mounted) ctx.sound(SoundCue.captureEscape, owner: this);
+        // The grains run back into the pair.
+        if (ctx.mounted) ctx.sound(SoundCue.fusionRecoil, owner: this);
         if (widget.isTutorial) {
           await db.inventoryDao.addItemQty(InvKeys.wildFusion, 1);
           if (mounted) setState(() => _wildFusionQty++);
@@ -1055,6 +1050,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
   Future<void> _handleCapture(BuildContext ctx, Creature wildCreature) async {
     setState(() => _busy = true);
+    StreamSubscription<HarvestBeat>? beats;
 
     try {
       final selectedDevice = await DeviceSelectionDialog.show(
@@ -1097,8 +1093,16 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       // The shake lands as the field arrives, not before the stage is clear.
       widget.onPreRollShake?.call();
-      // The tense beat while the field holds, between the throw and the result.
-      if (ctx.mounted) ctx.sound(SoundCue.captureAttempt, owner: this);
+      // The field says when it engages, takes and breaks, whichever host is
+      // playing it; each sound goes on that frame.
+      beats = HarvestParticleField.beats.listen((beat) {
+        if (!ctx.mounted) return;
+        ctx.sound(switch (beat) {
+          HarvestBeat.engage => SoundCue.captureAttempt,
+          HarvestBeat.take => SoundCue.captureSuccess,
+          HarvestBeat.shatter => SoundCue.captureEscape,
+        }, owner: this);
+      });
 
       Future<bool> roll() async {
         final catchService = ctx.read<CatchService>();
@@ -1166,21 +1170,19 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         }
 
         await _placeWildEgg(ctx, wildCreature);
-        // Result tone can finish as the encounter closes; the attempt cannot.
-        if (ctx.mounted) ctx.sound(SoundCue.captureSuccess);
 
         await Future.delayed(const Duration(milliseconds: 800));
         if (!mounted) return;
         _hide(true);
       } else {
         HapticFeedback.lightImpact();
-        if (ctx.mounted) ctx.sound(SoundCue.captureEscape, owner: this);
         // The specimen breaking out is the message.
         widget.onAttemptFailed?.call();
       }
     } catch (e) {
       if (mounted && ctx.mounted) _notify(ctx, 'Encounter error', '$e');
     } finally {
+      await beats?.cancel();
       if (mounted) setState(() => _busy = false);
     }
   }
