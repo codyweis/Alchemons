@@ -27,6 +27,9 @@ APPROVED = {
     'sfx_cosmic_starforge_activate', 'sfx_combat_projectile',
 }
 COSMIC = {n for n in APPROVED if n.startswith('sfx_cosmic_')}
+# Cues now built from materials by tool/material_sounds.py. This generator
+# leaves their files alone and only reads them back for the manifest.
+MATERIAL = {'sfx_extraction_creature_reveal', 'sfx_extraction_rare_reveal'}
 
 
 def asset_path(name):
@@ -252,34 +255,8 @@ def reaction_burst(s):
     s.tone(440, start=.04, decay=.095, amp=.09, attack=.018, metal=.05)
 
 
-def extraction_reveal(s, rare=False):
-    # Scan passes, short telemetry packets, then a clean identification lock.
-    passes = 5 if rare else 3
-    for i in range(passes):
-        at = i * .32
-        s.tone(580 if i % 2 == 0 else 1080, start=at, decay=.072,
-               end=1080 if i % 2 == 0 else 580, glide=.075,
-               amp=.16, attack=.009, metal=.025)
-        s.noise(start=at, decay=.052, amp=.035, low=1100, high=2800, attack=.012)
-    packet_times = [.12, .19, .35, .40, .55, .63, .78, .83, .95]
-    if rare:
-        packet_times += [1.10, 1.16, 1.29, 1.38, 1.48, 1.57]
-    for i, at in enumerate(packet_times):
-        s.tone([1320, 990, 1480, 1100][i % 4], start=at,
-               decay=.009, amp=.10 if i % 3 else .14,
-               attack=.0015, metal=.02)
-    lock = 1.08 if not rare else 1.77
-    s.tone(740, start=lock, decay=.043, amp=.26, metal=.025)
-    s.tone(1108.73, start=lock + .085, decay=.068, amp=.30, metal=.025)
-    if rare:
-        # A second verification ping marks an unusual specimen, without a flourish.
-        s.tone(1480, start=lock + .21, decay=.085, amp=.24, metal=.02)
-
-
 recipe('extraction_reaction_start', 1.60, .28, reaction_start)
 recipe('extraction_reaction_burst', .75, .34, reaction_burst)
-recipe('extraction_creature_reveal', 1.80, .30, extraction_reveal)
-recipe('extraction_rare_reveal', 2.80, .36, lambda s: extraction_reveal(s, rare=True))
 recipe('harvest_collect', .45, .23, lambda s: s.noise(decay=.022, amp=.14, low=600, high=3600).tone(680, decay=.035, end=450, amp=.3).tone(1174.66, start=.07, decay=.04, amp=.18))
 recipe('extraction_complete', 1.05, .29, lambda s: s.tone(165, decay=.075, end=82, amp=.25).impact(start=.13, size=.4, amp=.2).notes([587.33, 880], gap=.10, start=.20, decay=.12))
 
@@ -491,7 +468,7 @@ input,select,button{background:#232a43;color:#edf0ff;border:1px solid #465273;bo
 input{flex:1;min-width:190px}button{cursor:pointer}[hidden]{display:none!important}.variants{font-size:12px}
 </style><main><h1>Alchemons · Sound library</h1>
 <p>NCORE core sounds · NVAR extra variations · 10 approved samples preserved.<br>
-Revised extraction sounds appear first: reaction buildup and release, then scanner sweeps, data ticks, and identification tones.<br>
+Revised extraction sounds appear first: reaction buildup and release, then the material reveals (grains settling into glass).<br>
 Synthesized prototypes for review. Six ambient tracks loop automatically; playback is one sound at a time.</p>
 <div class="controls"><input id="search" aria-label="Search sounds" placeholder="Search sounds…">
 <select id="category" aria-label="Category"><option value="">All categories</option>OPTIONS</select>
@@ -514,18 +491,17 @@ document.querySelector('#search').oninput=filter;document.querySelector('#catego
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--only-extraction', action='store_true',
-                        help='Render the four revised extraction cues; preserve all other WAVs.')
+                        help='Render the two reaction extraction cues; preserve all other WAVs.')
     parser.add_argument('--reapprove', action='store_true',
                         help='Allow the approved samples to change. The hash guard exists to '
                              'catch accidental drift — a reordered brief row, a stray edit — so '
                              'lifting it is an explicit act. Use only when the change to the '
                              'approved sounds is the point of the run.')
     args = parser.parse_args()
-    revised = {'sfx_extraction_reaction_start', 'sfx_extraction_reaction_burst',
-               'sfx_extraction_creature_reveal', 'sfx_extraction_rare_reveal'}
+    revised = {'sfx_extraction_reaction_start', 'sfx_extraction_reaction_burst'}
     rows = catalog()
     original = {n: hashlib.sha256(asset_path(n).read_bytes()).hexdigest() for n in APPROVED}
-    new_names = {r['name'] for r in rows if not r['name'].startswith('amb_')} - APPROVED
+    new_names = {r['name'] for r in rows if not r['name'].startswith('amb_')} - APPROVED - MATERIAL
     assert set(RECIPES) == new_names, (set(RECIPES) - new_names, new_names - set(RECIPES))
     for i, r in enumerate(rows):
         name = r['name']

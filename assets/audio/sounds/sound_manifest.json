@@ -941,26 +941,28 @@
   {
     "name": "sfx_extraction_creature_reveal",
     "category": "Alchemical extraction",
-    "description": "Scanner sweeps and short data ticks resolve into a specimen identification tone",
+    "description": "Grains swirl home and settle with a soft weight; a low glass rings once",
     "target": "1.50\u20132.50 s",
     "path": "assets/audio/sounds/sfx_extraction_creature_reveal.wav",
-    "duration": 1.8,
+    "duration": 2.3,
     "loop": false,
-    "peak_db": -10.46,
-    "rms_db": -27.32,
-    "sha256": "512f50555288da486354b22ae4fb2dac242c144e26b424f50d2b67b8d9c1c67f"
+    "peak_db": -8.78,
+    "rms_db": -28.84,
+    "sha256": "49c0b1c0f907da2ba119ee31b497c28b975348db958d96481b590fe3ca6a141c",
+    "source": "tool/material_sounds.py"
   },
   {
     "name": "sfx_extraction_rare_reveal",
     "category": "Alchemical extraction",
-    "description": "Extended specimen scan and data readout with an extra rare-identification ping",
+    "description": "A held, charged beat, then grains swirl home and settle into two glass bodies",
     "target": "2.00\u20133.50 s",
     "path": "assets/audio/sounds/sfx_extraction_rare_reveal.wav",
-    "duration": 2.8,
+    "duration": 3.3,
     "loop": false,
-    "peak_db": -8.87,
-    "rms_db": -25.62,
-    "sha256": "238c9659fcea9fad1f77f1a90f310fe80935578bce93e977ccbf724dce388966"
+    "peak_db": -9.58,
+    "rms_db": -30.43,
+    "sha256": "9f5ed57980cbfae5d08c6f58a423facaee94ba328056f803373f2fd5163a6256",
+    "source": "tool/material_sounds.py"
   },
   {
     "name": "sfx_element_fire",

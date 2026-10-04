@@ -149,10 +149,10 @@ The reveal animation depicts an alchemical extraction reaction, not a shell crac
 |---|---|---|---|
 | P1 | `sfx_extraction_reaction_start.wav` | 1.20–2.00 s | Accelerating liquid bubbles and rising reactive energy |
 | P1 | `sfx_extraction_reaction_burst.wav` | 0.50–1.00 s | Pressurized vapor and a rounded magical release |
-| P1 | `sfx_extraction_creature_reveal.wav` | 1.50–2.50 s | Scanner sweeps and short data ticks resolve into a specimen identification tone |
-| P2 | `sfx_extraction_rare_reveal.wav` | 2.00–3.50 s | Extended specimen scan and data readout with an extra rare-identification ping |
+| P1 | `sfx_extraction_creature_reveal.wav` | 2.00–2.50 s | Grains swirl home and settle with a soft weight; a low glass rings once |
+| P2 | `sfx_extraction_rare_reveal.wav` | 3.00–3.50 s | A held, charged beat, then grains swirl home and settle into two glass bodies |
 
-The prior egg-crack, egg-hatch, and creature-rare-reveal prototypes are retired from the active library. Their backups are in `build/audio_review/retired/`. Regenerate just these four cues with `tool/generate_sound_library.py --only-extraction`.
+The two reveals are built from materials by `tool/material_sounds.py` (grains, struck glass, body, room; no tones, sweeps or note runs), timed to the card's essence reveal: grains land at 1.20 s, or 1.77 s after a rare specimen's held beat. `generate_sound_library.py` leaves them alone. The prior egg-crack, egg-hatch, and creature-rare-reveal prototypes are retired from the active library. Their backups are in `build/audio_review/retired/`. Regenerate the two reaction cues with `tool/generate_sound_library.py --only-extraction`, and the reveals with `tool/material_sounds.py`.
 
 ## Element identity pass
 
