@@ -75,6 +75,16 @@ enum SoundCue {
   captureSuccess('assets/audio/sounds/sfx_capture_success.wav'),
   captureEscape('assets/audio/sounds/sfx_capture_escape.wav'),
   breedingStart('assets/audio/sounds/sfx_breeding_start.wav'),
+
+  /// The breed tab's merge (FusionParticleField): the pair turn to grains,
+  /// pour over the gap, circle the orb and fall in. Scored from the field's
+  /// measured motion by tool/material_sounds.py; its tail rings on into the
+  /// eruption.
+  fusionMerge('assets/audio/sounds/sfx_fusion_merge.wav'),
+
+  /// The fusion cinematic from the moment its particles take over
+  /// (FusionBurstField): knot, eruption, gather, the sigil's lock.
+  fusionEruption('assets/audio/sounds/sfx_fusion_eruption.wav'),
   harvestCollect('assets/audio/sounds/sfx_harvest_collect.wav'),
   extractionComplete('assets/audio/sounds/sfx_extraction_complete.wav'),
 
@@ -169,6 +179,8 @@ enum SoundCue {
     SoundCue.combatVictory ||
     SoundCue.survivalBossArrive ||
     SoundCue.extractionCeremony ||
+    SoundCue.fusionMerge ||
+    SoundCue.fusionEruption ||
     SoundCue.extractionReactionStart ||
     SoundCue.extractionReactionBurst ||
     SoundCue.extractionCreatureReveal ||

@@ -1,4 +1,5 @@
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/widgets/fx/fusion_burst.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'dart:math' as math;
@@ -195,6 +196,8 @@ class _AlchemyFusionCinematicPageState<T>
   bool _taskDone = false;
   bool _skipped = false;
   bool _heavyFired = false; // burst haptic guard
+  bool _soundStarted = false;
+  AudioController? _audio;
 
   /// Keeps the settled cultivation turning while the route waits on the task.
   final Stopwatch _clock = Stopwatch()..start();
@@ -274,7 +277,14 @@ class _AlchemyFusionCinematicPageState<T>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _audio = context.audio;
+  }
+
+  @override
   void dispose() {
+    _audio?.stopSoundOwner(this);
     _ctrl.dispose();
     _flashCtrl.dispose();
     _settleCtrl.dispose();
@@ -283,6 +293,13 @@ class _AlchemyFusionCinematicPageState<T>
 
   // Fire a heavy impact exactly once as the core erupts.
   void _pulseHaptics() {
+    // The cue is scored from the core on, so it starts there -- at once when
+    // the route joins the timeline at the core, later when it plays the
+    // intake itself.
+    if (!_soundStarted && _u >= 0 && !_skipped) {
+      _soundStarted = true;
+      context.sound(SoundCue.fusionEruption, owner: this);
+    }
     if (!_heavyFired && _u >= FusionBurstField.burstAt) {
       _heavyFired = true;
       HapticFeedback.heavyImpact();
@@ -292,6 +309,8 @@ class _AlchemyFusionCinematicPageState<T>
   void _skip() {
     if (_skipped) return;
     _skipped = true;
+    // Mid-eruption: the cue would carry on over the reveal it scores.
+    _audio?.stopSoundOwner(this);
     final remaining = (1.0 - _ctrl.value).clamp(0.0, 1.0);
     _ctrl.animateTo(
       1.0,
@@ -317,6 +336,8 @@ class _AlchemyFusionCinematicPageState<T>
       await Future.delayed(const Duration(milliseconds: 70));
     } finally {
       if (mounted) {
+        // Played through: its ring-out carries over the chamber coming back.
+        _audio?.releaseSoundOwner(this);
         Navigator.of(context).pop<T>(_err != null ? null : _result);
       }
     }

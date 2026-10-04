@@ -992,7 +992,7 @@ class _BreedingTabState extends State<BreedingTab>
       setState(
         () => _fusionField = _buildFusionField(read, speciesA, speciesB),
       );
-      context.sound(SoundCue.breedingStart, owner: this);
+      context.sound(SoundCue.fusionMerge, owner: this);
       await _preCinematicFadeController.forward();
 
       // let that max-charged knot hang briefly

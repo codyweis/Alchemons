@@ -1287,5 +1287,29 @@
     "rms_db": -26.14,
     "sha256": "6a30da370a6a410475d14ca174d8fe8181b4364881ddb9f01b70dbb81c874be7",
     "source": "tool/material_sounds.py"
+  },
+  {
+    "name": "sfx_fusion_merge",
+    "category": "Alchemical extraction",
+    "description": "Two specimens turn to grains, pour over the gap and circle the orb, then fall in and bloom",
+    "path": "assets/audio/sounds/sfx_fusion_merge.wav",
+    "duration": 3.15,
+    "loop": false,
+    "peak_db": -6.57,
+    "rms_db": -27.52,
+    "sha256": "c1f6470cb72d14288dbe5520a9ef3aa882b172f05d6f22ca787bfbbc00eaf4f4",
+    "source": "tool/material_sounds.py"
+  },
+  {
+    "name": "sfx_fusion_eruption",
+    "category": "Alchemical extraction",
+    "description": "A hot knot shivers, erupts, and is gathered back into a cultivation whose sigil locks with a glint",
+    "path": "assets/audio/sounds/sfx_fusion_eruption.wav",
+    "duration": 3.73,
+    "loop": false,
+    "peak_db": -5.97,
+    "rms_db": -27.42,
+    "sha256": "49edaf92c82d7c4a7aae555b8398202b1d85ecd2a35f1282a0c32f0a5221131c",
+    "source": "tool/material_sounds.py"
   }
 ]

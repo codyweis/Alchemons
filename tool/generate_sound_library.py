@@ -30,7 +30,8 @@ COSMIC = {n for n in APPROVED if n.startswith('sfx_cosmic_')}
 # Cues now built from materials by tool/material_sounds.py. This generator
 # leaves their files alone and only reads them back for the manifest.
 MATERIAL = {'sfx_extraction_creature_reveal', 'sfx_extraction_rare_reveal',
-            'sfx_extraction_ceremony'}
+            'sfx_extraction_ceremony', 'sfx_fusion_merge',
+            'sfx_fusion_eruption'}
 
 
 def asset_path(name):
@@ -426,7 +427,7 @@ def catalog():
             cells = [c.strip() for c in line.split('|')[1:-1]]
             rows.append({'name': match[1], 'category': section, 'description': cells[-1],
                          'target': cells[-2]})
-    assert len(rows) == 100, len(rows)
+    assert len(rows) == 102, len(rows)
     return rows
 
 
