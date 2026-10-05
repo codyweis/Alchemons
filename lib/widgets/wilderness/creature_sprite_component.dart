@@ -34,6 +34,12 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
 
   bool get _isAlbino => visuals.brightness == 1.45;
 
+  /// Whether its frames are running; a creature asleep holds still.
+  bool get animating => !_anim.isMounted || _anim.playing;
+  set animating(bool value) {
+    if (_anim.isMounted) _anim.playing = value;
+  }
+
   /// Everything above this line (from the centre, in local units) is cut
   /// away: a fusion's crest, behind which the creature is grains instead.
   double? cutY;

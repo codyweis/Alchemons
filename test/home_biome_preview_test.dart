@@ -6,6 +6,12 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/wilderness/field/field_art.dart';
+import 'package:alchemons/models/home_decor.dart';
+import 'package:alchemons/models/home_keepsakes.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/home_biome.dart';
@@ -85,7 +91,27 @@ void main() {
       ('light_horn', 'HOR16'),
       ('steam_let', 'LET05'),
     ];
+    // Keepsakes earned: a few maxims, two contests, one species bred a
+    // hundred times.
+    var stars = PlanetStarState.fresh();
+    for (final k in Keepsake.all.where((k) => k.eggId != null)) {
+      stars = stars.withDiscoveredCloud(k.element!, k.eggId!);
+    }
+    SharedPreferences.setMockInitialValues({
+      kPlanetStarsPrefsKey: stars.serialise(),
+      kContestProgressPrefsKey: CosmicContestProgress.fresh()
+          .withCompleted(CosmicContestTrait.beauty, 5)
+          .withCompleted(CosmicContestTrait.strength, 5)
+          .serialise(),
+    });
     await tester.runAsync(() async {
+      for (var i = 0; i < 100; i++) {
+        await db.constellationDao.incrementBreedCount('LET01');
+      }
+      // Every piece of decor owned, as many as a realm stands.
+      for (final d in HomeDecor.all) {
+        await db.inventoryDao.addItemQty(d.inventoryKey, d.max);
+      }
       // The Arcane is a home only once it is unlocked in the wild.
       await db.settingsDao.setSetting('arcane_portal_unlocked', '1');
       for (final (id, base) in roster) {
@@ -242,6 +268,377 @@ void main() {
           await settle(2);
           game().onResidentDropped!('HOME_fire_horn', 0.36, 0.7);
         },
+      );
+    }
+    if (wants('keepsakes')) {
+      // Keepsakes stood among the household in every realm, by night and
+      // by day, the residents left to live.
+      const sets = <List<(String, double, bool)>>[
+        [
+          ('ember_torch#0', 0.06, false),
+          ('ember_torch#1', 0.235, false),
+          ('twin_portals#0', 0.145, false),
+          ('twin_portals#1', 0.33, false),
+          ('effigy:LET01', 0.10, true),
+          ('hourglass', 0.215, true),
+        ],
+        [
+          ('frozen_moon', 0.06, false),
+          ('mud_lotus', 0.33, false),
+          ('lancet_stone', 0.10, true),
+          ('night_book', 0.215, true),
+          ('giants_palm', 0.3, true),
+        ],
+        [
+          ('star_walker', 0.06, false),
+          ('the_dose', 0.33, false),
+          ('crown_mirror', 0.10, true),
+          ('titan_anvil', 0.215, true),
+          ('garnet_heart', 0.3, true),
+        ],
+      ];
+      for (final realm in HomeRealm.values) {
+        for (final (i, hour) in const [(0, 21.5), (1, 12.5), (2, 18.8)]) {
+          var layout = base.copyWith(realm: realm, hour: () => hour);
+          layout = layout.withPlaced([
+            ...realm.defaultPieces,
+            for (final (id, x, back) in sets[i])
+              HomePiece(
+                id: id,
+                kind: id.split('#').first,
+                x: x,
+                back: back,
+              ),
+          ]);
+          await shoot('keepsakes_${realm.name}_$i', layout, seconds: 5);
+        }
+      }
+    }
+    if (wants('decor')) {
+      // The decor stood about the household, by day and by night.
+      const sets = <List<(String, double, bool, double?)>>[
+        [
+          ('lantern_post#0', 0.03, false, null),
+          ('candles#0', 0.075, false, null),
+          ('banner#0', 0.155, false, null),
+          ('geode#0', 0.235, false, null),
+          ('sky_lanterns#0', 0.12, false, 0.3),
+          ('rune_stone#0', 0.10, true, null),
+          ('planter#0', 0.215, true, null),
+          ('lantern_post#1', 0.30, false, null),
+        ],
+        [
+          ('wind_chimes#0', 0.03, false, null),
+          ('fountain#0', 0.13, false, null),
+          ('rest_nest#0', 0.24, false, null),
+          ('swing#0', 0.33, false, null),
+          ('flyer_perch#0', 0.10, true, null),
+          ('mushroom_ring#0', 0.215, true, null),
+        ],
+        [
+          ('hot_spring#0', 0.06, false, null),
+          ('stage#0', 0.21, false, null),
+          ('elder_tree#0', 0.12, true, null),
+          ('orrery#0', 0.33, false, null),
+        ],
+        [
+          ('reflecting_pool#0', 0.10, false, null),
+          ('canopy#0', 0.25, false, null),
+          ('elder_tree#0', 0.30, true, null),
+        ],
+      ];
+      const resting = [
+        HomeResident(instanceId: 'fire_horn', x: 0.02),
+        HomeResident(instanceId: 'plant_let', x: 0.105, flip: true),
+        HomeResident(instanceId: 'water_pip', x: 0.19),
+        HomeResident(instanceId: 'air_wing', x: 0.13, lift: 0.3),
+        HomeResident(instanceId: 'light_horn', x: 0.28),
+      ];
+      for (final (i, realm, hour, wx) in const [
+        (0, HomeRealm.valley, 21.5, null),
+        (0, HomeRealm.valley, 12.0, null),
+        (1, HomeRealm.valley, 12.0, null),
+        (1, HomeRealm.sky, 12.0, null),
+        (2, HomeRealm.valley, 18.8, null),
+        (2, HomeRealm.swamp, 18.8, null),
+        (3, HomeRealm.valley, 14.0, 'rain'),
+        (3, HomeRealm.arcane, 23.0, null),
+      ]) {
+        var layout = base.copyWith(
+          realm: realm,
+          hour: () => hour,
+          residents: resting,
+        );
+        if (wx != null) layout = layout.withMood(wx);
+        layout = layout.withPlaced([
+          ...realm.defaultPieces,
+          for (final (id, x, back, y) in sets[i])
+            HomePiece(
+              id: id,
+              kind: id.split('#').first,
+              x: x,
+              back: back,
+              y: y,
+            ),
+        ]);
+        await shoot(
+          'decor_${i}_${realm.name}_${hour.round()}${wx ?? ''}',
+          layout,
+          seconds: 6,
+        );
+      }
+    }
+    if (wants('spring')) {
+      // Two residents bathing in the hot spring, by day in the Valley and
+      // by night in the Arcane.
+      for (final (realm, hour) in const [
+        (HomeRealm.valley, 12.0),
+        (HomeRealm.arcane, 22.5),
+      ]) {
+        final period = realm.period(realm.near.layer);
+        final off = 1.33 * realm.near.size / period;
+        await shoot(
+          'spring_${realm.name}',
+          base.copyWith(
+            realm: realm,
+            hour: () => hour,
+            residents: [
+              HomeResident(
+                instanceId: 'water_pip',
+                x: 0.15 - off,
+                beside: 'PIECE_hot_spring#0',
+              ),
+              HomeResident(
+                instanceId: 'plant_let',
+                x: 0.15 + off,
+                beside: 'PIECE_hot_spring#0',
+              ),
+            ],
+          ).withPlaced([
+            ...realm.defaultPieces,
+            const HomePiece(id: 'hot_spring#0', kind: 'hot_spring', x: 0.15),
+          ]),
+          seconds: 1,
+          then: () async {
+            expect(game().debugVisit('HOME_water_pip', 'PIECE_hot_spring#0'), isTrue);
+            expect(game().debugVisit('HOME_plant_let', 'PIECE_hot_spring#0'), isTrue);
+            game().debugPanTo(0.15 * realm.wildScene.worldWidth - 230);
+            await settle(70);
+          },
+        );
+      }
+    }
+    if (wants('pool')) {
+      // The Reflecting Pool by day and by night, a resident at its edge
+      // looking in, given back in the water.
+      for (final (realm, hour) in const [
+        (HomeRealm.valley, 12.0),
+        (HomeRealm.valley, 22.5),
+        (HomeRealm.arcane, 22.5),
+        (HomeRealm.sky, 12.0),
+      ]) {
+        await shoot(
+          'pool_${realm.name}_${hour.round()}',
+          base.copyWith(
+            realm: realm,
+            hour: () => hour,
+            residents: [
+              const HomeResident(instanceId: 'fire_horn', x: 0.02),
+              // Beside the pool, out at its rim.
+              HomeResident(
+                instanceId: 'water_pip',
+                x: 0.15 + 1.24 * realm.near.size / realm.period(realm.near.layer),
+                beside: 'PIECE_reflecting_pool#0',
+              ),
+            ],
+          ).withPlaced([
+            ...realm.defaultPieces,
+            const HomePiece(
+              id: 'reflecting_pool#0',
+              kind: 'reflecting_pool',
+              x: 0.15,
+            ),
+          ]),
+          seconds: 1,
+          then: () async {
+            expect(
+              game().debugVisit('HOME_water_pip', 'PIECE_reflecting_pool#0'),
+              isTrue,
+            );
+            game().debugPanTo(0.15 * realm.wildScene.worldWidth - 180);
+            await settle(45);
+          },
+        );
+      }
+    }
+    if (wants('decortray')) {
+      // Arranging with the decor tray open, the Wonders not owned: one is
+      // stood in to be tried, and chosen, BUY on it.
+      await tester.runAsync(() async {
+        for (final d in HomeDecor.ofTier(DecorTier.wonder)) {
+          await db.inventoryDao.setItemQty(d.inventoryKey, 0);
+        }
+      });
+      await shoot(
+        'decor_tray',
+        base.copyWith(realm: HomeRealm.valley),
+        then: () async {
+          await tester.tap(find.text('Arrange'));
+          await settle(3);
+          await tester.tap(find.text('DECOR'));
+          await settle(4);
+        },
+      );
+      await shoot(
+        'decor_trial',
+        base.copyWith(realm: HomeRealm.valley),
+        then: () async {
+          await tester.tap(find.text('Arrange'));
+          await settle(3);
+          await tester.tap(find.text('DECOR'));
+          await settle(3);
+          await tester.drag(find.text('LIVING PIECES'), const Offset(-900, 0));
+          await settle(3);
+          await tester.tap(find.text('HOT SPRING'));
+          await settle(8);
+        },
+      );
+    }
+    if (wants('shared')) {
+      // Residents put down beside keepsakes and beside each other: one
+      // isle, bank or shelf under each pair.
+      for (final realm in const [
+        HomeRealm.sky,
+        HomeRealm.swamp,
+        HomeRealm.volcano,
+      ]) {
+        final period = realm.period(realm.near.layer);
+        final size = realm.near.size / period;
+        await shoot(
+          'shared_${realm.name}',
+          base.copyWith(
+            realm: realm,
+            residents: [
+              HomeResident(
+                instanceId: 'fire_horn',
+                x: 0.10 + size * 0.62,
+                beside: 'PIECE_ember_torch#0',
+              ),
+              const HomeResident(instanceId: 'plant_let', x: 0.20),
+              HomeResident(
+                instanceId: 'water_pip',
+                x: 0.20 + size * 0.78,
+                beside: 'HOME_plant_let',
+              ),
+              HomeResident(
+                instanceId: 'light_horn',
+                x: 0.31 - size * 0.62,
+                beside: 'PIECE_twin_portals#0',
+              ),
+            ],
+          ).withPlaced([
+            const HomePiece(
+              id: 'ember_torch#0',
+              kind: 'ember_torch',
+              x: 0.10,
+            ),
+            const HomePiece(
+              id: 'twin_portals#0',
+              kind: 'twin_portals',
+              x: 0.31,
+            ),
+          ]),
+          seconds: 3,
+        );
+      }
+    }
+    if (wants('overview')) {
+      // Arranging, zoomed out: the field a band floating in the dark.
+      for (final (realm, hour) in const [
+        (HomeRealm.valley, 18.8),
+        (HomeRealm.sky, 12.0),
+        (HomeRealm.volcano, 23.0),
+        (HomeRealm.arcane, 23.0),
+      ]) {
+        await shoot(
+          'overview_${realm.name}',
+          base.copyWith(realm: realm, hour: () => hour),
+          then: () async {
+            await tester.tap(find.text('Arrange'));
+            await settle(3);
+            await tester.tap(find.text('OVERVIEW'));
+            await settle(30);
+          },
+        );
+      }
+    }
+    if (wants('scenery')) {
+      // The Sky with its isles moved and a new grove set high; the Valley
+      // with a boulder and its trees; arranging, the tray open.
+      await shoot(
+        'scenery_tray_valley',
+        base.copyWith(realm: HomeRealm.valley),
+        then: () async {
+          await tester.tap(find.text('Arrange'));
+          await settle(3);
+          await tester.tap(find.text('SCENERY'));
+          await settle(2);
+          await tester.tap(find.text('BOULDER'));
+          await settle(4);
+        },
+      );
+      await shoot(
+        'keepsake_tray',
+        base.copyWith(realm: HomeRealm.valley),
+        then: () async {
+          await tester.tap(find.text('Arrange'));
+          await settle(3);
+          await tester.tap(find.text('KEEPSAKES'));
+          await settle(6);
+        },
+      );
+      await shoot(
+        'scenery_valley',
+        base.copyWith(realm: HomeRealm.valley).withPlaced([
+          ...HomeRealm.valley.defaultPieces,
+          const HomePiece(id: 'b1', kind: FieldPiece.boulder, x: 0.06),
+          const HomePiece(
+            id: 'b2',
+            kind: FieldPiece.boulder,
+            x: 0.24,
+            scale: 1.45,
+          ),
+          const HomePiece(id: 't1', kind: FieldPiece.tree, x: 0.15, scale: 0.7),
+        ]),
+      );
+      for (final realm in const [
+        HomeRealm.swamp,
+        HomeRealm.volcano,
+        HomeRealm.arcane,
+      ]) {
+        await shoot(
+          'scenery_${realm.name}',
+          base.copyWith(realm: realm).withPlaced([
+            for (final p in realm.defaultPieces)
+              p.copyWith(x: (p.x + 0.03) % 1),
+            for (final (i, s) in realm.scenery.indexed)
+              HomePiece(id: 'n$i', kind: s.piece, x: 0.07 + i * 0.09),
+          ]),
+        );
+      }
+      await shoot(
+        'scenery_sky',
+        base.copyWith(realm: HomeRealm.sky).withPlaced([
+          for (final p in HomeRealm.sky.defaultPieces)
+            p.copyWith(x: (p.x + 0.05) % 1),
+          const HomePiece(
+            id: 'grove_new',
+            kind: FieldPiece.grove,
+            x: 0.12,
+            y: 0.25,
+            scale: 1.2,
+          ),
+        ]),
       );
     }
     await tester.runAsync(db.close);

@@ -3776,6 +3776,8 @@ class _CosmicScreenState extends State<CosmicScreen>
           masteryUnlockText =
               ' $unlockedEffectName unlocked in shop and +1 granted.';
         }
+        // A mastered arena also leaves a keepsake for the home biome.
+        masteryUnlockText += ' A keepsake waits at home.';
       }
       _showQuote(
         '${trait.label} Lv${level.level}: ${member.displayName} defeated $opponentLabel '

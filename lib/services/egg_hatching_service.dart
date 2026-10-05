@@ -8,6 +8,7 @@ import 'package:alchemons/utils/cultivation_time.dart';
 import 'package:alchemons/constants/egg.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/models/home_keepsakes.dart' show kEffigyBredCount;
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
@@ -1120,7 +1121,10 @@ class EggHatching {
         icon: AppIcons.auto_awesome_rounded,
         title:
             '$speciesName reached ${showcase.milestoneCount} bred  •  +${showcase.pointsAwarded} constellation points',
-        hint: 'Tap to open progress',
+        // A hundred bred is an effigy for the home biome.
+        hint: showcase.milestoneCount >= kEffigyBredCount
+            ? 'Its effigy waits at home  •  Tap to open progress'
+            : 'Tap to open progress',
         onTap: context.soundAction(openProgress),
       ),
     );

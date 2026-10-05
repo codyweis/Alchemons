@@ -215,13 +215,15 @@ void main() {
           scene.worldWidth,
           loop: scene.loop,
           partners: false,
+          placed: true,
         );
       final screen = const Size(h * 2.2, h);
       for (final l in scene.layers) {
         field.build(l.id, Size(realm.period(l.id), h), screen);
       }
       for (final p in scene.spawnPoints) {
-        if (p.aloft) continue;
+        // Scenery is its own ground; only what stands needs some.
+        if (p.aloft || p.piece != null) continue;
         final x = p.normalizedPos.dx * realm.period(p.anchor);
         final ground = field.groundAt(p.anchor, x);
         expect(ground, isNotNull, reason: '${realm.name} ${p.id}');
@@ -244,6 +246,7 @@ void main() {
           scene.worldWidth,
           loop: true,
           partners: partners,
+          placed: !partners,
         );
       for (final l in scene.layers) {
         field.build(
@@ -257,7 +260,9 @@ void main() {
 
     final home = built(partners: false), wild = built(partners: true);
     for (final layer in [near, far]) {
-      final points = scene.spawnPoints.where((p) => p.anchor == layer);
+      final points = scene.spawnPoints.where(
+        (p) => p.anchor == layer && p.piece == null,
+      );
       final standing = points.where((p) => !p.aloft).length;
       // A wild field adds one for each point's partner too.
       expect(
@@ -358,28 +363,47 @@ void main() {
     final x = game.screenXOf('HOME_h')!;
     final y = (resident.parent! as dynamic).position.y as double;
 
-    // A drag that starts on nothing pans; one that starts on the resident
-    // carries it, and the field does not move under it.
-    final camera = game.cameraX;
+    // A quick drag that starts on the resident pans the field past it: it
+    // is not taken hold of until a finger has rested on it a moment.
+    final camera0 = game.cameraX;
     await tester.timedDragFrom(
       Offset(x, y),
-      const Offset(240, -80),
-      const Duration(milliseconds: 500),
+      const Offset(-240, 0),
+      const Duration(milliseconds: 300),
     );
     await tester.pump(const Duration(milliseconds: 16));
+    expect(picked, isNull);
+    expect(dropped, isNull);
+    expect(game.cameraX, greaterThan(camera0 + 20));
+    final x1 = game.screenXOf('HOME_h')!;
+
+    // Held a moment first, it is carried, and the field does not move
+    // under it.
+    final camera = game.cameraX;
+    final finger = await tester.startGesture(Offset(x1, y));
+    for (var i = 0; i < 24; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
     expect(picked, 'HOME_h');
+    for (var i = 1; i <= 25; i++) {
+      await finger.moveBy(const Offset(240 / 25, -80 / 25));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await finger.up();
+    await tester.pump(const Duration(milliseconds: 16));
     expect(dropped, isNotNull);
     expect(dropped!.$1, 'HOME_h');
     final period = HomeRealm.valley.period(SceneLayer.layer4);
     // Carried right by about the finger's way, in layer units.
-    expect(dropped!.$2, closeTo(0.12 + 240 / period, 30 / period));
+    final from = game.shareAtScreen(SceneLayer.layer4, x1);
+    expect(dropped!.$2, closeTo(from + 240 / period, 30 / period));
     expect(game.cameraX, closeTo(camera, 1));
 
     // Not arranging: the same drag pans the field instead.
     dropped = null;
     game.arranging = false;
     await tester.timedDragFrom(
-      Offset(x, y),
+      Offset(game.screenXOf('HOME_h')!, y),
       const Offset(-240, 0),
       const Duration(milliseconds: 500),
     );
@@ -460,6 +484,69 @@ void main() {
     expect(playing(), isFalse);
     expect(sprite.spriteOpacity, 1);
     await tester.pumpWidget(const SizedBox());
+  });
+
+  test('put down beside a keepsake, it shares the keepsake\'s isle', () {
+    final realmSky = HomeRealm.sky;
+    var layout = HomeBiomeLayout(
+      realm: realmSky,
+      pieces: const {
+        'sky': [HomePiece(id: 'ember_torch#0', kind: 'ember_torch', x: 0.30)],
+      },
+      residents: const [HomeResident(instanceId: 'h', x: 0.10)],
+    );
+    final period = realmSky.period(realmSky.near.layer);
+    // Let go just right of the torch: beside it, on its ground.
+    final nest = layout.nestBeside('HOME_h', 0.30 + 40 / period, back: false);
+    expect(nest, isNotNull);
+    expect(nest!.$1, 'PIECE_ember_torch#0');
+    expect(nest.$2, greaterThan(0.30));
+    layout = layout.replace(
+      layout.residents.first.copyWith(x: nest.$2, beside: () => nest.$1),
+    );
+    final scene = layout.scene((_) => false);
+    final point = scene.spawnPoints.firstWhere((p) => p.id == 'HOME_h');
+    expect(point.beside, 'PIECE_ember_torch#0');
+
+    // One isle for the two of them, wide enough for both.
+    const h = 412.0;
+    final field = SkyField()
+      ..layout(
+        scene.spawnPoints,
+        scene.worldWidth,
+        loop: true,
+        partners: false,
+        placed: true,
+      );
+    for (final l in scene.layers) {
+      field.build(l.id, Size(realmSky.period(l.id), h), const Size(900, h));
+    }
+    final torchX = 0.30 * period, hx = nest.$2 * period;
+    final under = [
+      for (final r in field.debugIsles(realmSky.near.layer))
+        if (r.left < torchX && r.right > torchX) r,
+    ];
+    expect(under.length, 1, reason: 'the torch stands on one isle');
+    expect(under.first.left < hx && under.first.right > hx, isTrue,
+        reason: 'and the resident on the same one');
+    expect(field.perchFor('HOME_h'), isNotNull);
+
+    // Spaced as one: nothing else can stand where the pair stands.
+    final other = const HomeResident(instanceId: 'o', x: 0);
+    final spot = layout.copyWith(
+      residents: [...layout.residents, other],
+    ).freeSpotNear(other, nest.$2);
+    final gapToPair = (spot! - 0.30).abs();
+    expect(gapToPair, greaterThan(1.5 * layout.gap(back: false) / 2));
+
+    // The torch moved, the resident goes with it.
+    final moved = layout
+        .replacePiece(layout.placed.first.copyWith(x: 0.5))
+        .carryBeside('PIECE_ember_torch#0', 0.2);
+    expect(moved.residents.first.x, closeTo(nest.$2 + 0.2, 1e-9));
+    // Taken away, the resident stands on its own again.
+    final freed = moved.freeBeside('PIECE_ember_torch#0');
+    expect(freed.residents.first.beside, isNull);
   });
 }
 

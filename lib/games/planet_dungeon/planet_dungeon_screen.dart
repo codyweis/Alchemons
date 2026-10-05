@@ -602,7 +602,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // only once ever: a persisted discovery never re-fires this callback.
     if (cloudId.startsWith('egg:') && mounted) {
       await context.read<AlchemonsDatabase>().currencyDao.addGold(20);
-      _showToast('A lost maxim, +20 gold');
+      // Every maxim also leaves a keepsake for the home biome.
+      _showToast('A lost maxim, +20 gold. A keepsake waits at home.');
     }
     // Vault caches: the treasure room's bottled essence, once ever.
     if (cloudId.startsWith('cache:') && mounted) {

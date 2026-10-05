@@ -2,7 +2,9 @@ import 'dart:math';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/games/cosmic/obsidian_kit.dart' show PointBatch, hash01;
 import 'package:alchemons/database/alchemons_db.dart' show CreatureInstance;
 import 'package:alchemons/games/wilderness/creature_feet.dart';
 import 'package:alchemons/games/wilderness/field/field_art.dart';
@@ -33,6 +35,8 @@ import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+
+part 'home_life.dart';
 
 //KEEP THIS FOR INFO
 
@@ -125,6 +129,12 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// Pins the field's hour (0–24) instead of the clock, for previews.
   double? fieldHourOverride;
 
+  /// Px/s the view drifts along the field by itself (see [update]).
+  double panDrift = 0;
+
+  /// The hour the field is lit at now.
+  double get fieldHour => fieldHourOverride ?? _fieldHour;
+
   /// The weather over the field, if any (see [FieldArt.weather]); it rolls
   /// in and clears over a few seconds — unless it is [WeatherKind.settled],
   /// which is there or not at once.
@@ -216,7 +226,64 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   // Zoom state
   double _targetZoom = 1.0;
-  double get minZoom => _hasImageLayers ? 1.0 : 0.9;
+  double get minZoom =>
+      showcase && overview ? overviewMinZoom : _baseMinZoom;
+  double get _baseMinZoom => _hasImageLayers ? 1.0 : 0.9;
+
+  /// Whether the field may be zoomed out past its own height — the home
+  /// biome while it is being arranged — floating as a band in the dark
+  /// with stardust along its edges (see [_OverviewVoid]).
+  bool get overview => _overview;
+  bool _overview = false;
+  set overview(bool on) {
+    _overview = on;
+    if (!on && _targetZoom < _baseMinZoom) _targetZoom = _baseMinZoom;
+  }
+
+  /// How far out the field zooms in overview: as far as shows a little
+  /// less than one loop of the rows creatures stand on, so none of them is
+  /// shown twice.
+  double get overviewMinZoom {
+    if (_viewportH <= 0 || !_loops) return _baseMinZoom;
+    final screenW = size.x / layersRoot.scale.x;
+    final rows = [SceneLayer.layer3, SceneLayer.layer4]
+        .where((l) => scene.layers.any((d) => d.id == l))
+        .map(_periodOf);
+    if (rows.isEmpty) return _baseMinZoom;
+    final shortest = rows.reduce(math.min);
+    return (screenW / (shortest * 0.96)).clamp(0.45, _baseMinZoom);
+  }
+
+  /// How far into the overview the camera is: 0 at the field's own height,
+  /// 1 zoomed all the way out.
+  double get overviewAmount {
+    final lo = overviewMinZoom, hi = _baseMinZoom;
+    if (hi - lo < 1e-3) return 0;
+    return ((hi - cam.viewfinder.zoom) / (hi - lo)).clamp(0.0, 1.0);
+  }
+
+  /// Screen px kept clear above and below the field in overview (the
+  /// HUD's rows, a tray), so it floats in the space left.
+  double overviewTop = 0, overviewBottom = 0;
+
+  /// Glides the camera along until the point [spawnId] is in the middle of
+  /// the screen — something just put down where the free ground was.
+  void lookAt(String spawnId) {
+    final p = _pointOf(spawnId);
+    if (p == null) return;
+    final pf = _periodOf(p.anchor) / scene.worldWidth - 1;
+    final viewportW = size.x / (layersRoot.scale.x * cam.viewfinder.zoom);
+    final x = _loops
+        ? _nearestLoop(_spawnBaseX(p), p.anchor, viewportW)
+        : _spawnBaseX(p);
+    _targetCameraX = _clampCamX(
+      (x - viewportW / 2) / (1 + pf),
+      _maxCamXExploration,
+    );
+  }
+
+  /// Eases the camera to [zoom].
+  void zoomTo(double zoom) => _targetZoom = zoom.clamp(minZoom, maxZoom);
   final double maxZoom = 2.0;
   final double zoomEase = 20.0; // higher = snappier
   double? _pinchStartZoom;
@@ -345,6 +412,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       scene.worldWidth,
       loop: scene.loop,
       partners: !showcase,
+      placed: showcase,
     );
     for (final layerDef in scene.layers) {
       if (art != null) {
@@ -373,6 +441,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     if (art != null) {
       cam.backdrop = _FieldSkyComponent(art);
       cam.viewport.add(_FieldTapComponent());
+      if (showcase) cam.viewport.add(_OverviewVoid()..priority = -1);
     }
     cam
       ..world = world
@@ -902,9 +971,18 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   /// The anchor y for [p]: its own, or seated on the perch the field built.
   double _anchorY(SpawnPoint p, double authored) {
+    // A piece of scenery is where its point is: its own ground.
+    if (p.piece != null) return authored;
     final perch = _art?.perchFor(p.id);
-    if (perch == null) return authored;
-    return perch - (_standDrop[p.id] ?? p.size.y * 0.46);
+    if (perch != null) return perch - (_standDrop[p.id] ?? p.size.y * 0.46);
+    // A thing hangs where it is put, or stands its feet on the ground
+    // under it.
+    if (_things.containsKey(p.id) && p.aloft) return authored;
+    if (_things.containsKey(p.id)) {
+      final g = _art?.groundAt(p.anchor, _spawnBaseX(p));
+      return g?.rest ?? authored + p.size.y * 0.42;
+    }
+    return authored;
   }
 
   // ------------------------------------------------------------
@@ -1299,7 +1377,40 @@ class SceneGame extends FlameGame with ScaleDetector {
     // Disable gestures during encounter
     if (_mode == SceneMode.encounter) return;
     _pinchStartZoom = cam.viewfinder.zoom;
-    if (arranging && _pickUpAt(info.eventPosition.widget)) return;
+    _scaling = true;
+    // A finger that moves off what it landed on before taking hold of it
+    // pans the field instead (see [_fingerDown]).
+    if (_held == null) _pending = null;
+  }
+
+  /// A drag or a pinch is under way.
+  bool _scaling = false;
+
+  /// A finger has landed at [at]. Arranging, on something, it waits a
+  /// moment before taking hold of it ([pickUpHold]): moved before then it
+  /// pans the field, lifted it is a tap that chooses it.
+  void _fingerDown(Vector2 at) {
+    if (!arranging || _held != null || _mode == SceneMode.encounter) return;
+    final id = _residentAt(at);
+    if (id == null) return;
+    _pending = id;
+    _pendingT = 0;
+    _pendingAt.setFrom(at);
+    _pendingFinger.setFrom(at);
+  }
+
+  /// The finger lifted without dragging.
+  void _fingerUp() {
+    if (_held != null && !_scaling) {
+      // Taken hold of and let go where it was.
+      _putDown();
+      return;
+    }
+    final tapped = _pending;
+    if (tapped != null) {
+      _pending = null;
+      onResidentTap?.call(tapped);
+    }
   }
 
   @override
@@ -1307,6 +1418,15 @@ class SceneGame extends FlameGame with ScaleDetector {
     if (_held != null) {
       _heldFinger.setFrom(info.eventPosition.widget);
       return;
+    }
+    if (_pending != null) {
+      _pendingFinger.setFrom(info.eventPosition.widget);
+      // Moving off, or a second finger: a pan or a pinch after all.
+      if (info.pointerCount > 1 || _pendingFinger.distanceTo(_pendingAt) > 10) {
+        _pending = null;
+      } else {
+        return;
+      }
     }
     _touch(info.eventPosition.widget, info.delta.global);
     if (_mode == SceneMode.encounter) return;
@@ -1345,9 +1465,12 @@ class SceneGame extends FlameGame with ScaleDetector {
   @override
   void onScaleEnd(ScaleEndInfo info) {
     if (_held != null) {
+      _scaling = false;
       _putDown();
       return;
     }
+    _scaling = false;
+    _pending = null;
     if (_mode == SceneMode.encounter) return;
     _pinchStartZoom = null;
   }
@@ -1381,11 +1504,196 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// on the creature it was taken hold of (layer units, from its anchor).
   String? _held;
   final Vector2 _heldFinger = Vector2.zero();
+  final Vector2 _heldFrom = Vector2.zero();
+
+  /// What a finger has landed on while arranging and is waiting to take
+  /// hold of, where it landed and where it is, and for how long.
+  String? _pending;
+  final Vector2 _pendingAt = Vector2.zero();
+  final Vector2 _pendingFinger = Vector2.zero();
+  double _pendingT = 0;
+
+  /// How long a finger rests on something before it is taken hold of.
+  double pickUpHold = 0.3;
   final Vector2 _heldGrip = Vector2.zero();
 
   /// The residents by point id, for previews.
   @visibleForTesting
   Map<String, WildMonComponent> get debugResidents => _residents;
+
+  // ── Things: what a showcase field holds that is not a creature ──────────
+
+  /// Keepsakes standing at their points, their feet at the anchor.
+  final Map<String, PositionComponent> _things = {};
+
+  /// Where a thing or a piece of scenery can be taken hold of, round its
+  /// point (its feet): a thing in its row's units, as a creature is sized;
+  /// scenery at the reference height (475 units), as the field sizes it.
+  final Map<String, Rect> _boxes = {};
+
+  /// Which of what can be carried may be held up in the air: a resident
+  /// that floats, an isle. Unset, a resident that floats.
+  bool Function(String spawnId)? canLift;
+
+  /// Scenery taken up by hand, not drawn by the field until it is put down.
+  final Set<String> _hidden = {};
+  _PieceGhost? _ghost;
+
+  /// The colour a carried piece of scenery comes apart into.
+  Color ghostTint = const Color(0xFFE4C16A);
+
+  /// Whether the residents live in the field when left alone (see
+  /// home_life.dart).
+  bool lively = false;
+  late final _HomeLife _life = _HomeLife(this);
+
+  /// Stands [thing] at [spawnId], its feet at the point — on whatever the
+  /// field built there, as a creature would be — able to be taken hold of
+  /// within [box] (see [_boxes]).
+  void showThing(String spawnId, PositionComponent thing, Rect box) {
+    final sp = _pointOf(spawnId);
+    final anchor = _spawnPointComps[spawnId];
+    if (sp == null || anchor == null) return;
+    _things.remove(spawnId)?.removeFromParent();
+    _things[spawnId] = thing;
+    _boxes[spawnId] = box;
+    _standDrop[spawnId] = 0;
+    // Behind the creatures on its row: they are what is looked at, and
+    // what bathes in it or stands before it is in front of it. (What it
+    // draws over its visitors has its own pass, _KeepsakeFront.)
+    anchor.priority = 9;
+    anchor.position.y = _anchorY(sp, sp.normalizedPos.dy * _viewportH);
+    anchor.add(thing);
+  }
+
+  /// The layer [thing] stands on, if it stands at a point.
+  SceneLayer? layerOf(PositionComponent thing) {
+    for (final e in _things.entries) {
+      if (identical(e.value, thing)) return _pointOf(e.key)?.anchor;
+    }
+    return null;
+  }
+
+  /// Plays a sound of the field (the home biome's keepsakes and decor as
+  /// they are used); set by the screen that owns the audio.
+  void Function(SoundCue cue)? onSound;
+
+  /// Whether the point [anchor] is on screen now, give or take [margin]
+  /// layer units — what is heard is what can be seen.
+  bool isOnScreen(PositionComponent anchor, {double margin = 60}) {
+    final container = anchor.parent;
+    if (container is! PositionComponent) return false;
+    final view = _fieldViewFor(container.position.x);
+    final x = anchor.position.x;
+    return x > view.left - margin && x < view.right + margin;
+  }
+
+  /// The residents whose anchors are within [reach] across of [anchor] on
+  /// its layer: where each one's anchor is from [anchor], and it.
+  List<(Offset, WildMonComponent)> residentsBeside(
+    PositionComponent anchor,
+    double reach,
+  ) => [
+    for (final e in _residents.entries)
+      if (_spawnPointComps[e.key] case final a?
+          when a.parent == anchor.parent &&
+              (a.position.x - anchor.position.x).abs() < reach)
+        (
+          Offset(a.position.x - anchor.position.x, a.position.y - anchor.position.y),
+          e.value,
+        ),
+  ];
+
+  /// How much of what stands on [layer] its ground gives back.
+  double reflectionOn(SceneLayer layer) => _art?.reflectionAt(layer) ?? 0;
+
+  /// Takes the thing at [spawnId] away.
+  void removeThing(String spawnId) {
+    _things.remove(spawnId)?.removeFromParent();
+    _boxes.remove(spawnId);
+  }
+
+  /// Where the piece of scenery at [spawnId] can be taken hold of.
+  void setPieceBox(String spawnId, Rect box) => _boxes[spawnId] = box;
+
+  /// The keepsakes by point id, for previews.
+  @visibleForTesting
+  Map<String, PositionComponent> get debugThings => _things;
+
+  /// Where a resident's life has it from its spot (layer units), if
+  /// anywhere.
+  @visibleForTesting
+  Offset? debugLifeOffset(String spawnId) => _life.offsetOf(spawnId);
+
+  /// How solid a resident is drawn (going through a portal, it thins out).
+  @visibleForTesting
+  double debugLifeFade(String spawnId) => _life._livers[spawnId]?.fade ?? 1;
+
+  /// Whether a resident is on a walk through the portals.
+  @visibleForTesting
+  bool debugOnTrip(String spawnId) => _life._livers[spawnId]?.trip != null;
+
+  /// Sends a resident through the portals now, if a pair stands on its row.
+  @visibleForTesting
+  bool debugTrip(String spawnId) => _life.debugTrip(spawnId);
+
+  /// Sends a resident to the keepsake at [thingId], if it can reach it.
+  @visibleForTesting
+  bool debugVisit(String spawnId, String thingId) =>
+      _life.debugVisit(spawnId, thingId);
+
+  /// Whether a resident is on a visit to a keepsake.
+  @visibleForTesting
+  bool debugVisiting(String spawnId) => _life._livers[spawnId]?.call != null;
+
+  /// The nearest resident that can reach the keepsake at [thingId] comes
+  /// to it (looking, not arranging). Whether anyone could.
+  bool callResidentTo(String thingId) => _life.callTo(thingId);
+
+  SpawnPoint? _pointOf(String id) =>
+      scene.spawnPoints.where((s) => s.id == id).firstOrNull;
+
+  String? _thingKind(String id) => switch (_things[id]) {
+    final FieldThing t => t.thingKind,
+    _ => null,
+  };
+
+  /// How far along its layer the point [a] is from the point [b], the short
+  /// way round a loop (layer units).
+  double _loopDelta(String a, String b) {
+    final pa = _pointOf(a), pb = _pointOf(b);
+    if (pa == null || pb == null) return 0;
+    final d = _spawnBaseX(pa) - _spawnBaseX(pb);
+    if (!_loops) return d;
+    final period = _periodOf(pa.anchor);
+    return d - period * (d / period).roundToDouble();
+  }
+
+  /// The points the field draws: all but scenery held in the hand.
+  List<SpawnPoint> _drawn(List<SpawnPoint> spawns) => _hidden.isEmpty
+      ? spawns
+      : [
+          for (final p in spawns)
+            if (!_hidden.contains(p.id)) p,
+        ];
+
+  /// Lays the field out again and rebuilds [layers].
+  void _refreshArt(Set<SceneLayer> layers) {
+    final art = _art;
+    if (art == null) return;
+    art.layout(
+      _drawn(scene.spawnPoints),
+      scene.worldWidth,
+      loop: scene.loop,
+      partners: !showcase,
+      placed: showcase,
+    );
+    for (final id in layers) {
+      final layer = _layers[id];
+      if (layer is _ArtLayer) layer.invalidate();
+    }
+    _layoutLayersForScreen();
+  }
 
   /// Completes once every resident shown so far has loaded its sprite.
   Future<void> residentsLoaded() =>
@@ -1538,7 +1846,9 @@ class SceneGame extends FlameGame with ScaleDetector {
       if (was.anchor != p.anchor ||
           was.normalizedPos != p.normalizedPos ||
           was.perch != p.perch ||
-          was.size != p.size) {
+          was.size != p.size ||
+          was.piece != p.piece ||
+          was.beside != p.beside) {
         changed
           ..add(p.anchor)
           ..add(was.anchor);
@@ -1557,16 +1867,21 @@ class SceneGame extends FlameGame with ScaleDetector {
       _standDrop.remove(gone.id);
       _residents.remove(gone.id);
       _residentLooks.remove(gone.id);
+      _things.remove(gone.id);
+      _boxes.remove(gone.id);
+      _hidden.remove(gone.id);
     }
+    _life.reset();
     _scene = _scene.copyWith(spawnPoints: spawns);
 
     final art = _art;
     if (art != null) {
       art.layout(
-        spawns,
+        _drawn(spawns),
         scene.worldWidth,
         loop: scene.loop,
         partners: !showcase,
+        placed: showcase,
       );
       for (final id in changed) {
         final layer = _layers[id];
@@ -1600,9 +1915,11 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
   }
 
-  /// The resident under the screen point [at], nearest first: the near
-  /// layer is in front of the hills.
+  /// What can be taken hold of under the screen point [at], nearest first:
+  /// the near layer is in front of the hills, and on a layer a creature or
+  /// a keepsake is in front of the scenery behind it.
   String? _residentAt(Vector2 at) {
+    final u = _viewportH / 475;
     for (final layer in const [
       SceneLayer.layer5,
       SceneLayer.layer4,
@@ -1612,28 +1929,59 @@ class SceneGame extends FlameGame with ScaleDetector {
       final container = _layers[layer]?.container;
       if (container == null) continue;
       final local = _fieldViewFor(container.position.x).local(at.x, at.y);
-      String? best;
-      var bestD = double.infinity;
-      for (final e in _residents.entries) {
-        final anchor = _spawnPointComps[e.key];
-        if (anchor == null || anchor.parent != container) continue;
-        final half = e.value.size * 0.6;
-        final dx = local.dx - anchor.position.x;
-        final dy = local.dy - anchor.position.y;
-        if (dx.abs() > half.x || dy.abs() > half.y) continue;
-        final d = dx * dx + dy * dy;
-        if (d < bestD) {
-          bestD = d;
-          best = e.key;
+      for (final scenery in const [false, true]) {
+        String? best;
+        var bestD = double.infinity;
+        void consider(String id, Rect box) {
+          final anchor = _spawnPointComps[id];
+          if (anchor == null || anchor.parent != container) return;
+          final dx = local.dx - anchor.position.x;
+          final dy = local.dy - anchor.position.y;
+          if (!box.contains(Offset(dx, dy))) return;
+          final c = box.center;
+          final d = (dx - c.dx) * (dx - c.dx) + (dy - c.dy) * (dy - c.dy);
+          if (d < bestD) {
+            bestD = d;
+            best = id;
+          }
         }
+
+        if (!scenery) {
+          for (final e in _residents.entries) {
+            final half = e.value.size * 0.6;
+            consider(
+              e.key,
+              Rect.fromCenter(
+                center: Offset.zero,
+                width: half.x * 2,
+                height: half.y * 2,
+              ),
+            );
+          }
+        }
+        for (final e in _boxes.entries) {
+          if (_things.containsKey(e.key) == scenery) continue;
+          final b = e.value;
+          // Scenery is sized to the screen's height, as the field draws
+          // it; a keepsake to its row, as a creature is.
+          final k = scenery ? u : 1.0;
+          consider(
+            e.key,
+            Rect.fromLTRB(b.left * k, b.top * k, b.right * k, b.bottom * k),
+          );
+        }
+        if (best != null) return best;
       }
-      if (best != null) return best;
     }
     return null;
   }
 
-  bool _pickUpAt(Vector2 at) {
-    final id = _residentAt(at);
+  /// Whether what is held at [id] may be held up in the air.
+  bool _liftable(String id) =>
+      canLift?.call(id) ?? speciesCanFloat(_residentLooks[id]?.$1.id ?? '');
+
+  bool _pickUpAt(Vector2 at, {String? only}) {
+    final id = only ?? _residentAt(at);
     final anchor = id == null ? null : _spawnPointComps[id];
     final container = anchor?.parent;
     if (id == null || anchor == null || container is! PositionComponent) {
@@ -1641,6 +1989,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
     final local = _fieldViewFor(container.position.x).local(at.x, at.y);
     _held = id;
+    _heldFrom.setFrom(at);
     _heldFinger.setFrom(at);
     _heldGrip.setValues(
       local.dx - anchor.position.x,
@@ -1674,9 +2023,27 @@ class SceneGame extends FlameGame with ScaleDetector {
     ).local(_heldFinger.x, _heldFinger.y);
     final sp = scene.spawnPoints.where((s) => s.id == id).firstOrNull;
     if (sp == null) return;
+    // Scenery comes up out of the field once it is really being moved —
+    // not for a tap, which only chooses it.
+    if (sp.piece != null &&
+        !_hidden.contains(id) &&
+        _heldFinger.distanceTo(_heldFrom) > 10) {
+      _hidden.add(id);
+      _refreshArt({sp.anchor});
+      final b = _boxes[id];
+      if (b != null) {
+        final u = _viewportH / 475;
+        anchor.add(
+          _ghost = _PieceGhost(
+            Rect.fromLTRB(b.left * u, b.top * u, b.right * u, b.bottom * u),
+            ghostTint,
+          ),
+        );
+      }
+    }
     anchor.position.x = local.dx - _heldGrip.x;
     // What cannot float stays on the ground, lifted a little in the hand.
-    anchor.position.y = speciesCanFloat(_residentLooks[id]?.$1.id ?? '')
+    anchor.position.y = _liftable(id)
         ? (local.dy - _heldGrip.y).clamp(_viewportH * 0.1, _viewportH * 0.92)
         : _anchorY(sp, sp.normalizedPos.dy * _viewportH) - 10;
   }
@@ -1689,10 +2056,18 @@ class SceneGame extends FlameGame with ScaleDetector {
         ? null
         : scene.spawnPoints.where((s) => s.id == id).firstOrNull;
     if (id == null || anchor == null || sp == null) return;
-    anchor.priority = 10;
+    anchor.priority = _things.containsKey(id) ? 9 : 10;
+    _ghost?.removeFromParent();
+    _ghost = null;
+    final wasHidden = _hidden.remove(id);
     final period = _loops ? _periodOf(sp.anchor) : scene.worldWidth.toDouble();
     final share = (anchor.position.x / period) % 1.0;
+    final before = scene.spawnPoints;
     onResidentDropped?.call(id, share, anchor.position.y / _viewportH);
+    // Scenery set back where it was, when the owner kept it there.
+    if (wasHidden && identical(before, scene.spawnPoints)) {
+      _refreshArt({sp.anchor});
+    }
     // Back where its point says, unless the owner moved the point.
     _repositionSpawnPoints();
   }
@@ -1708,6 +2083,17 @@ class SceneGame extends FlameGame with ScaleDetector {
   void update(double dt) {
     super.update(dt);
     _fieldTime += dt;
+    // Seen through a window (the home screen's portal): the view drifts
+    // slowly along the field, turning back at the ends of one that does not
+    // loop. Clamped and wrapped below like any pan.
+    if (panDrift != 0 && _held == null) {
+      final next = _cameraX + panDrift * dt;
+      if (!_loops && (next <= 0 || next >= _maxCamXExploration)) {
+        panDrift = -panDrift;
+      } else {
+        _cameraX = _targetCameraX = next;
+      }
+    }
     final art = _art;
     if (art != null) {
       if (_fieldTime - _hourCheckedAt > 1 || _hourCheckedAt < 0) {
@@ -1786,6 +2172,19 @@ class SceneGame extends FlameGame with ScaleDetector {
       _cameraY = _cameraY.clamp(0.0, _maxCamY);
     }
 
+    // Zoomed out past the field's height: it floats in the middle of the
+    // space the HUD leaves, the same at every zoom so it never jumps.
+    if (showcase) {
+      final scale = layersRoot.scale.x * cam.viewfinder.zoom;
+      final vh = size.y / scale;
+      if (vh > _viewportH) {
+        final t = overviewAmount;
+        final top = overviewTop * t, bottom = overviewBottom * t;
+        final centre = top + (size.y - top - bottom) / 2;
+        _cameraY = _targetCameraY = _viewportH / 2 - centre / scale;
+      }
+    }
+
     // 4) Smoothly tween camera toward targets
     const camSpeed = 5.0;
     if ((_cameraX - _targetCameraX).abs() > 0.5) {
@@ -1818,6 +2217,17 @@ class SceneGame extends FlameGame with ScaleDetector {
       if (!_shakeOffset.isZero()) _shakeOffset.setValues(0, 0);
     }
 
+    if (showcase) _life.update(dt);
+    final waiting = _pending;
+    if (waiting != null) {
+      _pendingT += dt;
+      if (!arranging) {
+        _pending = null;
+      } else if (_pendingT >= pickUpHold) {
+        _pending = null;
+        _pickUpAt(_pendingFinger, only: waiting);
+      }
+    }
     _applyCamera();
     _updateParallaxLayers();
     if (_held != null) _carry(dt);
@@ -2050,8 +2460,13 @@ class SceneGame extends FlameGame with ScaleDetector {
 
       // ✅ Same coordinate system as above
       final base = _spawnBaseX(p);
-      final x = _loops ? _nearestLoop(base, p.anchor, viewportW) : base;
-      final y = _anchorY(p, p.normalizedPos.dy * _viewportH);
+      var x = _loops ? _nearestLoop(base, p.anchor, viewportW) : base;
+      var y = _anchorY(p, p.normalizedPos.dy * _viewportH);
+      final o = showcase ? _life.offsetOf(p.id) : null;
+      if (o != null) {
+        x += o.dx;
+        y += o.dy;
+      }
       comp.position.setValues(x, y);
     }
   }
@@ -2125,17 +2540,19 @@ class WildMonComponent extends PositionComponent
       _maybeAddBacklight();
 
       add(
-        CreatureSpriteComponent(
-            sheet: sheet,
-            visuals: visuals,
-            desiredSize: size,
-            variantFaction: visuals.variantFaction,
-            alchemyEffect: visuals.alchemyEffect,
-          )
-          ..anchor = Anchor.center
-          ..position = size / 2
-          ..scale = flipX ? Vector2(-1, 1) : Vector2.all(1),
+        sprite =
+            CreatureSpriteComponent(
+                sheet: sheet,
+                visuals: visuals,
+                desiredSize: size,
+                variantFaction: visuals.variantFaction,
+                alchemyEffect: visuals.alchemyEffect,
+              )
+              ..anchor = Anchor.center
+              ..position = size / 2
+              ..scale = flipX ? Vector2(-1, 1) : Vector2.all(1),
       );
+      _faceTo = flipX ? -1 : 1;
 
       _addTapPulse();
 
@@ -2143,10 +2560,8 @@ class WildMonComponent extends PositionComponent
       // has been tapped (see _tapped).
       if (game.isTutorialMode) {
         add(
-          TutorialCreatureHighlight(
-            radius: size.x * 0.5,
-            position: size / 2,
-          )..priority = -1,
+          TutorialCreatureHighlight(radius: size.x * 0.5, position: size / 2)
+            ..priority = -1,
         );
       }
 
@@ -2194,6 +2609,39 @@ class WildMonComponent extends PositionComponent
     );
 
     _addTapPulse();
+  }
+
+  /// Its drawn self, once loaded from its sheet.
+  CreatureSpriteComponent? sprite;
+
+  /// Down in water (bathing): the glass under it gives nothing back.
+  bool submerged = false;
+
+  /// Which way it faces, 1 as its sheet is drawn and -1 turned. A turn is
+  /// at once, with a little give in the body as it plants itself the other
+  /// way — never a card edge-on.
+  double _faceTo = 1;
+  double _settleT = 1;
+
+  /// Turns it to face [dir] (1 as drawn, -1 the other way).
+  void face(double dir) {
+    final to = dir < 0 ? -1.0 : 1.0;
+    if (to == _faceTo) return;
+    _faceTo = to;
+    _settleT = 0;
+  }
+
+  /// Which way it is facing.
+  double get facing => _faceTo;
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    final s = sprite;
+    if (s == null || _settleT >= 1) return;
+    _settleT = math.min(1, _settleT + dt / 0.22);
+    final give = math.sin(_settleT * math.pi) * (1 - _settleT * 0.4);
+    s.scale.setValues(_faceTo * (1 + 0.07 * give), 1 - 0.06 * give);
   }
 
   void _addFallbackBlob() {
@@ -2320,6 +2768,7 @@ class _MirrorImage extends Component with HasGameReference<SceneGame> {
   void render(Canvas canvas) {
     final c = creature;
     if (!c.isMounted || (c is Veiled && c.veiled)) return;
+    if (c is WildMonComponent && c.submerged) return;
     canvas
       ..save()
       ..translate(0, feet);
@@ -2615,8 +3064,14 @@ class _FieldSheetsComponent extends Component with HasGameReference<SceneGame> {
           ..colorFilter = art.grade(sheet.grade)
           ..color = Color.fromRGBO(0, 0, 0, shown.clamp(0.0, 1.0));
       }
-      for (var k = -1; k <= 1; k++) {
-        if (k != 0 && wrap <= 0) continue;
+      // As many repeats as are on screen — more than three when zoomed out.
+      final k0 = wrap <= 0
+          ? 0
+          : ((view.left - b.right - drift) / wrap).floor();
+      final k1 = wrap <= 0
+          ? 0
+          : ((view.right - b.left - drift) / wrap).ceil();
+      for (var k = k0; k <= k1; k++) {
         final shift = drift + k * wrap;
         if (b.right + shift < view.left || b.left + shift > view.right) {
           continue;
@@ -2720,6 +3175,13 @@ class _FieldTapComponent extends Component
   @override
   void onTapDown(TapDownEvent event) {
     game._touch(event.canvasPosition, Vector2.zero());
+    game._fingerDown(event.canvasPosition);
+    event.continuePropagation = true;
+  }
+
+  @override
+  void onTapUp(TapUpEvent event) {
+    game._fingerUp();
     event.continuePropagation = true;
   }
 }
@@ -2731,9 +3193,20 @@ class _FieldSkyComponent extends Component with HasGameReference<SceneGame> {
   final FieldArt art;
 
   @override
-  void render(Canvas canvas) => art.paintSky(
-    canvas,
-    Size(game.size.x, game.size.y),
-    game._fieldViewFor(0),
-  );
+  void render(Canvas canvas) {
+    final view = game._fieldViewFor(0);
+    final band = view.screenY(view.height) - view.screenY(0);
+    // Zoomed out past the field, the sky is only over the field.
+    if (band < game.size.y - 0.5) {
+      canvas
+        ..save()
+        ..clipRect(
+          Rect.fromLTRB(0, view.screenY(0), game.size.x, view.screenY(view.height)),
+        );
+      art.paintSky(canvas, Size(game.size.x, game.size.y), view);
+      canvas.restore();
+      return;
+    }
+    art.paintSky(canvas, Size(game.size.x, game.size.y), view);
+  }
 }

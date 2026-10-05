@@ -7,20 +7,26 @@
 // Volcano a shelf.
 //
 // Looking is the default: the field is the player's to pan, pinch and run a
-// finger through. ARRANGE opens the few things that can change, along the
-// sky where nothing stands: which realm, its weather (each realm only its
-// own), the hour, and who lives here. Arranging, a resident can be taken
-// hold of and carried; tapped, it can be sent to the other row, turned,
-// lifted into the air (what can float), or sent away.
+// finger through, and the residents live in it (home_life.dart). ARRANGE
+// opens the few things that can change, along the sky where nothing stands:
+// which realm, its weather (each realm only its own), the hour, who lives
+// here, the realm's own scenery (its trees, isles, banks, stones — moved,
+// sized, put away, or more of them) and the player's keepsakes. Arranging,
+// anything there can be taken hold of and carried; tapped, it is chosen.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/wilderness/field/field_art.dart';
+import 'package:alchemons/games/wilderness/keepsake_component.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/home_biome.dart';
+import 'package:alchemons/models/home_decor.dart';
+import 'package:alchemons/models/home_keepsakes.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/navigation/world_transition.dart';
@@ -30,6 +36,9 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/fx/keepsake_art.dart';
+import 'package:alchemons/widgets/fx/keepsake_view.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,6 +66,122 @@ Creature? hydrateResident(CreatureInstance inst, CreatureCatalog catalog) {
   );
 }
 
+/// The home biome as saved, the realms it may be, and each resident's look
+/// by instance id. Residents released, sold or fused away since are dropped,
+/// and the save trimmed to match.
+Future<
+  (HomeBiomeLayout, List<HomeRealm>, Map<String, (Creature, CreatureInstance)>)
+>
+loadHomeBiome(AlchemonsDatabase db, CreatureCatalog catalog) async {
+  final arcane = await HomeRealm.arcaneOpen(db.settingsDao);
+  final realms = HomeRealm.open(arcane: arcane);
+  var layout = (await HomeBiomeLayout.load(db.settingsDao)).within(realms);
+  final looks = <String, (Creature, CreatureInstance)>{};
+  final kept = <HomeResident>[];
+  for (final r in layout.residents) {
+    final inst = await db.creatureDao.getInstance(r.instanceId);
+    final creature = inst == null ? null : hydrateResident(inst, catalog);
+    if (inst == null || creature == null) continue;
+    looks[r.instanceId] = (creature, inst);
+    kept.add(r);
+  }
+  if (kept.length != layout.residents.length) {
+    layout = layout.copyWith(residents: kept);
+    unawaited(layout.save(db.settingsDao));
+  }
+  return (layout, realms, looks);
+}
+
+/// Stands every piece of [layout]'s realm in [game]: each keepsake drawn
+/// at its point, each piece of scenery (which the field draws) given room
+/// to be taken hold of. For anything that shows the home biome — the screen
+/// itself, and the home screen's window onto it.
+void standHomePieces(
+  SceneGame game,
+  HomeBiomeLayout layout,
+  CreatureCatalog catalog,
+) {
+  for (final p in layout.placed) {
+    standHomePiece(game, layout, p, catalog);
+  }
+}
+
+/// Stands [p] of [layout] in [game] (see [standHomePieces]).
+void standHomePiece(
+  SceneGame game,
+  HomeBiomeLayout layout,
+  HomePiece p,
+  CreatureCatalog catalog,
+) {
+  final sp = layout.pieceSpawnPoint(p);
+  if (sp == null) return;
+  if (!p.isKeepsake) {
+    game.setPieceBox(p.spawnId, homeSceneryBox(sp));
+    return;
+  }
+  final row = layout.realm.row(back: p.back);
+  final KeepsakeComponent comp;
+  if (p.kind.startsWith('effigy:')) {
+    final species = catalog.getCreatureById(p.kind.substring(7));
+    if (species == null) return;
+    comp = EffigyComponent(
+      kind: p.kind,
+      creature: species,
+      rowSize: row.size,
+      flip: p.flip,
+      onTap: () => game.callResidentTo(p.spawnId),
+    );
+  } else {
+    final art = KeepsakeArt.of(
+      p.kind,
+      copy: keepsakeCopyOf(p),
+      style: p.style,
+    );
+    if (art == null) return;
+    comp = KeepsakeComponent(
+      kind: p.kind,
+      art: art,
+      rowSize: row.size,
+      flip: p.flip,
+      // Being tried before it is bought: faint, and nobody visits it.
+      ghost: p.trial,
+      // Tapped, the nearest resident that can reach it comes to it.
+      onTap: () => game.callResidentTo(p.spawnId),
+    );
+  }
+  final b = comp.art.box;
+  final k = row.size / 100 * KeepsakeComponent.kKeepsakeScale;
+  game.showThing(
+    p.spawnId,
+    comp,
+    Rect.fromLTRB(b.left * k, b.top * k, b.right * k, b.bottom * k),
+  );
+}
+
+/// Which of a keepsake's copies [p] is (the second portal is orange).
+int keepsakeCopyOf(HomePiece p) {
+  final hash = p.id.lastIndexOf('#');
+  return hash < 0 ? 0 : int.tryParse(p.id.substring(hash + 1)) ?? 0;
+}
+
+/// Where a piece of scenery at [sp] can be taken hold of, round its point,
+/// at the reference height (see [FieldPiece] for what its size means).
+Rect homeSceneryBox(SpawnPoint sp) {
+  final w = sp.size.x, h = sp.size.y;
+  return switch (sp.piece) {
+    FieldPiece.tree => Rect.fromLTRB(-1.0 * w, -2.4 * w, 1.1 * w, 10),
+    FieldPiece.boulder => Rect.fromLTRB(-w * 0.6, -h - 8, w * 0.7, 14),
+    FieldPiece.grove => Rect.fromLTRB(-w, -w * 1.1, w, w),
+    FieldPiece.isle || FieldPiece.falls => Rect.fromLTRB(-w, -22, w, w),
+    FieldPiece.cypress => Rect.fromLTRB(-0.6 * w, -4.2 * w, 0.6 * w, 20),
+    FieldPiece.stone || FieldPiece.peat => Rect.fromLTRB(-w, -16, w, 42),
+    FieldPiece.snag => Rect.fromLTRB(-w, -h * 4.75, w, 40),
+    FieldPiece.spire => Rect.fromLTRB(-w * 1.3, -h, w * 1.3, 8),
+    FieldPiece.monolith => Rect.fromLTRB(-w * 0.7, -h, w * 0.7, 8),
+    _ => Rect.fromLTRB(-w / 2, -h, w / 2, 8),
+  };
+}
+
 /// The hours the field can be held at, and the phone's own clock.
 const _hours = <(String, double?)>[
   ('LIVE', null),
@@ -77,8 +202,11 @@ class HomeBiomeScreen extends StatefulWidget {
   State<HomeBiomeScreen> createState() => _HomeBiomeScreenState();
 }
 
+/// Which tray is open along the bottom while arranging.
+enum _Tray { none, scenery, keepsakes, decor }
+
 class _HomeBiomeScreenState extends State<HomeBiomeScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   HomeBiomeLayout _layout = const HomeBiomeLayout();
 
   /// The realms this home can be: the Arcane only once it is unlocked in
@@ -87,6 +215,12 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
 
   /// Each resident's look, by instance id.
   final Map<String, (Creature, CreatureInstance)> _looks = {};
+
+  /// The keepsakes the player has earned.
+  KeepsakeLedger _ledger = KeepsakeLedger.empty;
+
+  /// How much of the home decor the player owns.
+  DecorLedger _decor = DecorLedger.empty;
 
   SceneGame? _game;
   int _gameKey = 0;
@@ -98,8 +232,13 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   bool _veiled = true;
 
   bool _arranging = false;
+  _Tray _tray = _Tray.none;
 
-  /// The resident chosen while arranging, by instance id.
+  /// Zoomed out to see the whole field while arranging.
+  bool _zoomedOut = false;
+
+  /// What is chosen while arranging, by its point's id: a resident or a
+  /// placed piece.
   String? _selected;
 
   late final RevealWhenReady _reveal;
@@ -108,6 +247,9 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   late final AnimationController _sweep;
   double _sweepFrom = 0, _sweepBy = 0;
   bool _sweepToLive = false;
+
+  /// Drives the keepsake tray's little living pictures while it is open.
+  late final AnimationController _trayClock;
 
   /// Bumped by every weather change, so a weather waiting for the last one
   /// to clear knows when it has been changed again.
@@ -124,6 +266,10 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     )..addListener(_onSweep);
+    _trayClock = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 60),
+    );
     _db = context.read<AlchemonsDatabase>();
     _catalog = context.read<CreatureCatalog>();
     unawaited(_load());
@@ -131,16 +277,22 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
 
   @override
   void dispose() {
+    _disarm?.cancel();
     _reveal.dispose();
     _sweep.dispose();
+    _trayClock.dispose();
     super.dispose();
   }
+
+  String _speciesName(String id) => _catalog.getCreatureById(id)?.name ?? id;
 
   // ── Loading and saving ───────────────────────────────────────────────────
 
   Future<void> _load() async {
-    final arcane = await _db.settingsDao.isArcanePortalUnlocked();
+    final arcane = await HomeRealm.arcaneOpen(_db.settingsDao);
     _realms = HomeRealm.open(arcane: arcane);
+    _ledger = await KeepsakeLedger.load(_db, _speciesName);
+    _decor = await DecorLedger.load(_db);
     var layout = (await HomeBiomeLayout.load(_db.settingsDao)).within(_realms);
     final kept = <HomeResident>[];
     for (final r in layout.residents) {
@@ -153,8 +305,12 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     }
     if (kept.length != layout.residents.length) {
       layout = layout.copyWith(residents: kept);
-      unawaited(layout.save(_db.settingsDao));
     }
+    // Keepsakes no longer owned (a save restored from before them) go.
+    final owned = _placedOwned(layout);
+    if (owned.length != layout.placed.length) layout = layout.withPlaced(owned);
+    layout = _settle(layout);
+    unawaited(layout.save(_db.settingsDao));
     if (!mounted) return;
     _layout = layout;
     _buildGame();
@@ -164,6 +320,24 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
           ) ??
           Future<void>.value(),
     );
+  }
+
+  /// What stands in [layout]'s realm that the player may have: their own
+  /// keepsakes, and the realm's own scenery.
+  List<HomePiece> _placedOwned(HomeBiomeLayout layout) {
+    final count = <String, int>{};
+    final out = <HomePiece>[];
+    for (final p in layout.placed) {
+      if (p.decor != null) {
+        // Decor: as many as are owned, no more, and nothing on trial.
+        if (p.trial) continue;
+        final n = count[p.kind] = (count[p.kind] ?? 0) + 1;
+        if (n <= _decor.allowedOf(p.kind)) out.add(p);
+      } else if (!p.isKeepsake || _ledger.owns(p.kind)) {
+        out.add(p);
+      }
+    }
+    return out;
   }
 
   void _commit(HomeBiomeLayout layout) {
@@ -176,6 +350,12 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
 
   List<SpawnPoint> get _points => _layout.spawnPoints(_floats);
 
+  /// Keepsakes owned that the player has not been shown yet.
+  List<Keepsake> get _unseen => [
+    for (final k in _ledger.owned)
+      if (!_layout.seen.contains(k.id)) k,
+  ];
+
   // ── The field ────────────────────────────────────────────────────────────
 
   void _buildGame() {
@@ -186,14 +366,37 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       ..fieldAftermath = mood.aftermath
       ..fieldStage = mood.stage
       ..arranging = _arranging
-      ..onResidentTap = _onResidentTap
-      ..onResidentPicked = _onResidentTap
-      ..onResidentDropped = _onResidentDropped;
+      ..overview = _arranging
+      ..lively = true
+      ..ghostTint = _ghostTint(_layout.realm)
+      ..canLift = _canLift
+      ..onSound = _play
+      ..onResidentTap = _onTap
+      ..onResidentPicked = _onPicked
+      ..onResidentDropped = _onDropped;
     setState(() {
       _game = game;
       _gameKey++;
     });
     unawaited(_standResidents(game));
+  }
+
+  /// The colour scenery comes apart into when it is carried: the realm's
+  /// own light.
+  Color _ghostTint(HomeRealm realm) => switch (realm) {
+    HomeRealm.valley => const Color(0xFFD7E8A8),
+    HomeRealm.sky => const Color(0xFFE2F0FF),
+    HomeRealm.swamp => const Color(0xFFC8D8A0),
+    HomeRealm.volcano => const Color(0xFFFFB070),
+    HomeRealm.arcane => const Color(0xFFC9B6FF),
+  };
+
+  bool _canLift(String spawnId) {
+    final r = _layout.resident(spawnId);
+    if (r != null) return _floats(r.instanceId);
+    final p = _layout.piece(spawnId);
+    return p != null &&
+        (p.hangs || (_layout.realm.sceneryOf(p.kind)?.rises ?? false));
   }
 
   Future<void> _standResidents(SceneGame game) async {
@@ -209,6 +412,9 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
         flip: r.flip,
       );
     }
+    for (final p in _layout.placed) {
+      _standPiece(game, p);
+    }
     // Revealed with everyone already standing, not popping in.
     await game.residentsLoaded().timeout(
       const Duration(seconds: 3),
@@ -221,12 +427,22 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     });
   }
 
+  /// Stands [p] in [game]: a keepsake drawn, scenery made something to take
+  /// hold of (the field draws it).
+  void _standPiece(SceneGame game, HomePiece p) =>
+      standHomePiece(game, _layout, p, _catalog);
+
+  /// Which of a keepsake's copies [p] is (the second portal is orange).
+  int _copyOf(HomePiece p) => keepsakeCopyOf(p);
+
   Future<void> _setRealm(HomeRealm realm) async {
     if (realm == _layout.realm) return;
     HapticFeedback.selectionClick();
     _select(null);
     setState(() => _veiled = true);
-    _commit(_settle(_layout.copyWith(realm: realm)));
+    var layout = _layout.copyWith(realm: realm);
+    layout = layout.withPlaced(_placedOwned(layout));
+    _commit(_settle(layout));
     unawaited(
       context.read<AudioController?>()?.playWildMusicForScene(realm.sceneId) ??
           Future<void>.value(),
@@ -237,23 +453,63 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     _buildGame();
   }
 
-  /// [layout] with every resident spaced as its realm needs: a realm's
-  /// rows are their own lengths, its creatures their own sizes.
+  /// [layout] with everything spaced as its realm needs: a realm's rows are
+  /// their own lengths, its creatures their own sizes, its isles and banks
+  /// where they are. What has no room on its row tries the other; a
+  /// keepsake with room on neither waits on the shelf.
   HomeBiomeLayout _settle(HomeBiomeLayout layout) {
-    var out = layout.copyWith(residents: const []);
-    for (final r in layout.residents) {
-      var placed = r;
-      final x = out.freeSpotNear(r, r.x);
-      if (x != null) {
-        placed = r.copyWith(x: x);
-      } else {
-        final other = r.copyWith(back: !r.back);
-        final y = out.freeSpotNear(other, r.x);
-        if (y != null) placed = other.copyWith(x: y);
+    // Scenery first, as it stands: the ground the rest is spaced against.
+    var out = layout.copyWith(residents: const []).withPlaced([
+      for (final p in layout.placed)
+        if (!p.isKeepsake) p,
+    ]);
+    bool beside(String? host) => host != null;
+    // What stands on its own ground, then what stands beside it — kept
+    // beside it if its host is still there, else spaced on its own.
+    for (final pass in const [false, true]) {
+      for (final p in layout.placed.where((p) => p.isKeepsake)) {
+        if (beside(p.beside) != pass) continue;
+        if (pass && out.hostOf(p.spawnId, p.beside, back: p.back) != null) {
+          out = out.withPlaced([...out.placed, p]);
+          continue;
+        }
+        HomePiece? placed;
+        for (final back in [p.back, !p.back]) {
+          final q = p.copyWith(back: back, beside: () => null);
+          final x = out.freeSpotForPiece(q, p.x);
+          if (x != null) {
+            placed = q.copyWith(x: x);
+            break;
+          }
+        }
+        if (placed != null) out = out.withPlaced([...out.placed, placed]);
       }
-      out = out.copyWith(residents: [...out.residents, placed]);
+      for (final r in layout.residents) {
+        if (beside(r.beside) != pass) continue;
+        if (pass && out.hostOf(r.spawnId, r.beside, back: r.back) != null) {
+          out = out.copyWith(residents: [...out.residents, r]);
+          continue;
+        }
+        var placed = r.copyWith(beside: () => null);
+        final x = out.freeSpotNear(placed, r.x);
+        if (x != null) {
+          placed = placed.copyWith(x: x);
+        } else {
+          final other = placed.copyWith(back: !r.back);
+          final y = out.freeSpotNear(other, r.x);
+          if (y != null) placed = other.copyWith(x: y);
+        }
+        out = out.copyWith(residents: [...out.residents, placed]);
+      }
     }
-    return out;
+    // Back in the order they were.
+    final order = {
+      for (final (i, r) in layout.residents.indexed) r.instanceId: i,
+    };
+    return out.copyWith(
+      residents: [...out.residents]
+        ..sort((a, b) => order[a.instanceId]!.compareTo(order[b.instanceId]!)),
+    );
   }
 
   void _setMood(HomeMood mood) {
@@ -316,84 +572,435 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   void _toggleArranging() {
     HapticFeedback.selectionClick();
     final on = !_arranging;
-    setState(() => _arranging = on);
-    _game?.arranging = on;
-    if (!on) _select(null);
+    setState(() {
+      _arranging = on;
+      if (!on) {
+        _tray = _Tray.none;
+        _zoomedOut = false;
+      }
+    });
+    _game
+      ?..arranging = on
+      ..overview = on;
+    if (!on) {
+      _select(null);
+      _dropTrials();
+    }
+    _syncTrayClock();
   }
 
-  void _select(String? instanceId) {
-    if (_selected == instanceId) return;
-    setState(() => _selected = instanceId);
-    _game?.markResident(instanceId == null ? null : 'HOME_$instanceId');
+  /// Whatever was only being tried goes, unbought.
+  void _dropTrials() {
+    final game = _game;
+    final trials = [
+      for (final p in _layout.placed)
+        if (p.trial) p,
+    ];
+    if (trials.isEmpty) return;
+    var layout = _layout.withPlaced([
+      for (final p in _layout.placed)
+        if (!p.trial) p,
+    ]);
+    for (final p in trials) {
+      layout = layout.freeBeside(p.spawnId);
+    }
+    _commit(layout);
+    if (game == null) return;
+    for (final p in trials) {
+      game.removeThing(p.spawnId);
+    }
+    game.relayout(_points);
   }
 
-  HomeResident? get _selectedResident => _selected == null
-      ? null
-      : _layout.residents.where((r) => r.instanceId == _selected).firstOrNull;
+  /// Out to see the whole field floating in the dark, or back in.
+  void _toggleZoom() {
+    final game = _game;
+    if (game == null) return;
+    HapticFeedback.selectionClick();
+    setState(() => _zoomedOut = !_zoomedOut);
+    _play(_zoomedOut ? SoundCue.homeOverviewOut : SoundCue.homeOverviewIn);
+    game.zoomTo(_zoomedOut ? game.overviewMinZoom : 1);
+  }
 
-  /// Looking, a tap plays its essence; arranging, it chooses it.
-  void _onResidentTap(String spawnId) {
+  void _openTray(_Tray tray) {
+    HapticFeedback.selectionClick();
+    setState(() => _tray = _tray == tray ? _Tray.none : tray);
+    // Opening the keepsakes is being shown them.
+    if (_tray == _Tray.keepsakes && _unseen.isNotEmpty) {
+      _commit(
+        _layout.copyWith(
+          seen: {..._layout.seen, for (final k in _ledger.owned) k.id},
+        ),
+      );
+    }
+    _syncTrayClock();
+  }
+
+  void _syncTrayClock() {
+    if (_tray == _Tray.keepsakes) {
+      if (!_trayClock.isAnimating) _trayClock.repeat();
+    } else {
+      _trayClock.stop();
+    }
+  }
+
+  void _select(String? spawnId) {
+    if (_selected == spawnId) return;
+    setState(() => _selected = spawnId);
+    final resident = spawnId == null ? null : _layout.resident(spawnId);
+    _game?.markResident(resident?.spawnId);
+  }
+
+  HomeResident? get _selectedResident =>
+      _selected == null ? null : _layout.resident(_selected!);
+
+  HomePiece? get _selectedPiece =>
+      _selected == null ? null : _layout.piece(_selected!);
+
+  /// Looking, a tap on a resident plays its essence; arranging, a tap
+  /// chooses what it lands on.
+  void _onTap(String spawnId) {
     final r = _layout.resident(spawnId);
-    if (r == null) return;
     if (!_arranging) {
+      if (r == null) return;
       HapticFeedback.lightImpact();
       _game?.playEssence(spawnId);
       return;
     }
+    if (r == null && _layout.piece(spawnId) == null) return;
     HapticFeedback.selectionClick();
-    _select(r.instanceId);
+    _select(spawnId);
   }
 
-  void _onResidentDropped(String spawnId, double share, double height) {
+  /// Plays one of the field's sounds (tool/sounds/home.py).
+  void _play(SoundCue cue) {
+    if (!mounted) return;
+    unawaited(
+      context.read<AudioController?>()?.playSound(cue) ?? Future<void>.value(),
+    );
+  }
+
+  /// Held long enough to be taken hold of: it is chosen, and in the hand.
+  void _onPicked(String spawnId) {
+    HapticFeedback.mediumImpact();
+    _play(SoundCue.homeTake);
+    _select(spawnId);
+  }
+
+  // ── Clearing ─────────────────────────────────────────────────────────────
+
+  /// Which clearing has been tapped once and waits for a second tap.
+  String? _armed;
+  Timer? _disarm;
+
+  /// Runs [then] on the second tap of [key] within three seconds.
+  void _twice(String key, VoidCallback then) {
+    if (_armed == key) {
+      _disarm?.cancel();
+      setState(() => _armed = null);
+      then();
+      return;
+    }
+    HapticFeedback.selectionClick();
+    _disarm?.cancel();
+    setState(() => _armed = key);
+    _disarm = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _armed = null);
+    });
+  }
+
+  /// Every keepsake in this realm back on the shelf.
+  void _putAllAway() {
     final game = _game;
+    if (game == null) return;
+    HapticFeedback.mediumImpact();
+    _play(SoundCue.homeDissolve);
+    _select(null);
+    final gone = [..._layout.keepsakes];
+    var layout = _layout.withPlaced([..._layout.scenery]);
+    for (final p in gone) {
+      layout = layout.freeBeside(p.spawnId);
+    }
+    _commit(layout);
+    for (final p in gone) {
+      game.removeThing(p.spawnId);
+    }
+    game.relayout(_points);
+  }
+
+  /// This realm's scenery back as the wild has it; keepsakes and residents
+  /// stay, spaced again round it.
+  Future<void> _resetScenery() async {
+    HapticFeedback.mediumImpact();
+    _select(null);
+    setState(() => _veiled = true);
+    _commit(
+      _settle(
+        _layout.withPlaced([
+          ..._layout.realm.defaultPieces,
+          ..._layout.keepsakes,
+        ]),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 260));
+    if (!mounted) return;
+    _buildGame();
+  }
+
+  /// The chosen decor in its next look.
+  void _restyle() {
+    final game = _game;
+    final p = _selectedPiece;
+    final styles = p?.decor?.styles ?? const [];
+    if (game == null || p == null || styles.isEmpty) return;
+    HapticFeedback.selectionClick();
+    _play(SoundCue.homeRestyle);
+    final moved = p.copyWith(style: (p.style + 1) % styles.length);
+    _commit(_layout.replacePiece(moved));
+    _restand(game, moved);
+  }
+
+  /// Said on the BUY chip for a moment after a purchase fails.
+  String? _buyNote;
+
+  /// Buys the decor [p] being tried, where it stands: it becomes the
+  /// player's, in place.
+  Future<void> _buy(HomePiece p) async {
+    final game = _game;
+    final decor = p.decor;
+    final shop = context.read<ShopService?>();
+    if (game == null || decor == null || shop == null) return;
+    final ok = await shop.purchase(decor.offerId);
+    if (!mounted) return;
+    if (!ok) {
+      HapticFeedback.heavyImpact();
+      _play(SoundCue.uiDenied);
+      setState(
+        () => _buyNote = decor.gold > 0 ? 'NOT ENOUGH GOLD' : 'NOT ENOUGH SILVER',
+      );
+      Future<void>.delayed(const Duration(seconds: 2), () {
+        if (mounted) setState(() => _buyNote = null);
+      });
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    _play(SoundCue.purchaseSuccess);
+    _decor = await DecorLedger.load(_db);
+    if (!mounted) return;
+    final used = {
+      for (final o in _layout.placed)
+        if (o.kind == p.kind && !o.trial) _copyOf(o),
+    };
+    final copy = [
+      for (var i = 0; i < decor.max; i++)
+        if (!used.contains(i)) i,
+    ].first;
+    final bought = p.copyWith(id: '${p.kind}#$copy');
+    // What stood beside the trial stands beside the bought one.
+    var layout = _layout.withPlaced([
+      for (final o in _layout.placed)
+        if (o.id == p.id) bought else o,
+    ]);
+    layout = layout.copyWith(
+      residents: [
+        for (final r in layout.residents)
+          r.beside == p.spawnId ? r.copyWith(beside: () => bought.spawnId) : r,
+      ],
+    );
+    _select(null);
+    _commit(layout);
+    game.removeThing(p.spawnId);
+    game.relayout(_points);
+    _standPiece(game, bought);
+    _select(bought.spawnId);
+  }
+
+  void _onDropped(String spawnId, double share, double height) {
+    final game = _game;
+    if (game == null) return;
     final r = _layout.resident(spawnId);
-    if (game == null || r == null) return;
+    if (r != null) {
+      _dropResident(game, r, share, height);
+      return;
+    }
+    final p = _layout.piece(spawnId);
+    if (p != null) _dropPiece(game, p, share, height);
+  }
+
+  void _dropResident(
+    SceneGame game,
+    HomeResident r,
+    double share,
+    double height,
+  ) {
     final row = _layout.realm.row(back: r.back);
     // Something that can float, let go well above where it would stand,
     // stays up there.
     final lift = _floats(r.instanceId) && height < row.height - 0.07
         ? height.clamp(0.12, row.height - 0.07)
         : null;
-    var moved = r.copyWith(x: share, lift: () => lift);
-    final x = _layout.freeSpotNear(moved, share);
-    if (x == null) return;
-    moved = moved.copyWith(x: x);
-    _commit(_layout.replace(moved));
+    var moved = r.copyWith(x: share, lift: () => lift, beside: () => null);
+    // Put down close beside a keepsake or another resident, it shares
+    // that one's ground; otherwise it stands on its own.
+    final nest = lift == null
+        ? _layout.nestBeside(r.spawnId, share, back: r.back)
+        : null;
+    if (nest != null) {
+      moved = moved.copyWith(x: nest.$2, beside: () => nest.$1);
+    } else {
+      final x = _layout.freeSpotNear(moved, share);
+      if (x == null) return;
+      moved = moved.copyWith(x: x);
+    }
+    var layout = _layout.replace(moved);
+    // What stood beside it goes with it — or stays where it was, now on its
+    // own, if it took to the air.
+    layout = lift != null
+        ? layout.freeBeside(r.spawnId)
+        : layout.carryBeside(r.spawnId, moved.x - r.x);
+    _commit(layout);
     game.relayout(_points);
+    _restandBeside(game, r.spawnId);
     HapticFeedback.lightImpact();
+    _play(SoundCue.homeSet);
   }
 
-  /// Sends the chosen resident to the other row, where it stood on screen.
+  void _dropPiece(SceneGame game, HomePiece p, double share, double height) {
+    final kind = _layout.realm.sceneryOf(p.kind);
+    // An isle is set at whatever height it is let go.
+    final y = (kind?.rises ?? false) || p.hangs
+        ? () => height.clamp(0.14, p.back ? 0.62 : 0.8)
+        : null;
+    var moved = p.copyWith(x: share, y: y, beside: () => null);
+    final nest = p.isKeepsake
+        ? _layout.nestBeside(p.spawnId, share, back: p.back)
+        : null;
+    if (nest != null) {
+      moved = moved.copyWith(x: nest.$2, beside: () => nest.$1);
+    } else {
+      final x = _layout.freeSpotForPiece(moved, share);
+      if (x == null) {
+        HapticFeedback.heavyImpact();
+        return;
+      }
+      moved = moved.copyWith(x: x);
+    }
+    _commit(_layout.replacePiece(moved).carryBeside(p.spawnId, moved.x - p.x));
+    game.relayout(_points);
+    _restand(game, moved);
+    _restandBeside(game, p.spawnId);
+    HapticFeedback.lightImpact();
+    // Scenery carried in grains sets back into its piece; anything else is
+    // set down on its ground.
+    _play(p.isKeepsake ? SoundCue.homeSet : SoundCue.homeSceneryGather);
+  }
+
+  /// Stands again the keepsakes beside [hostId], which went where it went.
+  void _restandBeside(SceneGame game, String hostId) {
+    for (final p in _layout.placed) {
+      if (p.beside == hostId && p.isKeepsake) _restand(game, p);
+    }
+  }
+
+  /// Stands [p] again after its point changed, seated on its new ground.
+  void _restand(SceneGame game, HomePiece p) {
+    if (p.isKeepsake) game.removeThing(p.spawnId);
+    _standPiece(game, p);
+  }
+
+  /// Sends the chosen resident or piece to the other row, where it stood
+  /// on screen.
   void _swapRow() {
     final game = _game;
+    if (game == null) return;
     final r = _selectedResident;
-    if (game == null || r == null) return;
-    final back = !r.back;
+    if (r != null) {
+      final back = !r.back;
+      final row = _layout.realm.row(back: back);
+      final screenX = game.screenXOf(r.spawnId) ?? game.size.x / 2;
+      var moved = r.copyWith(
+        back: back,
+        x: game.shareAtScreen(row.layer, screenX),
+        lift: () => r.lift?.clamp(0.12, row.height - 0.07),
+        beside: () => null,
+      );
+      final x = _layout.freeSpotNear(moved, moved.x);
+      if (x == null) {
+        HapticFeedback.heavyImpact();
+        return;
+      }
+      moved = moved.copyWith(x: x);
+      HapticFeedback.selectionClick();
+      _commit(_layout.replace(moved).freeBeside(r.spawnId));
+      game.relayout(_points);
+      _restandBeside(game, r.spawnId);
+      return;
+    }
+    final p = _selectedPiece;
+    if (p == null) return;
+    final back = !p.back;
     final row = _layout.realm.row(back: back);
-    final screenX = game.screenXOf(r.spawnId) ?? game.size.x / 2;
-    var moved = r.copyWith(
+    final screenX = game.screenXOf(p.spawnId) ?? game.size.x / 2;
+    var moved = p.copyWith(
       back: back,
       x: game.shareAtScreen(row.layer, screenX),
-      lift: () => r.lift?.clamp(0.12, row.height - 0.07),
+      // Its height goes back to where its kind sits on that row.
+      y: () => null,
+      beside: () => null,
     );
-    final x = _layout.freeSpotNear(moved, moved.x);
+    final x = _layout.freeSpotForPiece(moved, moved.x);
     if (x == null) {
       HapticFeedback.heavyImpact();
       return;
     }
     moved = moved.copyWith(x: x);
     HapticFeedback.selectionClick();
-    _commit(_layout.replace(moved));
+    _commit(_layout.replacePiece(moved).freeBeside(p.spawnId));
     game.relayout(_points);
+    _restand(game, moved);
+    _restandBeside(game, p.spawnId);
   }
 
   void _turn() {
     final game = _game;
+    if (game == null) return;
     final r = _selectedResident;
-    if (game == null || r == null) return;
+    if (r != null) {
+      HapticFeedback.selectionClick();
+      _commit(_layout.replace(r.copyWith(flip: !r.flip)));
+      game.turnResident(r.spawnId);
+      return;
+    }
+    final p = _selectedPiece;
+    if (p == null || !p.isKeepsake) return;
     HapticFeedback.selectionClick();
-    _commit(_layout.replace(r.copyWith(flip: !r.flip)));
-    game.turnResident(r.spawnId);
+    final moved = p.copyWith(flip: !p.flip);
+    _commit(_layout.replacePiece(moved));
+    _restand(game, moved);
+  }
+
+  /// The chosen piece of scenery the next size up, round to the smallest.
+  void _resize() {
+    final game = _game;
+    final p = _selectedPiece;
+    if (game == null || p == null || p.isKeepsake) return;
+    const scales = HomeScenery.scales;
+    final next = scales.firstWhere(
+      (s) => s > p.scale + 0.01,
+      orElse: () => scales.first,
+    );
+    var moved = p.copyWith(scale: next);
+    final x = _layout.freeSpotForPiece(moved, p.x);
+    if (x == null) {
+      // No room to grow here: back to the smallest.
+      moved = p.copyWith(scale: scales.first);
+    } else {
+      moved = moved.copyWith(x: x);
+    }
+    HapticFeedback.selectionClick();
+    _commit(_layout.replacePiece(moved));
+    game.relayout(_points);
+    _restand(game, moved);
   }
 
   /// Lifts the chosen resident into the air, or sets it down.
@@ -412,26 +1019,146 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       HapticFeedback.heavyImpact();
       return;
     }
-    moved = moved.copyWith(x: x);
+    moved = moved.copyWith(x: x, beside: () => null);
     HapticFeedback.selectionClick();
-    _commit(_layout.replace(moved));
+    _commit(_layout.replace(moved).freeBeside(r.spawnId));
     game.relayout(_points);
+    _restandBeside(game, r.spawnId);
   }
 
   void _sendAway() {
     final r = _selectedResident;
-    if (r == null) return;
+    if (r != null) {
+      HapticFeedback.mediumImpact();
+      _select(null);
+      _apply(
+        _layout
+            .copyWith(
+              residents: [
+                for (final o in _layout.residents)
+                  if (o.instanceId != r.instanceId) o,
+              ],
+            )
+            .freeBeside(r.spawnId),
+        gone: [r],
+      );
+      return;
+    }
+    final p = _selectedPiece;
+    final game = _game;
+    if (p == null || game == null) return;
     HapticFeedback.mediumImpact();
     _select(null);
-    _apply(
-      _layout.copyWith(
-        residents: [
-          for (final o in _layout.residents)
-            if (o.instanceId != r.instanceId) o,
-        ],
-      ),
-      gone: [r],
+    _commit(
+      _layout.withPlaced([
+        for (final o in _layout.placed)
+          if (o.id != p.id) o,
+      ]).freeBeside(p.spawnId),
     );
+    game
+      ..removeThing(p.spawnId)
+      ..relayout(_points);
+    _restandBeside(game, p.spawnId);
+    _play(SoundCue.homeDissolve);
+  }
+
+  /// Places a new [kind] — a piece of the realm's scenery, or one of the
+  /// player's keepsakes — as near the middle of the screen as there is
+  /// room, on the near row or the far one.
+  void _place(String kind, {required bool keepsake}) {
+    final game = _game;
+    if (game == null) return;
+    String id;
+    final decor = HomeDecor.byId(kind);
+    if (decor != null) {
+      final placedReal = _layout.placed
+          .where((p) => p.kind == kind && !p.trial)
+          .length;
+      final trying = _layout.placed.where((p) => p.kind == kind && p.trial);
+      if (placedReal < _decor.allowedOf(kind)) {
+        // Owned: a real one, under the next copy number free.
+        final used = {
+          for (final p in _layout.placed)
+            if (p.kind == kind && !p.trial) _copyOf(p),
+        };
+        final copy = [
+          for (var i = 0; i < decor.max; i++)
+            if (!used.contains(i)) i,
+        ].first;
+        id = '$kind#$copy';
+      } else if (trying.isNotEmpty) {
+        // Already being tried: choose that one.
+        _select(trying.first.spawnId);
+        return;
+      } else if (_decor.ownedOf(kind) < decor.max) {
+        // Not owned (or not enough): stood in faint, to be tried and
+        // bought where it stands.
+        id = 'try:$kind#0';
+      } else {
+        // All of it is out: choose the one there.
+        final there = _layout.placed.where((p) => p.kind == kind).first;
+        _select(there.spawnId);
+        return;
+      }
+    } else if (keepsake) {
+      final k = _ledger.byId(kind);
+      if (k == null) return;
+      final used = {
+        for (final p in _layout.placed)
+          if (p.kind == kind) _copyOf(p),
+      };
+      final copy = [
+        for (var i = 0; i < k.copies; i++)
+          if (!used.contains(i)) i,
+      ].firstOrNull;
+      if (copy == null) {
+        // All of it is out: choose the one there instead.
+        final there = _layout.placed.where((p) => p.kind == kind).first;
+        _select(there.spawnId);
+        return;
+      }
+      id = '$kind#$copy';
+    } else {
+      if (_layout.scenery.length >= kHomeBiomeMaxScenery) {
+        HapticFeedback.heavyImpact();
+        return;
+      }
+      id = '${kind}_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+    }
+    final mid = game.size.x / 2;
+    final scenery = _layout.realm.sceneryOf(kind);
+    HomePiece? placed;
+    for (final back in const [false, true]) {
+      if (back && scenery != null && !scenery.far) continue;
+      final row = _layout.realm.row(back: back);
+      final p = HomePiece(
+        id: id,
+        kind: kind,
+        back: back,
+        // What hangs in the air is put up above the ground.
+        y: (decor?.aloft ?? false) ? row.height - 0.32 : null,
+      );
+      final x = _layout.freeSpotForPiece(p, game.shareAtScreen(row.layer, mid));
+      if (x != null) {
+        placed = p.copyWith(x: x);
+        break;
+      }
+    }
+    if (placed == null) {
+      HapticFeedback.heavyImpact();
+      return;
+    }
+    HapticFeedback.lightImpact();
+    _play(SoundCue.homeAppear);
+    _commit(_layout.withPlaced([..._layout.placed, placed]));
+    game.relayout(_points);
+    _standPiece(game, placed);
+    // The tray goes, so what was put down can be seen where it stands,
+    // chosen, to be moved — or bought.
+    setState(() => _tray = _Tray.none);
+    _syncTrayClock();
+    _select(placed.spawnId);
+    game.lookAt(placed.spawnId);
   }
 
   /// Puts [layout] in place: the newcomers in [added] gather out of
@@ -521,7 +1248,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
           if (ids.contains(r.instanceId)) r,
       ],
     );
-    if (gone.any((r) => r.instanceId == _selected)) _select(null);
+    if (gone.any((r) => r.spawnId == _selected)) _select(null);
 
     // Newcomers stand as near the middle of the screen as there is room:
     // on the near row, or the far one once that is full.
@@ -557,6 +1284,19 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   @override
   Widget build(BuildContext context) {
     final game = _game;
+    final unseen = _unseen;
+    if (game != null) {
+      // Zoomed out, the field floats in the room the HUD leaves it.
+      final pad = MediaQuery.paddingOf(context);
+      game
+        ..overviewTop = pad.top + 8 + 54 + 8 + 32 + (_selected != null ? 40 : 0) + 14
+        ..overviewBottom =
+            pad.bottom + (_tray == _Tray.keepsakes || _tray == _Tray.decor
+                ? 168
+                : _tray == _Tray.scenery
+                ? 56
+                : 56);
+    }
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -602,25 +1342,29 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
                   if (_arranging) ...[
                     const SizedBox(height: 8),
                     _settingsRow(context),
-                    if (_selectedResident != null) ...[
+                    if (_selected != null) ...[
                       const SizedBox(height: 8),
-                      _residentRow(context, _selectedResident!),
+                      _selectionRow(context),
                     ],
                   ],
                   const Spacer(),
-                  if (!_arranging && _ready && _layout.residents.isEmpty)
-                    Center(
-                      child: Text(
-                        'No Alchemons live here yet. Tap Arrange to bring them home.',
-                        textAlign: TextAlign.center,
-                        style: bracketText(
-                          context,
-                          12.5,
-                          _palette.ink.withValues(alpha: 0.85),
-                          weight: FontWeight.w600,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
+                  if (_arranging && _tray != _Tray.none)
+                    _trayRow(context)
+                  else if (_arranging && _selected == null)
+                    _note(context, 'Hold something to move it. Tap to choose it.')
+                  else if (!_arranging && _ready && unseen.isNotEmpty)
+                    _note(
+                      context,
+                      unseen.length == 1
+                          ? 'New keepsake: ${unseen.first.title}. '
+                                'Arrange, then Keepsakes, to place it.'
+                          : '${unseen.length} new keepsakes. '
+                                'Arrange, then Keepsakes, to place them.',
+                    )
+                  else if (!_arranging && _ready && _layout.residents.isEmpty)
+                    _note(
+                      context,
+                      'No Alchemons live here yet. Tap Arrange to bring them home.',
                     ),
                 ],
               ),
@@ -630,6 +1374,33 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       ),
     );
   }
+
+  /// A line along the bottom, on a slip of the HUD's dark so it reads
+  /// over a bright sky.
+  Widget _note(BuildContext context, String text) => Center(
+    child: CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: _palette.line.withValues(alpha: 0.8),
+        bracketSize: 7,
+        strokeWidth: 1,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        color: _palette.surfaceFill(),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: bracketText(
+            context,
+            12,
+            _palette.ink.withValues(alpha: 0.9),
+            weight: FontWeight.w600,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ),
+    ),
+  );
 
   Widget _topRow(BuildContext context) {
     return Row(
@@ -691,6 +1462,41 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
             accent: _amber,
             onTap: _chooseResidents,
           ),
+          const SizedBox(width: 6),
+          _Chip(
+            label: 'OVERVIEW',
+            icon: _zoomedOut
+                ? AppIcons.zoom_in_map_rounded
+                : AppIcons.zoom_out_map_rounded,
+            selected: _zoomedOut,
+            accent: _amber,
+            onTap: _toggleZoom,
+          ),
+          const SizedBox(width: 6),
+          _Chip(
+            label: 'SCENERY',
+            icon: AppIcons.layers_rounded,
+            selected: _tray == _Tray.scenery,
+            accent: _amber,
+            onTap: () => _openTray(_Tray.scenery),
+          ),
+          const SizedBox(width: 6),
+          _Chip(
+            label: 'KEEPSAKES',
+            icon: AppIcons.add_rounded,
+            selected: _tray == _Tray.keepsakes,
+            accent: _amber,
+            dot: _unseen.isNotEmpty,
+            onTap: () => _openTray(_Tray.keepsakes),
+          ),
+          const SizedBox(width: 6),
+          _Chip(
+            label: 'DECOR',
+            icon: AppIcons.home_rounded,
+            selected: _tray == _Tray.decor,
+            accent: _amber,
+            onTap: () => _openTray(_Tray.decor),
+          ),
           const SizedBox(width: 16),
           for (final m in _layout.realm.moods) ...[
             _Chip(
@@ -710,12 +1516,96 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     );
   }
 
-  Widget _residentRow(BuildContext context, HomeResident r) {
-    final look = _looks[r.instanceId];
-    final name = look?.$2.nickname?.isNotEmpty == true
-        ? look!.$2.nickname!
-        : (look?.$1.name ?? '');
-    final floats = _floats(r.instanceId);
+  /// What can be done to the chosen resident or piece.
+  Widget _selectionRow(BuildContext context) {
+    final r = _selectedResident;
+    final p = _selectedPiece;
+    String name;
+    final chips = <Widget>[];
+    void chip(String label, IconData icon, VoidCallback onTap, {Color? accent}) {
+      chips
+        ..add(const SizedBox(width: 6))
+        ..add(
+          _Chip(
+            label: label,
+            icon: icon,
+            selected: false,
+            accent: accent ?? _amber,
+            onTap: onTap,
+          ),
+        );
+    }
+
+    if (r != null) {
+      final look = _looks[r.instanceId];
+      name = look?.$2.nickname?.isNotEmpty == true
+          ? look!.$2.nickname!
+          : (look?.$1.name ?? '');
+      chip(r.back ? 'TO FRONT' : 'TO BACK', AppIcons.layers_rounded, _swapRow);
+      chip('TURN', AppIcons.swap_horiz_rounded, _turn);
+      if (_floats(r.instanceId)) {
+        chip(
+          r.lift == null ? 'FLY' : 'LAND',
+          AppIcons.flight_takeoff_rounded,
+          _flyOrLand,
+        );
+      }
+      chip(
+        'SEND AWAY',
+        AppIcons.close_rounded,
+        _sendAway,
+        accent: const Color(0xFFC0392B),
+      );
+    } else if (p != null) {
+      final scenery = _layout.realm.sceneryOf(p.kind);
+      name = p.decor != null
+          ? '${p.decor!.name}${p.trial ? ' · TRYING' : ''}'
+          : p.isKeepsake
+          ? (_ledger.byId(p.kind)?.title ?? '')
+          : (scenery?.label ?? '');
+      if (p.isKeepsake || (scenery?.far ?? false)) {
+        chip(p.back ? 'TO FRONT' : 'TO BACK', AppIcons.layers_rounded, _swapRow);
+      }
+      if (p.isKeepsake) {
+        chip('TURN', AppIcons.swap_horiz_rounded, _turn);
+      } else {
+        chip('SIZE', AppIcons.tune_rounded, _resize);
+      }
+      final decor = p.decor;
+      if (decor != null && decor.styles.isNotEmpty) {
+        chip(
+          decor.styles[p.style.clamp(0, decor.styles.length - 1)],
+          AppIcons.auto_awesome_rounded,
+          _restyle,
+        );
+      }
+      if (decor != null && p.trial) {
+        final price = decor.gold > 0
+            ? '${decor.gold} GOLD'
+            : '${decor.silver} SILVER';
+        chips
+          ..add(const SizedBox(width: 6))
+          ..add(
+            _Chip(
+              label: _armed == 'buy'
+                  ? 'TAP AGAIN TO BUY · $price'
+                  : (_buyNote ?? 'BUY · $price'),
+              icon: AppIcons.add_rounded,
+              selected: _armed == 'buy',
+              accent: _amber,
+              onTap: () => _twice('buy', () => _buy(p)),
+            ),
+          );
+      }
+      chip(
+        'PUT AWAY',
+        AppIcons.close_rounded,
+        _sendAway,
+        accent: const Color(0xFFC0392B),
+      );
+    } else {
+      return const SizedBox.shrink();
+    }
     return Align(
       alignment: Alignment.centerLeft,
       child: SingleChildScrollView(
@@ -738,42 +1628,375 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            _Chip(
-              label: r.back ? 'TO FRONT' : 'TO BACK',
-              icon: AppIcons.layers_rounded,
-              selected: false,
-              onTap: _swapRow,
-            ),
-            const SizedBox(width: 6),
-            _Chip(
-              label: 'TURN',
-              icon: AppIcons.swap_horiz_rounded,
-              selected: false,
-              onTap: _turn,
-            ),
-            if (floats) ...[
-              const SizedBox(width: 6),
-              _Chip(
-                label: r.lift == null ? 'FLY' : 'LAND',
-                icon: AppIcons.flight_takeoff_rounded,
-                selected: false,
-                onTap: _flyOrLand,
-              ),
-            ],
-            const SizedBox(width: 6),
-            _Chip(
-              label: 'SEND AWAY',
-              icon: AppIcons.close_rounded,
-              selected: false,
-              accent: const Color(0xFFC0392B),
-              onTap: _sendAway,
-            ),
+            const SizedBox(width: 2),
+            ...chips,
           ],
         ),
       ),
     );
   }
+
+  /// The decor tray: every piece by tier — how many of it stand here of
+  /// how many owned, or its price to try and buy.
+  Widget _decorTray(BuildContext context) {
+    final placedDecor = _layout.decor.where((p) => !p.trial).toList();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (placedDecor.isNotEmpty) ...[
+          _Chip(
+            label: _armed == 'decor'
+                ? 'TAP AGAIN TO PUT ALL AWAY'
+                : 'PUT ALL DECOR AWAY',
+            icon: AppIcons.close_rounded,
+            selected: _armed == 'decor',
+            accent: const Color(0xFFC0392B),
+            onTap: () => _twice('decor', _putAllDecorAway),
+          ),
+          const SizedBox(height: 6),
+        ],
+        SizedBox(
+          height: 112,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final tier in DecorTier.values) ...[
+                _TrayLabel(tier.label),
+                const SizedBox(width: 6),
+                for (final d in HomeDecor.ofTier(tier)) ...[
+                  _DecorTile(
+                    decor: d,
+                    owned: _decor.allowedOf(d.id),
+                    placed: _layout.placed
+                        .where((p) => p.kind == d.id && !p.trial)
+                        .length,
+                    onTap: () => _place(d.id, keepsake: true),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                const SizedBox(width: 10),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Every piece of decor in this realm back on the shelf.
+  void _putAllDecorAway() {
+    final game = _game;
+    if (game == null) return;
+    HapticFeedback.mediumImpact();
+    _play(SoundCue.homeDissolve);
+    _select(null);
+    final gone = [..._layout.decor];
+    var layout = _layout.withPlaced([
+      for (final p in _layout.placed)
+        if (p.decor == null) p,
+    ]);
+    for (final p in gone) {
+      layout = layout.freeBeside(p.spawnId);
+    }
+    _commit(layout);
+    for (final p in gone) {
+      game.removeThing(p.spawnId);
+    }
+    game.relayout(_points);
+  }
+
+  /// The tray along the bottom: the realm's own scenery, or the player's
+  /// keepsakes, to place.
+  Widget _trayRow(BuildContext context) {
+    if (_tray == _Tray.decor) return _decorTray(context);
+    if (_tray == _Tray.scenery) {
+      final count = _layout.scenery.length;
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _TrayLabel('${_layout.realm.title.toUpperCase()}  $count/$kHomeBiomeMaxScenery'),
+            const SizedBox(width: 6),
+            _Chip(
+              label: _armed == 'scenery' ? 'TAP AGAIN TO RESET' : 'RESET SCENERY',
+              icon: AppIcons.close_rounded,
+              selected: _armed == 'scenery',
+              accent: const Color(0xFFC0392B),
+              onTap: () => _twice('scenery', _resetScenery),
+            ),
+            for (final s in _layout.realm.scenery) ...[
+              const SizedBox(width: 6),
+              _Chip(
+                label: s.label,
+                icon: AppIcons.add_rounded,
+                selected: false,
+                onTap: () => _place(s.piece, keepsake: false),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+    final owned = _ledger.owned;
+    if (owned.isEmpty) {
+      return _note(
+        context,
+        'No keepsakes yet. Lost maxims, mastered contests and a hundred of a '
+        'species bred each earn one.',
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_layout.keepsakes.isNotEmpty) ...[
+          _Chip(
+            label: _armed == 'keepsakes'
+                ? 'TAP AGAIN TO PUT ALL AWAY'
+                : 'PUT ALL AWAY',
+            icon: AppIcons.close_rounded,
+            selected: _armed == 'keepsakes',
+            accent: const Color(0xFFC0392B),
+            onTap: () => _twice('keepsakes', _putAllAway),
+          ),
+          const SizedBox(height: 6),
+        ],
+        _keepsakeList(owned),
+      ],
+    );
+  }
+
+  Widget _keepsakeList(List<Keepsake> owned) {
+    return SizedBox(
+      height: 112,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: owned.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 6),
+        itemBuilder: (context, i) {
+          final k = owned[i];
+          final out = _layout.placed.where((p) => p.kind == k.id).length;
+          return _KeepsakeTile(
+            keepsake: k,
+            clock: _trayClock,
+            placed: out,
+            onTap: () => _place(k.id, keepsake: true),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A piece of decor on the tray: its picture, its name, and how many stand
+/// here of how many owned — or its price.
+class _DecorTile extends StatelessWidget {
+  const _DecorTile({
+    required this.decor,
+    required this.owned,
+    required this.placed,
+    required this.onTap,
+  });
+
+  final HomeDecor decor;
+  final int owned, placed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final has = owned > 0;
+    final price = decor.gold > 0 ? '${decor.gold} G' : '${decor.silver} S';
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: has
+              ? _amber.withValues(alpha: 0.9)
+              : _palette.line.withValues(alpha: 0.9),
+          bracketSize: 7,
+          strokeWidth: 1,
+        ),
+        child: Container(
+          width: 96,
+          // Solid: the field must not show through.
+          color: Color.alphaBlend(_palette.surfaceFill(), const Color(0xFF05060B)),
+          padding: const EdgeInsets.fromLTRB(4, 4, 4, 5),
+          child: Column(
+            children: [
+              Expanded(
+                child: Opacity(
+                  opacity: has ? 1 : 0.7,
+                  child: KeepsakeView(decor.id),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                decor.name.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: _palette.ink,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              Text(
+                has ? '$placed/$owned HERE' : 'TRY · $price',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: has ? _amber : _palette.muted,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrayLabel extends StatelessWidget {
+  const _TrayLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 32,
+    alignment: Alignment.center,
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    color: _palette.chromeFill(),
+    child: Text(
+      text,
+      style: bracketText(
+        context,
+        10.5,
+        _amber,
+        weight: FontWeight.w800,
+        letterSpacing: 1.2,
+      ),
+    ),
+  );
+}
+
+/// A keepsake on the tray: its own living picture, its name, and how many
+/// of it are out.
+class _KeepsakeTile extends StatefulWidget {
+  const _KeepsakeTile({
+    required this.keepsake,
+    required this.clock,
+    required this.placed,
+    required this.onTap,
+  });
+
+  final Keepsake keepsake;
+  final Animation<double> clock;
+  final int placed;
+  final VoidCallback onTap;
+
+  @override
+  State<_KeepsakeTile> createState() => _KeepsakeTileState();
+}
+
+class _KeepsakeTileState extends State<_KeepsakeTile> {
+  late final KeepsakeArt? _art = KeepsakeArt.of(widget.keepsake.id);
+
+  @override
+  void dispose() {
+    _art?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final k = widget.keepsake;
+    final all = widget.placed >= k.copies;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(widget.onTap),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: all
+              ? _amber.withValues(alpha: 0.9)
+              : _palette.line.withValues(alpha: 0.9),
+          bracketSize: 7,
+          strokeWidth: 1,
+        ),
+        child: Container(
+          width: 96,
+          // Solid: the field must not show through.
+          color: Color.alphaBlend(_palette.surfaceFill(), const Color(0xFF05060B)),
+          padding: const EdgeInsets.fromLTRB(4, 4, 4, 5),
+          child: Column(
+            children: [
+              Expanded(
+                child: _art == null
+                    ? const SizedBox.shrink()
+                    : CustomPaint(
+                        size: Size.infinite,
+                        painter: _KeepsakePainter(_art, widget.clock),
+                      ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                k.title.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: _palette.ink,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              Text(
+                '${widget.placed}/${k.copies} OUT',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: all ? _amber : _palette.muted,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A keepsake drawn to fit its tile, alive.
+class _KeepsakePainter extends CustomPainter {
+  _KeepsakePainter(this.art, this.clock) : super(repaint: clock);
+
+  final KeepsakeArt art;
+  final Animation<double> clock;
+  final KeepsakeTime _time = KeepsakeTime(night: 0.6, daylight: 0.6);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final b = art.box;
+    final k = math.min(size.width / b.width, size.height / b.height) * 0.92;
+    _time.t = clock.value * 60;
+    canvas
+      ..save()
+      ..translate(size.width / 2 - b.center.dx * k, size.height - b.bottom * k)
+      ..scale(k);
+    art.paint(canvas, _time);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_KeepsakePainter old) => old.art != art;
 }
 
 /// A corner button in the wilderness HUD's language.
@@ -845,6 +2068,7 @@ class _Chip extends StatelessWidget {
     this.icon,
     this.accent = _amber,
     this.height = 32,
+    this.dot = false,
   });
 
   final String label;
@@ -853,6 +2077,9 @@ class _Chip extends StatelessWidget {
   final IconData? icon;
   final Color accent;
   final double height;
+
+  /// Something new behind it.
+  final bool dot;
 
   @override
   Widget build(BuildContext context) {
@@ -890,6 +2117,17 @@ class _Chip extends StatelessWidget {
                   letterSpacing: 1.3,
                 ),
               ),
+              if (dot) ...[
+                const SizedBox(width: 6),
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
