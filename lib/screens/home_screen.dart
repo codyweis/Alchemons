@@ -2322,11 +2322,13 @@ class _HomeScreenState extends State<HomeScreen>
                         ],
                       ),
 
-                      // Daily Treasure Chest — bottom center above nav bar
+                      // Daily Treasure Chest — bottom center above nav bar.
+                      // 106 + 128 keeps its centre where the old 160 box
+                      // (on 90) had it, clear of the notices under it.
                       Align(
                         alignment: Alignment.bottomCenter,
                         child: Padding(
-                          padding: EdgeInsets.only(bottom: 90 * hs),
+                          padding: EdgeInsets.only(bottom: 106 * hs),
                           child: Opacity(
                             opacity: _isFieldTutorialActive ? 0.35 : 1.0,
                             child: IgnorePointer(
@@ -2751,10 +2753,11 @@ Duration _treasureMs(int ms) =>
 
 class _DailyTreasureChestState extends State<_DailyTreasureChest>
     with SingleTickerProviderStateMixin {
-  /// The unsealing, 0 → 1. The rewards land as it ends.
+  /// The unsealing, 0 → 1. The rewards land as it ends. Long enough for
+  /// it to flow: at 1.4s the element's motion was a rush.
   late final AnimationController _openCtrl = AnimationController(
     vsync: this,
-    duration: _treasureMs(2000),
+    duration: _treasureMs(3000),
   );
   bool _isClaimed = false;
   bool _isPlaying = false;
@@ -2881,7 +2884,7 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
       behavior: HitTestBehavior.opaque,
       child: DailyReliquary(
         element: dailyCacheElementFor(faction),
-        size: 160 * widget.scale,
+        size: 128 * widget.scale,
         opening: _openCtrl,
       ),
     );

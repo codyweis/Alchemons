@@ -90,6 +90,12 @@ class ElementalCache {
   /// `-1` when idle; otherwise seconds elapsed in the 3s unsealing sequence.
   double openTimer = -1;
 
+  /// Where the attuning companion was when the unsealing began — its bearing
+  /// from the cache and its distance — so it sweeps in to its orbit from
+  /// there instead of jumping onto it. Not saved.
+  double orbitFrom = 0;
+  double orbitRadiusFrom = 110;
+
   Color get color => elementColor(element);
 
   /// A cache is back once the calendar day has rolled over since it was

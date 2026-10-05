@@ -78,13 +78,17 @@ extension CosmicGameElementalCaches on CosmicGame {
 
     cache.openTimer += dt;
     final t = (cache.openTimer / ElementalCache.openDuration).clamp(0.0, 1.0);
-    final color = cache.color;
 
-    // The companion circles the seal, feeding it.
+    // The companion circles the seal, feeding it: it sweeps in from where
+    // it was and makes one eased turn round the cache. The element drawing
+    // in to the seam is part of the cache's own painting.
     final comp = _attuningCompanionForCache(cache);
     if (comp != null && comp.isAlive) {
-      final orbitAngle = t * pi * 4;
-      const orbitRadius = 110.0;
+      final orbitAngle =
+          cache.orbitFrom + Curves.easeInOutSine.transform(t) * 2 * pi;
+      final settle = Curves.easeOutCubic.transform((t / 0.3).clamp(0.0, 1.0));
+      final orbitRadius =
+          cache.orbitRadiusFrom + (110 - cache.orbitRadiusFrom) * settle;
       comp.position = Offset(
         cache.position.dx + cos(orbitAngle) * orbitRadius,
         cache.position.dy + sin(orbitAngle) * orbitRadius,
@@ -94,71 +98,20 @@ extension CosmicGameElementalCaches on CosmicGame {
       comp.invincibleTimer = 0.5;
     }
 
-    // Element streaming inward from the companion's ring toward the seal.
-    if (_rng.nextDouble() < 0.75) {
-      final a = _rng.nextDouble() * pi * 2;
-      final r = 120 + _rng.nextDouble() * 60;
-      final sx = cache.position.dx + cos(a) * r;
-      final sy = cache.position.dy + sin(a) * r;
-      vfxParticles.add(
-        VfxParticle(
-          x: sx,
-          y: sy,
-          vx: (cache.position.dx - sx) * 1.6,
-          vy: (cache.position.dy - sy) * 1.6,
-          life: 0.6,
-          color: color,
-          size: 2 + _rng.nextDouble() * 3,
-        ),
-      );
-    }
-
     if (cache.openTimer >= ElementalCache.openDuration) {
       _finishCacheUnseal(cache);
     }
   }
 
   void _finishCacheUnseal(ElementalCache cache) {
-    final color = cache.color;
     openingCache = null;
     cache.openTimer = -1;
     // Daily pickup: the cache is gone until the calendar day rolls over. The
     // old play-time countdown froze whenever the app was closed.
     cache.openedAtMs = DateTime.now().millisecondsSinceEpoch;
     cache.respawnTimer = 0;
-
-    for (var i = 0; i < 34; i++) {
-      final a = _rng.nextDouble() * pi * 2;
-      final s = 80 + _rng.nextDouble() * 190;
-      vfxParticles.add(
-        VfxParticle(
-          x: cache.position.dx,
-          y: cache.position.dy,
-          vx: cos(a) * s,
-          vy: sin(a) * s,
-          life: 1.3,
-          color: i.isEven ? color : const Color(0xFFFFD700),
-          size: 3 + _rng.nextDouble() * 5,
-        ),
-      );
-    }
-    vfxRings.add(
-      VfxShockRing(
-        x: cache.position.dx,
-        y: cache.position.dy,
-        maxRadius: 260,
-        color: color,
-      ),
-    );
-    vfxRings.add(
-      VfxShockRing(
-        x: cache.position.dx,
-        y: cache.position.dy,
-        maxRadius: 170,
-        color: const Color(0xFFFFECB3),
-        expandSpeed: 300,
-      ),
-    );
+    // No burst here: the unsealing has already flowed out and thinned to
+    // nothing by its last frame.
 
     if (identical(_nearestCache, cache)) {
       _nearestCache = null;
@@ -199,8 +152,19 @@ extension CosmicGameElementalCaches on CosmicGame {
   bool beginCacheUnseal(ElementalCache cache) {
     if (openingCache != null) return false;
     if (!cache.isPresent || cache.isOpening) return false;
-    if (!cacheAttunementReady(cache)) return false;
+    final comp = _attuningCompanionForCache(cache);
+    if (comp == null) return false;
     cache.openTimer = 0;
+    final ww = world_.worldSize.width;
+    final wh = world_.worldSize.height;
+    var dx = comp.position.dx - cache.position.dx;
+    var dy = comp.position.dy - cache.position.dy;
+    if (dx > ww / 2) dx -= ww;
+    if (dx < -ww / 2) dx += ww;
+    if (dy > wh / 2) dy -= wh;
+    if (dy < -wh / 2) dy += wh;
+    cache.orbitFrom = atan2(dy, dx);
+    cache.orbitRadiusFrom = sqrt(dx * dx + dy * dy).clamp(40.0, 460.0);
     openingCache = cache;
     return true;
   }

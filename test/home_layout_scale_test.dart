@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 double topBlock(double k) => 68 + (20 * k) + (260 * k);
 
 /// The chest occupies from its bottom padding up through its own height.
-double bottomBlock(double k) => (90 * k) + (160 * k);
+double bottomBlock(double k) => (106 * k) + (128 * k);
 
 void main() {
   group('the scale factor', () {
@@ -47,15 +47,15 @@ void main() {
   });
 
   group('the hero and the chest stop colliding', () {
-    test('unscaled, the composition commits 598px before anything flexes', () {
-      // 68 header + 20 gap + 260 hero = 348 from the top, and 90 + 160 for
-      // the chest from the bottom. A 600dp viewport is left with 2px between
+    test('unscaled, the composition commits 582px before anything flexes', () {
+      // 68 header + 20 gap + 260 hero = 348 from the top, and 106 + 128 for
+      // the chest from the bottom. A 585dp viewport is left with 3px between
       // them — touching — and anything shorter overlaps outright.
       const unscaled = 1.0;
       final committed = topBlock(unscaled) + bottomBlock(unscaled);
-      expect(committed, closeTo(598, 0.5));
-      expect(600 - committed, lessThan(5), reason: 'effectively touching');
-      expect(560 - committed, lessThan(0), reason: 'overlapping outright');
+      expect(committed, closeTo(582, 0.5));
+      expect(585 - committed, lessThan(5), reason: 'effectively touching');
+      expect(570 - committed, lessThan(0), reason: 'overlapping outright');
     });
 
     test('scaling keeps daylight between them on short screens', () {
@@ -81,7 +81,7 @@ void main() {
 
   test('the side dock starts above the chest on a short screen', () {
     // Dock top is 140 * k from the safe area; the chest top is
-    // height - (90 + 160) * k. They must not cross.
+    // height - (106 + 128) * k. They must not cross.
     for (final h in [560.0, 640.0, 780.0]) {
       final k = homeScaleForTest(h);
       expect(140 * k, lessThan(h - bottomBlock(k)), reason: '${h}dp');
