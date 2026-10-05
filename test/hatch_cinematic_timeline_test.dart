@@ -110,6 +110,14 @@ void main() {
 
     await tester.tap(find.text('go'));
     await tester.pump();
+    // The timeline starts once the silhouette is precached, and a decode
+    // needs real time: without this the ceremony never started at all.
+    for (var i = 0; i < 6; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+      await tester.pump(const Duration(milliseconds: 1));
+    }
 
     // Step through the full ceremony in small increments. Any assertion in a
     // painter or an animation surfaces as a test failure here.
@@ -122,12 +130,13 @@ void main() {
       );
     }
     // Proof the ceremony actually RAN: it pops itself at the handover. If the
-    // timeline never started, the route is still up and this fails — which is
-    // how an earlier version of this test silently exercised nothing.
+    // timeline never started, the route is still up and this fails. (It used
+    // to look for the button instead, which a non-opaque route never hides,
+    // so it passed while the ceremony sat unstarted.)
     await tester.pumpAndSettle(const Duration(seconds: 1));
     expect(
-      find.text('go'),
-      findsOneWidget,
+      find.byType(HatchingCeremonyView),
+      findsNothing,
       reason: 'the ceremony never completed and popped its route',
     );
   });

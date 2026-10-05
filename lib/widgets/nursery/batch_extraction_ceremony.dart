@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
@@ -19,9 +20,12 @@ import 'package:provider/provider.dart';
 ///               order. The card's own CTA is the Next button.
 ///   3. NEW      anything newly discovered, shown together at the end.
 ///
-/// The ceremonies run at [CinematicQuality.performance] because a full
-/// chamber's worth of them is several times the vertex load of one, and only
-/// the first cell plays the ceremony cue -- seven at once is noise, not sound.
+/// The cells follow the player's own cinematic quality up to
+/// [kBatchFullQualityCells] at once and drop to [CinematicQuality.performance]
+/// past that, where it is several times one ceremony's per-frame work. The
+/// result cards play one at a time, so they always follow the player's
+/// setting. Only the first cell plays the ceremony cue -- seven at once is
+/// noise, not sound.
 class BatchExtractionCeremony extends StatefulWidget {
   const BatchExtractionCeremony({
     super.key,
@@ -53,11 +57,9 @@ class _Extracted {
   final HatchCeremonyParams params;
 }
 
-class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _orbit;
-
+class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony> {
   _Phase _phase = _Phase.extracting;
+  CinematicQuality _quality = CinematicQuality.cinematic;
   final List<_Extracted> _results = [];
   final Set<int> _finishedCells = {};
   String? _error;
@@ -73,17 +75,7 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony>
   @override
   void initState() {
     super.initState();
-    _orbit = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 5),
-    )..repeat();
     WidgetsBinding.instance.addPostFrameCallback((_) => _extractAll());
-  }
-
-  @override
-  void dispose() {
-    _orbit.dispose();
-    super.dispose();
   }
 
   /// Movement 0: all the database work, before a single frame of ceremony.
@@ -92,6 +84,8 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony>
   Future<void> _extractAll() async {
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
+    _quality = await CinematicQualityService().getQuality();
+    if (!mounted) return;
 
     for (final slot in widget.slots) {
       if (!mounted) return;
@@ -176,7 +170,7 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony>
         context,
         r.instance.instanceId,
         r.isNewDiscovery,
-        cinematicQuality: CinematicQuality.performance,
+        cinematicQuality: _quality,
         onDeferDiscoveryFlight: r.isNewDiscovery
             ? (capture) => _pendingFlights.add((
                 capture: capture,
@@ -221,34 +215,20 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony>
     // card has been seen and the discoveries have filed themselves away.
     return PopScope(
       canPop: false,
+      // Plain black, the ceremony's own ground. This used to carry a turning
+      // constellation of hairlines behind everything, which repainted every
+      // frame for the whole run -- under each result card too, where nothing
+      // of it showed.
       child: Material(
-        color: Colors.black.withValues(alpha: 0.94),
+        color: Colors.black,
         child: SafeArea(
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: RepaintBoundary(
-                  child: AnimatedBuilder(
-                    animation: _orbit,
-                    builder: (_, __) => CustomPaint(
-                      painter: _BatchConstellationPainter(
-                        phase: _orbit.value,
-                        color: t.amber,
-                        remaining: widget.slots.length - _completed,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              switch (_phase) {
-                _Phase.extracting => _preparing(theme, t),
-                _Phase.ceremony => _ceremonyGrid(theme, t),
-                // The cards are dialogs above this route; underneath it just
-                // holds the field so nothing flashes between them.
-                _Phase.cards => const SizedBox.shrink(),
-              },
-            ],
-          ),
+          child: switch (_phase) {
+            _Phase.extracting => _preparing(theme, t),
+            _Phase.ceremony => _ceremonyGrid(theme, t),
+            // The cards are dialogs above this route; underneath it just
+            // holds the dark so nothing flashes between them.
+            _Phase.cards => const SizedBox.shrink(),
+          },
         ),
       ),
     );
@@ -293,11 +273,6 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony>
 
   Widget _ceremonyGrid(FactionTheme theme, ForgeTokens t) {
     final n = _results.length;
-    // Always two across. A ceremony rendered into a third of a phone's width
-    // is too small to read as the ceremony -- the shell's whole arc happens
-    // inside a thumbnail. Two keeps every cell legible and just scrolls the
-    // grid taller as chambers are added.
-    const cross = 2;
     return Column(
       children: [
         Padding(
@@ -314,62 +289,13 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony>
           ),
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: LayoutBuilder(
-              builder: (context, box) {
-                // Every ceremony has to be on screen at once -- this is the
-                // all-at-once beat, and a cell you have to scroll to has
-                // already finished by the time you reach it. Two across is
-                // fixed, so the cells take whatever height the rows leave.
-                final rows = (n / cross).ceil();
-                final cellW = (box.maxWidth - 6 * (cross - 1)) / cross;
-                final cellH = (box.maxHeight - 6 * (rows - 1)) / rows;
-                final ratio = cellH <= 0 ? 1.0 : cellW / cellH;
-                return GridView.builder(
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: n,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: cross,
-                    crossAxisSpacing: 6,
-                    mainAxisSpacing: 6,
-                    childAspectRatio: ratio,
-                  ),
-                  itemBuilder: (_, i) {
-                    final r = _results[i];
-                    return RepaintBoundary(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: t.amber.withValues(alpha: 0.28),
-                          ),
-                        ),
-                        child: ClipRect(
-                          child: HatchingCeremonyView(
-                            key: ValueKey(r.instance.instanceId),
-                            parentATypeId: r.params.parentATypeId,
-                            parentBTypeId: r.params.parentBTypeId,
-                            resultTypeId: r.params.resultTypeId,
-                            paletteMain: r.params.paletteMain,
-                            creatureSilhouette: r.params.silhouette,
-                            hintType: r.params.hintType,
-                            variantColor: r.params.variantColor,
-                            pureElementTypeId: r.params.pureElementTypeId,
-                            mutationFamily: r.params.mutationFamily,
-                            mutation: r.params.mutation,
-                            quality: CinematicQuality.performance,
-                            // One cue for the batch, not one per cell.
-                            playSound: i == 0,
-                            showSkip: false,
-                            onComplete: () => _cellFinished(i),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+          child: BatchCeremonyGrid(
+            ceremonies: [for (final r in _results) r.params],
+            keys: [for (final r in _results) ValueKey(r.instance.instanceId)],
+            quality: n <= kBatchFullQualityCells
+                ? _quality
+                : CinematicQuality.performance,
+            onCellFinished: _cellFinished,
           ),
         ),
         Padding(
@@ -391,42 +317,150 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony>
   }
 }
 
-class _BatchConstellationPainter extends CustomPainter {
-  const _BatchConstellationPainter({
-    required this.phase,
-    required this.color,
-    required this.remaining,
+/// Up to this many cells run at the player's own cinematic quality.
+const int kBatchFullQualityCells = 4;
+
+/// Every chamber's ceremony at once, two across.
+///
+/// The cells are not boxed. They used to sit in amber hairline frames with a
+/// hard clip at each edge, so every shell that reached its edge was cut off
+/// in a visible straight line and the screen read as a spreadsheet of
+/// thumbnails. Now each ceremony is inset in its cell, may spill into the
+/// margin, and the cell's edges fade to black -- so the grid reads as one dark
+/// field with several ceremonies in it.
+class BatchCeremonyGrid extends StatelessWidget {
+  const BatchCeremonyGrid({
+    super.key,
+    required this.ceremonies,
+    required this.quality,
+    required this.onCellFinished,
+    this.keys,
   });
 
-  final double phase;
-  final Color color;
-  final int remaining;
+  final List<HatchCeremonyParams> ceremonies;
+  final List<Key>? keys;
+  final CinematicQuality quality;
+  final ValueChanged<int> onCellFinished;
+
+  /// The ceremony's share of its cell; the rest is the margin it can spill
+  /// into before the edge fade takes it.
+  static const double _inset = 0.94;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = ceremonies.length;
+    final screenSpan = MediaQuery.sizeOf(context).shortestSide;
+    // Always two across. A ceremony rendered into a third of a phone's width
+    // is too small to read as the ceremony -- the shell's whole arc happens
+    // inside a thumbnail. Two keeps every cell legible.
+    const cross = 2;
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          // Every ceremony has to be on screen at once -- this is the
+          // all-at-once beat, and a cell you have to scroll to has already
+          // finished by the time you reach it. Two across is fixed, so the
+          // cells take whatever height the rows leave.
+          final rows = (n / cross).ceil();
+          final cellW = box.maxWidth / cross;
+          final cellH = box.maxHeight / rows;
+          final ratio = cellH <= 0 ? 1.0 : cellW / cellH;
+          final span = math.min(cellW, cellH) * _inset;
+          // Thinner tubes, but not in proportion: at a cell's full share they
+          // fall under a device pixel and the shell goes grey and sparse. The
+          // lift keeps the coverage the full-screen shell has.
+          final detail = screenSpan <= 0
+              ? 1.0
+              : (span / screenSpan * 1.35).clamp(0.5, 1.0);
+          return GridView.builder(
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: n,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: cross,
+              childAspectRatio: ratio,
+            ),
+            itemBuilder: (_, i) {
+              final p = ceremonies[i];
+              return RepaintBoundary(
+                child: ClipRect(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      FractionallySizedBox(
+                        widthFactor: _inset,
+                        heightFactor: _inset,
+                        child: HatchingCeremonyView(
+                          key: keys?[i] ?? ValueKey(i),
+                          parentATypeId: p.parentATypeId,
+                          parentBTypeId: p.parentBTypeId,
+                          resultTypeId: p.resultTypeId,
+                          paletteMain: p.paletteMain,
+                          creatureSilhouette: p.silhouette,
+                          hintType: p.hintType,
+                          variantColor: p.variantColor,
+                          pureElementTypeId: p.pureElementTypeId,
+                          mutationFamily: p.mutationFamily,
+                          mutation: p.mutation,
+                          quality: quality,
+                          detail: detail,
+                          // One cue for the batch, not one per cell.
+                          playSound: i == 0,
+                          showSkip: false,
+                          onComplete: () => onCellFinished(i),
+                        ),
+                      ),
+                      const IgnorePointer(
+                        child: RepaintBoundary(
+                          child: CustomPaint(painter: _CellEdgeFade()),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Black drawn in from each edge of a cell, so whatever reaches the edge
+/// fades out instead of being cut. Static: it is its own layer and never
+/// repaints while the ceremony under it does.
+class _CellEdgeFade extends CustomPainter {
+  const _CellEdgeFade();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = math.min(size.width, size.height) * 0.38;
-    final line = Paint()
-      ..color = color.withValues(alpha: 0.10)
-      ..strokeWidth = 1;
-    final dot = Paint()..color = color.withValues(alpha: 0.35);
-    const count = 12;
-    Offset point(int i) {
-      final angle = phase * math.pi * 2 + i * math.pi * 2 / count;
-      final wobble = 0.82 + 0.18 * math.sin(phase * math.pi * 2 + i);
-      return center +
-          Offset(math.cos(angle), math.sin(angle)) * radius * wobble;
+    final band = size.shortestSide * 0.12;
+    const black = Color(0xFF000000);
+    const clear = Color(0x00000000);
+    void edge(Rect r, Offset from, Offset to) {
+      canvas.drawRect(
+        r,
+        Paint()..shader = ui.Gradient.linear(from, to, const [black, clear]),
+      );
     }
 
-    for (var i = 0; i < count; i++) {
-      canvas.drawLine(point(i), point((i + 3) % count), line);
-    }
-    for (var i = 0; i < count; i++) {
-      canvas.drawCircle(point(i), i < remaining ? 3.2 : 1.5, dot);
-    }
+    final w = size.width, h = size.height;
+    edge(Rect.fromLTWH(0, 0, w, band), Offset.zero, Offset(0, band));
+    edge(
+      Rect.fromLTWH(0, h - band, w, band),
+      Offset(0, h),
+      Offset(0, h - band),
+    );
+    edge(Rect.fromLTWH(0, 0, band, h), Offset.zero, Offset(band, 0));
+    edge(
+      Rect.fromLTWH(w - band, 0, band, h),
+      Offset(w, 0),
+      Offset(w - band, 0),
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _BatchConstellationPainter oldDelegate) =>
-      oldDelegate.phase != phase || oldDelegate.remaining != remaining;
+  bool shouldRepaint(covariant _CellEdgeFade oldDelegate) => false;
 }

@@ -9,8 +9,10 @@ import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
+import 'package:alchemons/widgets/animations/hatch_sand.dart';
 import 'package:alchemons/widgets/animations/hatch_shell.dart';
 import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
 
@@ -162,6 +164,17 @@ class HatchingCeremonyView extends StatefulWidget {
   /// Grid cells have no SKIP of their own -- the batch owns that control.
   final bool showSkip;
 
+  /// How large this ceremony is drawn relative to the full screen; a grid
+  /// cell passes its share so tubes and motes thin with the shell instead of
+  /// keeping their full-screen pixel sizes.
+  final double detail;
+
+  /// The ground the shell stands in: the two parents' sand, stirred by a
+  /// finger (see hatch_sand.dart). Null leaves it to whether the ceremony
+  /// owns the screen -- a grid cell keeps the drifting motes, because sand
+  /// in every cell would be seven fields stepping at once.
+  final bool? sand;
+
   const HatchingCeremonyView({
     super.key,
     required this.parentATypeId,
@@ -179,6 +192,8 @@ class HatchingCeremonyView extends StatefulWidget {
     this.onComplete,
     this.playSound = true,
     this.showSkip = true,
+    this.detail = 1.0,
+    this.sand,
   });
 
   @override
@@ -259,6 +274,57 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
 
   bool _reducedEffects = false;
   AudioController? _audio;
+
+  /// The sand under the shell, when this ceremony has it (see
+  /// [HatchingCeremonyView.sand]). Stepped on its own ticker, started with
+  /// the timeline: it settles in as the ceremony begins, and nothing ticks
+  /// while a stalled ceremony waits on its silhouette.
+  HatchSandField? _sand;
+  Ticker? _sandTicker;
+  final _SandFrame _sandFrame = _SandFrame();
+  Duration _sandLast = Duration.zero;
+  bool _sandBurst = false;
+
+  /// The sand's wave leaves the shell on the frame its unravel begins.
+  static const double _kSandBurstAt =
+      HatchShellTuning.unravelAt * _kShellWindow;
+
+  HatchSandField? _buildSand() {
+    if (!(widget.sand ?? widget.onComplete == null)) return null;
+    final mutation = widget.mutation;
+    return HatchSandField(
+      paletteA: _elementPalette(widget.parentATypeId, widget.paletteMain),
+      paletteB: _elementPalette(
+        widget.parentBTypeId ?? widget.parentATypeId,
+        widget.paletteMain,
+      ),
+      colour: mutation == AlchemonMutation.transmuted
+          ? HatchSandColour.gilded
+          : widget.hintType == HatchHintType.prismatic
+          ? HatchSandColour.prismatic
+          : HatchSandColour.elements,
+      // Alchemized never settles: its sand doesn't either.
+      loose: mutation == AlchemonMutation.alchemized,
+      fleck: widget.hintType == HatchHintType.variant
+          ? widget.variantColor
+          : null,
+      looseLight: mutationAccent(AlchemonMutation.alchemized),
+      reduced: widget.quality == CinematicQuality.performance,
+    );
+  }
+
+  void _tickSand(Duration elapsed) {
+    final sand = _sand;
+    if (sand == null) return;
+    final dt = ((elapsed - _sandLast).inMicroseconds / 1e6).clamp(0.0, 0.05);
+    _sandLast = elapsed;
+    if (!_sandBurst && _timeline.value >= _kSandBurstAt) {
+      _sandBurst = true;
+      sand.burst();
+    }
+    sand.step(dt);
+    _sandFrame.tick();
+  }
 
   // Element tint for the purity treatment (null = not an elementally pure
   // lineage). Resolved once from the shared element configs so it matches
@@ -484,6 +550,7 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
     // inside the opening beat — measured as repeated 0.1-0.4s stalls between
     // t=0.02 and t=0.21.
     _shellModel = _buildShellModel();
+    _sand = _buildSand();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       unawaited(_readSilhouette());
@@ -503,6 +570,7 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
         context.sound(SoundCue.extractionCeremony, owner: this);
       }
       _timeline.forward(from: 0.0);
+      if (_sand != null) _sandTicker = createTicker(_tickSand)..start();
     });
   }
 
@@ -541,6 +609,9 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
   void dispose() {
     _audio?.stopSoundOwner(this);
     _timeline.dispose();
+    _sandTicker?.dispose();
+    _sandFrame.dispose();
+    _sand?.dispose();
     super.dispose();
   }
 
@@ -608,33 +679,50 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
               children: [
                 ColoredBox(color: bg.withValues(alpha: 0.98)),
 
-                // Ambient motes: the field the shell lives in. Drifting
-                // for the whole ceremony, behind and in front of the shell.
-                RepaintBoundary(
-                  child: IgnorePointer(
-                    child: AnimatedBuilder(
-                      animation: _timeline,
-                      builder: (context, child) {
-                        return CustomPaint(
-                          painter: HatchShellAmbientPainter(
-                            t: t,
-                            clock: shellClock,
-                            tint: widget.mutation == AlchemonMutation.transmuted
-                                ? ShellMutationLook.gold
-                                : widget.paletteMain,
-                            accent: widget.mutation != null
-                                ? mutationAccent(widget.mutation!)
-                                : widget.variantColor ??
-                                      _pureColor ??
-                                      widget.paletteMain,
-                            reduced: _reducedEffects,
-                            opacity: 1.0 - whiteout,
-                          ),
-                        );
-                      },
+                // The sand the shell stands in: the two parents' grains,
+                // stirred by a finger. It repaints on its own ticker, not
+                // the timeline's rebuild.
+                if (_sand != null)
+                  RepaintBoundary(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        size: Size.infinite,
+                        isComplex: true,
+                        willChange: true,
+                        painter: HatchSandPainter(_sand!, repaint: _sandFrame),
+                      ),
+                    ),
+                  )
+                else
+                  // Ambient motes: the field the shell lives in. Drifting
+                  // for the whole ceremony, behind and in front of the shell.
+                  RepaintBoundary(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _timeline,
+                        builder: (context, child) {
+                          return CustomPaint(
+                            painter: HatchShellAmbientPainter(
+                              t: t,
+                              clock: shellClock,
+                              tint:
+                                  widget.mutation == AlchemonMutation.transmuted
+                                  ? ShellMutationLook.gold
+                                  : widget.paletteMain,
+                              accent: widget.mutation != null
+                                  ? mutationAccent(widget.mutation!)
+                                  : widget.variantColor ??
+                                        _pureColor ??
+                                        widget.paletteMain,
+                              reduced: _reducedEffects,
+                              opacity: 1.0 - whiteout,
+                              detail: widget.detail,
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
-                ),
 
                 // The shell itself — one drawVertices call.
                 RepaintBoundary(
@@ -679,6 +767,7 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                             mutation: widget.mutation,
                             reduced:
                                 widget.quality == CinematicQuality.performance,
+                            detail: widget.detail,
                             opacity: (1.0 - whiteout) * _shellFadeIn,
                           ),
                         );
@@ -761,8 +850,10 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                     ),
                   ),
 
-                // Pure lineage caption, revealed with the silhouette
-                if (widget.pureElementTypeId != null && t > 0.80)
+                // Pure lineage caption, revealed with the silhouette. Not in
+                // a grid cell: pinned 110 px up a quarter-screen cell it lands
+                // across the shell, and the result card says it anyway.
+                if (widget.pureElementTypeId != null && !embedded && t > 0.80)
                   Positioned(
                     left: 0,
                     right: 0,
@@ -835,8 +926,12 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
         },
       ),
     );
-    if (embedded) return content;
-    return Scaffold(backgroundColor: Colors.transparent, body: content);
+    final sand = _sand;
+    final ground = sand == null
+        ? content
+        : HatchSandStir(field: sand, child: content);
+    if (embedded) return ground;
+    return Scaffold(backgroundColor: Colors.transparent, body: ground);
   }
 }
 
@@ -1353,4 +1448,9 @@ class _SilhouetteGrainsPainter extends CustomPainter {
       old.drift != drift ||
       old.grains != grains ||
       old.mutation != mutation;
+}
+
+/// Ticks the sand's painter without rebuilding the ceremony.
+class _SandFrame extends ChangeNotifier {
+  void tick() => notifyListeners();
 }

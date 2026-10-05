@@ -783,6 +783,12 @@ class HatchShellPainter extends CustomPainter {
   final AlchemonMutation? mutation;
   final bool reduced;
 
+  /// How large this shell is drawn relative to a full-screen ceremony. The
+  /// shape scales with the canvas but tube widths are in pixels, so a shell
+  /// in a quarter-screen cell keeps full-size tubes, overlaps them, and reads
+  /// as a scribble. Below 1 the tubes thin with it.
+  final double detail;
+
   /// Fades the whole shell out (used by the cinematic's whiteout).
   final double opacity;
 
@@ -800,6 +806,7 @@ class HatchShellPainter extends CustomPainter {
     this.variantColor,
     this.mutation,
     this.reduced = false,
+    this.detail = 1.0,
     this.opacity = 1.0,
   });
 
@@ -1108,7 +1115,8 @@ class HatchShellPainter extends CustomPainter {
                 HatchShellTuning.tubeWidthMax,
                 d,
               ) *
-              min(widthMul, 1.8);
+              min(widthMul, 1.8) *
+              detail;
           final nx = -ty * w, ny = tx * w;
           final alpha =
               (_lerp(
@@ -1622,6 +1630,12 @@ class HatchShellAmbientPainter extends CustomPainter {
   final bool reduced;
   final double opacity;
 
+  /// As [HatchShellPainter.detail]: a field drawn in a small cell keeps the
+  /// full screen's mote count and point sizes otherwise, so every cell is as
+  /// busy as the whole screen. Below 1 the count follows the area and the
+  /// points shrink, down to the size where they still read as points.
+  final double detail;
+
   final Float32List _back;
   final Float32List _front;
 
@@ -1632,6 +1646,7 @@ class HatchShellAmbientPainter extends CustomPainter {
     required this.accent,
     this.reduced = false,
     this.opacity = 1.0,
+    this.detail = 1.0,
   }) : _back = Float32List(
          (reduced
                  ? HatchShellTuning.ambientCountReduced
@@ -1648,9 +1663,13 @@ class HatchShellAmbientPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (opacity <= 0.01) return;
-    final n = reduced
+    final full = reduced
         ? HatchShellTuning.ambientCountReduced
         : HatchShellTuning.ambientCount;
+    final n = detail >= 1
+        ? full
+        : (full * detail * detail).round().clamp(12, full);
+    final pt = detail.clamp(0.7, 1.0);
     final span = size.shortestSide;
 
     // Fade in with the ceremony, never fully out — these are the field the
@@ -1709,11 +1728,11 @@ class HatchShellAmbientPainter extends CustomPainter {
     if (nb > 0) {
       final back = Float32List.sublistView(_back, 0, nb * 2);
       p
-        ..strokeWidth = 2.16
+        ..strokeWidth = 2.16 * pt
         ..color = tint.withValues(alpha: env * 0.5);
       canvas.drawRawPoints(ui.PointMode.points, back, p);
       p
-        ..strokeWidth = 0.9
+        ..strokeWidth = 0.9 * pt
         ..color = Color.lerp(
           tint,
           const Color(0xFFFFFFFF),
@@ -1724,11 +1743,11 @@ class HatchShellAmbientPainter extends CustomPainter {
     if (nf > 0) {
       final front = Float32List.sublistView(_front, 0, nf * 2);
       p
-        ..strokeWidth = 3.42
+        ..strokeWidth = 3.42 * pt
         ..color = accent.withValues(alpha: env * 0.85);
       canvas.drawRawPoints(ui.PointMode.points, front, p);
       p
-        ..strokeWidth = 1.44
+        ..strokeWidth = 1.44 * pt
         ..color = Color.lerp(
           accent,
           const Color(0xFFFFFFFF),
