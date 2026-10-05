@@ -1,5 +1,5 @@
-import 'package:alchemons/games/cosmic/planets/planet_art.dart'
-    show paintSoftCircle;
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -77,6 +77,10 @@ class VirtualJoystickState extends State<VirtualJoystick> {
   }
 }
 
+/// A dark glass lens with a glass bead in it. The lens's limb catches a
+/// little light instead of being outlined; four short marks at the compass
+/// points stand in for the old cross. The bead is pale glass at rest and
+/// lit amber while it is held.
 class _JoystickPainter extends CustomPainter {
   _JoystickPainter({
     required this.knob,
@@ -88,76 +92,69 @@ class _JoystickPainter extends CustomPainter {
   final double baseRadius;
   final double knobRadius;
 
+  static const _amber = Color(0xFFE4B356);
+  static final Paint _p = Paint();
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(baseRadius, baseRadius);
-    final knobOffset = knob.value ?? Offset.zero;
     final active = knob.value != null;
+    final r = baseRadius;
 
-    // Outer ring
-    canvas.drawCircle(
-      center,
-      baseRadius,
-      Paint()
-        ..color = Colors.white.withValues(alpha: active ? 0.12 : 0.06)
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawCircle(
-      center,
-      baseRadius,
-      Paint()
-        ..color = Colors.white.withValues(alpha: active ? 0.25 : 0.1)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
+    // The lens: dark glass, its limb lit.
+    _p.shader = RadialGradient(
+      colors: [
+        const Color(0xFF0B0B10).withValues(alpha: active ? 0.62 : 0.48),
+        const Color(0xFF0B0B10).withValues(alpha: active ? 0.55 : 0.4),
+        const Color(0xFF3A3A48).withValues(alpha: active ? 0.5 : 0.32),
+        const Color(0xFF3A3A48).withValues(alpha: 0),
+      ],
+      stops: const [0.0, 0.8, 0.95, 1.0],
+    ).createShader(Rect.fromCircle(center: center, radius: r));
+    canvas.drawCircle(center, r, _p);
+    _p.shader = null;
 
-    // Direction guides (subtle cross)
-    final guidePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.06)
-      ..strokeWidth = 1;
-    canvas.drawLine(
-      Offset(center.dx, center.dy - baseRadius + 8),
-      Offset(center.dx, center.dy + baseRadius - 8),
-      guidePaint,
+    // Compass marks: short tapered slivers just inside the limb.
+    _p.color = (active ? _amber : const Color(0xFF9A93A6)).withValues(
+      alpha: active ? 0.55 : 0.3,
     );
-    canvas.drawLine(
-      Offset(center.dx - baseRadius + 8, center.dy),
-      Offset(center.dx + baseRadius - 8, center.dy),
-      guidePaint,
-    );
-
-    // Knob
-    final knobCenter = center + knobOffset;
-    // Glow
-    if (active) {
-      paintSoftCircle(
-        canvas,
-        knobCenter,
-        knobRadius + 6,
-        const Color(0xFF00E5FF).withValues(alpha: 0.15),
-        8,
-      );
+    for (var k = 0; k < 4; k++) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(k * pi / 2);
+      final path = Path()
+        ..moveTo(0, -r + 4)
+        ..lineTo(2.2, -r + 11)
+        ..lineTo(-2.2, -r + 11)
+        ..close();
+      canvas.drawPath(path, _p);
+      canvas.restore();
     }
-    // Fill
-    canvas.drawCircle(
-      knobCenter,
-      knobRadius,
-      Paint()
-        ..color = active
-            ? const Color(0xFF00E5FF).withValues(alpha: 0.35)
-            : Colors.white.withValues(alpha: 0.15),
-    );
-    // Border
-    canvas.drawCircle(
-      knobCenter,
-      knobRadius,
-      Paint()
-        ..color = active
-            ? const Color(0xFF00E5FF).withValues(alpha: 0.8)
-            : Colors.white.withValues(alpha: 0.25)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
+
+    // The bead.
+    final at = center + (knob.value ?? Offset.zero);
+    if (active) {
+      _p.shader = RadialGradient(
+        colors: [_amber.withValues(alpha: 0.22), _amber.withValues(alpha: 0)],
+      ).createShader(Rect.fromCircle(center: at, radius: knobRadius * 1.9));
+      canvas.drawCircle(at, knobRadius * 1.9, _p);
+    }
+    final lit = active ? _amber : const Color(0xFFB8B2C2);
+    _p.shader = RadialGradient(
+      center: const Alignment(-0.35, -0.45),
+      colors: [
+        Color.lerp(
+          lit,
+          Colors.white,
+          0.45,
+        )!.withValues(alpha: active ? 0.95 : 0.5),
+        lit.withValues(alpha: active ? 0.75 : 0.28),
+        const Color(0xFF14141B).withValues(alpha: active ? 0.9 : 0.6),
+      ],
+      stops: const [0.0, 0.4, 1.0],
+    ).createShader(Rect.fromCircle(center: at, radius: knobRadius));
+    canvas.drawCircle(at, knobRadius, _p);
+    _p.shader = null;
   }
 
   @override
@@ -166,7 +163,3 @@ class _JoystickPainter extends CustomPainter {
       old.baseRadius != baseRadius ||
       old.knobRadius != knobRadius;
 }
-
-// ─────────────────────────────────────────────────────────
-// COSMIC PARTY PICKER OVERLAY
-// ─────────────────────────────────────────────────────────

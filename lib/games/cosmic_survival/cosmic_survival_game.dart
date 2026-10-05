@@ -43,6 +43,8 @@ import 'package:alchemons/games/cosmic_survival/survival_mastery_payload.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_pip.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_runtime.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_wing.dart';
+import 'package:alchemons/games/cosmic_survival/arena_art.dart';
+import 'package:alchemons/games/cosmic/hostile_shot_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/orb_art.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
@@ -482,12 +484,6 @@ class RunHealingStats {
 // ---------------------------------------------------------------------------
 // BACKGROUND STAR
 // ---------------------------------------------------------------------------
-
-class _BgStar {
-  final double x, y, size, twinkleSpeed;
-  final double brightness;
-  _BgStar(this.x, this.y, this.size, this.twinkleSpeed, this.brightness);
-}
 
 // ---------------------------------------------------------------------------
 // VFX PARTICLE
@@ -1486,7 +1482,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   // Background stars
-  final List<_BgStar> _stars = [];
+  final ArenaSky _sky = ArenaSky();
+  final ArenaRim _rim = ArenaRim();
 
   // VFX particles
   final List<_VfxParticle> _vfx = [];
@@ -1673,9 +1670,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   int _spatialQueries = 0;
   int _spatialCandidates = 0;
   double _spatialMetricsTimer = 0;
-  final Paint _bossProjectilePaint = Paint();
-  final Paint _bossProjectileGlowPaint = Paint();
-  final Paint _enemyProjectilePaint = Paint();
   final Paint _shipProjectilePaint = Paint()..color = const Color(0xFF00E5FF);
   final Paint _shipProjectileGlowPaint = Paint()
     ..color = const Color(0xFF00E5FF).withValues(alpha: 0.2)
@@ -1933,15 +1927,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _equippedSkin = skinDef.skin;
     _initOrbSkinPassives(_equippedSkin);
 
+    // Drawn from the run's own random, in the same order as ever, so a
+    // seeded run plays out the same.
     for (var i = 0; i < 400; i++) {
-      _stars.add(
-        _BgStar(
-          _rng.nextDouble() * 6000 - 3000,
-          _rng.nextDouble() * 6000 - 3000,
-          0.5 + _rng.nextDouble() * 2.0,
-          0.5 + _rng.nextDouble() * 3.0,
-          0.3 + _rng.nextDouble() * 0.7,
-        ),
+      _sky.addStar(
+        _rng.nextDouble() * 6000 - 3000,
+        _rng.nextDouble() * 6000 - 3000,
+        0.5 + _rng.nextDouble() * 2.0,
+        0.5 + _rng.nextDouble() * 3.0,
+        0.3 + _rng.nextDouble() * 0.7,
       );
     }
 
@@ -18903,18 +18897,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final shake = _screenShakeOffset();
     canvas.translate(-cx + shake.dx, -cy + shake.dy);
 
-    _renderStars(
-      canvas,
-      minX: cx,
-      minY: cy,
-      maxX: cx + viewW,
-      maxY: cy + viewH,
-    );
+    final view = Rect.fromLTWH(cx, cy, viewW, viewH);
+    _sky.paint(canvas, view, stats.timeElapsed, _currentZoom);
     // Mystic environment tint — viewport-covering element wash that
     // sits between the starfield and the arena. Stacks if multiple
     // mystics are active. Other world objects render on top.
     _renderMysticEnvironmentOverlay(canvas);
-    _renderArenaBoundary(canvas);
+    _rim.paint(
+      canvas,
+      orb.position,
+      _arenaRadius,
+      orb.skin,
+      stats.timeElapsed,
+      view,
+      _currentZoom,
+    );
     _renderOrbGravityField(canvas);
     if (outbreak case final event?) {
       drawSurvivalOutbreak(
@@ -19007,19 +19004,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
-      final bpColor = elementColor(proj.element);
-      _bossProjectilePaint.color = bpColor.withValues(alpha: 0.9);
-      canvas.drawCircle(proj.position, proj.radius, _bossProjectilePaint);
-      if (!_reduceSecondaryGlows) {
-        _bossProjectileGlowPaint
-          ..color = bpColor.withValues(alpha: 0.15)
-          ..maskFilter = null;
-        canvas.drawCircle(
-          proj.position,
-          proj.radius * 1.8,
-          _bossProjectileGlowPaint,
-        );
-      }
+      paintHostileShot(
+        canvas,
+        proj.position,
+        proj.angle,
+        proj.radius,
+        proj.element,
+        heavy: true,
+      );
     }
 
     for (final proj in enemyProjectiles) {
@@ -19035,9 +19027,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
-      final color = elementColor(proj.element);
-      _enemyProjectilePaint.color = color.withValues(alpha: 0.88);
-      canvas.drawCircle(proj.position, proj.radius, _enemyProjectilePaint);
+      paintHostileShot(
+        canvas,
+        proj.position,
+        proj.angle,
+        proj.radius,
+        proj.element,
+      );
     }
 
     // Companion projectiles
@@ -19651,32 +19647,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     canvas.restore();
   }
 
-  void _renderStars(
-    Canvas canvas, {
-    required double minX,
-    required double minY,
-    required double maxX,
-    required double maxY,
-  }) {
-    final starPaint = Paint();
-    const margin = 48.0;
-    for (final star in _stars) {
-      if (star.x < minX - margin ||
-          star.x > maxX + margin ||
-          star.y < minY - margin ||
-          star.y > maxY + margin) {
-        continue;
-      }
-      final twinkle =
-          0.5 +
-          0.5 * sin(stats.timeElapsed * star.twinkleSpeed + star.x * 0.01);
-      starPaint.color = Colors.white.withValues(
-        alpha: star.brightness * twinkle,
-      );
-      canvas.drawCircle(Offset(star.x, star.y), star.size, starPaint);
-    }
-  }
-
   /// The core, and its readings round it (orb_art.dart). Health and the
   /// alchemy meter are rings of cells; a held shield is a glass bubble.
   void _renderOrb(Canvas canvas) {
@@ -19741,44 +19711,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     canvas.restore();
   }
 
-  void _renderArenaBoundary(Canvas canvas) {
-    final center = orb.position;
-    final radius = _arenaRadius;
-    final pulse = 0.75 + 0.25 * sin(stats.timeElapsed * 1.4);
-
-    if (!_reduceSecondaryGlows) {
-      canvas.drawCircle(
-        center,
-        radius,
-        Paint()
-          ..color = const Color(0xFF4FC3F7).withValues(alpha: 0.07 * pulse)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 18
-          ..maskFilter = null,
-      );
-    }
-
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..color = const Color(0xFF9BE7FF).withValues(alpha: 0.26 + 0.08 * pulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.0,
-    );
-
-    final markerPaint = Paint()
-      ..color = const Color(0xFFE1F5FE).withValues(alpha: 0.62)
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 12; i++) {
-      final angle = (i / 12) * 2 * pi + stats.timeElapsed * 0.05;
-      final inner = center + Offset(cos(angle), sin(angle)) * (radius - 12);
-      final outer = center + Offset(cos(angle), sin(angle)) * (radius + 12);
-      canvas.drawLine(inner, outer, markerPaint);
-    }
-  }
-
   /// Enemy rendering: EXACT SAME visuals as cosmic game per tier.
   /// The enemy silhouette now lives in the shared cosmic enemy VFX layer so
   /// the preview harness can render the roster without playing the game.
@@ -19833,55 +19765,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _renderEnemyHazards(Canvas canvas) {
     for (final h in enemyHazards) {
-      final c = elementColor(h.element);
       final fade = (1.0 - h.progress).clamp(0.0, 1.0);
       switch (h.kind) {
         case EnemyHazardKind.beam:
-          final d = Offset(cos(h.angle), sin(h.angle));
-          final end = h.origin + d * h.length;
-          canvas
-            ..drawLine(
-              h.origin,
-              end,
-              Paint()
-                ..color = c.withValues(alpha: 0.30 * fade)
-                ..strokeWidth = h.width * 1.7
-                ..strokeCap = StrokeCap.round,
-            )
-            ..drawLine(
-              h.origin,
-              end,
-              Paint()
-                ..color = c.withValues(alpha: 0.75 * fade)
-                ..strokeWidth = h.width * 0.8
-                ..strokeCap = StrokeCap.round,
-            )
-            ..drawLine(
-              h.origin,
-              end,
-              Paint()
-                ..color = Colors.white.withValues(alpha: 0.9 * fade)
-                ..strokeWidth = h.width * 0.28
-                ..strokeCap = StrokeCap.round,
-            );
+          paintSiegeBeam(
+            canvas,
+            h.origin,
+            h.angle,
+            h.length,
+            h.width,
+            h.element,
+            fade,
+          );
         case EnemyHazardKind.shockwave:
-          canvas
-            ..drawCircle(
-              h.origin,
-              h.radius,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 9 * fade + 2
-                ..color = c.withValues(alpha: 0.55 * fade),
-            )
-            ..drawCircle(
-              h.origin,
-              h.radius,
-              Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 2.5
-                ..color = Colors.white.withValues(alpha: 0.7 * fade),
-            );
+          paintShockFront(canvas, h.origin, h.radius, h.element, fade);
       }
     }
   }

@@ -95,6 +95,13 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     double hpFraction = 1.0,
     double? initialSpecialCooldown,
   }) {
+    // Still fading out of this slot or holding a deployment slot on its
+    // way out? It is gone already as far as the party is concerned.
+    if (activeCompanions[slotIndex]?.returning == true ||
+        activeCompanions.length >= CosmicGame.maxActiveCompanions) {
+      _dropLeavingCompanions();
+    }
+
     // Already active in this slot? Recall it instead of stacking.
     if (activeCompanions.containsKey(slotIndex)) {
       returnCompanion(slotIndex);
@@ -474,11 +481,33 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     _duelOpponentSpriteLoadsInFlight = 0;
   }
 
+  /// Only the entrant stands in a contest. The screen recalls the rest of
+  /// the party before the bout, but a recall is a 0.6s fade that the
+  /// contest freezes, and [activeCompanion] is simply the first summoned —
+  /// so a companion still fading out would be picked up and un-recalled as
+  /// the contestant. Anything already leaving goes now.
+  /// Also used by [summonCompanion]: a fading companion should not hold a
+  /// deployment slot against the one being called in.
+  void _dropLeavingCompanions() {
+    final leaving = [
+      for (final e in activeCompanions.entries)
+        if (e.value.returning) e.key,
+    ];
+    for (final slot in leaving) {
+      activeCompanions.remove(slot);
+      _companionTickers.remove(slot);
+      _companionVisualsBySlot.remove(slot);
+      _companionSpriteScales.remove(slot);
+      _companionGrains.remove(slot);
+    }
+  }
+
   void beginBeautyContestCinematic({
     required CosmicPartyMember opponentMember,
     required Offset arenaCenter,
     required bool playerWon,
   }) {
+    _dropLeavingCompanions();
     if (activeCompanion == null) return;
     _beautyContestCinematicActive = true;
     _beautyContestCenter = arenaCenter;
@@ -558,6 +587,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     required double playerScore,
     required double opponentScore,
   }) {
+    _dropLeavingCompanions();
     if (activeCompanion == null) return;
     _beautyContestCinematicActive = true;
     _beautyContestCenter = arenaCenter;
@@ -649,6 +679,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     required double playerScore,
     required double opponentScore,
   }) {
+    _dropLeavingCompanions();
     if (activeCompanion == null) return;
     _beautyContestCinematicActive = true;
     _beautyContestCenter = arenaCenter;
@@ -731,6 +762,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     required double playerScore,
     required double opponentScore,
   }) {
+    _dropLeavingCompanions();
     if (activeCompanion == null) return;
     _beautyContestCinematicActive = true;
     _beautyContestCenter = arenaCenter;

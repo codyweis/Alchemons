@@ -1,4 +1,5 @@
 import 'components/survival_camera_button.dart';
+import 'components/survival_hud.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 // lib/games/cosmic_survival/cosmic_survival_screen.dart
@@ -56,6 +57,8 @@ import 'package:alchemons/games/cosmic_survival/orb_art.dart';
 import 'package:alchemons/games/cosmic_survival/components/survival_lobby_stage.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
     show PanelReadout, PanelRow, PanelSectionHeader, panelLabel, panelPalette;
+import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
+    show MarkDiamond, elementLight;
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -219,53 +222,6 @@ class _SurvivalPlate extends StatelessWidget {
           ],
         ),
         child: child,
-      ),
-    );
-  }
-}
-
-class _HudPill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _HudPill({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _BracketFramePainter(
-        color: color.withValues(alpha: 0.50),
-        bracketSize: 7,
-        strokeWidth: 1.05,
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-        decoration: BoxDecoration(
-          color: _C.bg1.withValues(alpha: 0.88),
-          border: Border.all(color: _C.borderDim.withValues(alpha: 0.85)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: _C.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -2492,37 +2448,44 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
               bottom: 20,
               left: 12,
               child: SafeArea(
-                child: _SurvivalPlate(
-                  accent: _C.teal,
+                child: HudGlass(
+                  accent: HudInk.amber.withValues(alpha: 0.8),
                   padding: const EdgeInsets.all(10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        'CAMERA MODE',
-                        style: TextStyle(
-                          color: _C.teal,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                      Text('CAMERA', style: hudMono(10.5, HudInk.amber)),
                       const SizedBox(height: 4),
-                      const Text(
-                        'Drag to pan · Pinch to zoom\nShip flies automatically',
-                        style: TextStyle(color: _C.textSecondary, fontSize: 11),
+                      Text(
+                        'DRAG TO PAN · PINCH TO ZOOM\nTHE SHIP FLIES ITSELF',
+                        style: hudMono(8.5, HudInk.muted, spacing: 0.8),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          TextButton(
-                            onPressed: game.recenterCamera,
-                            child: const Text('Follow ship'),
+                          SizedBox(
+                            width: 104,
+                            child: BracketButton(
+                              label: 'FOLLOW SHIP',
+                              height: 34,
+                              palette: BracketPalette.dark,
+                              accent: HudInk.amber,
+                              primary: false,
+                              onTap: game.recenterCamera,
+                            ),
                           ),
-                          TextButton(
-                            onPressed: _toggleAutopilot,
-                            child: const Text('Exit camera'),
+                          const SizedBox(width: 6),
+                          SizedBox(
+                            width: 74,
+                            child: BracketButton(
+                              label: 'EXIT',
+                              height: 34,
+                              palette: BracketPalette.dark,
+                              accent: HudInk.amber,
+                              onTap: _toggleAutopilot,
+                            ),
                           ),
                         ],
                       ),
@@ -2550,7 +2513,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 60),
+                    padding: const EdgeInsets.only(top: 76),
                     child: _SurvivalPlate(
                       accent: _C.danger,
                       bracketSize: 9,
@@ -2624,7 +2587,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     alignment: Alignment.topCenter,
                     child: Padding(
                       padding: EdgeInsets.only(
-                        top: _bossAnnouncement != null ? 152 : 60,
+                        top: _bossAnnouncement != null ? 168 : 76,
                       ),
                       child: AnimatedOpacity(
                         opacity: _waveAnnouncementTitle == null ? 0 : 1,
@@ -2713,19 +2676,17 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                               ? 'OUTBREAK PURGED'
                               : '${game.outbreak!.name} · ${game.outbreak!.remaining} SOURCES',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: game.outbreak!.color,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                          ),
+                          style: hudMono(10.5, game.outbreak!.color),
                         ),
                         if (!game.outbreak!.cleared)
                           Text(
                             game.outbreak!.instruction,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 10,
+                            style: hudMono(
+                              8.5,
+                              HudInk.muted,
+                              weight: FontWeight.w700,
+                              spacing: 0.6,
                             ),
                           ),
                       ],
@@ -2762,93 +2723,18 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
               onTap: context.soundAction(
                 isReady ? game.triggerDetonation : null,
               ),
-              child: SizedBox(
-                width: 60,
-                height: 60,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 60,
-                      height: 60,
-                      child: CircularProgressIndicator(
-                        value: isReady ? 1.0 : charge,
-                        strokeWidth: 4,
-                        backgroundColor: const Color(
-                          0xFF25160F,
-                        ).withValues(alpha: 0.9),
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          isReady
-                              ? const Color(0xFFFFA15C)
-                              : const Color(0xFFFF6B35),
-                        ),
-                      ),
+              child: Semantics(
+                button: true,
+                enabled: isReady,
+                label: isReady ? 'Detonate' : 'Detonation charging',
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    size: const Size(64, 64),
+                    painter: DetonationVesselPainter(
+                      charge: isReady ? 1.0 : charge,
+                      ready: isReady,
                     ),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 260),
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isReady
-                            ? const Color(0xFFFF6B35)
-                            : const Color(0xFF2A1A10),
-                        border: Border.all(
-                          color: isReady
-                              ? const Color(0xFFFFB27E)
-                              : const Color(0xFF4A3020),
-                          width: 2,
-                        ),
-                        boxShadow: isReady
-                            ? [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFFFF6B35,
-                                  ).withValues(alpha: 0.60),
-                                  blurRadius: 22,
-                                  spreadRadius: 5,
-                                ),
-                              ]
-                            : [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFFFF6B35,
-                                  ).withValues(alpha: 0.12 + charge * 0.18),
-                                  blurRadius: 14,
-                                  spreadRadius: 1,
-                                ),
-                              ],
-                      ),
-                      child: Center(
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 220),
-                          width: isReady ? 20 : 14 + charge * 6,
-                          height: isReady ? 20 : 14 + charge * 6,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(
-                              colors: [
-                                Colors.white.withValues(
-                                  alpha: isReady ? 0.95 : 0.55,
-                                ),
-                                const Color(0xFFFFC38D).withValues(alpha: 0.92),
-                                const Color(0xFFFF6B35).withValues(alpha: 0.85),
-                              ],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFFFA15C).withValues(
-                                  alpha: isReady ? 0.85 : 0.22 + charge * 0.22,
-                                ),
-                                blurRadius: isReady ? 16 : 8,
-                                spreadRadius: isReady ? 3 : 0,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -2866,13 +2752,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       bottom: 0,
       child: IgnorePointer(
         child: Center(
-          child: Container(
+          child: HudGlass(
+            accent: HudInk.ship.withValues(alpha: 0.6),
+            alpha: 0.6,
+            bracket: 9,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0E1117).withValues(alpha: 0.42),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _C.teal.withValues(alpha: 0.28)),
-            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -2881,7 +2765,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: _C.teal.withValues(alpha: 0.55),
+                    color: HudInk.ship.withValues(alpha: 0.8),
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 2,
@@ -2913,6 +2797,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   // ── HUD ────────────────────────────────────────────────
 
   Widget _buildHud(CosmicSurvivalGame game) {
+    final orbHp = game.isLoaded ? game.orb.hpPercent : 1.0;
     return Positioned(
       top: 0,
       left: 0,
@@ -2920,57 +2805,37 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              // Timer
-              _HudPill(
-                icon: AppIcons.timer_outlined,
-                label: game.stats.formattedTime,
-                color: _C.textSecondary,
-              ),
-              const SizedBox(width: 8),
-              _HudIconButton(
+          child: SurvivalTopHud(
+            wave: game.spawner.currentWave,
+            time: game.stats.formattedTime,
+            keys: [
+              HudKey(
+                key: const ValueKey('survival.pause'),
                 icon: _showPauseMenu
                     ? AppIcons.play_arrow_rounded
                     : AppIcons.pause_rounded,
-                color: _C.accent,
+                lit: _showPauseMenu,
+                tooltip: _showPauseMenu ? 'Resume' : 'Pause',
                 onTap: context.soundTap(_togglePauseMenu),
               ),
-              const SizedBox(width: 6),
               SurvivalCameraButton(
                 cameraMode: game.autopilotState,
                 onToggle: context.soundTap(_toggleAutopilot),
               ),
-              const SizedBox(width: 6),
               // Fast forward: 1.5x. Two was too fast to read a front.
-              _HudIconButton(
+              HudKey(
                 icon: AppIcons.fast_forward_rounded,
-                color: game.timeScale > 1 ? _C.teal : _C.borderDim,
+                lit: game.timeScale > 1,
+                tooltip: 'Fast forward',
                 onTap: context.soundTap(_toggleFastForward),
               ),
-              const SizedBox(width: 8),
-              // Ship HP
-              if (game.isLoaded) ...[
-                Flexible(
-                  child: _HudBar(
-                    label: game.ship.isDead ? 'GHOST' : 'SHIP',
-                    percent: game.ship.isDead ? 1.0 : game.ship.hpPercent,
-                    color: game.ship.isDead
-                        ? const Color(0xFF9FE8FF)
-                        : const Color(0xFF00E5FF),
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
-              // Orb HP
-              Flexible(
-                child: _HudBar(
-                  label: 'ORB',
-                  percent: game.isLoaded ? game.orb.hpPercent : 1.0,
-                  color: _C.accent,
-                ),
-              ),
             ],
+            shipFraction: game.isLoaded ? game.ship.hpPercent : 1.0,
+            shipGhost: game.isLoaded && game.ship.isDead,
+            orbFraction: orbHp,
+            orbColor: game.isLoaded
+                ? orbLook(game.orb.skin).hpColor(orbHp)
+                : _C.accent,
           ),
         ),
       ),
@@ -3097,7 +2962,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                               label: 'ORB',
                               value: game.orb.hpPercent,
                               readout: '${(game.orb.hpPercent * 100).round()}%',
-                              tint: _C.amberBright,
+                              tint: orbLook(
+                                game.orb.skin,
+                              ).hpColor(game.orb.hpPercent),
                               critical: game.orb.hpPercent < 0.34,
                             ),
                             const SizedBox(height: 8),
@@ -3107,7 +2974,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                               readout: game.ship.isDead
                                   ? 'DOWN'
                                   : '${(game.ship.hpPercent * 100).round()}%',
-                              tint: _C.teal,
+                              tint: HudInk.ship,
                               critical:
                                   game.ship.isDead ||
                                   game.ship.hpPercent < 0.34,
@@ -3122,7 +2989,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                   : 0,
                               readout:
                                   '${game.alchemicalMeter.round()}/${game.alchemicalMeterMax.round()}',
-                              tint: _C.success,
+                              tint: const Color(0xFF9B7FE0),
                               critical: false,
                             ),
                             const SizedBox(height: 16),
@@ -3172,16 +3039,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                             ),
                             const SizedBox(height: 14),
                             if (keystoneHistory.isNotEmpty) ...[
-                              const Text(
-                                'KEYSTONE',
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: _C.teal,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.6,
-                                ),
-                              ),
+                              const PanelSectionHeader('KEYSTONE'),
                               const SizedBox(height: 8),
                               Wrap(
                                 spacing: 8,
@@ -3224,16 +3082,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                               ),
                               const SizedBox(height: 14),
                             ],
-                            const Text(
-                              'POWERUPS',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: _C.accent,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.6,
-                              ),
-                            ),
+                            const PanelSectionHeader('POWERUPS'),
                             const SizedBox(height: 6),
                             const Text(
                               'Tap a perk to see what it does.',
@@ -3308,16 +3157,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                     }).toList(),
                                   ),
                             const SizedBox(height: 14),
-                            const Text(
-                              'ALCHEMON STATS',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: _C.teal,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.6,
-                              ),
-                            ),
+                            const PanelSectionHeader('ALCHEMON STATS'),
                             const SizedBox(height: 8),
                             ListView.separated(
                               itemCount: party.length,
@@ -3390,44 +3230,27 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                               Expanded(
                                 child: Row(
                                   children: [
-                                    const Text(
+                                    Text(
                                       'JOYSTICK',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: _C.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1,
-                                      ),
+                                      style: hudMono(10.5, HudInk.muted),
                                     ),
                                     const Spacer(),
-                                    SizedBox(
-                                      height: 24,
-                                      child: Switch.adaptive(
-                                        value: _showJoystick,
-                                        activeThumbColor: _C.accent,
-                                        activeTrackColor: _C.accent.withValues(
-                                          alpha: 0.34,
-                                        ),
-                                        inactiveThumbColor: _C.textMuted,
-                                        inactiveTrackColor: _C.borderDim,
-                                        onChanged: (v) async {
-                                          setState(() {
-                                            _showJoystick = v;
-                                            if (!v) {
-                                              game.setJoystickInput(
-                                                Offset.zero,
-                                              );
-                                            }
-                                          });
-                                          final prefs =
-                                              await SharedPreferences.getInstance();
-                                          await prefs.setBool(
-                                            'cosmic_survival_joystick_enabled',
-                                            v,
-                                          );
-                                        },
-                                      ),
+                                    _PauseToggle(
+                                      value: _showJoystick,
+                                      onChanged: (v) async {
+                                        setState(() {
+                                          _showJoystick = v;
+                                          if (!v) {
+                                            game.setJoystickInput(Offset.zero);
+                                          }
+                                        });
+                                        final prefs =
+                                            await SharedPreferences.getInstance();
+                                        await prefs.setBool(
+                                          'cosmic_survival_joystick_enabled',
+                                          v,
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),
@@ -3436,37 +3259,22 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                               Expanded(
                                 child: Row(
                                   children: [
-                                    const Text(
+                                    Text(
                                       'LARGE',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: _C.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1,
-                                      ),
+                                      style: hudMono(10.5, HudInk.muted),
                                     ),
                                     const Spacer(),
-                                    SizedBox(
-                                      height: 24,
-                                      child: Switch.adaptive(
-                                        value: _largeJoystick,
-                                        activeThumbColor: _C.accent,
-                                        activeTrackColor: _C.accent.withValues(
-                                          alpha: 0.34,
-                                        ),
-                                        inactiveThumbColor: _C.textMuted,
-                                        inactiveTrackColor: _C.borderDim,
-                                        onChanged: (v) async {
-                                          setState(() => _largeJoystick = v);
-                                          final prefs =
-                                              await SharedPreferences.getInstance();
-                                          await prefs.setBool(
-                                            'cosmic_survival_large_joystick',
-                                            v,
-                                          );
-                                        },
-                                      ),
+                                    _PauseToggle(
+                                      value: _largeJoystick,
+                                      onChanged: (v) async {
+                                        setState(() => _largeJoystick = v);
+                                        final prefs =
+                                            await SharedPreferences.getInstance();
+                                        await prefs.setBool(
+                                          'cosmic_survival_large_joystick',
+                                          v,
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),
@@ -3527,13 +3335,23 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                '${game.activeCompanions.values.where((comp) => !comp.isDead).length}/${game.maxActiveCompanions} ACTIVE',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: _C.textPrimary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'ACTIVE ',
+                        style: hudMono(8, HudInk.muted),
+                      ),
+                      TextSpan(
+                        text:
+                            '${game.activeCompanions.values.where((comp) => !comp.isDead).length}/${game.maxActiveCompanions}',
+                        style: hudMono(10, HudInk.amber, spacing: 0.6),
+                      ),
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ),
               const SizedBox(height: 6),
@@ -3571,44 +3389,40 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   }
                   setState(() {});
                 }),
-                child: Container(
-                  width: SurvivalPartySlot.cardWidth,
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  decoration: BoxDecoration(
-                    color: tethered
-                        ? _C.teal.withValues(alpha: 0.20)
-                        : _C.bg2.withValues(alpha: 0.72),
-                    border: Border.all(
-                      color: tethered
-                          ? _C.teal.withValues(alpha: 0.74)
-                          : _C.borderDim,
-                      width: 1.5,
+                child: HudGlass(
+                  accent:
+                      (tethered ? SurvivalPartySlot.followColor : HudInk.line)
+                          .withValues(alpha: 0.9),
+                  child: SizedBox(
+                    width: SurvivalPartySlot.cardWidth,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            tethered
+                                ? AppIcons.link_rounded
+                                : AppIcons.link_off_rounded,
+                            color: tethered
+                                ? SurvivalPartySlot.followColor
+                                : HudInk.muted,
+                            size: 17,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            tethered ? 'FOLLOW' : 'FREE',
+                            style: hudMono(
+                              7,
+                              tethered
+                                  ? SurvivalPartySlot.followColor
+                                  : HudInk.muted,
+                              spacing: 0.8,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        tethered
-                            ? AppIcons.link_rounded
-                            : AppIcons.link_off_rounded,
-                        color: tethered ? _C.teal : _C.textSecondary,
-                        size: 18,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        tethered ? 'FOLLOW' : 'FREE',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 7,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                          color: tethered
-                              ? _C.teal
-                              : _C.textSecondary.withValues(alpha: 0.7),
-                        ),
-                      ),
-                    ],
                   ),
                 ),
               ),
@@ -4218,145 +4032,6 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
   ),
 ];
 
-class _HudIconButton extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _HudIconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: CustomPaint(
-        painter: _BracketFramePainter(
-          color: color.withValues(alpha: 0.68),
-          bracketSize: 6,
-          strokeWidth: 1.1,
-        ),
-        child: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: _C.bg1.withValues(alpha: 0.88),
-            border: Border.all(color: _C.borderDim),
-          ),
-          child: Icon(icon, size: 19, color: color),
-        ),
-      ),
-    );
-  }
-}
-
-class _HudBar extends StatelessWidget {
-  final String label;
-  final double percent;
-  final Color color;
-
-  const _HudBar({
-    required this.label,
-    required this.percent,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final clampedPercent = percent.clamp(0.0, 1.0);
-    final percentLabel = '${(clampedPercent * 100).round()}%';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerRight,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  color: _C.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                percentLabel,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: color.withValues(alpha: 0.95),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.9,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          width: double.infinity,
-          height: 10,
-          decoration: BoxDecoration(
-            color: _C.bg0.withValues(alpha: 0.88),
-            border: Border.all(color: _C.borderDim),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.18),
-                blurRadius: 10,
-                spreadRadius: 0.5,
-              ),
-            ],
-          ),
-          alignment: Alignment.centerLeft,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.06),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              FractionallySizedBox(
-                widthFactor: clampedPercent,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        Color.lerp(color, Colors.white, 0.18) ?? color,
-                        color,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _PauseActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -4416,6 +4091,34 @@ class _PauseActionButton extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An ON/OFF key in bracket corners — the console's switch.
+class _PauseToggle extends StatelessWidget {
+  const _PauseToggle({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      toggled: value,
+      button: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: context.soundAction(() => onChanged(!value)),
+        child: HudGlass(
+          accent: (value ? HudInk.amber : HudInk.line).withValues(alpha: 0.9),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Text(
+            value ? 'ON' : 'OFF',
+            style: hudMono(10.5, value ? HudInk.amber : HudInk.muted),
           ),
         ),
       ),
@@ -4501,50 +4204,28 @@ class _PauseVitalBar extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          width: 46,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              color: _C.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.2,
-            ),
-          ),
+          width: 52,
+          child: Text(label, style: hudMono(10.5, HudInk.muted, spacing: 1.4)),
         ),
         Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: Stack(
-              children: [
-                Container(height: 14, color: _C.bg3),
-                FractionallySizedBox(
-                  widthFactor: value.clamp(0.0, 1.0),
-                  child: Container(
-                    height: 14,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [color.withValues(alpha: 0.75), color],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          child: SizedBox(
+            height: 11,
+            child: CustomPaint(
+              painter: HudTubePainter(value.clamp(0.0, 1.0), color),
             ),
           ),
         ),
         const SizedBox(width: 10),
         SizedBox(
-          width: 64,
+          width: 70,
           child: Text(
             readout,
             textAlign: TextAlign.right,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: critical ? _C.danger : _C.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
+            style: hudMono(
+              13,
+              critical ? HudInk.danger : HudInk.ink,
+              weight: FontWeight.w900,
+              spacing: 0.6,
             ),
           ),
         ),
@@ -4730,13 +4411,7 @@ class _PauseStatChip extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 label.toUpperCase(),
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  color: _C.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                ),
+                style: hudMono(9.5, HudInk.muted, spacing: 1.4),
               ),
             ),
             const SizedBox(height: 4),
@@ -4745,10 +4420,11 @@ class _PauseStatChip extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 value,
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
+                style: hudMono(
+                  14,
+                  accent,
+                  weight: FontWeight.w900,
+                  spacing: 0.6,
                 ),
               ),
             ),
@@ -4800,35 +4476,33 @@ class _PauseCompanionCard extends StatelessWidget {
     return GestureDetector(
       onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: _C.bg2.withValues(alpha: 0.86),
-          border: Border.all(color: _C.textSecondary.withValues(alpha: 0.18)),
+      child: HudGlass(
+        accent: (live == null ? HudInk.line : HudInk.amber).withValues(
+          alpha: 0.75,
         ),
+        padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
+                MarkDiamond(color: elementLight(member.element)),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    member.displayName,
-                    style: const TextStyle(
-                      color: _C.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    member.displayName.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: hudMono(11, HudInk.ink, spacing: 1.0),
                   ),
                 ),
                 Text(
                   live == null
                       ? 'BENCHED'
                       : '${(live.hpPercent * 100).round()}% HP',
-                  style: TextStyle(
-                    color: live == null ? _C.textSecondary : _C.success,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                  style: hudMono(
+                    10,
+                    live == null ? HudInk.muted : HudInk.amber,
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -4902,16 +4576,7 @@ class _PauseCompanionCard extends StatelessWidget {
               }(),
             ],
             const SizedBox(height: 8),
-            const Text(
-              'ALCHEMON PERKS',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: _C.teal,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
+            Text('PERKS', style: hudMono(9.5, HudInk.muted, spacing: 1.6)),
             const SizedBox(height: 6),
             if (appliedPowerUps.isEmpty)
               const Text(
@@ -5460,10 +5125,11 @@ class _MiniReadout extends StatelessWidget {
           ),
           TextSpan(
             text: value,
-            style: const TextStyle(
-              color: _C.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
+            style: hudMono(
+              12,
+              HudInk.ink,
+              weight: FontWeight.w900,
+              spacing: 0.4,
             ),
           ),
         ],

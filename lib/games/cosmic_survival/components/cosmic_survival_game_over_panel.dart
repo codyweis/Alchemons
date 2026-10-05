@@ -9,9 +9,14 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 
-const Color _frame = Color(0xFFFF9BA3);
+/// The loss: a muted ember red, the HUD's danger rather than candy pink.
+const Color _frame = Color(0xFFE8857A);
+
+/// The way forward, in the console's amber.
+const Color _go = Color(0xFFE4B356);
 const Color _amber = Color(0xFFFFAA00);
 
 class CosmicSurvivalGameOverPanel extends StatelessWidget {
@@ -140,7 +145,7 @@ class CosmicSurvivalGameOverPanel extends StatelessWidget {
                       Expanded(
                         child: _ResultsButton(
                           label: 'DEPLOY AGAIN',
-                          color: _frame,
+                          color: _go,
                           emphasized: true,
                           onPressed: context.soundAction(onReplay),
                         ),
@@ -157,38 +162,42 @@ class CosmicSurvivalGameOverPanel extends StatelessWidget {
   }
 
   Widget _statChip(String label, String value) => Expanded(
-    child: Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1,
-            ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: Colors.white.withValues(alpha: 0.3),
+          bracketSize: 6,
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+          color: Colors.white.withValues(alpha: 0.035),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: Colors.white.withValues(alpha: 0.45),
+                  fontSize: 12,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: Colors.white.withValues(alpha: 0.45),
-              fontSize: 12,
-              letterSpacing: 1.5,
-            ),
-          ),
-        ],
+        ),
       ),
     ),
   );
@@ -198,7 +207,6 @@ class CosmicSurvivalGameOverPanel extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     decoration: BoxDecoration(
       color: entry.color.withValues(alpha: 0.06),
-      borderRadius: BorderRadius.circular(3),
       border: Border.all(color: entry.color.withValues(alpha: 0.22)),
     ),
     child: Row(
@@ -365,27 +373,34 @@ class _ResultsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: emphasized ? Colors.white : color,
-        side: BorderSide(
-          color: emphasized ? color : color.withValues(alpha: 0.55),
-          width: emphasized ? 1.5 : 1.2,
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: color.withValues(alpha: emphasized ? 1 : 0.8),
+        bracketSize: 7,
+        strokeWidth: emphasized ? 1.6 : 1.2,
       ),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Text(
-          label,
-          maxLines: 1,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 12,
-            fontWeight: emphasized ? FontWeight.w700 : FontWeight.w400,
-            letterSpacing: 2,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: emphasized ? Colors.white : color,
+          side: BorderSide(
+            color: color.withValues(alpha: emphasized ? 0.35 : 0.18),
+          ),
+          backgroundColor: color.withValues(alpha: emphasized ? 0.1 : 0.03),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+          shape: const RoundedRectangleBorder(),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 12,
+              fontWeight: emphasized ? FontWeight.w700 : FontWeight.w400,
+              letterSpacing: 2,
+            ),
           ),
         ),
       ),

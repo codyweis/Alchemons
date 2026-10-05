@@ -1,7 +1,11 @@
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
+    show CaseLightPainter, elementLight;
 import 'package:flutter/material.dart';
 import '../cosmic_survival_game.dart';
 import '../../cosmic/cosmic_data.dart';
+import 'survival_hud.dart';
 
 /// Live combat state takes precedence over the values cached on recall.
 class SurvivalPartySlotState {
@@ -48,7 +52,10 @@ class SurvivalPartySlotState {
       : 'RESERVE';
 }
 
-/// Cosmic-style colored deployment portraits, with status kept outside the art.
+/// A party member as a small specimen case: out in the arena, it stands lit
+/// in its element's light inside an amber frame; in reserve, it waits dim
+/// and colourless in dark glass. Its state, health and special sit outside
+/// the art, in the HUD's monospace and glass tube.
 class SurvivalPartySlot extends StatelessWidget {
   const SurvivalPartySlot({
     super.key,
@@ -63,23 +70,24 @@ class SurvivalPartySlot extends StatelessWidget {
   final VoidCallback onTap;
   final int? feedCount;
 
-  /// The card's chrome at three quarters, and the art a tenth larger inside
-  /// it — so the slot takes less of the screen while the thing you actually
-  /// read at a glance, the creature, gets bigger rather than shrinking with
-  /// it. Kept as named constants because the two scales pull opposite ways
-  /// and the numbers have to stay reconcilable: art plus padding must still
-  /// fit the card.
   /// Public so the HUD around these can match their width rather than
   /// keeping its own copy of the number and drifting from it.
-  static const cardWidth = 54.0; // was 72
-  static const _artSize = 42.0; // was 38
-  static const _labelSize = 7.0; // was 9
-  static const _statusIconSize = 8.0; // was 10
+  static const cardWidth = 54.0;
+  static const _artSize = 40.0;
+  static const _labelSize = 7.0;
 
-  static const activeColor = Color(0xFFFFC66D);
-  static const followColor = Color(0xFF70E7D0);
-  static const mutedColor = Color(0xFF9AA6B3);
-  static const downColor = Color(0xFFFF7787);
+  static const activeColor = HudInk.amber;
+  static const followColor = Color(0xFF7FD6C4);
+  static const mutedColor = HudInk.muted;
+  static const downColor = HudInk.danger;
+
+  /// Reserve: the creature in grey, dimmed — present, not out.
+  static const _reserve = ColorFilter.matrix([
+    0.16, 0.32, 0.06, 0, 0, //
+    0.16, 0.32, 0.06, 0, 0, //
+    0.17, 0.34, 0.07, 0, 0, //
+    0, 0, 0, 0.8, 0,
+  ]);
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +113,8 @@ class SurvivalPartySlot extends StatelessWidget {
             fit: BoxFit.contain,
             errorBuilder: (_, __, ___) => _fallback(name, color),
           );
+    final ready =
+        !state.dead && state.cooldown.isFinite && state.cooldown <= 0.05;
     return Semantics(
       label:
           '$name, ${state.label}, ${(state.hp * 100).round()} percent health',
@@ -113,151 +123,113 @@ class SurvivalPartySlot extends StatelessWidget {
       enabled: !state.dead,
       child: Tooltip(
         message: '$name · ${state.label}\n$action',
-        child: InkWell(
-          onTap: context.soundAction(state.dead ? null : onTap),
-          borderRadius: BorderRadius.circular(5),
-          child: Container(
-            width: cardWidth,
-            padding: const EdgeInsets.fromLTRB(3, 3, 3, 2),
-            decoration: BoxDecoration(
-              color: state.active
-                  ? color.withValues(alpha: 0.16)
-                  : const Color(0xFF141B24),
-              border: Border.all(
-                color: state.active || state.dead
-                    ? color
-                    : const Color(0xFF3A4552),
-                width: state.active ? 2 : 1,
-              ),
-              borderRadius: BorderRadius.circular(5),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: state.dead ? null : context.soundAction(onTap),
+          child: CustomPaint(
+            foregroundPainter: BracketFramePainter(
+              color: state.active || state.dead
+                  ? color.withValues(alpha: 0.9)
+                  : HudInk.line.withValues(alpha: 0.9),
+              bracketSize: 7,
+              strokeWidth: state.active ? 1.5 : 1.1,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      state.dead
-                          ? Icons.close_rounded
-                          : state.following
-                          ? Icons.link_rounded
-                          : state.active
-                          ? Icons.check_circle
-                          : Icons.circle_outlined,
-                      size: _statusIconSize,
-                      color: color,
+            child: Container(
+              width: cardWidth,
+              color: HudInk.glass.withValues(alpha: 0.88),
+              padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      state.label,
+                      style: hudMono(_labelSize, color, spacing: 0.8),
                     ),
-                    const SizedBox(width: 2),
-                    Expanded(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          state.label,
-                          style: TextStyle(
-                            color: color,
-                            fontSize: _labelSize,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.3,
+                  ),
+                  const SizedBox(height: 2),
+                  SizedBox(
+                    height: _artSize,
+                    child: CustomPaint(
+                      painter: state.active
+                          ? CaseLightPainter(
+                              color: elementLight(member.element),
+                            )
+                          : null,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Opacity(
+                            opacity: state.dead ? 0.3 : 1,
+                            child: state.active
+                                ? portrait
+                                : ColorFiltered(
+                                    colorFilter: _reserve,
+                                    child: portrait,
+                                  ),
                           ),
-                        ),
+                          if (state.dead)
+                            const Icon(
+                              Icons.close_rounded,
+                              color: downColor,
+                              size: 28,
+                            ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                SizedBox(
-                  height: _artSize,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Opacity(
-                        opacity: state.dead ? 0.25 : 1,
-                        child: ColorFiltered(
-                          colorFilter: state.active
-                              ? const ColorFilter.mode(
-                                  Colors.transparent,
-                                  BlendMode.dst,
-                                )
-                              : const ColorFilter.matrix([
-                                  0,
-                                  0,
-                                  0,
-                                  0,
-                                  95,
-                                  0,
-                                  0,
-                                  0,
-                                  0,
-                                  105,
-                                  0,
-                                  0,
-                                  0,
-                                  0,
-                                  115,
-                                  0,
-                                  0,
-                                  0,
-                                  1,
-                                  0,
-                                ]),
-                          child: portrait,
-                        ),
+                  ),
+                  const SizedBox(height: 3),
+                  SizedBox(
+                    height: 4,
+                    width: double.infinity,
+                    child: CustomPaint(
+                      painter: HudTubePainter(
+                        state.hp,
+                        state.hp > 0.5
+                            ? followColor
+                            : state.hp > 0.25
+                            ? activeColor
+                            : downColor,
                       ),
-                      if (state.dead)
-                        const Icon(
-                          Icons.close_rounded,
-                          color: downColor,
-                          // Rides the art, so it grows with it.
-                          size: 31,
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 2),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: state.hp,
-                    minHeight: 3,
-                    backgroundColor: const Color(0xFF070B10),
-                    color: state.hp > 0.5
-                        ? followColor
-                        : state.hp > 0.25
-                        ? activeColor
-                        : downColor,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    state.dead
-                        ? 'DEFEATED'
-                        : !state.cooldown.isFinite
-                        // A Mystic whose world is out carries an INFINITE
-                        // cooldown: the cast is spent for the deployment and
-                        // only a recall gives it back. `.ceil()` on infinity
-                        // throws in Dart, which crashed this widget's build —
-                        // and a crashed build paints a grey error box over the
-                        // party HUD in profile, where there is no red screen to
-                        // explain it.
-                        ? 'WORLD OUT'
-                        : state.cooldown > 0.05
-                        ? 'SP ${state.cooldown.ceil()}'
-                        : 'SP READY',
-                    style: TextStyle(
-                      color: state.dead ? downColor : Colors.white70,
-                      fontSize: _labelSize,
-                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
-                if (feedCount != null && state.active)
-                  Text(
-                    '$feedCount · ${(1 + (feedCount! ~/ 10)).clamp(1, 10)} vines',
-                    style: const TextStyle(color: followColor, fontSize: 6),
+                  const SizedBox(height: 3),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      state.dead
+                          ? 'DEFEATED'
+                          : !state.cooldown.isFinite
+                          // A Mystic whose world is out carries an INFINITE
+                          // cooldown: the cast is spent for the deployment and
+                          // only a recall gives it back. `.ceil()` on infinity
+                          // throws in Dart, which crashed this widget's build —
+                          // and a crashed build paints a grey error box over the
+                          // party HUD in profile, where there is no red screen to
+                          // explain it.
+                          ? 'WORLD OUT'
+                          : state.cooldown > 0.05
+                          ? 'SP ${state.cooldown.ceil()}'
+                          : 'SP READY',
+                      style: hudMono(
+                        _labelSize,
+                        state.dead
+                            ? downColor
+                            : ready
+                            ? HudInk.ink
+                            : HudInk.muted,
+                        spacing: 0.6,
+                      ),
+                    ),
                   ),
-              ],
+                  if (feedCount != null && state.active)
+                    Text(
+                      '$feedCount · ${(1 + (feedCount! ~/ 10)).clamp(1, 10)} vines',
+                      style: hudMono(6, followColor, spacing: 0.3),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -269,6 +241,6 @@ class SurvivalPartySlot extends StatelessWidget {
   /// chrome — a slot with no image should still read as the same size slot.
   Widget _fallback(String name, Color color) => Text(
     name.characters.first,
-    style: TextStyle(color: color, fontSize: 26, fontWeight: FontWeight.bold),
+    style: hudMono(24, color, weight: FontWeight.w900),
   );
 }

@@ -6,6 +6,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS (matching the survival screen aesthetic)
@@ -17,7 +18,6 @@ class _C {
   // where "faded" came from: no element on the card was ever at full strength.
   static const bg0 = Color(0xFF050507);
   static const bg1 = Color(0xFF0B0B10);
-  static const bg2 = Color(0xFF14141B);
   static const bg3 = Color(0xFF1A1A22);
   static const amber = Color(0xFFE0B65F);
   static const textPrimary = Color(0xFFF4EEDF);
@@ -235,15 +235,8 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
                               alpha: 0.97 * _panelOpacity.value,
                             ),
                             border: Border.all(
-                              color: _C.amber.withValues(alpha: 0.30),
+                              color: _C.amber.withValues(alpha: 0.22),
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.6),
-                                blurRadius: 28,
-                                spreadRadius: 4,
-                              ),
-                            ],
                           ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -346,180 +339,246 @@ class _PowerUpCard extends StatelessWidget {
     final showPips = def.showLevel && def.maxStacks > 1;
     final hasTarget = isCompanion && offeredName != null;
 
+    // Dark glass lit from behind at its medallion, in bracket corners of the
+    // category's colour. The medallion — a lens with the category's light in
+    // it — is the one saturated thing per card, so the eye still sorts the
+    // offers by colour before reading a word.
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(onTap),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            // The accent is IN the card, not just around it: a wash that is
-            // strongest at the spine and clears by the middle, so the eye
-            // sorts the three offers by colour before reading a word of them.
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                Color.lerp(_C.bg2, accent, 0.34)!,
-                Color.lerp(_C.bg2, accent, 0.08)!,
-                _C.bg1,
-              ],
-              stops: const [0.0, 0.5, 1.0],
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: accent.withValues(alpha: 0.85),
+          bracketSize: 9,
+          strokeWidth: 1.3,
+        ),
+        child: CustomPaint(
+          painter: _CardLightPainter(accent),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: accent.withValues(alpha: 0.18)),
             ),
-            border: Border.all(color: accent.withValues(alpha: 0.55)),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // A solid spine at full strength. One saturated element per
-                // card is what stops the whole panel reading as washed out.
-                Container(width: 5, color: accent),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(11, 11, 12, 11),
-                    child: Row(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 11),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: CustomPaint(
+                      painter: _MedallionPainter(accent),
+                      child: Icon(
+                        systemIcon,
+                        color: Color.lerp(accent, Colors.white, 0.7),
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Filled medallion rather than a 10%-alpha outline box.
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: accent,
-                            borderRadius: BorderRadius.circular(9),
+                        Text(
+                          def.name.toUpperCase(),
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: Color.lerp(_C.textPrimary, accent, 0.3),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.0,
+                            height: 1.15,
                           ),
-                          child: Icon(systemIcon, color: _C.bg0, size: 18),
                         ),
-                        const SizedBox(width: 11),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                def.name.toUpperCase(),
-                                style: TextStyle(
-                                  color: Color.lerp(
-                                    _C.textPrimary,
-                                    accent,
-                                    0.25,
-                                  ),
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.4,
-                                  height: 1.12,
+                        const SizedBox(height: 6),
+                        if (def.isKeystone)
+                          for (final effect in keystoneEffects)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 3),
+                              child: Text(
+                                '+ $effect',
+                                style: const TextStyle(
+                                  color: _C.textPrimary,
+                                  fontSize: 13.5,
+                                  height: 1.3,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              if (def.isKeystone)
-                                for (final effect in keystoneEffects)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 3),
-                                    child: Text(
-                                      '+ $effect',
-                                      style: const TextStyle(
-                                        color: _C.textPrimary,
-                                        fontSize: 13.5,
-                                        height: 1.3,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  )
-                              else
-                                Text(
-                                  incrementLabel,
+                            )
+                        else
+                          Text(
+                            incrementLabel,
+                            style: const TextStyle(
+                              color: _C.textPrimary,
+                              fontSize: 13.5,
+                              height: 1.3,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        if (totalLabel != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            totalLabel,
+                            style: const TextStyle(
+                              color: _C.textMuted,
+                              fontSize: 11.5,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
+                        // WHO IT IS FOR, on its own line.
+                        //
+                        // This shared a row with two tags and the level
+                        // pips, so on a real phone with real creature
+                        // names it ellipsized to "NO...", "BLIGH...",
+                        // "TERRA..." — which is worse than omitting it,
+                        // because the player can see that a name exists
+                        // and still cannot read which of their party it
+                        // names.
+                        if (hasTarget) ...[
+                          const SizedBox(height: 7),
+                          Row(
+                            children: [
+                              Icon(
+                                AppIcons.arrow_forward_rounded,
+                                color: accent,
+                                size: 13,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  offeredName.toUpperCase(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                    color: _C.textPrimary,
-                                    fontSize: 13.5,
-                                    height: 1.3,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              if (totalLabel != null) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  totalLabel,
-                                  style: const TextStyle(
-                                    color: _C.textMuted,
+                                    fontFamily: 'monospace',
+                                    color: _C.amber,
                                     fontSize: 11.5,
-                                    height: 1.25,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.2,
                                   ),
                                 ),
-                              ],
-                              // WHO IT IS FOR, on its own line.
-                              //
-                              // This shared a row with two tags and the level
-                              // pips, so on a real phone with real creature
-                              // names it ellipsized to "NO...", "BLIGH...",
-                              // "TERRA..." — which is worse than omitting it,
-                              // because the player can see that a name exists
-                              // and still cannot read which of their party it
-                              // names.
-                              if (hasTarget) ...[
-                                const SizedBox(height: 7),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      AppIcons.arrow_forward_rounded,
-                                      color: accent,
-                                      size: 13,
-                                    ),
-                                    const SizedBox(width: 5),
-                                    Expanded(
-                                      child: Text(
-                                        offeredName.toUpperCase(),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: _C.textPrimary,
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              const SizedBox(height: 9),
-                              // What kind of thing it is, and how far along.
-                              Row(
-                                children: [
-                                  _MiniTag(
-                                    label: def.isKeystone
-                                        ? 'DOCTRINE'
-                                        : systemLabel,
-                                    color: accent,
-                                    filled: true,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  _MiniTag(
-                                    label: _rarityLabel(rarity),
-                                    color: _rarityColor(rarity),
-                                  ),
-                                  const Spacer(),
-                                  if (showPips)
-                                    _LevelPips(
-                                      level: choice.currentLevel,
-                                      maxStacks: def.maxStacks,
-                                      tint: accent,
-                                    ),
-                                ],
                               ),
                             ],
                           ),
+                        ],
+                        const SizedBox(height: 9),
+                        // What kind of thing it is, and how far along.
+                        Row(
+                          children: [
+                            _MiniTag(
+                              label: def.isKeystone ? 'DOCTRINE' : systemLabel,
+                              color: accent,
+                              filled: true,
+                            ),
+                            const SizedBox(width: 6),
+                            _MiniTag(
+                              label: _rarityLabel(rarity),
+                              color: _rarityColor(rarity),
+                            ),
+                            const Spacer(),
+                            if (showPips)
+                              _LevelPips(
+                                level: choice.currentLevel,
+                                maxStacks: def.maxStacks,
+                                tint: accent,
+                              ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// The card's glass, lit from behind its medallion.
+class _CardLightPainter extends CustomPainter {
+  _CardLightPainter(this.accent);
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(rect, Paint()..color = _C.bg1.withValues(alpha: 0.96));
+    final at = const Offset(32, 32);
+    final r = size.width * 0.62;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            accent.withValues(alpha: 0.2),
+            accent.withValues(alpha: 0.06),
+            accent.withValues(alpha: 0),
+          ],
+          stops: const [0.0, 0.4, 1.0],
+        ).createShader(Rect.fromCircle(center: at, radius: r)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CardLightPainter old) => old.accent != accent;
+}
+
+/// A lens of dark glass with the category's light inside it.
+class _MedallionPainter extends CustomPainter {
+  _MedallionPainter(this.accent);
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.shortestSide / 2;
+    final rect = Rect.fromCircle(center: c, radius: r);
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(0, 0.15),
+          colors: [
+            accent.withValues(alpha: 0.95),
+            Color.lerp(accent, _C.bg0, 0.45)!,
+            Color.lerp(accent, _C.bg0, 0.85)!,
+          ],
+          stops: const [0.0, 0.55, 1.0],
+        ).createShader(rect),
+    );
+    // The limb catches the light; the glass's glint.
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0),
+            Colors.white.withValues(alpha: 0),
+            Color.lerp(accent, Colors.white, 0.5)!.withValues(alpha: 0.5),
+            Colors.white.withValues(alpha: 0),
+          ],
+          stops: const [0.0, 0.82, 0.95, 1.0],
+        ).createShader(rect),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: c + Offset(-r * 0.3, -r * 0.5),
+        width: r * 0.7,
+        height: r * 0.28,
+      ),
+      Paint()..color = Colors.white.withValues(alpha: 0.2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MedallionPainter old) => old.accent != accent;
 }
 
 IconData _powerUpSystemIcon(PowerUpDef def) {
@@ -588,13 +647,10 @@ class _LevelPips extends StatelessWidget {
       children: List.generate(maxStacks, (index) {
         final filled = index < level;
         return Container(
-          width: 12,
+          width: 11,
           height: 5,
-          margin: EdgeInsets.only(left: index == 0 ? 0 : 3),
-          decoration: BoxDecoration(
-            color: filled ? tint : tint.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(2),
-          ),
+          margin: EdgeInsets.only(left: index == 0 ? 0 : 2),
+          color: filled ? tint : const Color(0xFF26262F),
         );
       }),
     );
@@ -614,23 +670,25 @@ class _MiniTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: filled ? color : color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(3),
-        border: filled
-            ? null
-            : Border.all(color: color.withValues(alpha: 0.45)),
+    // A label in bracket corners. [filled] (the category) is the brighter of
+    // the two; neither is a solid chip any more.
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: color.withValues(alpha: filled ? 0.9 : 0.55),
+        bracketSize: 4,
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: filled ? _C.bg0 : color,
-          fontSize: 10.5,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.8,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+        color: color.withValues(alpha: filled ? 0.12 : 0.05),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: filled ? Color.lerp(color, Colors.white, 0.2) : color,
+            fontSize: 9.5,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.0,
+          ),
         ),
       ),
     );

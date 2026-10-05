@@ -12,6 +12,7 @@ import 'cosmic_contests.dart';
 import 'cosmic_ability_runtime.dart';
 import 'mask_trap_placement.dart';
 import 'cosmic_projectile_vfx.dart';
+import 'hostile_shot_vfx.dart';
 import 'horn_runtime.dart';
 import 'kin_support_runtime.dart';
 import 'mane_runtime.dart';
@@ -631,6 +632,10 @@ class CosmicGame extends FlameGame with PanDetector {
   /// True while the booster is running on cargo rather than refined fuel —
   /// read by the HUD so the player can see what is being spent.
   bool boostingOnMatter = false;
+
+  /// Throttle for telling the HUD the meter is shrinking under a matter
+  /// boost — about ten readings a second rather than one per frame.
+  double _matterBoostHudTimer = 0;
 
   // Orbital sentinels
   final List<OrbitalSentinel> orbitals = [];
@@ -2384,6 +2389,7 @@ class CosmicGame extends FlameGame with PanDetector {
     // Apply boost if booster is equipped and player is holding boost
     final boostWasActive = isBoosting;
     isBoosting = false;
+    final matterWasBurning = boostingOnMatter;
     boostingOnMatter = false;
     if (boosting && !_shipDead) {
       var fuelUsed = shipFuel.consume(boostFuelPerSecond * dt);
@@ -2400,6 +2406,18 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
     if (isBoosting != boostWasActive) onBoostActiveChanged?.call(isBoosting);
+    // The meter is spent as the ship burns it, so the HUD has to fall with
+    // it — not jump once on release.
+    if (boostingOnMatter) {
+      _matterBoostHudTimer -= dt;
+      if (_matterBoostHudTimer <= 0) {
+        _matterBoostHudTimer = 0.1;
+        onMeterChanged();
+      }
+    } else if (matterWasBurning) {
+      _matterBoostHudTimer = 0;
+      onMeterChanged();
+    }
     if (isBoosting && !_boostTrailWasActive) {
       _boostTrailVisual = 1.0;
     }
@@ -5854,22 +5872,14 @@ class CosmicGame extends FlameGame with PanDetector {
         continue;
       }
 
-      final bpColor = elementColor(bp.element);
-      // Glow
-      paintSoftCircle(
+      // The same hostile shot Survival draws.
+      paintHostileShot(
         canvas,
         pp,
-        bp.radius * 2.5,
-        bpColor.withValues(alpha: 0.25),
-        bp.radius * 2,
-      );
-      // Core
-      canvas.drawCircle(pp, bp.radius, Paint()..color = bpColor);
-      // Bright center
-      canvas.drawCircle(
-        pp,
-        bp.radius * 0.4,
-        Paint()..color = Colors.white.withValues(alpha: 0.8),
+        bp.angle,
+        bp.radius,
+        bp.element,
+        heavy: true,
       );
     }
 
