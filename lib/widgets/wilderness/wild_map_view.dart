@@ -22,6 +22,7 @@ class WildMapView extends StatefulWidget {
     this.rainbow = false,
     this.slots = kWildCoreSlots,
     this.glass = false,
+    this.rime = false,
     this.ink = false,
     this.labelFor,
     this.field,
@@ -50,6 +51,10 @@ class WildMapView extends StatefulWidget {
 
   /// Whether the Dunes' next clear visit finds the glass a sandstorm left.
   final bool glass;
+
+  /// Whether Geode Hollow's next clear visit finds the rime a frostfall
+  /// left.
+  final bool rime;
 
   /// Drawn in ink, for a light page.
   final bool ink;
@@ -96,6 +101,7 @@ class _WildMapViewState extends State<WildMapView>
       ..rainbow = widget.rainbow
       ..slots = widget.slots
       ..glass = widget.glass
+      ..rime = widget.rime
       ..ink = widget.ink;
   }
 

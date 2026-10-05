@@ -11,6 +11,7 @@ import 'package:alchemons/games/wilderness/field_essence.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/home_biome.dart';
+import 'package:alchemons/models/shop_scenes.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
@@ -71,10 +72,10 @@ void main() {
   test('the Arcane is not a home until it is unlocked in the wild', () {
     final locked = HomeRealm.open(arcane: false);
     expect(locked, isNot(contains(HomeRealm.arcane)));
-    expect(locked.length, HomeRealm.values.length - 2);
+    expect(locked.length, HomeRealm.values.length - 1 - kShopScenes.length);
     expect(
       HomeRealm.open(arcane: true),
-      HomeRealm.values.where((r) => r != HomeRealm.dunes),
+      HomeRealm.values.where((r) => shopSceneOf(r.sceneId) == null),
     );
     // A home made in the Arcane comes back in the Valley while it is locked,
     // residents and all, and as it was once it opens.
@@ -92,7 +93,10 @@ void main() {
 
   test('a realm sold in the shop is a home only once it is bought', () {
     expect(HomeRealm.open(arcane: true), isNot(contains(HomeRealm.dunes)));
-    final all = HomeRealm.open(arcane: true, bought: {'dunes'});
+    final all = HomeRealm.open(
+      arcane: true,
+      bought: {for (final s in kShopScenes) s.sceneId},
+    );
     expect(all, HomeRealm.values);
     // A Dunes home comes back in the Valley if the Dunes are not open, and
     // as it was once they are.
@@ -220,6 +224,7 @@ void main() {
     HomeRealm.volcano => VolcanoField(),
     HomeRealm.arcane => ArcaneField(),
     HomeRealm.dunes => DunesField(),
+    HomeRealm.geode => GeodeField(),
   };
 
   for (final realm in HomeRealm.values) {

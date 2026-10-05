@@ -329,6 +329,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _owedGeodeRime() async {
+    HapticFeedback.mediumImpact();
+    await context.read<WildernessSpawnService>().debugSetAftermath('geode');
+    if (!mounted) return;
+    showGameSnack(
+      context,
+      'The next clear visit to Geode Hollow shows the rime',
+      icon: AppIcons.wb_sunny_rounded,
+    );
+  }
+
   Future<void> _owedDunesGlass() async {
     HapticFeedback.mediumImpact();
     await context.read<WildernessSpawnService>().debugSetAftermath('dunes');
@@ -2105,7 +2116,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(width: 12),
                           _ForgeButton(
                             label: 'BRING',
-                            icon: AppIcons.ac_unit_rounded,
+                            icon: AppIcons.ac_unit,
                             onTap: context.soundAction(
                               () => _bringWeather(
                                 'valley',
@@ -2243,6 +2254,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 'The northern lights',
                               ),
                             ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('GEODE FROSTFALL', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Replace Geode Hollow\'s spawns with a '
+                                  'batch that comes with a frostfall',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'BRING',
+                            icon: AppIcons.ac_unit,
+                            onTap: context.soundAction(
+                              () => _bringWeather(
+                                'geode',
+                                WeatherKind.frostfall,
+                                'A frostfall',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('GEODE RIME', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Make the next clear visit to Geode Hollow '
+                                  'show the rime after a frostfall',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'SET',
+                            icon: AppIcons.wb_sunny_rounded,
+                            onTap: context.soundAction(_owedGeodeRime),
                           ),
                         ],
                       ),

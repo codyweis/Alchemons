@@ -22,6 +22,7 @@ import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
+import 'package:alchemons/models/scenes/geode/geode_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
@@ -150,6 +151,19 @@ enum HomeRealm {
       HomeMood('sandstorm', 'SANDSTORM', weather: WeatherKind.sandstorm),
       HomeMood('glass', 'GLASS', aftermath: true),
     ],
+  ),
+  // Bought in the shop (models/shop_scenes.dart).
+  geode(
+    'Geode Hollow',
+    'crystal',
+    near: HomeRow(SceneLayer.layer4, 0.80, 100),
+    far: HomeRow(SceneLayer.layer3, 0.63, 70),
+    moods: [
+      HomeMood('clear', 'CLEAR'),
+      HomeMood('frostfall', 'FROSTFALL', weather: WeatherKind.frostfall),
+      HomeMood('singing', 'SINGING', weather: WeatherKind.singing),
+      HomeMood('rime', 'RIME', aftermath: true),
+    ],
   );
 
   const HomeRealm(
@@ -180,6 +194,7 @@ enum HomeRealm {
     HomeRealm.volcano => volcanoScene,
     HomeRealm.arcane => arcaneScene,
     HomeRealm.dunes => dunesScene,
+    HomeRealm.geode => geodeScene,
   };
 
   HomeRow row({required bool back}) => back ? far : near;
@@ -340,6 +355,44 @@ enum HomeRealm {
         far: false,
       ),
     ],
+    HomeRealm.geode => const [
+      HomeScenery(
+        FieldPiece.cluster,
+        'CRYSTALS',
+        w: 90,
+        h: 110,
+        half: 0.6,
+        farW: 50,
+        farH: 55,
+      ),
+      HomeScenery(
+        FieldPiece.column,
+        'ICE COLUMN',
+        w: 26,
+        h: 150,
+        half: 1.3,
+        solid: true,
+        far: false,
+      ),
+      HomeScenery(
+        FieldPiece.tarn,
+        'POOL',
+        w: 150,
+        h: 30,
+        half: 1.08,
+        solid: true,
+        far: false,
+      ),
+      HomeScenery(
+        FieldPiece.geode,
+        'SPLIT GEODE',
+        w: 90,
+        h: 56,
+        half: 0.55,
+        solid: true,
+        far: false,
+      ),
+    ],
   };
 
   HomeScenery? sceneryOf(String piece) =>
@@ -438,6 +491,17 @@ enum HomeRealm {
           piece(kind, fx, back: back, scale: w / s(kind)!.width(back: back)),
         for (final (fx, w, _) in DunesField.homeRocks)
           piece(FieldPiece.outcrop, fx, scale: w / s(FieldPiece.outcrop)!.w),
+      ],
+      HomeRealm.geode => [
+        for (final (back, kind, fx, w, h) in GeodeField.homeScenery)
+          piece(
+            kind,
+            fx,
+            back: back,
+            scale: kind == FieldPiece.tarn
+                ? w / s(kind)!.w
+                : h / s(kind)!.height(back: back),
+          ),
       ],
     };
   }
@@ -682,6 +746,10 @@ class HomePiece {
     FieldPiece.pillar,
     FieldPiece.arch,
     FieldPiece.outcrop,
+    FieldPiece.cluster,
+    FieldPiece.column,
+    FieldPiece.geode,
+    FieldPiece.tarn,
   };
 
   HomePiece copyWith({

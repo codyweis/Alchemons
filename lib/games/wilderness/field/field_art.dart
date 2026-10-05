@@ -250,6 +250,13 @@ abstract class FieldArt {
 ///            Dunes ruin half buried in the sand, seated on the ground under
 ///            it — size is its width and height
 ///   outcrop  Dunes rock of wind-cut sandstone — size is its width and height
+///   cluster  Geode Hollow cluster of crystals, seated on the ground under
+///            it — size.y is its tallest crystal's height
+///   column   Geode Hollow column of ice — size is its width and height
+///   geode    Geode Hollow split geode, a stone to stand on — size is its
+///            width and height
+///   tarn     Geode Hollow black pool on the floor — size.x is its half
+///            width
 ///
 /// Sizes are at the reference height (475 units), as the fields' own are.
 abstract final class FieldPiece {
@@ -259,6 +266,8 @@ abstract final class FieldPiece {
   static const snag = 'snag', spire = 'spire';
   static const monolith = 'monolith';
   static const pillar = 'pillar', arch = 'arch', outcrop = 'outcrop';
+  static const cluster = 'cluster', column = 'column', geode = 'geode';
+  static const tarn = 'tarn';
 }
 
 /// A seed for the piece at [id] that stays its own whatever else moves —

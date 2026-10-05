@@ -47,6 +47,7 @@ WildMapField _field({
   bool rainbow = false,
   List<String> slots = kWildCoreSlots,
   bool glass = false,
+  bool rime = false,
   Size size = _size,
 }) => WildMapField()
   ..weather = weather
@@ -56,6 +57,7 @@ WildMapField _field({
   ..rainbow = rainbow
   ..slots = slots
   ..glass = glass
+  ..rime = rime
   ..layout(size)
   ..settle();
 
@@ -152,8 +154,8 @@ void main() {
     test('an id that is no realm here leaves its circle empty', () {
       final f = _field(
         arcane: true,
-        slots: ['geode', 'sky', 'volcano', 'swamp'],
-        ready: {'geode', 'valley'},
+        slots: ['tidal', 'sky', 'volcano', 'swamp'],
+        ready: {'tidal', 'valley'},
       );
       final at = _centreOf(WildRealm.valley);
       expect(f.sceneAt(at), isNull);
@@ -279,6 +281,152 @@ void main() {
         _field(ready: dunes, weather: sandstorm, glass: true),
       );
       expect(notOut.storm + notOut.glints, 0);
+    });
+  });
+
+  group('Geode Hollow', () {
+    test('it fills whichever circle it is given, and only that one', () {
+      for (var k = 0; k < 4; k++) {
+        final slots = [...kWildCoreSlots]..[k] = 'geode';
+        final f = _field(arcane: true, slots: slots, ready: {'geode'});
+        final at = _centreOf(WildRealm.values[k]);
+        final ring = f.circleOf(WildRealm.geode).width / 2;
+        expect(f.shows(WildRealm.geode), isTrue);
+        expect(f.circleOf(WildRealm.geode).center, at);
+        expect(f.sceneAt(at), 'geode');
+        for (var y = 0.0; y < _size.height; y += 6) {
+          for (var x = 0.0; x < _size.width; x += 6) {
+            final p = Offset(x, y);
+            final hit = f.sceneAt(p);
+            if (hit == 'geode') {
+              expect((p - at).distance, lessThanOrEqualTo(ring * 1.04));
+            }
+            expect(
+              hit == null || hit == 'arcane' || slots.contains(hit),
+              isTrue,
+              reason: '$slots: $hit',
+            );
+          }
+        }
+        f.step(1 / 60);
+        f.paint(_CensusCanvas());
+        expect(f.debugFormOf(WildRealm.geode), 1);
+        expect(f.debugGrains, greaterThan(500), reason: 'its rim, live');
+      }
+      // Not out today: nowhere.
+      final f = _field(ready: {'geode'});
+      expect(f.shows(WildRealm.geode), isFalse);
+      for (var y = 0.0; y < _size.height; y += 6) {
+        for (var x = 0.0; x < _size.width; x += 6) {
+          expect(f.sceneAt(Offset(x, y)), isNot('geode'));
+        }
+      }
+    });
+
+    test('dust until something waits, then its shape; a stir settles', () {
+      const slots = ['valley', 'geode', 'volcano', 'swamp'];
+      final f = _field(slots: slots);
+      f
+        ..step(1 / 60)
+        ..paint(_CensusCanvas());
+      // The sand, the dust of the valley, the geode, the volcano, the
+      // swamp and its tree, three layers each.
+      expect(f.debugPictures, 1 + 5 * 3);
+      f.ready = {'geode'};
+      for (var i = 0; i < 150; i++) {
+        f.step(1 / 60);
+      }
+      expect(f.debugFormOf(WildRealm.geode), 1);
+      final at = f.circleOf(WildRealm.geode).center;
+      for (var i = 0; i < 12; i++) {
+        f
+          ..stir(at + Offset(-40 + i * 7.0, 0), const Offset(7, 0), 1 / 60)
+          ..step(1 / 60);
+      }
+      expect(f.debugDisplacement, greaterThan(4));
+      for (var i = 0; i < 300; i++) {
+        f.step(1 / 60);
+      }
+      expect(f.debugDisplacement, lessThan(0.05));
+      f.paint(_CensusCanvas());
+      // Its shape one picture, its rim live.
+      expect(f.debugPictures, 1 + 1 + 4 * 3);
+    });
+
+    test('singing rolls light through it, shape or dust; nowhere else', () {
+      int seen(WildMapField f) {
+        var most = 0;
+        for (var i = 0; i < 60 * 6; i++) {
+          f
+            ..step(1 / 60)
+            ..paint(_CensusCanvas());
+          most = math.max(most, f.debugSinging);
+        }
+        return most;
+      }
+
+      const slots = ['valley', 'geode', 'volcano', 'swamp'];
+      const singing = {'geode': WeatherKind.singing};
+      expect(seen(_field(slots: slots, ready: {'geode'})), 0);
+      expect(
+        seen(_field(slots: slots, ready: {'geode'}, weather: singing)),
+        greaterThan(40),
+      );
+      // As dust it still sings.
+      expect(seen(_field(slots: slots, weather: singing)), greaterThan(20));
+      // A frostfall is not singing.
+      expect(
+        seen(
+          _field(
+            slots: slots,
+            ready: {'geode'},
+            weather: {'geode': WeatherKind.frostfall},
+          ),
+        ),
+        0,
+      );
+      // Not out today: none of it.
+      expect(seen(_field(ready: {'geode'}, weather: singing)), 0);
+    });
+
+    test('a frostfall drifts ice across it; rime glitters only when clear', () {
+      ({int frost, int glints}) seen(WildMapField f) {
+        var frost = 0, glints = 0;
+        for (var i = 0; i < 60 * 4; i++) {
+          f
+            ..step(1 / 60)
+            ..paint(_CensusCanvas());
+          frost = math.max(frost, f.debugFrost);
+          glints += f.debugRimeGlints;
+        }
+        return (frost: frost, glints: glints);
+      }
+
+      const slots = ['valley', 'geode', 'volcano', 'swamp'];
+      const geode = {'geode'};
+      const frostfall = {'geode': WeatherKind.frostfall};
+      final clear = seen(_field(slots: slots, ready: geode));
+      expect(clear.frost, 0);
+      expect(clear.glints, greaterThan(0), reason: 'a few glints always');
+      final falling = seen(
+        _field(slots: slots, ready: geode, weather: frostfall),
+      );
+      expect(falling.frost, greaterThan(150));
+      // As dust it still falls.
+      expect(
+        seen(_field(slots: slots, weather: frostfall)).frost,
+        greaterThan(150),
+      );
+      final rimed = seen(_field(slots: slots, ready: geode, rime: true));
+      expect(rimed.glints, greaterThan(clear.glints * 3));
+      // Owed, but a frostfall again: the rime waits for it to pass.
+      final again = seen(
+        _field(slots: slots, ready: geode, rime: true, weather: frostfall),
+      );
+      expect(again.glints, lessThan(rimed.glints / 3));
+      // Not out today: none of it anywhere.
+      final notOut = seen(_field(ready: geode, weather: frostfall, rime: true));
+      expect(notOut.frost + notOut.glints, 0);
     });
   });
 
@@ -628,6 +776,7 @@ void main() {
       kWildCoreSlots,
       ['valley', 'sky', 'dunes', 'swamp'],
       ['dunes', 'sky', 'volcano', 'swamp'],
+      ['valley', 'geode', 'dunes', 'swamp'],
     ]) {
       for (final (weather, ink, volcano, rainbow) in [
         (const <String, WeatherKind>{}, false, WildVolcano.still, true),
@@ -640,16 +789,20 @@ void main() {
         ({'dunes': WeatherKind.sandstorm}, false, WildVolcano.still, false),
         ({'dunes': WeatherKind.sandstorm}, true, WildVolcano.erupting, true),
         (const <String, WeatherKind>{}, false, WildVolcano.smoking, true),
+        ({'geode': WeatherKind.frostfall}, false, WildVolcano.still, true),
+        ({'geode': WeatherKind.frostfall}, true, WildVolcano.erupting, false),
+        ({'geode': WeatherKind.singing}, false, WildVolcano.smoking, false),
       ]) {
         final f =
             _field(
                 weather: weather,
-                ready: {'valley', 'dunes', 'arcane'},
+                ready: {'valley', 'dunes', 'geode', 'arcane'},
                 arcane: true,
                 volcano: volcano,
                 rainbow: rainbow,
                 slots: slots,
                 glass: rainbow,
+                rime: rainbow,
               )
               ..ink = ink
               ..debugStrike();

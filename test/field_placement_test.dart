@@ -11,6 +11,7 @@ import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
 import 'package:alchemons/models/encounters/pools/dunes_pool.dart';
+import 'package:alchemons/models/encounters/pools/geode_pool.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
@@ -18,6 +19,7 @@ import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
+import 'package:alchemons/models/scenes/geode/geode_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
@@ -157,6 +159,80 @@ void main() {
         if (field.perchFor(p.id) != null) p.id,
     ];
     expect(perched, ['SP_dunes_05']);
+  });
+
+  // ── Geode Hollow: the floor, the ledge, a split geode under the high point
+
+  onlyFloatersAloft('Geode', geodeScene, geodeEncounterPools);
+
+  double geodePeriod(SceneLayer layer) =>
+      geodeScene.worldWidth *
+      (1 + geodeScene.layers.firstWhere((l) => l.id == layer).parallaxFactor);
+
+  GeodeField builtGeode(double h) {
+    final field = GeodeField()
+      ..layout(
+        geodeScene.spawnPoints,
+        geodeScene.worldWidth,
+        loop: geodeScene.loop,
+      );
+    final screen = Size(h * 1.6, h);
+    for (final layer in [
+      SceneLayer.layer2,
+      SceneLayer.layer3,
+      SceneLayer.layer4,
+      SceneLayer.layer5,
+    ]) {
+      field.build(layer, Size(geodePeriod(layer), h), screen);
+    }
+    return field;
+  }
+
+  for (final h in const [412.0, 475.0, 700.0]) {
+    test('every Geode standing point has ground under it at $h', () {
+      final field = builtGeode(h);
+      for (final p in geodeScene.spawnPoints.where((p) => !p.aloft)) {
+        final x = p.normalizedPos.dx * geodePeriod(p.anchor);
+        final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} has no ground');
+        final perch = field.perchFor(p.id);
+        if (perch != null) {
+          expect(perch, closeTo(feet, 1e-6), reason: p.id);
+          expect(ground!.rest, closeTo(feet, 2 * h / 475), reason: p.id);
+        } else {
+          expect(feet, greaterThan(ground!.top), reason: p.id);
+        }
+      }
+    });
+
+    test('every Geode encounter partner has ground at $h', () {
+      final field = builtGeode(h);
+      for (final p in geodeScene.spawnPoints) {
+        final x =
+            p.normalizedPos.dx * geodePeriod(p.anchor) +
+            p.partnerSide * kFieldPairGap;
+        expect(field.groundAt(p.anchor, x), isNotNull, reason: p.id);
+      }
+    });
+  }
+
+  test('the Geode high point is the only one on a split geode', () {
+    final field = builtGeode(475);
+    expect(
+      [
+        for (final p in geodeScene.spawnPoints)
+          if (field.perchFor(p.id) != null) p.id,
+      ],
+      ['SP_geode_05'],
+    );
+  });
+
+  test('the air under the Geode roof is below it', () {
+    for (final p in geodeScene.spawnPoints.where((p) => p.aloft)) {
+      // The roof's underside is about a fifth of the way down.
+      expect(p.normalizedPos.dy, greaterThan(0.33), reason: p.id);
+    }
   });
 
   test('sky points sit on a layer with ground, for a partner who cannot '

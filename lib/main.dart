@@ -13,6 +13,7 @@ import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
 import 'package:alchemons/models/encounters/pools/dunes_pool.dart';
+import 'package:alchemons/models/encounters/pools/geode_pool.dart';
 import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
@@ -54,6 +55,7 @@ import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
+import 'package:alchemons/models/scenes/geode/geode_scene.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 
 void main() async {
@@ -403,6 +405,11 @@ class _AppGateState extends State<AppGate> {
             scene: dunesScene,
             sceneWide: dunesEncounterPools(dunesScene).sceneWide,
             perSpawn: dunesEncounterPools(dunesScene).perSpawn,
+          ),
+          'geode': (
+            scene: geodeScene,
+            sceneWide: geodeEncounterPools(geodeScene).sceneWide,
+            perSpawn: geodeEncounterPools(geodeScene).perSpawn,
           ),
         };
 

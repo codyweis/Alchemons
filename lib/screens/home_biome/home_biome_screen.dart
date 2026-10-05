@@ -177,6 +177,8 @@ Rect homeSceneryBox(SpawnPoint sp) {
     FieldPiece.snag => Rect.fromLTRB(-w, -h * 4.75, w, 40),
     FieldPiece.spire => Rect.fromLTRB(-w * 1.3, -h, w * 1.3, 8),
     FieldPiece.monolith => Rect.fromLTRB(-w * 0.7, -h, w * 0.7, 8),
+    // The Geode's pool lies on the floor below its point.
+    FieldPiece.tarn => Rect.fromLTRB(-w, 12, w, 78),
     _ => Rect.fromLTRB(-w / 2, -h, w / 2, 8),
   };
 }
@@ -388,6 +390,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     HomeRealm.volcano => const Color(0xFFFFB070),
     HomeRealm.arcane => const Color(0xFFC9B6FF),
     HomeRealm.dunes => const Color(0xFFF0D2A0),
+    HomeRealm.geode => const Color(0xFFCDB8FF),
   };
 
   bool _canLift(String spawnId) {

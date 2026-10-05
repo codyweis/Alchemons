@@ -25,6 +25,7 @@ import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
+import 'package:alchemons/models/scenes/geode/geode_scene.dart';
 import 'package:alchemons/services/wild_rotation.dart';
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
 import 'package:alchemons/screens/party_picker/party_picker.dart';
@@ -192,6 +193,7 @@ class _MapScreenState extends State<MapScreen>
     'swamp': 'Sunken Swamp',
     'arcane': 'Arcane Expanse',
     'dunes': 'Glass Dunes',
+    'geode': 'Geode Hollow',
   };
 
   /// The element whose portal twist each region's entry borrows.
@@ -202,6 +204,7 @@ class _MapScreenState extends State<MapScreen>
     'swamp': 'mud',
     'arcane': 'spirit',
     'dunes': 'dust',
+    'geode': 'crystal',
   };
 
   Future<void> _handlePeekRegion(String biomeId) async {
@@ -932,6 +935,7 @@ class SpawnDebugPanel extends StatelessWidget {
       ('swamp', 'Swamp'),
       ('arcane', 'Arcane Portal'),
       ('dunes', 'Dunes'),
+      ('geode', 'Geode'),
     ];
 
     return Container(
@@ -1063,6 +1067,7 @@ class _WildMap extends StatelessWidget {
     'volcano': volcanoScene,
     'arcane': arcaneScene,
     'dunes': dunesScene,
+    'geode': geodeScene,
   };
 
   @override
@@ -1098,6 +1103,8 @@ class _WildMap extends StatelessWidget {
         slots: slots,
         // The glass a sandstorm leaves glittering in the Dunes.
         glass: spawnService.owesAftermath('dunes'),
+        // The rime a frostfall leaves on Geode Hollow's crystals.
+        rime: spawnService.owesAftermath('geode'),
         ink: theme.brightness == Brightness.light,
         onEnter: (id) {
           final scene = _scenes[id];

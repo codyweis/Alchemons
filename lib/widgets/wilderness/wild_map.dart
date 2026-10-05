@@ -27,7 +27,11 @@
 // the map at all. The Glass Dunes (bought): two crescent dunes, sand
 // streaming off their crests, glass glinting in them; in a sandstorm dust
 // drives across its circle and the dunes go hazy; after one, the sand
-// glitters with glass.
+// glitters with glass. Geode Hollow (bought): a cluster of amethyst and
+// quartz points on a rock, their tips glowing faintly, a shaft of light
+// falling on them; in a frostfall ice drifts down across it, and after one
+// the crystals are rimed white and glittering; while they sing, waves of
+// light roll up through the points one after another.
 //
 // Cheap at rest: grains that hold still are drawn once into a picture and
 // that picture drawn again each frame; the cloud's bob, the tree's sway,
@@ -56,7 +60,8 @@ enum WildRealm {
   sky('sky', 0.75, 0.25),
   volcano('volcano', 0.25, 0.75),
   swamp('swamp', 0.75, 0.75),
-  dunes('dunes', 0.5, 1, bought: true);
+  dunes('dunes', 0.5, 1, bought: true),
+  geode('geode', 0.5, 1, bought: true);
 
   const WildRealm(this.sceneId, this.x, this.y, {this.bought = false});
 
@@ -69,7 +74,7 @@ enum WildRealm {
 
 /// How many realms there are ([WildRealm.values]); the first four come
 /// first.
-const int _nRealms = 5;
+const int _nRealms = 6;
 const int _core = 4;
 
 /// Arcane's index wherever it stands beside the realms (its grains' realm,
@@ -96,6 +101,9 @@ const int _arcRing = 14, _arcFill = 15; // Arcane
 // The Dunes: the near dune, the far one behind it, the sand floor under
 // them.
 const int _dune = 18, _duneFar = 19, _duneFloor = 20;
+// Geode Hollow: its amethyst points, its pale quartz ones, the rock under
+// them.
+const int _amethyst = 21, _quartz = 22, _geoRock = 23;
 
 // Groups, in the order they draw. Each is one picture at rest, and only
 // the ones a finger reaches go back to live grains.
@@ -286,6 +294,35 @@ double _duneBrink(_Dune d, double s) =>
     (d.us - d.uc) * math.pow(s, 2.6).toDouble() -
     0.045 * math.sin(math.pi * s);
 
+/// A crystal point of the Geode (unit square): where its foot is, how far
+/// it leans from upright (radians, + to the right), how wide and how long
+/// it is, and whether it is pale quartz rather than amethyst. Back to
+/// front.
+typedef _Xtal = (double, double, double, double, double, bool);
+
+// Lopsided on purpose: a fan of even points reads as a crown.
+const _xtals = <_Xtal>[
+  (0.28, 0.85, -0.78, 0.07, 0.2, true),
+  (0.71, 0.84, 0.6, 0.085, 0.31, true),
+  (0.38, 0.83, -0.3, 0.135, 0.5, false),
+  (0.64, 0.84, 0.44, 0.11, 0.33, false),
+  (0.52, 0.85, 0.06, 0.17, 0.66, false),
+  (0.43, 0.87, -0.98, 0.06, 0.15, false),
+];
+
+/// How far up crystal [x] (0 foot, 1 tip) and how far across (-1 its left
+/// edge, 1 its right) (u, v) is, or null if outside it.
+(double, double)? _inXtal(_Xtal x, double u, double v) {
+  final (bu, bv, t, w, len, _) = x;
+  final du = u - bu, dv = v - bv;
+  final st = math.sin(t), ct = math.cos(t);
+  final a = du * st - dv * ct, p = du * ct + dv * st;
+  if (a < -0.08 * len || a > len) return null;
+  final half = a < 0.72 * len ? w / 2 : w / 2 * (len - a) / (0.28 * len);
+  if (p.abs() > half || half <= 0) return null;
+  return (a / len, p / (w / 2));
+}
+
 /// A grain as it is built: where it rests in its realm's shape, and (a
 /// shape's grain) where in the dust it rests until the shape is called, and
 /// the layer of dust it drifts in.
@@ -342,6 +379,10 @@ class WildMapField {
   /// Whether the Dunes' next clear visit finds the glass a sandstorm left:
   /// the sand glitters with it.
   bool glass = false;
+
+  /// Whether Geode Hollow's next clear visit finds the rime a frostfall
+  /// left: the cave frosted white.
+  bool rime = false;
 
   /// Drawn in ink on a light page instead of light on the dark: light
   /// adding up shows nothing on parchment.
@@ -463,6 +504,7 @@ class WildMapField {
     _buildWashes(rng);
     _buildRainbow(rng);
     _buildGlints();
+    _buildGeode();
     _fieldW = (size.width / _cell).ceil() + 1;
     _fieldH = (size.height / _cell).ceil() + 1;
     _fu = Float32List(_fieldW * _fieldH);
@@ -681,6 +723,48 @@ class WildMapField {
         ..add((floor, _duneFloor))
         ..add((dune(_farDune), _duneFar))
         ..add((dune(_nearDune), _dune));
+    }
+    // Geode Hollow (when out): its crystal points rising out of a rock.
+    final g = WildRealm.geode.index;
+    _parts[g].clear();
+    if (_shown[g]) {
+      for (final x in _xtals) {
+        final (bu, bv, t, w, len, pale) = x;
+        final st = math.sin(t), ct = math.cos(t);
+        Offset at(double p, double a) =>
+            _at(g, bu + p * ct + a * st, bv + p * st - a * ct);
+        final pts = [
+          at(-w / 2, -0.08 * len),
+          at(-w / 2, 0.72 * len),
+          at(0, len),
+          at(w / 2, 0.72 * len),
+          at(w / 2, -0.08 * len),
+        ];
+        final path = Path()..moveTo(pts[0].dx, pts[0].dy);
+        for (final o in pts.skip(1)) {
+          path.lineTo(o.dx, o.dy);
+        }
+        _parts[g].add((path..close(), pale ? _quartz : _amethyst));
+      }
+      // The rock: a lumpy mound over their feet.
+      final rock = Path();
+      for (var k = 0; k <= 28; k++) {
+        final u = 0.16 + 0.68 * k / 28;
+        final e = math.sqrt(math.max(0, 1 - math.pow((u - 0.5) / 0.34, 2)));
+        final o = _at(
+          g,
+          u,
+          0.875 - e * (0.07 + 0.018 * math.sin(u * 23 + 0.4)),
+        );
+        k == 0 ? rock.moveTo(o.dx, o.dy) : rock.lineTo(o.dx, o.dy);
+      }
+      for (var k = 28; k >= 0; k--) {
+        final u = 0.16 + 0.68 * k / 28;
+        final e = math.sqrt(math.max(0, 1 - math.pow((u - 0.5) / 0.34, 2)));
+        final o = _at(g, u, 0.875 + e * 0.045);
+        rock.lineTo(o.dx, o.dy);
+      }
+      _parts[g].add((rock..close(), _geoRock));
     }
     // A realm not out today has no shape on the map.
     for (var i = 0; i < _nRealms; i++) {
@@ -1325,6 +1409,44 @@ class WildMapField {
         col = _mix(col, 0xFF2A1A10, 0.14 * n);
         // In a sandstorm: hazed, the light and shade run together.
         return (col, _mix(col, far ? 0xFF6E5C48 : 0xFF84705A, 0.66), part);
+      case _amethyst || _quartz:
+        // The crystal it is in (front-most), and where on it.
+        var at = (0.5, 0.0);
+        for (var k = _xtals.length - 1; k >= 0; k--) {
+          final hit = _inXtal(_xtals[k], u, v);
+          if (hit != null) {
+            at = hit;
+            break;
+          }
+        }
+        final (up, across) = at;
+        final pale = part == _quartz;
+        // Three faces seen: the left one lit, the middle half lit, the
+        // right in shade; each darker toward the foot, the point lit.
+        final int faceCol;
+        if (across < -0.38) {
+          faceCol = pale ? 0xFFF4F7FC : 0xFFDABEFA;
+        } else if (across < 0.36) {
+          faceCol = pale ? 0xFFAEBACE : 0xFF9668D4;
+        } else {
+          faceCol = pale ? 0xFF5E6A80 : 0xFF46287C;
+        }
+        final rise = 0.55 + 0.45 * _clamp01(up);
+        var col = _mix(pale ? 0xFF3A4252 : 0xFF221238, faceCol, rise);
+        // The edge between the lit faces catches the light.
+        if ((across + 0.38).abs() < 0.1 && up > 0.15) {
+          col = _mix(col, pale ? 0xFFFFFFFF : 0xFFEADCFF, 0.55);
+        }
+        col = _mix(col, pale ? 0xFF2A3040 : 0xFF1E1030, 0.12 * n);
+        // Rimed: frosted white.
+        return (col, _mix(col, 0xFFE6EEF8, 0.58), part);
+      case _geoRock:
+        final lit = _clamp01((0.88 - v) / 0.1) * 0.7 + (1 - u) * 0.3;
+        var col = _mix(0xFF2A2630, 0xFF7E7688, _clamp01(lit));
+        col = _mix(col, 0xFF141016, 0.3 * n);
+        // A few violet chips in it.
+        if (rng.nextDouble() < 0.05) col = _mix(col, 0xFF8A62C0, 0.6);
+        return (col, _mix(col, 0xFFC2CAD6, 0.62), _geoRock);
       case _duneFloor:
         // Lit toward its top, where it meets the dunes; ribbed by the wind.
         final top = _clamp01((0.9 - v) / 0.05);
@@ -1391,6 +1513,7 @@ class WildMapField {
     0xFF6A2A16,
     0xFF2E5034,
     0xFF9A6A34,
+    0xFF6A3E9A,
   ];
   static const _washAlt = [
     0xFFD0DAE6,
@@ -1398,6 +1521,7 @@ class WildMapField {
     0xFF6A2A16,
     0xFF6A5A38,
     0xFF7A6448,
+    0xFFAEB8D0,
   ];
 
   void _paintWashes() {
@@ -1689,6 +1813,306 @@ class WildMapField {
           );
         }
         debugSandstorm++;
+      }
+    }
+  }
+
+  // ── Geode Hollow: glowing points, a shaft of light, frost ─────────────
+
+  // Spots on the crystals that glint: a few always, many more when rimed.
+  Float32List _geoGlX = Float32List(0), _geoGlY = Float32List(0);
+  Float32List _geoGlPh = Float32List(0);
+  static const int _geoGlintsAlways = 9, _geoGlintsMost = 150;
+  // The crystals, as a coarse grid of in/out, for the ice crossing them.
+  Uint8List _geoMask = Uint8List(0);
+  int _gmw = 0;
+  // Where the singing's light shows: spots in the crystals (place, which
+  // point, how far up it), and spots loose in the circle for while it is
+  // dust (place, how far out).
+  Float32List _songX = Float32List(0), _songY = Float32List(0);
+  Float32List _songUp = Float32List(0);
+  Uint8List _songOf = Uint8List(0);
+  Float32List _songDX = Float32List(0), _songDY = Float32List(0);
+  Float32List _songDR = Float32List(0);
+
+  /// The order the points sing in, and how far apart, s: a slow rolling
+  /// rhythm across the cluster.
+  static const _songOrder = [0, 2, 5, 4, 3, 1];
+  static const double _songGap = 0.9, _songRise = 1.3;
+
+  void _buildGeode() {
+    final g = WildRealm.geode.index;
+    final xs = <double>[], ys = <double>[], ph = <double>[];
+    _gmw = 0;
+    _geoMask = Uint8List(0);
+    if (_shown[g]) {
+      final rng = math.Random(_seed + 700);
+      final b = _box[g];
+      for (var tries = 0; xs.length < _geoGlintsMost && tries < 6000; tries++) {
+        final p = Offset(
+          b.left + rng.nextDouble() * _side,
+          b.top + rng.nextDouble() * _side,
+        );
+        final part = _partAt(g, p);
+        if (part != _amethyst && part != _quartz) continue;
+        xs.add(p.dx);
+        ys.add(p.dy);
+        ph.add(rng.nextDouble());
+      }
+      _gmw = (_side / _maskCell).ceil() + 1;
+      _geoMask = Uint8List(_gmw * _gmw);
+      for (var gy = 0; gy < _gmw; gy++) {
+        for (var gx = 0; gx < _gmw; gx++) {
+          final part = _partAt(
+            g,
+            Offset(b.left + gx * _maskCell, b.top + gy * _maskCell),
+          );
+          if (part == _amethyst || part == _quartz) {
+            _geoMask[gy * _gmw + gx] = 1;
+          }
+        }
+      }
+    }
+    _geoGlX = Float32List.fromList(xs);
+    _geoGlY = Float32List.fromList(ys);
+    _geoGlPh = Float32List.fromList(ph);
+    _buildSong();
+  }
+
+  void _buildSong() {
+    final g = WildRealm.geode.index;
+    final xs = <double>[], ys = <double>[], ups = <double>[];
+    final ofs = <int>[];
+    final dx = <double>[], dy = <double>[], dr = <double>[];
+    if (_shown[g]) {
+      final rng = math.Random(_seed + 800);
+      final b = _box[g];
+      for (var tries = 0; xs.length < 700 && tries < 9000; tries++) {
+        final u = rng.nextDouble(), v = rng.nextDouble();
+        for (var k = _xtals.length - 1; k >= 0; k--) {
+          final hit = _inXtal(_xtals[k], u, v);
+          if (hit == null) continue;
+          xs.add(b.left + u * _side);
+          ys.add(b.top + v * _side);
+          ups.add(hit.$1.clamp(0.0, 1.0));
+          ofs.add(k);
+          break;
+        }
+      }
+      final c = _centre[g];
+      for (var k = 0; k < 600; k++) {
+        final r = _ringR * 0.88 * math.sqrt(rng.nextDouble());
+        final a = rng.nextDouble() * _tau;
+        dx.add(c.dx + math.cos(a) * r);
+        dy.add(c.dy + math.sin(a) * r);
+        dr.add(r / _ringR);
+      }
+    }
+    _songX = Float32List.fromList(xs);
+    _songY = Float32List.fromList(ys);
+    _songUp = Float32List.fromList(ups);
+    _songOf = Uint8List.fromList(ofs);
+    _songDX = Float32List.fromList(dx);
+    _songDY = Float32List.fromList(dy);
+    _songDR = Float32List.fromList(dr);
+  }
+
+  /// The singing: in its shape, a wave of light rolling up each point in
+  /// turn, foot to tip, and a few grains lifting off the tip it reaches;
+  /// as dust, waves of light rolling out through the dust.
+  void _paintSong(int i, double form) {
+    final sing = _sing;
+    if (sing <= 0) return;
+    final grain = _unit;
+    final t = time;
+    const period = _songGap * 6;
+    // How far up each point its wave is now (-1: none on it).
+    final wave = List<double>.filled(_xtals.length, -1);
+    for (var n = 0; n < _songOrder.length; n++) {
+      final age = (t - n * _songGap) % period;
+      if (age < _songRise) wave[_songOrder[n]] = age / _songRise;
+    }
+    if (form > 0.02) {
+      for (var k = 0; k < _songX.length; k++) {
+        final w = wave[_songOf[k]];
+        if (w < 0) continue;
+        final d = (_songUp[k] - (w * 1.3 - 0.15)) / 0.16;
+        if (d.abs() > 2) continue;
+        final band = math.exp(-d * d);
+        final a = band * sing * form * math.sin(math.pi * w);
+        if (a < 0.04) continue;
+        debugSinging++;
+        final x = _songX[k], y = _songY[k];
+        _dots.add(x, y, grain * 0.0042, _argb(a, 1, 0.96, 1));
+        // A little light round it, as small as a grain's glow.
+        if (k % 3 == 0) {
+          _glow.add(x, y, grain * 0.02, _argb(0.3 * a, 0.86, 0.72, 1));
+        }
+      }
+      // Grains lifting off the tip a wave has reached, drifting up.
+      for (var n = 0; n < _songOrder.length; n++) {
+        final x = _xtals[_songOrder[n]];
+        final (bu, bv, tilt, _, len, _) = x;
+        final age = (t - n * _songGap - _songRise * 0.85) % period;
+        if (age > 1.8) continue;
+        final tip = _at(
+          i,
+          bu + math.sin(tilt) * len,
+          bv - math.cos(tilt) * len,
+        );
+        for (var j = 0; j < 7; j++) {
+          final h = n * 31 + j * 7 + 2101;
+          final s = age / 1.8;
+          final px =
+              tip.dx +
+              (_hash(h) - 0.5) * _side * 0.06 +
+              _side * 0.03 * _fsin(age * 2 + j);
+          final py =
+              tip.dy - _side * (0.03 + 0.16 * s * (0.6 + 0.4 * _hash(h + 1)));
+          final a = sing * form * 0.8 * (s < 0.15 ? s / 0.15 : 1 - s);
+          if (a < 0.03) continue;
+          debugSinging++;
+          _dots.add(px, py, grain * 0.003, _argb(a, 0.92, 0.88, 1));
+        }
+      }
+    }
+    if (form < 0.98) {
+      // As dust: rings of light rolling out from the middle, one each
+      // beat.
+      final out = (t % _songGap) / _songGap;
+      for (var k = 0; k < _songDX.length; k++) {
+        final d = (_songDR[k] - out) / 0.08;
+        if (d.abs() > 2) continue;
+        final a = math.exp(-d * d) * sing * (1 - form) * (1 - out * 0.4);
+        if (a < 0.04) continue;
+        debugSinging++;
+        final x = _songDX[k], y = _songDY[k];
+        _dots.add(x, y, grain * 0.0042, _argb(a, 0.98, 0.92, 1));
+        if (k % 4 == 0) {
+          _glow.add(x, y, grain * 0.02, _argb(0.28 * a, 0.8, 0.66, 1));
+        }
+      }
+    }
+  }
+
+  bool _inCrystal(double x, double y) {
+    final b = _box[WildRealm.geode.index];
+    final gx = ((x - b.left) / _maskCell).round();
+    final gy = ((y - b.top) / _maskCell).round();
+    if (gx < 0 || gy < 0 || gx >= _gmw || gy >= _gmw) return false;
+    return _geoMask[gy * _gmw + gx] == 1;
+  }
+
+  /// Drawn with the live grains: the points' tips glowing, breathing
+  /// slowly; a shaft of light falling on them, motes drifting down it; the
+  /// crystals glinting (far more when rimed); and in a frostfall ice
+  /// drifting down across the circle, brighter where it crosses them.
+  void _paintGeode() {
+    final i = WildRealm.geode.index;
+    if (!_shown[i]) return;
+    final grain = _unit;
+    final t = time;
+    final form = _form[i];
+    final frost = _frost;
+    final rimed = _wx[i];
+    _paintSong(i, form);
+    if (form > 0.02) {
+      // The shaft: from above on the left, down onto the cluster.
+      final from = _at(i, 0.16, -0.28), to = _at(i, 0.52, 0.62);
+      final along = to - from;
+      final len = along.distance;
+      final ux = along.dx / len, uy = along.dy / len;
+      final half = _side * 0.075;
+      for (var k = 0; k < 150; k++) {
+        final h = k * 5 + 1301;
+        final s = (_hash(h) + t * (0.02 + 0.02 * _hash(h + 1))) % 1.0;
+        final q = (_hash(h + 2) * 2 - 1) * (0.4 + 0.6 * s);
+        final x = from.dx + ux * len * s - uy * half * q;
+        final y = from.dy + uy * len * s + ux * half * q;
+        final m = math.min(1.0, _zone(i, x, y) * 2);
+        if (m < 0.05) continue;
+        final a =
+            0.32 *
+            form *
+            m *
+            math.sin(math.pi * s) *
+            (1 - q.abs() * 0.6) *
+            (1 - 0.6 * frost);
+        _dots.add(
+          x,
+          y,
+          grain * (0.0022 + 0.001 * _hash(h + 3)),
+          _argb(a, 0.88, 0.82, 1),
+        );
+      }
+      // The tips, glowing faintly, breathing.
+      for (var k = 0; k < _xtals.length; k++) {
+        final (bu, bv, tilt, _, len, pale) = _xtals[k];
+        final tip = _at(
+          i,
+          bu + math.sin(tilt) * len * 0.92,
+          bv - math.cos(tilt) * len * 0.92,
+        );
+        final breathe = 0.65 + 0.35 * _fsin(t * 0.55 + k * 1.9);
+        _glow.add(
+          tip.dx,
+          tip.dy,
+          grain * (pale ? 0.045 : 0.07),
+          pale
+              ? _argb(0.22 * breathe * form, 0.8, 0.9, 1)
+              : _argb(0.3 * breathe * form, 0.72, 0.5, 1),
+        );
+      }
+      // Glints: a few always, many when rimed; lost in a frostfall.
+      final lit =
+          ((_geoGlintsAlways + (_geoGlX.length - _geoGlintsAlways) * rimed) *
+                  (1 - 0.85 * frost))
+              .round()
+              .clamp(0, _geoGlX.length);
+      for (var k = 0; k < lit; k++) {
+        final ph = _geoGlPh[k];
+        final w = _fsin(t * (0.9 + 1.2 * ph) + ph * 40);
+        if (w < 0.86) continue;
+        final f = (w - 0.86) / 0.14;
+        final a = f * f * form;
+        if (a < 0.03) continue;
+        debugRimeGlints++;
+        final x = _geoGlX[k], y = _geoGlY[k];
+        _dots.add(x, y, grain * 0.004, _argb(a, 0.96, 0.97, 1));
+        _glow.add(x, y, grain * 0.022, _argb(0.4 * a, 0.82, 0.86, 1));
+      }
+    }
+    // The frostfall: ice drifting down across the whole circle, swaying,
+    // catching the light where it crosses the crystals.
+    if (frost > 0) {
+      final c = _centre[i];
+      final span = _ringR * 2.2;
+      for (var k = 0; k < 240; k++) {
+        final h = k * 5 + 1701;
+        final ph = _hash(h), ph2 = _hash(h + 1), ph3 = _hash(h + 2);
+        final y =
+            c.dy -
+            span / 2 +
+            (ph * span + t * _ringR * (0.12 + 0.12 * ph2)) % span;
+        final x =
+            c.dx -
+            _ringR +
+            ph3 * 2 * _ringR +
+            5 * _fsin(t * (0.6 + 0.5 * ph2) + ph * 30);
+        final m = math.min(1.0, _zone(i, x, y) * 2.2);
+        if (m < 0.05) continue;
+        debugFrost++;
+        final over = form > 0.5 && _inCrystal(x, y);
+        final a = frost * m * (over ? 0.95 : 0.6);
+        _dots.add(
+          x,
+          y,
+          grain * (0.003 + 0.0016 * ph2),
+          _argb(a, 0.86, 0.93, 1),
+        );
+        if (over && k % 3 == 0) {
+          _glow.add(x, y, grain * 0.02, _argb(0.35 * a, 0.8, 0.9, 1));
+        }
       }
     }
   }
@@ -2268,6 +2692,8 @@ class WildMapField {
   double _smoke = 0, _erupt = 0, _bow = 0;
   // The glass a sandstorm leaves in the Dunes.
   double _glass = 0;
+  // A frostfall over Geode Hollow, and its crystals singing.
+  double _frost = 0, _sing = 0;
   double _flash = 0;
   double _nextStrike = 2;
   final List<Offset> _bolt = [], _fork = [];
@@ -2288,6 +2714,9 @@ class WildMapField {
       WildRealm.sky => w == WeatherKind.storm ? 1 : 0,
       WildRealm.swamp => w == WeatherKind.dry ? 1 : 0,
       WildRealm.dunes => w == WeatherKind.sandstorm ? 1 : 0,
+      // Its crystals frosted white: the rime a frostfall leaves, once it
+      // has passed.
+      WildRealm.geode => rime && w == null ? 1 : 0,
       // How warm the mountain is.
       WildRealm.volcano => switch (volcano) {
         WildVolcano.still => 0,
@@ -2306,6 +2735,16 @@ class WildMapField {
 
   double get _glassTo =>
       glass && _shown[WildRealm.dunes.index] && weather['dunes'] == null
+      ? 1
+      : 0;
+
+  double get _frostTo =>
+      _shown[WildRealm.geode.index] && weather['geode'] == WeatherKind.frostfall
+      ? 1
+      : 0;
+
+  double get _singTo =>
+      _shown[WildRealm.geode.index] && weather['geode'] == WeatherKind.singing
       ? 1
       : 0;
 
@@ -2342,6 +2781,8 @@ class WildMapField {
     _erupt = _eruptTo;
     _bow = _bowTo;
     _glass = _glassTo;
+    _frost = _frostTo;
+    _sing = _singTo;
   }
 
   static double _ease(double v, double to, double k) {
@@ -2373,6 +2814,8 @@ class WildMapField {
     _erupt = _ease(_erupt, _eruptTo, k);
     _bow = _ease(_bow, _bowTo, k);
     _glass = _ease(_glass, _glassTo, k);
+    _frost = _ease(_frost, _frostTo, k);
+    _sing = _ease(_sing, _singTo, k);
     _stepField(dt);
     _stepStorm(dt);
     _stepMeteors(dt);
@@ -3079,6 +3522,13 @@ class WildMapField {
   /// last frame.
   int debugSandstorm = 0, debugGlints = 0;
 
+  /// Ice of Geode Hollow's frostfall drawn, and glints of its crystals lit,
+  /// in the last frame.
+  int debugFrost = 0, debugRimeGlints = 0;
+
+  /// Light of Geode Hollow's singing drawn in the last frame.
+  int debugSinging = 0;
+
   /// Grains of Arcane's weather (meteors, northern lights) drawn in the
   /// last frame.
   int debugArcaneSky = 0;
@@ -3137,7 +3587,8 @@ class WildMapField {
     debugPictures = 0;
     debugChunkPictures = 0;
     debugBombs = debugSmoke = debugRainbow = debugArcaneSky = 0;
-    debugSandstorm = debugGlints = 0;
+    debugSandstorm = debugGlints = debugFrost = debugRimeGlints = 0;
+    debugSinging = 0;
     if (_syncKey()) _restepBatches();
     final dots = ink ? _inkOver : _over;
 
@@ -3163,6 +3614,7 @@ class WildMapField {
           _paintMovers();
           _paintWeather();
           _paintDunes();
+          _paintGeode();
           debugGrains += _dots.n;
           _dots.draw(canvas, _atlas!, dots);
         } else if (_whole(g)) {
@@ -3173,6 +3625,7 @@ class WildMapField {
             _paintMovers();
             _paintWeather();
             _paintDunes();
+            _paintGeode();
           }
           debugGrains += _dots.n;
           _dots.draw(canvas, _atlas!, dots);

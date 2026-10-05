@@ -7,30 +7,30 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
-import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
+import 'package:alchemons/models/scenes/geode/geode_scene.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// The Glass Dunes drawn in code, rendered through the real SceneGame with
+// The Geode Hollow drawn in code, rendered through the real SceneGame with
 // creatures standing on its spawns: through the day, a finger ploughing the
 // sand, the sandstorm, the glass after it, panned round the loop and framed
 // for an encounter.
 //
-//   DUNES_OUT=/tmp/dunes flutter test \
-//     test/dunes_field_preview_test.dart --tags preview
+//   GEODE_OUT=/tmp/dunes flutter test \
+//     test/geode_field_preview_test.dart --tags preview
 //
-// DUNES_OUT is a directory; one PNG per frame, and day.png with the day on
-// one sheet. DUNES_SIZE=751x475 picks the screen (logical px), DUNES_HOURS
-// the hours, DUNES_ONLY a comma list of frame-name prefixes to render.
+// GEODE_OUT is a directory; one PNG per frame, and day.png with the day on
+// one sheet. GEODE_SIZE=751x475 picks the screen (logical px), GEODE_HOURS
+// the hours, GEODE_ONLY a comma list of frame-name prefixes to render.
 void main() {
-  final out = Platform.environment['DUNES_OUT'];
+  final out = Platform.environment['GEODE_OUT'];
 
-  testWidgets('dunes field preview', (tester) async {
+  testWidgets('geode field preview', (tester) async {
     if (out == null) return;
-    final dims = (Platform.environment['DUNES_SIZE'] ?? '751x475')
+    final dims = (Platform.environment['GEODE_SIZE'] ?? '751x475')
         .split('x')
         .map(double.parse)
         .toList();
@@ -41,18 +41,18 @@ void main() {
     tester.view.devicePixelRatio = dpr;
     addTearDown(tester.view.reset);
     Directory(out).createSync(recursive: true);
-    final only = Platform.environment['DUNES_ONLY']?.split(',');
+    final only = Platform.environment['GEODE_ONLY']?.split(',');
     bool wanted(String name) =>
         only == null || only.any((p) => name.startsWith(p));
 
     final sprites = <String, ui.Image>{};
     await tester.runAsync(() async {
       for (final p in [
-        'rare/HOR10_dusthorn',
-        'common/LET10_dustlet',
-        'uncommon/PIP10_dustpip',
-        'legendary/WNG10_dustwing',
-        'uncommon/MAN10_dustmane',
+        'rare/HOR11_crystalhorn',
+        'common/LET11_crystalet',
+        'uncommon/PIP09_icepip',
+        'legendary/WNG11_crystalwing',
+        'uncommon/MAN11_crystalmane',
       ]) {
         final file = 'assets/images/creatures/${p}_spritesheet.png';
         try {
@@ -84,7 +84,7 @@ void main() {
       WeatherKind? weather,
       bool glass = false,
     }) async {
-      final game = SceneGame(scene: dunesScene)
+      final game = SceneGame(scene: geodeScene)
         ..fieldHourOverride = hour
         ..fieldWeather = weather
         ..fieldAftermath = glass;
@@ -126,12 +126,12 @@ void main() {
         );
       }
 
-      stand('SP_dunes_01', 'rare/HOR10_dusthorn', 100);
-      stand('SP_dunes_02', 'common/LET10_dustlet', 70 * 0.75);
-      stand('SP_dunes_03', 'uncommon/PIP10_dustpip', 95 * 0.8, flip: true);
-      stand('SP_dunes_04', 'legendary/WNG10_dustwing', 64 * 1.1);
-      stand('SP_dunes_05', 'uncommon/MAN10_dustmane', 95, flip: true);
-      stand('SP_dunes_06', 'rare/HOR10_dusthorn', 70, flip: true);
+      stand('SP_geode_01', 'rare/HOR11_crystalhorn', 100);
+      stand('SP_geode_02', 'common/LET11_crystalet', 70 * 0.75);
+      stand('SP_geode_03', 'uncommon/PIP09_icepip', 95 * 0.8, flip: true);
+      stand('SP_geode_04', 'legendary/WNG11_crystalwing', 64 * 1.1);
+      stand('SP_geode_05', 'uncommon/MAN11_crystalmane', 95, flip: true);
+      stand('SP_geode_06', 'rare/HOR11_crystalhorn', 70, flip: true);
 
       if (encounter != null) game.debugFrameEncounter(encounter);
       if (weather != null || glass) game.debugSettleWeather();
@@ -144,11 +144,11 @@ void main() {
         if (stroke && clock > t - 1.1 && clock < t - 0.35) {
           final f = (clock - (t - 1.1)) / 0.75;
           final x = screen.width * (0.38 + 0.3 * f);
-          final y = screen.height * (0.9 + 0.035 * math.sin(f * 3));
+          final y = screen.height * (0.48 + 0.035 * math.sin(f * 3));
           game.debugTouch(x, y, screen.width * 0.3 / 0.75 * dt, 0);
         }
         if (tap && clock < t - 0.3 && clock + dt >= t - 0.3) {
-          game.debugTouch(screen.width * 0.3, screen.height * 0.88, 0, 0);
+          game.debugTouch(screen.width * 0.9, screen.height * 0.72, 0, 0);
         }
         game.update(dt);
         // The sand moves as it is drawn, as on a phone every frame.
@@ -170,7 +170,7 @@ void main() {
     }
 
     final hours =
-        (Platform.environment['DUNES_HOURS'] ??
+        (Platform.environment['GEODE_HOURS'] ??
                 '5.8,6.6,9,13,18.4,19.3,20.4,23')
             .split(',')
             .where((h) => h.isNotEmpty)
@@ -186,24 +186,36 @@ void main() {
         () => shoot(t: 1.5, hour: h),
       );
     }
-    await add('plough_day', () => shoot(t: 2.4, hour: 13, stroke: true));
-    await add('plough_gold', () => shoot(t: 2.4, stroke: true));
-    await add('tap', () => shoot(t: 2.0, hour: 13, tap: true));
-    await add('devil', () => shoot(t: 6, hour: 15));
+    await add('stir_day', () => shoot(t: 2.4, hour: 13, stroke: true));
+    await add('ring_night', () => shoot(t: 2.0, hour: 23, tap: true));
+    // The prism at noon, and by moonlight.
+    await add('prism_noon', () => shoot(t: 2.5, hour: 12.8, pan: 260));
+    await add('prism_moon', () => shoot(t: 2.5, hour: 0.5, pan: 260));
+    // The pool, its drips and rings.
+    await add('pool_day', () => shoot(t: 4.4, hour: 14, pan: 500));
+    await add('pool_night', () => shoot(t: 4.4, hour: 23, pan: 500));
+    // Glowworms at night.
+    await add('worms', () => shoot(t: 3, hour: 23.5, pan: 100));
+    for (final h in const [13.0, 23.0]) {
+      await add(
+        'sing_${h.toStringAsFixed(1).padLeft(4, '0')}',
+        () => shoot(t: 4.0, hour: h, weather: WeatherKind.singing),
+      );
+    }
     await add('gust', () => shoot(t: 3.9));
     for (final pan in const [700.0, 1300.0]) {
       await add('loop_${pan.round()}', () => shoot(t: 6.2, pan: pan));
     }
-    await add('encounter', () => shoot(t: 3, encounter: 'SP_dunes_01'));
+    await add('encounter', () => shoot(t: 3, encounter: 'SP_geode_01'));
     for (final h in const [12.0, 18.4, 23.0]) {
       await add(
-        'storm_${h.toStringAsFixed(1).padLeft(4, '0')}',
-        () => shoot(t: 2.0, hour: h, weather: WeatherKind.sandstorm),
+        'frost_${h.toStringAsFixed(1).padLeft(4, '0')}',
+        () => shoot(t: 2.0, hour: h, weather: WeatherKind.frostfall),
       );
     }
     for (final h in const [12.0, 18.4, 23.0]) {
       await add(
-        'glass_${h.toStringAsFixed(1).padLeft(4, '0')}',
+        'rime_${h.toStringAsFixed(1).padLeft(4, '0')}',
         () => shoot(t: 2.0, hour: h, glass: true),
       );
     }

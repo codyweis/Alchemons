@@ -14,6 +14,7 @@ import 'dart:math' as math;
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
+import 'package:alchemons/models/scenes/geode/geode_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/shop_scenes.dart';
 import 'package:alchemons/services/shop_service.dart';
@@ -22,9 +23,11 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
-/// The wild scene a realm for sale is drawn from (the Dunes, so far the
-/// only one).
-SceneDefinition sceneForShop(String sceneId) => dunesScene;
+/// The wild scene a realm for sale is drawn from.
+SceneDefinition sceneForShop(String sceneId) => switch (sceneId) {
+  'geode' => geodeScene,
+  _ => dunesScene,
+};
 
 /// The realm, live and drifting.
 class ShopScenePreview extends StatefulWidget {

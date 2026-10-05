@@ -100,6 +100,7 @@ void main() {
       bool rainbow = false,
       List<String> slots = kWildCoreSlots,
       bool glass = false,
+      bool rime = false,
       Size at = size,
     }) {
       final f = WildMapField()
@@ -110,6 +111,7 @@ void main() {
         ..rainbow = rainbow
         ..slots = slots
         ..glass = glass
+        ..rime = rime
         ..layout(at)
         ..settle();
       for (var i = 0; i < 90; i++) {
@@ -243,6 +245,84 @@ void main() {
         ..step(1 / 60);
     }
     await save('25_dunes_stir', shoot(dunesStir));
+    // Geode Hollow, out today in the Sky's circle: clear, a frostfall, the
+    // rime one leaves; and a phone map with it and the Dunes out.
+    const geode = {'geode'};
+    const geodeOut = ['valley', 'geode', 'volcano', 'swamp'];
+    final geodeClear = fresh(slots: geodeOut, ready: geode, arcane: true);
+    final geodeCircle = geodeClear.circleOf(WildRealm.geode).inflate(6);
+    await save('26_geode_ready', shoot(geodeClear));
+    await save(
+      'zoom_geode',
+      shoot(geodeClear, crop: geodeCircle),
+      onSheet: false,
+    );
+    await save(
+      'zoom_geode_dust',
+      shoot(fresh(slots: geodeOut), crop: geodeCircle),
+      onSheet: false,
+    );
+    final frostfall = fresh(
+      slots: geodeOut,
+      ready: geode,
+      weather: {'geode': WeatherKind.frostfall},
+    );
+    await save('27_geode_frostfall', shoot(frostfall));
+    await save(
+      'zoom_geode_frostfall',
+      shoot(frostfall, crop: geodeCircle),
+      onSheet: false,
+    );
+    final rimed = fresh(slots: geodeOut, ready: geode, rime: true);
+    await save('28_geode_rime', shoot(rimed));
+    await save(
+      'zoom_geode_rime',
+      shoot(rimed, crop: geodeCircle),
+      onSheet: false,
+    );
+    // Singing: a wave of light rolling up the points in turn, at two
+    // moments; and as dust.
+    final singing = fresh(
+      slots: geodeOut,
+      ready: geode,
+      weather: {'geode': WeatherKind.singing},
+    );
+    await save('29_geode_singing', shoot(singing));
+    await save(
+      'zoom_geode_singing',
+      shoot(singing, crop: geodeCircle),
+      onSheet: false,
+    );
+    for (var i = 0; i < 40; i++) {
+      singing.step(1 / 60);
+    }
+    await save(
+      'zoom_geode_singing_later',
+      shoot(singing, crop: geodeCircle),
+      onSheet: false,
+    );
+    await save(
+      'zoom_geode_singing_dust',
+      shoot(
+        fresh(slots: geodeOut, weather: {'geode': WeatherKind.singing}),
+        crop: geodeCircle,
+      ),
+      onSheet: false,
+    );
+    await save(
+      'size_phone_412_geode_dunes',
+      shoot(
+        fresh(
+          slots: const ['valley', 'geode', 'dunes', 'swamp'],
+          arcane: true,
+          ready: const {'valley', 'geode', 'dunes', 'swamp', 'arcane'},
+          at: const Size(412, 915),
+        ),
+        at: const Size(412, 915),
+      ),
+      onSheet: false,
+    );
+
     // Today's four on a phone (the Dunes in the Valley's circle, and in the
     // Volcano's) and on the unfolded Fold, everything waiting.
     for (final (name, at, slots) in const [

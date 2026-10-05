@@ -11,12 +11,14 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
 import 'package:alchemons/models/encounters/pools/dunes_pool.dart';
+import 'package:alchemons/models/encounters/pools/geode_pool.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
+import 'package:alchemons/models/scenes/geode/geode_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
@@ -453,6 +455,37 @@ void main() {
     expect(await s.debugBringWeather('dunes', WeatherKind.sandstorm), isTrue);
     expect(s.weatherIn('dunes'), same(dunesSandstorm));
     expect(dunesSandstorm.aftermath, isTrue);
+  });
+
+  test('Geode Hollow spawns nothing until bought, then can come with a '
+      'frostfall that leaves rime', () async {
+    final db = AlchemonsDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final pools = geodeEncounterPools(geodeScene);
+    final scenes = {
+      'geode': (
+        scene: geodeScene,
+        sceneWide: pools.sceneWide,
+        perSpawn: pools.perSpawn,
+      ),
+    };
+    final s = await service(db, scenes);
+    await s.ensureSpawnsForScene('geode');
+    expect(s.getActiveSpawnPoints('geode'), isEmpty);
+
+    await db.settingsDao.setSetting('cosmic_ship_unlocked', '1');
+    await db.settingsDao.setSetting('scene_unlocked_geode', '1');
+    await s.ensureSpawnsForScene('geode');
+    expect(s.getActiveSpawnPoints('geode'), isNotEmpty);
+    expect(WildernessSpawnService.weathers['geode'], [
+      geodeFrostfall,
+      geodeSinging,
+    ]);
+    expect(await s.debugBringWeather('geode', WeatherKind.frostfall), isTrue);
+    expect(s.weatherIn('geode'), same(geodeFrostfall));
+    expect(geodeFrostfall.aftermath, isTrue);
+    expect(await s.debugBringWeather('geode', WeatherKind.singing), isTrue);
+    expect(s.weatherIn('geode'), same(geodeSinging));
   });
 
   // ── The Arcane: a meteor shower, the northern lights ─────────────────────

@@ -54,6 +54,23 @@ const List<ShopScene> kShopScenes = [
       'Lightningkin',
     ],
   ),
+  ShopScene(
+    sceneId: 'geode',
+    title: 'Geode Hollow',
+    line:
+        'A crystal cave lit through cracks in its roof. Adds a realm to the '
+        'wild map and a new place to build your home.',
+    gold: 500,
+    species: [
+      'Crystalhorn',
+      'Crystalmask',
+      'Crystalwing',
+      'Crystalkin',
+      'Darkhorn',
+      'Icemask',
+      'Icekin',
+    ],
+  ),
 ];
 
 /// The shop's realm with [sceneId], or null for one that is not sold.

@@ -20,7 +20,14 @@ enum WeatherKind {
 
   /// A sandstorm over the Glass Dunes: the sky thick with dust, sand driving
   /// across everything, nothing far off to be seen.
-  sandstorm;
+  sandstorm,
+
+  /// Ice coming down through the light in Geode Hollow; it leaves the cave
+  /// rimed white.
+  frostfall,
+
+  /// Geode Hollow singing: light rolling through its crystals on its own.
+  singing;
 
   /// A state the land is in rather than weather passing over it: already
   /// there when the scene opens, never rolling in or clearing in front of
@@ -52,7 +59,7 @@ class WildWeather {
   final WeatherKind kind;
 
   /// What the map calls it while it waits: `STORM`, `RAIN`, `SNOW`, `DRY`,
-  /// `METEORS`, `AURORA`, `SANDSTORM`.
+  /// `METEORS`, `AURORA`, `SANDSTORM`, `FROSTFALL`, `SINGING`.
   final String label;
 
   final double chance;
