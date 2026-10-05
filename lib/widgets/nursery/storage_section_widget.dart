@@ -1216,7 +1216,6 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
                         left: 14,
                         child: CultivationChamberPill(
                           label: 'COLD STORAGE',
-                          color: ready ? _kReadyGold : _kIce,
                         ),
                       ),
                       Positioned(

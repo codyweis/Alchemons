@@ -7,15 +7,15 @@ import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
-import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/nursery/brewing_card_widget.dart';
 import 'package:alchemons/widgets/nursery/batch_extraction_ceremony.dart';
-import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:alchemons/widgets/nursery/egg_extraction_dialog.dart';
+import 'package:alchemons/widgets/nursery/empty_chamber.dart';
 import 'package:alchemons/widgets/cold_storage_glyph.dart';
 import 'package:alchemons/widgets/instant_extractor_glyph.dart';
 import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
@@ -194,10 +194,7 @@ class _NurseryTabState extends State<NurseryTab> {
     // Check item qty
     final qty = await db.inventoryDao.getItemQty(InvKeys.instantHatch);
     if (qty <= 0) {
-      _showToast(
-        'No Instant Fusion Extractors',
-        color: Colors.red.shade600,
-      );
+      _showToast('No Instant Fusion Extractors', color: Colors.red.shade600);
       return;
     }
 
@@ -249,10 +246,7 @@ class _NurseryTabState extends State<NurseryTab> {
     await _hatchFromSlot(latest);
 
     if (!mounted) return;
-    _showToast(
-      'Cultivation complete',
-      color: Colors.green.shade600,
-    );
+    _showToast('Cultivation complete', color: Colors.green.shade600);
   }
 
   @override
@@ -308,6 +302,8 @@ class _NurseryTabState extends State<NurseryTab> {
           if (nextReady == null || rem < nextReady) nextReady = rem;
         }
 
+        final showBatch = canBatchExtract && readySlots.length > 1;
+
         return TickerMode(
           enabled: !_suspendNurseryAnimations,
           child: Listener(
@@ -338,8 +334,7 @@ class _NurseryTabState extends State<NurseryTab> {
                               : Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    if (canBatchExtract &&
-                                        readySlots.length > 1) ...[
+                                    if (showBatch) ...[
                                       _BatchExtractButton(
                                         count: readySlots.length,
                                         theme: theme,
@@ -348,11 +343,14 @@ class _NurseryTabState extends State<NurseryTab> {
                                       ),
                                       const SizedBox(width: 8),
                                     ],
+                                    // Beside EXTRACT ALL, only the count:
+                                    // the button says what is ready, and a
+                                    // countdown too crowds out the heading.
                                     _ChamberStatusBadge(
                                       activeCount: activeSlots.length,
                                       totalCount: totalUnlocked,
-                                      nextReady: nextReady,
-                                      anyReady: anyReady,
+                                      nextReady: showBatch ? null : nextReady,
+                                      anyReady: anyReady && !showBatch,
                                       theme: theme,
                                     ),
                                   ],
@@ -602,9 +600,10 @@ class _NurseryTabState extends State<NurseryTab> {
       );
     }
 
-    return _PlaceholderTile(
-      primaryColor: theme.text,
-      onTap: context.soundTap(widget.onRequestAddEgg),
+    return EmptyChamber(
+      key: ValueKey('empty-${chamber.id}'),
+      theme: theme,
+      onTap: widget.onRequestAddEgg,
     );
   }
 
@@ -747,93 +746,46 @@ class _NurseryTabState extends State<NurseryTab> {
   void _showDiscardConfirmation(IncubatorSlot slot) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
-    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
+    final palette = BracketPalette.fromTheme(theme);
     unawaited(
       _showDialogWithPausedBackground<void>(
         barrierColor: Colors.black87,
-        builder: (context) => Dialog(
-          backgroundColor: Colors.transparent,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: Container(
-              decoration: BoxDecoration(
-                color: dialogSurface,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: t.danger.withValues(alpha: .45)),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 3,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: t.danger,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'DISCARD SPECIMEN?',
-                        style: TextStyle(
-                          color: t.danger,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'This will permanently destroy the specimen. This action cannot be undone.',
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _DiscardButton(
-                          label: 'CANCEL',
-                          color: theme.textMuted,
-                          filled: false,
-                          onTap: context.soundTap(() => Navigator.pop(context)),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _DiscardButton(
-                          label: 'DISCARD',
-                          color: t.danger,
-                          filled: true,
-                          onTap: () async {
-                            Navigator.pop(context);
-                            await context
-                                .read<AlchemonsDatabase>()
-                                .incubatorDao
-                                .clearEgg(slot.id);
-                            _showToast(
-                              'Specimen discarded',
-                              color: Colors.red.shade600,
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+        builder: (context) => _NurseryDialog(
+          accent: t.danger,
+          title: 'DISCARD SPECIMEN?',
+          actions: [
+            BracketButton(
+              label: 'CANCEL',
+              primary: false,
+              height: 42,
+              palette: palette,
+              accent: t.danger,
+              onTap: () => Navigator.pop(context),
+            ),
+            BracketButton(
+              label: 'DISCARD',
+              height: 42,
+              palette: palette,
+              accent: t.danger,
+              onTap: () async {
+                Navigator.pop(context);
+                await context.read<AlchemonsDatabase>().incubatorDao.clearEgg(
+                  slot.id,
+                );
+                _showToast('Specimen discarded', color: Colors.red.shade600);
+              },
+            ),
+          ],
+          children: [
+            Text(
+              'This destroys the specimen. It cannot be undone.',
+              style: bracketText(
+                context,
+                13.5,
+                palette.ink.withValues(alpha: 0.9),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -867,10 +819,7 @@ class _NurseryTabState extends State<NurseryTab> {
 
     final remaining = _remainingFor(slot.hatchAtUtcMs!);
     if (remaining.isNegative || remaining.inSeconds <= 0) {
-      _showToast(
-        'Specimen is already ready',
-        color: Colors.blue.shade600,
-      );
+      _showToast('Specimen is already ready', color: Colors.blue.shade600);
       return;
     }
 
@@ -879,11 +828,6 @@ class _NurseryTabState extends State<NurseryTab> {
     final fullCost = _calculateAccelerationCost(remaining);
 
     if (!mounted) return;
-
-    final factionSvc = context.read<FactionService>();
-    final currentFaction = factionSvc.current;
-    final factionColors = getFactionColors(currentFaction);
-    final primaryColor = factionColors.$1;
 
     unawaited(
       _showDialogWithPausedBackground<void>(
@@ -894,7 +838,6 @@ class _NurseryTabState extends State<NurseryTab> {
           halfTime,
           halfCost,
           fullCost,
-          primaryColor,
         ),
       ),
     );
@@ -912,249 +855,42 @@ class _NurseryTabState extends State<NurseryTab> {
     Duration halfTime,
     int halfCost,
     int fullCost,
-    Color primaryColor,
   ) {
-    final theme = context.read<FactionTheme>();
-    final t = ForgeTokens(theme);
-    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
-
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: Container(
-            decoration: BoxDecoration(
-              color: dialogSurface,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: t.borderMid),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                  decoration: BoxDecoration(
-                    color: t.bg2,
-                    border: Border(bottom: BorderSide(color: t.borderMid)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 3,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: primaryColor,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'ACCELERATE DEVELOPMENT',
-                              style: TextStyle(
-                                color: theme.text,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Remaining: ${BreedConstants.formatRemaining(remaining)}',
-                              style: TextStyle(
-                                color: theme.textMuted,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Options
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                  child: Column(
-                    children: [
-                      _buildAccelerationOption(
-                        theme: theme,
-                        t: t,
-                        title: 'HALF TIME',
-                        subtitle: 'Reduce time by 50%',
-                        newTime: BreedConstants.formatRemaining(halfTime),
-                        cost: halfCost,
-                        accentColor: primaryColor,
-                        onTap: () => _performAcceleration(
-                          slotId,
-                          halfTime,
-                          halfCost,
-                          'Half',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildAccelerationOption(
-                        theme: theme,
-                        t: t,
-                        title: 'INSTANT COMPLETION',
-                        subtitle: 'Complete immediately',
-                        newTime: 'Ready now',
-                        cost: fullCost,
-                        accentColor: const Color(0xFF22C55E),
-                        onTap: () => _performAcceleration(
-                          slotId,
-                          remaining,
-                          fullCost,
-                          'Full',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                CultivationDialogActionArea(
-                  tokens: t,
-                  children: [
-                    CultivationDialogButton(
-                      tokens: t,
-                      label: 'CANCEL',
-                      icon: AppIcons.close_rounded,
-                      accentColor: t.textSecondary,
-                      onTap: context.soundTap(
-                        () => Navigator.of(context).pop(),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+    final palette = BracketPalette.of(context);
+    // Lit in gold: what it is paid in.
+    const gold = Color(0xFFE4C16A);
+    return _NurseryDialog(
+      accent: gold,
+      title: 'ACCELERATE',
+      subtitle: 'Ready in ${BreedConstants.formatRemaining(remaining)}',
+      actions: [
+        BracketButton(
+          label: 'CANCEL',
+          primary: false,
+          height: 42,
+          palette: palette,
+          accent: gold,
+          onTap: () => Navigator.of(context).pop(),
         ),
-      ),
-    );
-  }
-
-  Widget _buildAccelerationOption({
-    required FactionTheme theme,
-    required ForgeTokens t,
-    required String title,
-    required String subtitle,
-    required String newTime,
-    required int cost,
-    required Color accentColor,
-    required VoidCallback onTap,
-  }) {
-    final radius = BorderRadius.circular(4);
-    return Material(
-      color: Colors.transparent,
-      borderRadius: radius,
-      child: InkWell(
-        borderRadius: radius,
-        onTap: context.soundAction(onTap),
-        splashColor: accentColor.withValues(alpha: .15),
-        highlightColor: accentColor.withValues(alpha: .07),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: accentColor.withValues(alpha: .07),
-            borderRadius: radius,
-            border: Border.all(color: accentColor.withValues(alpha: .35)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          color: accentColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: theme.textMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            AppIcons.access_time_rounded,
-                            size: 10,
-                            color: accentColor.withValues(alpha: .7),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            newTime,
-                            style: TextStyle(
-                              color: accentColor.withValues(alpha: .85),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: .3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // Gold cost pill
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF59E0B).withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: const Color(0xFFF59E0B).withValues(alpha: .45),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CoinIcon(kind: CoinKind.gold, size: 14),
-                      const SizedBox(width: 5),
-                      Text(
-                        cost.toString(),
-                        style: const TextStyle(
-                          color: Color(0xFFF59E0B),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+      ],
+      children: [
+        _AccelerateOption(
+          title: 'HALF TIME',
+          detail: 'Ready in ${BreedConstants.formatRemaining(halfTime)}',
+          cost: halfCost,
+          palette: palette,
+          onTap: () => _performAcceleration(slotId, halfTime, halfCost, 'Half'),
         ),
-      ),
+        const SizedBox(height: 8),
+        _AccelerateOption(
+          title: 'FINISH NOW',
+          detail: 'Ready to extract',
+          cost: fullCost,
+          palette: palette,
+          onTap: () =>
+              _performAcceleration(slotId, remaining, fullCost, 'Full'),
+        ),
+      ],
     );
   }
 
@@ -1185,10 +921,7 @@ class _NurseryTabState extends State<NurseryTab> {
     final success = await db.currencyDao.spendGold(goldCost);
     if (!success) {
       if (mounted) {
-        _showToast(
-          'Transaction failed',
-          color: Colors.red.shade600,
-        );
+        _showToast('Transaction failed', color: Colors.red.shade600);
       }
       return;
     }
@@ -1279,10 +1012,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (result.success) {
       widget.onHatchComplete();
     } else if (result.message != null) {
-      _showToast(
-        result.message!,
-        color: result.color ?? Colors.red.shade600,
-      );
+      _showToast(result.message!, color: result.color ?? Colors.red.shade600);
     }
   }
 
@@ -1318,10 +1048,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (result.success) {
       widget.onHatchComplete();
     } else if (result.message != null) {
-      _showToast(
-        result.message!,
-        color: result.color ?? Colors.red.shade600,
-      );
+      _showToast(result.message!, color: result.color ?? Colors.red.shade600);
     }
   }
 
@@ -1335,13 +1062,8 @@ class _NurseryTabState extends State<NurseryTab> {
     );
   }
 
-  /// The nursery's confirm dialog.
-  ///
-  /// This was a stock AlertDialog — Material surface, default TextButtons,
-  /// "Cancel / Confirm" — sitting two methods away from a fully dressed
-  /// discard dialog in the same file. It now wears the same clothes as that
-  /// one, and it takes the artwork of whatever is being spent so the player
-  /// can see the item rather than read its name.
+  /// The nursery's confirm dialog. It takes the artwork of whatever is being
+  /// spent, so the player sees the item rather than reads its name.
   Future<bool> _showConfirmDialog(
     String title,
     String message, {
@@ -1350,91 +1072,45 @@ class _NurseryTabState extends State<NurseryTab> {
     Widget? artwork,
   }) async {
     final theme = context.read<FactionTheme>();
-    final t = ForgeTokens(theme);
-    final tint = accent ?? t.amber;
-    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
+    final tint = accent ?? ForgeTokens(theme).amber;
+    final palette = BracketPalette.fromTheme(theme);
 
     return await _showDialogWithPausedBackground<bool>(
           barrierColor: Colors.black87,
-          builder: (context) => Dialog(
-            backgroundColor: Colors.transparent,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 380),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: dialogSurface,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: tint.withValues(alpha: .45)),
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 3,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: tint,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: TextStyle(
-                              color: tint,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    if (artwork != null) ...[
-                      Center(child: artwork),
-                      const SizedBox(height: 14),
-                    ],
-                    Text(
-                      message,
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _DiscardButton(
-                            label: 'CANCEL',
-                            color: theme.textMuted,
-                            filled: false,
-                            onTap: () => Navigator.of(context).pop(false),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _DiscardButton(
-                            label: confirmLabel,
-                            color: tint,
-                            filled: true,
-                            onTap: () => Navigator.of(context).pop(true),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+          builder: (context) => _NurseryDialog(
+            accent: tint,
+            title: title,
+            actions: [
+              BracketButton(
+                label: 'CANCEL',
+                primary: false,
+                height: 42,
+                palette: palette,
+                accent: tint,
+                onTap: () => Navigator.of(context).pop(false),
+              ),
+              BracketButton(
+                label: confirmLabel,
+                height: 42,
+                palette: palette,
+                accent: tint,
+                onTap: () => Navigator.of(context).pop(true),
+              ),
+            ],
+            children: [
+              if (artwork != null) ...[
+                Center(child: artwork),
+                const SizedBox(height: 14),
+              ],
+              Text(
+                message,
+                style: bracketText(
+                  context,
+                  13.5,
+                  palette.ink.withValues(alpha: 0.9),
                 ),
               ),
-            ),
+            ],
           ),
         ) ??
         false;
@@ -1580,110 +1256,12 @@ class _SlotInfoDialogWrapperState extends State<_SlotInfoDialogWrapper> {
   }
 }
 
-// ============================================================================
-// PLACEHOLDER TILE
-// ============================================================================
-
-class _PlaceholderTile extends StatefulWidget {
-  final Color primaryColor;
-  final VoidCallback onTap;
-
-  const _PlaceholderTile({required this.primaryColor, required this.onTap});
-
-  @override
-  State<_PlaceholderTile> createState() => _PlaceholderTileState();
-}
-
-class _PlaceholderTileState extends State<_PlaceholderTile>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.3, end: 0.75).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.of(context);
-    return GestureDetector(
-      onTap: context.soundAction(widget.onTap),
-      child: AnimatedBuilder(
-        animation: _pulseAnim,
-        builder: (context, _) {
-          final a = _pulseAnim.value;
-          // Round and unframed, to match the occupied chambers beside it.
-          return Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: palette.surfaceMutedFill(),
-              border: Border.all(
-                color: palette.lineSoft.withValues(alpha: 0.5),
-                width: 1,
-              ),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: widget.primaryColor.withValues(alpha: a * .12),
-                      border: Border.all(
-                        color: widget.primaryColor.withValues(alpha: a * .45),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: Icon(
-                      AppIcons.add_rounded,
-                      color: widget.primaryColor.withValues(
-                        alpha: (a + .3).clamp(0, 1),
-                      ),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Place specimen',
-                    style: bracketText(
-                      context,
-                      12.5,
-                      palette.muted,
-                      weight: FontWeight.w700,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // CHAMBER STATUS BADGE
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// EXTRACT ALL beside the count: a word lit from below, as the kit's buttons
+/// are. It was an outlined chip with a glow round it.
 class _BatchExtractButton extends StatelessWidget {
   const _BatchExtractButton({
     required this.count,
@@ -1695,40 +1273,39 @@ class _BatchExtractButton extends StatelessWidget {
   final FactionTheme theme;
   final VoidCallback onTap;
 
+  static const _accent = Color(0xFF67E8F9);
+
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFF67E8F9);
+    final palette = BracketPalette.fromTheme(theme);
+    // BracketButton's own size is a dialog's; this sits in a heading beside
+    // the count, so it is the heading's size.
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(onTap),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(
-          color: accent.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: accent.withValues(alpha: 0.65)),
-          boxShadow: [
-            BoxShadow(color: accent.withValues(alpha: 0.14), blurRadius: 10),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'EXTRACT ALL $count',
-              style: const TextStyle(
-                color: accent,
-                fontSize: 9,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.6,
-              ),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(color: _accent),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          color: palette.accentWash(_accent, darkAlpha: 0.16),
+          child: Text(
+            'EXTRACT ALL $count',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: palette.ink,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
+/// "1 / 4  2h 59m" beside the heading, bare like cold storage's count: how
+/// many chambers are working, then the soonest finish — or READY.
 class _ChamberStatusBadge extends StatelessWidget {
   const _ChamberStatusBadge({
     required this.activeCount,
@@ -1746,120 +1323,175 @@ class _ChamberStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    final Color accent;
-    final String statusLabel;
-    final IconData statusIcon;
+    final palette = BracketPalette.fromTheme(theme);
+    final status = anyReady
+        ? ('READY', ForgeTokens(theme).success)
+        : nextReady != null
+        ? (BreedConstants.formatRemaining(nextReady!), palette.ink)
+        : null;
 
-    if (anyReady) {
-      accent = t.success;
-      statusLabel = 'READY';
-      statusIcon = AppIcons.check_circle_rounded;
-    } else if (nextReady != null) {
-      accent = theme.text;
-      statusLabel = BreedConstants.formatRemaining(nextReady!);
-      statusIcon = AppIcons.schedule_rounded;
-    } else {
-      accent = theme.textMuted;
-      statusLabel = 'IDLE';
-      statusIcon = AppIcons.pause_circle_outline_rounded;
-    }
+    TextStyle mono(Color color) => TextStyle(
+      fontFamily: 'monospace',
+      color: color,
+      fontSize: 12,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 0.6,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: theme.isDark
-            ? accent.withValues(alpha: .10)
-            : accent.withValues(alpha: .07),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: accent.withValues(alpha: .35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$activeCount/$totalCount',
-            style: TextStyle(
-              color: theme.text,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              letterSpacing: .6,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-          const SizedBox(width: 6),
-          Container(width: 1, height: 10, color: accent.withValues(alpha: .35)),
-          const SizedBox(width: 6),
-          Icon(statusIcon, size: 11, color: accent),
-          const SizedBox(width: 4),
-          Text(
-            statusLabel,
-            style: TextStyle(
-              color: accent,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.0,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('$activeCount / $totalCount', style: mono(palette.muted)),
+        if (status != null) ...[
+          const SizedBox(width: 12),
+          Text(status.$1, style: mono(status.$2)),
         ],
-      ),
+      ],
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DISCARD CONFIRMATION BUTTON
+// DIALOGS
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _DiscardButton extends StatelessWidget {
-  const _DiscardButton({
-    required this.label,
-    required this.color,
-    required this.filled,
+/// The nursery's dialogs — accelerate, confirm, discard — in the bare kit:
+/// the panel's own fill lit from below in what it is about, a monospace
+/// title, plain words, and buttons side by side. They were rounded outlines
+/// with an accent stripe beside the title.
+class _NurseryDialog extends StatelessWidget {
+  const _NurseryDialog({
+    required this.accent,
+    required this.title,
+    required this.children,
+    required this.actions,
+    this.subtitle,
+  });
+
+  final Color accent;
+  final String title;
+  final String? subtitle;
+  final List<Widget> children;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: accent.withValues(alpha: 0.9),
+            strokeWidth: 1.3,
+          ),
+          child: Container(
+            color: palette.bg1,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: palette.ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.8,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle!,
+                    style: bracketText(context, 12.5, palette.muted),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                ...children,
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    for (var i = 0; i < actions.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 10),
+                      Expanded(child: actions[i]),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One way to speed a cultivation up: what it does, when it would be ready,
+/// and its price in gold. A dark well, no outline; the price is a coin.
+class _AccelerateOption extends StatelessWidget {
+  const _AccelerateOption({
+    required this.title,
+    required this.detail,
+    required this.cost,
+    required this.palette,
     required this.onTap,
   });
 
-  final String label;
-  final Color color;
-  final bool filled;
+  final String title;
+  final String detail;
+  final int cost;
+  final BracketPalette palette;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(4);
     return Material(
-      color: Colors.transparent,
-      borderRadius: radius,
+      color: palette.chromeFill(darkAlpha: 0.7, lightAlpha: 0.6),
       child: InkWell(
-        borderRadius: radius,
         onTap: context.soundAction(onTap),
-        splashColor: color.withValues(alpha: .18),
-        highlightColor: color.withValues(alpha: .08),
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            color: filled
-                ? color.withValues(alpha: .9)
-                : color.withValues(alpha: .08),
-            border: Border.all(
-              color: filled
-                  ? color.withValues(alpha: .3)
-                  : color.withValues(alpha: .35),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: filled ? Colors.white : color,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
+        splashColor: palette.ink.withValues(alpha: 0.06),
+        highlightColor: palette.ink.withValues(alpha: 0.04),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: palette.ink,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      detail,
+                      style: bracketText(context, 12.5, palette.muted),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              CoinAmount(
+                kind: CoinKind.gold,
+                amount: cost,
+                size: 15,
+                color: coinColor(CoinKind.gold, palette),
+              ),
+            ],
           ),
         ),
       ),

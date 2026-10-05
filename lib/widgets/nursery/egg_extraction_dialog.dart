@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
@@ -136,8 +135,6 @@ class ExtractionDialogState extends State<ExtractionDialog>
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
-    final rarity = (widget.slot.rarity ?? 'common').toLowerCase();
-    final rarityColor = BreedConstants.getRarityColor(rarity);
     final parentTypes = _extractParentTypes();
 
     return Dialog(
@@ -177,7 +174,6 @@ class ExtractionDialogState extends State<ExtractionDialog>
                 sphereKey: _sphereKey,
                 // A pure line's sigil is its element's, as in the reveal.
                 pureElementTypeId: pureElementFromPayload(_payload()),
-                accentColor: rarityColor,
                 chamberLabel: 'CHAMBER ${widget.slot.id + 1}',
                 particleCount: _readyParticleCount(context),
                 speedMultiplier: 0.22,

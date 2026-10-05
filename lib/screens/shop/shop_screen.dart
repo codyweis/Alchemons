@@ -274,17 +274,17 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                 child: BracketTabs(
-                  labels: const ['SUPPLIES', 'SCENES', 'COSMETICS'],
+                  labels: const ['SUPPLIES', 'COSMETICS', 'SCENES'],
                   icons: const [
                     AppIcons.science,
-                    AppIcons.landscape_rounded,
                     AppIcons.auto_awesome,
+                    AppIcons.landscape_rounded,
                   ],
                   selected: _tab,
                   onSelect: (i) => setState(() {
                     _tab = i;
-                    if (i == 1) _scenesBuilt = true;
-                    if (i == 2) _cosmeticsBuilt = true;
+                    if (i == 1) _cosmeticsBuilt = true;
+                    if (i == 2) _scenesBuilt = true;
                   }),
                   palette: BracketPalette.fromTheme(theme),
                   accent: bracketReadableAccent(theme),
@@ -501,18 +501,18 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                     ),
                     TickerMode(
                       enabled: _tab == 1,
-                      child: _scenesBuilt
-                          ? _buildScenesTab(theme, allCurrencies)
-                          : const SizedBox.shrink(),
-                    ),
-                    TickerMode(
-                      enabled: _tab == 2,
                       child: _cosmeticsBuilt
                           ? _buildCosmeticsTab(
                               theme,
                               allCurrencies,
                               inventoryByKey,
                             )
+                          : const SizedBox.shrink(),
+                    ),
+                    TickerMode(
+                      enabled: _tab == 2,
+                      child: _scenesBuilt
+                          ? _buildScenesTab(theme, allCurrencies)
                           : const SizedBox.shrink(),
                     ),
                   ],
@@ -670,7 +670,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                     theme: theme,
                     owned: owned,
                     // Held still on another tab or under another route.
-                    active: _tab == 1 && _routeIsCurrent,
+                    active: _tab == 2 && _routeIsCurrent,
                     costWidgets: [
                       for (final e in cost.entries)
                         CostChip(

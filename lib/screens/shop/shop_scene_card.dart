@@ -156,27 +156,6 @@ class ShopSceneCard extends StatelessWidget {
                         palette.muted,
                       ).copyWith(height: 1.35),
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'ONLY FOUND HERE IN THE WILD',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: palette.muted,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      scene.species.join('  ·  '),
-                      style: bracketText(
-                        context,
-                        12,
-                        palette.ink,
-                        weight: FontWeight.w600,
-                      ).copyWith(height: 1.4),
-                    ),
                   ],
                 ),
               ),

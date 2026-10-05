@@ -1,5 +1,6 @@
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:flutter/material.dart';
@@ -76,13 +77,14 @@ class StageIconButton extends StatelessWidget {
           onTap();
         }),
         behavior: HitTestBehavior.opaque,
+        // A dim disc and the icon: no ring round it, which read as a hoop
+        // drawn on the stage rather than a thing on it.
         child: Container(
           width: 40,
           height: 40,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.white.withValues(alpha: 0.06),
-            border: Border.all(color: color.withValues(alpha: 0.55)),
           ),
           child: Icon(icon, size: 18, color: color),
         ),
@@ -104,7 +106,6 @@ class CultivationVialStage extends StatelessWidget {
   const CultivationVialStage({
     super.key,
     required this.parentTypes,
-    required this.accentColor,
     required this.chamberLabel,
     required this.action,
     required this.leading,
@@ -134,7 +135,6 @@ class CultivationVialStage extends StatelessWidget {
   final double? progress;
 
   final List<String>? parentTypes;
-  final Color accentColor;
   final String chamberLabel;
 
   /// The one thing you came here to do, drawn on the vial.
@@ -278,10 +278,7 @@ class CultivationVialStage extends StatelessWidget {
               Positioned(
                 top: 10,
                 left: 14,
-                child: CultivationChamberPill(
-                  label: chamberLabel,
-                  color: accentColor,
-                ),
+                child: CultivationChamberPill(label: chamberLabel),
               ),
               Positioned(
                 bottom: 4,
@@ -312,35 +309,25 @@ class CultivationVialStage extends StatelessWidget {
   }
 }
 
-/// The chamber this cultivation is standing in.
+/// Where this cultivation is standing ("CHAMBER 2", "COLD STORAGE"): a plain
+/// word in the stage's corner. It wore a squared border in the rarity's
+/// colour, which made a place read as a status.
 class CultivationChamberPill extends StatelessWidget {
-  const CultivationChamberPill({
-    super.key,
-    required this.label,
-    required this.color,
-  });
+  const CultivationChamberPill({super.key, required this.label});
 
   final String label;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      // Squared, not a pill — it is a label on a piece of equipment.
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
-        border: Border.all(color: color.withValues(alpha: 0.55)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: color,
-          fontSize: 10.5,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.0,
-        ),
+    return Text(
+      label,
+      style: TextStyle(
+        fontFamily: 'monospace',
+        // The stage is dark on both themes.
+        color: BracketPalette.dark.muted,
+        fontSize: 10.5,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.4,
       ),
     );
   }
