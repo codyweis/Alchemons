@@ -9,7 +9,6 @@ import 'package:alchemons/widgets/nav_emblems.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 
 enum NavSection { home, creatures, shop, breed, inventory }
 
@@ -199,22 +198,18 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
             .hasCompletedFieldTutorial();
 
         String message;
-        IconData iconData;
 
         if (extractionPending ||
             (!extractionTutorialComplete && !fieldTutorialComplete)) {
           // State 1: Extraction pending (starter granted, waiting for extraction)
           message = 'Extract your vial in Cultivations first';
-          iconData = AppIcons.science_rounded;
         } else if (!fieldTutorialComplete) {
           // State 2: Extraction done, field tutorial not started
           message =
               'Tap Field on the home screen to begin your first expedition';
-          iconData = AppIcons.explore_rounded;
         } else {
           // State 3: Both tutorials done, generic nav lock (shouldn't happen normally)
           message = 'Navigation locked';
-          iconData = AppIcons.lock_outline;
         }
 
         if (!mounted) return;
@@ -222,7 +217,6 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
         showGameSnack(
           context,
           message,
-          icon: iconData,
           duration: const Duration(seconds: 2),
         );
       } catch (_) {}

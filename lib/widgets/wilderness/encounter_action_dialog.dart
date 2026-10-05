@@ -468,12 +468,6 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              AppIcons.exit_to_app_rounded,
-              color: theme.textMuted,
-              size: 16,
-            ),
-            const SizedBox(width: 8),
             Text(
               'Back',
               style: TextStyle(

@@ -368,7 +368,6 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
 
     _StatTileData stat(
       String label,
-      IconData icon,
       Color color,
       double value,
       double potential,
@@ -376,7 +375,6 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
       StatKind kind,
     ) => _StatTileData(
       label: label,
-      icon: icon,
       color: color,
       value: value,
       potential: showPotential ? potential : null,
@@ -387,7 +385,6 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
     final stats = [
       stat(
         'Speed',
-        AppIcons.speed_rounded,
         const Color(0xFF60A5FA),
         _instance.statSpeed,
         _instance.statSpeedPotential,
@@ -396,7 +393,6 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
       ),
       stat(
         'Intelligence',
-        AppIcons.psychology_rounded,
         const Color(0xFFC084FC),
         _instance.statIntelligence,
         _instance.statIntelligencePotential,
@@ -405,7 +401,6 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
       ),
       stat(
         'Strength',
-        AppIcons.fitness_center_rounded,
         const Color(0xFFF87171),
         _instance.statStrength,
         _instance.statStrengthPotential,
@@ -414,7 +409,6 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
       ),
       stat(
         'Beauty',
-        AppIcons.favorite_rounded,
         const Color(0xFFF9A8D4),
         _instance.statBeauty,
         _instance.statBeautyPotential,
@@ -590,7 +584,6 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
             // ── Everything else ────────────────────────────────────────
             _QuickActionButton(
               label: 'FULL DETAILS',
-              icon: AppIcons.open_in_full_rounded,
               palette: palette,
               accent: accent,
               onTap: _openDetails,
@@ -930,14 +923,12 @@ class _FramedIconButton extends StatelessWidget {
 class _QuickActionButton extends StatelessWidget {
   const _QuickActionButton({
     required this.label,
-    required this.icon,
     required this.palette,
     required this.accent,
     required this.onTap,
   });
 
   final String label;
-  final IconData icon;
   final BracketPalette palette;
   final Color accent;
   final VoidCallback onTap;
@@ -960,8 +951,6 @@ class _QuickActionButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 13, color: accent),
-              const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
@@ -1033,12 +1022,6 @@ class _StaminaRestore extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        AppIcons.local_drink_rounded,
-                        color: accent,
-                        size: 13,
-                      ),
-                      const SizedBox(width: 5),
                       Text(
                         'RESTORE ×$qty',
                         style: TextStyle(
@@ -1155,7 +1138,6 @@ String? _natureLabel(CreatureInstance instance) {
 class _StatTileData {
   const _StatTileData({
     required this.label,
-    required this.icon,
     required this.color,
     required this.value,
     required this.potential,
@@ -1164,7 +1146,6 @@ class _StatTileData {
   });
 
   final String label;
-  final IconData icon;
   final Color color;
   final double value;
 
@@ -1214,8 +1195,6 @@ class _StatTile extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(d.icon, size: 12, color: d.color),
-                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     d.label.toUpperCase(),

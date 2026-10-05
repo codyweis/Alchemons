@@ -10,7 +10,7 @@ import 'dart:math' as math;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_chart_layout.dart';
-import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dust.dart';
@@ -637,7 +637,7 @@ class _DungeonFullMapState extends State<DungeonFullMap> {
 
     // The survival plate: near-black, bracket corners, monospace head.
     return CustomPaint(
-      painter: DungeonBracketPainter(
+      painter: BracketFramePainter(
         color: CosmicScreenStyles.amber.withValues(alpha: 0.7),
         bracketSize: 14,
         strokeWidth: 1.2,

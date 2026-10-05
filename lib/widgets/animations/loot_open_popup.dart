@@ -371,7 +371,7 @@ void _showRewardDetail(BuildContext ctx, LootOpeningEntry entry) {
         padding: const EdgeInsets.all(24),
         constraints: const BoxConstraints(maxWidth: 320),
         decoration: BoxDecoration(
-          color: const Color(0xFF0E1117),
+          color: const Color(0xFF15110D),
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
             color: entry.color.withValues(alpha: 0.5),

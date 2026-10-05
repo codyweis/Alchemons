@@ -196,7 +196,6 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       await LandscapeDialog.show(
         context,
         title: 'A Relic Is Not A Trophy',
-        icon: AppIcons.album_outlined,
         message:
             'It is what remains when form fails. Not the creature, not its beauty, but the instruction that endured beneath both.\n\n'
             'Is creation discovery or concealment, is beauty truth made visible, or a veil drawn over something worse.',
@@ -217,7 +216,6 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     await LandscapeDialog.show(
       context,
       title: 'Not A Return',
-      icon: AppIcons.auto_awesome_outlined,
       message:
           'A relic does not bring something back. It gives the surviving instruction a body again.\n\n'
           'If the mystics were made to guard what this world could not bear, then Sanguorath is what remains when sacrifice itself is taught to take shape.',
@@ -532,7 +530,6 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       await LandscapeDialog.show(
         context,
         title: 'Carry It Outward',
-        icon: AppIcons.public_rounded,
         message:
             'Do not keep it here.\n\nThe stars are not above this world. They are part of the seal. Bring the blood mystic outward, where the last offering can be witnessed.',
       );

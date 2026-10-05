@@ -9,7 +9,6 @@ import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/hatching_cinematic.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -243,7 +242,6 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (failed) ...[
-              Icon(AppIcons.warning_amber_rounded, color: t.danger, size: 34),
               const SizedBox(height: 12),
               Text(
                 _error!,

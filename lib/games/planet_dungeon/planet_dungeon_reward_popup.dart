@@ -9,7 +9,7 @@ import 'package:alchemons/audio/audio.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_rewards.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
@@ -33,8 +33,6 @@ class _C {
   static const text = CosmicScreenStyles.textPrimary;
   static const muted = CosmicScreenStyles.textSecondary;
 }
-
-/// HUD-style corner brackets (mirrors the in-dungeon button chrome).
 
 class DungeonRewardPopup extends StatefulWidget {
   const DungeonRewardPopup({
@@ -310,7 +308,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   Widget _panel() {
     final maxWidth = MediaQuery.sizeOf(context).width - 36;
     return CustomPaint(
-      painter: const DungeonBracketPainter(
+      painter: const BracketFramePainter(
         color: _C.amber,
         bracketSize: 14,
         strokeWidth: 1.3,
@@ -810,7 +808,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     return GestureDetector(
       onTap: context.soundAction(enabled ? action : null),
       child: CustomPaint(
-        painter: DungeonBracketPainter(
+        painter: BracketFramePainter(
           color: _C.amberBright.withValues(alpha: enabled ? 0.9 : 0.3),
           bracketSize: 8,
           strokeWidth: 1.2,

@@ -572,12 +572,6 @@ class _BattleStage extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              AppIcons.open_in_full_rounded,
-                              size: 11,
-                              color: accent,
-                            ),
-                            const SizedBox(width: 5),
                             Text(
                               'FULL VIEW',
                               style: TextStyle(

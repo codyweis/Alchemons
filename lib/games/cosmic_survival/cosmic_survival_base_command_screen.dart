@@ -26,17 +26,17 @@ import 'package:alchemons/widgets/app_icons.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _C {
-  static const bg0 = Color(0xFF080A0E);
-  static const bg1 = Color(0xFF0E1117);
-  static const bg2 = Color(0xFF141820);
-  static const bg3 = Color(0xFF1C2230);
+  static const bg0 = Color(0xFF0A0806);
+  static const bg1 = Color(0xFF15110D);
+  static const bg2 = Color(0xFF1B1611);
+  static const bg3 = Color(0xFF241D16);
   static const amber = Color(0xFFD97706);
   static const amberBright = Color(0xFFF59E0B);
   static const textPrimary = Color(0xFFE8DCC8);
   static const textSecondary = Color(0xFF8A7B6A);
   static const textMuted = Color(0xFF4A3F35);
   static const danger = Color(0xFFC0392B);
-  static const borderDim = Color(0xFF252D3A);
+  static const borderDim = Color(0xFF2C241A);
   static const borderMid = Color(0xFF3A3020);
 }
 
@@ -417,24 +417,19 @@ class _CosmicSurvivalBaseCommandScreenState
         ),
         tabs: [
           const Tab(
-            icon: Icon(AppIcons.account_tree_rounded, size: 16),
             text: 'MASTERY',
           ),
           const Tab(
-            icon: Icon(AppIcons.blur_circular_rounded, size: 16),
             text: 'ORB',
           ),
           const Tab(
-            icon: Icon(AppIcons.rocket_launch_rounded, size: 16),
             text: 'SHIP',
           ),
           const Tab(
-            icon: Icon(AppIcons.person_rounded, size: 16),
             text: 'GUARDIANS',
           ),
           if (!widget.hideAbilities)
             const Tab(
-              icon: Icon(AppIcons.auto_awesome_rounded, size: 16),
               text: 'ABILITIES',
             ),
         ],

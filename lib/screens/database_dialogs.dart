@@ -8,7 +8,6 @@
 
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_image.dart';
@@ -32,7 +31,6 @@ Future<void> showDatabaseTutorial(BuildContext context, FactionTheme theme) {
         _DialogTitle(
           'ALCHEMON DATABASE',
           palette: palette,
-          icon: AppIcons.category_rounded,
           accent: accent,
         ),
         const SizedBox(height: 12),
@@ -44,7 +42,6 @@ Future<void> showDatabaseTutorial(BuildContext context, FactionTheme theme) {
         _TutorialRow(
           palette: palette,
           accent: accent,
-          icon: AppIcons.grid_view_rounded,
           title: 'Specimens',
           body:
               'The first tab is every Alchemon you own. Search from the bar '
@@ -54,7 +51,6 @@ Future<void> showDatabaseTutorial(BuildContext context, FactionTheme theme) {
         _TutorialRow(
           palette: palette,
           accent: accent,
-          icon: AppIcons.category_rounded,
           title: 'Species catalog',
           body:
               'The second tab is every species, as shelves or a table. Tap '
@@ -64,7 +60,6 @@ Future<void> showDatabaseTutorial(BuildContext context, FactionTheme theme) {
         _TutorialRow(
           palette: palette,
           accent: accent,
-          icon: AppIcons.show_chart_rounded,
           title: 'Breeding milestones',
           body:
               'A species you pick shows its milestones above its specimens; '
@@ -196,21 +191,17 @@ class _DialogTitle extends StatelessWidget {
   const _DialogTitle(
     this.text, {
     required this.palette,
-    required this.icon,
     required this.accent,
   });
 
   final String text;
   final BracketPalette palette;
-  final IconData icon;
   final Color accent;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, color: accent, size: 18),
-        const SizedBox(width: 10),
         Expanded(
           child: Text(
             text,
@@ -234,14 +225,12 @@ class _TutorialRow extends StatelessWidget {
   const _TutorialRow({
     required this.palette,
     required this.accent,
-    required this.icon,
     required this.title,
     required this.body,
   });
 
   final BracketPalette palette;
   final Color accent;
-  final IconData icon;
   final String title;
   final String body;
 
@@ -250,21 +239,6 @@ class _TutorialRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CustomPaint(
-          painter: BracketFramePainter(
-            color: accent.withValues(alpha: 0.6),
-            bracketSize: 6,
-            strokeWidth: 1.0,
-          ),
-          child: Container(
-            width: 30,
-            height: 30,
-            alignment: Alignment.center,
-            color: palette.accentWash(accent),
-            child: Icon(icon, color: accent, size: 14),
-          ),
-        ),
-        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

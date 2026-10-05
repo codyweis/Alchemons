@@ -214,10 +214,6 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: BracketTabs(
                   labels: const ['SHIP', 'HOME'],
-                  icons: const [
-                    AppIcons.rocket_launch_rounded,
-                    AppIcons.public_rounded,
-                  ],
                   selected: _activeTab,
                   onSelect: _setTab,
                   palette: _palette,
@@ -256,11 +252,6 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 ShardAmount(_shards, size: 12.5),
                 const SizedBox(width: 10),
               ],
-              Icon(
-                AppIcons.inventory_2_rounded,
-                size: 16,
-                color: _palette.muted,
-              ),
             ],
           ),
         ),
@@ -280,7 +271,6 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
       ),
       child: BracketButton(
         label: 'BACK',
-        icon: AppIcons.arrow_back,
         primary: false,
         height: 40,
         palette: _palette,
@@ -354,7 +344,6 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 height: 30,
                 child: BracketButton(
                   label: 'PREVIEW ON PLANET',
-                  icon: AppIcons.visibility_rounded,
                   height: 30,
                   palette: _palette,
                   accent: _homeAccent,
@@ -563,7 +552,6 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
         BracketButton(
           key: const ValueKey('lab.garrison'),
           label: 'GARRISON',
-          icon: AppIcons.shield,
           primary: false,
           height: 38,
           palette: _palette,

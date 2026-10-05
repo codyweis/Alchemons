@@ -532,7 +532,6 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       label: noRoom
           ? 'THE HOLD HAS ROOM FOR ${max(0, _holdSpace)}'
           : 'SELL ${s.name.toUpperCase()}',
-      icon: AppIcons.sell_rounded,
       palette: panelPalette,
       accent: _accent,
       enabled: !noRoom && !_busy,

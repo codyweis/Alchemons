@@ -17,6 +17,7 @@ class LandscapeDialog {
     required String title,
     required String message,
     LandscapeDialogKind kind = LandscapeDialogKind.info,
+    @Deprecated('Story dialogs no longer show an icon; drop the argument')
     IconData? icon,
     String primaryLabel = 'CONTINUE',
     VoidCallback? onPrimary,
@@ -34,7 +35,6 @@ class LandscapeDialog {
             : StoryBeat(title: title, message: message),
       ],
       kind: StoryDialogKind.values[kind.index],
-      icon: icon,
       primaryLabel: primaryLabel,
       onPrimary: onPrimary,
       secondaryLabel: secondaryLabel,

@@ -1,7 +1,6 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,7 +31,6 @@ Future<void> maybeShowFirstPureExtractionDialog(
 
   await showStoryDialog(
     context,
-    icon: AppIcons.auto_awesome_rounded,
     kind: StoryDialogKind.success,
     primaryLabel: 'UNDERSTOOD',
     barrierDismissible: true,

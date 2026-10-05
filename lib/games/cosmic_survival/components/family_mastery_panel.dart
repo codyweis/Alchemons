@@ -15,9 +15,9 @@ import 'package:provider/provider.dart';
 // translucent strokes rather than MaskFilter.blur. The only animation is the
 // one-shot flourish that plays when a node is bought.
 
-const _background = Color(0xFF080A0E);
-const _rail = Color(0xFF0B0D12);
-const _border = Color(0xFF252D3A);
+const _background = Color(0xFF0A0806);
+const _rail = Color(0xFF0F0C0A);
+const _border = Color(0xFF2C241A);
 const _text = Color(0xFFE8DCC8);
 const _muted = Color(0xFF8A7B6A);
 const _dim = Color(0xFF4A3F35);
@@ -410,7 +410,7 @@ class _FamilyMedallion extends StatelessWidget {
                       gradient: RadialGradient(
                         colors: [
                           color.withValues(alpha: selected ? 0.42 : 0.14),
-                          const Color(0xFF0E1117),
+                          const Color(0xFF15110D),
                         ],
                       ),
                     ),
@@ -505,7 +505,7 @@ class _ProgressRingPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.4
-        ..color = selected ? const Color(0xFF2E3644) : const Color(0xFF1C222C),
+        ..color = selected ? const Color(0xFF3F3327) : const Color(0xFF272018),
     );
     if (fraction > 0) {
       canvas.drawArc(
@@ -695,7 +695,7 @@ class _TreeCrown extends StatelessWidget {
                     gradient: RadialGradient(
                       colors: [
                         color.withValues(alpha: 0.4),
-                        const Color(0xFF0E1117),
+                        const Color(0xFF15110D),
                       ],
                     ),
                     border: Border.all(color: color, width: 2),
@@ -1407,8 +1407,8 @@ class _BannerPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: active
-              ? [color.withValues(alpha: 0.3), const Color(0xFF11141B)]
-              : const [Color(0xFF181C25), Color(0xFF0E1117)],
+              ? [color.withValues(alpha: 0.3), const Color(0xFF18130F)]
+              : const [Color(0xFF211B14), Color(0xFF15110D)],
         ).createShader(Offset.zero & size),
     );
     canvas.drawPath(
@@ -1784,10 +1784,10 @@ class _GemPainter extends CustomPainter {
         fill.shader = const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1F2532), Color(0xFF0C0F14)],
+          colors: [Color(0xFF2B231B), Color(0xFF110E0B)],
         ).createShader(rect);
       case _NodeState.locked:
-        fill.color = const Color(0xFF0C0E13);
+        fill.color = const Color(0xFF110D0A);
     }
     canvas.drawPath(shape, fill);
 
@@ -1842,7 +1842,7 @@ class _GemPainter extends CustomPainter {
           ..strokeWidth = 1.3
           ..color = capstone
               ? color.withValues(alpha: 0.32)
-              : const Color(0xFF2A303B);
+              : const Color(0xFF382D23);
     }
     canvas.drawPath(shape, rim);
 
@@ -1932,16 +1932,16 @@ class _Badge extends StatelessWidget {
       height: 16,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: filled ? color : const Color(0xFF0B0D12),
+        color: filled ? color : const Color(0xFF0F0C0A),
         border: Border.all(
-          color: filled ? const Color(0xFF0B0D12) : _border,
+          color: filled ? const Color(0xFF0F0C0A) : _border,
           width: 1.5,
         ),
       ),
       child: Icon(
         icon,
         size: 9,
-        color: filled ? const Color(0xFF0B0D12) : color,
+        color: filled ? const Color(0xFF0F0C0A) : color,
       ),
     );
   }
@@ -1970,7 +1970,7 @@ class _PriceTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(4, 2, 6, 2),
       decoration: BoxDecoration(
-        color: const Color(0xFF0A0C10),
+        color: const Color(0xFF0E0B09),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: dim
@@ -2016,7 +2016,7 @@ class _TierTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
       decoration: BoxDecoration(
-        color: const Color(0xFF0A0C10),
+        color: const Color(0xFF0E0B09),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: tagColor.withValues(alpha: 0.55)),
       ),
@@ -2240,7 +2240,7 @@ class _TierTrack extends StatelessWidget {
               decoration: BoxDecoration(
                 color: owned.contains(path.nodes[i].id)
                     ? (i == 3 ? _gold : color).withValues(alpha: 0.85)
-                    : const Color(0xFF12151B),
+                    : const Color(0xFF19140F),
                 borderRadius: BorderRadius.circular(2),
                 border: Border.all(
                   color: i == focusedIndex ? _selection : _border,
@@ -2251,7 +2251,7 @@ class _TierTrack extends StatelessWidget {
                 tier: i + 1,
                 size: 8,
                 color: owned.contains(path.nodes[i].id)
-                    ? const Color(0xFF0B0D12)
+                    ? const Color(0xFF0F0C0A)
                     : _muted,
               ),
             ),
@@ -2351,7 +2351,7 @@ class _UpgradeButton extends StatelessWidget {
         _danger.withValues(alpha: 0.5),
         _danger,
       ),
-      _UpgradeState.locked => (null, const Color(0xFF12151B), _border, _dim),
+      _UpgradeState.locked => (null, const Color(0xFF19140F), _border, _dim),
       _UpgradeState.owned => (
         null,
         color.withValues(alpha: 0.1),

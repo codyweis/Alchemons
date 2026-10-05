@@ -159,7 +159,6 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
     showGameSnack(
       context,
       ok ? '${farm.biome.label} chamber unlocked' : 'Not enough resources',
-      icon: ok ? AppIcons.lock_open_rounded : AppIcons.block_rounded,
       accent: ok ? farm.biome.primaryColor : const Color(0xFFE57373),
     );
   }
@@ -228,7 +227,6 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
     showGameSnack(
       context,
       'Collected $total from ${completed.length} chamber${completed.length == 1 ? '' : 's'}',
-      icon: AppIcons.check_circle_outline_rounded,
     );
 
     if (reloadPlans.isEmpty || !mounted) return;
@@ -240,7 +238,6 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
       context,
       palette: _kPalette,
       accent: const Color(0xFFFFB74D),
-      icon: AppIcons.refresh_rounded,
       title: 'RELOAD ALL?',
       message:
           'Put the same Alchemon back in ${n == 1 ? 'that chamber' : 'all $n chambers'} for another run.',
@@ -277,7 +274,6 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
       failed == 0
           ? 'Reloaded $reloaded chamber${reloaded == 1 ? '' : 's'}'
           : 'Reloaded $reloaded of ${reloadPlans.length} chambers',
-      icon: AppIcons.refresh_rounded,
       accent: failed == 0 ? null : Colors.orange.shade400,
     );
   }
@@ -921,7 +917,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
       context,
       palette: _kPalette,
       accent: widget.farm.biome.primaryColor,
-      icon: AppIcons.refresh_rounded,
       title: 'RELOAD?',
       message: 'Put the same Alchemon back in for another run.',
       confirmLabel: 'RELOAD',
@@ -995,7 +990,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     Color? color,
   }) {
     if (!mounted) return;
-    showGameSnack(context, msg, icon: icon, accent: color);
+    showGameSnack(context, msg, accent: color);
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -1199,7 +1194,6 @@ class _ChamberPanel extends StatelessWidget {
     final Widget buttons = switch (mode) {
       VesselMode.locked => BracketButton(
         label: 'UNLOCK CHAMBER',
-        icon: AppIcons.lock_open_rounded,
         palette: _kPalette,
         accent: const Color(0xFFFFB74D),
         onTap: onUnlock,
@@ -1316,12 +1310,10 @@ class _BracketDialog extends StatelessWidget {
     required this.accent,
     required this.title,
     required this.children,
-    this.icon,
   });
 
   final Color accent;
   final String title;
-  final IconData? icon;
   final List<Widget> children;
 
   @override
@@ -1344,10 +1336,6 @@ class _BracketDialog extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  if (icon != null) ...[
-                    Icon(icon, color: accent, size: 18),
-                    const SizedBox(width: 10),
-                  ],
                   Expanded(
                     child: Text(
                       title,
@@ -1411,7 +1399,6 @@ class _HarvestTutorialDialog extends StatelessWidget {
     return _BracketDialog(
       accent: amber,
       title: 'HARVEST',
-      icon: AppIcons.science_rounded,
       children: [
         step(
           '1',
@@ -1456,7 +1443,6 @@ class _UnlockDialog extends StatelessWidget {
         return _BracketDialog(
           accent: color,
           title: 'UNLOCK ${biome.label.toUpperCase()}',
-          icon: AppIcons.lock_open_rounded,
           children: [
             Text(
               '${biome.description}. Its chamber takes '

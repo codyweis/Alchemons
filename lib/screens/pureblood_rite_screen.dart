@@ -1,3 +1,4 @@
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -718,12 +719,6 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
                 child: Row(
                   children: [
-                    const Icon(
-                      AppIcons.workspace_premium_rounded,
-                      color: _kSoulGold,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1552,7 +1547,6 @@ class _ChallengePanel extends StatelessWidget {
                   const SizedBox(height: 14),
                   if (challenge.requireElementalPurity) ...[
                     _HkReqLine(
-                      icon: AppIcons.opacity,
                       label: challenge.requiredElement == null
                           ? 'Elemental lineage, PURE'
                           : '${challenge.requiredElement} element line, PURE',
@@ -1562,7 +1556,6 @@ class _ChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requireSpeciesPurity) ...[
                     _HkReqLine(
-                      icon: AppIcons.account_tree_outlined,
                       label: '${challenge.requiredFamily} species line, PURE',
                       met: true,
                     ),
@@ -1570,9 +1563,6 @@ class _ChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredTint != null) ...[
                     _HkReqLine(
-                      icon:
-                          tintIcons[challenge.requiredTint] ??
-                          AppIcons.brightness_high_outlined,
                       label: 'Tinting, ${_traitLabel(challenge.requiredTint!)}',
                       met: true,
                     ),
@@ -1580,8 +1570,6 @@ class _ChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredSize != null) ...[
                     _HkReqLine(
-                      icon:
-                          sizeIcons[challenge.requiredSize] ?? AppIcons.circle,
                       label: 'Size, ${_traitLabel(challenge.requiredSize!)}',
                       met: true,
                     ),
@@ -1589,7 +1577,6 @@ class _ChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredNature != null) ...[
                     _HkReqLine(
-                      icon: AppIcons.psychology_alt_outlined,
                       label:
                           'Nature, ${_titleCaseLabel(challenge.requiredNature!)}',
                       met: true,
@@ -1598,7 +1585,6 @@ class _ChallengePanel extends StatelessWidget {
                   if (challenge.requiredVariantFaction != null) ...[
                     const SizedBox(height: 6),
                     _HkReqLine(
-                      icon: AppIcons.scatter_plot_outlined,
                       label:
                           'Variant, ${_titleCaseLabel(challenge.requiredVariantFaction!)}',
                       met: true,
@@ -1623,11 +1609,9 @@ class _ChallengePanel extends StatelessWidget {
 
 class _HkReqLine extends StatelessWidget {
   const _HkReqLine({
-    required this.icon,
     required this.label,
     required this.met,
   });
-  final IconData icon;
   final String label;
   final bool met;
 
@@ -1637,13 +1621,6 @@ class _HkReqLine extends StatelessWidget {
       crossAxisAlignment:
           CrossAxisAlignment.start, // Aligns icon with multi-line text
       children: [
-        Padding(
-          padding: const EdgeInsets.only(
-            top: 2.0,
-          ), // Nudges icon down to match text baseline
-          child: Icon(icon, size: 13, color: met ? _kSoulBlue : _kIvoryMuted),
-        ),
-        const SizedBox(width: 8),
         Expanded(
           // <--- THIS PREVENTS THE OVERFLOW
           child: Text(
@@ -1729,7 +1706,7 @@ class _HkStat extends StatelessWidget {
       child: SizedBox(
         height: 70,
         child: CustomPaint(
-          painter: _CornerBracketPainter(
+          painter: BracketFramePainter(
             color: _kIvoryMuted.withValues(alpha: 0.28),
           ),
           child: Padding(
@@ -1802,7 +1779,7 @@ class _SacrificeChamberCard extends StatelessWidget {
         : _kBlood.withValues(alpha: 0.50);
 
     return CustomPaint(
-      painter: _CornerBracketPainter(
+      painter: BracketFramePainter(
         color: borderColor,
         strokeWidth: 1.4,
         bracketSize: 18,
@@ -2038,7 +2015,7 @@ class _WideSacrificeButton extends StatelessWidget {
     return GestureDetector(
       onTap: context.soundAction(enabled && !busy ? onTap : null),
       child: CustomPaint(
-        painter: _CornerBracketPainter(
+        painter: BracketFramePainter(
           color: borderColor,
           bracketSize: 12,
           strokeWidth: 1.2,
@@ -2297,7 +2274,7 @@ class _NextRiteCard extends StatelessWidget {
       onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: CustomPaint(
-        painter: _CornerBracketPainter(
+        painter: BracketFramePainter(
           color: _kIvoryMuted.withValues(alpha: 0.22),
           bracketSize: 16,
         ),
@@ -2399,7 +2376,7 @@ class _RiteRecipeDialogState extends State<_RiteRecipeDialog>
             width: 360,
             margin: const EdgeInsets.symmetric(horizontal: 24),
             child: CustomPaint(
-              painter: _CornerBracketPainter(
+              painter: BracketFramePainter(
                 color: _kSoulBlue.withValues(alpha: 0.60),
                 strokeWidth: 1.4,
                 bracketSize: 20,
@@ -2562,7 +2539,7 @@ class _RiteSpecimenDialogState extends State<_RiteSpecimenDialog>
             width: 380,
             margin: const EdgeInsets.symmetric(horizontal: 24),
             child: CustomPaint(
-              painter: _CornerBracketPainter(
+              painter: BracketFramePainter(
                 color: _kSoulBlue.withValues(alpha: 0.60),
                 strokeWidth: 1.4,
                 bracketSize: 20,
@@ -2617,7 +2594,7 @@ class _RiteSpecimenDialogState extends State<_RiteSpecimenDialog>
                                       : _kIvoryMuted;
 
                                   return CustomPaint(
-                                    painter: _CornerBracketPainter(
+                                    painter: BracketFramePainter(
                                       color: statusColor.withValues(
                                         alpha: 0.35,
                                       ),
@@ -2770,7 +2747,6 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   const SizedBox(height: 14),
                   if (challenge.requireElementalPurity) ...[
                     _HkReqLine(
-                      icon: AppIcons.opacity,
                       label: challenge.requiredElement == null
                           ? 'Elemental lineage, PURE'
                           : '${challenge.requiredElement} element line, PURE',
@@ -2780,7 +2756,6 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requireSpeciesPurity) ...[
                     _HkReqLine(
-                      icon: AppIcons.account_tree_outlined,
                       label: '${challenge.requiredFamily} species line, PURE',
                       met: true,
                     ),
@@ -2788,8 +2763,6 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredSize != null) ...[
                     _HkReqLine(
-                      icon:
-                          sizeIcons[challenge.requiredSize] ?? AppIcons.circle,
                       label: 'Size, ${_traitLabel(challenge.requiredSize!)}',
                       met: true,
                     ),
@@ -2797,9 +2770,6 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredTint != null) ...[
                     _HkReqLine(
-                      icon:
-                          tintIcons[challenge.requiredTint] ??
-                          AppIcons.brightness_high_outlined,
                       label:
                           'Pigmentation, ${_traitLabel(challenge.requiredTint!)}',
                       met: true,
@@ -2808,7 +2778,6 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredNature != null) ...[
                     _HkReqLine(
-                      icon: AppIcons.psychology_alt_outlined,
                       label:
                           'Nature, ${_titleCaseLabel(challenge.requiredNature!)}',
                       met: true,
@@ -2817,7 +2786,6 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   if (challenge.requiredVariantFaction != null) ...[
                     const SizedBox(height: 6),
                     _HkReqLine(
-                      icon: AppIcons.scatter_plot_outlined,
                       label:
                           'Variant, ${_titleCaseLabel(challenge.requiredVariantFaction!)}',
                       met: true,
@@ -2851,7 +2819,7 @@ class _WeeklyCompleteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _CornerBracketPainter(
+      painter: BracketFramePainter(
         color: _kSoulGold.withValues(alpha: 0.45),
         bracketSize: 16,
       ),
@@ -2859,12 +2827,6 @@ class _WeeklyCompleteCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         child: Row(
           children: [
-            const Icon(
-              AppIcons.workspace_premium_rounded,
-              color: _kSoulGold,
-              size: 28,
-            ),
-            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2895,7 +2857,7 @@ class _PathEndCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _CornerBracketPainter(
+      painter: BracketFramePainter(
         color: _kSoulGold.withValues(alpha: 0.45),
         bracketSize: 16,
       ),
@@ -2903,12 +2865,6 @@ class _PathEndCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         child: Row(
           children: [
-            const Icon(
-              AppIcons.workspace_premium_rounded,
-              color: _kSoulGold,
-              size: 28,
-            ),
-            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2977,7 +2933,7 @@ class _HkConfirmDialogState extends State<_HkConfirmDialog>
             width: 320,
             margin: const EdgeInsets.symmetric(horizontal: 24),
             child: CustomPaint(
-              painter: _CornerBracketPainter(
+              painter: BracketFramePainter(
                 color: _kBlood.withValues(alpha: 0.70),
                 strokeWidth: 1.5,
                 bracketSize: 20,
@@ -3089,7 +3045,7 @@ class _RiteStoryDialogState extends State<_RiteStoryDialog>
             width: 360,
             margin: const EdgeInsets.symmetric(horizontal: 24),
             child: CustomPaint(
-              painter: _CornerBracketPainter(
+              painter: BracketFramePainter(
                 color: _kSoulGold.withValues(alpha: 0.55),
                 strokeWidth: 1.4,
                 bracketSize: 20,
@@ -3657,7 +3613,7 @@ class _HkPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _CornerBracketPainter(
+      painter: BracketFramePainter(
         color: accentColor.withValues(alpha: 0.55),
         strokeWidth: 1.4,
         bracketSize: 22,
@@ -3834,7 +3790,7 @@ class _HkBackButton extends StatelessWidget {
         width: 40,
         height: 40,
         child: CustomPaint(
-          painter: _CornerBracketPainter(
+          painter: BracketFramePainter(
             color: _kIvoryMuted.withValues(alpha: 0.40),
             bracketSize: 8,
             strokeWidth: 1.0,
@@ -3863,7 +3819,7 @@ class _RiteHeaderAction extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints.tightFor(width: 58, height: 58),
         child: CustomPaint(
-          painter: _CornerBracketPainter(
+          painter: BracketFramePainter(
             color: _kSoulBlue.withValues(alpha: 0.52),
             bracketSize: 12,
             strokeWidth: 1.2,
@@ -3893,7 +3849,7 @@ class _HkBtn extends StatelessWidget {
     return GestureDetector(
       onTap: context.soundAction(onTap),
       child: CustomPaint(
-        painter: _CornerBracketPainter(
+        painter: BracketFramePainter(
           color: primary
               ? _kBlood.withValues(alpha: 0.80)
               : _kIvoryMuted.withValues(alpha: 0.30),
@@ -3918,41 +3874,6 @@ class _HkBtn extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════════
 // CUSTOM PAINTERS
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/// Corner-bracket frame — the defining HK UI motif
-class _CornerBracketPainter extends CustomPainter {
-  const _CornerBracketPainter({
-    this.color = _kIvoryMuted,
-    this.strokeWidth = 1.2,
-    this.bracketSize = 14,
-  });
-  final Color color;
-  final double strokeWidth, bracketSize;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.square
-      ..style = PaintingStyle.stroke;
-    final b = bracketSize;
-    final w = size.width;
-    final h = size.height;
-    canvas.drawLine(Offset(0, b), Offset.zero, p);
-    canvas.drawLine(Offset.zero, Offset(b, 0), p);
-    canvas.drawLine(Offset(w - b, 0), Offset(w, 0), p);
-    canvas.drawLine(Offset(w, 0), Offset(w, b), p);
-    canvas.drawLine(Offset(0, h - b), Offset(0, h), p);
-    canvas.drawLine(Offset(0, h), Offset(b, h), p);
-    canvas.drawLine(Offset(w - b, h), Offset(w, h), p);
-    canvas.drawLine(Offset(w, h), Offset(w, h - b), p);
-  }
-
-  @override
-  bool shouldRepaint(covariant _CornerBracketPainter old) =>
-      old.color != color || old.strokeWidth != strokeWidth;
-}
 
 /// Imperfect hand-drawn circle
 class _ScribbleCirclePainter extends CustomPainter {

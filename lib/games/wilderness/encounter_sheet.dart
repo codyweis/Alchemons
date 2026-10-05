@@ -1551,7 +1551,6 @@ class _ActionPanel extends StatelessWidget {
             if (showLeaveAction) ...[
               _ActionButton(
                 label: 'Leave',
-                icon: AppIcons.arrow_back_rounded,
                 accentColor: _kPalette.muted,
                 onPressed: canAct ? onRun : null,
               ),
@@ -1561,7 +1560,6 @@ class _ActionPanel extends StatelessWidget {
               _ActionButton(
                 disabled: !isPartySelected || wildFusionQty < 1,
                 label: 'Wild Fusion ×$wildFusionQty',
-                icon: AppIcons.merge_type_rounded,
                 accentColor: success,
                 onPressed: canAct ? onBreed : null,
               ),
@@ -1573,7 +1571,6 @@ class _ActionPanel extends StatelessWidget {
                 label: 'Use your harvester',
                 child: _ActionButton(
                   label: 'Harvest',
-                  icon: AppIcons.catching_pokemon_rounded,
                   glyphBiome: harvesterBiome,
                   accentColor: danger,
                   onPressed: canAct ? onCapture : null,
@@ -1584,7 +1581,6 @@ class _ActionPanel extends StatelessWidget {
             if (!isCaptureTutorial && showMapAction)
               _ActionButton(
                 label: 'Back',
-                icon: AppIcons.arrow_back_rounded,
                 accentColor: teal,
                 onPressed: context.soundAction(onRun),
               ),
@@ -1597,19 +1593,17 @@ class _ActionPanel extends StatelessWidget {
 
 class _ActionButton extends StatelessWidget {
   final String label;
-  final IconData icon;
   final Color accentColor;
   final VoidCallback? onPressed;
   final bool disabled;
 
-  /// Draws the painted harvester in place of [icon] — the shop, the inventory
+  /// Draws the painted harvester before the label — the shop, the inventory
   /// and the space market all show the device this way, and this is where the
   /// player actually spends it.
   final String? glyphBiome;
 
   const _ActionButton({
     required this.label,
-    required this.icon,
     required this.accentColor,
     this.onPressed,
     this.disabled = false,
@@ -1655,7 +1649,7 @@ class _ActionButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (glyphBiome != null)
+            if (glyphBiome != null) ...[
               HarvesterGlyph(
                 biomeId: glyphBiome!,
                 size: 22,
@@ -1663,10 +1657,9 @@ class _ActionButton extends StatelessWidget {
                 // beating and stops asking for frames.
                 color: isDisabled ? _kPalette.muted : null,
                 animate: !isDisabled,
-              )
-            else
-              Icon(icon, color: ink, size: 16),
-            const SizedBox(width: 9),
+              ),
+              const SizedBox(width: 9),
+            ],
             Text(
               label.toUpperCase(),
               style: TextStyle(

@@ -212,7 +212,7 @@ void main() {
     });
 
     test('the capsule wears the house chrome, not a soft pill', () {
-      // It was the only rounded thing left on a screen of bracketed panels,
+      // It was the only rounded thing left on a screen of framed panels,
       // round glyph buttons and cornered banners — a component from an older
       // build parked over the game.
       final capsule = source.substring(
@@ -224,7 +224,7 @@ void main() {
         isFalse,
         reason: 'the pill is retired',
       );
-      expect(capsule, contains('DungeonBracketPainter'));
+      expect(capsule, contains('BracketFramePainter'));
     });
 
     test('the channel is a rule down the edge, not a tint all round', () {

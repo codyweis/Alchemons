@@ -1,9 +1,10 @@
 // lib/widgets/bracket_controls.dart
 //
 // Buttons, tabs, coin amounts and a confirmation dialog in the bracket-frame
-// language (see bracket_frame.dart): accent brackets, a faint wash, ink
-// labels in monospace. Made for the screens where things change hands — the
-// black market and the specimen exchange — so a price reads the same in both.
+// language (see bracket_frame.dart): a faint wash, the chosen thing lit
+// from below in its accent, ink labels in monospace. Made for the screens
+// where things change hands — the black market and the specimen exchange —
+// so a price reads the same in both.
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -125,10 +126,10 @@ class CoinPurse extends StatelessWidget {
   }
 }
 
-/// A button: accent brackets round a wash, the label in ink.
+/// A button: a wash lit from below in the accent, the label in ink.
 ///
-/// [primary] is the thing to do; the other kind is a quieter frame in the
-/// line colour for the ways around it (add more, cancel).
+/// [primary] is the thing to do; the other kind is a quieter, unlit fill for
+/// the ways around it (add more, cancel).
 class BracketButton extends StatelessWidget {
   const BracketButton({
     super.key,
@@ -136,7 +137,6 @@ class BracketButton extends StatelessWidget {
     required this.onTap,
     required this.palette,
     required this.accent,
-    this.icon,
     this.enabled = true,
     this.primary = true,
     this.height = 46,
@@ -147,7 +147,6 @@ class BracketButton extends StatelessWidget {
   final VoidCallback? onTap;
   final BracketPalette palette;
   final Color accent;
-  final IconData? icon;
   final bool enabled;
   final bool primary;
   final double height;
@@ -180,10 +179,6 @@ class BracketButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 15, color: primary ? accent : ink),
-                  const SizedBox(width: 8),
-                ],
                 Flexible(
                   child: Text(
                     label,
@@ -208,7 +203,7 @@ class BracketButton extends StatelessWidget {
   }
 }
 
-/// A row of tabs, the chosen one framed in the accent.
+/// A row of tabs, the chosen one lit in the accent.
 class BracketTabs extends StatelessWidget {
   const BracketTabs({
     super.key,
@@ -221,6 +216,9 @@ class BracketTabs extends StatelessWidget {
   });
 
   final List<String> labels;
+
+  /// Tabs no longer show icons; kept until the last caller drops it.
+  @Deprecated('Tabs no longer show icons; drop the argument')
   final List<IconData>? icons;
   final int selected;
   final ValueChanged<int> onSelect;
@@ -263,14 +261,6 @@ class BracketTabs extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (icons != null) ...[
-                        Icon(
-                          icons![i],
-                          size: 14,
-                          color: i == selected ? accent : palette.muted,
-                        ),
-                        const SizedBox(width: 7),
-                      ],
                       // Shrinks rather than overflowing on a phone set to
                       // large text.
                       Flexible(
@@ -351,7 +341,6 @@ Future<bool> showBracketConfirm(
   String amountsLabel = 'YOU RECEIVE',
   String? warning,
   String confirmLabel = 'CONFIRM',
-  IconData? icon,
 }) async {
   final result = await showDialog<bool>(
     context: context,
@@ -374,10 +363,6 @@ Future<bool> showBracketConfirm(
             children: [
               Row(
                 children: [
-                  if (icon != null) ...[
-                    Icon(icon, color: accent, size: 18),
-                    const SizedBox(width: 10),
-                  ],
                   Expanded(
                     child: Text(
                       title,

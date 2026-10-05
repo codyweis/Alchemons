@@ -183,7 +183,6 @@ class LeaveExpeditionDialog extends StatelessWidget {
           if (_hasShards)
             _lossRow(
               context,
-              icon: CosmicScreenStyles.astralShardIcon,
               tint: CosmicScreenStyles.astralShardColor,
               headline: '${_grouped(unbankedShards)} unbanked Astral Shards',
               detail: 'Carried in the ship wallet, never deposited.',
@@ -192,7 +191,6 @@ class LeaveExpeditionDialog extends StatelessWidget {
           if (_hasCargo)
             _lossRow(
               context,
-              icon: AppIcons.science_rounded,
               tint: CosmicScreenStyles.teal,
               headline:
                   '${cargoUnits.round()} of '
@@ -231,7 +229,6 @@ class LeaveExpeditionDialog extends StatelessWidget {
 
   Widget _lossRow(
     BuildContext context, {
-    required IconData icon,
     required Color tint,
     required String headline,
     required String detail,
@@ -241,16 +238,6 @@ class LeaveExpeditionDialog extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 26,
-          height: 26,
-          decoration: BoxDecoration(
-            color: tint.withValues(alpha: 0.12),
-            border: Border.all(color: tint.withValues(alpha: 0.3)),
-          ),
-          child: Icon(icon, color: tint, size: 14),
-        ),
-        const SizedBox(width: 9),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -416,8 +403,6 @@ class LeaveExpeditionDialog extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(AppIcons.logout_rounded, color: accent, size: 15),
-                  const SizedBox(width: 7),
                   Text(
                     'LEAVE',
                     style: TextStyle(

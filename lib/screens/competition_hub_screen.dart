@@ -119,19 +119,6 @@ class _CompetitionHubScreenState extends State<CompetitionHubScreen>
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: .15),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: accentColor.withValues(alpha: .3)),
-                ),
-                child: Icon(
-                  AppIcons.emoji_events_rounded,
-                  color: accentColor,
-                  size: 20,
-                ),
-              ),
             ],
           ),
         ),

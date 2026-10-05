@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/utils/app_font_family.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 
 /// Shows the "leave the game" confirmation for the app shell.
 ///
@@ -88,16 +87,6 @@ class ExitGameDialog extends StatelessWidget {
   Widget _header(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            color: _amber.withValues(alpha: 0.11),
-            border: Border.all(color: _amber.withValues(alpha: 0.34)),
-          ),
-          child: const Icon(AppIcons.logout_rounded, color: _amber, size: 17),
-        ),
-        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,7 +158,6 @@ class ExitGameDialog extends StatelessWidget {
           child: _button(
             context,
             label: 'EXIT',
-            icon: AppIcons.logout_rounded,
             onTap: () => Navigator.of(context).pop(true),
             fill: _amber.withValues(alpha: 0.12),
             border: _amber.withValues(alpha: 0.6),
@@ -187,7 +175,6 @@ class ExitGameDialog extends StatelessWidget {
     required Color fill,
     required Color border,
     required Color ink,
-    IconData? icon,
   }) {
     return GestureDetector(
       onTap: context.soundAction(onTap),
@@ -201,10 +188,6 @@ class ExitGameDialog extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[
-              Icon(icon, color: ink, size: 15),
-              const SizedBox(width: 7),
-            ],
             Text(
               label,
               style: TextStyle(

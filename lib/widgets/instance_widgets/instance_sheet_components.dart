@@ -423,8 +423,6 @@ class _CardSelectionBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(AppIcons.merge_type_rounded, color: palette.bg0, size: 10),
-          const SizedBox(width: 3),
           Text(
             '$number',
             style: bracketText(
@@ -941,12 +939,6 @@ class _HarvestBlock extends StatelessWidget {
             const SizedBox.shrink(),
             Row(
               children: [
-                Icon(
-                  AppIcons.inventory_2_rounded,
-                  size: 10,
-                  color: t.amberBright,
-                ),
-                const SizedBox(width: 3),
                 Text(
                   '$total',
                   style: TextStyle(
@@ -1043,8 +1035,6 @@ class _ParentChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(AppIcons.merge_type_rounded, color: c, size: 10),
-          const SizedBox(width: 4),
           Text(
             'Parent $selectionNumber',
             style: bracketText(
@@ -1216,8 +1206,6 @@ class _InlineStaminaSummary extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(AppIcons.local_fire_department, size: 12, color: t.success),
-        const SizedBox(width: 5),
         StaminaBar(
           current: bars,
           max: max,

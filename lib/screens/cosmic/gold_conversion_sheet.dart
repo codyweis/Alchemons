@@ -406,7 +406,6 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
       label: blocked.isNotEmpty
           ? blocked
           : 'TRANSMUTE ${steps * _goldPer} GOLD → $out $what',
-      icon: AppIcons.auto_awesome_rounded,
       palette: panelPalette,
       accent: _accent,
       enabled: blocked.isEmpty && !_busy,
@@ -465,7 +464,6 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
       label: held <= 0
           ? 'NO ${res.biomeLabel.toUpperCase()} MATTER IN STORAGE'
           : 'SELL ${formatCoins(qty)} ${res.biomeLabel.toUpperCase()}',
-      icon: AppIcons.sell_rounded,
       palette: panelPalette,
       accent: _accent,
       enabled: held > 0 && !_busy,

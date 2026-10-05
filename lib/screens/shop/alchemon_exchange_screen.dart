@@ -270,7 +270,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
               child: _ChoiceTile(
                 label: 'SPECIMENS',
                 caption: 'From your collection',
-                icon: AppIcons.pets_rounded,
                 accent: _accent,
                 palette: palette,
                 onTap: _showInstanceBrowser,
@@ -281,7 +280,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
               child: _ChoiceTile(
                 label: 'VIALS',
                 caption: 'Held or in storage',
-                icon: AppIcons.science_rounded,
                 accent: _accent,
                 palette: palette,
                 onTap: _showVialBrowser,
@@ -428,7 +426,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                 Expanded(
                   child: BracketButton(
                     label: 'SPECIMENS',
-                    icon: AppIcons.add_rounded,
                     primary: false,
                     height: 36,
                     palette: palette,
@@ -440,7 +437,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                 Expanded(
                   child: BracketButton(
                     label: 'VIALS',
-                    icon: AppIcons.add_rounded,
                     primary: false,
                     height: 36,
                     palette: palette,
@@ -488,7 +484,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
             const SizedBox(height: 10),
             BracketButton(
               label: 'COMPLETE SALE',
-              icon: AppIcons.sell_rounded,
               palette: palette,
               accent: _accent,
               onTap: _confirmSale,
@@ -656,7 +651,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                       label: chosen == 0
                           ? 'NONE CHOSEN'
                           : 'PUT $chosen ON THE COUNTER',
-                      icon: AppIcons.check_rounded,
                       palette: palette,
                       accent: _accent,
                       // Applying nothing still clears what was there.
@@ -781,7 +775,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
       context,
       palette: _palette,
       accent: _accent,
-      icon: AppIcons.sell_rounded,
       title: 'COMPLETE SALE',
       message: 'Sell $_selectionSummary?',
       amounts: [
@@ -916,7 +909,6 @@ class _ChoiceTile extends StatelessWidget {
   const _ChoiceTile({
     required this.label,
     required this.caption,
-    required this.icon,
     required this.accent,
     required this.palette,
     required this.onTap,
@@ -924,7 +916,6 @@ class _ChoiceTile extends StatelessWidget {
 
   final String label;
   final String caption;
-  final IconData icon;
   final Color accent;
   final BracketPalette palette;
   final VoidCallback onTap;
@@ -946,22 +937,6 @@ class _ChoiceTile extends StatelessWidget {
           child: Column(
             children: [
               // A soft pool of light under the glyph, never a ring.
-              Container(
-                width: 64,
-                height: 64,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      accent.withValues(alpha: palette.isDark ? 0.22 : 0.16),
-                      accent.withValues(alpha: 0),
-                    ],
-                  ),
-                ),
-                child: Icon(icon, color: accent, size: 26),
-              ),
-              const SizedBox(height: 10),
               Text(
                 label,
                 style: TextStyle(

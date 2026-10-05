@@ -806,7 +806,6 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     ].join('\n\n');
     await showStoryDialog(
       context,
-      icon: AppIcons.auto_awesome_rounded,
       primaryLabel: 'SHOW ME',
       barrierDismissible: true,
       beats: [
@@ -1755,12 +1754,6 @@ class _OverviewTab extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          AppIcons.auto_awesome_rounded,
-                          color: fColor,
-                          size: 10,
-                        ),
-                        const SizedBox(width: 5),
                         Text(
                           _displayVariantFaction(instance!.variantFaction!),
                           style: bracketText(
@@ -1958,12 +1951,6 @@ class _StaminaRestoreButton extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          AppIcons.local_drink_rounded,
-                          color: activeAccent,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Restore breeding stamina',
@@ -2129,8 +2116,6 @@ class _AlchemyEffectSlot extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               child: Row(
                 children: [
-                  Icon(AppIcons.auto_awesome_rounded, color: accent, size: 13),
-                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Effect · $subtitle',
@@ -2974,8 +2959,6 @@ class _PurityAnalysisCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(AppIcons.verified_rounded, size: 13, color: color),
-                const SizedBox(width: 7),
                 Expanded(
                   child: Text(
                     'Lineage: ${purity.label}',

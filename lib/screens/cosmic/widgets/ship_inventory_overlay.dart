@@ -183,11 +183,6 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              AppIcons.inventory_2_outlined,
-                              color: CosmicScreenStyles.textMuted,
-                              size: 40,
-                            ),
                             const SizedBox(height: 12),
                             Text(
                               'NO ITEMS ABOARD',

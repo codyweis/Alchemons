@@ -932,26 +932,6 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: theme.surfaceAlt,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.accent.withValues(alpha: .4)),
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.accent.withValues(alpha: .16),
-                    blurRadius: 18,
-                  ),
-                ],
-              ),
-              child: Icon(
-                AppIcons.search_off_rounded,
-                size: 40,
-                color: theme.accent,
-              ),
-            ),
-            const SizedBox(height: 16),
             Text(
               'No specimens found',
               style: TextStyle(

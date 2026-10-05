@@ -286,7 +286,6 @@ class OnboardingTaskService {
         showGameSnack(
           context,
           'Task complete — $kTaskSilverReward silver to collect',
-          icon: AppIcons.check_circle_rounded,
           // Tapping the notification takes them to it, rather than telling
           // them where to go and leaving them to find it.
           action: SnackBarAction(

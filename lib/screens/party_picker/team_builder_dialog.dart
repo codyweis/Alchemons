@@ -491,8 +491,6 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
               ),
               child: Row(
                 children: [
-                  Icon(AppIcons.folder_open, color: t.amber, size: 16),
-                  const SizedBox(width: 8),
                   Text(
                     'TEAM BUILDER',
                     style: TextStyle(

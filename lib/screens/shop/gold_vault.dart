@@ -16,7 +16,6 @@ import 'dart:typed_data';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/services/mobile_store_service.dart'
     show GoldPackDefinition;
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 import 'package:flutter/material.dart';
@@ -1062,8 +1061,6 @@ class _BuyButton extends StatelessWidget {
               ),
               const SizedBox(width: 8),
             ] else if (needsAccount) ...[
-              const Icon(AppIcons.login_rounded, size: 14, color: _V.gold),
-              const SizedBox(width: 7),
             ],
             Flexible(
               child: Text(
@@ -1265,8 +1262,6 @@ class _Footer extends StatelessWidget {
           ],
           Row(
             children: [
-              const Icon(AppIcons.lock_rounded, size: 11, color: _V.muted),
-              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   needsAccount

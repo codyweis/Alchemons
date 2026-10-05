@@ -214,11 +214,6 @@ class _NoResultsFound extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            AppIcons.search_off_rounded,
-            color: t.textMuted.withValues(alpha: 0.7),
-            size: 44,
-          ),
           const SizedBox(height: 12),
           Text(
             'NO SPECIES FOUND',

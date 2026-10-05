@@ -18,7 +18,6 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
@@ -580,7 +579,6 @@ class _ContestScorecardState extends State<_ContestScorecard>
         BracketButton(
           key: const ValueKey('contest.continue'),
           label: done ? 'CONTINUE' : 'IN THE ARENA…',
-          icon: done ? AppIcons.check_rounded : null,
           height: 42,
           palette: panelPalette,
           accent: accent,

@@ -51,7 +51,6 @@ class SystemDialog {
       context,
       beats: [StoryBeat(title: title, message: message)],
       kind: StoryDialogKind.values[kind.index],
-      icon: icon,
       primaryLabel: primaryLabel,
       onPrimary: onPrimary,
       secondaryLabel: secondaryLabel,

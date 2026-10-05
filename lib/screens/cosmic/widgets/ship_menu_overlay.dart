@@ -14,7 +14,6 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/utils/app_font_family.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
@@ -565,7 +564,6 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
         BracketButton(
           key: const ValueKey('ship.buildHome'),
           label: 'BUILD HOME',
-          icon: AppIcons.add_location_alt_rounded,
           height: 46,
           palette: panelPalette,
           accent: CosmicScreenStyles.amberBright,
@@ -579,7 +577,6 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
         BracketButton(
           key: const ValueKey('ship.party'),
           label: widget.isNearHome ? 'PARTY' : 'PARTY · AT HOME',
-          icon: AppIcons.groups_rounded,
           height: 40,
           palette: panelPalette,
           accent: _accent,
@@ -590,7 +587,6 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
       BracketButton(
         key: const ValueKey('ship.inventory'),
         label: 'INVENTORY',
-        icon: AppIcons.inventory_rounded,
         height: 40,
         palette: panelPalette,
         accent: _accent,
@@ -602,7 +598,6 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
         BracketButton(
           key: const ValueKey('ship.moveHome'),
           label: 'MOVE HOME',
-          icon: AppIcons.my_location_rounded,
           height: 40,
           palette: panelPalette,
           accent: _accent,

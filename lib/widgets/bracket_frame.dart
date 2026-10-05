@@ -1,11 +1,21 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/utils/faction_util.dart';
 
-/// Corner-bracket frame painter shared by the bracket-style UI surfaces
-/// (inventory, battle tab, …). Draws four L-shaped marks at each corner
-/// instead of a continuous border.
+/// The frame the panels, buttons, tabs and cards share. An ordinary thing
+/// wears no frame — its fill is enough — and a chosen one is lit from below:
+/// a sill of light along its bottom edge, fading at both ends, and a glow
+/// rising off it. (It drew four corner brackets until 2026-10.)
+///
+/// Whether a frame is chosen is read from the colour its caller passes. One
+/// of the palettes' own greys is an ordinary frame and draws nothing. A
+/// colour of its own lights up as it nears full strength, so a frame faded
+/// to say "not this one" stays dark, and one whose strength is animated
+/// brightens smoothly rather than switching on.
 class BracketFramePainter extends CustomPainter {
   const BracketFramePainter({
     required this.color,
@@ -14,32 +24,51 @@ class BracketFramePainter extends CustomPainter {
   });
 
   final Color color;
+
+  /// The length the corner brackets were; unused since they went, kept so
+  /// the callers still read as they did.
   final double bracketSize;
+
+  /// A heavier frame gets a thicker sill.
   final double strokeWidth;
+
+  /// The greys callers pass for an ordinary frame.
+  static final _plain = {
+    for (final p in const [BracketPalette.dark, BracketPalette.light])
+      for (final c in [p.line, p.lineSoft, p.muted]) c.toARGB32(),
+    0xFF3A3A48, // the survival HUD's line (HudInk.line)
+  };
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-    final s = bracketSize;
-    final w = size.width;
-    final h = size.height;
-    final path = Path()
-      ..moveTo(0, s)
-      ..lineTo(0, 0)
-      ..lineTo(s, 0)
-      ..moveTo(w - s, 0)
-      ..lineTo(w, 0)
-      ..lineTo(w, s)
-      ..moveTo(0, h - s)
-      ..lineTo(0, h)
-      ..lineTo(s, h)
-      ..moveTo(w - s, h)
-      ..lineTo(w, h)
-      ..lineTo(w, h - s);
-    canvas.drawPath(path, paint);
+    if (_plain.contains(color.toARGB32() | 0xFF000000)) return;
+    final t = ((color.a - 0.55) / 0.25).clamp(0.0, 1.0);
+    final lit = color.a * t * t * (3 - 2 * t);
+    if (lit < 0.01) return;
+
+    final w = size.width, h = size.height;
+    final tone = color.withValues(alpha: 1);
+    final hot = Color.lerp(tone, Colors.white, 0.4)!;
+    final sill = 1.4 + 0.6 * ((strokeWidth - 1) / 0.6).clamp(0.0, 1.0);
+    canvas.drawRect(
+      Rect.fromLTWH(0, h - sill * 0.5, w, sill),
+      Paint()
+        ..shader = ui.Gradient.linear(Offset.zero, Offset(w, 0), [
+          tone.withValues(alpha: 0),
+          hot.withValues(alpha: lit),
+          hot.withValues(alpha: lit),
+          tone.withValues(alpha: 0),
+        ], const [0, 0.3, 0.7, 1]),
+    );
+    final rise = math.min(h * 0.75, 40.0);
+    canvas.drawRect(
+      Rect.fromLTWH(0, h - rise, w, rise),
+      Paint()
+        ..shader = ui.Gradient.linear(Offset(0, h), Offset(0, h - rise), [
+          tone.withValues(alpha: 0.2 * lit),
+          tone.withValues(alpha: 0),
+        ]),
+    );
   }
 
   @override
@@ -49,7 +78,8 @@ class BracketFramePainter extends CustomPainter {
       oldDelegate.strokeWidth != strokeWidth;
 }
 
-/// Brightness-aware palette for the bracket-frame UI style.
+/// Brightness-aware palette for the bracket-frame UI style: warm obsidian
+/// in the dark (it was a cool navy until 2026-10).
 ///
 /// Use [BracketPalette.of] inside widget build methods to resolve from the
 /// ambient [FactionTheme], or [BracketPalette.fromTheme] when you already
@@ -75,12 +105,12 @@ class BracketPalette {
 
   static const dark = BracketPalette(
     isDark: true,
-    bg0: Color(0xFF080A0E),
-    bg1: Color(0xFF0E1117),
+    bg0: Color(0xFF0A0806),
+    bg1: Color(0xFF15110D),
     ink: Color(0xFFE8DCC8),
     muted: Color(0xFF9A8D7C),
-    line: Color(0xFF384150),
-    lineSoft: Color(0xFF252D3A),
+    line: Color(0xFF6E5B40),
+    lineSoft: Color(0xFF2C241A),
   );
 
   static const light = BracketPalette(
@@ -183,8 +213,8 @@ class BracketSectionDivider extends StatelessWidget {
   }
 }
 
-/// A bracket-framed container that handles the painter + background fill
-/// pattern in one place.
+/// A framed container that handles the painter + background fill pattern in
+/// one place.
 class BracketCard extends StatelessWidget {
   const BracketCard({
     super.key,
@@ -224,8 +254,7 @@ class BracketCard extends StatelessWidget {
 }
 
 /// Top-of-list control chip in the bracket-frame language: a soft
-/// accent-washed pill that grows corner brackets when it is the active
-/// control.
+/// accent-washed pill, lit from below when it is the active control.
 ///
 /// Lives here rather than in a single screen because the specimens grid and
 /// the per-species specimens sheet both present the same row of controls, and

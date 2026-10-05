@@ -187,13 +187,6 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     return 'Challenges';
   }
 
-  IconData categoryIcon(CampaignAchievement a) => switch (category(a)) {
-    'Story' => AppIcons.menu_book_rounded,
-    'Collection' => AppIcons.grid_view_rounded,
-    'Survival' => AppIcons.shield_outlined,
-    'Exploration' => AppIcons.travel_explore_rounded,
-    _ => AppIcons.emoji_events_outlined,
-  };
 
   // ── Pieces ────────────────────────────────────────────────────────────────
 
@@ -281,7 +274,6 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
   /// the screen and the only 20px-radius shape in the app.
   Widget _forgeButton({
     required String label,
-    required IconData icon,
     required VoidCallback? onTap,
     Color? accent,
     bool dense = false,
@@ -309,8 +301,6 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: dense ? 13 : 15, color: color),
-                const SizedBox(width: 7),
                 Flexible(
                   child: Text(
                     label.toUpperCase(),
@@ -403,12 +393,10 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  collected ? AppIcons.check_circle : categoryIcon(a),
-                  color: accent,
-                  size: 20,
-                ),
-                const SizedBox(width: 11),
+                if (collected) ...[
+                  Icon(AppIcons.check_circle, color: accent, size: 20),
+                  const SizedBox(width: 11),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -481,7 +469,6 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                 if (ready)
                   _forgeButton(
                     label: 'Collect',
-                    icon: AppIcons.inventory_2_outlined,
                     accent: fc.mint,
                     dense: true,
                     onTap: _claiming ? null : () => claim([a]),
@@ -662,7 +649,6 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
               return Center(
                 child: _forgeButton(
                   label: 'Could not load · retry',
-                  icon: AppIcons.refresh_rounded,
                   onTap: context.soundAction(refresh),
                 ),
               );
@@ -725,7 +711,6 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                     ),
                     _forgeButton(
                       label: _claiming ? 'Collecting…' : 'Collect all',
-                      icon: AppIcons.inventory_2_outlined,
                       accent: fc.mint,
                       onTap: _claiming ? null : () => claim(ready),
                     ),
@@ -849,7 +834,6 @@ class _StoryBanner extends StatelessWidget {
   final VoidCallback onMemories;
   final Widget Function({
     required String label,
-    required IconData icon,
     required VoidCallback? onTap,
     Color? accent,
     bool dense,
@@ -956,13 +940,11 @@ class _StoryBanner extends StatelessWidget {
                   children: [
                     forgeButton(
                       label: 'Story progress',
-                      icon: AppIcons.menu_book_rounded,
                       onTap: context.soundAction(onProgress),
                       dense: true,
                     ),
                     forgeButton(
                       label: 'Memories',
-                      icon: AppIcons.menu_book_rounded,
                       onTap: context.soundAction(onMemories),
                       dense: true,
                     ),

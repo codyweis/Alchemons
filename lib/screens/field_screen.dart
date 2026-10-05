@@ -108,7 +108,6 @@ class _FieldScreenState extends State<FieldScreen>
                       _FieldActionCard(
                         title: 'Expeditions',
                         subtitle: 'Send a team on a mission',
-                        icon: AppIcons.explore_rounded,
                         color: theme.accent, // use accent for icon chip
                         pillA: 'Open',
                         pillB: 'Field Map',
@@ -118,7 +117,6 @@ class _FieldScreenState extends State<FieldScreen>
                       _FieldActionCard(
                         title: 'Resource Harvesting',
                         subtitle: 'Gather field materials & samples',
-                        icon: AppIcons.agriculture_rounded,
                         color: Colors.greenAccent.shade400.withValues(
                           alpha: 0.8,
                         ),
@@ -130,7 +128,6 @@ class _FieldScreenState extends State<FieldScreen>
                       _FieldActionCard(
                         title: 'Competitions',
                         subtitle: 'Battle in elemental arenas',
-                        icon: AppIcons.emoji_events_rounded,
                         color: Colors.amberAccent.shade200.withValues(
                           alpha: 0.9,
                         ),
@@ -235,7 +232,6 @@ class _FieldActionCard extends StatefulWidget {
   const _FieldActionCard({
     required this.title,
     required this.subtitle,
-    required this.icon,
     required this.color,
     required this.pillA,
     required this.pillB,
@@ -245,7 +241,6 @@ class _FieldActionCard extends StatefulWidget {
 
   final String title;
   final String subtitle;
-  final IconData icon;
   final Color color;
   final String pillA;
   final String pillB;

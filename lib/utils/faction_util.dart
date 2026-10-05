@@ -46,15 +46,15 @@ class FactionTheme {
     secondary: Color(0xFF0EA5E9), // teal
     accent: Color(0xFFF59E0B), // amber bright
     accentSoft: Color(0xFF92400E), // amber dim
-    surface: Color(0xFF141820), // _C.bg2
-    surfaceAlt: Color(0xFF1C2230), // _C.bg3
-    border: Color(0xFF252D3A), // _C.borderDim
+    surface: Color(0xFF1B1611), // _C.bg2
+    surfaceAlt: Color(0xFF241D16), // _C.bg3
+    border: Color(0xFF2C241A), // _C.borderDim
     text: Color(0xFFE8DCC8), // parchment
     textMuted: Color(0xFF8A7B6A), // aged ink
     backgroundGradient: [
-      Color(0xFF080A0E),
-      Color(0xFF0E1117),
-      Color(0xFF141820),
+      Color(0xFF0A0806),
+      Color(0xFF15110D),
+      Color(0xFF1B1611),
     ],
   );
 }
@@ -300,15 +300,15 @@ class ForgeTokens {
   // ── Background layers ──────────────────────────────────────────────────────
   // bg0 = deepest / header strips; bg1 = dialog shell; bg2 = inset rows/cards
   Color get bg0 => isDark
-      ? const Color(0xFF080A0E)
+      ? const Color(0xFF0A0806)
       : _theme.backgroundGradient.first.withValues(alpha: 1);
 
-  Color get bg1 => isDark ? const Color(0xFF0E1117) : _theme.surface;
+  Color get bg1 => isDark ? const Color(0xFF15110D) : _theme.surface;
 
-  Color get bg2 => isDark ? const Color(0xFF141820) : _theme.surfaceAlt;
+  Color get bg2 => isDark ? const Color(0xFF1B1611) : _theme.surfaceAlt;
 
   Color get bg3 => isDark
-      ? const Color(0xFF1C2230)
+      ? const Color(0xFF241D16)
       : _theme.surfaceAlt.withValues(alpha: 0.82);
 
   // ── Accent (amber in dark, faction accent in light) ────────────────────────
@@ -357,7 +357,7 @@ class ForgeTokens {
 
   // ── Borders ────────────────────────────────────────────────────────────────
   Color get borderDim =>
-      isDark ? const Color(0xFF252D3A) : _theme.border.withValues(alpha: 0.3);
+      isDark ? const Color(0xFF2C241A) : _theme.border.withValues(alpha: 0.3);
   Color get borderMid =>
       isDark ? const Color(0xFF3A3020) : _theme.border.withValues(alpha: 0.5);
   Color get borderAccent =>

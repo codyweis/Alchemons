@@ -264,7 +264,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'TRAVEL TO ${planetName(p.element).toUpperCase()}',
             subtitle: 'Planet route',
             accent: p.color,
-            icon: AppIcons.public_rounded,
             actionLabel: 'TRAVEL',
             onConfirm: () => _runAfterBuild(() => widget.onNavigatePlanet(p)),
           ),
@@ -282,7 +281,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'TRAVEL TO HOME BASE',
             subtitle: 'Return home',
             accent: hp.blendedColor,
-            icon: AppIcons.home_rounded,
             actionLabel: 'TRAVEL',
             onConfirm: () => _runAfterBuild(widget.onGoHome),
           ),
@@ -305,7 +303,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                   ? 'Survival game mode'
                   : 'Signal origin unknown',
               accent: _poiColor(poi.type),
-              icon: _poiIcon(poi.type),
               actionLabel: poi.discovered ? 'TRAVEL' : null,
               onConfirm: poi.discovered
                   ? () => _runAfterBuild(() => widget.onTeleport(poi.position))
@@ -327,7 +324,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
               title: _poiLabel(poi.type),
               subtitle: 'Space landmark',
               accent: _poiColor(poi.type),
-              icon: _poiIcon(poi.type),
             ),
             d,
           );
@@ -341,7 +337,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'TRAVEL TO ${_poiLabel(poi.type)}',
             subtitle: 'Space destination',
             accent: _poiColor(poi.type),
-            icon: AppIcons.storefront_rounded,
             actionLabel: 'TRAVEL',
             onConfirm: () =>
                 _runAfterBuild(() => widget.onTeleport(poi.position)),
@@ -364,7 +359,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                 : arena.trait.arenaLabel.toUpperCase(),
             subtitle: 'Contest arena',
             accent: arena.trait.color,
-            icon: AppIcons.emoji_events_rounded,
             actionLabel: widget.debugEnableContestArenaTeleport
                 ? 'TRAVEL'
                 : null,
@@ -386,7 +380,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'LV ${whirl.level} ${whirl.hordeTypeName.toUpperCase()}',
             subtitle: 'Galaxy whirl',
             accent: elementColor(whirl.element),
-            icon: AppIcons.cyclone_rounded,
           ),
           d,
         );
@@ -402,7 +395,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: lair.template.name.toUpperCase(),
             subtitle: 'Boss lair',
             accent: elementColor(lair.template.element),
-            icon: AppIcons.warning_amber_rounded,
           ),
           d,
         );
@@ -418,7 +410,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'PRISMATIC AURORA',
             subtitle: 'Ancient anomaly',
             accent: Color(0xFFFF00CC),
-            icon: AppIcons.auto_awesome_rounded,
           ),
           d,
         );
@@ -434,7 +425,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: 'ELEMENTAL NEXUS',
             subtitle: 'Ancient structure',
             accent: Color(0xFFB388FF),
-            icon: AppIcons.blur_circular_rounded,
           ),
           d,
         );
@@ -450,7 +440,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
             title: ring.ritualCompleted ? 'BLOOD PORTAL' : 'BLOOD RING',
             subtitle: 'Forbidden landmark',
             accent: const Color(0xFFFF8A80),
-            icon: AppIcons.radio_button_checked_rounded,
           ),
           d,
         );
@@ -507,19 +496,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     _ => const Color(0xFF90CAF9),
   };
 
-  static IconData _poiIcon(POIType type) => switch (type) {
-    POIType.nebula => AppIcons.blur_on_rounded,
-    POIType.derelict => AppIcons.grid_3x3_rounded,
-    POIType.warpAnomaly => AppIcons.change_history_rounded,
-    POIType.stardustScanner => AppIcons.radar_rounded,
-    POIType.planetScanner => AppIcons.travel_explore_rounded,
-    POIType.harvesterMarket => AppIcons.storefront_rounded,
-    POIType.riftKeyMarket => AppIcons.storefront_rounded,
-    POIType.cosmicMarket => AppIcons.storefront_rounded,
-    POIType.goldConversion => AppIcons.storefront_rounded,
-    POIType.survivalPortal => AppIcons.cyclone_rounded,
-    _ => AppIcons.place_rounded,
-  };
 
   @override
   Widget build(BuildContext context) {
@@ -762,7 +738,6 @@ class _MiniMapTravelPromptData {
     required this.title,
     required this.subtitle,
     required this.accent,
-    required this.icon,
     this.actionLabel,
     this.onConfirm,
   });
@@ -770,7 +745,6 @@ class _MiniMapTravelPromptData {
   final String title;
   final String subtitle;
   final Color accent;
-  final IconData icon;
   final String? actionLabel;
   final VoidCallback? onConfirm;
 }
@@ -921,8 +895,10 @@ class _ChartChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (icon != null) Icon(icon, size: 14, color: ink),
-              if (icon != null && label != null) const SizedBox(width: 6),
+              // A chip with a label says what it does; only a bare chip
+              // needs its icon.
+              if (icon != null && label == null)
+                Icon(icon, size: 14, color: ink),
               if (label != null)
                 Text(label!, style: panelLabel(10, ink, spacing: 1.4)),
             ],
@@ -1377,7 +1353,6 @@ class _NavigateButton extends StatelessWidget {
       child: IntrinsicWidth(
         child: BracketButton(
           label: 'NAVIGATE TO ${planetName(planet.element).toUpperCase()}',
-          icon: AppIcons.navigation_rounded,
           palette: panelPalette,
           accent: elementInk(planet.element),
           height: 36,
@@ -1417,8 +1392,6 @@ class _TravelPromptCard extends StatelessWidget {
         color: panelPalette.bg0.withValues(alpha: 0.94),
         child: Row(
           children: [
-            Icon(prompt.icon, color: accent, size: 18),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1460,7 +1433,6 @@ class _TravelPromptCard extends StatelessWidget {
               const SizedBox(width: 4),
               BracketButton(
                 label: prompt.actionLabel ?? 'TRAVEL',
-                icon: AppIcons.navigation_rounded,
                 palette: panelPalette,
                 accent: accent,
                 height: 34,
@@ -1683,8 +1655,7 @@ class _ChartStarsPainter extends CustomPainter {
   bool shouldRepaint(covariant _ChartStarsPainter oldDelegate) => false;
 }
 
-/// The chart's frame: an edge vignette and amber corner brackets, against
-/// the real screen edges.
+/// The chart's frame: an edge vignette, against the real screen edges.
 class _ChartFramePainter extends CustomPainter {
   const _ChartFramePainter();
 
@@ -1700,14 +1671,6 @@ class _ChartFramePainter extends CustomPainter {
           stops: const [0.68, 1.0],
         ).createShader(Offset.zero & size),
     );
-    canvas.save();
-    canvas.translate(10, 10);
-    BracketFramePainter(
-      color: kChartAmber.withValues(alpha: 0.42),
-      bracketSize: 16,
-      strokeWidth: 1.2,
-    ).paint(canvas, Size(size.width - 20, size.height - 20));
-    canvas.restore();
   }
 
   @override

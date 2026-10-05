@@ -1373,7 +1373,6 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                 const CosmicEtchedDivider(),
                 const SizedBox(height: 4),
                 _slotActionRow(
-                  icon: AppIcons.info_outline,
                   label: 'View details',
                   color: CosmicScreenStyles.textSecondary,
                   onTap: () {
@@ -1392,7 +1391,6 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   },
                 ),
                 _slotActionRow(
-                  icon: AppIcons.swap_horiz,
                   label: 'Replace from roster',
                   color: CosmicScreenStyles.teal,
                   onTap: () {
@@ -1401,7 +1399,6 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                   },
                 ),
                 _slotActionRow(
-                  icon: AppIcons.remove_circle_outline,
                   label: 'Remove from slot',
                   color: CosmicScreenStyles.danger,
                   onTap: () {
@@ -1418,7 +1415,6 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
   }
 
   Widget _slotActionRow({
-    required IconData icon,
     required String label,
     required Color color,
     required VoidCallback onTap,
@@ -1431,8 +1427,6 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 14),
             Text(
               label,
               style: TextStyle(

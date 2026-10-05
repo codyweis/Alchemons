@@ -12,7 +12,7 @@ import 'dart:async';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
-import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/raid_rewards.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
@@ -44,49 +44,6 @@ class _C {
 
   /// Refusal accent — a banked ember: firmer than amber, never alarm-red.
   static const ember = Color(0xFFD07A4A);
-}
-
-class _HudBracketPainter extends CustomPainter {
-  const _HudBracketPainter({
-    required this.color,
-    this.bracketSize = 8,
-    this.strokeWidth = 1.2,
-  });
-
-  final Color color;
-  final double bracketSize;
-  final double strokeWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-    final s = bracketSize;
-    final w = size.width;
-    final h = size.height;
-    final path = Path()
-      ..moveTo(0, s)
-      ..lineTo(0, 0)
-      ..lineTo(s, 0)
-      ..moveTo(w - s, 0)
-      ..lineTo(w, 0)
-      ..lineTo(w, s)
-      ..moveTo(0, h - s)
-      ..lineTo(0, h)
-      ..lineTo(s, h)
-      ..moveTo(w - s, h)
-      ..lineTo(w, h)
-      ..lineTo(w, h - s);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _HudBracketPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.bracketSize != bracketSize ||
-      oldDelegate.strokeWidth != strokeWidth;
 }
 
 const _starPrefsKey = 'cosmic_planet_stars';
@@ -685,7 +642,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     String two(int v) => v.toString().padLeft(2, '0');
 
     return CustomPaint(
-      foregroundPainter: DungeonBracketPainter(
+      foregroundPainter: BracketFramePainter(
         color: colour,
         bracketSize: 7,
         strokeWidth: 1.2,
@@ -839,7 +796,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     ),
   }) {
     return CustomPaint(
-      foregroundPainter: DungeonBracketPainter(
+      foregroundPainter: BracketFramePainter(
         color: accent,
         bracketSize: 9,
         strokeWidth: 1.4,
@@ -942,7 +899,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                           // capsule, which is the one thing in this HUD that
                           // looked like it came from a different game.
                           child: CustomPaint(
-                            painter: _HudBracketPainter(
+                            painter: BracketFramePainter(
                               color: _C.amber.withValues(alpha: 0.8),
                               bracketSize: 12,
                               strokeWidth: 1.6,
@@ -1642,7 +1599,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       key: ValueKey('${channel.name}:$hint'),
       child: ruled
           ? CustomPaint(
-              foregroundPainter: DungeonBracketPainter(
+              foregroundPainter: BracketFramePainter(
                 color: accent.withValues(alpha: 0.85),
                 bracketSize: 8,
                 strokeWidth: 1.3,
@@ -1662,7 +1619,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     return Container(
       margin: const EdgeInsets.only(left: 6),
       child: CustomPaint(
-        painter: _HudBracketPainter(
+        painter: BracketFramePainter(
           color: _C.amber.withValues(alpha: 0.55),
           bracketSize: 5,
           strokeWidth: 1.1,
@@ -1734,7 +1691,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // it was a stadium, and a rounded capsule next to a row of hard-cornered
     // bracketed chips reads as a control from a different game.
     return CustomPaint(
-      painter: _HudBracketPainter(
+      painter: BracketFramePainter(
         color: _C.amber.withValues(alpha: 0.55),
         bracketSize: 5,
         strokeWidth: 1.1,
@@ -2203,7 +2160,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: CustomPaint(
-          foregroundPainter: _HudBracketPainter(
+          foregroundPainter: BracketFramePainter(
             color: edge,
             bracketSize: 8,
             strokeWidth: 1.6,
@@ -2366,7 +2323,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: CustomPaint(
-            painter: _HudBracketPainter(
+            painter: BracketFramePainter(
               color: color.withValues(alpha: 0.7),
               bracketSize: 6,
               strokeWidth: 1.1,
@@ -2482,7 +2439,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 360),
                   child: CustomPaint(
-                    painter: _HudBracketPainter(
+                    painter: BracketFramePainter(
                       color: _C.amber.withValues(alpha: 0.85),
                       bracketSize: 10,
                       strokeWidth: 1.4,
@@ -2567,7 +2524,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     return GestureDetector(
       onTap: context.soundAction(onTap),
       child: CustomPaint(
-        painter: _HudBracketPainter(
+        painter: BracketFramePainter(
           color: color.withValues(alpha: 0.7),
           bracketSize: 6,
           strokeWidth: 1.1,

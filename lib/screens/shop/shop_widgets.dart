@@ -300,9 +300,6 @@ Future<bool> showItemDetailDialog({
                         child: canPurchase
                             ? _DialogPrimaryButton(
                                 label: canAfford ? 'PURCHASE' : "CAN'T AFFORD",
-                                icon: canAfford
-                                    ? AppIcons.shopping_bag_outlined
-                                    : AppIcons.block_rounded,
                                 onTap: canAfford
                                     ? () => Navigator.pop(ctx, true)
                                     : null,
@@ -330,13 +327,11 @@ Future<bool> showItemDetailDialog({
 /// Flat filled primary button used across all shop dialogs.
 class _DialogPrimaryButton extends StatelessWidget {
   final String label;
-  final IconData? icon;
   final VoidCallback? onTap;
   final bool isDestructive;
 
   const _DialogPrimaryButton({
     required this.label,
-    this.icon,
     this.onTap,
     this.isDestructive = false,
   });
@@ -374,10 +369,6 @@ class _DialogPrimaryButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (icon != null) ...[
-              Icon(icon, color: fg, size: 15),
-              const SizedBox(width: 7),
-            ],
             Text(
               label,
               style: TextStyle(
@@ -549,8 +540,12 @@ class _ForgeCostRow extends StatelessWidget {
             : const Color(0xFFEF4444),
         size: 16,
       );
-    } else if (coin != null && hasEnough) {
-      leading = CoinIcon(kind: coin, size: 15);
+    } else if (coin != null) {
+      // Short of it, the same coin fades rather than turning into a glyph.
+      leading = Opacity(
+        opacity: hasEnough ? 1 : 0.4,
+        child: CoinIcon(kind: coin, size: 15),
+      );
     } else {
       leading = Icon(icon, size: 15, color: color);
     }
@@ -1397,9 +1392,12 @@ class CostChip extends StatelessWidget {
 
 class EmptySection extends StatelessWidget {
   final String message;
-  final IconData icon;
 
-  const EmptySection({super.key, required this.message, required this.icon});
+  /// Never drawn; kept until the last caller drops it.
+  @Deprecated('Empty sections no longer show an icon; drop the argument')
+  final IconData? icon;
+
+  const EmptySection({super.key, required this.message, this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -1414,8 +1412,6 @@ class EmptySection extends StatelessWidget {
       child: Center(
         child: Column(
           children: [
-            Icon(icon, size: 32, color: t.textMuted),
-            const SizedBox(height: 8),
             Text(
               message,
               style: TextStyle(
@@ -1622,7 +1618,6 @@ class FarmUnlockSection extends StatelessWidget {
             padding: EdgeInsets.all(12.0),
             child: EmptySection(
               message: 'All farms unlocked',
-              icon: AppIcons.check_circle_outline_rounded,
             ),
           );
         }

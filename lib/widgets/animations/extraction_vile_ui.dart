@@ -1,3 +1,4 @@
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/audio/audio.dart';
 // lib/widgets/shop/extraction_vial_ui.dart
 //
@@ -274,11 +275,11 @@ class ExtractionVialCard extends StatelessWidget {
     return GestureDetector(
       onTap: context.soundAction(onTap),
       child: CustomPaint(
-        foregroundPainter: _CaseBracketsPainter(
+        foregroundPainter: BracketFramePainter(
           color: color.withValues(
             alpha: (0.55 + 0.4 * fx.frameGlow).clamp(0.0, 1.0),
           ),
-          size: compact ? 8 : 10,
+          bracketSize: compact ? 8 : 10,
         ),
         child: Container(
           color: kVialGlass,
@@ -345,43 +346,6 @@ class ExtractionVialCard extends StatelessWidget {
   }
 }
 
-/// The case's corners, in the bracket-frame language.
-class _CaseBracketsPainter extends CustomPainter {
-  const _CaseBracketsPainter({required this.color, required this.size});
-
-  final Color color;
-  final double size;
-
-  @override
-  void paint(Canvas canvas, Size box) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    final s = size, w = box.width, h = box.height;
-    canvas.drawPath(
-      Path()
-        ..moveTo(0, s)
-        ..lineTo(0, 0)
-        ..lineTo(s, 0)
-        ..moveTo(w - s, 0)
-        ..lineTo(w, 0)
-        ..lineTo(w, s)
-        ..moveTo(0, h - s)
-        ..lineTo(0, h)
-        ..lineTo(s, h)
-        ..moveTo(w - s, h)
-        ..lineTo(w, h)
-        ..lineTo(w, h - s),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_CaseBracketsPainter old) =>
-      old.color != color || old.size != size;
-}
-
 class _ScorchedVialTag extends StatelessWidget {
   final String? text;
   final bool compact;
@@ -410,7 +374,7 @@ class _ScorchedVialTag extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF0E1117), Color(0xFF151A23)],
+          colors: [Color(0xFF15110D), Color(0xFF19140F)],
         ),
         borderRadius: BorderRadius.circular(compact ? 9 : 11),
         border: Border.all(color: borderColor, width: 1),
@@ -486,9 +450,9 @@ class _AddButtonState extends State<_AddButton>
           widget.onPressed();
         }),
         child: CustomPaint(
-          foregroundPainter: _CaseBracketsPainter(
+          foregroundPainter: BracketFramePainter(
             color: const Color(0xFFFFB74D),
-            size: widget.compact ? 5 : 6,
+            bracketSize: widget.compact ? 5 : 6,
           ),
           child: Container(
             padding: EdgeInsets.symmetric(

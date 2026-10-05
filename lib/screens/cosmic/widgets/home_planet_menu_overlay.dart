@@ -325,7 +325,6 @@ class HomePlanetMenuOverlay extends StatelessWidget {
         child: BracketButton(
           key: const ValueKey('home.customize'),
           label: 'CUSTOMIZE',
-          icon: AppIcons.auto_awesome,
           height: 46,
           palette: panelPalette,
           accent: _accent,

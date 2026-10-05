@@ -193,7 +193,6 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
           showGameSnack(
             context,
             '$count achievement ${count == 1 ? 'reward' : 'rewards'} ready',
-            icon: AppIcons.emoji_events_outlined,
             accent: FC.of(context).rewardGold,
             action: SnackBarAction(label: 'VIEW', onPressed: open),
           );
@@ -320,12 +319,6 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
                   children: [
                     // The 3px rule the rest of the app uses to head a panel.
                     Container(width: 3, height: 34, color: accent),
-                    const SizedBox(width: 10),
-                    Icon(
-                      AppIcons.emoji_events_outlined,
-                      size: 18,
-                      color: accent,
-                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(

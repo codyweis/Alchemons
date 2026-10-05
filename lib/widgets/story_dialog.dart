@@ -49,6 +49,7 @@ Future<bool?> showStoryDialog(
   BuildContext context, {
   required List<StoryBeat> beats,
   StoryDialogKind kind = StoryDialogKind.info,
+  @Deprecated('Story dialogs no longer show an icon; drop the argument')
   IconData? icon,
   String primaryLabel = 'CONTINUE',
   VoidCallback? onPrimary,
@@ -64,7 +65,6 @@ Future<bool?> showStoryDialog(
     builder: (_) => StoryDialog(
       beats: beats,
       kind: kind,
-      icon: icon,
       primaryLabel: primaryLabel,
       onPrimary: onPrimary,
       secondaryLabel: secondaryLabel,
@@ -87,6 +87,9 @@ class StoryDialog extends StatefulWidget {
 
   final List<StoryBeat> beats;
   final StoryDialogKind kind;
+
+  /// Never drawn; kept until the last caller drops it.
+  @Deprecated('Story dialogs no longer show an icon; drop the argument')
   final IconData? icon;
 
   /// The last page's button; earlier pages say NEXT.
@@ -199,7 +202,6 @@ class _StoryDialogState extends State<StoryDialog> {
                     child: _BeatBody(
                       key: ValueKey(_page),
                       beat: beat,
-                      icon: widget.icon,
                       accent: accent,
                       palette: palette,
                     ),
@@ -229,13 +231,11 @@ class _BeatBody extends StatelessWidget {
   const _BeatBody({
     super.key,
     required this.beat,
-    required this.icon,
     required this.accent,
     required this.palette,
   });
 
   final StoryBeat beat;
-  final IconData? icon;
   final Color accent;
   final BracketPalette palette;
 
@@ -251,10 +251,6 @@ class _BeatBody extends StatelessWidget {
           if (beat.title.isNotEmpty) ...[
             Row(
               children: [
-                if (icon != null) ...[
-                  Icon(icon, color: accent, size: 18),
-                  const SizedBox(width: 10),
-                ],
                 Expanded(
                   child: Text(
                     beat.title.toUpperCase(),

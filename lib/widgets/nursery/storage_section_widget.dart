@@ -276,7 +276,6 @@ class _StorageSectionState extends State<StorageSection> {
               height: 34,
               palette: palette,
               accent: bracketReadableAccent(theme, color: _kIce),
-              icon: AppIcons.bubble_chart_rounded,
               trailing: Text(
                 '$moveCount',
                 style: TextStyle(
@@ -307,7 +306,6 @@ class _StorageSectionState extends State<StorageSection> {
     showGameSnack(
       context,
       '$moved specimen${moved == 1 ? '' : 's'} moved to chambers',
-      icon: AppIcons.bubble_chart_rounded,
       accent: _kIce,
       duration: const Duration(seconds: 2),
     );
@@ -370,8 +368,6 @@ class _CapacityReadout extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(AppIcons.ac_unit_rounded, size: 12, color: palette.muted),
-        const SizedBox(width: 5),
         Text(
           '$used / $capacity',
           style: TextStyle(
@@ -1350,7 +1346,6 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
       showGameSnack(
         context,
         'All chambers are full',
-        icon: AppIcons.lock_rounded,
         accent: t.danger,
         duration: const Duration(seconds: 2),
       );
@@ -1360,7 +1355,6 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
     showGameSnack(
       context,
       'Added to chamber ${chamber + 1}',
-      icon: AppIcons.bubble_chart_rounded,
       accent: t.amberBright,
       duration: const Duration(seconds: 2),
     );
@@ -1407,7 +1401,6 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
     showGameSnack(
       host,
       result.message!,
-      icon: result.icon ?? AppIcons.error_rounded,
       accent: result.color ?? t.danger,
       duration: const Duration(seconds: 2),
     );
@@ -1422,7 +1415,6 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
       title: 'DELETE SPECIMEN?',
       message: 'This is permanent and cannot be undone.',
       confirmLabel: 'DELETE',
-      icon: AppIcons.delete_outline_rounded,
     );
     if (!confirmed || !mounted) return;
 
@@ -1434,7 +1426,6 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
     showGameSnack(
       context,
       'Specimen deleted',
-      icon: AppIcons.delete_outline_rounded,
       accent: t.danger,
       duration: const Duration(seconds: 2),
     );

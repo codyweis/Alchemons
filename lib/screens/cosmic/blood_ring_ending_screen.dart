@@ -1152,13 +1152,6 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
                                           ),
                                     ),
                                   ),
-                                  Icon(
-                                    AppIcons.auto_awesome_rounded,
-                                    color: _abilityCooldownRemaining > 0
-                                        ? Colors.white54
-                                        : const Color(0xFFFFCDD2),
-                                    size: 24,
-                                  ),
                                 ],
                               ),
                             ),

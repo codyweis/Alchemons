@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/constants/breed_constants.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 
 class TypeBadges extends StatelessWidget {
   final List<String> types;
@@ -55,8 +54,6 @@ class RarityBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(AppIcons.star_border_outlined, color: c, size: 12),
-          const SizedBox(width: 4),
           Text(
             rarity,
             style: TextStyle(

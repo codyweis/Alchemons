@@ -102,8 +102,6 @@ class _DungeonDebugScreenState extends State<DungeonDebugScreen> {
               children: [
                 Row(
                   children: [
-                    Icon(AppIcons.bug_report_rounded, size: 16, color: t.teal),
-                    const SizedBox(width: 8),
                     Text(
                       'DUNGEON DEBUG',
                       style: TextStyle(

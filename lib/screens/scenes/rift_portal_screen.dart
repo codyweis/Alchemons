@@ -217,7 +217,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     final leave = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF141820),
+        backgroundColor: const Color(0xFF1B1611),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(6),
           side: BorderSide(

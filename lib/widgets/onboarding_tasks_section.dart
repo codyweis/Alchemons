@@ -385,9 +385,6 @@ class _TaskRowState extends State<_TaskRow>
             const SizedBox(width: 8),
             _TaskButton(
               label: ready ? 'Collect' : 'Go',
-              icon: ready
-                  ? AppIcons.inventory_2_outlined
-                  : AppIcons.chevron_right_rounded,
               accent: ready ? fc.mint : fc.amberBright,
               onTap: ready
                   ? (widget.busy ? null : widget.onCollect)
@@ -406,13 +403,11 @@ class _TaskRowState extends State<_TaskRow>
 class _TaskButton extends StatelessWidget {
   const _TaskButton({
     required this.label,
-    required this.icon,
     required this.accent,
     required this.onTap,
   });
 
   final String label;
-  final IconData icon;
   final Color accent;
   final VoidCallback? onTap;
 
@@ -445,8 +440,6 @@ class _TaskButton extends StatelessWidget {
                 letterSpacing: 1.2,
               ),
             ),
-            const SizedBox(width: 4),
-            Icon(icon, size: 13, color: enabled ? accent : fc.textMuted),
           ],
         ),
       ),

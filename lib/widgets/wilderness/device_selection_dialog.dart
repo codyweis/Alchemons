@@ -245,7 +245,6 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(AppIcons.inventory_2_outlined, color: _palette.muted, size: 36),
           const SizedBox(height: 12),
           Text(
             'No compatible devices',

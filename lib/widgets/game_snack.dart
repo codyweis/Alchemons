@@ -37,9 +37,11 @@ const double kSnackHeight = 140;
 void showGameSnack(
   BuildContext context,
   String message, {
+  /// Notices no longer carry an icon; kept until the last caller drops it.
+  @Deprecated('Notices no longer show an icon; drop the argument')
   IconData? icon,
 
-  /// The severity colour. It tints the bar, the icon and the border; it is
+  /// The severity colour. It tints the bar and the border; it is
   /// never the background.
   Color? accent,
   SnackBarAction? action,
@@ -58,7 +60,6 @@ void showGameSnack(
   entry = OverlayEntry(
     builder: (_) => _TopNotification(
       message: message,
-      icon: icon,
       tint: tint,
       surface: fc.bg1,
       text: fc.textPrimary,
@@ -74,7 +75,6 @@ void showGameSnack(
 class _TopNotification extends StatefulWidget {
   const _TopNotification({
     required this.message,
-    required this.icon,
     required this.tint,
     required this.surface,
     required this.text,
@@ -84,7 +84,6 @@ class _TopNotification extends StatefulWidget {
   });
 
   final String message;
-  final IconData? icon;
   final Color tint;
   final Color surface;
   final Color text;
@@ -186,10 +185,6 @@ class _TopNotificationState extends State<_TopNotification>
                         color: widget.tint,
                         margin: const EdgeInsets.only(right: 11),
                       ),
-                      if (widget.icon != null) ...[
-                        Icon(widget.icon, size: 16, color: widget.tint),
-                        const SizedBox(width: 9),
-                      ],
                       Expanded(
                         child: Text(
                           widget.message.toUpperCase(),

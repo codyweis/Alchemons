@@ -501,7 +501,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       await LandscapeDialog.show(
         context,
         title: 'A Test?',
-        icon: AppIcons.help_outline_rounded,
         message:
             'Something here refuses to finish. The field closes, the wave breaks, the silence returns, and then the same war leans forward again as if no ending was ever allowed to remain.\n\n'
             'Is this my creation? Or has this constant alchemical war always existed somewhere beneath memory, waiting for a witness strong enough to mistake it for a test?',
@@ -1987,7 +1986,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             child: BracketButton(
               key: const ValueKey('survival.baseCommand'),
               label: 'BASE COMMAND',
-              icon: AppIcons.settings_rounded,
               primary: false,
               height: 48,
               palette: panelPalette,
@@ -2001,7 +1999,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             child: BracketButton(
               key: const ValueKey('survival.assignTeam'),
               label: 'ASSIGN TEAM',
-              icon: AppIcons.groups_rounded,
               height: 48,
               palette: panelPalette,
               accent: _C.amberBright,
@@ -2108,12 +2105,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            AppIcons.emoji_events_outlined,
-                            color: _C.amberBright,
-                            size: 13,
-                          ),
-                          const SizedBox(width: 5),
                           Text(
                             'BEST W${best.bestWave}',
                             style: panelLabel(10.5, _C.amberBright),
@@ -4505,8 +4496,6 @@ class _PauseCompanionCard extends StatelessWidget {
                     live == null ? HudInk.muted : HudInk.amber,
                   ),
                 ),
-                const SizedBox(width: 6),
-                const Icon(AppIcons.insights_rounded, size: 14, color: _C.teal),
               ],
             ),
             const SizedBox(height: 8),

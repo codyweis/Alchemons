@@ -102,8 +102,6 @@ class StageHeader extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(AppIcons.folder_open, color: theme.text, size: 16),
-                  const SizedBox(width: 8),
                   Text(
                     'Teams',
                     style: TextStyle(
@@ -286,12 +284,6 @@ class TeamDisplay extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                AppIcons.groups_rounded,
-                color: Colors.greenAccent.shade400,
-                size: 16,
-              ),
-              const SizedBox(width: 8),
               Text(
                 'YOUR SQUAD',
                 style: TextStyle(
@@ -558,12 +550,6 @@ class _DeployButtonState extends State<DeployButton>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    AppIcons.play_arrow_rounded,
-                    color: canTap ? Colors.white : widget.theme.textMuted,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
                   Text(
                     widget.selectedCount > 0
                         ? 'Confirm Team  (${widget.selectedCount})'

@@ -8,7 +8,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_rewards.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
@@ -160,7 +160,7 @@ class _ElementalCachePopupState extends State<ElementalCachePopup>
                     // reward popup uses. This card was a blue-black rounded
                     // rect with an element-coloured hairline, which belonged to
                     // no other screen in the game.
-                    foregroundPainter: const DungeonBracketPainter(
+                    foregroundPainter: const BracketFramePainter(
                       color: _C.amber,
                       bracketSize: 12,
                       strokeWidth: 1.6,

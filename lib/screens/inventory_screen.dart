@@ -353,7 +353,6 @@ class _InventoryScreenState extends State<InventoryScreen>
         if (items.isEmpty) {
           return _buildEmptyState(
             theme,
-            icon: AppIcons.inventory_2_outlined,
             message: 'No items in inventory',
             subtitle: 'Purchase items from the shop',
           );
@@ -408,7 +407,6 @@ class _InventoryScreenState extends State<InventoryScreen>
         if (keyItems.isEmpty) {
           return _buildEmptyState(
             theme,
-            icon: AppIcons.vpn_key_outlined,
             message: 'No special items yet',
             subtitle: '',
           );
@@ -466,7 +464,6 @@ class _InventoryScreenState extends State<InventoryScreen>
         if (vialItems.isEmpty) {
           return _buildEmptyState(
             theme,
-            icon: AppIcons.science_outlined,
             message: 'No extraction vials',
             subtitle: 'Purchase vials from the Black Market',
           );
@@ -568,7 +565,6 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   Widget _buildEmptyState(
     FactionTheme theme, {
-    required IconData icon,
     required String message,
     required String subtitle,
   }) {
@@ -582,11 +578,6 @@ class _InventoryScreenState extends State<InventoryScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  icon,
-                  size: 80,
-                  color: theme.textMuted.withValues(alpha: 0.3),
-                ),
                 const SizedBox(height: 20),
                 Text(
                   message,
@@ -727,12 +718,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              AppIcons.inventory_2_rounded,
-                              color: activeAccent,
-                              size: 12,
-                            ),
-                            const SizedBox(width: 6),
                             Text(
                               '${item.qty} in inventory',
                               style: _display(
@@ -775,7 +760,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                             width: 102,
                             child: _DialogActionButton(
                               label: 'Remove',
-                              icon: AppIcons.delete_outline_rounded,
                               color: const Color(0xFFC0392B),
                               secondary: true,
                               onTap: () async {
@@ -792,7 +776,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                               label: item.key.startsWith('lootbox.boss.')
                                   ? 'Open box'
                                   : 'Use item',
-                              icon: AppIcons.play_arrow_rounded,
                               color: bracketReadableAccent(theme),
                               onTap: () {
                                 Navigator.pop(ctx);
@@ -919,7 +902,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                         width: 102,
                         child: _DialogActionButton(
                           label: 'Remove',
-                          icon: AppIcons.delete_outline_rounded,
                           color: const Color(0xFFC0392B),
                           secondary: true,
                           onTap: () async {
@@ -932,7 +914,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                       Expanded(
                         child: _DialogActionButton(
                           label: 'Extract',
-                          icon: AppIcons.science_rounded,
                           color: bracketReadableAccent(theme),
                           onTap: () {
                             Navigator.pop(ctx);
@@ -955,7 +936,6 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (!def.canUse) {
       _showToast(
         'This is a key item and cannot be used right now',
-        icon: AppIcons.vpn_key_rounded,
         color: Colors.indigo,
       );
       return;
@@ -969,7 +949,6 @@ class _InventoryScreenState extends State<InventoryScreen>
       if (rewards.isEmpty) {
         _showToast(
           'No boxes remaining',
-          icon: AppIcons.info_rounded,
           color: Colors.orange,
         );
         return;
@@ -1012,7 +991,6 @@ class _InventoryScreenState extends State<InventoryScreen>
 
     _showToast(
       'Item usage not yet implemented',
-      icon: AppIcons.info_rounded,
       color: Colors.blue,
     );
   }
@@ -1032,7 +1010,6 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (allInstances.isEmpty) {
       _showToast(
         'No Alchemons available',
-        icon: AppIcons.error_rounded,
         color: Colors.orange,
       );
       return;
@@ -1053,7 +1030,6 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (updated == null) {
       _showToast(
         'Failed to restore stamina',
-        icon: AppIcons.error_rounded,
         color: Colors.red,
       );
       return;
@@ -1065,7 +1041,6 @@ class _InventoryScreenState extends State<InventoryScreen>
     final selectedSpecies = repo.getCreatureById(selectedInstance.baseId);
     _showToast(
       'Restored stamina for ${selectedSpecies?.name ?? 'specimen'}!',
-      icon: AppIcons.favorite_rounded,
       color: Colors.green,
     );
   }
@@ -1083,7 +1058,6 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (allInstances.isEmpty) {
       _showToast(
         'No Alchemons to apply effect to',
-        icon: AppIcons.error_rounded,
         color: Colors.orange,
       );
       return;
@@ -1107,7 +1081,6 @@ class _InventoryScreenState extends State<InventoryScreen>
 
     _showToast(
       'Applied ${def.name}!',
-      icon: AppIcons.check_circle_rounded,
       color: Colors.green,
     );
   }
@@ -1129,7 +1102,6 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (!def.canDispose) {
       _showToast(
         'Special items cannot be removed',
-        icon: AppIcons.lock_rounded,
         color: Colors.indigo,
       );
       return;
@@ -1147,14 +1119,12 @@ class _InventoryScreenState extends State<InventoryScreen>
           _InventoryDialogOption(
             value: 'one',
             label: 'Remove 1',
-            icon: AppIcons.remove_circle_outline_rounded,
             color: const Color(0xFFD97706),
             secondary: true,
           ),
           _InventoryDialogOption(
             value: 'all',
             label: 'Remove all',
-            icon: AppIcons.delete_sweep_rounded,
             color: const Color(0xFFC0392B),
           ),
         ],
@@ -1170,21 +1140,18 @@ class _InventoryScreenState extends State<InventoryScreen>
         await db.inventoryDao.removeItem(item.key);
         _showToast(
           'Removed all ${def.name}',
-          icon: AppIcons.delete_rounded,
           color: Colors.red,
         );
       } else if (confirmed == 'one') {
         await db.inventoryDao.decrementItem(item.key, by: 1);
         _showToast(
           'Removed 1 ${def.name}',
-          icon: AppIcons.remove_circle_rounded,
           color: Colors.orange,
         );
       }
     } catch (e) {
       _showToast(
         'Failed to remove item',
-        icon: AppIcons.error_rounded,
         color: Colors.red,
       );
     }
@@ -1201,7 +1168,6 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (qty <= 0) {
       _showToast(
         'No vials of this type available',
-        icon: AppIcons.warning_rounded,
         color: Colors.orange,
       );
       return;
@@ -1227,13 +1193,11 @@ class _InventoryScreenState extends State<InventoryScreen>
     if (!res.success) {
       _showToast(
         res.message ?? 'Extraction failed',
-        icon: res.icon ?? AppIcons.error,
         color: res.color ?? Colors.red,
       );
     } else {
       _showToast(
         'Extraction complete!',
-        icon: AppIcons.check_circle_rounded,
         color: Colors.green,
       );
     }
@@ -1252,14 +1216,12 @@ class _InventoryScreenState extends State<InventoryScreen>
           _InventoryDialogOption(
             value: 'one',
             label: 'Remove 1',
-            icon: AppIcons.remove_circle_outline_rounded,
             color: const Color(0xFFD97706),
             secondary: true,
           ),
           _InventoryDialogOption(
             value: 'all',
             label: 'Remove all',
-            icon: AppIcons.delete_sweep_rounded,
             color: const Color(0xFFC0392B),
           ),
         ],
@@ -1275,29 +1237,26 @@ class _InventoryScreenState extends State<InventoryScreen>
         await db.inventoryDao.removeItem(vial.id);
         _showToast(
           'Removed all ${vial.name} vials',
-          icon: AppIcons.delete_rounded,
           color: Colors.red,
         );
       } else if (confirmed == 'one') {
         await db.inventoryDao.decrementItem(vial.id, by: 1);
         _showToast(
           'Removed 1 ${vial.name} vial',
-          icon: AppIcons.remove_circle_rounded,
           color: Colors.orange,
         );
       }
     } catch (e) {
       _showToast(
         'Failed to remove vial',
-        icon: AppIcons.error_rounded,
         color: Colors.red,
       );
     }
   }
 
-  void _showToast(String msg, {IconData? icon, Color? color}) {
+  void _showToast(String msg, {Color? color}) {
     if (!mounted) return;
-    showGameSnack(context, msg, icon: icon, accent: color);
+    showGameSnack(context, msg, accent: color);
   }
 }
 
@@ -1459,14 +1418,12 @@ class _DialogCloseButton extends StatelessWidget {
 class _DialogActionButton extends StatelessWidget {
   const _DialogActionButton({
     required this.label,
-    required this.icon,
     required this.color,
     required this.onTap,
     this.secondary = false,
   });
 
   final String label;
-  final IconData icon;
   final Color color;
   final VoidCallback onTap;
   final bool secondary;
@@ -1491,8 +1448,6 @@ class _DialogActionButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 15, color: color),
-              const SizedBox(width: 7),
               Flexible(
                 child: Text(
                   label,
@@ -1519,14 +1474,12 @@ class _InventoryDialogOption {
   const _InventoryDialogOption({
     required this.value,
     required this.label,
-    required this.icon,
     required this.color,
     this.secondary = false,
   });
 
   final String value;
   final String label;
-  final IconData icon;
   final Color color;
   final bool secondary;
 }
@@ -1621,7 +1574,6 @@ class _InventoryChoiceDialog extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _DialogActionButton(
                     label: option.label,
-                    icon: option.icon,
                     color: option.color,
                     onTap: context.soundTap(
                       () => Navigator.pop(context, option.value),
@@ -1633,7 +1585,6 @@ class _InventoryChoiceDialog extends StatelessWidget {
               const SizedBox(height: 2),
               _DialogActionButton(
                 label: 'Cancel',
-                icon: AppIcons.close_rounded,
                 color: palette.line,
                 secondary: true,
                 onTap: context.soundTap(() => Navigator.pop(context)),

@@ -135,10 +135,6 @@ class _BlackMarketScreenState extends State<BlackMarketScreen> {
                   padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
                   child: BracketTabs(
                     labels: const ['BUY', 'SELL'],
-                    icons: const [
-                      AppIcons.shopping_bag_rounded,
-                      AppIcons.sell_rounded,
-                    ],
                     selected: _tab,
                     onSelect: (i) => setState(() => _tab = i),
                     palette: _p,
@@ -313,7 +309,6 @@ class _BlackMarketScreenState extends State<BlackMarketScreen> {
       context,
       palette: _p,
       accent: _kLamp,
-      icon: AppIcons.science_rounded,
       title: 'BUY ${vial.name.toUpperCase()}',
       message:
           '${vial.group.displayName} · ${vial.rarity.badgeLabel}. '
@@ -429,7 +424,6 @@ class _BlackMarketScreenState extends State<BlackMarketScreen> {
                                 : canAfford
                                 ? 'BUY VIAL'
                                 : 'NOT ENOUGH ${coin.name.toUpperCase()}',
-                            icon: sold ? AppIcons.check_rounded : null,
                             enabled: !sold && canAfford,
                             palette: _p,
                             accent: _kLamp,
@@ -473,7 +467,6 @@ class _BlackMarketScreenState extends State<BlackMarketScreen> {
       context,
       palette: _p,
       accent: _kLamp,
-      icon: offer.icon,
       title: offer.name.toUpperCase(),
       message: offer.description,
       amounts: [
@@ -642,7 +635,6 @@ class _BlackMarketScreenState extends State<BlackMarketScreen> {
             const SizedBox(height: 10),
             BracketButton(
               label: 'MAKE THE TRADE',
-              icon: AppIcons.sell_rounded,
               enabled: cut > 0,
               palette: _p,
               accent: _kLamp,
@@ -670,7 +662,6 @@ class _BlackMarketScreenState extends State<BlackMarketScreen> {
       context,
       palette: _p,
       accent: _kLamp,
-      icon: AppIcons.sell_rounded,
       title: 'MAKE THE TRADE',
       message:
           'Sell ${formatCoins(count)} resources '
@@ -699,7 +690,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen> {
 
   void _toast(String msg, {IconData? icon, Color accent = _kDanger}) {
     if (!mounted) return;
-    showGameSnack(context, msg, icon: icon, accent: accent);
+    showGameSnack(context, msg, accent: accent);
   }
 }
 

@@ -291,11 +291,6 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            AppIcons.shield_rounded,
-                            color: Colors.amber.withValues(alpha: textOpacity),
-                            size: 28,
-                          ),
                           const SizedBox(height: 10),
                           Text(
                             'GUARANTEE HARVESTER FOUND',
@@ -503,25 +498,21 @@ class _ElementalPortalGrid extends StatelessWidget {
       'Fire',
       Color(0xFFFF5722),
       Color(0xFF1A0500),
-      AppIcons.local_fire_department_rounded,
     ),
     _PortalDef(
       'Water',
       Color(0xFF448AFF),
       Color(0xFF000D1A),
-      AppIcons.water_drop_rounded,
     ),
     _PortalDef(
       'Earth',
       Color(0xFF795548),
       Color(0xFF1A0A00),
-      AppIcons.terrain_rounded,
     ),
     _PortalDef(
       'Air',
       Color(0xFF81D4FA),
       Color(0xFF001020),
-      AppIcons.air_rounded,
     ),
   ];
 
@@ -560,9 +551,8 @@ class _PortalDef {
   final String element;
   final Color color;
   final Color coreColor;
-  final IconData icon;
 
-  const _PortalDef(this.element, this.color, this.coreColor, this.icon);
+  const _PortalDef(this.element, this.color, this.coreColor);
 }
 
 class _PortalButton extends StatelessWidget {
@@ -633,12 +623,6 @@ class _PortalButton extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                     letterSpacing: 2,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Icon(
-                  def.icon,
-                  color: def.color.withValues(alpha: 0.7),
-                  size: 18,
                 ),
               ],
             ),

@@ -138,11 +138,6 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  AppIcons.inventory_2_outlined,
-                  size: 36,
-                  color: t.borderAccent,
-                ),
                 const SizedBox(height: 12),
                 Text(
                   'NO ITEMS IN FIELD PACK',

@@ -534,7 +534,6 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
         BracketButton(
           key: const ValueKey('station.buy'),
           label: label,
-          icon: AppIcons.shopping_bag_rounded,
           palette: panelPalette,
           accent: _kind.accent,
           enabled: short.isEmpty && !_buying,

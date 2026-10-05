@@ -264,8 +264,6 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(AppIcons.folder_open, color: _C.textSecondary, size: 14),
-                  const SizedBox(width: 8),
                   Text(
                     'TEAMS',
                     style: TextStyle(
@@ -352,12 +350,6 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                   // Header row
                   Row(
                     children: [
-                      Icon(
-                        AppIcons.groups_rounded,
-                        color: isReady ? _C.success : _C.textSecondary,
-                        size: 13,
-                      ),
-                      const SizedBox(width: 6),
                       Text(
                         'SQUAD  $count / $maxSize',
                         style: _T.label.copyWith(
@@ -612,14 +604,6 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                canDeploy
-                    ? AppIcons.arrow_forward_rounded
-                    : AppIcons.hourglass_empty_rounded,
-                size: 14,
-                color: canDeploy ? _C.bg0 : _C.textMuted,
-              ),
-              const SizedBox(width: 10),
               Text(
                 label.toUpperCase(),
                 style: TextStyle(

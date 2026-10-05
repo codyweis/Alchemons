@@ -178,7 +178,6 @@ class _NurseryTabState extends State<NurseryTab> {
     if (slot.eggId == null || slot.hatchAtUtcMs == null) {
       _showToast(
         'No active specimen in this chamber',
-        icon: AppIcons.info_outline_rounded,
         color: Colors.blue.shade600,
       );
       return;
@@ -197,7 +196,6 @@ class _NurseryTabState extends State<NurseryTab> {
     if (qty <= 0) {
       _showToast(
         'No Instant Fusion Extractors',
-        icon: AppIcons.flash_off_rounded,
         color: Colors.red.shade600,
       );
       return;
@@ -221,7 +219,6 @@ class _NurseryTabState extends State<NurseryTab> {
     if (!consumed) {
       _showToast(
         'Instant Fusion Extractor unavailable',
-        icon: AppIcons.error_outline_rounded,
         color: Colors.red.shade600,
       );
       return;
@@ -243,7 +240,6 @@ class _NurseryTabState extends State<NurseryTab> {
     if (latest == null || latest.hatchAtUtcMs == null) {
       _showToast(
         'Specimen updated, please retry',
-        icon: AppIcons.info_outline_rounded,
         color: Colors.orange.shade600,
       );
       return;
@@ -255,7 +251,6 @@ class _NurseryTabState extends State<NurseryTab> {
     if (!mounted) return;
     _showToast(
       'Cultivation complete',
-      icon: AppIcons.flash_on_rounded,
       color: Colors.green.shade600,
     );
   }
@@ -420,11 +415,6 @@ class _NurseryTabState extends State<NurseryTab> {
       'Extract all ${readySlots.length} ready chambers in one ceremony? Each specimen will still be revealed and analyzed individually.',
       confirmLabel: 'EXTRACT ALL',
       accent: const Color(0xFF67E8F9),
-      artwork: const Icon(
-        AppIcons.auto_awesome_rounded,
-        color: Color(0xFF67E8F9),
-        size: 58,
-      ),
     );
     if (!mounted || !confirmed) return;
 
@@ -448,7 +438,6 @@ class _NurseryTabState extends State<NurseryTab> {
     widget.onHatchComplete();
     _showToast(
       '$completed specimen${completed == 1 ? '' : 's'} extracted',
-      icon: AppIcons.auto_awesome_rounded,
       color: const Color(0xFF34D399),
     );
   }
@@ -834,7 +823,6 @@ class _NurseryTabState extends State<NurseryTab> {
                                 .clearEgg(slot.id);
                             _showToast(
                               'Specimen discarded',
-                              icon: AppIcons.delete_forever_rounded,
                               color: Colors.red.shade600,
                             );
                           },
@@ -881,7 +869,6 @@ class _NurseryTabState extends State<NurseryTab> {
     if (remaining.isNegative || remaining.inSeconds <= 0) {
       _showToast(
         'Specimen is already ready',
-        icon: AppIcons.info_rounded,
         color: Colors.blue.shade600,
       );
       return;
@@ -1189,7 +1176,6 @@ class _NurseryTabState extends State<NurseryTab> {
       if (mounted) {
         _showToast(
           'Insufficient gold (need $deficit)',
-          icon: AppIcons.warning_rounded,
           color: Colors.red.shade600,
         );
       }
@@ -1201,7 +1187,6 @@ class _NurseryTabState extends State<NurseryTab> {
       if (mounted) {
         _showToast(
           'Transaction failed',
-          icon: AppIcons.error_rounded,
           color: Colors.red.shade600,
         );
       }
@@ -1218,7 +1203,6 @@ class _NurseryTabState extends State<NurseryTab> {
     if (mounted) {
       _showToast(
         '$type acceleration complete! ($goldCost gold)',
-        icon: AppIcons.speed_rounded,
         color: Colors.green.shade600,
       );
     }
@@ -1256,7 +1240,6 @@ class _NurseryTabState extends State<NurseryTab> {
     if (mounted) {
       _showToast(
         'Specimen moved to cold storage',
-        icon: AppIcons.inventory_2_rounded,
         color: Colors.orange.shade600,
       );
     }
@@ -1298,7 +1281,6 @@ class _NurseryTabState extends State<NurseryTab> {
     } else if (result.message != null) {
       _showToast(
         result.message!,
-        icon: result.icon ?? AppIcons.error_rounded,
         color: result.color ?? Colors.red.shade600,
       );
     }
@@ -1338,22 +1320,16 @@ class _NurseryTabState extends State<NurseryTab> {
     } else if (result.message != null) {
       _showToast(
         result.message!,
-        icon: result.icon ?? AppIcons.error_rounded,
         color: result.color ?? Colors.red.shade600,
       );
     }
   }
 
-  void _showToast(
-    String message, {
-    IconData icon = AppIcons.info_rounded,
-    Color? color,
-  }) {
+  void _showToast(String message, {Color? color}) {
     if (!mounted) return;
     showGameSnack(
       context,
       message,
-      icon: icon,
       accent: color,
       duration: const Duration(seconds: 2),
     );
@@ -1737,8 +1713,6 @@ class _BatchExtractButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(AppIcons.auto_awesome_rounded, color: accent, size: 13),
-            const SizedBox(width: 5),
             Text(
               'EXTRACT ALL $count',
               style: const TextStyle(

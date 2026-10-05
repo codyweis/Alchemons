@@ -270,9 +270,6 @@ void _snack(BuildContext? context, String message, {bool isError = false}) {
   showGameSnack(
     target,
     message,
-    icon: isError
-        ? AppIcons.error_outline_rounded
-        : AppIcons.check_circle_rounded,
     accent: storyDialogAccent(
       isError ? StoryDialogKind.danger : StoryDialogKind.success,
     ),

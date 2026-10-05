@@ -63,9 +63,9 @@ class ConstellationSkillDialog extends StatelessWidget {
   bool get _affordable => pointsAvailable >= skill.pointsCost;
   bool get _canBuy => mode == SkillDialogMode.available && _affordable;
 
-  static const _bg = Color(0xFF0E1117);
-  static const _bgRaised = Color(0xFF080A0E);
-  static const _hairline = Color(0xFF252D3A);
+  static const _bg = Color(0xFF15110D);
+  static const _bgRaised = Color(0xFF0A0806);
+  static const _hairline = Color(0xFF2C241A);
   static const _text = kChartInk;
   static const _textSoft = Color(0xFFCFC4B1);
   static const _textMuted = kChartMuted;

@@ -6,7 +6,6 @@ import 'package:alchemons/widgets/wilderness/inventory_hud.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/models/wilderness.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 
 // Wilderness HUD sits on dark scene backdrops — always dark.
 const _wPalette = BracketPalette.dark;
@@ -53,7 +52,6 @@ class WildernessControls extends StatelessWidget {
               alignment: Alignment.topLeft,
               child: _ControlButton(
                 label: 'Exit',
-                icon: AppIcons.exit_to_app_rounded,
                 accentColor: _wDanger,
                 tooltip: leaveTooltip,
                 onPressed: context.soundTap(
@@ -66,7 +64,6 @@ class WildernessControls extends StatelessWidget {
               alignment: Alignment.bottomLeft,
               child: _ControlButton(
                 label: 'Items',
-                icon: AppIcons.inventory_2_rounded,
                 accentColor: _wAmber,
                 tooltip: 'Inventory',
                 onPressed: context.soundTap(
@@ -256,14 +253,12 @@ class _InventoryOverlayShell extends StatelessWidget {
 
 class _ControlButton extends StatelessWidget {
   final String label;
-  final IconData icon;
   final Color accentColor;
   final String tooltip;
   final VoidCallback onPressed;
 
   const _ControlButton({
     required this.label,
-    required this.icon,
     required this.accentColor,
     required this.tooltip,
     required this.onPressed,
@@ -293,7 +288,6 @@ class _ControlButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: accentColor, size: AppIcon.md),
                 const SizedBox(height: 5),
                 Text(
                   label,

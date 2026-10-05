@@ -603,12 +603,6 @@ class _AnimatedXpBar extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      AppIcons.bolt,
-                      size: 9,
-                      color: Colors.amber.shade400,
-                    ), // REDUCED
-                    const SizedBox(width: 2),
                     Text(
                       '+$gainedXp XP',
                       style: TextStyle(
@@ -756,7 +750,7 @@ class _StatGainChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color) = _getStatStyle(statName);
+    final color = _getStatStyle(statName);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -767,8 +761,6 @@ class _StatGainChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
           Text(
             _formatStatName(statName),
             style: TextStyle(
@@ -791,19 +783,19 @@ class _StatGainChip extends StatelessWidget {
     );
   }
 
-  // pick icon + tint per stat name
-  (IconData, Color) _getStatStyle(String stat) {
+  // tint per stat name
+  Color _getStatStyle(String stat) {
     switch (stat.toLowerCase()) {
       case 'speed':
-        return (AppIcons.speed, Colors.cyan);
+        return Colors.cyan;
       case 'intelligence':
-        return (AppIcons.psychology, Colors.purple);
+        return Colors.purple;
       case 'strength':
-        return (AppIcons.fitness_center, Colors.red);
+        return Colors.red;
       case 'beauty':
-        return (AppIcons.auto_awesome, Colors.pink);
+        return Colors.pink;
       default:
-        return (AppIcons.star, Colors.amber);
+        return Colors.amber;
     }
   }
 
@@ -838,7 +830,7 @@ class _StatValueChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color) = _getStatStyle(statName);
+    final color = _getStatStyle(statName);
 
     // Get the current (new) stat value from the instance
     final newValue = _getStatValue(statName);
@@ -854,8 +846,6 @@ class _StatValueChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
           Text(
             _formatStatName(statName),
             style: TextStyle(
@@ -874,12 +864,6 @@ class _StatValueChip extends StatelessWidget {
               fontWeight: FontWeight.w600,
               decoration: TextDecoration.lineThrough,
             ),
-          ),
-          const SizedBox(width: 3),
-          Icon(
-            AppIcons.arrow_forward,
-            size: 10,
-            color: color.withValues(alpha: 0.7),
           ),
           const SizedBox(width: 3),
           // New value SECOND (after arrow)
@@ -911,19 +895,19 @@ class _StatValueChip extends StatelessWidget {
     }
   }
 
-  // pick icon + tint per stat name
-  (IconData, Color) _getStatStyle(String stat) {
+  // tint per stat name
+  Color _getStatStyle(String stat) {
     switch (stat.toLowerCase()) {
       case 'speed':
-        return (AppIcons.speed, Colors.cyan);
+        return Colors.cyan;
       case 'intelligence':
-        return (AppIcons.psychology, Colors.purple);
+        return Colors.purple;
       case 'strength':
-        return (AppIcons.fitness_center, Colors.red);
+        return Colors.red;
       case 'beauty':
-        return (AppIcons.auto_awesome, Colors.pink);
+        return Colors.pink;
       default:
-        return (AppIcons.star, Colors.amber);
+        return Colors.amber;
     }
   }
 

@@ -434,7 +434,6 @@ class _BreedingTabState extends State<BreedingTab>
     if (p1 != null && p2 != null) {
       return BracketButton(
         label: 'FUSE',
-        icon: AppIcons.merge_type_rounded,
         height: 48,
         palette: palette,
         accent: gold,
@@ -472,7 +471,6 @@ class _BreedingTabState extends State<BreedingTab>
             flex: 2,
             child: BracketButton(
               label: 'SAME PAIR',
-              icon: AppIcons.replay_rounded,
               primary: false,
               height: 48,
               palette: palette,
@@ -898,7 +896,6 @@ class _BreedingTabState extends State<BreedingTab>
     if (inst1 == null || inst2 == null) {
       _showToast(
         'That pair is no longer here',
-        icon: AppIcons.warning_rounded,
         color: Colors.orange,
       );
       setState(() {
@@ -942,7 +939,6 @@ class _BreedingTabState extends State<BreedingTab>
           !restedA && !restedB
               ? 'Both are resting'
               : '${_nameOf(!restedA ? selectedParent1! : selectedParent2!, !restedA ? speciesA : speciesB)} is resting',
-          icon: AppIcons.hourglass_bottom_rounded,
           color: Colors.orange,
         );
         return;
@@ -955,7 +951,6 @@ class _BreedingTabState extends State<BreedingTab>
           !(isMysticA && isMysticB && speciesA.id == speciesB.id)) {
         _showToast(
           'Mystics fuse only with their own species',
-          icon: AppIcons.block_rounded,
           color: Colors.orange,
         );
         return;
@@ -967,7 +962,6 @@ class _BreedingTabState extends State<BreedingTab>
           !skills.contains('breeder_cross_species')) {
         _showToast(
           'Two families · needs Cross-Species Lineage',
-          icon: AppIcons.block_rounded,
           color: Colors.orange,
         );
         return;
@@ -978,7 +972,6 @@ class _BreedingTabState extends State<BreedingTab>
       if (placementFailure != null) {
         _showToast(
           placementFailure,
-          icon: AppIcons.inventory_2_rounded,
           color: Colors.orange,
         );
         return;
@@ -1208,7 +1201,6 @@ class _BreedingTabState extends State<BreedingTab>
           if (!result.success) {
             _pendingFusionToast = _PendingToast(
               result.message ?? 'Fusion failed',
-              icon: AppIcons.warning_rounded,
               color: Colors.orange,
             );
             return false;
@@ -1225,13 +1217,11 @@ class _BreedingTabState extends State<BreedingTab>
           if (result.placement == EggPlacement.storage) {
             _pendingFusionToast = _PendingToast(
               'Chambers full. The cultivation went to cold storage',
-              icon: AppIcons.inventory_2_rounded,
               color: Colors.orange,
             );
           } else if (result.placement == EggPlacement.incubator) {
             _pendingFusionToast = _PendingToast(
               'Cultivating in chamber ${(result.slotId ?? 0) + 1}',
-              icon: AppIcons.science_rounded,
             );
           }
 
@@ -1253,7 +1243,7 @@ class _BreedingTabState extends State<BreedingTab>
       final pending = _pendingFusionToast;
       _pendingFusionToast = null;
       if (pending != null) {
-        _showToast(pending.message, icon: pending.icon, color: pending.color);
+        _showToast(pending.message, color: pending.color);
       }
 
       if (didBreed != true) return;
@@ -1272,7 +1262,6 @@ class _BreedingTabState extends State<BreedingTab>
       _showToast(
         'Fusion failed: $e',
         color: Colors.red,
-        icon: AppIcons.error_rounded,
       );
     }
   }
@@ -1440,7 +1429,6 @@ class _BreedingTabState extends State<BreedingTab>
     if (blockedIds.contains(instance.instanceId)) {
       _showToast(
         'That one is already in the other chamber',
-        icon: AppIcons.block_rounded,
         color: Colors.orange,
       );
       return false;
@@ -1460,7 +1448,6 @@ class _BreedingTabState extends State<BreedingTab>
     final mins = (remMs / 60000).ceil();
     _showToast(
       'Resting, next stamina in ~${mins}m',
-      icon: AppIcons.hourglass_bottom_rounded,
       color: Colors.orange,
     );
     return false;
@@ -1471,7 +1458,7 @@ class _BreedingTabState extends State<BreedingTab>
   String? _lastToastMessage;
   DateTime? _lastToastAt;
 
-  void _showToast(String message, {IconData? icon, Color? color}) {
+  void _showToast(String message, {Color? color}) {
     if (!mounted) return;
     // Fusion can fire the same complaint several times in a second, and
     // repeating it is just noise.
@@ -1487,7 +1474,6 @@ class _BreedingTabState extends State<BreedingTab>
     showGameSnack(
       context,
       message,
-      icon: icon ?? AppIcons.info_rounded,
       accent: color,
       duration: const Duration(seconds: 2),
     );
@@ -1496,8 +1482,7 @@ class _BreedingTabState extends State<BreedingTab>
 
 /// A toast captured during the fusion cinematic, shown once after it closes.
 class _PendingToast {
-  const _PendingToast(this.message, {required this.icon, this.color});
+  const _PendingToast(this.message, {this.color});
   final String message;
-  final IconData icon;
   final Color? color;
 }

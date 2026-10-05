@@ -175,28 +175,24 @@ class InstanceFiltersPanel extends StatelessWidget {
 
       if (!harvestMode) ...[
         _CycleChip(
-          icon: AppIcons.science_rounded,
           labelWhenAny: 'VARIANT',
           valueText: variantValueText?.toUpperCase(),
           onTap: context.soundTap(onCycleVariant),
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
-          icon: AppIcons.straighten_rounded,
           labelWhenAny: 'SIZE',
           valueText: sizeValueText?.toUpperCase(),
           onTap: context.soundTap(onCycleSize),
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
-          icon: AppIcons.palette_outlined,
           labelWhenAny: 'TINT',
           valueText: tintValueText?.toUpperCase(),
           onTap: context.soundTap(onCycleTint),
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
-          icon: AppIcons.verified_rounded,
           labelWhenAny: 'PURITY',
           valueText: purityFilter.chipValueText,
           onTap: context.soundTap(onCyclePurity),
@@ -204,14 +200,12 @@ class InstanceFiltersPanel extends StatelessWidget {
         ),
       ] else ...[
         _CycleChip(
-          icon: AppIcons.straighten_rounded,
           labelWhenAny: 'SIZE',
           valueText: sizeValueText?.toUpperCase(),
           onTap: context.soundTap(onCycleSize),
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
-          icon: AppIcons.verified_rounded,
           labelWhenAny: 'PURITY',
           valueText: purityFilter.chipValueText,
           onTap: context.soundTap(onCyclePurity),
@@ -220,7 +214,6 @@ class InstanceFiltersPanel extends StatelessWidget {
       ],
 
       _PickerChip(
-        icon: AppIcons.psychology_rounded,
         label: 'NATURE',
         value: filterNature != null
             ? (natureOptions[filterNature] ?? filterNature!)
@@ -243,7 +236,6 @@ class InstanceFiltersPanel extends StatelessWidget {
       ),
 
       _CycleChip(
-        icon: AppIcons.auto_awesome_rounded,
         labelWhenAny: 'SPECIAL',
         valueText: specialFilter.chipValueText,
         onTap: context.soundTap(onCycleSpecial),
@@ -252,7 +244,6 @@ class InstanceFiltersPanel extends StatelessWidget {
 
       if (onToggleFavorites != null)
         _ToggleChip(
-          icon: AppIcons.star_rounded,
           label: 'FAVORITES',
           active: filterFavorites,
           activeColor: const Color(0xFFE91E8C),
@@ -261,7 +252,6 @@ class InstanceFiltersPanel extends StatelessWidget {
         ),
       if (onToggleHasStamina != null)
         _ToggleChip(
-          icon: AppIcons.bolt_rounded,
           label: 'HAS STM',
           active: filterHasStamina,
           activeColor: const Color(0xFF34D399),
@@ -391,19 +381,19 @@ class _StatCycleChip extends StatelessWidget {
     this.showInactiveFrame = true,
   });
 
-  (IconData, String, Color?) _info() {
+  (String, Color?) _info() {
     final isStat = currentStat.isStatSort;
-    if (!isStat) return (AppIcons.bar_chart_rounded, 'STAT', null);
+    if (!isStat) return ('STAT', null);
     final label = '${currentStat.shortLabel} ↓';
     if (currentStat == SortBy.combinedPotential) {
-      return (AppIcons.auto_graph_rounded, label, const Color(0xFF67E8F9));
+      return (label, const Color(0xFF67E8F9));
     }
     return switch (currentStat.statFamily) {
-      'speed' => (AppIcons.speed, label, const Color(0xFFFDE047)),
-      'intelligence' => (AppIcons.psychology, label, const Color(0xFFC084FC)),
-      'strength' => (AppIcons.fitness_center, label, const Color(0xFFF87171)),
-      'beauty' => (AppIcons.favorite, label, const Color(0xFFF9A8D4)),
-      _ => (AppIcons.bar_chart_rounded, 'STAT', null),
+      'speed' => (label, const Color(0xFFFDE047)),
+      'intelligence' => (label, const Color(0xFFC084FC)),
+      'strength' => (label, const Color(0xFFF87171)),
+      'beauty' => (label, const Color(0xFFF9A8D4)),
+      _ => ('STAT', null),
     };
   }
 
@@ -412,7 +402,7 @@ class _StatCycleChip extends StatelessWidget {
     final theme = context.read<FactionTheme>();
     final palette = BracketPalette.fromTheme(theme);
     final t = ForgeTokens(theme);
-    final (icon, label, color) = _info();
+    final (label, color) = _info();
     final isStat = currentStat.isStatSort;
     final iconColor = isStat
         ? t.readableAccent(color ?? theme.accentSoft)
@@ -423,7 +413,6 @@ class _StatCycleChip extends StatelessWidget {
       active: isStat,
       activeColor: color,
       onTap: context.soundTap(onTap),
-      leading: Icon(icon, size: 12, color: iconColor),
       showInactiveFrame: showInactiveFrame,
       trailing: (hasPotentialAnalyzer && isStat && currentStat.isPotentialSort)
           ? Icon(AppIcons.auto_graph_rounded, size: 11, color: iconColor)
@@ -433,13 +422,11 @@ class _StatCycleChip extends StatelessWidget {
 }
 
 class _CycleChip extends StatelessWidget {
-  final IconData icon;
   final String labelWhenAny;
   final String? valueText;
   final VoidCallback onTap;
   final bool showInactiveFrame;
   const _CycleChip({
-    required this.icon,
     required this.labelWhenAny,
     required this.valueText,
     required this.onTap,
@@ -448,29 +435,23 @@ class _CycleChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
-    final palette = BracketPalette.fromTheme(theme);
     final active = valueText != null;
-    final iconColor = active ? bracketReadableAccent(theme) : palette.muted;
     return _BracketChip(
       label: valueText ?? labelWhenAny,
       active: active,
       onTap: context.soundTap(onTap),
-      leading: Icon(icon, size: 12, color: iconColor),
       showInactiveFrame: showInactiveFrame,
     );
   }
 }
 
 class _ToggleChip extends StatelessWidget {
-  final IconData icon;
   final String label;
   final bool active;
   final Color? activeColor;
   final VoidCallback onTap;
   final bool showInactiveFrame;
   const _ToggleChip({
-    required this.icon,
     required this.label,
     required this.active,
     required this.onTap,
@@ -480,30 +461,22 @@ class _ToggleChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
-    final palette = BracketPalette.fromTheme(theme);
-    final t = ForgeTokens(theme);
-    final accent = t.readableAccent(activeColor ?? theme.accentSoft);
-    final iconColor = active ? accent : palette.muted;
     return _BracketChip(
       label: label,
       active: active,
       activeColor: activeColor,
       onTap: context.soundTap(onTap),
-      leading: Icon(icon, size: 12, color: iconColor),
       showInactiveFrame: showInactiveFrame,
     );
   }
 }
 
 class _PickerChip extends StatelessWidget {
-  final IconData icon;
   final String label;
   final String? value;
   final VoidCallback onTap;
   final bool showInactiveFrame;
   const _PickerChip({
-    required this.icon,
     required this.label,
     required this.value,
     required this.onTap,
@@ -520,7 +493,6 @@ class _PickerChip extends StatelessWidget {
       label: value?.toUpperCase() ?? '$label: ANY',
       active: active,
       onTap: context.soundTap(onTap),
-      leading: Icon(icon, size: 12, color: iconColor),
       showInactiveFrame: showInactiveFrame,
       trailing: Icon(
         AppIcons.keyboard_arrow_down_rounded,

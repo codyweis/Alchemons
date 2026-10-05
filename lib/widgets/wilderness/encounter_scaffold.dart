@@ -233,7 +233,6 @@ class EncounterScaffold extends StatelessWidget {
       children: [
         _EncounterButton(
           label: 'Try to breed',
-          icon: AppIcons.favorite_rounded,
           color: _breedAccent,
           filled: true,
           large: true,
@@ -242,7 +241,6 @@ class EncounterScaffold extends StatelessWidget {
         const SizedBox(height: 10),
         _EncounterButton(
           label: 'Run',
-          icon: AppIcons.run_circle_rounded,
           color: _runColor,
           filled: false,
           large: false,
@@ -256,7 +254,6 @@ class EncounterScaffold extends StatelessWidget {
 class _EncounterButton extends StatelessWidget {
   const _EncounterButton({
     required this.label,
-    required this.icon,
     required this.color,
     required this.filled,
     required this.large,
@@ -264,7 +261,6 @@ class _EncounterButton extends StatelessWidget {
   });
 
   final String label;
-  final IconData icon;
   final Color color;
   final bool filled;
   final bool large;
@@ -295,8 +291,6 @@ class _EncounterButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: large ? 17 : 15, color: fg),
-              const SizedBox(width: 8),
               Text(
                 label,
                 style: bracketText(

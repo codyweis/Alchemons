@@ -9,7 +9,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
 
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/potential_soul.dart';
 import 'package:alchemons/screens/inventory_screen.dart'
@@ -189,7 +189,7 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
     final finalLevel3Clear =
         widget.raidLevel == 3 && widget.level3ClearsBeforeFight > 0;
     return CustomPaint(
-      painter: const DungeonBracketPainter(
+      painter: const BracketFramePainter(
         color: _C.amberBright,
         bracketSize: 12,
       ),
