@@ -224,6 +224,25 @@ enum SoundCue {
   fusionRecoil('assets/audio/sounds/sfx_fusion_recoil.wav'),
   harvestCollect('assets/audio/sounds/sfx_harvest_collect.wav'),
 
+  /// The Enhance screen (tool/sounds/enhance.py), each scored to its own
+  /// animation: kin coming apart and pouring into the specimen (one take per
+  /// kin count, 1-6+, since the pour lengthens with it), a power orb's lob
+  /// and climb, a potential soul's rite by roll (1-5: longer and brighter),
+  /// and the last level reached.
+  enhancePour1('assets/audio/sounds/sfx_enhance_pour_1.wav'),
+  enhancePour2('assets/audio/sounds/sfx_enhance_pour_2.wav'),
+  enhancePour3('assets/audio/sounds/sfx_enhance_pour_3.wav'),
+  enhancePour4('assets/audio/sounds/sfx_enhance_pour_4.wav'),
+  enhancePour5('assets/audio/sounds/sfx_enhance_pour_5.wav'),
+  enhancePour6('assets/audio/sounds/sfx_enhance_pour_6.wav'),
+  enhanceOrb('assets/audio/sounds/sfx_enhance_orb.wav'),
+  enhanceSoul1('assets/audio/sounds/sfx_enhance_soul_1.wav'),
+  enhanceSoul2('assets/audio/sounds/sfx_enhance_soul_2.wav'),
+  enhanceSoul3('assets/audio/sounds/sfx_enhance_soul_3.wav'),
+  enhanceSoul4('assets/audio/sounds/sfx_enhance_soul_4.wav'),
+  enhanceSoul5('assets/audio/sounds/sfx_enhance_soul_5.wav'),
+  enhanceMaxLevel('assets/audio/sounds/sfx_enhance_max_level.wav'),
+
   /// A reward flying from its card to its total (playRewardCollect): thrown
   /// out, drawn in, every piece arriving at once at 0.98 s. Played by the
   /// flight itself, so every screen that uses it sounds the same.
@@ -351,6 +370,25 @@ enum SoundCue {
     return ring ? specialWingRingLongest : specialWingLongest;
   }
 
+  /// Kin poured into a specimen on the Enhance screen, by how many.
+  static SoundCue forKinPour(int kin) => switch (kin) {
+    <= 1 => enhancePour1,
+    2 => enhancePour2,
+    3 => enhancePour3,
+    4 => enhancePour4,
+    5 => enhancePour5,
+    _ => enhancePour6,
+  };
+
+  /// A potential soul's rite, by its roll (1-5).
+  static SoundCue forSoulRoll(int roll) => switch (roll) {
+    <= 1 => enhanceSoul1,
+    2 => enhanceSoul2,
+    3 => enhanceSoul3,
+    4 => enhanceSoul4,
+    _ => enhanceSoul5,
+  };
+
   /// A Let skyfall touching down. [barrageChild] is one of Dark's kill
   /// bombardment (its projectiles carry effectStacks >= 1).
   static SoundCue forLetImpact(String element, {bool barrageChild = false}) {
@@ -411,6 +449,7 @@ enum SoundCue {
         SoundCue.cosmicMatterCollect,
         SoundCue.dungeonStepStone,
         SoundCue.dungeonStepWater,
+        SoundCue.enhanceOrb,
         SoundCue.specialHorn,
         SoundCue.specialHornHeavy,
         SoundCue.specialHornSlam,

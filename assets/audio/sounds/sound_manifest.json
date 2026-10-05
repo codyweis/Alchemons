@@ -2628,5 +2628,153 @@
     "rms_db": -27.78,
     "sha256": "0eb73b23e100e10a343e7c067eb7c9d4cc797f8e9caa77488f9847c8fe430c0d",
     "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_enhance_pour_1",
+    "description": "1 kin coming apart and pouring into the specimen (1.15 s pour)",
+    "path": "assets/audio/sounds/sfx_enhance_pour_1.wav",
+    "duration": 1.5,
+    "loop": false,
+    "peak_db": -9.71,
+    "rms_db": -30.67,
+    "sha256": "57f9298bbbc5f0d37519709ba842e8484695c6488783ee8be9d7e9640f52e47e",
+    "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_enhance_pour_2",
+    "description": "2 kin coming apart and pouring into the specimen (1.32 s pour)",
+    "path": "assets/audio/sounds/sfx_enhance_pour_2.wav",
+    "duration": 1.67,
+    "loop": false,
+    "peak_db": -8.29,
+    "rms_db": -30.59,
+    "sha256": "79f5afbdeb14e31b78c85fa40cfe3dab904ae736145b0158966270da8619171d",
+    "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_enhance_pour_3",
+    "description": "3 kin coming apart and pouring into the specimen (1.49 s pour)",
+    "path": "assets/audio/sounds/sfx_enhance_pour_3.wav",
+    "duration": 1.84,
+    "loop": false,
+    "peak_db": -10.78,
+    "rms_db": -30.61,
+    "sha256": "42dc412b1eed2ae41b6a399ca64fc89be382259030bd8ac626849d269675b163",
+    "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_enhance_pour_4",
+    "description": "4 kin coming apart and pouring into the specimen (1.66 s pour)",
+    "path": "assets/audio/sounds/sfx_enhance_pour_4.wav",
+    "duration": 2.01,
+    "loop": false,
+    "peak_db": -10.7,
+    "rms_db": -30.63,
+    "sha256": "e21b7ba123e3a4eefb67e5fc273c0c9135cd573f14f0678159d174bf8e523109",
+    "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_enhance_pour_5",
+    "description": "5 kin coming apart and pouring into the specimen (1.83 s pour)",
+    "path": "assets/audio/sounds/sfx_enhance_pour_5.wav",
+    "duration": 2.18,
+    "loop": false,
+    "peak_db": -8.42,
+    "rms_db": -30.59,
+    "sha256": "049f1c5d7747e025bad2c264bd858706b0dbdc680f5c3f1104333ba8fdf836a9",
+    "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_enhance_pour_6",
+    "description": "6 kin coming apart and pouring into the specimen (1.90 s pour)",
+    "path": "assets/audio/sounds/sfx_enhance_pour_6.wav",
+    "duration": 2.25,
+    "loop": false,
+    "peak_db": -8.57,
+    "rms_db": -30.61,
+    "sha256": "f260640106c6d119d696978a3e01efbdfd61c0630cd71b077e5f01c8f24138b6",
+    "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_enhance_orb",
+    "description": "A dark-glass power orb lobbed in, taken into the heart, its power climbing the body",
+    "path": "assets/audio/sounds/sfx_enhance_orb.wav",
+    "duration": 1.58,
+    "loop": false,
+    "peak_db": -9.97,
+    "rms_db": -30.76,
+    "sha256": "2afb87337c3b752a8c4c3adb077604cd5f6bb52a9d13d7e427e8236d001c1dbc",
+    "source": "tool/sounds/enhance.py",
+    "variations": [
+      "assets/audio/sounds/sfx_enhance_orb_01.wav",
+      "assets/audio/sounds/sfx_enhance_orb_02.wav",
+      "assets/audio/sounds/sfx_enhance_orb_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_enhance_soul_1",
+    "description": "A potential soul, roll 1: rises burning, hangs, plunges in, the awakening",
+    "path": "assets/audio/sounds/sfx_enhance_soul_1.wav",
+    "duration": 4.02,
+    "loop": false,
+    "peak_db": -7.58,
+    "rms_db": -29.64,
+    "sha256": "d963fa2edf9315279f0787ec0a37f3ae7ef1a21cacf53e6149ff33dc08140359",
+    "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_enhance_soul_2",
+    "description": "A potential soul, roll 2: rises burning, hangs, plunges in, the awakening",
+    "path": "assets/audio/sounds/sfx_enhance_soul_2.wav",
+    "duration": 4.39,
+    "loop": false,
+    "peak_db": -7.41,
+    "rms_db": -29.02,
+    "sha256": "8960af5ec299886c140b014bcd18ceea7d49790b82b196e8dc7d82eb3532906f",
+    "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_enhance_soul_3",
+    "description": "A potential soul, roll 3: rises burning, hangs, plunges in, the awakening",
+    "path": "assets/audio/sounds/sfx_enhance_soul_3.wav",
+    "duration": 4.83,
+    "loop": false,
+    "peak_db": -5.35,
+    "rms_db": -28.69,
+    "sha256": "ee6afa47c4a2d830532b219f8b88282c8476014ab0c058b6de0542dc78d714d6",
+    "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_enhance_soul_4",
+    "description": "A potential soul, roll 4: rises burning, hangs, plunges in, the awakening",
+    "path": "assets/audio/sounds/sfx_enhance_soul_4.wav",
+    "duration": 5.45,
+    "loop": false,
+    "peak_db": -6.98,
+    "rms_db": -28.23,
+    "sha256": "9d7c230c738bafb7ca9a894f597a68fd2192463dc742273be6b3c72539376b1c",
+    "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_enhance_soul_5",
+    "description": "A potential soul, roll 5: rises burning, hangs, plunges in, the awakening",
+    "path": "assets/audio/sounds/sfx_enhance_soul_5.wav",
+    "duration": 6.3,
+    "loop": false,
+    "peak_db": -5.41,
+    "rms_db": -27.58,
+    "sha256": "bcd5a15c0d619b304a81b2edc27d21c88a11871deed3dff20c9f3d52f51f28d8",
+    "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_enhance_max_level",
+    "description": "Level 10: everything it was given settling in, a warm catch, a low bloom",
+    "path": "assets/audio/sounds/sfx_enhance_max_level.wav",
+    "duration": 2.4,
+    "loop": false,
+    "peak_db": -3.66,
+    "rms_db": -29.57,
+    "sha256": "3e01306b5630648f222b355c28d7abc5fbe4dd03384b0b7c560dffccdad3a3c5",
+    "source": "tool/sounds/enhance.py"
   }
 ]

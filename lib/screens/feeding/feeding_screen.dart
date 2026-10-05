@@ -781,7 +781,12 @@ class _FeedingScreenState extends State<FeedingScreen>
     if (level > _lastLevelShown) {
       _lastLevelShown = level;
       HapticFeedback.mediumImpact();
-      context.sound(SoundCue.upgradeComplete, owner: this);
+      context.sound(
+        level >= AlchemonStatSystem.maxLevel
+            ? SoundCue.enhanceMaxLevel
+            : SoundCue.upgradeComplete,
+        owner: this,
+      );
     }
   }
 
@@ -978,6 +983,8 @@ class _FeedingScreenState extends State<FeedingScreen>
         milliseconds: (1150 + 170 * (sources.length - 1)).clamp(1150, 1900),
       );
       HapticFeedback.mediumImpact();
+      // Scored to this pour's length, which grows with the kin given.
+      context.sound(SoundCue.forKinPour(sources.length), owner: this);
       await _pourController.forward(from: 0);
       if (!mounted) return;
     }
@@ -1124,6 +1131,7 @@ class _FeedingScreenState extends State<FeedingScreen>
       _orbitEndProgress = 0.72;
       _soulRoll = null;
     });
+    context.sound(SoundCue.enhanceOrb, owner: this);
     await _orbController.forward(from: 0);
     if (!mounted) return;
     await _flashController.forward(from: 0);
@@ -1207,6 +1215,8 @@ class _FeedingScreenState extends State<FeedingScreen>
       _orbitEndProgress = reveal.hangUntil;
       _soulRoll = result.rolledGain;
     });
+    // One take per roll: each is scored to that roll's hang and flash.
+    context.sound(SoundCue.forSoulRoll(result.rolledGain), owner: this);
     await _orbController.forward(from: 0);
     if (!mounted) return;
     await _flashController.forward(from: 0);
