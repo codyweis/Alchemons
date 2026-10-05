@@ -93,6 +93,43 @@ def reveal_rare():
 
 
 # ===========================================================================
+# The card coming apart -- CardDissolve (card_dissolve.dart), on CONTINUE
+# ===========================================================================
+#
+# A ragged edge climbs the card from the foot in DISSOLVE_SWEEP, starting a
+# touch slow and picking up (up = 0.35p + 0.65p^2), and every piece it passes
+# lifts off on a rising draught, turns into a grain of the specimen's sand
+# and thins to nothing within about half a second. All gone by ~0.75 s.
+#
+# So: grains as many as the edge is letting go, finer as they rise and thin,
+# and the draught under them. No whoosh, no hit, no glass -- the specimen has
+# already been rung in; this is only its sand going.
+
+DISSOLVE_SWEEP = 0.30
+
+
+def dissolve():
+    m = Mix(1.0, seed=4111)
+
+    def density(t):
+        p = np.clip(t / DISSOLVE_SWEEP, 0, 1)
+        # The rate the edge passes pieces is d(up)/dp: 0.35 + 1.3p.
+        letting_go = np.where(t < DISSOLVE_SWEEP, 1100 * (0.35 + 1.3 * p), 0)
+        thinning = np.where(
+            t >= DISSOLVE_SWEEP,
+            1100 * 1.65 * np.exp(-(t - DISSOLVE_SWEEP) / 0.13), 0)
+        return (letting_go + thinning) * smooth(t, 0, 0.03)
+
+    m.grains(density,
+             lambda t: 0.42 + 0.48 * smooth(t, 0.0, 0.6),
+             lambda t: 0.3 * np.sin(2 * math.pi * 1.3 * t + 0.4),
+             amp=0.5, weight=lambda t: 1.0 - 0.55 * smooth(t, 0.25, 0.75))
+    m.air(0.0, 0.75, 700, 4400, amp=0.03, rise=0.42)
+    m.room(t60=0.8, wet=0.18)
+    return m.finish(loudness_db=-32.0, fade_out=0.3)
+
+
+# ===========================================================================
 # Extraction ceremony -- HatchingCinematic + HatchShell
 # ===========================================================================
 #
@@ -329,5 +366,9 @@ CUES = {
     'sfx_extraction_rare_reveal': (
         reveal_rare,
         'A held, charged beat, then grains swirl home and settle into two glass bodies',
+    ),
+    'sfx_extraction_dissolve': (
+        dissolve,
+        'The result card coming apart from the foot up: a quick rising patter of grains that thins to nothing',
     ),
 }

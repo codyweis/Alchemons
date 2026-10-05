@@ -287,6 +287,10 @@ enum SoundCue {
     'assets/audio/sounds/sfx_extraction_creature_reveal.wav',
   ),
   extractionRareReveal('assets/audio/sounds/sfx_extraction_rare_reveal.wav'),
+
+  /// The result card coming apart into its sand on CONTINUE, scored to the
+  /// edge climbing it (card_dissolve.dart).
+  extractionDissolve('assets/audio/sounds/sfx_extraction_dissolve.wav'),
   elementFire('assets/audio/sounds/sfx_element_fire.wav'),
   elementWater('assets/audio/sounds/sfx_element_water.wav'),
   elementAir('assets/audio/sounds/sfx_element_air.wav'),

@@ -47,6 +47,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/card_dissolve.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/fx/essence_rim.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
@@ -62,6 +63,15 @@ const double _kMaxSizeGeneScale = 1.3;
 /// reveal runs from 1.05s to its landing at 2.2s, plus a frame or two to read
 /// the sprite. The reveal sound's lock is timed against this.
 const int _kRevealLandsMs = 1200;
+
+/// The dim the card is shown on. Darker than the default: there is no blur
+/// behind the card any more. The card lifts it as it comes apart.
+const Color kExtractionCardBarrier = Color.from(
+  alpha: 0.78,
+  red: 0,
+  green: 0,
+  blue: 0,
+);
 
 /// The extraction result for one specimen. Show it in a dialog
 /// ([showDialog], not dismissible): it closes itself from its own button.
@@ -176,6 +186,9 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
     } catch (_) {}
     setState(() => _closing = true);
 
+    // A new species flies into the catalog; everything else comes apart
+    // into its sand on the way out.
+    var dissolve = true;
     if (widget.isNewDiscovery) {
       final defer = widget.onDeferDiscoveryFlight;
       if (defer != null) {
@@ -188,11 +201,32 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
           ),
         );
       } else {
+        dissolve = false;
         await NewDiscoveryReveal.instance.playFilingAway(
           context: context,
           cardBoundaryKey: _cardKey,
           creatureId: _species.id,
         );
+      }
+    }
+
+    if (dissolve && mounted) {
+      // A frame for the card to hold still (its tickers are off now), so
+      // the picture taken of it is the card as it stands.
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) {
+        final mutation = AlchemonMutation.byId(_instance.mutation);
+        final going = await CardDissolve.play(
+          context: context,
+          boundaryKey: _cardKey,
+          element: _species.types.isEmpty ? null : _species.types.first,
+          colour: _rimColour(mutation),
+          barrier: kExtractionCardBarrier,
+          reduced: widget.cinematicQuality == CinematicQuality.performance,
+          seed: _instance.instanceId.hashCode,
+        );
+        // Not on the card's owner: that is stopped as the card goes.
+        if (going && mounted) context.sound(SoundCue.extractionDissolve);
       }
     }
 
@@ -202,6 +236,13 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
       navigator.pop();
     }
   }
+
+  RimColour _rimColour(AlchemonMutation? mutation) =>
+      mutation == AlchemonMutation.transmuted
+      ? RimColour.gilded
+      : _instance.isPrismaticSkin == true
+      ? RimColour.prismatic
+      : RimColour.element;
 
   void _openDetails() {
     if (_closing) return;
@@ -260,11 +301,7 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
           child: EssenceRim(
             element: element,
             pour: _revealed,
-            colour: mutation == AlchemonMutation.transmuted
-                ? RimColour.gilded
-                : _instance.isPrismaticSkin == true
-                ? RimColour.prismatic
-                : RimColour.element,
+            colour: _rimColour(mutation),
             loose: mutation == AlchemonMutation.alchemized,
             looseLight: mutationAccent(AlchemonMutation.alchemized),
             fleck: variant == null ? null : FactionColors.of(variant),

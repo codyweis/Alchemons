@@ -135,7 +135,7 @@ void main() {
                 onPressed: () => showDialog<void>(
                   context: context,
                   barrierDismissible: false,
-                  barrierColor: Colors.black.withValues(alpha: 0.78),
+                  barrierColor: kExtractionCardBarrier,
                   builder: (_) => ExtractionResultCard(
                     species: species,
                     instance: instance,
@@ -426,6 +426,26 @@ void main() {
       }
       await run(0, 120);
       await shoot('${name}_2_rest');
+      // CONTINUE: the card comes apart into its sand. (A new discovery flies
+      // to the catalog instead.) The picture of it is taken in real time.
+      if (!discovery) {
+        await tester.tap(find.text('CONTINUE'));
+        await tester.pump(const Duration(milliseconds: 16));
+        for (var i = 0; i < 6; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 60)),
+          );
+          await tester.pump(const Duration(milliseconds: 1));
+        }
+        expect(find.byType(ExtractionResultCard), findsNothing);
+        var at = 0;
+        for (final ms in const [60, 140, 240, 360, 520]) {
+          await tester.pump(Duration(milliseconds: ms - at));
+          at = ms;
+          await shoot('${name}_3_dissolve_$ms');
+        }
+        await tester.pump(const Duration(seconds: 1));
+      }
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
     }

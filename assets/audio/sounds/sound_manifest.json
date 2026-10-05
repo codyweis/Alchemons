@@ -3070,5 +3070,16 @@
     "rms_db": -32.96,
     "sha256": "96faecfbf3b45878ac5e6bb8b4732f6b1694950150c0effcf4c6dbd100d46745",
     "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_extraction_dissolve",
+    "description": "The result card coming apart from the foot up: a quick rising patter of grains that thins to nothing",
+    "path": "assets/audio/sounds/sfx_extraction_dissolve.wav",
+    "duration": 1.0,
+    "loop": false,
+    "peak_db": -10.5,
+    "rms_db": -31.48,
+    "sha256": "d3a4554232dc7b5c84b14d5baac34c0ed9e7a6976f9ba9b2054ec0ab27630e04",
+    "source": "tool/sounds/extraction.py"
   }
 ]

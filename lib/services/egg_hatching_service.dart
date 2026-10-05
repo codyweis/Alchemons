@@ -1007,8 +1007,7 @@ class EggHatching {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      // Darker than the default: there is no blur behind the card any more.
-      barrierColor: Colors.black.withValues(alpha: 0.78),
+      barrierColor: kExtractionCardBarrier,
       builder: (_) => ExtractionResultCard(
         species: offspring,
         instance: instance,

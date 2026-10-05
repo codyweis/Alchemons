@@ -84,6 +84,10 @@ const List<Color> _prism = [
   Color(0xFFB06BFF),
 ];
 
+/// 0..12 round the rim's rainbow, for whatever else wears a prismatic
+/// specimen's sand (the card coming apart, card_dissolve.dart).
+Color rimPrismHue(double h) => _hue12(h);
+
 /// 0..12 round the rainbow.
 Color _hue12(double h) {
   final x = (h % 12) / 2;
