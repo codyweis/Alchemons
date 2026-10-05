@@ -243,6 +243,33 @@ enum SoundCue {
   enhanceSoul5('assets/audio/sounds/sfx_enhance_soul_5.wav'),
   enhanceMaxLevel('assets/audio/sounds/sfx_enhance_max_level.wav'),
 
+  // ── The home biome (tool/sounds/home.py): arranging the field, and what
+  // the residents do with the keepsakes and decor in it. ──
+  homeTake('assets/audio/sounds/sfx_home_take.wav'),
+  homeSet('assets/audio/sounds/sfx_home_set.wav'),
+  homeSceneryGather('assets/audio/sounds/sfx_home_scenery_gather.wav'),
+  homeAppear('assets/audio/sounds/sfx_home_appear.wav'),
+  homeDissolve('assets/audio/sounds/sfx_home_dissolve.wav'),
+  homeOverviewOut('assets/audio/sounds/sfx_home_overview_out.wav'),
+  homeOverviewIn('assets/audio/sounds/sfx_home_overview_in.wav'),
+  homeRestyle('assets/audio/sounds/sfx_home_restyle.wav'),
+  homeFlame('assets/audio/sounds/sfx_home_flame.wav'),
+  homePortal('assets/audio/sounds/sfx_home_portal.wav'),
+  homeChimes('assets/audio/sounds/sfx_home_chimes.wav'),
+  homeWater('assets/audio/sounds/sfx_home_water.wav'),
+  homeSplash('assets/audio/sounds/sfx_home_splash.wav'),
+  homeCreak('assets/audio/sounds/sfx_home_creak.wav'),
+  homeStep('assets/audio/sounds/sfx_home_step.wav'),
+  homeReeds('assets/audio/sounds/sfx_home_reeds.wav'),
+  homePerch('assets/audio/sounds/sfx_home_perch.wav'),
+  homeGlass('assets/audio/sounds/sfx_home_glass.wav'),
+  homeStone('assets/audio/sounds/sfx_home_stone.wav'),
+  homeSpark('assets/audio/sounds/sfx_home_spark.wav'),
+  homeSteam('assets/audio/sounds/sfx_home_steam.wav'),
+  homeHeart('assets/audio/sounds/sfx_home_heart.wav'),
+  homeSpores('assets/audio/sounds/sfx_home_spores.wav'),
+  homeOrrery('assets/audio/sounds/sfx_home_orrery.wav'),
+
   /// A reward flying from its card to its total (playRewardCollect): thrown
   /// out, drawn in, every piece arriving at once at 0.98 s. Played by the
   /// flight itself, so every screen that uses it sounds the same.
@@ -380,6 +407,42 @@ enum SoundCue {
     _ => enhancePour6,
   };
 
+  /// What a keepsake or piece of home decor of [kind] sounds like when a
+  /// resident comes to it, uses it or goes through it (home_life.dart);
+  /// null for what is only to look at.
+  static SoundCue? forHomeThing(String kind) {
+    if (kind.startsWith('effigy:')) return homeStone;
+    return switch (kind) {
+      'ember_torch' => homeFlame,
+      'twin_portals' => homePortal,
+      'wind_chimes' => homeChimes,
+      'fountain' || 'the_dose' => homeWater,
+      'hot_spring' => homeSplash,
+      'swing' => homeCreak,
+      'stage' || 'victory_arch' => homeStep,
+      'rest_nest' || 'elder_tree' => homeReeds,
+      'fulgurite' => homeSpark,
+      'harmony_pipes' => homeSteam,
+      'garnet_heart' => homeHeart,
+      'mushroom_ring' => homeSpores,
+      'orrery' => homeOrrery,
+      'giants_palm' || 'lancet_stone' || 'titan_anvil' => homeStone,
+      'four_winds' ||
+      'frozen_moon' ||
+      'black_glass' ||
+      'mud_lotus' ||
+      'star_walker' ||
+      'hourglass' ||
+      'know_thyself' ||
+      'opposite_flower' ||
+      'night_book' ||
+      'crown_mirror' ||
+      'prism_orrery' ||
+      'reflecting_pool' => homeGlass,
+      _ => null,
+    };
+  }
+
   /// A potential soul's rite, by its roll (1-5).
   static SoundCue forSoulRoll(int roll) => switch (roll) {
     <= 1 => enhanceSoul1,
@@ -450,6 +513,12 @@ enum SoundCue {
         SoundCue.dungeonStepStone,
         SoundCue.dungeonStepWater,
         SoundCue.enhanceOrb,
+        SoundCue.homeSet,
+        SoundCue.homePortal,
+        SoundCue.homeChimes,
+        SoundCue.homeStep,
+        SoundCue.homeGlass,
+        SoundCue.homeStone,
         SoundCue.specialHorn,
         SoundCue.specialHornHeavy,
         SoundCue.specialHornSlam,
@@ -561,6 +630,8 @@ enum SoundCue {
     // enough that flying through a field still sounds continuous.
     SoundCue.cosmicMatterCollect => 80,
     SoundCue.dungeonStepStone || SoundCue.dungeonStepWater => 220,
+    // A performer hops every 0.7 s; each landing is heard.
+    SoundCue.homeStep => 200,
     SoundCue.uiTap || SoundCue.uiSelect => 70,
     // Per-cue, so two different families firing together are still two
     // sounds — it is one family machine-gunning that gets thinned.
@@ -592,6 +663,9 @@ enum SoundCue {
     SoundCue.shipBolt => .55,
     SoundCue.combatHitLight || SoundCue.combatEnemyDefeat => .55,
     SoundCue.dungeonStepStone || SoundCue.dungeonStepWater => .35,
+    // Arranging is handled up close: under the UI's own taps.
+    SoundCue.homeTake || SoundCue.homeRestyle => .7,
+    SoundCue.homeStep => .6,
     SoundCue.cosmicOrbPickup => .60,
     // Well under the star-dust plink: this fires many times more often, and
     // its job is to sit under the music rather than on top of it.

@@ -2776,5 +2776,299 @@
     "rms_db": -29.57,
     "sha256": "3e01306b5630648f222b355c28d7abc5fbe4dd03384b0b7c560dffccdad3a3c5",
     "source": "tool/sounds/enhance.py"
+  },
+  {
+    "name": "sfx_home_appear",
+    "description": "Home biome: a new piece gathering out of grains where it stands, a stroked glass as it is whole",
+    "path": "assets/audio/sounds/sfx_home_appear.wav",
+    "duration": 1.2,
+    "loop": false,
+    "peak_db": -14.39,
+    "rms_db": -31.73,
+    "sha256": "aa31ca5c329aaf14c9fd6c16639b5afcf791f79bfc420cd266ae8e36d9f9712b",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_chimes",
+    "description": "Home biome: glass chime rods knocking in a breeze and at a touch",
+    "path": "assets/audio/sounds/sfx_home_chimes.wav",
+    "duration": 3.0,
+    "loop": false,
+    "peak_db": -10.1,
+    "rms_db": -31.4,
+    "sha256": "5c94fa6c54d61fdb4ec2af3a956c515cbee78b83a1c2fe68a71290732c2c3c94",
+    "source": "tool/sounds/home.py",
+    "variations": [
+      "assets/audio/sounds/sfx_home_chimes_01.wav",
+      "assets/audio/sounds/sfx_home_chimes_02.wav",
+      "assets/audio/sounds/sfx_home_chimes_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_home_creak",
+    "description": "Home biome: the swing taking a rider, ropes and beam creaking",
+    "path": "assets/audio/sounds/sfx_home_creak.wav",
+    "duration": 2.8,
+    "loop": false,
+    "peak_db": -13.65,
+    "rms_db": -32.43,
+    "sha256": "27825f2406db21b0dc5df44aae36b0f1c31cbc3ae25dd5122299511f87be2986",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_dissolve",
+    "description": "Home biome: a piece put away, coming apart into grains that go off thin",
+    "path": "assets/audio/sounds/sfx_home_dissolve.wav",
+    "duration": 1.0,
+    "loop": false,
+    "peak_db": -14.72,
+    "rms_db": -33.34,
+    "sha256": "8ebe3c00a6b646aaf16c645e39fb2c6376847bfec620e3db3fba0ab46af25a66",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_flame",
+    "description": "Home biome: a torch flame drawing up for a visitor",
+    "path": "assets/audio/sounds/sfx_home_flame.wav",
+    "duration": 1.5,
+    "loop": false,
+    "peak_db": -9.11,
+    "rms_db": -31.12,
+    "sha256": "e932dfe84d81e27e6e0fb4fc453309f30e8060857d03f51bd1faf33f429ca870",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_glass",
+    "description": "Home biome: a glass keepsake stirred by a visitor",
+    "path": "assets/audio/sounds/sfx_home_glass.wav",
+    "duration": 1.8,
+    "loop": false,
+    "peak_db": -12.14,
+    "rms_db": -32.74,
+    "sha256": "c417492b3447b9a1e4c57aaeba9624225c44500b611c8565625504a2543f110c",
+    "source": "tool/sounds/home.py",
+    "variations": [
+      "assets/audio/sounds/sfx_home_glass_01.wav",
+      "assets/audio/sounds/sfx_home_glass_02.wav",
+      "assets/audio/sounds/sfx_home_glass_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_home_heart",
+    "description": "Home biome: the garnet heart beating, pressed glass",
+    "path": "assets/audio/sounds/sfx_home_heart.wav",
+    "duration": 1.4,
+    "loop": false,
+    "peak_db": -9.23,
+    "rms_db": -26.77,
+    "sha256": "948de808ef34a43ef32d3c3f5fc970806cdba3a6f68c1bd7107ca375585d392d",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_orrery",
+    "description": "Home biome: the grand orrery turning with its rider",
+    "path": "assets/audio/sounds/sfx_home_orrery.wav",
+    "duration": 2.4,
+    "loop": false,
+    "peak_db": -19.59,
+    "rms_db": -33.74,
+    "sha256": "91c13d89f978ffae97b1da011d55d4930d06b1d3999063f55cd85d463aee77f0",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_overview_in",
+    "description": "Home biome: zooming back in",
+    "path": "assets/audio/sounds/sfx_home_overview_in.wav",
+    "duration": 1.1,
+    "loop": false,
+    "peak_db": -18.98,
+    "rms_db": -35.83,
+    "sha256": "1ecd0e999257e41d754fbcdd7701eaf9043c593b954c19c7f5d514c37439a229",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_overview_out",
+    "description": "Home biome: zooming out, the field drawn back into the dark, stardust on its edges",
+    "path": "assets/audio/sounds/sfx_home_overview_out.wav",
+    "duration": 1.6,
+    "loop": false,
+    "peak_db": -18.73,
+    "rms_db": -34.82,
+    "sha256": "7071be2ea672a1407c11074d2a810c25ff23f0fc742cb9f8421cdc3f697d6d40",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_perch",
+    "description": "Home biome: a flyer landing on a perch",
+    "path": "assets/audio/sounds/sfx_home_perch.wav",
+    "duration": 1.1,
+    "loop": false,
+    "peak_db": -12.08,
+    "rms_db": -32.24,
+    "sha256": "7684b6028eda8679a27cef52aa71d6713786cb766a58f1a7e5b5422cf42f0905",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_portal",
+    "description": "Home biome: a resident drawn into one of the Black Sun portals",
+    "path": "assets/audio/sounds/sfx_home_portal.wav",
+    "duration": 1.3,
+    "loop": false,
+    "peak_db": -14.94,
+    "rms_db": -31.29,
+    "sha256": "d63f10d3f5bd12f86938545a06daff297003e605059c968c9e2df53744296935",
+    "source": "tool/sounds/home.py",
+    "variations": [
+      "assets/audio/sounds/sfx_home_portal_01.wav",
+      "assets/audio/sounds/sfx_home_portal_02.wav",
+      "assets/audio/sounds/sfx_home_portal_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_home_reeds",
+    "description": "Home biome: settling into a rest nest or the elder tree",
+    "path": "assets/audio/sounds/sfx_home_reeds.wav",
+    "duration": 1.3,
+    "loop": false,
+    "peak_db": -15.03,
+    "rms_db": -33.79,
+    "sha256": "a1a8cc2c9999be67911c6bbcafd156e15485eba16fcb8bccba16f01cf63c5d7c",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_restyle",
+    "description": "Home biome: a piece of decor given its next look",
+    "path": "assets/audio/sounds/sfx_home_restyle.wav",
+    "duration": 0.6,
+    "loop": false,
+    "peak_db": -11.27,
+    "rms_db": -34.58,
+    "sha256": "9c2790aa318d5333af098a8a343feafc397ffc80db606f9a477430c038f88f4e",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_scenery_gather",
+    "description": "Home biome: carried scenery, grains in the hand, setting back into its piece",
+    "path": "assets/audio/sounds/sfx_home_scenery_gather.wav",
+    "duration": 1.0,
+    "loop": false,
+    "peak_db": -7.26,
+    "rms_db": -30.87,
+    "sha256": "2d7092849ab0e9e5e5712021a9ed07f51d8d4181a4720eea104e16f2f7fe415e",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_set",
+    "description": "Home biome: something set down on its ground, a press onto stone with grit",
+    "path": "assets/audio/sounds/sfx_home_set.wav",
+    "duration": 0.75,
+    "loop": false,
+    "peak_db": -9.5,
+    "rms_db": -32.02,
+    "sha256": "eb6dda06fb7e244552e6c4ebcbb9bf499b2d65585a37d1ebac2f40ad78b802af",
+    "source": "tool/sounds/home.py",
+    "variations": [
+      "assets/audio/sounds/sfx_home_set_01.wav",
+      "assets/audio/sounds/sfx_home_set_02.wav",
+      "assets/audio/sounds/sfx_home_set_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_home_spark",
+    "description": "Home biome: the fulgurite spark crackling through its glass",
+    "path": "assets/audio/sounds/sfx_home_spark.wav",
+    "duration": 1.0,
+    "loop": false,
+    "peak_db": -12.07,
+    "rms_db": -31.8,
+    "sha256": "d1a2460441a39f77e0aa36eced7ba22b90276cb5abfacb2b93f1c9a71204165b",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_splash",
+    "description": "Home biome: slipping into the hot spring",
+    "path": "assets/audio/sounds/sfx_home_splash.wav",
+    "duration": 1.8,
+    "loop": false,
+    "peak_db": -11.5,
+    "rms_db": -30.99,
+    "sha256": "33520f15dab4133704ea16a91368479fce4e9a4f558d373631e7d9a45eb5c4c5",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_spores",
+    "description": "Home biome: a glow mushroom cap lit, a puff of spores",
+    "path": "assets/audio/sounds/sfx_home_spores.wav",
+    "duration": 1.0,
+    "loop": false,
+    "peak_db": -12.04,
+    "rms_db": -34.66,
+    "sha256": "c459c79b7b1d8249cca7e702e05e0d8b9c787aa3c829d49923cf0e596957bccd",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_steam",
+    "description": "Home biome: steam breathing through the harmony pipes",
+    "path": "assets/audio/sounds/sfx_home_steam.wav",
+    "duration": 2.0,
+    "loop": false,
+    "peak_db": -16.02,
+    "rms_db": -32.95,
+    "sha256": "f74eb12997c614ff044cce2648b496f0905bed6ab39c0b5adac4115c49f4fbff",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_step",
+    "description": "Home biome: a hop landing on the stage",
+    "path": "assets/audio/sounds/sfx_home_step.wav",
+    "duration": 0.45,
+    "loop": false,
+    "peak_db": -10.11,
+    "rms_db": -32.27,
+    "sha256": "04f0ae1a0f9b6e1cf2e656c21edfeb23e2b27a114e8ec48ed0b446c3bbcf815a",
+    "source": "tool/sounds/home.py",
+    "variations": [
+      "assets/audio/sounds/sfx_home_step_01.wav",
+      "assets/audio/sounds/sfx_home_step_02.wav",
+      "assets/audio/sounds/sfx_home_step_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_home_stone",
+    "description": "Home biome: a stone keepsake giving a little under a visitor",
+    "path": "assets/audio/sounds/sfx_home_stone.wav",
+    "duration": 1.5,
+    "loop": false,
+    "peak_db": -13.83,
+    "rms_db": -31.68,
+    "sha256": "aadb7b36c25223a964e7940adc882901e9b390a28a26edc88e786483d3656356",
+    "source": "tool/sounds/home.py",
+    "variations": [
+      "assets/audio/sounds/sfx_home_stone_01.wav",
+      "assets/audio/sounds/sfx_home_stone_02.wav",
+      "assets/audio/sounds/sfx_home_stone_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_home_take",
+    "description": "Home biome: a piece taken hold of (after the hold), lifted with a little grit",
+    "path": "assets/audio/sounds/sfx_home_take.wav",
+    "duration": 0.5,
+    "loop": false,
+    "peak_db": -13.67,
+    "rms_db": -34.94,
+    "sha256": "54357c307409cde10f2f46297929045c64c6380b0fd03795585c2679e6f607fe",
+    "source": "tool/sounds/home.py"
+  },
+  {
+    "name": "sfx_home_water",
+    "description": "Home biome: a resident drinking at the grain fountain",
+    "path": "assets/audio/sounds/sfx_home_water.wav",
+    "duration": 1.4,
+    "loop": false,
+    "peak_db": -14.73,
+    "rms_db": -32.96,
+    "sha256": "96faecfbf3b45878ac5e6bb8b4732f6b1694950150c0effcf4c6dbd100d46745",
+    "source": "tool/sounds/home.py"
   }
 ]
