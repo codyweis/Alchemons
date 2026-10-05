@@ -2291,7 +2291,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final dist = dir.distance;
     if (dist < 1) return;
     final norm = Offset(dir.dx / dist, dir.dy / dist);
-    onSound?.call(SoundCue.shipBolt);
+    // Rocket Barrage replaces the gun's bolts with rockets, and sounds so.
+    onSound?.call(
+      powerUps.hasRocketBarrage ? SoundCue.shipMissile : SoundCue.shipBolt,
+    );
     final kineticLevel = powerUps.kineticOverdriveLevel;
     final kineticScale = 1.0 + kineticLevel * 0.10;
     final baseDamage =
@@ -2400,6 +2403,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                 powerUps.shipDamageMultiplier *
                 maskShipDamageAmp;
             final splashRadius = 80.0 + missileLevel * 24.0;
+            onSound?.call(SoundCue.shipMissile);
             shipProjectiles.add(
               ShipProjectile(
                 position: ship.position,
@@ -2447,6 +2451,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               (8.0 + turretLevel * 6.0) *
               powerUps.shipDamageMultiplier *
               maskShipDamageAmp;
+          // The rapid turret's zap: the ship's own gun sound.
+          onSound?.call(SoundCue.shipBolt);
           _spawnBeam(
             ship.position,
             target.position,
@@ -2470,6 +2476,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                 (7.0 + turretLevel * 5.0) *
                 powerUps.shipDamageMultiplier *
                 maskShipDamageAmp;
+            onSound?.call(SoundCue.shipBolt);
             _spawnBeam(
               ship.position,
               best.position,

@@ -1092,30 +1092,58 @@ _COSMIC = 'assets/audio/sounds/cosmic/'
 # a catch click -- which is a creature's sound, not a dark-glass ship's.
 # ---------------------------------------------------------------------------
 
+def _zap(m, start, f_from, f_to, length, q, amp, tone=0.0, pan=0.0):
+    """A resonance falling in pitch, rung by noise: the "pew" with grit in
+    it. The pitch is the resonance's, so it carries the drop without being a
+    clean sine slide; [q] sets how pitched it is, [tone] adds a faint core at
+    the resonance."""
+    n = round(length * SR)
+    s0 = round(start * SR)
+    t = np.arange(n) / SR
+    k = t / length
+    fc = f_to * (f_from / f_to) ** ((1 - k) ** 1.6)  # falls fast, then eases
+    env = smooth(t, 0, 0.003) * np.exp(-t / (length * 0.38))
+    exc = m.rng.normal(0, 1, n) * env
+    # A swept state-variable filter (Chamberlin).
+    lp = bp = 0.0
+    out = np.zeros(n)
+    damp = 1.0 / q
+    for i in range(n):
+        f = 2 * math.sin(math.pi * min(fc[i], SR / 6) / SR)
+        hp = exc[i] - lp - damp * bp
+        bp += f * hp
+        lp += f * bp
+        out[i] = bp
+    out /= np.max(np.abs(out)) + 1e-9
+    if tone > 0:
+        out += tone * np.sin(2 * math.pi * np.cumsum(fc) / SR) * env / (np.max(env) + 1e-9)
+    gl, gr = _pan_gains(pan)
+    e = min(m.n, s0 + n)
+    m.y[0, s0:e] += gl * math.sqrt(2) * amp * out[:e - s0]
+    m.y[1, s0:e] += gr * math.sqrt(2) * amp * out[:e - s0]
+
+
 def ship_bolt(v=0):
     """The ship's gun: a bolt of light, 4 a second (8 on the machine gun),
-    for as long as the trigger is held -- so it is tiny, dry and varied.
-    A capacitor letting go (a tight electric crack, leaned in over 3 ms), the
-    air the bolt shoves aside as it leaves, and the hull taking the recoil as
-    a damped knock of its dark glass. No pew: nothing in it changes pitch."""
-    m = Mix(0.16, seed=6101 + 17 * v)
+    for as long as the trigger is held -- so short and varied. A capacitor
+    letting go (a tight electric crack, leaned in over 3 ms), the bolt's
+    pew -- that crack rung through a resonance falling 3.4 kHz to 750 Hz over
+    120 ms, the gun's one bit of genre (user's pick, option B of three) --
+    and the hull taking the recoil as a damped knock of its dark glass."""
+    m = Mix(0.22, seed=6101 + 17 * v)
     rng = m.rng
-    # The discharge: a dense, capped crackle in the top of a phone's range.
     t = m.t
-    env = smooth(t, 0.0, 0.003) * np.exp(-np.maximum(t - 0.003, 0) / (0.010 + 0.003 * rng.random()))
+    env = smooth(t, 0.0, 0.003) * np.exp(-np.maximum(t - 0.003, 0) / 0.010)
     pops = (rng.random((2, m.n)) < 9000 / SR) * np.minimum(rng.lognormal(0, 0.5, (2, m.n)), 2.0)
     crack = _band(pops, 2200, 7500, 2)
-    crack = crack / (np.std(crack) + 1e-12) * env * 0.05
-    m.y += crack
-    # The bolt leaving: a short band of air, no tone.
-    rush(m, 0.002, 0.09, lambda tt: (1500 + 400 * rng.random()) - 500 * smooth(tt, 0, 0.09),
-         lambda tt: 0.03 * smooth(tt, 0, 0.004) * (1 - smooth(tt, 0.01, 0.09)),
-         width_oct=0.9, spread=0.5, pan=(rng.random() - 0.5) * 0.3)
-    # The hull answering: its glass, heavily damped -- a knock, not a ring.
+    m.y += crack / (np.std(crack) + 1e-12) * env * 0.03
+    j = 1 + 0.06 * (rng.random() - 0.5)
+    _zap(m, 0.0, 3400 * j, 750 * j, 0.12, q=11, amp=0.07, tone=0.15,
+         pan=(rng.random() - 0.5) * 0.2)
     knock(m, 0.001, _dark_glass(rng, _HULL_F0 * (1.9 + 0.2 * rng.random()), ring=0.05),
-          amp=0.03, attack=0.002, tau=0.003, colour=3000, floor=300)
-    m.room(t60=0.35, wet=0.12)
-    return m.finish(loudness_db=-36.0, fade_out=0.04)
+          amp=0.025, attack=0.002, tau=0.003, colour=3000, floor=300)
+    m.room(t60=0.35, wet=0.14)
+    return m.finish(loudness_db=-35.0, fade_out=0.05)
 
 
 def ship_missile():
