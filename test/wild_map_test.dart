@@ -472,11 +472,11 @@ void main() {
       }
     });
 
-    test('the sea stands higher up the columns at high water', () {
+    test('the sea stands a little higher at high water', () {
       const slots = ['valley', 'sky', 'tidal', 'swamp'];
       final low = _field(slots: slots, tide: 0);
       final high = _field(slots: slots, tide: 1);
-      expect(high.debugSeaGrains, greaterThan(low.debugSeaGrains * 1.15));
+      expect(high.debugSeaGrains, greaterThan(low.debugSeaGrains * 1.04));
       // The tide moves nothing when the Tidal Shelf is not out.
       final a = _field(tide: 0), b = _field(tide: 1);
       expect(a.debugSeaGrains, 0);
@@ -540,6 +540,16 @@ void main() {
         const slots = ['valley', 'sky', 'tidal', 'swamp'];
         const tidal = {'tidal'};
         final clear = seen(_field(slots: slots, ready: tidal));
+        // The sun's path glitters on the water in clear weather.
+        final path = _field(slots: slots, ready: tidal);
+        var glitter = 0;
+        for (var i = 0; i < 30; i++) {
+          path
+            ..step(1 / 60)
+            ..paint(_CensusCanvas());
+          glitter = math.max(glitter, path.debugGlitter);
+        }
+        expect(glitter, greaterThan(60));
         expect(clear.fog + clear.spray + clear.shells, 0);
         final fog = seen(
           _field(
@@ -562,7 +572,8 @@ void main() {
             weather: {'tidal': WeatherKind.swell},
           ),
         );
-        expect(swell.spray, greaterThan(40));
+        // Whitecaps.
+        expect(swell.spray, greaterThan(20));
         expect(swell.fog, 0);
         final shells = seen(_field(slots: slots, ready: tidal, shells: true));
         expect(shells.shells, greaterThan(5));
