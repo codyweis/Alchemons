@@ -114,6 +114,8 @@ void main() {
       }
       // The Arcane is a home only once it is unlocked in the wild.
       await db.settingsDao.setSetting('arcane_portal_unlocked', '1');
+      // So is a realm the shop sells, once bought.
+      await db.settingsDao.setSetting('scene_unlocked_dunes', '1');
       for (final (id, base) in roster) {
         await db.creatureDao.insertInstance(
           instanceId: id,
@@ -214,6 +216,8 @@ void main() {
         (HomeRealm.volcano, 'erupting', 23.0),
         (HomeRealm.arcane, 'meteors', 23.0),
         (HomeRealm.arcane, 'aurora', 23.0),
+        (HomeRealm.dunes, 'sandstorm', 14.0),
+        (HomeRealm.dunes, 'glass', 23.0),
       ]) {
         await shoot(
           'wx_${realm.name}_$mood',
@@ -615,6 +619,7 @@ void main() {
         HomeRealm.swamp,
         HomeRealm.volcano,
         HomeRealm.arcane,
+        HomeRealm.dunes,
       ]) {
         await shoot(
           'scenery_${realm.name}',

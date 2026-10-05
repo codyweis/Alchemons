@@ -13,13 +13,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 // The extraction result card: the reading waits for the specimen to stand
 // whole, the gated figures stay gated, and the button closes it.
 //
 // With EXTRACT_OUT set, it also draws the card on a phone with real fonts and
-// sprites, mid-reveal and at rest, in both themes:
+// sprites: mid-reveal, mid-pour (its rim of sand running round) and at rest:
 //
 //   EXTRACT_OUT=/tmp/extract flutter test test/extraction_result_card_test.dart
 
@@ -101,6 +102,7 @@ void main() {
     bool isNewDiscovery = false,
     Key? shotKey,
     ConstellationEffectsService? effects,
+    TextTheme? textTheme,
   }) {
     return MultiProvider(
       providers: [
@@ -115,7 +117,11 @@ void main() {
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: theme.isDark ? ThemeData.dark() : ThemeData.light(),
+        theme: textTheme != null
+            ? theme.toMaterialTheme(textTheme)
+            : theme.isDark
+            ? ThemeData.dark()
+            : ThemeData.light(),
         builder: shotKey == null
             ? null
             : (context, child) => RepaintBoundary(key: shotKey, child: child!),
@@ -187,7 +193,7 @@ void main() {
       final reading = tester.widget<AnimatedOpacity>(
         find
             .ancestor(
-              of: find.text('SPECIMEN ANALYSIS'),
+              of: find.text('CLASSIFICATION'),
               matching: find.byType(AnimatedOpacity),
             )
             .first,
@@ -300,15 +306,36 @@ void main() {
         '/System/Library/Fonts/Supplemental/Andale Mono.ttf',
       );
       await loadFont('Roboto', '/System/Library/Fonts/Supplemental/Arial.ttf');
+      final home =
+          Platform.environment['PUB_CACHE'] ??
+          '${Platform.environment['HOME']}/.pub-cache';
+      await loadFont(
+        'packages/phosphoricons_flutter/PhosphorBold',
+        '$home/hosted/pub.dev/phosphoricons_flutter-1.0.0/lib/fonts/Phosphor-Bold.ttf',
+      );
+    });
+    // The game's book hand, fetched before the first frame.
+    HttpOverrides.global = null;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'),
+      (_) async => Directory.systemTemp.createTempSync('fonts').path,
+    );
+    late TextTheme book;
+    await tester.runAsync(() async {
+      book = GoogleFonts.imFellEnglishTextTheme(ThemeData.dark().textTheme);
+      GoogleFonts.imFellEnglish(fontStyle: FontStyle.italic);
+      await GoogleFonts.pendingFonts();
     });
 
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
-    late CreatureInstance plain, fancy;
+    late CreatureInstance plain, fancy, prism, loose;
     await tester.runAsync(() async {
       plain = await insert('p', 'HOR01');
+      prism = await insert('q', 'HOR01', prismatic: true, variant: 'volcanic');
+      loose = await insert('l', 'MYS14', mutation: 'alchemized');
       fancy = await insert(
         'f',
         'MYS14',
@@ -319,6 +346,19 @@ void main() {
     });
 
     final key = GlobalKey();
+    bool revealed() {
+      final label = find.text('CLASSIFICATION');
+      if (label.evaluate().isEmpty) return false;
+      return tester
+              .widget<AnimatedOpacity>(
+                find
+                    .ancestor(of: label, matching: find.byType(AnimatedOpacity))
+                    .first,
+              )
+              .opacity ==
+          1;
+    }
+
     Future<void> shoot(String name) async {
       await tester.runAsync(() async {
         final boundary =
@@ -353,40 +393,39 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
     });
 
-    for (final (name, theme, species, inst, discovery, effects) in [
-      (
-        'dark_rare',
-        FactionTheme.scorchForge(),
-        firehorn,
-        plain,
-        false,
-        analyzed,
-      ),
-      (
-        'dark_mystic',
-        FactionTheme.scorchForge(),
-        wraithord,
-        fancy,
-        true,
-        analyzed,
-      ),
-      ('light_mystic', _lightTheme(), wraithord, fancy, true, analyzed),
+    // Dark only: the game has no light mode.
+    for (final (name, species, inst, discovery) in [
+      ('rare', firehorn, plain, false),
+      ('mystic', wraithord, fancy, true),
+      ('prismatic', firehorn, prism, false),
+      ('alchemized', wraithord, loose, false),
     ]) {
       await tester.pumpWidget(
         host(
-          theme,
+          FactionTheme.scorchForge(),
           species,
           inst,
           isNewDiscovery: discovery,
           shotKey: key,
-          effects: effects,
+          effects: analyzed,
+          textTheme: book,
         ),
       );
       await tester.tap(find.text('open'));
       await run(900, 22);
       await shoot('${name}_0_revealing');
-      await run(300, 60);
-      await shoot('${name}_1_rest');
+      // On to the moment it lands: the reading comes in and the sand pours.
+      for (var i = 0; i < 120 && !revealed(); i++) {
+        await run(100, 1);
+      }
+      // The pour, a few frames apart (the plain one in full).
+      final pours = name == 'rare' ? const [9, 15, 15, 21] : const [21];
+      for (var k = 0; k < pours.length; k++) {
+        await run(0, pours[k]);
+        await shoot('${name}_1_pouring_$k');
+      }
+      await run(0, 120);
+      await shoot('${name}_2_rest');
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
     }
@@ -396,17 +435,3 @@ void main() {
 
 Finder _potentials() =>
     find.textContaining(RegExp(r'^P \d+$'), findRichText: true);
-
-FactionTheme _lightTheme() => const FactionTheme(
-  brightness: Brightness.light,
-  primary: Color(0xFF8A5A12),
-  secondary: Color(0xFF0E7490),
-  accent: Color(0xFFB7791F),
-  accentSoft: Color(0xFFD9B26A),
-  surface: Color(0xFFFFFBF4),
-  surfaceAlt: Color(0xFFF2EBDD),
-  border: Color(0xFF8A7961),
-  text: Color(0xFF201910),
-  textMuted: Color(0xFF665946),
-  backgroundGradient: [Color(0xFFF2EBDD), Color(0xFFFFFBF4), Color(0xFFE9E1D2)],
-);

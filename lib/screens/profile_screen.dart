@@ -329,6 +329,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _owedDunesGlass() async {
+    HapticFeedback.mediumImpact();
+    await context.read<WildernessSpawnService>().debugSetAftermath('dunes');
+    if (!mounted) return;
+    showGameSnack(
+      context,
+      'The next clear visit to the Glass Dunes shows the glass',
+      icon: AppIcons.wb_sunny_rounded,
+    );
+  }
+
   Future<void> _owedValleyRainbow() async {
     HapticFeedback.mediumImpact();
     await context.read<WildernessSpawnService>().debugSetAftermath('valley');
@@ -2232,6 +2243,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 'The northern lights',
                               ),
                             ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('DUNES SANDSTORM', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Replace the Glass Dunes\' spawns with a '
+                                  'batch that comes with a sandstorm',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'BRING',
+                            icon: AppIcons.bolt_rounded,
+                            onTap: context.soundAction(
+                              () => _bringWeather(
+                                'dunes',
+                                WeatherKind.sandstorm,
+                                'A sandstorm',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('DUNES GLASS', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Make the next clear visit to the Glass '
+                                  'Dunes show the glass after a storm',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'SET',
+                            icon: AppIcons.wb_sunny_rounded,
+                            onTap: context.soundAction(_owedDunesGlass),
                           ),
                         ],
                       ),

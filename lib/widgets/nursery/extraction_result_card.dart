@@ -42,10 +42,13 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
+import 'package:alchemons/widgets/fx/essence_rim.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -226,6 +229,9 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
     final elementColor = element == null
         ? theme.accent
         : BreedConstants.getTypeColor(element);
+    final palette = BracketPalette.fromTheme(theme);
+    final mutation = AlchemonMutation.byId(_instance.mutation);
+    final variant = _displayVariant(_instance.variantFaction);
     final size = MediaQuery.sizeOf(context);
     final cardW = size.width * 0.95;
     final cardH = size.height * 0.82;
@@ -234,6 +240,12 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
     final topH = (cardH * 0.3).clamp(180.0, 260.0);
     final stageW = cardW * 0.5;
     final spriteBox = math.min(stageW, topH) * 0.86;
+    // Where the stage's floor meets the card's left edge: the sand spills
+    // from there. The header is about this tall.
+    const headerH = 74.0;
+    final stageLight = theme.isDark
+        ? elementColor
+        : tokens.readableAccent(elementColor);
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -243,96 +255,207 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
         child: TickerMode(
           // Closing: hold still for the capture.
           enabled: !_closing,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: Container(
-              width: size.width * 0.95,
-              height: cardH,
-              decoration: BoxDecoration(
-                color: fc.bg1,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: fc.borderAccent, width: 1.2),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _Header(name: _species.name, fc: fc),
-                  SizedBox(
-                    height: topH,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SizedBox(
-                          width: stageW,
-                          child: _Stage(
-                            // A pale element's light vanishes into parchment;
-                            // on the light theme it pools in its readable
-                            // shade.
-                            color: theme.isDark
-                                ? elementColor
-                                : tokens.readableAccent(elementColor),
-                            fc: fc,
-                            lit: _revealed,
-                            child: SizedBox.square(
-                              dimension: spriteBox,
-                              child: ElementalEssence(
-                                key: ValueKey(_instance.instanceId),
-                                element: element,
-                                dark: theme.isDark,
-                                reveal: _reveal,
-                                hold: _hold,
-                                onRevealed: _onRevealed,
-                                maxGrains:
-                                    widget.cinematicQuality ==
-                                        CinematicQuality.performance
-                                    ? 1400
-                                    : 2200,
-                                child: Center(
-                                  child: InstanceSprite(
-                                    creature: _species,
-                                    instance: _instance,
-                                    size: spriteBox / _kMaxSizeGeneScale,
+          // The border is the specimen's own sand, run off the stage and
+          // settled round the edge once it has arrived.
+          child: EssenceRim(
+            element: element,
+            pour: _revealed,
+            colour: mutation == AlchemonMutation.transmuted
+                ? RimColour.gilded
+                : _instance.isPrismaticSkin == true
+                ? RimColour.prismatic
+                : RimColour.element,
+            loose: mutation == AlchemonMutation.alchemized,
+            looseLight: mutationAccent(AlchemonMutation.alchemized),
+            fleck: variant == null ? null : FactionColors.of(variant),
+            sourceY: ((headerH + topH * 0.82) / cardH).clamp(0.1, 0.9),
+            seed: _instance.instanceId.hashCode,
+            reduced: widget.cinematicQuality == CinematicQuality.performance,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                width: cardW,
+                height: cardH,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(end: _revealed ? 1.0 : 0.4),
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, strength, child) => CustomPaint(
+                    painter: _GlassPainter(
+                      palette: palette,
+                      light: stageLight,
+                      strength: strength,
+                      // The stage's centre, as a share of the card.
+                      lightAt: Offset(
+                        stageW / 2 / cardW,
+                        (headerH + topH * 0.48) / cardH,
+                      ),
+                    ),
+                    child: child,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _Header(name: _species.name, fc: fc, palette: palette),
+                      SizedBox(
+                        height: topH,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(
+                              width: stageW,
+                              child: _Stage(
+                                // A pale element's light vanishes into parchment;
+                                // on the light theme it pools in its readable
+                                // shade.
+                                color: stageLight,
+                                lit: _revealed,
+                                child: SizedBox.square(
+                                  dimension: spriteBox,
+                                  child: ElementalEssence(
+                                    key: ValueKey(_instance.instanceId),
+                                    element: element,
+                                    dark: theme.isDark,
+                                    reveal: _reveal,
+                                    hold: _hold,
+                                    onRevealed: _onRevealed,
+                                    maxGrains:
+                                        widget.cinematicQuality ==
+                                            CinematicQuality.performance
+                                        ? 1400
+                                        : 2200,
+                                    child: Center(
+                                      child: InstanceSprite(
+                                        creature: _species,
+                                        instance: _instance,
+                                        size: spriteBox / _kMaxSizeGeneScale,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
+                            Expanded(
+                              child: _StatProfile(
+                                stats: reading.stats,
+                                fc: fc,
+                                palette: palette,
+                                shown: _revealed,
+                              ),
+                            ),
+                          ],
                         ),
-                        Expanded(
-                          child: _StatProfile(
-                            stats: reading.stats,
+                      ),
+                      _FadeRule(color: palette.line),
+                      if (reading.marks.isNotEmpty)
+                        _Inscription(
+                          marks: reading.marks,
+                          palette: palette,
+                          shown: _revealed,
+                        ),
+                      Expanded(
+                        child: AnimatedOpacity(
+                          opacity: _revealed ? 1 : 0,
+                          duration: const Duration(milliseconds: 380),
+                          curve: Curves.easeOut,
+                          child: _AnalysisTabs(
+                            reading: reading,
                             fc: fc,
-                            shown: _revealed,
+                            palette: palette,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      _Dock(
+                        fc: fc,
+                        palette: palette,
+                        shown: _revealed,
+                        enabled: _revealed && !_closing,
+                        onConfirm: _confirm,
+                        onInfo: _openDetails,
+                      ),
+                    ],
                   ),
-                  if (reading.marks.isNotEmpty)
-                    _Inscription(
-                      marks: reading.marks,
-                      fc: fc,
-                      shown: _revealed,
-                    ),
-                  Expanded(
-                    child: AnimatedOpacity(
-                      opacity: _revealed ? 1 : 0,
-                      duration: const Duration(milliseconds: 380),
-                      curve: Curves.easeOut,
-                      child: _AnalysisTabs(reading: reading, fc: fc),
-                    ),
-                  ),
-                  _Dock(
-                    fc: fc,
-                    shown: _revealed,
-                    enabled: _revealed && !_closing,
-                    onConfirm: _confirm,
-                    onInfo: _openDetails,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The card's body: dark glass, with the light the specimen gives off
+/// spreading from its stage across the card, faintly. It swells once the
+/// specimen has arrived.
+class _GlassPainter extends CustomPainter {
+  const _GlassPainter({
+    required this.palette,
+    required this.light,
+    required this.strength,
+    required this.lightAt,
+  });
+
+  final BracketPalette palette;
+  final Color light;
+  final double strength;
+  final Offset lightAt;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [palette.bg1, palette.bg0],
+        ).createShader(rect),
+    );
+    final at = Offset(lightAt.dx * size.width, lightAt.dy * size.height);
+    final r = size.width * 0.95;
+    canvas.drawCircle(
+      at,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            light.withValues(alpha: 0.10 * strength),
+            light.withValues(alpha: 0.035 * strength),
+            light.withValues(alpha: 0),
+          ],
+          stops: const [0, 0.45, 1],
+        ).createShader(Rect.fromCircle(center: at, radius: r)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GlassPainter old) =>
+      old.palette != palette ||
+      old.light != light ||
+      old.strength != strength ||
+      old.lightAt != lightAt;
+}
+
+/// A hairline that fades out at both ends.
+class _FadeRule extends StatelessWidget {
+  const _FadeRule({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 1,
+      margin: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            color.withValues(alpha: 0),
+            color.withValues(alpha: 0.55),
+            color.withValues(alpha: 0),
+          ],
         ),
       ),
     );
@@ -511,52 +634,45 @@ class _Reading {
 
 // ── header ──────────────────────────────────────────────────────────────────
 
+/// What happened, small, over the specimen's name.
 class _Header extends StatelessWidget {
-  const _Header({required this.name, required this.fc});
+  const _Header({required this.name, required this.fc, required this.palette});
 
   final String name;
   final FC fc;
+  final BracketPalette palette;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: fc.bg3,
-        border: Border(bottom: BorderSide(color: fc.borderDim)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(width: 3, height: 14, color: fc.amber),
-              const SizedBox(width: 10),
-              Icon(AppIcons.science_outlined, color: fc.amberBright, size: 15),
-              const SizedBox(width: 8),
-              Text(
-                'EXTRACTION COMPLETE',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.amberBright,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2.0,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(height: 1, color: fc.borderMid),
-          const SizedBox(height: 10),
           Text(
-            name,
+            'EXTRACTION COMPLETE',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: 'monospace',
-              color: fc.textPrimary,
-              fontSize: 18,
+              color: fc.amber.withValues(alpha: 0.9),
+              fontSize: 10,
               fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
+              letterSpacing: 3.0,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: bracketText(
+              context,
+              23,
+              palette.ink,
+              weight: FontWeight.w600,
+              letterSpacing: 0.4,
             ),
           ),
         ],
@@ -571,38 +687,23 @@ class _Header extends StatelessWidget {
 /// the floor under it, both gradients (never a ring). Turned up once it has
 /// arrived.
 class _Stage extends StatelessWidget {
-  const _Stage({
-    required this.color,
-    required this.fc,
-    required this.lit,
-    required this.child,
-  });
+  const _Stage({required this.color, required this.lit, required this.child});
 
   final Color color;
-  final FC fc;
   final bool lit;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: fc.bg0,
-        border: Border(
-          right: BorderSide(color: fc.borderDim),
-          bottom: BorderSide(color: fc.borderDim),
-        ),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: lit ? 1.0 : 0.45),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOutCubic,
+      builder: (context, strength, child) => CustomPaint(
+        painter: _StageLightPainter(color: color, strength: strength),
+        child: child,
       ),
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(end: lit ? 1.0 : 0.45),
-        duration: const Duration(milliseconds: 700),
-        curve: Curves.easeOutCubic,
-        builder: (context, strength, child) => CustomPaint(
-          painter: _StageLightPainter(color: color, strength: strength),
-          child: child,
-        ),
-        child: Center(child: child),
-      ),
+      child: Center(child: child),
     );
   }
 }
@@ -615,8 +716,8 @@ class _StageLightPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // The light stays on the stage; the specimen's own grains may leave it.
-    canvas.clipRect(Offset.zero & size);
+    // Not clipped: with no frame round the stage any more, a clipped light
+    // showed its edge. It fades out a little past the stage instead.
     final k = strength;
 
     // The light it gives off, behind it.
@@ -670,12 +771,12 @@ class _StageLightPainter extends CustomPainter {
 class _Inscription extends StatelessWidget {
   const _Inscription({
     required this.marks,
-    required this.fc,
+    required this.palette,
     required this.shown,
   });
 
   final List<_MarkData> marks;
-  final FC fc;
+  final BracketPalette palette;
 
   /// Engraved once the specimen has arrived; the line's room is kept from
   /// the start so nothing moves when it is.
@@ -683,40 +784,38 @@ class _Inscription extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: 30,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: fc.bg0,
-        border: Border(bottom: BorderSide(color: fc.borderDim)),
-      ),
       child: AnimatedOpacity(
         opacity: shown ? 1 : 0,
         duration: const Duration(milliseconds: 600),
         curve: Curves.easeOut,
-        child: Center(
-          // A long set (all five) shrinks to fit rather than wrapping.
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < marks.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 16),
-                  _Diamond(mark: marks[i]),
-                  const SizedBox(width: 7),
-                  Text(
-                    marks[i].label,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textSecondary,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.8,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Center(
+            // A long set (all five) shrinks to fit rather than wrapping.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < marks.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 16),
+                    _Diamond(mark: marks[i]),
+                    const SizedBox(width: 7),
+                    Text(
+                      marks[i].label,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: palette.muted,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.8,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -762,11 +861,13 @@ class _StatProfile extends StatelessWidget {
   const _StatProfile({
     required this.stats,
     required this.fc,
+    required this.palette,
     required this.shown,
   });
 
   final List<_StatData> stats;
   final FC fc;
+  final BracketPalette palette;
 
   /// The figures come in once the specimen has arrived; the labels are
   /// there from the start, so nothing moves when they do.
@@ -774,33 +875,34 @@ class _StatProfile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-      decoration: BoxDecoration(
-        color: fc.bg1,
-        border: Border(bottom: BorderSide(color: fc.borderDim)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 8, 18, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Container(width: 3, height: 10, color: fc.amber),
-              const SizedBox(width: 8),
-              Text(
-                'STAT PROFILE',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.amberBright,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.6,
-                ),
-              ),
-            ],
+          Text(
+            'STAT PROFILE',
+            maxLines: 1,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: palette.muted,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2.4,
+            ),
           ),
-          const SizedBox(height: 4),
-          Divider(height: 1, color: fc.borderDim),
+          const SizedBox(height: 6),
+          Container(
+            height: 1,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  palette.line.withValues(alpha: 0.7),
+                  palette.line.withValues(alpha: 0),
+                ],
+              ),
+            ),
+          ),
           // The pane is as tall as the stage beside it. The rows share that
           // height, and at a large font they shrink together rather than
           // spill out of it.
@@ -816,7 +918,12 @@ class _StatProfile extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       for (final stat in stats)
-                        _StatRow(data: stat, fc: fc, shown: shown),
+                        _StatRow(
+                          data: stat,
+                          fc: fc,
+                          palette: palette,
+                          shown: shown,
+                        ),
                     ],
                   ),
                 ),
@@ -832,10 +939,16 @@ class _StatProfile extends StatelessWidget {
 /// A stat's name, its rating, and its Potential as a number when the
 /// Potential Analyzer is unlocked -- otherwise nothing at all.
 class _StatRow extends StatelessWidget {
-  const _StatRow({required this.data, required this.fc, required this.shown});
+  const _StatRow({
+    required this.data,
+    required this.fc,
+    required this.palette,
+    required this.shown,
+  });
 
   final _StatData data;
   final FC fc;
+  final BracketPalette palette;
   final bool shown;
 
   @override
@@ -853,10 +966,10 @@ class _StatRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'monospace',
-                color: d.dominant ? fc.dominant : fc.textSecondary,
+                color: d.dominant ? fc.dominant : palette.muted,
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
-                letterSpacing: 0.2,
+                letterSpacing: 0.6,
               ),
             ),
           ),
@@ -881,7 +994,7 @@ class _StatRow extends StatelessWidget {
                     TextSpan(
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: fc.textMuted,
+                        color: palette.muted.withValues(alpha: 0.7),
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
                       ),
@@ -921,10 +1034,15 @@ Color _potentialTierColor(int potential) {
 
 /// SPECIMEN and GENETICS, a swipe or a tap apart.
 class _AnalysisTabs extends StatefulWidget {
-  const _AnalysisTabs({required this.reading, required this.fc});
+  const _AnalysisTabs({
+    required this.reading,
+    required this.fc,
+    required this.palette,
+  });
 
   final _Reading reading;
   final FC fc;
+  final BracketPalette palette;
 
   @override
   State<_AnalysisTabs> createState() => _AnalysisTabsState();
@@ -935,140 +1053,88 @@ class _AnalysisTabsState extends State<_AnalysisTabs> {
 
   @override
   Widget build(BuildContext context) {
-    final fc = widget.fc;
+    final palette = widget.palette;
     return DefaultTabController(
       length: 2,
       child: Builder(
-        builder: (tabContext) => Column(
-          children: [
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 32,
-              child: TabBar(
-                indicatorColor: fc.amberBright,
-                indicatorWeight: 2,
-                dividerColor: Colors.transparent,
-                labelColor: fc.amberBright,
-                unselectedLabelColor: fc.textMuted,
-                labelPadding: EdgeInsets.zero,
-                labelStyle: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
-                ),
-                tabs: const [
-                  Tab(text: 'SPECIMEN'),
-                  Tab(text: 'GENETICS'),
-                ],
-              ),
-            ),
-            Expanded(
-              // The panels scroll vertically, so the swipe between them is
-              // read off the raw pointer rather than fought for by a
-              // horizontal scroll view.
-              child: Listener(
-                behavior: HitTestBehavior.translucent,
-                onPointerDown: (_) => _dragDx = 0,
-                onPointerMove: (e) => _dragDx += e.delta.dx,
-                onPointerCancel: (_) => _dragDx = 0,
-                onPointerUp: (_) {
-                  final dx = _dragDx;
-                  _dragDx = 0;
-                  if (dx.abs() < 32) return;
-                  final controller = DefaultTabController.of(tabContext);
-                  final target = (controller.index + (dx < 0 ? 1 : -1)).clamp(
-                    0,
-                    controller.length - 1,
-                  );
-                  if (target != controller.index) controller.animateTo(target);
-                },
-                child: TabBarView(
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    _AnalysisPanel(
-                      title: 'SPECIMEN ANALYSIS',
-                      rows: widget.reading.specimen,
-                      fc: fc,
-                    ),
-                    _AnalysisPanel(
-                      title: 'GENETIC PROFILE',
-                      rows: widget.reading.genetics,
-                      fc: fc,
-                    ),
-                  ],
+        builder: (tabContext) {
+          final controller = DefaultTabController.of(tabContext);
+          return Column(
+            children: [
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: ListenableBuilder(
+                  listenable: controller,
+                  builder: (context, _) => BracketTabs(
+                    labels: const ['SPECIMEN', 'GENETICS'],
+                    selected: controller.index,
+                    onSelect: controller.animateTo,
+                    palette: palette,
+                    accent: widget.fc.amber,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+              Expanded(
+                // The panels scroll vertically, so the swipe between them is
+                // read off the raw pointer rather than fought for by a
+                // horizontal scroll view.
+                child: Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: (_) => _dragDx = 0,
+                  onPointerMove: (e) => _dragDx += e.delta.dx,
+                  onPointerCancel: (_) => _dragDx = 0,
+                  onPointerUp: (_) {
+                    final dx = _dragDx;
+                    _dragDx = 0;
+                    if (dx.abs() < 32) return;
+                    final target = (controller.index + (dx < 0 ? 1 : -1)).clamp(
+                      0,
+                      controller.length - 1,
+                    );
+                    if (target != controller.index) {
+                      controller.animateTo(target);
+                    }
+                  },
+                  child: TabBarView(
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      _AnalysisPanel(
+                        rows: widget.reading.specimen,
+                        palette: palette,
+                      ),
+                      _AnalysisPanel(
+                        rows: widget.reading.genetics,
+                        palette: palette,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
 class _AnalysisPanel extends StatelessWidget {
-  const _AnalysisPanel({
-    required this.title,
-    required this.rows,
-    required this.fc,
-  });
+  const _AnalysisPanel({required this.rows, required this.palette});
 
-  final String title;
   final List<(String, String)> rows;
-  final FC fc;
+  final BracketPalette palette;
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: fc.bg2,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: fc.borderDim),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: fc.bg3,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(2),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(width: 3, height: 10, color: fc.amber),
-                  const SizedBox(width: 8),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.amberBright,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 2.0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(height: 1, color: fc.borderDim),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final (label, value) in rows)
-                    _AnalysisRow(label: label, value: value, fc: fc),
-                ],
-              ),
-            ),
-          ],
-        ),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final (label, value) in rows)
+            _AnalysisRow(label: label, value: value, palette: palette),
+        ],
       ),
     );
   }
@@ -1078,34 +1144,37 @@ class _AnalysisRow extends StatelessWidget {
   const _AnalysisRow({
     required this.label,
     required this.value,
-    required this.fc,
+    required this.palette,
   });
 
   final String label;
   final String value;
-  final FC fc;
+  final BracketPalette palette;
 
   @override
   Widget build(BuildContext context) {
+    // The notes are prose: the book's hand, a little quieter.
+    final prose = label == 'NOTES';
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 'CLASSIFICATION' at 11px with 1.4 letter-spacing fills 120
-          // exactly, so it touched its value with no gap at all.
           SizedBox(
-            width: 128,
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: fc.textSecondary,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.4,
+            width: 112,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: palette.muted,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.6,
+                ),
               ),
             ),
           ),
@@ -1113,13 +1182,12 @@ class _AnalysisRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: fc.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.4,
-              ),
+              style: bracketText(
+                context,
+                prose ? 14 : 15,
+                prose ? palette.ink.withValues(alpha: 0.8) : palette.ink,
+                fontStyle: prose ? FontStyle.italic : FontStyle.normal,
+              ).copyWith(height: 1.3),
             ),
           ),
         ],
@@ -1133,6 +1201,7 @@ class _AnalysisRow extends StatelessWidget {
 class _Dock extends StatelessWidget {
   const _Dock({
     required this.fc,
+    required this.palette,
     required this.shown,
     required this.enabled,
     required this.onConfirm,
@@ -1140,6 +1209,7 @@ class _Dock extends StatelessWidget {
   });
 
   final FC fc;
+  final BracketPalette palette;
   final bool shown;
   final bool enabled;
   final VoidCallback onConfirm;
@@ -1147,12 +1217,9 @@ class _Dock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: fc.bg2,
-        border: Border(top: BorderSide(color: fc.borderDim)),
-      ),
+    return Padding(
+      // Clear of the sand banked along the foot.
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 20),
       child: AnimatedOpacity(
         opacity: shown ? 1 : 0,
         duration: const Duration(milliseconds: 300),
@@ -1161,58 +1228,20 @@ class _Dock extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: GestureDetector(
-                  onTap: context.soundAction(onConfirm),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
-                      vertical: 13,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(color: fc.amber, width: 1.2),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(width: 3, height: 14, color: fc.amberBright),
-                        const SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            'CONTINUE',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: fc.amberBright,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                              letterSpacing: 2.0,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                child: BracketButton(
+                  label: 'CONTINUE',
+                  onTap: onConfirm,
+                  palette: palette,
+                  accent: fc.amber,
+                  height: 48,
                 ),
               ),
               const SizedBox(width: 10),
-              GestureDetector(
-                onTap: context.soundAction(onInfo),
-                child: Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: fc.bg3,
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: fc.borderDim, width: 1.2),
-                  ),
-                  child: Icon(
-                    AppIcons.info_outline_rounded,
-                    color: fc.textSecondary,
-                    size: 20,
-                  ),
-                ),
+              BracketIconButton(
+                icon: AppIcons.info_outline_rounded,
+                onTap: onInfo,
+                palette: palette,
+                size: 48,
               ),
             ],
           ),

@@ -24,6 +24,8 @@ import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
+import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
+import 'package:alchemons/services/wild_rotation.dart';
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
 import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/screens/scenes/scene_page.dart';
@@ -114,6 +116,9 @@ class _MapScreenState extends State<MapScreen>
     with SingleTickerProviderStateMixin {
   bool _arcaneUnlocked = false;
 
+  /// Today's four realms, one to each circle (see [WildRotation]).
+  List<String> _wildSlots = kCoreRealms;
+
   /// The cosmic ship has come down in the Valley and waits to be claimed:
   /// the Valley's rim pulses, as for anything else waiting there.
   bool _shipWaitsInValley = false;
@@ -146,6 +151,12 @@ class _MapScreenState extends State<MapScreen>
       final db = context.read<AlchemonsDatabase>();
       final v = await db.settingsDao.getSetting('arcane_portal_unlocked');
       if (mounted && v == '1') setState(() => _arcaneUnlocked = true);
+      // And today's four realms, read before the map is shown so it is
+      // laid out for them while still unseen.
+      final slots = await WildRotation.today(db.settingsDao);
+      if (mounted && slots.join(',') != _wildSlots.join(',')) {
+        setState(() => _wildSlots = slots);
+      }
       await _refreshShipWaitsInValley();
       await Future.delayed(const Duration(milliseconds: 150));
       if (mounted) _mapController.forward();
@@ -180,6 +191,7 @@ class _MapScreenState extends State<MapScreen>
     'volcano': 'Ashen Volcano',
     'swamp': 'Sunken Swamp',
     'arcane': 'Arcane Expanse',
+    'dunes': 'Glass Dunes',
   };
 
   /// The element whose portal twist each region's entry borrows.
@@ -189,6 +201,7 @@ class _MapScreenState extends State<MapScreen>
     'volcano': 'fire',
     'swamp': 'mud',
     'arcane': 'spirit',
+    'dunes': 'dust',
   };
 
   Future<void> _handlePeekRegion(String biomeId) async {
@@ -324,6 +337,7 @@ class _MapScreenState extends State<MapScreen>
                     child: _WildMap(
                       theme: theme,
                       arcaneUnlocked: _arcaneUnlocked,
+                      slots: _wildSlots,
                       shipWaitsInValley: _shipWaitsInValley,
                       onSelectRegion: (biomeId, scene) {
                         _handleRegionTap(context, biomeId, scene);
@@ -523,8 +537,7 @@ class _MapScreenState extends State<MapScreen>
     // for it — and it lands the moment the fourth realm is entered, a
     // minute before the Valley's own wild arrive. Without this, the region
     // the player was just told to go back to answered "nothing here".
-    final shipWaits =
-        biomeId == 'valley' && await _readShipWaitsInValley(db);
+    final shipWaits = biomeId == 'valley' && await _readShipWaitsInValley(db);
     if (!context.mounted) return;
 
     final sceneSpawnCount = spawnService.getSceneSpawnCount(biomeId);
@@ -918,6 +931,7 @@ class SpawnDebugPanel extends StatelessWidget {
       ('volcano', 'Volcano'),
       ('swamp', 'Swamp'),
       ('arcane', 'Arcane Portal'),
+      ('dunes', 'Dunes'),
     ];
 
     return Container(
@@ -1029,6 +1043,7 @@ class _WildMap extends StatelessWidget {
     required this.onSelectRegion,
     this.onPeekRegion,
     this.arcaneUnlocked = false,
+    this.slots = kCoreRealms,
     this.shipWaitsInValley = false,
   });
 
@@ -1036,6 +1051,9 @@ class _WildMap extends StatelessWidget {
   final void Function(String biomeId, SceneDefinition scene) onSelectRegion;
   final void Function(String biomeId)? onPeekRegion;
   final bool arcaneUnlocked;
+
+  /// Today's four realms, one to each circle (see [WildRotation.today]).
+  final List<String> slots;
   final bool shipWaitsInValley;
 
   static final Map<String, SceneDefinition> _scenes = {
@@ -1044,6 +1062,7 @@ class _WildMap extends StatelessWidget {
     'swamp': swampScene,
     'volcano': volcanoScene,
     'arcane': arcaneScene,
+    'dunes': dunesScene,
   };
 
   @override
@@ -1076,6 +1095,9 @@ class _WildMap extends StatelessWidget {
         arcane: arcaneUnlocked,
         volcano: volcano,
         rainbow: spawnService.owesAftermath('valley'),
+        slots: slots,
+        // The glass a sandstorm leaves glittering in the Dunes.
+        glass: spawnService.owesAftermath('dunes'),
         ink: theme.brightness == Brightness.light,
         onEnter: (id) {
           final scene = _scenes[id];

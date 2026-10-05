@@ -71,8 +71,11 @@ void main() {
   test('the Arcane is not a home until it is unlocked in the wild', () {
     final locked = HomeRealm.open(arcane: false);
     expect(locked, isNot(contains(HomeRealm.arcane)));
-    expect(locked.length, HomeRealm.values.length - 1);
-    expect(HomeRealm.open(arcane: true), HomeRealm.values);
+    expect(locked.length, HomeRealm.values.length - 2);
+    expect(
+      HomeRealm.open(arcane: true),
+      HomeRealm.values.where((r) => r != HomeRealm.dunes),
+    );
     // A home made in the Arcane comes back in the Valley while it is locked,
     // residents and all, and as it was once it opens.
     final arcaneHome = household.copyWith(realm: HomeRealm.arcane);
@@ -85,6 +88,20 @@ void main() {
       arcaneHome.within(HomeRealm.open(arcane: true)).realm,
       HomeRealm.arcane,
     );
+  });
+
+  test('a realm sold in the shop is a home only once it is bought', () {
+    expect(HomeRealm.open(arcane: true), isNot(contains(HomeRealm.dunes)));
+    final all = HomeRealm.open(arcane: true, bought: {'dunes'});
+    expect(all, HomeRealm.values);
+    // A Dunes home comes back in the Valley if the Dunes are not open, and
+    // as it was once they are.
+    final dunesHome = household.copyWith(realm: HomeRealm.dunes);
+    expect(
+      dunesHome.within(HomeRealm.open(arcane: true)).realm,
+      HomeRealm.valley,
+    );
+    expect(dunesHome.within(all).realm, HomeRealm.dunes);
   });
 
   test('a broken or strange save is read as far as it makes sense', () {
@@ -202,6 +219,7 @@ void main() {
     HomeRealm.swamp => SwampField(),
     HomeRealm.volcano => VolcanoField(),
     HomeRealm.arcane => ArcaneField(),
+    HomeRealm.dunes => DunesField(),
   };
 
   for (final realm in HomeRealm.values) {
@@ -527,15 +545,18 @@ void main() {
         if (r.left < torchX && r.right > torchX) r,
     ];
     expect(under.length, 1, reason: 'the torch stands on one isle');
-    expect(under.first.left < hx && under.first.right > hx, isTrue,
-        reason: 'and the resident on the same one');
+    expect(
+      under.first.left < hx && under.first.right > hx,
+      isTrue,
+      reason: 'and the resident on the same one',
+    );
     expect(field.perchFor('HOME_h'), isNotNull);
 
     // Spaced as one: nothing else can stand where the pair stands.
     final other = const HomeResident(instanceId: 'o', x: 0);
-    final spot = layout.copyWith(
-      residents: [...layout.residents, other],
-    ).freeSpotNear(other, nest.$2);
+    final spot = layout
+        .copyWith(residents: [...layout.residents, other])
+        .freeSpotNear(other, nest.$2);
     final gapToPair = (spot! - 0.30).abs();
     expect(gapToPair, greaterThan(1.5 * layout.gap(back: false) / 2));
 

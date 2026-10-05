@@ -1,3 +1,4 @@
+import 'package:alchemons/models/shop_scenes.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/utils/section_router.dart';
 import 'package:alchemons/widgets/exit_game_dialog.dart';
@@ -13,6 +14,7 @@ import 'package:alchemons/screens/extraction_hub_screen.dart';
 import 'package:alchemons/screens/pureblood_rite_screen.dart';
 import 'package:alchemons/screens/splash_screen.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
+import 'package:alchemons/navigation/home_descent.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/screens/competition_hub_screen.dart';
@@ -71,6 +73,9 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/starter_grant_service.dart';
 import 'package:alchemons/widgets/background/faction_realm.dart';
+import 'package:alchemons/screens/home_biome/home_biome_window.dart';
+import 'package:alchemons/widgets/home_portal.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
@@ -766,6 +771,28 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey _homeStackKey = GlobalKey();
   final GlobalKey _headerKey = GlobalKey();
   final GlobalKey _heroSlotKey = GlobalKey();
+
+  // ── The portal home ─────────────────────────────────────────────────────
+  // Opened by the first descent from space: a circle drawn round the
+  // featured Alchemon opens a window onto the home planet (home_portal.dart).
+
+  /// The home background's sand, held here so the portal can stir and
+  /// swirl it as well as a finger on the background does.
+  FactionRealmField? _realmField;
+
+  /// Round the featured sprite alone, read into grains as it falls in.
+  final GlobalKey _heroSpriteKey = GlobalKey();
+
+  bool _homePortalUnlocked = false;
+  bool _homePortalOpen = false;
+
+  /// Traces the circle until the first one is drawn.
+  bool _homePortalGuide = false;
+  bool _homePortalTelling = false;
+  bool _homePortalDescending = false;
+
+  /// Bumped on each return from the home biome: the window rebuilds it.
+  int _homeBiomeVisit = 0;
   double? _noticeRestTop;
 
   void _measureNoticeRest() {
@@ -853,6 +880,7 @@ class _HomeScreenState extends State<HomeScreen>
         await _refreshNotificationsNow();
         await _maybeRunCosmicMemoryHomeEvent();
         await _maybePlayEnhanceCelebration();
+        await _syncHomePortal();
       }
     });
   }
@@ -882,6 +910,7 @@ class _HomeScreenState extends State<HomeScreen>
         async.unawaited(_checkFieldTutorial());
         async.unawaited(_maybeRunCosmicMemoryHomeEvent());
         async.unawaited(_maybePlayEnhanceCelebration());
+        async.unawaited(_syncHomePortal());
       }
     }
   }
@@ -895,6 +924,7 @@ class _HomeScreenState extends State<HomeScreen>
       async.unawaited(_checkFieldTutorial());
       async.unawaited(_maybeRunCosmicMemoryHomeEvent());
       async.unawaited(_maybePlayEnhanceCelebration());
+      async.unawaited(_syncHomePortal());
     }
   }
 
@@ -904,6 +934,7 @@ class _HomeScreenState extends State<HomeScreen>
     routeObserver.unsubscribe(this);
     _breathingController.dispose();
     _shakeController.dispose();
+    _realmField?.dispose();
     _enhanceRevealController.dispose();
     _slotsSubscription?.cancel();
     _rosterSubscription?.cancel();
@@ -1198,6 +1229,8 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Load featured hero
       await _refreshFeatured(notify: false);
+      // Before the first frame shows it: an open portal stands in for it.
+      await _loadHomePortal();
 
       setState(() => _isInitialized = true);
 
@@ -1232,6 +1265,58 @@ class _HomeScreenState extends State<HomeScreen>
   // ============================================================
   // REACTIVE NOTIFICATION SYSTEM
   // ============================================================
+
+  /// The featured Alchemon, inside the portal once that is open to the
+  /// player.
+  Widget _buildHero(FactionTheme theme) {
+    final hero = FeaturedHeroInteractive(
+      data: _featuredData!,
+      theme: theme,
+      breathing: _breathingController,
+      onLongPressChoose: _handleChooseFeaturedInstance,
+      onTapDetails: _handleOpenFeaturedDetails,
+      instance: _featuredData!.instance,
+      creature: _featuredData!.creature,
+      reveal: _featuredReveal,
+      spriteKey: _homePortalUnlocked ? _heroSpriteKey : null,
+    );
+    if (!_homePortalUnlocked) return hero;
+    return SizedBox.expand(
+      child: HomePortalHero(
+        open: _homePortalOpen,
+        spriteKey: _heroSpriteKey,
+        tone: theme.primary,
+        // The home biome, live. Not while the player is down in it (two
+        // fields at once), and fresh each time they come back up, since
+        // they may have rearranged it.
+        window: _homePortalDescending
+            ? null
+            : (context, onReady) => HomeBiomeWindow(
+                key: ValueKey(_homeBiomeVisit),
+                active: _animationsEnabled,
+                onReady: onReady,
+              ),
+        guide: _homePortalGuide,
+        onToggle: _onHomePortalToggled,
+        onEnter: _enterHomePortal,
+        onStir: (global, delta, dt) {
+          final at = _realmLocal(global);
+          if (at != null) _realmField?.stir(at, delta, dt);
+        },
+        onTapSand: (global) {
+          final at = _realmLocal(global);
+          if (at != null) _realmField?.ripple(at);
+        },
+        onSwirl: (global, reach, spin, pull) {
+          final at = _realmLocal(global);
+          if (at != null) {
+            _realmField?.swirl(at, reach, spin: spin, pull: pull);
+          }
+        },
+        child: Center(child: hero),
+      ),
+    );
+  }
 
   /// Reads the featured hero and prepares its sprite.
   ///
@@ -1375,7 +1460,12 @@ class _HomeScreenState extends State<HomeScreen>
     if (mounted && _arcanePortalUnlocked != arcaneUnlocked) {
       setState(() => _arcanePortalUnlocked = arcaneUnlocked);
     }
-    return [..._coreWildernessBiomes, if (arcaneUnlocked) 'arcane'];
+    return [
+      ..._coreWildernessBiomes,
+      if (arcaneUnlocked) 'arcane',
+      // The shop's realms: spawns exist there only once they are bought.
+      for (final s in kShopScenes) s.sceneId,
+    ];
   }
 
   // Eggs: keep per-egg schedules current and silently update the consolidated
@@ -1998,6 +2088,10 @@ class _HomeScreenState extends State<HomeScreen>
                             child: FactionRealmView(
                               faction: currentFaction,
                               ink: theme.brightness == Brightness.light,
+                              field: _realmField ??= FactionRealmField(
+                                faction: currentFaction,
+                                ink: theme.brightness == Brightness.light,
+                              ),
                             ),
                           ),
                         ),
@@ -2028,18 +2122,7 @@ class _HomeScreenState extends State<HomeScreen>
                                   child: Center(
                                     child: TickerMode(
                                       enabled: _animationsEnabled,
-                                      child: FeaturedHeroInteractive(
-                                        data: _featuredData!,
-                                        theme: theme,
-                                        breathing: _breathingController,
-                                        onLongPressChoose:
-                                            _handleChooseFeaturedInstance,
-                                        onTapDetails:
-                                            _handleOpenFeaturedDetails,
-                                        instance: _featuredData!.instance,
-                                        creature: _featuredData!.creature,
-                                        reveal: _featuredReveal,
-                                      ),
+                                      child: _buildHero(theme),
                                     ),
                                   ),
                                 ),
@@ -2113,6 +2196,7 @@ class _HomeScreenState extends State<HomeScreen>
                             final visibleBiomes = [
                               ..._coreWildernessBiomes,
                               if (_arcanePortalUnlocked) 'arcane',
+                              for (final s in kShopScenes) s.sceneId,
                             ];
                             final hasSpawns = visibleBiomes.any(
                               (biomeId) =>
@@ -2366,6 +2450,105 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       _shakeController.forward(from: 0.0);
     } catch (_) {}
+  }
+
+  /// Reads the portal's state, and tells the player about it the first time
+  /// home is shown after it opened (the first descent from space).
+  Future<void> _syncHomePortal() async {
+    if (!mounted || !await _loadHomePortal() || !mounted) return;
+    final settings = context.read<AlchemonsDatabase>().settingsDao;
+    final told = await settings.getSetting(HomePortalKeys.told) == '1';
+    if (!mounted) return;
+    if (told ||
+        _homePortalTelling ||
+        !widget.isActive ||
+        _isFieldTutorialActive ||
+        _memoryHomeEventBusy ||
+        _memoryStoryShowing ||
+        _featuredData == null) {
+      return;
+    }
+    // Claimed before the wait: this runs from several hooks at once.
+    _homePortalTelling = true;
+    try {
+      await settings.setSetting(HomePortalKeys.told, '1');
+      // Home settles first; the guide is already going round behind it.
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      if (!mounted) return;
+      await showStoryDialog(
+        context,
+        beats: const [
+          StoryBeat(
+            title: 'A Way Home',
+            message:
+                'You can reach your home planet from here now. Draw a circle '
+                'around your Alchemon to open a window onto it, and tap the '
+                'window to go down.\n\nDraw the circle again to bring your '
+                'Alchemon back. The window stays open until you do.',
+          ),
+        ],
+        primaryLabel: 'GOT IT',
+      );
+    } finally {
+      _homePortalTelling = false;
+    }
+  }
+
+  /// Reads whether the portal is unlocked, open and still to be drawn.
+  /// True when it is unlocked.
+  Future<bool> _loadHomePortal() async {
+    final settings = context.read<AlchemonsDatabase>().settingsDao;
+    final unlocked = await settings.getSetting(HomePortalKeys.unlocked) == '1';
+    if (!mounted) return false;
+    if (!unlocked) {
+      if (_homePortalUnlocked) setState(() => _homePortalUnlocked = false);
+      return false;
+    }
+    final open = await settings.getSetting(HomePortalKeys.open) == '1';
+    final drawn = await settings.getSetting(HomePortalKeys.drawn) == '1';
+    if (!mounted) return false;
+    setState(() {
+      _homePortalUnlocked = true;
+      _homePortalOpen = open;
+      _homePortalGuide = !drawn;
+    });
+    return true;
+  }
+
+  void _onHomePortalToggled(bool open) {
+    final settings = context.read<AlchemonsDatabase>().settingsDao;
+    setState(() {
+      _homePortalOpen = open;
+      _homePortalGuide = false;
+      // Closed: the Alchemon gathers back out of its element.
+      if (!open) _featuredReveal = EssenceReveal.once();
+    });
+    async.unawaited(settings.setSetting(HomePortalKeys.open, open ? '1' : '0'));
+    async.unawaited(settings.setSetting(HomePortalKeys.drawn, '1'));
+  }
+
+  Future<void> _enterHomePortal() async {
+    if (_homePortalDescending) return;
+    setState(() => _homePortalDescending = true);
+    try {
+      async.unawaited(
+        context.read<AudioController>().playSound(SoundCue.cosmicPortalOpen),
+      );
+      await descendToHomeBiome(context);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _homePortalDescending = false;
+          _homeBiomeVisit++;
+        });
+      }
+    }
+  }
+
+  /// [global] in the home background's own coordinates.
+  Offset? _realmLocal(Offset global) {
+    final box = _homeStackKey.currentContext?.findRenderObject();
+    return box is RenderBox && box.attached ? box.globalToLocal(global) : null;
   }
 
   Future<void> _maybePlayEnhanceCelebration() async {

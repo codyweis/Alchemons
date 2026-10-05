@@ -16,7 +16,11 @@ enum WeatherKind {
 
   /// The northern lights over the Arcane: curtains of light hung over the
   /// dust band.
-  aurora;
+  aurora,
+
+  /// A sandstorm over the Glass Dunes: the sky thick with dust, sand driving
+  /// across everything, nothing far off to be seen.
+  sandstorm;
 
   /// A state the land is in rather than weather passing over it: already
   /// there when the scene opens, never rolling in or clearing in front of
@@ -48,7 +52,7 @@ class WildWeather {
   final WeatherKind kind;
 
   /// What the map calls it while it waits: `STORM`, `RAIN`, `SNOW`, `DRY`,
-  /// `METEORS`, `AURORA`.
+  /// `METEORS`, `AURORA`, `SANDSTORM`.
   final String label;
 
   final double chance;

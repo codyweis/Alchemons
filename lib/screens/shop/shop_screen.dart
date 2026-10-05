@@ -8,6 +8,9 @@
 //
 
 import 'package:alchemons/models/home_decor.dart';
+import 'package:alchemons/models/shop_scenes.dart';
+import 'package:alchemons/screens/shop/shop_scene_card.dart';
+import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/models/faction.dart';
 import 'dart:async';
 
@@ -92,8 +95,12 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   /// a route the player is actually looking at.
   bool _routeIsCurrent = true;
 
-  /// 0 = supplies, 1 = cosmetics.
+  /// 0 = supplies, 1 = scenes, 2 = cosmetics.
   int _tab = 0;
+
+  /// The scenes tab runs a live field per realm, so it too is built only
+  /// once opened.
+  bool _scenesBuilt = false;
 
   /// Cosmetics is built the first time it is opened and kept after, so a
   /// player who never looks at it never bakes its effect cards.
@@ -267,12 +274,17 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                 child: BracketTabs(
-                  labels: const ['SUPPLIES', 'COSMETICS'],
-                  icons: const [AppIcons.science, AppIcons.auto_awesome],
+                  labels: const ['SUPPLIES', 'SCENES', 'COSMETICS'],
+                  icons: const [
+                    AppIcons.science,
+                    AppIcons.landscape_rounded,
+                    AppIcons.auto_awesome,
+                  ],
                   selected: _tab,
                   onSelect: (i) => setState(() {
                     _tab = i;
-                    if (i == 1) _cosmeticsBuilt = true;
+                    if (i == 1) _scenesBuilt = true;
+                    if (i == 2) _cosmeticsBuilt = true;
                   }),
                   palette: BracketPalette.fromTheme(theme),
                   accent: bracketReadableAccent(theme),
@@ -489,6 +501,12 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                     ),
                     TickerMode(
                       enabled: _tab == 1,
+                      child: _scenesBuilt
+                          ? _buildScenesTab(theme, allCurrencies)
+                          : const SizedBox.shrink(),
+                    ),
+                    TickerMode(
+                      enabled: _tab == 2,
                       child: _cosmeticsBuilt
                           ? _buildCosmeticsTab(
                               theme,
@@ -619,6 +637,69 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
           ),
         ),
       ],
+    );
+  }
+
+  /// Realms for sale (models/shop_scenes.dart): each opens a new realm in
+  /// the wild, with Alchemons found nowhere else there, and a new home.
+  Widget _buildScenesTab(FactionTheme theme, Map<String, int> allCurrencies) {
+    return Consumer<ShopService>(
+      builder: (context, shopService, _) {
+        return ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+          children: [
+            _buildSectionHeader('SCENES', coin: CoinKind.gold),
+            const SizedBox(height: 12),
+            for (final scene in kShopScenes)
+              () {
+                final offer = ShopService.allOffers.firstWhere(
+                  (o) => o.id == scene.offerId,
+                );
+                final owned = !shopService.canPurchase(offer.id);
+                final cost = shopService.getEffectiveCost(offer);
+                final canAfford = cost.entries.every(
+                  (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+                );
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: ShopSceneCard(
+                    key: ValueKey('scene-${scene.sceneId}'),
+                    scene: scene,
+                    offer: offer,
+                    theme: theme,
+                    owned: owned,
+                    // Held still on another tab or under another route.
+                    active: _tab == 1 && _routeIsCurrent,
+                    costWidgets: [
+                      for (final e in cost.entries)
+                        CostChip(
+                          currencyType: e.key,
+                          amount: e.value,
+                          available: allCurrencies[e.key] ?? 0,
+                        ),
+                    ],
+                    onTap: context.soundTap(
+                      () => owned
+                          ? _showDetails(
+                              context,
+                              offer,
+                              allCurrencies,
+                              canAfford,
+                            )
+                          : _handlePurchase(
+                              context,
+                              offer,
+                              allCurrencies,
+                              canAfford,
+                            ),
+                    ),
+                  ),
+                );
+              }(),
+          ],
+        );
+      },
     );
   }
 
@@ -1544,6 +1625,17 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     // a specimen from there whenever the player likes.
     final isEffect = offer.id.startsWith('effects.');
     final isDecor = HomeDecor.byOffer(offer.id) != null;
+    final scene = shopSceneByOffer(offer.id);
+    // A realm opens with Alchemons already waiting in it.
+    if (success && scene != null) {
+      await context.read<WildernessSpawnService>().scheduleNextSpawnTime(
+        scene.sceneId,
+        windowMin: Duration.zero,
+        windowMax: Duration.zero,
+        force: true,
+      );
+      if (!context.mounted) return;
+    }
     _toast(
       !success
           ? 'Purchase failed'
@@ -1551,6 +1643,8 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
           ? '${offer.name} added to inventory'
           : isDecor
           ? '${offer.name} ready to place at home'
+          : scene != null
+          ? '${scene.title} unlocked'
           : '${offer.name} × $qty',
       icon: success ? AppIcons.check_rounded : AppIcons.error_rounded,
       color: success ? t.success : t.danger,

@@ -10,9 +10,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 
+import 'package:alchemons/navigation/home_descent.dart';
 import 'package:alchemons/navigation/world_transition.dart';
-import 'package:alchemons/models/home_biome.dart';
-import 'package:alchemons/screens/home_biome/home_biome_screen.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
@@ -6471,29 +6470,9 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// landscape as the wild is, and back up to space the same way.
   Future<void> _descendHome() async {
     _game?.pauseEngine();
-    final layout = await HomeBiomeLayout.loadOpen(
-      context.read<AlchemonsDatabase>().settingsDao,
-    );
-    if (!mounted) return;
     _playCosmicSfx(SoundCue.cosmicPortalOpen);
-    final ready = ValueNotifier<bool>(false);
-    await VoidPortal.pushThroughGlyphs<void>(
-      context,
-      page: HomeBiomeScreen(revealReady: ready),
-      title: 'Home',
-      label: 'DESCENDING',
-      // The realm it is now borrows the portal of the wild one.
-      element: layout.realm.portalElement,
-      ready: ready,
-      orientation: const [
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ],
-      returnOrientation: const [
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-      ],
-    );
+    // The first one opens the home screen's portal to the same place.
+    await descendToHomeBiome(context, fromSpace: true);
     if (!mounted) return;
     unawaited(
       context.read<AudioController>().playCosmicExplorationMusic(cycle: false),
@@ -7523,9 +7502,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     // System back goes through the same path as the BACK button, so it
     // returns to the parent panel too and never leaves a stale entry on the
     // return stack.
-    if (_showGarrisonPicker ||
-        _showPartyPicker ||
-        _showCustomizationMenu) {
+    if (_showGarrisonPicker || _showPartyPicker || _showCustomizationMenu) {
       _closeSubPanel();
       return true;
     }

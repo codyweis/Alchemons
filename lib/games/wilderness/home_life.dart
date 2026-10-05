@@ -766,7 +766,10 @@ class _HomeLife {
 
   /// Whether the weather is the kind to shelter from.
   bool get _wet => switch (game.fieldWeather) {
-    WeatherKind.rain || WeatherKind.snow || WeatherKind.storm => true,
+    WeatherKind.rain ||
+    WeatherKind.snow ||
+    WeatherKind.storm ||
+    WeatherKind.sandstorm => true,
     _ => false,
   };
 

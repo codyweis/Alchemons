@@ -7,9 +7,11 @@ import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
+import 'package:flame/components.dart' show Vector2;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 part 'arcane_field.dart';
+part 'dunes_field.dart';
 part 'sky_field.dart';
 part 'swamp_field.dart';
 part 'valley_field.dart';

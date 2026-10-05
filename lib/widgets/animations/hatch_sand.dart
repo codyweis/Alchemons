@@ -1,21 +1,24 @@
 // lib/widgets/animations/hatch_sand.dart
 //
-// THE SAND THE CEREMONY STANDS IN. Under the extraction ceremony's shell, the
-// whole screen a fine sand of the two parents' elements: each parent's on the
-// side its strands are born on, marbled together where the two meet. A finger
-// drawn through it stirs it like sand in water (the home realm's and the wild
-// map's flow, the same constants), a tap pushes it out, and it settles back.
-// When the shell bursts, a wave rolls out through it from under the shell.
+// THE SAND THE CEREMONY STANDS IN. Round the extraction ceremony's shell, a
+// bank of fine sand along the screen's edges, the middle left black with only
+// a light scatter across it. The sand is the two parents' elements: each
+// parent's on the side its strands are born on, marbled together along the top
+// and the foot where the two meet. A finger drawn through it stirs it like sand
+// in water (the home realm's and the wild map's flow, the same constants), a
+// tap pushes it out, and it settles back. When the shell bursts, a wave rolls
+// out from under it and breaks against the banks.
 //
 // Dressed by what is hatching:
 //   elements    the two parents' sands, a few grains glinting in their light;
-//   prismatic   rainbow sand, its glints turning through the hues;
+//   prismatic   rainbow sand, once round the screen, its glints turning
+//               through the hues;
 //   gilded      Transmuted: the same sands read into gold, a polish sweeping
 //               across them;
 //   loose       Alchemized: it never settles. Every grain is loose and the
-//               whole field turns round the shell, in layers turning against
-//               each other, faster near the middle. A stir stays in it and is
-//               wound into the turn instead of smoothing back out.
+//               banks run round the screen like a river, in two layers
+//               running against each other. A stir stays in it and is carried
+//               off along the bank instead of smoothing back out.
 //
 // Cheap at rest: still grains are drawn once into pictures, one for the whole
 // field while nothing is stirred and one per 48 px square while something is,
@@ -170,32 +173,56 @@ class HatchSandField {
     _waveR = -1;
   }
 
-  /// The circle's radius, as a share of the screen's short side.
-  static const double _rim = 0.56;
+  /// How deep the bank runs in from the edge, as a share of the short side.
+  static const double _bank = 0.13;
 
-  // Enough for the circle to read as sand (about one grain per 14 px² where
-  // it is full), capped: a big screen gets bigger grains, not more of them.
-  int _grainsFor(Size s) {
-    final n = (0.055 * _span * _span).round().clamp(4000, 14000);
+  /// The scatter across the black, as a share of the bank's thickness.
+  static const double _scatter = 0.035;
+
+  // Enough for the banks to read as sand (about one grain per 11 px² where
+  // they are full), capped: a big screen gets bigger grains, not more of
+  // them. The field's area is sampled on a coarse grid.
+  int _grainsFor() {
+    const g = 40;
+    var sum = 0.0;
+    for (var j = 0; j < g; j++) {
+      for (var i = 0; i < g; i++) {
+        sum += _density(
+          (i + 0.5) / g * _size.width,
+          (j + 0.5) / g * _size.height,
+        );
+      }
+    }
+    final area = sum / (g * g) * _size.width * _size.height;
+    final n = (area / 11).round().clamp(2500, 14000);
     return (n * (reduced ? 0.6 : 1.0) * (loose ? 0.65 : 1.0)).round();
   }
 
-  // How thickly the sand lies at (x, y), 0..1. It lies in a circle under the
-  // shell, as each realm's does on the wild map: thin behind the shell, so
-  // the shell stands clear of it, full out to a rim that wanders a little,
-  // in soft banks as poured sand does, and only a faint dust beyond the rim.
+  // How far (x, y) lies in from the screen's edge. The top counts a little
+  // further and the foot a little nearer, so the sand lies deeper at the
+  // foot, as it would settle.
+  double _inFrom(double x, double y) => math.min(
+    math.min(x, _size.width - x),
+    math.min(y * 1.1, (_size.height - y) * 0.85),
+  );
+
+  // How thickly the sand lies at (x, y), 0..1: a bank along the edges,
+  // thickest at the very edge, its inner side wandering as a drift's does,
+  // and only a light scatter across the black inside it.
   double _density(double x, double y) {
-    final dx = x - _centre.dx, dy = y - _centre.dy;
-    final d = math.sqrt(dx * dx + dy * dy) / _span;
-    final rim = _rim + 0.07 * (_fbm(x / 90, y / 90, 7) - 0.5);
-    final inside = 1 - _smoothstep(rim - 0.06, rim, d);
-    final clear = 0.22 + 0.78 * _smoothstep(0.1, 0.34, d);
-    final bank = 0.5 + 0.65 * _fbm(x / 90, y / 90, 3);
-    return inside * clear * bank + (1 - inside) * 0.05;
+    final e = _inFrom(x, y) / _span;
+    final edge =
+        _bank +
+        0.13 * (_fbm(x / 120, y / 120, 7) - 0.5) +
+        0.04 * (_fbm(x / 40, y / 40, 9) - 0.5);
+    final inside = 1 - _smoothstep(edge - 0.05, edge + 0.01, e);
+    final deep = 0.55 + 0.45 * (1 - (e / edge).clamp(0.0, 1.0));
+    final grain = 0.6 + 0.6 * _fbm(x / 80, y / 80, 3);
+    return math.min(1.0, inside * deep * grain + (1 - inside) * _scatter);
   }
 
   void _compose() {
-    final want = _grainsFor(_size);
+    final want = _grainsFor();
     final r = math.Random(23);
     final w = _size.width, h = _size.height;
     final grain = (_span / 420).clamp(1.0, 1.5);
@@ -214,16 +241,14 @@ class HatchSandField {
       tries++;
       final x = r.nextDouble() * w, y = r.nextDouble() * h;
       if (r.nextDouble() > _density(x, y)) continue;
-      final dx = x - _centre.dx, dy = y - _centre.dy;
-      final d = math.sqrt(dx * dx + dy * dy) / _span;
       _hx[i] = x;
       _hy[i] = y;
       _sz[i] = (1.0 + 1.1 * r.nextDouble()) * grain;
       _ph[i] = r.nextDouble();
       _dress(i, x, y, r);
       if (loose) {
-        _r0[i] = d * _span;
-        // Most turn one way; a layer of them turns slower, the other way.
+        _r0[i] = _inFrom(x, y);
+        // Most run one way; a layer of them runs slower, the other way.
         _w[i] = r.nextDouble() < 0.28 ? -0.6 : 1.0;
       }
       i++;
@@ -249,15 +274,10 @@ class HatchSandField {
     return _smoothstep(-0.1, 0.1, along + warp);
   }
 
-  // Rainbow bands across the field, along the same axis, warped the same way.
+  // The rainbow once round the screen, its bands warped as the sides are.
   double _hueAt(double x, double y) {
-    final along =
-        ((x - _centre.dx) * _axis.dx + (y - _centre.dy) * _axis.dy) / _span;
-    final h =
-        3 +
-        along * 4.6 +
-        2.6 * (_fbm(x / 170, y / 170, 17) - 0.5) +
-        y / _size.height * 1.5;
+    final a = math.atan2(y - _size.height / 2, x - _size.width / 2);
+    final h = 3 + a / _tau * 6 + 1.8 * (_fbm(x / 140, y / 140, 17) - 0.5);
     return h - (h / 6).floorToDouble() * 6;
   }
 
@@ -600,25 +620,43 @@ class HatchSandField {
     return off;
   }
 
-  /// Loose sand: every grain carried round the shell on its own turn, pushed
-  /// by the flow on top of it, with nothing pulling it back to a home. Only
-  /// its radius is held, and loosely: wherever a stir leaves it, it soon takes
-  /// as its own.
+  /// Loose sand: every grain carried round the screen along its own bank,
+  /// clockwise (a layer of them slower, the other way), pushed by the flow
+  /// on top of it, with nothing pulling it back to a home. Only how far in
+  /// from the edge it runs is held, and loosely: wherever a stir leaves it,
+  /// it soon takes as its own.
   void _stepLoose(double dt) {
-    final cx = _centre.dx, cy = _centre.dy;
+    final w = _size.width, h = _size.height;
     final on = _fieldOn;
     final follow = math.min(1.0, 2.6 * dt);
     final keep = math.min(1.0, 0.45 * dt);
-    final inner = 0.3 * _span;
+    final speed = 0.075 * _span;
+    // Within this of the nearest edge another edge has a say in which way a
+    // grain runs, so it rounds the corners instead of turning on them.
+    const soft = 16.0;
     for (var k = 0; k < _n; k++) {
       final x = _hx[k], y = _hy[k];
-      final dx = x - cx, dy = y - cy;
-      final r = math.sqrt(dx * dx + dy * dy) + 1e-3;
-      // Faster near the shell, so the field shears as it turns and a stir is
-      // wound into a spiral.
-      final w = _w[k] * (0.12 + 0.3 / (1 + r / inner));
-      final pull = (_r0[k] - r) * 0.9;
-      final tx = -dy * w + dx / r * pull, ty = dx * w + dy / r * pull;
+      final dl = x, dr = w - x, dtop = y * 1.1, dbot = (h - y) * 0.85;
+      final e = math.min(math.min(dl, dr), math.min(dtop, dbot));
+      final wl = _say(dl - e, soft), wr = _say(dr - e, soft);
+      final wt = _say(dtop - e, soft), wb = _say(dbot - e, soft);
+      // Clockwise: right along the top, down the right, left along the foot,
+      // up the left. Inward is away from whichever edges have the say.
+      var fx = wt - wb, fy = wr - wl;
+      final fl = math.sqrt(fx * fx + fy * fy);
+      if (fl > 1e-3) {
+        fx /= fl;
+        fy /= fl;
+      }
+      var nx = wl - wr, ny = wt - wb;
+      final nl = math.sqrt(nx * nx + ny * ny);
+      if (nl > 1e-3) {
+        nx /= nl;
+        ny /= nl;
+      }
+      final run = _w[k] * speed;
+      final pull = (_r0[k] - e) * 0.9;
+      final tx = fx * run + nx * pull, ty = fy * run + ny * pull;
       var ux = tx, uy = ty;
       if (on) {
         _sample(x, y);
@@ -632,9 +670,13 @@ class HatchSandField {
       _hx[k] = x + vx * dt;
       _hy[k] = y + vy * dt;
       _push[k] = (vx - tx).abs() + (vy - ty).abs();
-      _r0[k] += (r - _r0[k]) * keep;
+      // Never off the screen for good: a grain thrown past the edge is drawn
+      // back in.
+      _r0[k] = math.max(2.0, _r0[k] + (e - _r0[k]) * keep);
     }
   }
+
+  static double _say(double d, double soft) => d >= soft ? 0 : 1 - d / soft;
 
   // ── Drawing ───────────────────────────────────────────────────────────
 

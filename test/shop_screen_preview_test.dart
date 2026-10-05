@@ -179,6 +179,19 @@ void main() {
     await scrollShot('02_supplies_scrolled');
     await scrollShot('03_supplies_more');
 
+    // The realms for sale, each its own live field.
+    final scenes = find.text('SCENES');
+    if (scenes.evaluate().isNotEmpty) {
+      await tester.tap(scenes.first, warnIfMissed: false);
+      for (var i = 0; i < 30; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 40)),
+        );
+        await tester.pump(const Duration(milliseconds: 33));
+      }
+      await shoot('06_scenes');
+    }
+
     final cosmetics = find.text('COSMETICS');
     if (cosmetics.evaluate().isNotEmpty) {
       await tester.tap(cosmetics.first, warnIfMissed: false);

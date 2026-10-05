@@ -20,6 +20,15 @@
 // the Swamp's tree gone dry; meteors streaking across Arcane's disc in a
 // shower, curtains of northern lights hung in it.
 //
+// There are always four circles, and which realms fill them is the day's
+// pick ([WildMapField.slots]): the first four until a realm is bought in the
+// shop, then any four of those owned. A realm out today takes the circle it
+// is given and is drawn there as it would be anywhere; one not out is not on
+// the map at all. The Glass Dunes (bought): two crescent dunes, sand
+// streaming off their crests, glass glinting in them; in a sandstorm dust
+// drives across its circle and the dunes go hazy; after one, the sand
+// glitters with glass.
+//
 // Cheap at rest: grains that hold still are drawn once into a picture and
 // that picture drawn again each frame; the cloud's bob, the tree's sway,
 // Arcane's turn and each layer of a realm's dust drifting round are one move
@@ -36,19 +45,40 @@ import 'package:flutter/painting.dart';
 
 const double _tau = math.pi * 2;
 
-/// The four realms, where their circles sit on the map (as shares of its
-/// width and height) and the scene each one opens.
+/// The realms: the scene each one opens, and for the first four the
+/// circle each fills by default, which is also where that circle sits (as
+/// shares of the map's width and height): the map's four circles in order,
+/// top left, top right, bottom left, bottom right. A realm [bought] in the
+/// shop is on the map only on the days it is one of the four
+/// ([WildMapField.slots]); its x and y are not used.
 enum WildRealm {
   valley('valley', 0.25, 0.25),
   sky('sky', 0.75, 0.25),
   volcano('volcano', 0.25, 0.75),
-  swamp('swamp', 0.75, 0.75);
+  swamp('swamp', 0.75, 0.75),
+  dunes('dunes', 0.5, 1, bought: true);
 
-  const WildRealm(this.sceneId, this.x, this.y);
+  const WildRealm(this.sceneId, this.x, this.y, {this.bought = false});
 
   final String sceneId;
   final double x, y;
+
+  /// Sold in the shop.
+  final bool bought;
 }
+
+/// How many realms there are ([WildRealm.values]); the first four come
+/// first.
+const int _nRealms = 5;
+const int _core = 4;
+
+/// Arcane's index wherever it stands beside the realms (its grains' realm,
+/// its readiness).
+const int _arcI = _nRealms;
+
+/// The four circles' realms until one is bought: the first four, each in
+/// its own.
+const kWildCoreSlots = ['valley', 'sky', 'volcano', 'swamp'];
 
 /// The Volcano's mood, as the next visit will find it.
 enum WildVolcano { still, smoking, erupting }
@@ -63,15 +93,19 @@ const int _cone = 4, _lava = 5, _crater = 6, _lava2 = 17;
 const int _ground = 7, _pool = 8, _trunk = 9, _canopy = 10, _moss = 11;
 const int _sand = 12, _rim = 13; // each realm's circle
 const int _arcRing = 14, _arcFill = 15; // Arcane
+// The Dunes: the near dune, the far one behind it, the sand floor under
+// them.
+const int _dune = 18, _duneFar = 19, _duneFloor = 20;
 
 // Groups, in the order they draw. Each is one picture at rest, and only
 // the ones a finger reaches go back to live grains.
 const int _gSand = 0; // every realm's circle of sand
-const int _gStill = 1; // 1..4: each realm's grains that never move
-const int _gRim = 5; // 5..8: each realm's rim, live while it pulses
-const int _gCloud = 9, _gTree = 10, _gLive = 11, _gArcane = 12;
-const int _gArcRim = 13; // Arcane's rim, outside its own ring
-const int _groups = 14;
+const int _gStill = 1; // one per realm: its grains that never move
+const int _gRim = _gStill + _nRealms; // one per realm: live while it pulses
+const int _gCloud = _gRim + _nRealms, _gTree = _gCloud + 1;
+const int _gLive = _gCloud + 2, _gArcane = _gCloud + 3;
+const int _gArcRim = _gCloud + 4; // Arcane's rim, outside its own ring
+const int _groups = _gCloud + 5;
 
 /// How many layers a realm's dust drifts round in, each turning its own
 /// way at its own pace.
@@ -83,11 +117,11 @@ const _layerTurn = [0.1, -0.075, 0.05];
 
 /// Whether [part] is one of a realm's shape: scattered as dust until
 /// something waits in it.
-bool _isShape(int part) => part < _sand || part == _lava2;
+bool _isShape(int part) => part < _sand || part >= _lava2;
 
 int _groupOf(int part, int realm) => switch (part) {
   _sand => _gSand,
-  _rim => realm < 4 ? _gRim + realm : _gArcRim,
+  _rim => realm < _nRealms ? _gRim + realm : _gArcRim,
   _cloud => _gCloud,
   _canopy || _moss => _gTree,
   _meadow || _lava || _lava2 || _crater => _gLive,
@@ -189,6 +223,69 @@ const _canopyLobes = <_Lobe>[
   (0.58, 0.4, 0.12),
 ];
 
+/// A crescent dune, seen side on with the wind from the left (unit
+/// square): where its windward back leaves the ground, its crest, where its
+/// slipface comes down, the tip of the horn running out low along the
+/// ground beyond, and the ground.
+typedef _Dune = ({
+  double u0,
+  double uc,
+  double vc,
+  double us,
+  double ut,
+  double g,
+});
+
+// The far dune is the big one, on the left; the near one smaller, in
+// front of its slipface, so a lit back stands against shade.
+const _Dune _nearDune = (
+  u0: 0.3,
+  uc: 0.76,
+  vc: 0.57,
+  us: 0.9,
+  ut: 0.99,
+  g: 0.875,
+);
+const _Dune _farDune = (u0: 0.03, uc: 0.5, vc: 0.35, us: 0.72, ut: 0.9, g: 0.8);
+
+/// How high the horn stands where the slipface comes down to it.
+const double _hornH = 0.035;
+
+/// The top of dune [d] at [u]: its back rising to the crest, nearly
+/// straight, a little full near the top; its slipface falling steeply from
+/// the sharp crest and easing out at its foot; the horn running out.
+double _duneTop(_Dune d, double u) {
+  if (u <= d.uc) {
+    final t = _clamp01((u - d.u0) / (d.uc - d.u0));
+    final h = 0.5 * t + 0.5 * (1 - (1 - t) * (1 - t));
+    return d.g - (d.g - d.vc) * h;
+  }
+  final foot = d.g - _hornH;
+  if (u <= d.us) {
+    final s = (u - d.uc) / (d.us - d.uc);
+    return d.vc + (foot - d.vc) * (1 - math.pow(1 - s, 1.7).toDouble());
+  }
+  final s = _clamp01((u - d.us) / (d.ut - d.us));
+  return d.g - _hornH * math.pow(1 - s, 1.4).toDouble();
+}
+
+/// Whether (u, v) on dune [d] is on its slipface, in shade: a crescent from
+/// the crest round to the horn's tip, the lit back wrapping in below it.
+bool _duneSlip(_Dune d, double u, double v) {
+  final foot = d.g - _hornH;
+  if (v <= d.vc || v >= foot) return false;
+  final s = (v - d.vc) / (foot - d.vc);
+  return u > _duneBrink(d, s);
+}
+
+/// Where the slipface's crescent begins at [s] of the way from the crest
+/// down to its foot: bowing back under the crest, sweeping out to meet the
+/// foot.
+double _duneBrink(_Dune d, double s) =>
+    d.uc +
+    (d.us - d.uc) * math.pow(s, 2.6).toDouble() -
+    0.045 * math.sin(math.pi * s);
+
 /// A grain as it is built: where it rests in its realm's shape, and (a
 /// shape's grain) where in the dust it rests until the shape is called, and
 /// the layer of dust it drifts in.
@@ -236,6 +333,16 @@ class WildMapField {
   /// Whether the Valley's next clear visit finds the rainbow its rain left.
   bool rainbow = false;
 
+  /// The realm in each of the map's four circles, by scene id: top left,
+  /// top right, bottom left, bottom right. A realm in none of them is not
+  /// on the map; an id that is no realm here leaves its circle empty. Read
+  /// at [layout].
+  List<String> slots = kWildCoreSlots;
+
+  /// Whether the Dunes' next clear visit finds the glass a sandstorm left:
+  /// the sand glitters with it.
+  bool glass = false;
+
   /// Drawn in ink on a light page instead of light on the dark: light
   /// adding up shows nothing on parchment.
   bool ink = false;
@@ -244,9 +351,24 @@ class WildMapField {
 
   /// Each realm's circle (centre, and [_ringR] its radius) and the square
   /// its shape is drawn in.
-  final List<Offset> _centre = List.filled(4, Offset.zero);
-  final List<Rect> _box = List.filled(4, Rect.zero);
+  final List<Offset> _centre = List.filled(_nRealms, Offset.zero);
+  final List<Rect> _box = List.filled(_nRealms, Rect.zero);
   double _ringR = 1, _side = 1, _circleR = 1;
+
+  /// Which realms are on the map: those in [slots].
+  final List<bool> _shown = List.generate(
+    _nRealms,
+    (i) => !WildRealm.values[i].bought,
+  );
+
+  /// The slots the field was laid out for.
+  String? _laidSlots;
+
+  /// Where each of the four circles sits.
+  final List<Offset> _slotAt = List.filled(4, Offset.zero);
+
+  /// Whether realm [r] is on the map.
+  bool shows(WildRealm r) => _shown[r.index];
 
   /// The width the map is drawn to: the screen's on a phone; on a wider one
   /// what its circles would have on a phone. Grains, lights and weather are
@@ -256,9 +378,10 @@ class WildMapField {
   /// The biggest a realm's circle grows, on a tablet.
   static const double _maxRing = 130;
 
-  Offset get _mid => Offset(_size.width / 2, _size.height / 2);
+  /// Where Arcane's circle sits: the middle of the map, between the four.
+  Offset _mid = Offset.zero;
 
-  /// Where a realm's circle sits.
+  /// Where a realm's circle sits (nowhere useful for one not on the map).
   Rect circleOf(WildRealm r) =>
       Rect.fromCircle(center: _centre[r.index], radius: _ringR);
 
@@ -278,10 +401,14 @@ class WildMapField {
     return Offset(b.left + u * _side, b.top + v * _side);
   }
 
-  /// Lays the field out for [size]. Grains are rebuilt only when it changes.
+  /// Lays the field out for [size] and the realms in [slots]. Grains are
+  /// rebuilt only when either changes.
   void layout(Size size) {
-    if (size == _size || size.isEmpty) return;
+    assert(WildRealm.values.length == _nRealms);
+    final key = slots.join(',');
+    if (size.isEmpty || (size == _size && key == _laidSlots)) return;
     _size = size;
+    _laidSlots = key;
     _ringR = math.min(
       _maxRing,
       math.min(size.width * 0.24, size.height * 0.215),
@@ -292,23 +419,38 @@ class WildMapField {
     // grain stays as fine against its realm, never blown up with the
     // screen.
     _unit = _ringR / 0.24;
+    _mid = Offset(size.width / 2, size.height / 2);
     final spanX = _unit, spanY = math.min(size.height, _unit * 1.7);
-    for (final r in WildRealm.values) {
-      final c = Offset(
-        size.width / 2 + (r.x - 0.5) * spanX,
-        size.height / 2 + (r.y - 0.5) * spanY,
+    // The four circles, where the first four realms sit by default; each
+    // realm out today in the one it is given.
+    _shown.fillRange(0, _nRealms, false);
+    for (var k = 0; k < 4; k++) {
+      final home = WildRealm.values[k];
+      _slotAt[k] = Offset(
+        size.width / 2 + (home.x - 0.5) * spanX,
+        size.height / 2 + (home.y - 0.5) * spanY,
       );
-      _centre[r.index] = c;
+      if (k >= slots.length) continue;
+      final r = WildRealm.values
+          .where((r) => r.sceneId == slots[k])
+          .firstOrNull;
+      if (r == null || _shown[r.index]) continue;
+      _shown[r.index] = true;
+      _centre[r.index] = _slotAt[k];
+    }
+    for (final r in WildRealm.values) {
+      if (!_shown[r.index]) continue;
+      // (The dunes are low and wide: lifted a little to sit mid-circle.)
+      final lift = r == WildRealm.dunes ? 0.07 : 0.02;
       _box[r.index] = Rect.fromCenter(
-        center: c - Offset(0, _side * 0.02),
+        center: _centre[r.index] - Offset(0, _side * lift),
         width: _side,
         height: _side,
       );
     }
     // Arcane: a little bigger than a realm's gap would need, and never so
     // big it crowds them.
-    final reach =
-        (_centre[0] - Offset(size.width / 2, size.height / 2)).distance;
+    final reach = (_slotAt[0] - _mid).distance;
     _circleR = math.min(
       _unit * 0.135,
       math.max(_unit * 0.06, (reach - _ringR) * 0.88),
@@ -320,6 +462,7 @@ class WildMapField {
     _buildMovers(rng);
     _buildWashes(rng);
     _buildRainbow(rng);
+    _buildGlints();
     _fieldW = (size.width / _cell).ceil() + 1;
     _fieldH = (size.height / _cell).ceil() + 1;
     _fu = Float32List(_fieldW * _fieldH);
@@ -357,7 +500,8 @@ class WildMapField {
 
   /// The realm under [p], or 'arcane' for its circle: by scene id.
   String? sceneAt(Offset p) {
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < _nRealms; i++) {
+      if (!_shown[i]) continue;
       if ((p - _centre[i]).distance < _ringR * 1.04) {
         return WildRealm.values[i].sceneId;
       }
@@ -369,7 +513,7 @@ class WildMapField {
   // ── Shapes ────────────────────────────────────────────────────────────
 
   // Each realm's parts, front-most last, as paths in its square.
-  final List<List<(Path, int)>> _parts = List.generate(4, (_) => []);
+  final List<List<(Path, int)>> _parts = List.generate(_nRealms, (_) => []);
 
   void _buildShapes() {
     Path poly(int i, List<(double, double)> pts) {
@@ -497,6 +641,51 @@ class WildMapField {
       ..add((trunk, _trunk))
       ..add((moss, _moss))
       ..add((lobes(w, _canopyLobes), _canopy));
+
+    // The Dunes (when out): two crescent dunes, the far one behind to the
+    // right, on a low floor of sand.
+    final d = WildRealm.dunes.index;
+    _parts[d].clear();
+    if (_shown[d]) {
+      Path dune(_Dune dn) {
+        final p = Path();
+        const steps = 48;
+        for (var k = 0; k <= steps; k++) {
+          final u = dn.u0 + (dn.ut - dn.u0) * k / steps;
+          final o = _at(d, u, _duneTop(dn, u));
+          k == 0 ? p.moveTo(o.dx, o.dy) : p.lineTo(o.dx, o.dy);
+        }
+        // Underneath, down into the floor so the two meet.
+        final a = _at(d, dn.ut, dn.g + 0.02), b = _at(d, dn.u0, 0.9);
+        return p
+          ..lineTo(a.dx, a.dy)
+          ..lineTo(b.dx, b.dy)
+          ..close();
+      }
+
+      final floor = Path();
+      for (var k = 0; k <= 32; k++) {
+        final u = 0.02 + 0.96 * k / 32;
+        final e = math.sqrt(math.max(0, 1 - math.pow((u - 0.5) / 0.48, 2)));
+        final o = _at(d, u, 0.885 - e * (0.04 + 0.01 * math.sin(u * 13 + 1)));
+        k == 0 ? floor.moveTo(o.dx, o.dy) : floor.lineTo(o.dx, o.dy);
+      }
+      for (var k = 32; k >= 0; k--) {
+        final u = 0.02 + 0.96 * k / 32;
+        final e = math.sqrt(math.max(0, 1 - math.pow((u - 0.5) / 0.48, 2)));
+        final o = _at(d, u, 0.885 + e * 0.04);
+        floor.lineTo(o.dx, o.dy);
+      }
+      floor.close();
+      _parts[d]
+        ..add((floor, _duneFloor))
+        ..add((dune(_farDune), _duneFar))
+        ..add((dune(_nearDune), _dune));
+    }
+    // A realm not out today has no shape on the map.
+    for (var i = 0; i < _nRealms; i++) {
+      if (!_shown[i]) _parts[i].clear();
+    }
   }
 
   // The cloud, as a coarse grid of in/out, for the wind blowing through it.
@@ -559,7 +748,7 @@ class WildMapField {
 
     // Each realm's circle of sand: a faint disc, a little thicker at its
     // rim.
-    for (var i = 0; i < 4; i++) {
+    void circle(int i, math.Random rng) {
       final c = _centre[i];
       final fill = (math.pi * _ringR * _ringR / 18).round();
       for (var k = 0; k < fill; k++) {
@@ -605,11 +794,15 @@ class WildMapField {
       }
     }
 
+    for (var i = 0; i < _core; i++) {
+      if (_shown[i]) circle(i, rng);
+    }
+
     // Where a shape's grain waits while its realm is empty: anywhere in
     // the circle, in loose clumps (each layer its own), thinning toward the
     // rim. Its own dice, so the shapes come out as they always have.
     final dust = math.Random(_seed + 101);
-    Offset scatter(int i, int layer) {
+    Offset scatter(int i, int layer, math.Random dust) {
       final c = _centre[i];
       while (true) {
         final r = _ringR * 0.9 * math.sqrt(dust.nextDouble());
@@ -629,7 +822,7 @@ class WildMapField {
     // tested a little way off its own place, so the edges come out grained,
     // never cut.
     final spacing = math.sqrt(1.8);
-    for (var i = 0; i < 4; i++) {
+    void shape(int i, math.Random rng, math.Random dust) {
       final b = _box[i];
       for (var y = b.top; y < b.bottom; y += spacing) {
         for (var x = b.left; x < b.right; x += spacing) {
@@ -644,7 +837,7 @@ class WildMapField {
           final u = (px - b.left) / _side, v = (py - b.top) / _side;
           final (col, alt, sub) = _look(part, u, v, px, py, rng);
           final layer = dust.nextInt(_layers);
-          final at = scatter(i, layer);
+          final at = scatter(i, layer, dust);
           add(
             _Seed(
               px,
@@ -662,6 +855,18 @@ class WildMapField {
           );
         }
       }
+    }
+
+    for (var i = 0; i < _core; i++) {
+      if (_shown[i]) shape(i, rng, dust);
+    }
+    // A bought realm throws its own dice: the others come out as they
+    // always have whether it is out or not.
+    for (var i = _core; i < _nRealms; i++) {
+      if (!_shown[i]) continue;
+      final own = math.Random(_seed + 300 + i);
+      circle(i, own);
+      shape(i, own, math.Random(_seed + 400 + i));
     }
 
     // Arcane: a fine violet line round it, as fine as a realm's green
@@ -686,7 +891,7 @@ class WildMapField {
             argb,
             argb,
             part,
-            4,
+            _arcI,
             r,
           ),
         );
@@ -764,7 +969,7 @@ class WildMapField {
       var r = -double.infinity, b = -double.infinity;
       for (final s in groups[g]) {
         // A shape's grain drifts anywhere in its circle as dust.
-        final box = _isShape(s.part) && s.realm < 4
+        final box = _isShape(s.part) && s.realm < _nRealms
             ? circleOf(WildRealm.values[s.realm])
             : Rect.fromLTRB(s.x, s.y, s.x, s.y);
         if (box.left < l) l = box.left;
@@ -830,13 +1035,13 @@ class WildMapField {
       _sy[k] = s.sy;
       _layer[k] = s.layer;
       // Rests as its realm last rested: in its shape or in the dust.
-      final shaped = s.realm >= 4 || _formed[s.realm] == 1;
+      final shaped = s.realm >= _nRealms || _formed[s.realm] == 1;
       _hx[k] = shaped ? s.x : s.sx;
       _hy[k] = shaped ? s.y : s.sy;
       // When it sets off as the realm gathers, and how far round it swings
       // on the way: the way its layer was turning.
       _delay[k] = dust.nextDouble() * _stagger;
-      final way = s.realm < 4 ? _turnWay(s.realm, s.layer) : 1.0;
+      final way = s.realm < _nRealms ? _turnWay(s.realm, s.layer) : 1.0;
       _curl[k] = way * (0.12 + 0.26 * dust.nextDouble());
       _size2[k] = s.size;
       _v[k] = s.v;
@@ -889,7 +1094,7 @@ class WildMapField {
   // only the chunks with a grain off its place are drawn grain by grain.
   static const double _chunkSide = 40;
   static bool _chunked(int g) =>
-      g < _gStill + 4 || g == _gCloud || g == _gTree || g == _gArcane;
+      g < _gStill + _nRealms || g == _gCloud || g == _gTree || g == _gArcane;
   final Int32List _chunk0 = Int32List(_groups), _chunk1 = Int32List(_groups);
   // Each chunk's grains (_chunkFrom[c].._chunkTo[c]), its sprites in
   // its group's batch (_chunkS0[c].._chunkS1[c]), whether any grain of it
@@ -936,12 +1141,18 @@ class WildMapField {
   bool _whole(int g) =>
       g == _gLive || (g == _gCloud && _flash > 0) || _travelling(g);
 
-  static bool _isRim(int g) => (g >= _gRim && g < _gRim + 4) || g == _gArcRim;
+  static bool _isRim(int g) =>
+      (g >= _gRim && g < _gRim + _nRealms) || g == _gArcRim;
+
+  /// Where in its pulse realm [i]'s rim (or Arcane's, [_arcI]) is: each
+  /// its own.
+  static double _pulseAt(int i) =>
+      i == _arcI ? 4 * 1.3 : (i < _core ? i * 1.3 : i * 1.3 + 2.1);
 
   /// How bright rim group [g] is now: as ready as its realm, pulsing.
   double _rimAlpha(int g) {
-    final i = g == _gArcRim ? 4 : g - _gRim;
-    final pulse = 0.5 + 0.5 * _fsin(time * 2.4 + i * 1.3);
+    final i = g == _gArcRim ? _arcI : g - _gRim;
+    final pulse = 0.5 + 0.5 * _fsin(time * 2.4 + _pulseAt(i));
     return _ready[i] * (0.6 + 0.4 * pulse);
   }
 
@@ -1082,6 +1293,46 @@ class WildMapField {
         return (col, _mix(col, 0xFF7A6448, 0.4), _trunk);
       case _moss:
         return (0xFF7C8868, 0xFF8C8060, _moss);
+      case _dune || _duneFar:
+        final far = part == _duneFar;
+        final d = far ? _farDune : _nearDune;
+        // How high on the dune, and how far under its surface.
+        final high = _clamp01((d.g - v) / (d.g - d.vc));
+        final depth = v - _duneTop(d, u);
+        int col;
+        if (_duneSlip(d, u, v)) {
+          // The slipface, in shade: deepest along its brink under the sharp
+          // crest, warmer out toward its edge and low down, where light is
+          // thrown back into it off the sand.
+          final s = (v - d.vc) / (d.g - _hornH - d.vc);
+          final into = _clamp01((u - _duneBrink(d, s)) / 0.07);
+          col = _mix(0xFF432A18, 0xFF835632, 0.2 + 0.4 * into + 0.35 * s);
+        } else {
+          // The windward back, lit from the upper left, brightest high up;
+          // faint wind ripples across it, the crest's edge catching the
+          // light.
+          col = _mix(0xFF8A6036, 0xFFE2BA7C, 0.3 + 0.7 * high);
+          final ripple = math.sin(
+            depth * 70 + u * 6 + 5 * _fbm(x * 0.04, y * 0.04, 81),
+          );
+          if (ripple > 0.45) col = _mix(col, 0xFF6A4628, 0.3);
+          if (depth < 0.018 && u > d.uc - 0.12) {
+            col = _mix(col, 0xFFF6E2B4, 0.65 * (1 - depth / 0.018));
+          }
+        }
+        // The far one paler and cooler, a little lost in the air.
+        if (far) col = _mix(col, 0xFF8C7470, 0.22);
+        col = _mix(col, 0xFF2A1A10, 0.14 * n);
+        // In a sandstorm: hazed, the light and shade run together.
+        return (col, _mix(col, far ? 0xFF6E5C48 : 0xFF84705A, 0.66), part);
+      case _duneFloor:
+        // Lit toward its top, where it meets the dunes; ribbed by the wind.
+        final top = _clamp01((0.9 - v) / 0.05);
+        var col = _mix(0xFF4A3420, 0xFF9C7A4C, 0.25 + 0.45 * top + 0.3 * n);
+        if (math.sin(y * 0.9 + 4 * _fbm(x * 0.05, y * 0.05, 83)) > 0.6) {
+          col = _mix(col, 0xFF3A2818, 0.25);
+        }
+        return (col, _mix(col, 0xFF7A6650, 0.6), _duneFloor);
       default: // canopy
         final shade = _lobeShade(_canopyLobes, u, v);
         final col = _mix(0xFF1A2C1E, 0xFF5E8440, shade);
@@ -1115,24 +1366,39 @@ class WildMapField {
 
   void _buildWashes(math.Random rng) {
     _washes.clear();
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < _nRealms; i++) {
+      if (!_shown[i]) continue;
+      // A bought realm's own dice, as for its grains.
+      final dice = i < _core ? rng : math.Random(_seed + 500 + i);
       var placed = 0, tries = 0;
       while (placed < 9 && tries++ < 400) {
         final b = _box[i];
         final p = Offset(
-          b.left + rng.nextDouble() * _side,
-          b.top + rng.nextDouble() * _side,
+          b.left + dice.nextDouble() * _side,
+          b.top + dice.nextDouble() * _side,
         );
         if (_partAt(i, p) < 0) continue;
-        _washes.add((p.dx, p.dy, _side * (0.16 + 0.12 * rng.nextDouble()), i));
+        _washes.add((p.dx, p.dy, _side * (0.16 + 0.12 * dice.nextDouble()), i));
         placed++;
       }
     }
   }
 
   // Each realm's light: clear, and under its weather.
-  static const _washClear = [0xFF6E7A9C, 0xFFB8C8E0, 0xFF6A2A16, 0xFF2E5034];
-  static const _washAlt = [0xFFD0DAE6, 0xFF3A3E58, 0xFF6A2A16, 0xFF6A5A38];
+  static const _washClear = [
+    0xFF6E7A9C,
+    0xFFB8C8E0,
+    0xFF6A2A16,
+    0xFF2E5034,
+    0xFF9A6A34,
+  ];
+  static const _washAlt = [
+    0xFFD0DAE6,
+    0xFF3A3E58,
+    0xFF6A2A16,
+    0xFF6A5A38,
+    0xFF7A6448,
+  ];
 
   void _paintWashes() {
     final t = time;
@@ -1149,7 +1415,8 @@ class WildMapField {
     final o = WildRealm.volcano.index;
     final heat = _wx[o];
     final crater = _at(o, 0.5, 0.25);
-    final cone = 0.3 + 0.7 * _form[o];
+    // (None of it when the Volcano is not out today.)
+    final cone = _shown[o] ? 0.3 + 0.7 * _form[o] : 0.0;
     _wash.add(
       crater.dx,
       crater.dy,
@@ -1176,6 +1443,26 @@ class WildMapField {
         _side * 0.6,
         _argb(0.08 * _erupt, 1, 0.42, 0.18),
       );
+    }
+    // A sandstorm over the Dunes: dust hanging in the whole circle, in
+    // slow drifting banks.
+    final d = WildRealm.dunes.index;
+    final storm = _shown[d] ? _wx[d] : 0.0;
+    if (storm > 0) {
+      final c = _centre[d];
+      for (var k = 0; k < 7; k++) {
+        final drift = (t * 0.06 + _hash(k * 3 + 901)) % 1.0;
+        final x = c.dx + _ringR * (drift * 1.6 - 0.8);
+        final y = c.dy + _ringR * (_hash(k * 3 + 902) * 1.1 - 0.55);
+        final m = _zone(d, x, y);
+        if (m <= 0) continue;
+        _wash.add(
+          x,
+          y,
+          _ringR * (0.9 + 0.4 * _hash(k * 3 + 903)),
+          _argb(0.09 * storm * m, 0.72, 0.56, 0.36),
+        );
+      }
     }
     if (arcane) {
       _wash.add(
@@ -1208,6 +1495,12 @@ class WildMapField {
 
   void _buildRainbow(math.Random rng) {
     final v = WildRealm.valley.index;
+    if (!_shown[v]) {
+      _bowX = _bowY = _bowS = Float32List(0);
+      _bowC = Int32List(0);
+      _bowLanes.clear();
+      return;
+    }
     final c = _at(v, 0.5, 0.97);
     final width = _side * 0.016;
     final xs = <double>[], ys = <double>[], ss = <double>[];
@@ -1267,6 +1560,137 @@ class WildMapField {
     }
     debugRainbow = _dots.n;
     _dots.draw(canvas, _atlas!, ink ? _inkOver : _add);
+  }
+
+  // ── The Dunes: sand off the crests, glass, a sandstorm ────────────────
+
+  // Spots on the dunes' lit backs where glass lies: place, and when each
+  // glints. The first few always; the rest only in the glass a sandstorm
+  // leaves.
+  Float32List _glintX = Float32List(0), _glintY = Float32List(0);
+  Float32List _glintPh = Float32List(0);
+  static const int _glintsAlways = 26, _glintsMost = 190;
+
+  void _buildGlints() {
+    final d = WildRealm.dunes.index;
+    final xs = <double>[], ys = <double>[], ph = <double>[];
+    if (_shown[d]) {
+      final rng = math.Random(_seed + 600);
+      final b = _box[d];
+      for (var tries = 0; xs.length < _glintsMost && tries < 6000; tries++) {
+        final u = rng.nextDouble(), v = 0.2 + 0.75 * rng.nextDouble();
+        final p = Offset(b.left + u * _side, b.top + v * _side);
+        final part = _partAt(d, p);
+        if (part != _dune && part != _duneFar && part != _duneFloor) continue;
+        if (part != _duneFloor &&
+            _duneSlip(part == _dune ? _nearDune : _farDune, u, v)) {
+          continue;
+        }
+        xs.add(p.dx);
+        ys.add(p.dy);
+        ph.add(rng.nextDouble());
+      }
+    }
+    _glintX = Float32List.fromList(xs);
+    _glintY = Float32List.fromList(ys);
+    _glintPh = Float32List.fromList(ph);
+  }
+
+  /// Drawn with the live grains: sand streaming off each crest downwind,
+  /// glass glinting in the sand (far more of it after a sandstorm), and in
+  /// a sandstorm dust driving across the whole circle.
+  void _paintDunes() {
+    final i = WildRealm.dunes.index;
+    if (!_shown[i]) return;
+    final grain = _unit;
+    final t = time;
+    final storm = _wx[i];
+    final form = _form[i];
+    if (form > 0.02) {
+      for (final (dn, count, reach, seed) in [
+        (_nearDune, 90, 0.24, 0),
+        (_farDune, 50, 0.16, 1),
+      ]) {
+        final far = seed == 1 ? 0.62 : 1.0;
+        for (var k = 0; k < count; k++) {
+          final h = k * 7 + 211 + seed * 997;
+          final ph = _hash(h), ph2 = _hash(h + 1), ph3 = _hash(h + 2);
+          final a = (t / (1.5 - 0.6 * storm) + ph) % 1.0;
+          // Off the last stretch of the back below the crest, lifted a
+          // little, carried out over the slipface and settling.
+          final from = dn.uc - ph2 * 0.045;
+          final u = from + a * reach * (0.7 + 0.5 * ph3) * (1 + 0.6 * storm);
+          final v =
+              _duneTop(dn, from) -
+              0.006 -
+              0.03 * a * (1 - a) * (1 + ph3) +
+              0.07 * a * a * (1 - 0.5 * storm);
+          final p = _at(i, u, v);
+          final x = p.dx + 1.4 * _fsin(t * 2.3 + ph * 30) * a;
+          final fade =
+              (a < 0.12 ? a / 0.12 : 1 - a) * form * far * (0.6 + 0.3 * storm);
+          if (fade < 0.02) continue;
+          _dots.add(
+            x,
+            p.dy,
+            grain * (0.0024 + 0.0012 * ph3),
+            _argb(fade, 0.95, 0.85, 0.66),
+          );
+        }
+      }
+      // Glass: a few glints always, many after a sandstorm; lost in one.
+      final lit =
+          ((_glintsAlways + (_glintX.length - _glintsAlways) * _glass) *
+                  (1 - 0.85 * storm))
+              .round()
+              .clamp(0, _glintX.length);
+      for (var k = 0; k < lit; k++) {
+        final ph = _glintPh[k];
+        final w = _fsin(t * (1.1 + 1.3 * ph) + ph * 40);
+        if (w < 0.86) continue;
+        final f = (w - 0.86) / 0.14;
+        final a = f * f * form;
+        if (a < 0.03) continue;
+        debugGlints++;
+        final x = _glintX[k], y = _glintY[k];
+        // Pale and cool, some faintly gold.
+        final gold = ph > 0.7 ? 0.14 : 0.0;
+        _dots.add(x, y, grain * 0.0042, _argb(a, 1, 0.98 - gold, 0.94 - gold));
+        _glow.add(x, y, grain * 0.026, _argb(0.42 * a, 0.78, 0.9, 1));
+      }
+    }
+    // The sandstorm: dust in streaks driving across on the wind, thickest
+    // low down, gusting.
+    if (storm > 0) {
+      final c = _centre[i];
+      final span = _ringR * 2.3;
+      for (var k = 0; k < 300; k++) {
+        final h = k * 5 + 501;
+        final ph = _hash(h), ph2 = _hash(h + 1), ph3 = _hash(h + 2);
+        final speed = _ringR * (0.9 + 0.8 * ph2);
+        final x = c.dx - span / 2 + (ph * span + t * speed) % span;
+        final lane = 1 - math.pow(ph3, 1.6).toDouble() * 2;
+        final y =
+            c.dy +
+            _ringR * 0.92 * -lane +
+            3 * _fsin(t * 1.4 + ph * 30) +
+            2 * _fsin(x * 0.05 + t * 2);
+        final m = math.min(1.0, _zone(i, x, y) * 2.2);
+        if (m < 0.05) continue;
+        final gust = 0.7 + 0.3 * _fsin(t * 0.8 + y * 0.03);
+        final a = storm * m * gust;
+        final tone = 0.85 + 0.15 * ph;
+        for (var j = 0; j < 3; j++) {
+          _dots.add(
+            x - j * 2.4,
+            y - j * 0.4,
+            grain * (0.0034 - j * 0.0006),
+            _argb(a * (0.55 - j * 0.15), 0.84 * tone, 0.68 * tone, 0.46 * tone),
+          );
+        }
+        debugSandstorm++;
+      }
+    }
   }
 
   // ── Arcane's sky: a meteor shower, the northern lights ────────────────
@@ -1518,8 +1942,9 @@ class WildMapField {
       speeds.add(speed);
     }
 
+    // Each only for a realm out today.
     final s = _box[WildRealm.sky.index];
-    for (var k = 0; k < 320; k++) {
+    for (var k = 0; k < (_shown[WildRealm.sky.index] ? 320 : 0); k++) {
       add(
         0,
         s.left + rng.nextDouble() * _side,
@@ -1528,7 +1953,8 @@ class WildMapField {
       );
     }
     final crater = _craterAt = _at(WildRealm.volcano.index, 0.5, 0.24);
-    for (var k = 0; k < 220; k++) {
+    final volcanoOut = _shown[WildRealm.volcano.index];
+    for (var k = 0; k < (volcanoOut ? 220 : 0); k++) {
       add(
         1,
         crater.dx + (rng.nextDouble() - 0.5) * _side * 0.1,
@@ -1536,7 +1962,7 @@ class WildMapField {
         _side * (0.5 + 0.45 * rng.nextDouble()),
       );
     }
-    for (var k = 0; k < 260; k++) {
+    for (var k = 0; k < (volcanoOut ? 260 : 0); k++) {
       add(
         2,
         crater.dx + (rng.nextDouble() - 0.5) * _side * 0.1,
@@ -1545,7 +1971,7 @@ class WildMapField {
       );
     }
     final w = WildRealm.swamp.index;
-    for (var k = 0; k < 90; k++) {
+    for (var k = 0; k < (_shown[w] ? 90 : 0); k++) {
       final g = _at(w, 0.1 + 0.8 * rng.nextDouble(), 0.9);
       add(3, g.dx, g.dy, _side * (0.04 + 0.05 * rng.nextDouble()));
     }
@@ -1713,17 +2139,17 @@ class WildMapField {
 
   // Eased toward what [weather] and [ready] ask for, per realm; each lands
   // on its mark, so a field at rest can keep its pictures.
-  final Float64List _wx = Float64List(4);
+  final Float64List _wx = Float64List(_nRealms);
   final Float64List _rain = Float64List(1);
-  // Each realm's, and Arcane's (4).
-  final Float64List _ready = Float64List(5);
+  // Each realm's, and Arcane's ([_arcI]).
+  final Float64List _ready = Float64List(_nRealms + 1);
 
   // How far each realm has gathered: 0 dust, 1 its shape; it travels at an
   // even pace and each grain eases along its own share of the way.
-  final Float64List _form = Float64List(4);
+  final Float64List _form = Float64List(_nRealms);
   // How each realm last rested (1 in its shape, 0 as dust): where its
   // grains' places at rest (_hx, _hy) are.
-  final Uint8List _formed = Uint8List(4);
+  final Uint8List _formed = Uint8List(_nRealms);
   // No realm gathers before this time: the map has a moment to open.
   double _formWait = 0;
 
@@ -1741,17 +2167,17 @@ class WildMapField {
   static const double _dustAlpha = 0.72;
 
   // Each realm's layers of dust, turned this frame: angle, cos, sin.
-  final Float64List _spinA = Float64List(4 * _layers);
-  final Float64List _spinC = Float64List(4 * _layers)
-    ..fillRange(0, 4 * _layers, 1);
-  final Float64List _spinS = Float64List(4 * _layers);
+  final Float64List _spinA = Float64List(_nRealms * _layers);
+  final Float64List _spinC = Float64List(_nRealms * _layers)
+    ..fillRange(0, _nRealms * _layers, 1);
+  final Float64List _spinS = Float64List(_nRealms * _layers);
 
   /// Which way layer [l] of realm [i]'s dust turns: 1 or -1.
   static double _turnWay(int i, int l) =>
       (_layerTurn[l] < 0 ? -1.0 : 1.0) * (i.isEven ? 1 : -1);
 
   void _turnLayers() {
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < _nRealms; i++) {
       for (var l = 0; l < _layers; l++) {
         final j = i * _layers + l;
         final a = time * _layerTurn[l] * (i.isEven ? 1 : -1) + i * 1.7 + l;
@@ -1767,7 +2193,7 @@ class WildMapField {
 
   /// The realm whose shape group [g] holds, or -1.
   static int _realmOf(int g) {
-    if (g >= _gStill && g < _gStill + 4) return g - _gStill;
+    if (g >= _gStill && g < _gStill + _nRealms) return g - _gStill;
     if (g == _gCloud) return WildRealm.sky.index;
     if (g == _gTree) return WildRealm.swamp.index;
     return -1;
@@ -1840,6 +2266,8 @@ class WildMapField {
   double debugFormOf(WildRealm r) => _form[r.index];
   // The Volcano: smoke over it (smoking or erupting), and erupting.
   double _smoke = 0, _erupt = 0, _bow = 0;
+  // The glass a sandstorm leaves in the Dunes.
+  double _glass = 0;
   double _flash = 0;
   double _nextStrike = 2;
   final List<Offset> _bolt = [], _fork = [];
@@ -1852,11 +2280,14 @@ class WildMapField {
   final math.Random _rng = math.Random(11);
 
   double _target(WildRealm r) {
+    // A realm not out today has no weather here.
+    if (!_shown[r.index]) return 0;
     final w = weather[r.sceneId];
     return switch (r) {
       WildRealm.valley => w == WeatherKind.snow ? 1 : 0,
       WildRealm.sky => w == WeatherKind.storm ? 1 : 0,
       WildRealm.swamp => w == WeatherKind.dry ? 1 : 0,
+      WildRealm.dunes => w == WeatherKind.sandstorm ? 1 : 0,
       // How warm the mountain is.
       WildRealm.volcano => switch (volcano) {
         WildVolcano.still => 0,
@@ -1866,11 +2297,23 @@ class WildMapField {
     };
   }
 
-  double get _smokeTo => volcano == WildVolcano.still ? 0 : 1;
-  double get _eruptTo => volcano == WildVolcano.erupting ? 1 : 0;
-  double get _bowTo => rainbow && weather['valley'] == null ? 1 : 0;
+  bool get _volcanoOut => _shown[WildRealm.volcano.index];
+  bool get _valleyOut => _shown[WildRealm.valley.index];
+  double get _smokeTo => _volcanoOut && volcano != WildVolcano.still ? 1 : 0;
+  double get _eruptTo => _volcanoOut && volcano == WildVolcano.erupting ? 1 : 0;
+  double get _bowTo =>
+      _valleyOut && rainbow && weather['valley'] == null ? 1 : 0;
 
-  bool get _raining => weather['valley'] == WeatherKind.rain;
+  double get _glassTo =>
+      glass && _shown[WildRealm.dunes.index] && weather['dunes'] == null
+      ? 1
+      : 0;
+
+  bool get _raining => _valleyOut && weather['valley'] == WeatherKind.rain;
+
+  /// Whether realm [i] is on the map with something waiting in it.
+  bool _isReady(int i) =>
+      _shown[i] && ready.contains(WildRealm.values[i].sceneId);
 
   double get _arcReadyTo => arcane && ready.contains('arcane') ? 1 : 0;
   double get _showerTo =>
@@ -1885,19 +2328,20 @@ class WildMapField {
   void settle({bool gather = false}) {
     for (final r in WildRealm.values) {
       _wx[r.index] = _target(r);
-      _ready[r.index] = ready.contains(r.sceneId) ? 1 : 0;
-      final to = gather ? 0 : (ready.contains(r.sceneId) ? 1 : 0);
+      _ready[r.index] = _isReady(r.index) ? 1 : 0;
+      final to = gather ? 0 : (_isReady(r.index) ? 1 : 0);
       _form[r.index] = to.toDouble();
-      _restAs(r.index, to);
+      if (_shown[r.index]) _restAs(r.index, to);
     }
     _formWait = gather ? time + _gatherDelay : 0;
-    _ready[4] = _arcReadyTo;
+    _ready[_arcI] = _arcReadyTo;
     _shower = _showerTo;
     _aurora = _auroraTo;
     _rain[0] = _raining ? 1 : 0;
     _smoke = _smokeTo;
     _erupt = _eruptTo;
     _bow = _bowTo;
+    _glass = _glassTo;
   }
 
   static double _ease(double v, double to, double k) {
@@ -1911,7 +2355,7 @@ class WildMapField {
     for (final r in WildRealm.values) {
       final i = r.index;
       _wx[i] = _ease(_wx[i], _target(r), k);
-      final to = ready.contains(r.sceneId) ? 1.0 : 0.0;
+      final to = _isReady(i) ? 1.0 : 0.0;
       _ready[i] = _ease(_ready[i], to, k);
       // Gathering into its shape, or coming apart, at an even pace.
       final was = _form[i];
@@ -1921,13 +2365,14 @@ class WildMapField {
         if (_form[i] == to) _restAs(i, to.toInt());
       }
     }
-    _ready[4] = _ease(_ready[4], _arcReadyTo, k);
+    _ready[_arcI] = _ease(_ready[_arcI], _arcReadyTo, k);
     _shower = _ease(_shower, _showerTo, k);
     _aurora = _ease(_aurora, _auroraTo, k);
     _rain[0] = _ease(_rain[0], _raining ? 1 : 0, k);
     _smoke = _ease(_smoke, _smokeTo, k);
     _erupt = _ease(_erupt, _eruptTo, k);
     _bow = _ease(_bow, _bowTo, k);
+    _glass = _ease(_glass, _glassTo, k);
     _stepField(dt);
     _stepStorm(dt);
     _stepMeteors(dt);
@@ -2033,8 +2478,8 @@ class WildMapField {
     if (_fieldOn && _reach[g].overlaps(_flowBox)) return true;
     if (g == _gLive) return true;
     if (g == _gCloud && _flash > 0) return true;
-    if (g >= _gRim && g < _gRim + 4) return _ready[g - _gRim] > 0;
-    if (g == _gArcRim) return _ready[4] > 0;
+    if (g >= _gRim && g < _gRim + _nRealms) return _ready[g - _gRim] > 0;
+    if (g == _gArcRim) return _ready[_arcI] > 0;
     return false;
   }
 
@@ -2188,7 +2633,7 @@ class WildMapField {
     // The realms (bits) whose grains here are on their way, and those
     // resting as dust, turning.
     var travelling = 0, dust = 0;
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < _nRealms; i++) {
       if (_gathering(i)) {
         travelling |= 1 << i;
       } else if (_formed[i] == 0) {
@@ -2608,10 +3053,7 @@ class WildMapField {
   void dispose() => _dropPictures();
 
   List<double> get _key => [
-    _wx[0],
-    _wx[1],
-    _wx[2],
-    _wx[3],
+    for (var i = 0; i < _nRealms; i++) _wx[i],
     _rain[0],
     // The left run of lava's colour.
     _erupt,
@@ -2632,6 +3074,10 @@ class WildMapField {
 
   /// Grains of the rainbow drawn in the last frame.
   int debugRainbow = 0;
+
+  /// Grains of the Dunes' sandstorm, and glints of its glass lit, in the
+  /// last frame.
+  int debugSandstorm = 0, debugGlints = 0;
 
   /// Grains of Arcane's weather (meteors, northern lights) drawn in the
   /// last frame.
@@ -2691,6 +3137,7 @@ class WildMapField {
     debugPictures = 0;
     debugChunkPictures = 0;
     debugBombs = debugSmoke = debugRainbow = debugArcaneSky = 0;
+    debugSandstorm = debugGlints = 0;
     if (_syncKey()) _restepBatches();
     final dots = ink ? _inkOver : _over;
 
@@ -2700,10 +3147,14 @@ class WildMapField {
     _glow.clear();
 
     for (var g = 0; g < _groups; g++) {
-      if (_to[g] == _from[g]) continue;
+      // (The live grains' pass draws the movers and weather too, so it
+      // runs even with none of its own.)
+      if (_to[g] == _from[g] && g != _gLive) continue;
       if (g == _gArcane && !arcane) continue;
-      if (g >= _gRim && g < _gRim + 4 && _ready[g - _gRim] <= 0) continue;
-      if (g == _gArcRim && (!arcane || _ready[4] <= 0)) continue;
+      if (g >= _gRim && g < _gRim + _nRealms && _ready[g - _gRim] <= 0) {
+        continue;
+      }
+      if (g == _gArcRim && (!arcane || _ready[_arcI] <= 0)) continue;
       if (_live(g)) {
         if (g == _gLive) {
           // As stepped, then the movers and weather with them.
@@ -2711,6 +3162,7 @@ class WildMapField {
           _glow.appendFrom(_swayGlow);
           _paintMovers();
           _paintWeather();
+          _paintDunes();
           debugGrains += _dots.n;
           _dots.draw(canvas, _atlas!, dots);
         } else if (_whole(g)) {
@@ -2720,6 +3172,7 @@ class WildMapField {
             // Movers and weather draw with the live grains.
             _paintMovers();
             _paintWeather();
+            _paintDunes();
           }
           debugGrains += _dots.n;
           _dots.draw(canvas, _atlas!, dots);
@@ -2928,7 +3381,7 @@ class WildMapField {
   void _colour(int k) {
     final ri = _realm[k];
     // The left run of lava wakes only in eruption.
-    final w = ri >= 4 ? 0.0 : (_part[k] == _lava2 ? _erupt : _wx[ri]);
+    final w = ri >= _nRealms ? 0.0 : (_part[k] == _lava2 ? _erupt : _wx[ri]);
     _cr = _r[k] + (_ar[k] - _r[k]) * w;
     _cg = _g[k] + (_ag[k] - _g[k]) * w;
     _cb = _b[k] + (_ab[k] - _b[k]) * w;
@@ -2972,7 +3425,9 @@ class WildMapField {
   /// How bright grain [k] is where it rests: dimmer as dust.
   double _restAlpha(int k) {
     final i = _realm[k];
-    return i < 4 && _formed[i] == 0 && _isShape(_part[k]) ? _dustAlpha : 1;
+    return i < _nRealms && _formed[i] == 0 && _isShape(_part[k])
+        ? _dustAlpha
+        : 1;
   }
 
   /// Group [g]'s grains where they are this frame, catching the light when
@@ -2993,7 +3448,7 @@ class WildMapField {
       }
       if (_part[k] == _rim) {
         // A realm with something waiting: its rim pulses.
-        final pulse = 0.5 + 0.5 * _fsin(t * 2.4 + _realm[k] * 1.3);
+        final pulse = 0.5 + 0.5 * _fsin(t * 2.4 + _pulseAt(_realm[k]));
         a *= _ready[_realm[k]] * (0.6 + 0.4 * pulse);
       }
       var l = 1.0;
@@ -3036,19 +3491,20 @@ class WildMapField {
   void _paintRimGlow() {
     final grain = _unit;
     final t = time;
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i <= _nRealms; i++) {
       final ready = _ready[i];
-      if (ready <= 0 || (i == 4 && !arcane)) continue;
-      final pulse = 0.5 + 0.5 * _fsin(t * 2.4 + i * 1.3);
-      final c = i < 4 ? _centre[i] : _mid;
-      final r = i < 4 ? _ringR * 0.97 : _circleR * _arcRimAt * 0.99;
-      final n = i < 4 ? 96 : 56;
+      final arc = i == _arcI;
+      if (ready <= 0 || (arc ? !arcane : !_shown[i])) continue;
+      final pulse = 0.5 + 0.5 * _fsin(t * 2.4 + _pulseAt(i));
+      final c = arc ? _mid : _centre[i];
+      final r = arc ? _circleR * _arcRimAt * 0.99 : _ringR * 0.97;
+      final n = arc ? 56 : 96;
       for (var k = 0; k < n; k++) {
         final a = _tau * k / n;
         _glow.add(
           c.dx + math.cos(a) * r,
           c.dy + math.sin(a) * r,
-          grain * (i < 4 ? 0.024 : 0.018),
+          grain * (arc ? 0.018 : 0.024),
           _argb(0.2 * ready * (0.45 + 0.55 * pulse), 0.42, 0.9, 0.5),
         );
       }

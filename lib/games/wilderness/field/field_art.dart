@@ -246,6 +246,10 @@ abstract class FieldArt {
 ///   spire    Volcano spire of rock — size is its half width and height
 ///   monolith Arcane standing stone — the point is its foot, size its width
 ///            and height
+///   pillar, arch
+///            Dunes ruin half buried in the sand, seated on the ground under
+///            it — size is its width and height
+///   outcrop  Dunes rock of wind-cut sandstone — size is its width and height
 ///
 /// Sizes are at the reference height (475 units), as the fields' own are.
 abstract final class FieldPiece {
@@ -254,6 +258,7 @@ abstract final class FieldPiece {
   static const cypress = 'cypress', stone = 'stone', peat = 'peat';
   static const snag = 'snag', spire = 'spire';
   static const monolith = 'monolith';
+  static const pillar = 'pillar', arch = 'arch', outcrop = 'outcrop';
 }
 
 /// A seed for the piece at [id] that stays its own whatever else moves —

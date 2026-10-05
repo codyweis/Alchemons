@@ -10,11 +10,13 @@ import 'dart:math' as math;
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
+import 'package:alchemons/models/encounters/pools/dunes_pool.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
+import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
@@ -421,6 +423,36 @@ void main() {
     final mean = tries * swampDry.chance;
     final spread = 7 * math.sqrt(mean * (1 - swampDry.chance));
     expect(times, inInclusiveRange(mean - spread, mean + spread));
+  });
+
+  // ── The Glass Dunes: bought in the shop; the sandstorm and its glass ─────
+
+  test('the Glass Dunes spawn nothing until bought, then spawn and can '
+      'come with a sandstorm that leaves glass', () async {
+    final db = AlchemonsDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final pools = dunesEncounterPools(dunesScene);
+    final scenes = {
+      'dunes': (
+        scene: dunesScene,
+        sceneWide: pools.sceneWide,
+        perSpawn: pools.perSpawn,
+      ),
+    };
+    final s = await service(db, scenes);
+    await s.ensureSpawnsForScene('dunes');
+    expect(s.getActiveSpawnPoints('dunes'), isEmpty);
+    expect(await s.debugBringWeather('dunes', WeatherKind.sandstorm), isFalse);
+
+    // Bought, past the opening: out on the day it is bought.
+    await db.settingsDao.setSetting('cosmic_ship_unlocked', '1');
+    await db.settingsDao.setSetting('scene_unlocked_dunes', '1');
+    await s.ensureSpawnsForScene('dunes');
+    expect(s.getActiveSpawnPoints('dunes'), isNotEmpty);
+    expect(WildernessSpawnService.weathers['dunes'], [dunesSandstorm]);
+    expect(await s.debugBringWeather('dunes', WeatherKind.sandstorm), isTrue);
+    expect(s.weatherIn('dunes'), same(dunesSandstorm));
+    expect(dunesSandstorm.aftermath, isTrue);
   });
 
   // ── The Arcane: a meteor shower, the northern lights ─────────────────────

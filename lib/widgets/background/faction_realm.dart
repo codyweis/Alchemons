@@ -164,11 +164,7 @@ class FactionRealmField {
   /// starts there, in [colour], and flies out to its place (the opening's
   /// last page ends in that knot, and the faction picker opens on it).
   /// Before the field has a size, it waits for [layout].
-  void emergeFrom(
-    Offset at, {
-    double spread = 40,
-    int? colour,
-  }) {
+  void emergeFrom(Offset at, {double spread = 40, int? colour}) {
     if (_n == 0 || _size.isEmpty) {
       _pendingEmerge = (at, spread, colour);
       return;
@@ -479,6 +475,24 @@ class FactionRealmField {
       final c = (at.dx / _col).round();
       if (c >= 0 && c < _wv.length) _wv[c] += 160;
     }
+  }
+
+  /// The sand turned round [at] out to [reach], as a hole opening in it
+  /// pulls it: [spin] px/s at the rim (positive turns clockwise on screen),
+  /// drawn in by [pull] of that (negative lets it go outward). Calm in the
+  /// eye, so the middle is not torn.
+  void swirl(Offset at, double reach, {double spin = 420, double pull = 0.3}) {
+    if (_fieldW == 0 || spin == 0) return;
+    final eye = reach * 0.3;
+    _inject(at, reach, (dx, dy, w) {
+      final l = math.max(1.0, math.sqrt(dx * dx + dy * dy));
+      final k = spin * w * math.min(1.0, l / eye);
+      final ux = dx / l, uy = dy / l;
+      return (
+        (-uy - ux * pull * spin.sign) * k,
+        (ux - uy * pull * spin.sign) * k,
+      );
+    }, blend: true);
   }
 
   void _inject(

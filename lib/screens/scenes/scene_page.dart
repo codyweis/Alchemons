@@ -8,6 +8,7 @@ import 'package:alchemons/models/rift_state.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
+import 'package:alchemons/models/encounters/pools/dunes_pool.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
@@ -66,6 +67,7 @@ SceneEncounterTables Function(SceneDefinition) _tableBuilderForScene(
     'volcano' => volcanoEncounterPools,
     'swamp' => swampEncounterPools,
     'arcane' => arcaneEncounterPools,
+    'dunes' => dunesEncounterPools,
     _ => valleyEncounterPools,
   };
 }

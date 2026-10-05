@@ -202,6 +202,7 @@ class PushNotificationService {
       'volcano': 'the Volcano',
       'swamp': 'the Swamp',
       'arcane': 'the Arcane Portal',
+      'dunes': 'the Glass Dunes',
       'poison': 'the Poison Bog',
     };
     return labels[sceneId] ?? 'the wilderness';

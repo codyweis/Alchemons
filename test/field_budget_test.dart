@@ -12,6 +12,7 @@ import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
+import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
@@ -75,6 +76,7 @@ final _fields = <_Field>[
     encounter: 'SP_arcane_01',
     strokeY: 0.84,
   ),
+  (name: 'dunes', scene: dunesScene, encounter: 'SP_dunes_01', strokeY: 0.9),
 ];
 
 void main() {

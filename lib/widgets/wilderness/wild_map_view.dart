@@ -20,6 +20,8 @@ class WildMapView extends StatefulWidget {
     this.arcane = false,
     this.volcano = WildVolcano.still,
     this.rainbow = false,
+    this.slots = kWildCoreSlots,
+    this.glass = false,
     this.ink = false,
     this.labelFor,
     this.field,
@@ -41,6 +43,13 @@ class WildMapView extends StatefulWidget {
 
   /// Whether the Valley's next clear visit finds a rainbow.
   final bool rainbow;
+
+  /// The realm in each of the four circles, by scene id: top left, top
+  /// right, bottom left, bottom right (today's pick).
+  final List<String> slots;
+
+  /// Whether the Dunes' next clear visit finds the glass a sandstorm left.
+  final bool glass;
 
   /// Drawn in ink, for a light page.
   final bool ink;
@@ -85,6 +94,8 @@ class _WildMapViewState extends State<WildMapView>
       ..arcane = widget.arcane
       ..volcano = widget.volcano
       ..rainbow = widget.rainbow
+      ..slots = widget.slots
+      ..glass = widget.glass
       ..ink = widget.ink;
   }
 
@@ -154,7 +165,8 @@ class _WildMapViewState extends State<WildMapView>
             ),
             if (label != null) ...[
               for (final r in WildRealm.values)
-                _place(_field.labelAnchor(r), label(r.sceneId)),
+                if (_field.shows(r))
+                  _place(_field.labelAnchor(r), label(r.sceneId)),
               if (widget.arcane)
                 _place(
                   _field.riftRect.bottomCenter + const Offset(0, 4),

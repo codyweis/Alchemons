@@ -3,6 +3,9 @@
 // a realm is dust until something waits in it and then gathers into its
 // shape, each realm shows its state (lightning in a storm, the Volcano's
 // mood, the rainbow rain leaves), and a frame stays a few blur-free draws.
+// Which realm fills each of the four circles is the day's pick: the Glass
+// Dunes, bought in the shop, are on the map only in a circle they are given,
+// and a realm not out today is nowhere.
 
 import 'dart:math' as math;
 
@@ -42,27 +45,241 @@ WildMapField _field({
   bool arcane = false,
   WildVolcano volcano = WildVolcano.still,
   bool rainbow = false,
+  List<String> slots = kWildCoreSlots,
+  bool glass = false,
+  Size size = _size,
 }) => WildMapField()
   ..weather = weather
   ..ready = ready
   ..arcane = arcane
   ..volcano = volcano
   ..rainbow = rainbow
-  ..layout(_size)
+  ..slots = slots
+  ..glass = glass
+  ..layout(size)
   ..settle();
 
+/// Where one of the four sits on a map without bought realms.
 Offset _centreOf(WildRealm r) => Offset(_size.width * r.x, _size.height * r.y);
+
+const _core = [
+  WildRealm.valley,
+  WildRealm.sky,
+  WildRealm.volcano,
+  WildRealm.swamp,
+];
 
 void main() {
   test('a tap finds the realm it lands on, and the dark between is none', () {
     final f = _field(arcane: true);
-    for (final r in WildRealm.values) {
+    for (final r in _core) {
       expect(f.sceneAt(_centreOf(r)), r.sceneId);
     }
     expect(f.sceneAt(f.riftRect.center), 'arcane');
     expect(f.sceneAt(const Offset(195, 4)), isNull);
     // Without Arcane open, its spot is empty.
     expect(_field().sceneAt(f.riftRect.center), isNull);
+  });
+
+  group("today's four", () {
+    const corners = [
+      ['dunes', 'sky', 'volcano', 'swamp'],
+      ['valley', 'dunes', 'volcano', 'swamp'],
+      ['valley', 'sky', 'dunes', 'swamp'],
+      ['valley', 'sky', 'volcano', 'dunes'],
+    ];
+
+    test('the Dunes fill whichever circle they are given', () {
+      for (var k = 0; k < 4; k++) {
+        final slots = corners[k];
+        final f = _field(arcane: true, slots: slots, ready: {'dunes'});
+        // The circle the realm it stands in for would have.
+        final at = _centreOf(WildRealm.values[k]);
+        expect(f.shows(WildRealm.dunes), isTrue);
+        expect(f.circleOf(WildRealm.dunes).center, at);
+        expect(f.sceneAt(at), 'dunes');
+        final out = WildRealm.values[k];
+        expect(f.shows(out), isFalse, reason: '$out is not out today');
+        // Every tap finds one of today's four, Arcane, or nothing.
+        for (var y = 0.0; y < _size.height; y += 6) {
+          for (var x = 0.0; x < _size.width; x += 6) {
+            final hit = f.sceneAt(Offset(x, y));
+            expect(
+              hit == null || hit == 'arcane' || slots.contains(hit),
+              isTrue,
+              reason: '$slots: $hit at ($x, $y)',
+            );
+          }
+        }
+        // The rest where they always are.
+        for (var j = 0; j < 4; j++) {
+          if (j == k) continue;
+          final r = WildRealm.values[j];
+          expect(f.sceneAt(_centreOf(r)), r.sceneId);
+        }
+        expect(f.sceneAt(f.riftRect.center), 'arcane');
+        // Something waiting: its rim pulses, and it gathers into its shape
+        // there.
+        f.step(1 / 60);
+        f.paint(_CensusCanvas());
+        expect(f.debugGrains, greaterThan(500), reason: 'its rim, live');
+        expect(f.debugFormOf(WildRealm.dunes), 1);
+      }
+    });
+
+    test('a realm not out today is never found, whatever waits in it', () {
+      final f = _field(
+        slots: corners[0],
+        ready: {'valley', 'sky', 'volcano', 'swamp', 'dunes'},
+        weather: {'valley': WeatherKind.rain},
+        rainbow: true,
+      );
+      for (var y = 0.0; y < _size.height; y += 4) {
+        for (var x = 0.0; x < _size.width; x += 4) {
+          expect(f.sceneAt(Offset(x, y)), isNot('valley'));
+        }
+      }
+      // Its weather is nowhere either.
+      for (var i = 0; i < 30; i++) {
+        f
+          ..step(1 / 60)
+          ..paint(_CensusCanvas());
+        expect(f.debugRainbow, 0);
+      }
+      expect(f.debugFormOf(WildRealm.valley), 0);
+    });
+
+    test('an id that is no realm here leaves its circle empty', () {
+      final f = _field(
+        arcane: true,
+        slots: ['geode', 'sky', 'volcano', 'swamp'],
+        ready: {'geode', 'valley'},
+      );
+      final at = _centreOf(WildRealm.valley);
+      expect(f.sceneAt(at), isNull);
+      expect(f.shows(WildRealm.valley), isFalse);
+      expect(f.shows(WildRealm.dunes), isFalse);
+      f
+        ..step(1 / 60)
+        ..paint(_CensusCanvas());
+      // The sand, the dust of the volcano, the swamp's grains, the cloud
+      // and the tree (three layers each), and Arcane: nothing in the empty
+      // circle.
+      expect(f.debugPictures, 1 + 4 * 3 + 1);
+    });
+
+    test('the first four in their own circles: the map as it always was', () {
+      for (final size in const [
+        Size(390, 620),
+        Size(412, 915),
+        Size(884, 1104),
+        Size(360, 560),
+      ]) {
+        final plain = _field(arcane: true, size: size);
+        final given = _field(arcane: true, size: size, slots: kWildCoreSlots);
+        // The old rule, written out.
+        final ring = math.min(
+          130.0,
+          math.min(size.width * 0.24, size.height * 0.215),
+        );
+        final unit = ring / 0.24;
+        final spanY = math.min(size.height, unit * 1.7);
+        for (var k = 0; k < 4; k++) {
+          final r = WildRealm.values[k];
+          final c = plain.circleOf(r);
+          expect(c.width / 2, closeTo(ring, 1e-9));
+          final want = Offset(
+            size.width / 2 + (r.x - 0.5) * unit,
+            size.height / 2 + (r.y - 0.5) * spanY,
+          );
+          expect((c.center - want).distance, lessThan(1e-9));
+          expect(given.circleOf(r), c);
+        }
+        expect(plain.shows(WildRealm.dunes), isFalse);
+        expect(plain.riftRect, given.riftRect);
+        // The Dunes in a circle move nothing else and change no size.
+        final dunes = _field(arcane: true, size: size, slots: corners[2]);
+        expect(
+          dunes.circleOf(WildRealm.dunes).center,
+          plain.circleOf(WildRealm.volcano).center,
+        );
+        expect(dunes.riftRect, plain.riftRect);
+        for (final r in [WildRealm.valley, WildRealm.sky, WildRealm.swamp]) {
+          expect(dunes.circleOf(r), plain.circleOf(r));
+        }
+      }
+    });
+
+    test('the Dunes are dust until something waits, and stir and settle', () {
+      final f = _field(arcane: true, slots: corners[3]);
+      f
+        ..step(1 / 60)
+        ..paint(_CensusCanvas());
+      // The sand, the dust of the valley, the volcano, the dunes, the cloud
+      // (three layers each; the swamp and its tree are not out), and Arcane.
+      expect(f.debugPictures, 1 + 4 * 3 + 1);
+      f.ready = {'dunes'};
+      for (var i = 0; i < 150; i++) {
+        f.step(1 / 60);
+      }
+      expect(f.debugFormOf(WildRealm.dunes), 1);
+      f.paint(_CensusCanvas());
+      expect(f.debugPictures, 1 + 1 + 3 * 3 + 1);
+
+      final at = f.circleOf(WildRealm.dunes).center;
+      for (var i = 0; i < 12; i++) {
+        f
+          ..stir(at + Offset(-40 + i * 7.0, 0), const Offset(7, 0), 1 / 60)
+          ..step(1 / 60);
+      }
+      expect(f.debugDisplacement, greaterThan(4));
+      for (var i = 0; i < 300; i++) {
+        f.step(1 / 60);
+      }
+      expect(f.debugDisplacement, lessThan(0.05));
+      f.paint(_CensusCanvas());
+      expect(f.debugPictures, 1 + 1 + 3 * 3 + 1);
+    });
+
+    test('a sandstorm drives dust across it; after one, glass glitters', () {
+      ({int storm, int glints}) seen(WildMapField f) {
+        var storm = 0, glints = 0;
+        for (var i = 0; i < 60 * 4; i++) {
+          f
+            ..step(1 / 60)
+            ..paint(_CensusCanvas());
+          storm = math.max(storm, f.debugSandstorm);
+          glints += f.debugGlints;
+        }
+        return (storm: storm, glints: glints);
+      }
+
+      final out = corners[0];
+      const dunes = {'dunes'};
+      const sandstorm = {'dunes': WeatherKind.sandstorm};
+      final clear = seen(_field(slots: out, ready: dunes));
+      expect(clear.storm, 0);
+      expect(clear.glints, greaterThan(0), reason: 'a few glints always');
+      final storm = seen(_field(slots: out, ready: dunes, weather: sandstorm));
+      expect(storm.storm, greaterThan(150));
+      // As dust it still storms.
+      expect(
+        seen(_field(slots: out, weather: sandstorm)).storm,
+        greaterThan(150),
+      );
+      final glass = seen(_field(slots: out, ready: dunes, glass: true));
+      expect(glass.glints, greaterThan(clear.glints * 3));
+      // Owed, but storming again: the glass waits for it to pass.
+      final again = seen(
+        _field(slots: out, ready: dunes, glass: true, weather: sandstorm),
+      );
+      expect(again.glints, lessThan(glass.glints / 3));
+      // Not out today: none of it anywhere.
+      final notOut = seen(
+        _field(ready: dunes, weather: sandstorm, glass: true),
+      );
+      expect(notOut.storm + notOut.glints, 0);
+    });
   });
 
   test('a swipe moves the grains, and they settle back', () {
@@ -407,32 +624,43 @@ void main() {
   });
 
   test('a frame is a handful of draws and never a blur', () {
-    for (final (weather, ink, volcano, rainbow) in [
-      (const <String, WeatherKind>{}, false, WildVolcano.still, true),
-      ({'sky': WeatherKind.storm}, false, WildVolcano.erupting, false),
-      ({'arcane': WeatherKind.meteors}, false, WildVolcano.still, false),
-      ({'arcane': WeatherKind.aurora}, true, WildVolcano.smoking, true),
-      ({'valley': WeatherKind.rain}, false, WildVolcano.smoking, false),
-      ({'valley': WeatherKind.snow}, true, WildVolcano.erupting, false),
-      ({'swamp': WeatherKind.dry}, true, WildVolcano.still, true),
+    for (final slots in const [
+      kWildCoreSlots,
+      ['valley', 'sky', 'dunes', 'swamp'],
+      ['dunes', 'sky', 'volcano', 'swamp'],
     ]) {
-      final f =
-          _field(
-              weather: weather,
-              ready: {'valley', 'arcane'},
-              arcane: true,
-              volcano: volcano,
-              rainbow: rainbow,
-            )
-            ..ink = ink
-            ..debugStrike();
-      for (var i = 0; i < 10; i++) {
-        f.step(1 / 60);
+      for (final (weather, ink, volcano, rainbow) in [
+        (const <String, WeatherKind>{}, false, WildVolcano.still, true),
+        ({'sky': WeatherKind.storm}, false, WildVolcano.erupting, false),
+        ({'arcane': WeatherKind.meteors}, false, WildVolcano.still, false),
+        ({'arcane': WeatherKind.aurora}, true, WildVolcano.smoking, true),
+        ({'valley': WeatherKind.rain}, false, WildVolcano.smoking, false),
+        ({'valley': WeatherKind.snow}, true, WildVolcano.erupting, false),
+        ({'swamp': WeatherKind.dry}, true, WildVolcano.still, true),
+        ({'dunes': WeatherKind.sandstorm}, false, WildVolcano.still, false),
+        ({'dunes': WeatherKind.sandstorm}, true, WildVolcano.erupting, true),
+        (const <String, WeatherKind>{}, false, WildVolcano.smoking, true),
+      ]) {
+        final f =
+            _field(
+                weather: weather,
+                ready: {'valley', 'dunes', 'arcane'},
+                arcane: true,
+                volcano: volcano,
+                rainbow: rainbow,
+                slots: slots,
+                glass: rainbow,
+              )
+              ..ink = ink
+              ..debugStrike();
+        for (var i = 0; i < 10; i++) {
+          f.step(1 / 60);
+        }
+        final c = _CensusCanvas();
+        f.paint(c);
+        expect(c.blurredDraws, 0, reason: '$weather');
+        expect(c.draws, lessThan(40), reason: '$weather: ${c.counts}');
       }
-      final c = _CensusCanvas();
-      f.paint(c);
-      expect(c.blurredDraws, 0, reason: '$weather');
-      expect(c.draws, lessThan(40), reason: '$weather: ${c.counts}');
     }
   });
 

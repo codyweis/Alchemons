@@ -10,12 +10,14 @@ import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
+import 'package:alchemons/models/encounters/pools/dunes_pool.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
+import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
@@ -82,6 +84,80 @@ void main() {
   onlyFloatersAloft('Sky', skyScene, skyEncounterPools);
   onlyFloatersAloft('Swamp', swampScene, swampEncounterPools);
   onlyFloatersAloft('Volcano', volcanoScene, volcanoEncounterPools);
+  onlyFloatersAloft('Dunes', dunesScene, dunesEncounterPools);
+
+  test('the sandstorm brings only what the Dunes\' air points can take '
+      'there, and stands the rest on the sand', () {
+    for (final e in dunesSandstorm.pool.entries) {
+      // Air and Lightning: every one of them floats.
+      expect(speciesCanFloat(e.speciesId), isTrue, reason: e.speciesId);
+    }
+  });
+
+  // ── The Dunes: sand underfoot, dunes rising, a rock under the high point ──
+
+  double dunesPeriod(SceneLayer layer) =>
+      dunesScene.worldWidth *
+      (1 + dunesScene.layers.firstWhere((l) => l.id == layer).parallaxFactor);
+
+  DunesField builtDunes(double h) {
+    final field = DunesField()
+      ..layout(
+        dunesScene.spawnPoints,
+        dunesScene.worldWidth,
+        loop: dunesScene.loop,
+      );
+    final screen = Size(h * 1.6, h);
+    for (final layer in [
+      SceneLayer.layer2,
+      SceneLayer.layer3,
+      SceneLayer.layer4,
+      SceneLayer.layer5,
+    ]) {
+      field.build(layer, Size(dunesPeriod(layer), h), screen);
+    }
+    return field;
+  }
+
+  for (final h in const [412.0, 475.0, 700.0]) {
+    test('every Dunes standing point has sand or rock under it at $h', () {
+      final field = builtDunes(h);
+      for (final p in dunesScene.spawnPoints.where((p) => !p.aloft)) {
+        final x = p.normalizedPos.dx * dunesPeriod(p.anchor);
+        final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} has no ground');
+        final perch = field.perchFor(p.id);
+        if (perch != null) {
+          // On its rock: the rock's top is where its feet are.
+          expect(perch, closeTo(feet, 1e-6), reason: p.id);
+          expect(ground!.rest, closeTo(feet, 2 * h / 475), reason: p.id);
+        } else {
+          // In the sand, or on a dune risen to meet it: never over the air.
+          expect(feet, greaterThan(ground!.top), reason: p.id);
+        }
+      }
+    });
+
+    test('every Dunes encounter partner has ground at $h', () {
+      final field = builtDunes(h);
+      for (final p in dunesScene.spawnPoints) {
+        final x =
+            p.normalizedPos.dx * dunesPeriod(p.anchor) +
+            p.partnerSide * kFieldPairGap;
+        expect(field.groundAt(p.anchor, x), isNotNull, reason: p.id);
+      }
+    });
+  }
+
+  test('the Dunes high point is the only one with a rock under it', () {
+    final field = builtDunes(475);
+    final perched = [
+      for (final p in dunesScene.spawnPoints)
+        if (field.perchFor(p.id) != null) p.id,
+    ];
+    expect(perched, ['SP_dunes_05']);
+  });
 
   test('sky points sit on a layer with ground, for a partner who cannot '
       'float', () {

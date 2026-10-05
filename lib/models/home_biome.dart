@@ -21,11 +21,13 @@ import 'package:alchemons/games/wilderness/field/grain_field.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
+import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
+import 'package:alchemons/models/shop_scenes.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:flame/components.dart';
@@ -136,6 +138,18 @@ enum HomeRealm {
       HomeMood('meteors', 'METEORS', weather: WeatherKind.meteors),
       HomeMood('aurora', 'AURORA', weather: WeatherKind.aurora),
     ],
+  ),
+  // Bought in the shop (models/shop_scenes.dart).
+  dunes(
+    'Glass Dunes',
+    'dust',
+    near: HomeRow(SceneLayer.layer4, 0.80, 100),
+    far: HomeRow(SceneLayer.layer3, 0.63, 70),
+    moods: [
+      HomeMood('clear', 'CLEAR'),
+      HomeMood('sandstorm', 'SANDSTORM', weather: WeatherKind.sandstorm),
+      HomeMood('glass', 'GLASS', aftermath: true),
+    ],
   );
 
   const HomeRealm(
@@ -165,6 +179,7 @@ enum HomeRealm {
     HomeRealm.swamp => swampScene,
     HomeRealm.volcano => volcanoScene,
     HomeRealm.arcane => arcaneScene,
+    HomeRealm.dunes => dunesScene,
   };
 
   HomeRow row({required bool back}) => back ? far : near;
@@ -294,6 +309,37 @@ enum HomeRealm {
         farY: 0.62,
       ),
     ],
+    HomeRealm.dunes => const [
+      HomeScenery(
+        FieldPiece.pillar,
+        'PILLAR',
+        w: 30,
+        h: 128,
+        half: 1.2,
+        solid: true,
+        farW: 17,
+        farH: 76,
+      ),
+      HomeScenery(
+        FieldPiece.arch,
+        'ARCH',
+        w: 150,
+        h: 128,
+        half: 0.52,
+        solid: true,
+        farW: 120,
+        farH: 104,
+      ),
+      HomeScenery(
+        FieldPiece.outcrop,
+        'ROCK',
+        w: 70,
+        h: 40,
+        half: 0.55,
+        solid: true,
+        far: false,
+      ),
+    ],
   };
 
   HomeScenery? sceneryOf(String piece) =>
@@ -387,6 +433,12 @@ enum HomeRealm {
         for (final (fx, fy, _, h) in ArcaneField.midStones)
           piece(FieldPiece.monolith, fx, back: true, y: fy, scale: h / 64),
       ],
+      HomeRealm.dunes => [
+        for (final (back, kind, fx, w, _) in DunesField.homeRuins)
+          piece(kind, fx, back: back, scale: w / s(kind)!.width(back: back)),
+        for (final (fx, w, _) in DunesField.homeRocks)
+          piece(FieldPiece.outcrop, fx, scale: w / s(FieldPiece.outcrop)!.w),
+      ],
     };
   }
 
@@ -401,10 +453,29 @@ enum HomeRealm {
   static Future<bool> arcaneOpen(SettingsDao settings) async =>
       await homeDebugOn() || await settings.isArcanePortalUnlocked();
 
-  static List<HomeRealm> open({required bool arcane}) => [
+  /// The realms a home can be made in: the Arcane only once its portal is
+  /// open ([arcane]), and a realm the shop sells only once [bought].
+  static List<HomeRealm> open({
+    required bool arcane,
+    Set<String> bought = const {},
+  }) => [
     for (final r in values)
-      if (r != HomeRealm.arcane || arcane) r,
+      if ((r != HomeRealm.arcane || arcane) &&
+          (shopSceneOf(r.sceneId) == null || bought.contains(r.sceneId)))
+        r,
   ];
+
+  /// The realms a home can be made in now, read from [settings] (the
+  /// developer tools open everything here).
+  static Future<List<HomeRealm>> openNow(SettingsDao settings) async {
+    final debug = await homeDebugOn();
+    return open(
+      arcane: await arcaneOpen(settings),
+      bought: debug
+          ? {for (final s in kShopScenes) s.sceneId}
+          : await ownedShopScenes(settings),
+    );
+  }
 }
 
 /// One of the player's Alchemons living in the home biome, and where.
@@ -608,6 +679,9 @@ class HomePiece {
     FieldPiece.snag,
     FieldPiece.spire,
     FieldPiece.monolith,
+    FieldPiece.pillar,
+    FieldPiece.arch,
+    FieldPiece.outcrop,
   };
 
   HomePiece copyWith({
@@ -744,10 +818,8 @@ class HomeBiomeLayout {
 
   /// The layout as the player may have it now, whether the Arcane is
   /// unlocked read from [settings].
-  static Future<HomeBiomeLayout> loadOpen(SettingsDao settings) async {
-    final arcane = await HomeRealm.arcaneOpen(settings);
-    return (await load(settings)).within(HomeRealm.open(arcane: arcane));
-  }
+  static Future<HomeBiomeLayout> loadOpen(SettingsDao settings) async =>
+      (await load(settings)).within(await HomeRealm.openNow(settings));
 
   HomeResident? resident(String spawnId) =>
       residents.where((r) => r.spawnId == spawnId).firstOrNull;

@@ -21,6 +21,9 @@ class FeaturedCreaturePresentation extends StatelessWidget {
 
   /// Set when it has just been chosen: it gathers out of its element.
   final EssenceReveal? reveal;
+
+  /// Round the sprite alone (not its glow), for reading it into grains.
+  final GlobalKey? spriteKey;
   const FeaturedCreaturePresentation({
     super.key,
     required this.breathing,
@@ -30,10 +33,32 @@ class FeaturedCreaturePresentation extends StatelessWidget {
     required this.instance,
     required this.creature,
     this.reveal,
+    this.spriteKey,
   });
 
   @override
   Widget build(BuildContext context) {
+    Widget sprite = InstanceSprite(
+      creature: creature,
+      instance: instance,
+      size: 72,
+    );
+    final key = spriteKey;
+    if (key != null) {
+      // Read with room round it, as the essence reads it: the size gene can
+      // draw it a little past its box.
+      sprite = OverflowBox(
+        maxWidth: 72 * 1.4,
+        maxHeight: 72 * 1.4,
+        child: RepaintBoundary(
+          key: key,
+          child: SizedBox.square(
+            dimension: 72 * 1.4,
+            child: Center(child: SizedBox.square(dimension: 72, child: sprite)),
+          ),
+        ),
+      );
+    }
     return IgnorePointer(
       ignoring: true, // decorative only
       child: AnimatedBuilder(
@@ -75,11 +100,7 @@ class FeaturedCreaturePresentation extends StatelessWidget {
                       tappable: false,
                       // The size gene can draw it a little past its box.
                       captureScale: 1.4,
-                      child: InstanceSprite(
-                        creature: creature,
-                        instance: instance,
-                        size: 72,
-                      ),
+                      child: sprite,
                     ),
                   ),
                 ),
@@ -106,6 +127,7 @@ class FeaturedHeroInteractive extends StatelessWidget {
   final CreatureInstance instance;
   final Creature creature;
   final EssenceReveal? reveal;
+  final GlobalKey? spriteKey;
 
   const FeaturedHeroInteractive({
     super.key,
@@ -117,6 +139,7 @@ class FeaturedHeroInteractive extends StatelessWidget {
     required this.instance,
     required this.creature,
     this.reveal,
+    this.spriteKey,
   });
 
   @override
@@ -134,6 +157,7 @@ class FeaturedHeroInteractive extends StatelessWidget {
           displayName: data.displayName,
           subtitle: data.subtitle,
           reveal: reveal,
+          spriteKey: spriteKey,
         ),
       ),
     );

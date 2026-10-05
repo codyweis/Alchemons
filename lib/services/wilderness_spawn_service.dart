@@ -3,6 +3,7 @@
 import 'dart:async' as async;
 import 'dart:math';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
+import 'package:alchemons/models/encounters/pools/dunes_pool.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
@@ -10,11 +11,13 @@ import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/services/opening_wilderness_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
+import 'package:alchemons/services/wild_rotation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
+import 'package:alchemons/models/shop_scenes.dart';
 import 'package:drift/drift.dart';
 
 /// Service that manages active wild creature spawns across all scenes.
@@ -49,6 +52,7 @@ class WildernessSpawnService extends ChangeNotifier {
     'valley': [valleyRain, valleySnow],
     'swamp': [swampDry],
     'arcane': [arcaneMeteors, arcaneAurora],
+    'dunes': [dunesSandstorm],
   };
 
   /// The weather over each scene whose current batch came with one.
@@ -220,7 +224,11 @@ class WildernessSpawnService extends ChangeNotifier {
       sceneId,
     );
     if (!openingAllowed) return false;
-    if (_coreSceneIds.contains(sceneId)) return true;
+    // Once realms have been bought, only today's four are out (see
+    // WildRotation); before that the first four always are.
+    if (_coreSceneIds.contains(sceneId) || shopSceneOf(sceneId) != null) {
+      return WildRotation.isOut(_db.settingsDao, sceneId);
+    }
     if (sceneId == 'arcane') {
       return (await _db.settingsDao.getSetting('arcane_portal_unlocked')) ==
           '1';

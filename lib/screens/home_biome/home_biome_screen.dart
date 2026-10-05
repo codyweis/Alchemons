@@ -73,8 +73,7 @@ Future<
   (HomeBiomeLayout, List<HomeRealm>, Map<String, (Creature, CreatureInstance)>)
 >
 loadHomeBiome(AlchemonsDatabase db, CreatureCatalog catalog) async {
-  final arcane = await HomeRealm.arcaneOpen(db.settingsDao);
-  final realms = HomeRealm.open(arcane: arcane);
+  final realms = await HomeRealm.openNow(db.settingsDao);
   var layout = (await HomeBiomeLayout.load(db.settingsDao)).within(realms);
   final looks = <String, (Creature, CreatureInstance)>{};
   final kept = <HomeResident>[];
@@ -289,8 +288,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   // ── Loading and saving ───────────────────────────────────────────────────
 
   Future<void> _load() async {
-    final arcane = await HomeRealm.arcaneOpen(_db.settingsDao);
-    _realms = HomeRealm.open(arcane: arcane);
+    _realms = await HomeRealm.openNow(_db.settingsDao);
     _ledger = await KeepsakeLedger.load(_db, _speciesName);
     _decor = await DecorLedger.load(_db);
     var layout = (await HomeBiomeLayout.load(_db.settingsDao)).within(_realms);
@@ -389,6 +387,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     HomeRealm.swamp => const Color(0xFFC8D8A0),
     HomeRealm.volcano => const Color(0xFFFFB070),
     HomeRealm.arcane => const Color(0xFFC9B6FF),
+    HomeRealm.dunes => const Color(0xFFF0D2A0),
   };
 
   bool _canLift(String spawnId) {

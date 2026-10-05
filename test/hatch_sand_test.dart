@@ -41,9 +41,9 @@ void main() {
     expect(f.debugPictures, 1);
     final restSprites = f.debugSprites;
 
-    // A short stroke low on the left.
+    // A short stroke through the bank along the foot.
     for (var i = 0; i < 10; i++) {
-      f.stir(Offset(60 + i * 6.0, 650), const Offset(6, 0), 1 / 60);
+      f.stir(Offset(60 + i * 6.0, 725), const Offset(6, 0), 1 / 60);
       f.step(1 / 60);
       paint(f);
     }
@@ -65,7 +65,7 @@ void main() {
     final f = sandOf();
     run(f, 1.5);
     f.burst();
-    run(f, 0.5);
+    run(f, 0.7);
     expect(f.debugSprites, greaterThan(f.grainCount ~/ 2));
     run(f, 5);
     expect(f.debugPictures, 1);
@@ -100,7 +100,7 @@ void main() {
     expect(stirred.debugSprites, greaterThan(stirred.grainCount * 0.8));
 
     for (var i = 0; i < 20; i++) {
-      stirred.stir(Offset(80, 120 + i * 12.0), const Offset(0, 12), 1 / 60);
+      stirred.stir(Offset(30, 120 + i * 12.0), const Offset(0, 12), 1 / 60);
       stirred.step(1 / 60);
       calm.step(1 / 60);
     }

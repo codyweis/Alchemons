@@ -17,6 +17,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
 import 'package:flutter/foundation.dart';
+import 'package:alchemons/models/shop_scenes.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -380,6 +381,18 @@ class ShopService extends ChangeNotifier {
 
   // ==== Offers (existing + new) ====
   static final List<ShopOffer> allOffers = [
+    // ── Scenes (models/shop_scenes.dart): a wild realm and a home ──
+    for (final s in kShopScenes)
+      ShopOffer(
+        id: s.offerId,
+        name: s.title,
+        description: s.line,
+        icon: AppIcons.home_rounded,
+        cost: {'gold': s.gold},
+        reward: const {},
+        rewardType: 'boost',
+        limit: PurchaseLimit.once,
+      ),
     // ── Home decor (models/home_decor.dart) ──
     for (final d in HomeDecor.all)
       ShopOffer(
@@ -1420,6 +1433,12 @@ class ShopService extends ChangeNotifier {
   }
 
   Future<bool> _applyBoost(String offerId, int qty) async {
+    // A scene: its realm opens in the wild and at home.
+    final scene = shopSceneByOffer(offerId);
+    if (scene != null) {
+      await _db.settingsDao.setSetting(scene.settingKey, '1');
+      return true;
+    }
     // Home decor: owned as a count, placed in the home biome.
     final decor = HomeDecor.byOffer(offerId);
     if (decor != null) {
