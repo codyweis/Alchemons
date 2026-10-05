@@ -325,7 +325,8 @@ class VolcanoField extends _GrainField {
   double? perchFor(String spawnId) {
     for (final p in _spawns) {
       if (p.id != spawnId || p.aloft) continue;
-      if (p.anchor == near || p.anchor == mid) return _feet(p);
+      if (p.anchor != near && p.anchor != mid) continue;
+      return _shares(p) ? _sharedPerch(p) : _feet(p);
     }
     return null;
   }
@@ -365,6 +366,7 @@ class VolcanoField extends _GrainField {
 
   /// Rock with a dead tree on it, nobody's perch: (x as a share of the
   /// loop, its top as a share of the height, half width).
+  static const treeRocks = _treeRocks;
   static const _treeRocks = <(double, double, double)>[
     (0.04, 0.792, 44),
     (0.28, 0.80, 38),
@@ -382,8 +384,9 @@ class VolcanoField extends _GrainField {
       double? seatX,
       bool basalt = false,
       int steps = 0,
+      int? own,
     }) {
-      final s = seed++;
+      final s = own ?? seed++;
       final r = FieldRandom(s * 13);
       final b = _Shelf(
         cx: cx,
@@ -403,8 +406,9 @@ class VolcanoField extends _GrainField {
 
     // Ground points in x order on the layer stand on basalt and cinder by
     // turns, and each one's partner on the other.
-    final points = _spawns.where((p) => p.anchor == layer).toList()
-      ..sort((a, b) => _spawnX(a).compareTo(_spawnX(b)));
+    final points =
+        _spawns.where((p) => p.anchor == layer && !_shares(p)).toList()
+          ..sort((a, b) => _spawnX(a).compareTo(_spawnX(b)));
     var ground = 0;
     for (final p in points) {
       final x = _spawnX(p);
@@ -412,20 +416,26 @@ class VolcanoField extends _GrainField {
       final px = x + side * kFieldPairGap;
       final bp = p.getBattlePos();
       final size = p.size.x;
-      final basalt = !p.aloft && ground++ % 2 == 0;
+      // Laid out by hand, each shelf is its own whoever else comes and
+      // goes.
+      final own = _placed ? fieldSeedOf(p.id) : null;
+      final basalt =
+          !p.aloft && (own != null ? own.isEven : ground++ % 2 == 0);
       // Shelves under creatures are sized by the creatures, not the
       // screen: the pace between a pair is the same on every screen.
       if (!p.aloft) {
-        final hw = size * (basalt ? 1.0 : 1.15);
+        final (mid, extra) = _sharedSpan(p, x);
+        final hw = size * (basalt ? 1.0 : 1.15) + extra;
         shelves.add(
           shelf(
-            x + side * hw * 0.15,
+            extra > 0 ? mid : x + side * hw * 0.15,
             hw,
             _feet(p),
             seatX: x,
             basalt: basalt,
             // A basalt shelf steps down on the side away from its partner.
             steps: basalt ? -side.round() : 0,
+            own: own,
           ),
         );
       }
@@ -441,6 +451,20 @@ class VolcanoField extends _GrainField {
           basalt: !basalt,
         ),
       );
+    }
+    if (_placed) {
+      for (final p in _piecesOn(layer, {FieldPiece.snag})) {
+        shelves.add(
+          shelf(
+            _spawnX(p),
+            p.size.x * _u,
+            p.normalizedPos.dy * _h,
+            basalt: true,
+            own: fieldSeedOf(p.id),
+          ),
+        );
+      }
+      return shelves;
     }
     if (!back) {
       final w = _widths[layer] ?? _worldWidth;
@@ -3107,7 +3131,38 @@ class VolcanoField extends _GrainField {
   // ── Spires ───────────────────────────────────────────────────────────────
 
   /// Spires of rock standing in the lava among the back shelves.
+  /// Spires the player placed on [layer], their feet at their points.
+  List<_Spire> _placedSpires(SceneLayer layer) => [
+    for (final p in _piecesOn(layer, {FieldPiece.spire}))
+      _Spire(
+        _spawnX(p),
+        p.normalizedPos.dy * _h,
+        p.size.x * _u,
+        p.size.y * _u,
+        1300 + fieldSeedOf(p.id),
+        layer == mid ? 0.3 : 0,
+      ),
+  ];
+
+  static const midSpires = _midSpireRecords, nearSpires = _nearSpireRecords;
+  static const _midSpireRecords = [
+    (0.075, 16.0, 46.0, 1),
+    (0.105, 10.0, 28.0, 2),
+    (0.44, 13.0, 36.0, 3),
+    (0.72, 15.0, 52.0, 4),
+    (0.745, 9.0, 24.0, 5),
+    (0.985, 12.0, 30.0, 6),
+  ];
+  static const _nearSpireRecords = [
+    (0.165, 14.0, 34.0, 1),
+    (0.478, 22.0, 70.0, 2),
+    (0.497, 13.0, 38.0, 3),
+    (0.565, 15.0, 30.0, 4),
+    (0.765, 18.0, 46.0, 5),
+  ];
+
   List<_Spire> _midSpires(double w) {
+    if (_placed) return _placedSpires(mid);
     final out = <_Spire>[];
     for (final (fx, hw, hgt, seed) in const [
       (0.075, 16.0, 46.0, 1),
@@ -3136,6 +3191,7 @@ class VolcanoField extends _GrainField {
   /// Spires among the near shelves, about the vent and between the dead
   /// trees.
   List<_Spire> _nearSpires(double w) {
+    if (_placed) return _placedSpires(near);
     final out = <_Spire>[];
     for (final (fx, hw, hgt, seed) in const [
       (0.165, 14.0, 34.0, 1),
@@ -3498,6 +3554,24 @@ class VolcanoField extends _GrainField {
   List<_Snag> _makeSnags(List<_Shelf> shelves) {
     final w = _widths[near] ?? _worldWidth;
     final out = <_Snag>[];
+    if (_placed) {
+      for (final p in _piecesOn(near, {FieldPiece.snag})) {
+        final x = _spawnX(p);
+        final at = _shelfAt(near, x);
+        if (at == null) continue;
+        final (s, lx) = at;
+        final own = fieldSeedOf(p.id);
+        final t = _Snag(
+          x + _u * 4 * (own.isEven ? -1 : 1),
+          _sStand(s, lx) + 2 * _u,
+          _h * p.size.y / 100,
+          2100 + own,
+        );
+        _shapeSnag(t);
+        out.add(t);
+      }
+      return out;
+    }
     var k = 0;
     for (final (fx, _, _) in _treeRocks) {
       final x = fx * w;

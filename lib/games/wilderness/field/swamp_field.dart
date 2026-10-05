@@ -278,7 +278,8 @@ class SwampField extends _GrainField {
   double? perchFor(String spawnId) {
     for (final p in _spawns) {
       if (p.id != spawnId || p.aloft) continue;
-      if (p.anchor == near || p.anchor == mid) return _feet(p);
+      if (p.anchor != near && p.anchor != mid) continue;
+      return _shares(p) ? _sharedPerch(p) : _feet(p);
     }
     return null;
   }
@@ -361,8 +362,9 @@ class SwampField extends _GrainField {
       double? seatX,
       bool stone = false,
       int steps = 0,
+      int? own,
     }) {
-      final s = seed++;
+      final s = own ?? seed++;
       final r = FieldRandom(s * 13);
       final b = _Bank(
         cx: cx,
@@ -385,7 +387,12 @@ class SwampField extends _GrainField {
     // no bank: it is in the water, its partner on the dry floor.
     final points =
         _spawns
-            .where((p) => p.anchor == layer && p.perch != SpawnPerch.wade)
+            .where(
+              (p) =>
+                  p.anchor == layer &&
+                  p.perch != SpawnPerch.wade &&
+                  !_shares(p),
+            )
             .toList()
           ..sort((a, b) => _spawnX(a).compareTo(_spawnX(b)));
     var ground = 0;
@@ -395,20 +402,25 @@ class SwampField extends _GrainField {
       final px = x + side * kFieldPairGap;
       final bp = p.getBattlePos();
       final size = p.size.x;
-      final stone = !p.aloft && ground++ % 2 == 0;
+      // Laid out by hand, each bank is its own whoever else comes and goes.
+      final own = _placed ? fieldSeedOf(p.id) : null;
+      final stone =
+          !p.aloft && (own != null ? own.isEven : ground++ % 2 == 0);
       // Banks under creatures are sized by the creatures, not the screen:
       // the pace between a pair is the same on every screen.
       if (!p.aloft) {
-        final hw = size * (stone ? 1.0 : 1.2);
+        final (mid, extra) = _sharedSpan(p, x);
+        final hw = size * (stone ? 1.0 : 1.2) + extra;
         banks.add(
           bank(
-            x + side * hw * 0.15,
+            extra > 0 ? mid : x + side * hw * 0.15,
             hw,
             _feet(p),
             seatX: x,
             stone: stone,
             // A stone steps down on the side away from its partner.
             steps: stone ? -side.round() : 0,
+            own: own,
           ),
         );
       }
@@ -424,6 +436,23 @@ class SwampField extends _GrainField {
           stone: !stone && !p.aloft,
         ),
       );
+    }
+    if (_placed) {
+      for (final p in _piecesOn(layer, {FieldPiece.stone, FieldPiece.peat})) {
+        final own = fieldSeedOf(p.id);
+        final stone = p.piece == FieldPiece.stone;
+        banks.add(
+          bank(
+            _spawnX(p),
+            p.size.x * _u,
+            p.normalizedPos.dy * _h,
+            stone: stone,
+            steps: stone ? (own.isEven ? 1 : -1) : 0,
+            own: own,
+          ),
+        );
+      }
+      return banks;
     }
     if (back) {
       final w = _widths[layer] ?? _worldWidth;
@@ -1005,15 +1034,42 @@ class SwampField extends _GrainField {
 
   // ── Near: the great cypresses ────────────────────────────────────────────
 
+  /// The near layer's great cypresses: (x, scale, seed).
+  static const _cypresses = [
+    (690.0, 1.0, 1),
+    (1500.0, 0.9, 2),
+    (2262.0, 0.96, 3),
+  ];
+
+  /// The great cypresses as the home biome first has them: (x as a share
+  /// of the near layer's loop of [period] units, scale).
+  static List<(double, double)> homeCypresses(double period) => [
+    for (final (x, s, _) in _cypresses) (x / period, s),
+  ];
+
+  static const midScenery = _midScenery;
+
   List<_Cypress> _greatTrees(double w) {
     final trees = <_Cypress>[
-      for (final (x, s, seed) in const [
-        (690.0, 1.0, 1),
-        (1500.0, 0.9, 2),
-        (2262.0, 0.96, 3),
-      ])
-        if (x < w)
-          _Cypress(x, _h * (0.79 - 0.01 * seed), _h * 0.98 * s, 8100 + seed, 0),
+      if (_placed)
+        for (final p in _piecesOn(near, {FieldPiece.cypress}))
+          _Cypress(
+            _spawnX(p),
+            _h * (0.78 - 0.01 * (fieldSeedOf(p.id) % 3)),
+            _h * 0.98 * p.size.x / 100,
+            8100 + fieldSeedOf(p.id),
+            0,
+          )
+      else
+        for (final (x, s, seed) in _cypresses)
+          if (x < w)
+            _Cypress(
+              x,
+              _h * (0.79 - 0.01 * seed),
+              _h * 0.98 * s,
+              8100 + seed,
+              0,
+            ),
     ];
     for (final t in trees) {
       _shapeCypress(t);

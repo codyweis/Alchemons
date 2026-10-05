@@ -142,11 +142,17 @@ abstract class FieldArt {
   /// layer's loop instead. Without [partners], nothing is built for an
   /// encounter partner beside each point (the home biome, where there are
   /// no encounters — only the player's own creatures, standing for show).
+  ///
+  /// With [placed], the field's own movable scenery (its great trees, its
+  /// isles, its standing stones — see [FieldPiece]) stands only where the
+  /// points with a [SpawnPoint.piece] put it, instead of where the field
+  /// would: the home biome, which the player lays out.
   void layout(
     List<SpawnPoint> spawns,
     double worldWidth, {
     bool loop = false,
     bool partners = true,
+    bool placed = false,
   }) {}
 
   /// Where the feet of a creature at [spawnId] go, when the field built it
@@ -221,6 +227,43 @@ abstract class FieldArt {
   /// The sky, in screen pixels. [view] is the world camera's window, so a
   /// horizon can stay level with the layers when the camera zooms.
   void paintSky(Canvas canvas, Size screen, FieldView view);
+}
+
+/// The pieces of a field's own scenery that can be placed by hand (see
+/// [SpawnPoint.piece]). What a piece's point means is the piece's own:
+///
+///   tree     Valley great tree — size.x is its scale ×100
+///   boulder  Valley boulder in the grass — size is its width and height
+///   isle, grove, falls
+///            Sky isle bare, with a tree, with water running off it — the
+///            point is where feet would stand on it, size.x its half width
+///   cypress  Swamp great cypress — size.x is its scale ×100
+///   stone, peat
+///            Swamp bank of stone or peat — the point is its top, size.x its
+///            half width
+///   snag     Volcano dead tree on its basalt rock — the point is the rock's
+///            top, size.x its half width, size.y the tree's height ×100
+///   spire    Volcano spire of rock — size is its half width and height
+///   monolith Arcane standing stone — the point is its foot, size its width
+///            and height
+///
+/// Sizes are at the reference height (475 units), as the fields' own are.
+abstract final class FieldPiece {
+  static const tree = 'tree', boulder = 'boulder';
+  static const isle = 'isle', grove = 'grove', falls = 'falls';
+  static const cypress = 'cypress', stone = 'stone', peat = 'peat';
+  static const snag = 'snag', spire = 'spire';
+  static const monolith = 'monolith';
+}
+
+/// A seed for the piece at [id] that stays its own whatever else moves —
+/// a placed tree keeps its shape when another is added before it.
+int fieldSeedOf(String id) {
+  var h = 0x811C9DC5;
+  for (final c in id.codeUnits) {
+    h = ((h ^ c) * 0x01000193) & 0x7FFFFFFF;
+  }
+  return h % 100000;
 }
 
 // ── Shared tools ───────────────────────────────────────────────────────────

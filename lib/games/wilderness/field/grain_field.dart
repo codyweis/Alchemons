@@ -145,18 +145,64 @@ abstract class _GrainField extends FieldArt {
   /// Each layer's width as built — in a looping field, one loop of it.
   final Map<SceneLayer, double> _widths = {};
 
+  /// The scenery the player has placed (see [FieldArt.layout]), when
+  /// [_placed]: points with a piece, kept apart from [_spawns], which are
+  /// only the points something stands on.
+  bool _placed = false;
+  List<SpawnPoint> _scenery = const [];
+
   @override
   void layout(
     List<SpawnPoint> spawns,
     double worldWidth, {
     bool loop = false,
     bool partners = true,
+    bool placed = false,
   }) {
-    _spawns = spawns;
+    _spawns = [
+      for (final p in spawns)
+        if (p.piece == null) p,
+    ];
+    _scenery = [
+      for (final p in spawns)
+        if (p.piece != null) p,
+    ];
     _worldWidth = worldWidth;
     _loop = loop;
     _partners = partners;
+    _placed = placed;
   }
+
+  /// Whether [p] stands on another point's ground (see
+  /// [SpawnPoint.beside]) rather than on its own.
+  bool _shares(SpawnPoint p) =>
+      p.beside != null &&
+      _spawns.any((h) => h.id == p.beside && h.anchor == p.anchor && !h.aloft);
+
+  /// Ground built under [p] at [x], widened for what stands beside it: its
+  /// middle, and how much wider either side it must be.
+  (double, double) _sharedSpan(SpawnPoint p, double x) {
+    var lo = 0.0, hi = 0.0;
+    var any = false;
+    for (final s in _spawns) {
+      if (s.beside != p.id || s.anchor != p.anchor || s.aloft) continue;
+      final d = _loopDelta(_spawnX(s), x, p.anchor);
+      lo = math.min(lo, d);
+      hi = math.max(hi, d);
+      any = true;
+    }
+    if (!any) return (x, 0);
+    return (x + (lo + hi) / 2, (hi - lo) / 2);
+  }
+
+  /// Where the feet of [p], standing beside another on its ground, go: on
+  /// that ground where it stands.
+  double? _sharedPerch(SpawnPoint p) =>
+      groundAt(p.anchor, _spawnX(p))?.rest ?? _feet(p);
+
+  /// The placed pieces of [kinds] on [layer].
+  Iterable<SpawnPoint> _piecesOn(SceneLayer layer, Set<String> kinds) =>
+      _scenery.where((p) => p.anchor == layer && kinds.contains(p.piece));
 
   /// How far [layer] runs before it repeats (0 if it never does).
   double _period(SceneLayer layer) => _loop ? (_widths[layer] ?? 0) : 0;

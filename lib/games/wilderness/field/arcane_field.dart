@@ -173,7 +173,7 @@ class ArcaneField extends _GrainField {
   List<Rect> debugStones(SceneLayer layer) {
     final w = _widths[layer] ?? _worldWidth;
     return [
-      for (final (fx, fy, sw, sh) in _stonesOf(layer))
+      for (final ((fx, fy, sw, sh), _) in _stonesOf(layer))
         Rect.fromLTRB(
           fx * w - sw * _u / 2,
           fy * _h - sh * _u,
@@ -1332,13 +1332,32 @@ class ArcaneField extends _GrainField {
     (0.92, 0.9, 40, 210),
   ];
 
-  List<(double, double, double, double)> _stonesOf(SceneLayer layer) =>
-      switch (layer) {
-        far => _farStones,
-        mid => _midStones,
-        near => _nearStones,
-        _ => const [],
-      };
+  static const midStones = _midStones, nearStones = _nearStones;
+
+  /// The stones on [layer] and each one's seed: where the player put them
+  /// on the glass, in a field laid out by hand.
+  List<((double, double, double, double), int)> _stonesOf(SceneLayer layer) {
+    if (_placed && layer != far) {
+      final w = _widths[layer] ?? _worldWidth;
+      return [
+        for (final p in _piecesOn(layer, {FieldPiece.monolith}))
+          (
+            (_spawnX(p) / w, p.normalizedPos.dy, p.size.x, p.size.y),
+            fieldSeedOf(p.id),
+          ),
+      ];
+    }
+    final stones = switch (layer) {
+      far => _farStones,
+      mid => _midStones,
+      near => _nearStones,
+      _ => const <(double, double, double, double)>[],
+    };
+    return [
+      for (var i = 0; i < stones.length; i++)
+        (stones[i], 300 + i + layer.index * 20),
+    ];
+  }
 
   /// A standing stone at [x] on the glass, its foot at [base], broken off
   /// at its top, and its image in the glass under it — fainter further
@@ -1411,9 +1430,9 @@ class ArcaneField extends _GrainField {
 
   List<FieldSheet> _stoneSheets(SceneLayer layer, double w, double haze) {
     final stones = _stonesOf(layer);
+    if (stones.isEmpty) return const [];
     void each(Canvas c, bool light) {
-      for (var i = 0; i < stones.length; i++) {
-        final (fx, fy, sw, sh) = stones[i];
+      for (final ((fx, fy, sw, sh), seed) in stones) {
         _wrapped(fx * w, sw * _u, w, (x) {
           _paintStone(
             c,
@@ -1421,7 +1440,7 @@ class ArcaneField extends _GrainField {
             fy * _h,
             sw * _u,
             sh * _u,
-            300 + i + layer.index * 20,
+            seed,
             haze: haze,
             light: light,
           );
@@ -1429,8 +1448,12 @@ class ArcaneField extends _GrainField {
       }
     }
 
-    final top = stones.map((s) => s.$2 * _h - s.$4 * _u).reduce(math.min);
-    final bottom = stones.map((s) => s.$2 * _h + s.$4 * _u).reduce(math.max);
+    final top = stones
+        .map((s) => s.$1.$2 * _h - s.$1.$4 * _u)
+        .reduce(math.min);
+    final bottom = stones
+        .map((s) => s.$1.$2 * _h + s.$1.$4 * _u)
+        .reduce(math.max);
     final b = Rect.fromLTRB(-8 * _u, top - 4 * _u, w - 0.5, bottom + 4 * _u);
     return [
       FieldSheet(

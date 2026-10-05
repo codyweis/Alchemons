@@ -121,7 +121,8 @@ class SkyField extends _GrainField {
   double? perchFor(String spawnId) {
     for (final p in _spawns) {
       if (p.id != spawnId || p.aloft) continue;
-      if (p.anchor == near || p.anchor == mid) return _feet(p);
+      if (p.anchor != near && p.anchor != mid) continue;
+      return _shares(p) ? _sharedPerch(p) : _feet(p);
     }
     return null;
   }
@@ -158,6 +159,7 @@ class SkyField extends _GrainField {
   /// Places for isles nobody stands on: (x as a share of the loop, where
   /// feet would stand as a share of the height, half width, a tree, which
   /// end water runs off: -1 left, 1 right, 0 none).
+  static const nearScenery = _nearScenery, midScenery = _midScenery;
   static const _nearScenery = <(double, double, double, bool, int)>[
     (0.235, 0.22, 40, false, 0),
     (0.69, 0.47, 96, true, 1),
@@ -194,8 +196,11 @@ class SkyField extends _GrainField {
       double? seatX,
       bool tree = false,
       int fall = 0,
+      int? own,
     }) {
-      final s = seed++;
+      // Laid out by hand, each isle keeps its own shape however the others
+      // come and go.
+      final s = own ?? seed++;
       final i = _Isle(
         cx: cx,
         hw: hw,
@@ -216,10 +221,20 @@ class SkyField extends _GrainField {
       final side = p.partnerSide;
       // Isles under creatures are sized by the creatures, not the screen:
       // the pace between a pair is the same on every screen.
-      if (!p.aloft) {
-        // Under the creature, reaching a little further toward its partner.
-        final hw = p.size.x * 1.3;
-        isles.add(isle(x + side * hw * 0.16, hw, _feet(p), seatX: x));
+      if (!p.aloft && !_shares(p)) {
+        // Under the creature, reaching a little further toward its partner
+        // — or wide enough for what stands beside it too.
+        final (mid, extra) = _sharedSpan(p, x);
+        final hw = p.size.x * 1.3 + extra;
+        isles.add(
+          isle(
+            extra > 0 ? mid : x + side * hw * 0.16,
+            hw,
+            _feet(p),
+            seatX: x,
+            own: _placed ? fieldSeedOf(p.id) : null,
+          ),
+        );
       }
       // Under where its encounter partner stands.
       if (!_partners) continue;
@@ -229,6 +244,26 @@ class SkyField extends _GrainField {
       isles.add(
         isle(px + side * hw * 0.1, hw, bp.dy * _h + p.size.y * 0.5, seatX: px),
       );
+    }
+    if (_placed) {
+      for (final p in _piecesOn(layer, {
+        FieldPiece.isle,
+        FieldPiece.grove,
+        FieldPiece.falls,
+      })) {
+        final own = fieldSeedOf(p.id);
+        isles.add(
+          isle(
+            _spawnX(p),
+            p.size.x * _u,
+            p.normalizedPos.dy * _h,
+            tree: p.piece == FieldPiece.grove,
+            fall: p.piece == FieldPiece.falls ? (own.isEven ? 1 : -1) : 0,
+            own: own,
+          ),
+        );
+      }
+      return isles;
     }
     for (final (fx, fy, fhw, tree, fall)
         in small ? _midScenery : _nearScenery) {

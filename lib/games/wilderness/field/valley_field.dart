@@ -305,7 +305,7 @@ class ValleyField extends _GrainField {
               }),
             ),
           ],
-          for (final p in _perched) ...[
+          for (final p in _boulders) ...[
             FieldSheet(
               bounds: _boulderBounds(p),
               grade: _gRock,
@@ -1136,15 +1136,26 @@ class ValleyField extends _GrainField {
     _drawSparks(c, sparks, 1.4);
   }
 
-  /// The meadow's two great trees, each its own small sheets.
+  /// The meadow's great trees: (x, scale, seed).
+  static const _trees = [(96.0, 1.0, 1), (1180.0, 0.82, 2), (1960.0, 0.92, 3)];
+
+  /// The great trees as the home biome first has them: (x as a share of
+  /// the meadow's loop of [period] units, scale).
+  static List<(double, double)> homeTrees(double period) => [
+    for (final (x, s, _) in _trees) (x / period, s),
+  ];
+
+  /// The meadow's great trees, each its own small sheets — where the
+  /// player put them, in a field laid out by hand.
   List<({Rect bounds, void Function(Canvas, GrainBatch?) paint})> _greatTrees(
     double w,
   ) => [
-    for (final (x, s, seed) in [
-      (96.0, 1.0, 1),
-      (1180.0, 0.82, 2),
-      (1960.0, 0.92, 3),
-    ])
+    for (final (x, s, seed) in _placed
+        ? [
+            for (final p in _piecesOn(meadow, {FieldPiece.tree}))
+              (_spawnX(p), p.size.x / 100, fieldSeedOf(p.id)),
+          ]
+        : _trees)
       if (x < w)
         (
           bounds: Rect.fromLTRB(
@@ -1404,12 +1415,23 @@ class ValleyField extends _GrainField {
 
   // ── The boulder ──────────────────────────────────────────────────────────
 
+  /// The boulders on the meadow: one under each high point, and those the
+  /// player put in the grass.
+  List<SpawnPoint> get _boulders => [
+    ..._perched,
+    ..._piecesOn(meadow, {FieldPiece.boulder}),
+  ];
+
   /// A weathered boulder under a high meadow point, its flat top at the
-  /// standing creature's feet.
+  /// standing creature's feet — or one placed in the grass, as tall and
+  /// wide as its piece says.
   ({double x, double top, double base, double w}) _boulderShape(SpawnPoint p) {
     final x = _spawnX(p);
-    final top = _feet(p);
     final base = _groundLine(x) + 0.035 * _h;
+    if (p.piece == FieldPiece.boulder) {
+      return (x: x, top: base - p.size.y * _u, base: base, w: p.size.x * _u);
+    }
+    final top = _feet(p);
     final w = math.max(p.size.x * 1.35, (base - top) * 1.05);
     return (x: x, top: top, base: base, w: w);
   }

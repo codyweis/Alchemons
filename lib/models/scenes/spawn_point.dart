@@ -59,7 +59,19 @@ class SpawnPoint {
     this.battlePos,
     this.perch = SpawnPerch.ground,
     this.onlyIn,
+    this.piece,
+    this.beside,
   });
+
+  /// The point this one stands beside, on that one's ground — the home
+  /// biome's Alchemon put down next to a keepsake on its isle. The field
+  /// builds it no ground of its own, and widens the other's to hold both.
+  final String? beside;
+
+  /// A piece of the field's own scenery that stands here instead of a
+  /// creature (see [FieldPiece]) — the home biome, where the player places
+  /// the realm's trees and stones. Null for a point something stands on.
+  final String? piece;
 
   /// The weather this point exists only in (the Swamp's pools, there only
   /// when it has gone dry), or null for a point that is always there.
