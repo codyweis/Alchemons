@@ -2442,7 +2442,10 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     if (!game.beginCacheUnseal(cache)) return;
     HapticFeedback.heavyImpact();
-    _playCosmicSfx(SoundCue.cosmicPortalOpen);
+    // One cue for the whole three-second ritual, from the tap: it is scored
+    // to the unsealing (stream in, halves grinding apart, shards flung) and
+    // carries the give at 3 s, so _onCacheOpened plays nothing of its own.
+    _playCosmicSfx(SoundCue.cosmicCacheOpen);
     setState(() => _cacheUnsealing = true);
   }
 
@@ -2452,7 +2455,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     unawaited(_grantCacheReward(reward));
     unawaited(_saveCacheState());
     HapticFeedback.heavyImpact();
-    _playCosmicSfx(SoundCue.cosmicCacheOpen);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       // Hold the world still while the player reads the payout.

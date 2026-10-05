@@ -125,7 +125,7 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
     if (!mounted) return;
     _audio = context.audio;
     // The cue's grains land at a fixed point in it (REVEAL_LAND / RARE_LAND
-    // in tool/material_sounds.py), so the reveal is timed to the sound
+    // in tool/sounds/extraction.py), so the reveal is timed to the sound
     // rather than the sound stretched to the reveal: a rare one gets a beat
     // of empty, lit stage first.
     final lockMs = _rare ? 1770 : 1200;

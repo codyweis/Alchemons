@@ -1572,6 +1572,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Lightning's strikes and Earth's quakes. Keyed by the slot that owns them.
   final Map<int, double> _mysticClock = {};
 
+  /// Earth worlds whose quake lead-in has already sounded this beat: the cue
+  /// carries the build AND the break, so it starts 1.6 s early, once.
+  final Set<int> _mysticQuakeCued = {};
+
   /// Where the ship was when a Poison world last laid a patch, so the trail is
   /// spaced by distance flown rather than by frames elapsed.
   final Map<int, Offset> _mysticPoisonLastDrop = {};
@@ -2287,7 +2291,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final dist = dir.distance;
     if (dist < 1) return;
     final norm = Offset(dir.dx / dist, dir.dy / dist);
-    onSound?.call(SoundCue.combatProjectile);
+    onSound?.call(SoundCue.shipBolt);
     final kineticLevel = powerUps.kineticOverdriveLevel;
     final kineticScale = 1.0 + kineticLevel * 0.10;
     final baseDamage =
@@ -2682,6 +2686,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               element: comp.member.element,
             ),
           );
+          final slam = SoundCue.forHornSlam(comp.member.element);
+          if (slam != null) onSound?.call(slam);
         }
         // Horn+Lightning: instead of releasing the chain blast now,
         // start a 3s storm-brewing wind-up. The horn keeps holding
@@ -2691,6 +2697,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             comp.member.element == 'Lightning' &&
             comp.pendingChargeBurst != null) {
           comp.hornPostDashWindUpTimer = 3.0;
+          onSound?.call(SoundCue.specialHornBrew);
           // Re-establish a synthetic chargeTimer-equivalent lock so
           // movement stays disabled. We use the post-dash timer for
           // that gate (added below in the per-frame update).
@@ -2816,6 +2823,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             chainZone.position,
             chainZone.effectRadius > 0 ? chainZone.effectRadius : 140.0,
           );
+          onSound?.call(SoundCue.specialHornDischarge);
           _appendCompanionProjectiles(pending);
         }
         comp.pendingChargeBurst = null;
@@ -3070,7 +3078,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           result2.projectiles,
           target: echoTarget,
         )) {
-          _appendCompanionProjectiles(result2.projectiles);
+          // A Wing echo's sound is its beam's (_activateWingBeamEffects).
+          _appendCompanionProjectiles(
+            result2.projectiles,
+            cue: SoundCue.combatProjectile,
+            silent: comp.member.family.toLowerCase() == 'wing',
+          );
         }
         _activateWingBeamEffects(
           result2.beams,
@@ -3186,10 +3199,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             );
           }
         }
-        _appendCompanionProjectiles(
-          shaped,
-          cue: SoundCue.forFamilyBasic(comp.member.family),
-        );
+        _appendCompanionProjectiles(shaped, cue: _basicCue(comp, shaped));
 
         // Mystic family passive: basic attacks reduce special cooldown
         if (comp.member.family.toLowerCase() == 'mystic') {
@@ -3234,9 +3244,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // carries the colour; this only marks the distinction, quietly, and
         // several ability families append no projectile at all (the world
         // mystics, the kin supports), so it cannot live in the appender.
+        // Each family now has its own cast gesture (Wing's sounds where its
+        // beam starts, the only place its length is known). Lightning Wing's
+        // accent waits for the blast instead of the charge.
         final castElement = SoundCue.forElement(comp.member.element);
-        if (castElement != null) onSound?.call(castElement);
-        onSound?.call(SoundCue.combatSpecialCast);
+        final castFamily = comp.member.family;
+        if (castElement != null &&
+            !(castFamily.toLowerCase() == 'wing' &&
+                comp.member.element == 'Lightning')) {
+          onSound?.call(castElement);
+        }
+        final familyCast = SoundCue.forFamilySpecial(
+          castFamily,
+          comp.member.element,
+        );
+        if (familyCast != null) onSound?.call(familyCast);
 
         // Pip+Poison: design says the poison-line web persists "until
         // next usage". Despawn the previous cast's line zones and reset
@@ -3387,7 +3409,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             specialProjectiles,
             target: attackTarget,
           )) {
-            _appendCompanionProjectiles(specialProjectiles);
+            // Silent: the family's own cast cue above already marks it.
+            _appendCompanionProjectiles(specialProjectiles, silent: true);
           }
           // Kin support-path cast intercepts. Most kin supports don't
           // produce projectiles directly — they flip companion-side
@@ -6030,10 +6053,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
       }
     }
-    _appendCompanionProjectiles(
-      shaped,
-      cue: SoundCue.forFamilyBasic(comp.member.family),
-    );
+    _appendCompanionProjectiles(shaped, cue: _basicCue(comp, shaped));
     // Only a throw the Let could not otherwise have made counts as the
     // capstone working.
     final reach = comp.attackRange * _masteryAttackRangeMultiplier(slotIndex);
@@ -6057,6 +6077,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     return best?.position;
   }
 
+  /// A basic's launch: its family's own, or Deadfall's heavier throw when the
+  /// Let mastery turned the shot into a falling rock.
+  SoundCue? _basicCue(CosmicSurvivalCompanion comp, List<Projectile> shots) =>
+      shots.isNotEmpty && shots.first.letDeadfall
+      ? SoundCue.basicLetDeadfall
+      : SoundCue.forFamilyBasic(comp.member.family);
+
   /// Deadfall's landing: the body underneath takes the rock, the rest of the
   /// crater takes a share. No element behaviour — that is the special's.
   void _detonateLetDeadfall(Projectile p) {
@@ -6072,7 +6099,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         minor: true,
       ),
     );
-    onSound?.call(SoundCue.combatHitHeavy);
+    onSound?.call(SoundCue.specialLetImpactMinor);
 
     SurvivalBoss? struckBoss;
     var bestSq = double.infinity;
@@ -6471,7 +6498,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ..masteryGenerated = true,
       );
     }
-    _appendCompanionProjectiles(storm);
+    _appendCompanionProjectiles(storm, cue: SoundCue.basicPip);
     mastery.recordCapstone(slotIndex);
   }
 
@@ -6681,7 +6708,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ..masteryGenerated = true,
       );
     }
-    _appendCompanionProjectiles(darts);
+    _appendCompanionProjectiles(darts, cue: SoundCue.basicPip);
     mastery.recordCapstone(queued.slotIndex);
   }
 
@@ -8030,7 +8057,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         )..masteryGenerated = true,
       );
     }
-    if (returns != null) _appendCompanionProjectiles(returns);
+    if (returns != null) {
+      _appendCompanionProjectiles(returns, cue: SoundCue.combatProjectile);
+    }
   }
 
   /// Per-frame Mane upkeep: windows expire, and casts that landed nothing
@@ -8760,7 +8789,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     comp.abilityKillStacks = result.growth;
     final hung = result.hung;
     if (hung != null) {
-      _appendCompanionProjectile(hung);
+      // Silent: hanging the ward is the cast, already heard.
+      _appendCompanionProjectile(hung, silent: true);
       _spawnHitSpark(comp.position, elementColor('Light'));
       return;
     }
@@ -10164,13 +10194,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (killed) resolveAbilityKill(projectile, enemy);
   }
 
+  /// A Mask trap springing (once per contact echo); silent for the elements
+  /// whose contact is ongoing rather than an event.
+  void _soundMaskSpring(Projectile trap) {
+    final cue = SoundCue.forMaskSpring(trap.element ?? '');
+    if (cue != null) onSound?.call(cue);
+  }
+
   /// Mask-family on-contact dispatcher. Returns true when the per-element
   /// behavior fully handles the hit (skip generic hitEffect dispatch).
   /// Returns false to fall through to the generic pipeline (Air knockback,
   /// Water splash, Mud slow, etc. already work as-is).
   bool _resolveMaskTrapHit(Projectile projectile, CosmicSurvivalEnemy enemy) {
     if (projectile.trapSpent) return true;
-    _maskTrapVisuals.contact(projectile);
+    if (_maskTrapVisuals.contact(projectile)) _soundMaskSpring(projectile);
     final element = projectile.element ?? '';
     switch (element) {
       case 'Air':
@@ -10948,6 +10985,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // rest of the run by a Mystic that is no longer there.
     _thawMysticBlizzard();
     _mysticClock.remove(slotIndex);
+    _mysticQuakeCued.remove(slotIndex);
     _mysticPoisonLastDrop.remove(slotIndex);
   }
 
@@ -11117,6 +11155,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         _mysticClock[slotIndex] = actsNow ? 0.0 : kMysticStrikeInterval;
       case 'Earth':
         _mysticClock[slotIndex] = actsNow ? 0.0 : kMysticQuakeInterval;
+        _mysticQuakeCued.remove(slotIndex);
       case 'Poison':
         _mysticPools.removeWhere((p) => p.ownerSlot == slotIndex);
         _mysticPoisonLastDrop[slotIndex] = ship.position;
@@ -11945,7 +11984,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ),
       );
     }
-    onSound?.call(SoundCue.combatHitHeavy);
+    onSound?.call(SoundCue.specialMysticRain);
   }
 
   void _updateMysticMeteors(double dt) {
@@ -11988,6 +12027,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticScorches.add(_MysticScorch(at: meteor.impact, seed: meteor.seed));
     _spawnHitSpark(meteor.impact, const Color(0xFFFF7A1E));
     _addShake(0.14);
+    // Every landing asks; the cue's cooldown thins a staggered fall.
+    onSound?.call(SoundCue.specialMysticMeteor);
   }
 
   void _updateMysticScorches(double dt) {
@@ -12046,7 +12087,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     _mysticVents.add(_MysticVent(centre: centre, radius: reach));
     _addShake(0.45);
-    onSound?.call(SoundCue.combatHitHeavy);
+    onSound?.call(SoundCue.specialMysticVent);
   }
 
   // ── ICE: the blizzard ───────────────────────────────────────────────────
@@ -12405,7 +12446,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
     _mysticSkyFlash = max(_mysticSkyFlash, 1.0);
-    onSound?.call(SoundCue.combatHeal);
+    onSound?.call(SoundCue.specialMysticDawn);
   }
 
   // ── LIGHTNING: the storm ────────────────────────────────────────────────
@@ -12446,6 +12487,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         seed: _rng.nextDouble() * 6.28,
       ),
     );
+    // Scored from the mark: the bolt in it lands as the charge does.
+    onSound?.call(SoundCue.specialMysticStrike);
   }
 
   /// Resolves a strike on the spot the sky marked.
@@ -12583,7 +12626,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   // ── EARTH: the quake ────────────────────────────────────────────────────
 
-  void _shakeMysticEarth(int slotIndex, CosmicSurvivalCompanion owner) {
+  /// [led] when the quake's lead-in cue already carries this break.
+  void _shakeMysticEarth(
+    int slotIndex,
+    CosmicSurvivalCompanion owner, {
+    bool led = false,
+  }) {
     _mysticStrikes[slotIndex] = (_mysticStrikes[slotIndex] ?? 0) + 1;
     final strength = _effectiveStrength(slotIndex);
     final scale = _hornStatScale(strength, perPoint: 0.12, min: 0.8, max: 1.8);
@@ -12622,7 +12670,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // ever say that; shaking the view is the thing that makes the player feel
     // it, and it is why the ring itself can now be subtle.
     _addShake(0.85);
-    onSound?.call(SoundCue.combatHitHeavy);
+    if (!led) onSound?.call(SoundCue.combatHitHeavy);
   }
 
   // ── POISON: the ship's wake ─────────────────────────────────────────────
@@ -12892,9 +12940,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           final next = (_mysticClock[slot] ?? beat) - dt;
           if (next <= 0) {
             _mysticClock[slot] = beat;
-            _shakeMysticEarth(slot, comp);
+            final led = _mysticQuakeCued.remove(slot);
+            _shakeMysticEarth(slot, comp, led: led);
           } else {
             _mysticClock[slot] = next;
+            if (next <= 1.6 && _mysticQuakeCued.add(slot)) {
+              onSound?.call(SoundCue.specialMysticQuake);
+            }
             // Always trembling a little, and hard in the last second or so
             // before it breaks. Quartic so the build stays almost unnoticed
             // until the end and then arrives fast.
@@ -13008,8 +13060,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Closes a slot's world. Called when its Mystic is recalled or dies.
   void _closeMysticEnvironment(int ownerSlot) {
     for (final env in _mysticEnvironments) {
-      if (env.ownerSlot == ownerSlot) env.beginClosing();
+      if (env.ownerSlot == ownerSlot) _closeMysticWorld(env);
     }
+  }
+
+  /// The caster is gone and its world begins to close: heard once, on the
+  /// first transition, and only for a world that had visibly opened. A
+  /// recast replacing a world ([_pushMysticEnvironment]) closes it silently.
+  void _closeMysticWorld(_MysticEnvironment env) {
+    if (env.closing < 0 && env.envelope > 0.05) {
+      onSound?.call(SoundCue.specialMysticClose);
+    }
+    env.beginClosing();
   }
 
   /// Per-frame tick for active environment overlays — decays life
@@ -13025,7 +13087,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // the player watches rather than something that simply stops.
       final owner = activeCompanions[env.ownerSlot];
       final standing = owner != null && !owner.isDead;
-      if (!standing) env.beginClosing();
+      if (!standing) _closeMysticWorld(env);
       if (env.closing >= 0) env.closing = max(0.0, env.closing - dt);
     }
     _mysticEnvironments.removeWhere((e) => e.dead);
@@ -13404,7 +13466,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   ) {
     // Charging phase — tick up, lock movement (zero steering).
     if (comp.kinAutoChargeTimer > 0) {
+      final was = comp.kinAutoChargeTimer;
       comp.kinAutoChargeTimer += dt;
+      // The charge's swell, timed to lead into the release by 0.6 s.
+      const swellAt = _kinChargeTime - 0.6;
+      if (was < swellAt && comp.kinAutoChargeTimer >= swellAt) {
+        onSound?.call(SoundCue.basicKinCharge);
+      }
       // Lock movement during charge.
       comp.steeringVelocity = Offset.zero;
       if (comp.kinAutoChargeTimer >= _kinChargeTime) {
@@ -13456,6 +13524,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final dir = target - comp.position;
     final dist = dir.distance;
     if (dist < 0.01) return;
+    // A kin's basic is this charged line, so its cue belongs here, at the
+    // release, as the dungeon plays it — the charge itself is silent. It
+    // went through no appender, so it was the one basic with no sound.
+    onSound?.call(SoundCue.basicKin);
     final norm = dir / dist;
     // Laser length: enough to reach the target plus some overshoot
     // so distant enemies still get hit; capped to keep visual sane.
@@ -13611,6 +13683,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // Trigger the save — restore orb to ~25% and unlock the
           // orbital flame for the remainder of the duration.
           orb.currentHp = orb.maxHp * KinSupport.phoenixRestoreFraction;
+          onSound?.call(SoundCue.specialKinPhoenix);
           // Phoenix burst feedback
           _spawnHitSpark(orb.position, KinSupport.phoenixEmber);
           _spawnHitSpark(orb.position, KinSupport.phoenixFlash);
@@ -13730,6 +13803,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // Lock movement during charge.
         if (element == 'Ice') comp.steeringVelocity = Offset.zero;
         if (comp.kinIceChargeTimer <= 0 && element == 'Ice') {
+          onSound?.call(SoundCue.specialKinIceRelease);
           // Release! Scale radius with Beauty — up to ~global at 5.0.
           final radius = KinSupport.iceReleaseRadius(
             _effectiveBeauty(entry.key),
@@ -13858,7 +13932,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (wisp == null) return;
     // T3's turret attack and T4's heal are on the design board only; the
     // tier function sets the form and T2's taunt.
+    final tierBefore = wisp.effectCount;
     KinSupport.applySpiritWispTier(wisp, comp.kinSpiritWispKills);
+    if (wisp.effectCount > tierBefore) {
+      onSound?.call(SoundCue.specialKinWispTier);
+    }
   }
 
   void _spawnOrRefreshKinSpiritWisp(CosmicSurvivalCompanion comp) {
@@ -14076,7 +14154,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// own element's debris (let_vfx.dart); the generic particle burst that used
   /// to ride on top of it made all seventeen landings look alike.
   void _spawnLetSkyfallImpactVfx(Projectile p, Offset centre, double blast) {
-    onSound?.call(SoundCue.combatHitHeavy);
+    onSound?.call(
+      SoundCue.forLetImpact(p.element ?? '', barrageChild: p.effectStacks >= 1),
+    );
     pushLetSkyfallImpact(
       _letSkyfallImpacts,
       LetSkyfallImpact(
@@ -14572,6 +14652,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       case 'Dark':
         // Per design: enemies killed form a black hole that keeps
         // sucking nearby enemies inward (and executes near-dead ones).
+        // Pip+Dark never casts; the void opening is its special's sound.
         _appendCompanionProjectile(
           Projectile(
             position: position,
@@ -14592,6 +14673,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             effectRadius: 120 * sizeScale,
             effectDuration: 3.6 * durScale,
           ),
+          cue: SoundCue.specialPipVoid,
         );
         break;
     }
@@ -14910,6 +14992,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // Drop a lava blob (DoT zone) at the pierce point.
           _appendCompanionProjectile(
             ManeRuntime.lavaBlob(projectile, enemy.position),
+            silent: true,
           );
           break;
         case 'Blood':
@@ -15092,7 +15175,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               enemy.position +=
                   (dir / dist) * min(16.0, 340.0 / max(dist, 9.0));
             } else {
-              _maskTrapVisuals.contact(p);
+              if (_maskTrapVisuals.contact(p)) _soundMaskSpring(p);
               _ejectBodyFromField(
                 enemy,
                 hole: p.position,
@@ -15380,6 +15463,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final banked = _isMasteryWing(sourceSlotIndex)
         ? _wingStateFor(sourceSlotIndex).takeBankedBeamTime()
         : 0.0;
+    // The cast's one sound, sized to how long the beam will hold.
+    final first = beams.first;
+    onSound?.call(SoundCue.forWingBeam(first.element, first.duration + banked));
     for (final beam in beams) {
       if (_activeWingBeams.length >= WingBeamRules.beamCap) {
         _activeWingBeams.removeAt(0);
@@ -16370,6 +16456,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // size, not charge time".
   void _resolveLightningBlast(_ActiveWingBeam beam, Offset end) {
     final d = beam.descriptor;
+    // The element accent, moved here from the cast: it is the blast.
+    onSound?.call(SoundCue.elementLightning);
     // Wide bright beam flash for the blast itself (wing_vfx.dart).
     emitWingLightningBlastFlash(
       descriptor: d,
@@ -16656,13 +16744,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _spawnManeLightningShockField(Projectile source, Offset target) {
-    _appendCompanionProjectile(ManeRuntime.lightningShockField(source, target));
+    _appendCompanionProjectile(
+      ManeRuntime.lightningShockField(source, target),
+      cue: SoundCue.specialManeOrbLand,
+    );
     _spawnHitSpark(target, elementColor('Lightning'));
   }
 
   void _spawnManeEarthQuakePulse(Projectile source) {
     final pulse = ManeRuntime.earthQuakePulse(source, _rng);
-    _appendCompanionProjectile(pulse);
+    _appendCompanionProjectile(pulse, cue: SoundCue.specialManeQuake);
     _spawnHitSpark(pulse.position, elementColor('Earth'));
   }
 
@@ -16910,7 +17001,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           p.trailTimer += dt;
           if (p.trailTimer >= ManeRuntime.dustPuffInterval) {
             p.trailTimer = 0;
-            _appendCompanionProjectile(ManeRuntime.dustTrailPuff(p));
+            // Sheds are not launches: silent (they used to puff the
+            // ship-gun launch every ~0.35 s).
+            _appendCompanionProjectile(
+              ManeRuntime.dustTrailPuff(p),
+              silent: true,
+            );
           }
         }
         // Mystic+Lava cataclysm moons: the slow-moving boulder drops
@@ -16962,7 +17058,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             p.turretTimer += dt;
             while (p.turretTimer >= p.turretInterval) {
               p.turretTimer -= p.turretInterval;
-              _appendCompanionProjectile(ManeRuntime.steamPuff(p));
+              _appendCompanionProjectile(
+                ManeRuntime.steamPuff(p),
+                silent: true,
+              );
             }
           }
         }
@@ -17242,8 +17341,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // smaller fragments fanning out from the impact point.
         if (ManeRuntime.shattersOnHit(p)) {
           p.clustered = true;
+          // One burst for the shatter; the shards themselves are silent.
+          onSound?.call(SoundCue.specialManeBurst);
           for (final shard in ManeRuntime.mudShards(p, enemy.position)) {
-            _appendCompanionProjectile(shard);
+            _appendCompanionProjectile(shard, silent: true);
           }
           consumed = true;
         }
@@ -17286,6 +17387,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           if (isPipSpecialProjectile) p.pierceCount++;
           final next = _nearestEnemyTo(enemy.position, 110, exclude: enemy);
           if (next != null) {
+            if (isPipSpecialProjectile) {
+              onSound?.call(SoundCue.specialPipRicochet);
+            }
             p.angle = atan2(
               next.position.dy - p.position.dy,
               next.position.dx - p.position.dx,
@@ -17330,13 +17434,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               p.trapSpent = true;
               p.life = min(p.life, 0.3);
               _spawnMaskCrystalShards(p, boss.position);
-              _maskTrapVisuals.contact(p);
+              if (_maskTrapVisuals.contact(p)) _soundMaskSpring(p);
             } else if (p.element == 'Fire' &&
                 p.hitEffect == AbilityEffectKind.burn) {
               p.trapSpent = true;
               p.life = min(p.life, 0.35);
               _spawnMaskFirePool(p, p.position);
-              _maskTrapVisuals.contact(p);
+              if (_maskTrapVisuals.contact(p)) _soundMaskSpring(p);
             }
           }
           if (p.abilityFamily == 'mane' && p.element == 'Crystal') {
@@ -17351,6 +17455,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                     vsBoss: true,
                   ),
                 );
+            onSound?.call(SoundCue.specialManeShatter);
             _damageEnemiesNear(
               boss.position,
               ManeRuntime.crystalBossBlastRadius,
@@ -17440,19 +17545,28 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           : (target as SurvivalBoss).position;
       _appendCompanionProjectile(
         _createCompanionTurretShot(projectile, targetPos),
+        cue: SoundCue.combatProjectile,
       );
     }
   }
 
-  /// [cue] is what this launch SOUNDS like. It defaults to the generic
-  /// launch, which is what every companion shot used to play — turret shots,
-  /// seeds, specials and all eight families' basics, one blip for the lot.
-  /// Callers that know better say so.
-  bool _appendCompanionProjectile(Projectile projectile, {SoundCue? cue}) {
+  /// [cue] is what this launch SOUNDS like, and without one it makes no
+  /// sound. It used to default to the generic launch, which put the same
+  /// puff on everything appended here — a special's shards, pools, walls,
+  /// clouds and sheds, some every 0.35 s for a whole cast — on top of the
+  /// sounds those families now have of their own. A real launch says so.
+  ///
+  /// [silent] silences even a given [cue], for a caller that sometimes
+  /// passes one.
+  bool _appendCompanionProjectile(
+    Projectile projectile, {
+    SoundCue? cue,
+    bool silent = false,
+  }) {
     if (companionProjectiles.length >= _maxCompanionProjectiles) {
       return false;
     }
-    onSound?.call(cue ?? SoundCue.combatProjectile);
+    if (!silent && cue != null) onSound?.call(cue);
     companionProjectiles.add(projectile);
     return true;
   }
@@ -17460,6 +17574,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _appendCompanionProjectiles(
     Iterable<Projectile> projectiles, {
     SoundCue? cue,
+    bool silent = false,
   }) {
     final available = _maxCompanionProjectiles - companionProjectiles.length;
     if (available <= 0) return;
@@ -17468,7 +17583,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         : projectiles.toList(growable: false);
     final takeCount = min(available, list.length);
     if (takeCount <= 0) return;
-    onSound?.call(cue ?? SoundCue.combatProjectile);
+    if (!silent && cue != null) onSound?.call(cue);
     companionProjectiles.addAll(list.take(takeCount));
   }
 

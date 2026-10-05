@@ -158,6 +158,10 @@ extension CosmicWing on CosmicGame {
     required double angle,
   }) {
     if (beams.isEmpty) return;
+    // The cast's one sound, sized to how long the beam will hold.
+    onSound?.call(
+      SoundCue.forWingBeam(beams.first.element, beams.first.duration),
+    );
     for (final d in beams) {
       _addWingBeam(
         _ActiveWingBeam(
@@ -651,6 +655,8 @@ extension CosmicWing on CosmicGame {
   /// the charged rider on whatever lives through it.
   void _resolveWingLightningBlast(_ActiveWingBeam beam, Offset end) {
     final d = beam.descriptor;
+    // The element accent, moved here from the cast: it is the blast.
+    onSound?.call(SoundCue.elementLightning);
     emitWingLightningBlastFlash(
       descriptor: d,
       origin: beam.origin,

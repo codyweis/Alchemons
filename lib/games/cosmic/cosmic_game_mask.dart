@@ -537,7 +537,7 @@ extension CosmicMaskRuntime on CosmicGame {
         if (dist > 56 && dist > 0.01) {
           enemy.position += delta / dist * min(16.0, 340 / max(dist, 9.0));
         } else {
-          _maskTrapVisuals.contact(p);
+          if (_maskTrapVisuals.contact(p)) _soundMaskSpring(p);
           _ejectMaskEnemy(p, enemy, holeRadius: radius);
         }
       }

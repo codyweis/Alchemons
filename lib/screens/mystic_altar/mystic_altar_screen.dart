@@ -180,7 +180,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
     if (woke != null) {
       HapticFeedback.heavyImpact();
       context.sound(
-        SoundCue.forElement(woke.entry.element) ?? SoundCue.achievementUnlock,
+        SoundCue.forElement(woke.entry.element) ?? SoundCue.altarAwake,
       );
     }
   }
@@ -382,7 +382,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
     await db.settingsDao.setSetting('arcane_portal_unlocked', '1');
     if (!mounted) return;
     HapticFeedback.heavyImpact();
-    context.sound(SoundCue.cosmicPortalOpen);
+    context.sound(SoundCue.altarRiftTear);
     final run = _arcaneRun = Completer<void>();
     setState(() {});
     await run.future;

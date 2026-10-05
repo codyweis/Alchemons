@@ -93,6 +93,7 @@ extension CosmicMane on CosmicGame {
     if (step == null) return false;
     final landed = step.landedAt;
     if (landed != null) {
+      onSound?.call(SoundCue.specialManeOrbLand);
       companionProjectiles.add(ManeRuntime.lightningShockField(p, landed));
       _spawnHitSpark(landed, elementColor('Lightning'));
     }
@@ -102,6 +103,7 @@ extension CosmicMane on CosmicGame {
   /// Earth's fault slab leaves a quake burst as it breaks.
   void _spawnOpenManeEarthQuakePulse(Projectile source) {
     final pulse = ManeRuntime.earthQuakePulse(source, _rng);
+    onSound?.call(SoundCue.specialManeQuake);
     companionProjectiles.add(pulse);
     _spawnHitSpark(pulse.position, elementColor('Earth'));
   }

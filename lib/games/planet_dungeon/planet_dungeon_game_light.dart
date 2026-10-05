@@ -674,6 +674,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
         if (t.x == kHallSun.x && t.y == kHallSun.y) {
           archive.maximT = _time;
           _cue(SoundCue.dungeonSecretReveal);
+          soundedSecrets.add(kLightEggId);
           beginMaximRite(kLightEggId, shadowCentre(kHallSun.x, kHallSun.y));
         }
       }

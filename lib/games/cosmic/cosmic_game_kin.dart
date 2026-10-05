@@ -510,7 +510,11 @@ extension CosmicKin on CosmicGame {
     if (element == 'Spirit') {
       final wisp = KinSupport.findSpiritWisp(companionProjectiles, slot);
       if (wisp != null) {
+        final tierBefore = wisp.effectCount;
         KinSupport.applySpiritWispTier(wisp, k.kinSpiritWispKills);
+        if (wisp.effectCount > tierBefore) {
+          onSound?.call(SoundCue.specialKinWispTier);
+        }
       }
     }
   }
@@ -518,6 +522,7 @@ extension CosmicKin on CosmicGame {
   /// The Ice release: everything in reach slowed to a tenth for a while,
   /// frost shooting out to each body it caught.
   void _releaseOpenKinIce(_KinCaster c) {
+    onSound?.call(SoundCue.specialKinIceRelease);
     final origin = c.position;
     final radius = KinSupport.iceReleaseRadius(c.beauty);
     final slowDuration = KinSupport.iceSlowDuration(c.intelligence);
@@ -612,6 +617,7 @@ extension CosmicKin on CosmicGame {
   /// The phoenix fires at [at]: its burst, and the rebirth rolled from the
   /// kin's own stats and kept for good.
   void _awakenOpenPhoenix(_KinCaster c, Offset at) {
+    onSound?.call(SoundCue.specialKinPhoenix);
     _spawnHitSpark(at, KinSupport.phoenixEmber);
     _spawnHitSpark(at, KinSupport.phoenixFlash);
     emitKinPhoenixBurst(
@@ -707,7 +713,13 @@ extension CosmicKin on CosmicGame {
     required void Function(Offset aim) fire,
   }) {
     if (k.kinAutoChargeTimer > 0) {
+      final was = k.kinAutoChargeTimer;
       k.kinAutoChargeTimer += dt;
+      // The charge's swell, timed to lead into the release by 0.6 s.
+      const swellAt = KinLaser.chargeTime - 0.6;
+      if (was < swellAt && k.kinAutoChargeTimer >= swellAt) {
+        onSound?.call(SoundCue.basicKinCharge);
+      }
       if (k.kinAutoChargeTimer >= KinLaser.chargeTime) {
         final locked = k.kinAutoChargeEnemy;
         final Offset aim;
@@ -752,6 +764,8 @@ extension CosmicKin on CosmicGame {
     final dist = dir.distance;
     if (dist < 0.01) return;
     final end = origin + dir / dist * KinLaser.length(dist);
+    // A kin's basic is this beam; it sounds as it does in Survival.
+    onSound?.call(SoundCue.basicKin);
     final color = elementColor(element);
     for (final enemy in enemies) {
       if (enemy.dead) continue;

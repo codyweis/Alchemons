@@ -588,7 +588,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   }
 
   Future<void> _onCloudDiscovered(String cloudId) async {
-    if (mounted && !cloudId.startsWith('gate:')) {
+    if (mounted &&
+        !cloudId.startsWith('gate:') &&
+        !(_game?.soundedSecrets.contains(cloudId) ?? false)) {
       context.sound(SoundCue.dungeonSecretReveal, owner: this);
     }
     final prefs = await SharedPreferences.getInstance();
@@ -607,11 +609,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       await context.read<AlchemonsDatabase>().currencyDao.addGold(5);
       _showToast('The vault yields, +5 gold');
     }
-    // Family-gate stamps ("the seal remembers", §4): pure acknowledgement,
-    // no gold — the reward IS the permanent chip on the descent panel.
-    if (cloudId.startsWith('gate:') && mounted) {
-      _showToast('The seal remembers, its need is etched at the gate');
-    }
+    // Family-gate stamps ("the seal remembers", §4) are SILENT: the gate's
+    // own refusal line already names the family, and the chip simply turns
+    // up on the descent panel. A toast on top of the refusal was a second
+    // message saying nothing new.
   }
 
   void _onPlayerDown() {

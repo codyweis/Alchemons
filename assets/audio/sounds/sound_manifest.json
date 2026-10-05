@@ -14,14 +14,15 @@
   {
     "name": "sfx_ui_confirm",
     "category": "Shared controls and rewards",
-    "description": "Clear two-tone acceptance",
+    "description": "A latch catching: a light brass touch, then the bolt seats",
     "target": "0.15\u20130.30 s",
     "path": "assets/audio/sounds/sfx_ui_confirm.wav",
     "duration": 0.3,
     "loop": false,
-    "peak_db": -9.9,
-    "rms_db": -23.3,
-    "sha256": "56c1d58dd7e832be7b9ac66fd071595ea9c7289c0e30e1c954ff33bbbd398644"
+    "peak_db": -8.6,
+    "rms_db": -33.97,
+    "sha256": "1070d156dd0ca8f835323c5b6148b20a484533b07b4e4879173c8e24dd6555d0",
+    "source": "tool/sounds/interface.py"
   },
   {
     "name": "sfx_ui_back",
@@ -62,14 +63,15 @@
   {
     "name": "sfx_ui_denied",
     "category": "Shared controls and rewards",
-    "description": "Muted low double pulse; locked or unavailable",
+    "description": "A locked latch tried: the bolt knocks its keeper twice, muffled, and does not give",
     "target": "0.20\u20130.40 s",
     "path": "assets/audio/sounds/sfx_ui_denied.wav",
-    "duration": 0.32,
+    "duration": 0.34,
     "loop": false,
-    "peak_db": -12.04,
-    "rms_db": -25.14,
-    "sha256": "950e3922f48c9a6c81a025212b2a4e755e465219e0b05180606022397c94925f"
+    "peak_db": -13.68,
+    "rms_db": -34.25,
+    "sha256": "5a62da5dc0aa7d0b821a260bd8a6a2cc9bbf0b9d14afd74c7cb1c40c49d8a2d5",
+    "source": "tool/sounds/interface.py"
   },
   {
     "name": "sfx_ui_select",
@@ -86,749 +88,810 @@
   {
     "name": "sfx_reward_collect",
     "category": "Shared controls and rewards",
-    "description": "Small sparkling reward",
+    "description": "Enhance taken in: a warm breath at the heart, the specimen's grains lifting off it like heat and settling back",
     "target": "0.40\u20130.80 s",
     "path": "assets/audio/sounds/sfx_reward_collect.wav",
-    "duration": 0.7,
+    "duration": 0.78,
     "loop": false,
-    "peak_db": -9.9,
-    "rms_db": -23.25,
-    "sha256": "709e219ac2f39d1261fdd21982b13742abab909fa7c1297d97381fb3dc945f25"
+    "peak_db": -16.86,
+    "rms_db": -33.23,
+    "sha256": "eae500a94c3f0e79629a0d8dd8ecb17462a81abe5874e351af8da104d1d1b058",
+    "source": "tool/sounds/rewards.py"
   },
   {
     "name": "sfx_currency_gain",
     "category": "Shared controls and rewards",
-    "description": "Brief coin/crystal scatter",
+    "description": "Coins in: a small handful dropped on a pile, the last one rocking to rest",
     "target": "0.20\u20130.50 s",
     "path": "assets/audio/sounds/sfx_currency_gain.wav",
-    "duration": 0.4,
+    "duration": 0.62,
     "loop": false,
-    "peak_db": -12.4,
-    "rms_db": -26.0,
-    "sha256": "56e771dde85ad777e1ee5f6c3e90c5e2853e71c520926dcd73786a960b82647b"
+    "peak_db": -13.72,
+    "rms_db": -33.49,
+    "sha256": "fd7e1cfd80ba10ff1a814911304823a5985c38b0774b7aa750579fb57dc69253",
+    "source": "tool/sounds/rewards.py"
   },
   {
     "name": "sfx_purchase_success",
     "category": "Shared controls and rewards",
-    "description": "Satisfying transactional chime",
+    "description": "Coins out: two set down on a wooden counter, and a brass purse clasp snapped shut",
     "target": "0.40\u20130.80 s",
     "path": "assets/audio/sounds/sfx_purchase_success.wav",
-    "duration": 0.65,
+    "duration": 0.78,
     "loop": false,
-    "peak_db": -10.46,
-    "rms_db": -24.21,
-    "sha256": "bfb2f9dc9b01961cd259428613f9f63576306cc6467235218c89def4159c3e2e"
+    "peak_db": -5.85,
+    "rms_db": -31.48,
+    "sha256": "f7fec6693f69e9d1b4e79f848e482cdeb91bda5bb097a9ceab29146290b4af2e",
+    "source": "tool/sounds/rewards.py"
   },
   {
     "name": "sfx_upgrade_complete",
     "category": "Shared controls and rewards",
-    "description": "Rising energy and resolved tone",
+    "description": "Set in place, and lit: a stone grinds into its socket, seats, and a warm flame catches in it",
     "target": "0.80\u20131.50 s",
     "path": "assets/audio/sounds/sfx_upgrade_complete.wav",
-    "duration": 1.15,
+    "duration": 1.0,
     "loop": false,
-    "peak_db": -9.9,
-    "rms_db": -23.72,
-    "sha256": "b89b51e0492768223a34e8b24d69191ee8f44c28d4855b95acfd1195896a106f"
+    "peak_db": -6.91,
+    "rms_db": -30.91,
+    "sha256": "37e139c31ce923ef78c95f25178b9e704f06eab4f61366778ea3c104e0f16aa9",
+    "source": "tool/sounds/rewards.py"
   },
   {
     "name": "sfx_achievement_unlock",
     "category": "Shared controls and rewards",
-    "description": "Distinct celebratory flourish",
+    "description": "Sealed: parchment pressed flat, a brass seal into warm wax on a wooden desk, and lifted; gone before the reward flight lands",
     "target": "1.50\u20132.50 s",
     "path": "assets/audio/sounds/sfx_achievement_unlock.wav",
-    "duration": 2.0,
+    "duration": 1.0,
     "loop": false,
-    "peak_db": -9.37,
-    "rms_db": -25.62,
-    "sha256": "2060f38c4b5066bb251da0f009ca4000a709e04c7bf5b2cacda50981c32bd9ee"
+    "peak_db": -4.3,
+    "rms_db": -29.77,
+    "sha256": "ec718e2126e4b756cc5d566713c845324d9cd0afd79a2e3b6da70aa14f63f634",
+    "source": "tool/sounds/rewards.py"
   },
   {
     "name": "sfx_cosmic_portal_open",
     "category": "Cosmic exploration",
-    "description": "Space folding inward, crystalline opening",
+    "description": "Space drawn in on itself -- air, a deep strain, grains spiralling -- and giving at 0.95 s into the dark",
     "target": "1.50\u20132.50 s",
     "path": "assets/audio/sounds/cosmic/sfx_cosmic_portal_open.wav",
     "duration": 2.1,
     "loop": false,
-    "peak_db": -8.4,
-    "rms_db": -21.73,
-    "sha256": "4c5d74f2ca278e06349fd013bae7a7a7c03b0c19ace507c563bbae759fe94739"
+    "peak_db": -8.2,
+    "rms_db": -25.83,
+    "sha256": "a53d6dac8f8fa97de81dad91be837fb49d1f8220e2285e4cd159594f50e621ea",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_cosmic_orb_pickup",
     "category": "Cosmic exploration",
-    "description": "Tiny bright liquid-glass plink",
+    "description": "Star dust taken: a pinch of gold leaf shaken over a breath, a little dark glass under it",
     "target": "0.12\u20130.25 s",
     "path": "assets/audio/sounds/cosmic/sfx_cosmic_orb_pickup.wav",
-    "duration": 0.2,
+    "duration": 0.32,
     "loop": false,
-    "peak_db": -13.98,
-    "rms_db": -28.16,
-    "sha256": "9bf22a0cdf8958e6fc6dfe6264dffabaead09cb57edb69c7088ed16da3228f85",
+    "peak_db": -6.74,
+    "rms_db": -31.32,
+    "sha256": "22bb98f9a3c64b683443192a981ebaf65592ffe8cc7c37f7d0077c9310328555",
     "variations": [
       "assets/audio/sounds/cosmic/sfx_cosmic_orb_pickup_01.wav",
       "assets/audio/sounds/cosmic/sfx_cosmic_orb_pickup_02.wav",
       "assets/audio/sounds/cosmic/sfx_cosmic_orb_pickup_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_cosmic_orb_deposit",
     "category": "Cosmic exploration",
-    "description": "Gathered particles resolving into a warm chord",
+    "description": "The hold poured out into the home planet, and the planet taking the weight: a deep soft body",
     "target": "0.50\u20131.00 s",
     "path": "assets/audio/sounds/cosmic/sfx_cosmic_orb_deposit.wav",
-    "duration": 0.8,
+    "duration": 1.15,
     "loop": false,
-    "peak_db": -10.46,
-    "rms_db": -27.79,
-    "sha256": "7bdfd3368cd77316fbf73f5a18decc043ab299bbca9fd148f652c68c2ab24a33"
+    "peak_db": -9.08,
+    "rms_db": -28.09,
+    "sha256": "1ad61db49e9addedbff6803ea61b0ef3e6af8615f2d9b9a5a0ecd941cfb32e2a",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_cosmic_anomaly_burst",
     "category": "Cosmic exploration",
-    "description": "Unstable magical rupture with a short tail",
+    "description": "Flung across space by a warp anomaly: a leaned-in rush, space tearing, streaming away through the tunnel",
     "target": "0.70\u20131.30 s",
     "path": "assets/audio/sounds/cosmic/sfx_cosmic_anomaly_burst.wav",
-    "duration": 0.95,
+    "duration": 1.05,
     "loop": false,
-    "peak_db": -8.87,
-    "rms_db": -25.85,
-    "sha256": "402cf8dd79d9c4af17edfb741d86c436c165375003c7ae9d8daacd4aab512d8e"
+    "peak_db": -11.61,
+    "rms_db": -29.56,
+    "sha256": "037ba56ee3aefc1762ce60776e9a01ff4972e42fb78155f152af6f243dd2eea5",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_cosmic_starforge_activate",
     "category": "Cosmic exploration",
-    "description": "Ancient cosmic machine awakening",
+    "description": "A planet gate unsealed: the offering poured in, an ancient stone mechanism turning and seating, the deep breathing out",
     "target": "2.00\u20133.50 s",
     "path": "assets/audio/sounds/cosmic/sfx_cosmic_starforge_activate.wav",
     "duration": 2.8,
     "loop": false,
-    "peak_db": -8.4,
-    "rms_db": -25.89,
-    "sha256": "1b0a5dbc6135c24e8e8e4d69960e0516e400e2547e1bb43c425f4efbdc3d5d99"
+    "peak_db": -5.25,
+    "rms_db": -24.02,
+    "sha256": "09257c8c918183d1c718f4aa42b773a5a74e760a3bd8c911c50175395d5d6608",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_cosmic_dash",
     "category": "Cosmic exploration",
-    "description": "Fast airy energy streak",
+    "description": "The booster catching: a gas chuff leaning in, flame tearing up, air torn past the hull",
     "target": "0.20\u20130.45 s",
     "path": "assets/audio/sounds/sfx_cosmic_dash.wav",
-    "duration": 0.3,
+    "duration": 0.5,
     "loop": false,
-    "peak_db": -12.4,
-    "rms_db": -28.38,
-    "sha256": "70b2da67e9b25181957b8e1075efeace11e4c748c3df67f735f460062cb08c47"
+    "peak_db": -8.76,
+    "rms_db": -29.52,
+    "sha256": "a64dc0e9628ad432649b9de07606eb03bd1c17e69247dd25766786eaf21a0909",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_cosmic_planet_enter",
     "category": "Cosmic exploration",
-    "description": "Atmospheric descent sweep",
+    "description": "Down through the glyph portal: script written out of the void, a tunnel rushing faster ring by ring, the deep of the dungeon",
     "target": "1.00\u20132.00 s",
     "path": "assets/audio/sounds/sfx_cosmic_planet_enter.wav",
-    "duration": 1.6,
+    "duration": 2.6,
     "loop": false,
-    "peak_db": -9.9,
-    "rms_db": -23.46,
-    "sha256": "53801b096f8e1a96ff17a906c0ead9c87681319be5c4750155ea89595e63fba7"
+    "peak_db": -9.34,
+    "rms_db": -28.54,
+    "sha256": "04405abbf4c86c30c824abbb5dd90543f3c3133b72824316431140201925c284",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_cosmic_cache_open",
     "category": "Cosmic exploration",
-    "description": "Sealed crystal vessel releasing treasure",
+    "description": "An elemental cache unsealed over its 3 s ritual: element streaming in, glass halves grinding apart, shards whirling loose, the give",
     "target": "0.80\u20131.50 s",
     "path": "assets/audio/sounds/sfx_cosmic_cache_open.wav",
-    "duration": 1.15,
+    "duration": 3.9,
     "loop": false,
-    "peak_db": -10.46,
-    "rms_db": -24.48,
-    "sha256": "cb36c7e6ed925241c399d191a77dd0440bc69ec66480a69b8a5551d9fbe227d5"
+    "peak_db": -8.3,
+    "rms_db": -27.56,
+    "sha256": "659a983a6bd00f23e26eb04fa655c4d4f26b5fbd594bea35b7dc5bba985adfac",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_cosmic_discovery",
     "category": "Cosmic exploration",
-    "description": "Curious ascending constellation tones",
+    "description": "Something new in the dark: the air opening out, far glints coming into focus, a low glass under it",
     "target": "1.00\u20132.00 s",
     "path": "assets/audio/sounds/sfx_cosmic_discovery.wav",
-    "duration": 1.6,
+    "duration": 1.7,
     "loop": false,
-    "peak_db": -10.75,
-    "rms_db": -23.24,
-    "sha256": "251b9efded4d59171ee0ed9bd58253cdeabab408d2551233acc03df62c69df68"
+    "peak_db": -7.4,
+    "rms_db": -28.21,
+    "sha256": "a4c7c2b451b8963416031c33d94e0b2dc745af706fd0ca56ea96e64d4b6f6e91",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_cosmic_scan",
     "category": "Cosmic exploration",
-    "description": "Soft sonar ripple with magical shimmer",
+    "description": "A scanner locking on: a glass pivot spinning up and settling, a fan of motes sweeping left to right",
     "target": "0.60\u20131.20 s",
     "path": "assets/audio/sounds/sfx_cosmic_scan.wav",
-    "duration": 0.9,
+    "duration": 0.95,
     "loop": false,
-    "peak_db": -13.15,
-    "rms_db": -26.6,
-    "sha256": "d1fd9ef3c26a53b93249722cdcfb8bd3b7d768c542feac7049a135421b6e3827"
+    "peak_db": -8.67,
+    "rms_db": -30.06,
+    "sha256": "c9feda6056777f1176e395d223a78ae9838ba725864144754f5001084f613997",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_combat_projectile",
     "category": "Shared combat",
-    "description": "Soft compact energy launch",
+    "description": "A compressed puff through a short barrel and a catch clicking: the ship's gun",
     "target": "0.10\u20130.25 s",
     "path": "assets/audio/sounds/sfx_combat_projectile.wav",
-    "duration": 0.18,
+    "duration": 0.16,
     "loop": false,
-    "peak_db": -13.15,
-    "rms_db": -26.88,
-    "sha256": "845f6efc8e7143d67d4edfe85c8f1a3327d1b3fe32bf37cc0e41815bc0f2ec5e",
+    "peak_db": -11.83,
+    "rms_db": -32.92,
+    "sha256": "10dcd7436d104730e45c0f2fc6b2238057434d35e2a62e4e3e06cf00a1c661e0",
     "variations": [
       "assets/audio/sounds/sfx_combat_projectile_01.wav",
       "assets/audio/sounds/sfx_combat_projectile_02.wav",
       "assets/audio/sounds/sfx_combat_projectile_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/combat.py"
   },
   {
     "name": "sfx_combat_hit_light",
     "category": "Shared combat",
-    "description": "Small crisp impact",
+    "description": "A small dense knock on an obsidian body, a flake or two off it",
     "target": "0.10\u20130.25 s",
     "path": "assets/audio/sounds/sfx_combat_hit_light.wav",
-    "duration": 0.18,
+    "duration": 0.2,
     "loop": false,
-    "peak_db": -11.06,
-    "rms_db": -25.51,
-    "sha256": "69ac49cca12d7c198ed69ebdd25fb2d8ba71cb9a8424629341953d8d753e9e96",
+    "peak_db": -10.95,
+    "rms_db": -33.71,
+    "sha256": "8481a3d887c6667b976bfb271772392e00e6abbfbd147117c6aa14498f343c97",
     "variations": [
       "assets/audio/sounds/sfx_combat_hit_light_01.wav",
       "assets/audio/sounds/sfx_combat_hit_light_02.wav",
       "assets/audio/sounds/sfx_combat_hit_light_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/combat.py"
   },
   {
     "name": "sfx_combat_hit_heavy",
     "category": "Shared combat",
-    "description": "Weightier impact with controlled bass",
+    "description": "A heavy blow on obsidian: a low dense body, a crunch, debris thrown wide",
     "target": "0.25\u20130.50 s",
     "path": "assets/audio/sounds/sfx_combat_hit_heavy.wav",
-    "duration": 0.38,
+    "duration": 0.42,
     "loop": false,
-    "peak_db": -8.4,
-    "rms_db": -22.82,
-    "sha256": "467263a39fcce69e8529944dc23abd251c351f9328e8c4353f20fcbab760295e",
+    "peak_db": -6.88,
+    "rms_db": -27.76,
+    "sha256": "14ccd46805af2193e92abe45a4221bded32d3288baf99f640cfe366b697bb656",
     "variations": [
       "assets/audio/sounds/sfx_combat_hit_heavy_01.wav",
       "assets/audio/sounds/sfx_combat_hit_heavy_02.wav",
       "assets/audio/sounds/sfx_combat_hit_heavy_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/combat.py"
   },
   {
     "name": "sfx_combat_player_hurt",
     "category": "Shared combat",
-    "description": "Distinct dull impact and downward energy tone",
+    "description": "A blow on the hull heard from inside: a muffled plate and a rattle",
     "target": "0.25\u20130.50 s",
     "path": "assets/audio/sounds/sfx_combat_player_hurt.wav",
-    "duration": 0.38,
+    "duration": 0.36,
     "loop": false,
-    "peak_db": -9.37,
-    "rms_db": -26.29,
-    "sha256": "6974797357ac987b4f9c41a04937c388144a102c8abfb433c5c9158fccd239d5"
+    "peak_db": -9.97,
+    "rms_db": -28.29,
+    "sha256": "d707d320af0b6b502bd4b2cbc488f67b3a42bb3ea7e28f93dcd68b6ccebe28df",
+    "source": "tool/sounds/combat.py"
   },
   {
     "name": "sfx_combat_enemy_defeat",
     "category": "Shared combat",
-    "description": "Quick dissolving energy puff",
+    "description": "An obsidian body cracks, breaks and throws its shards outward",
     "target": "0.25\u20130.60 s",
     "path": "assets/audio/sounds/sfx_combat_enemy_defeat.wav",
-    "duration": 0.45,
+    "duration": 0.4,
     "loop": false,
-    "peak_db": -12.04,
-    "rms_db": -27.7,
-    "sha256": "e045b9836e889d4a02185ae9a9afacb408c49b18562184a8b703c2452a5ef74f",
+    "peak_db": -11.08,
+    "rms_db": -32.14,
+    "sha256": "9d73b5fc51cba55b33c2cbcb593d11d93bc2b4f9edf42d803221db9df989afbd",
     "variations": [
       "assets/audio/sounds/sfx_combat_enemy_defeat_01.wav",
       "assets/audio/sounds/sfx_combat_enemy_defeat_02.wav",
       "assets/audio/sounds/sfx_combat_enemy_defeat_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/combat.py"
   },
   {
     "name": "sfx_combat_shield_hit",
     "category": "Shared combat",
-    "description": "Resonant glass deflection",
+    "description": "A knock on the orb's thick glass bubble and the air it turns aside",
     "target": "0.15\u20130.35 s",
     "path": "assets/audio/sounds/sfx_combat_shield_hit.wav",
-    "duration": 0.28,
+    "duration": 0.32,
     "loop": false,
-    "peak_db": -11.7,
-    "rms_db": -29.2,
-    "sha256": "7b7c684e703b7406941a00b28d4406d2fba0c9a069b2e94c97ad25550ef86d3d"
+    "peak_db": -8.05,
+    "rms_db": -32.89,
+    "sha256": "8c45afb7d749acdab731b76eb26550137e5b8226e51292433c5d5d00a0edb1e3",
+    "source": "tool/sounds/combat.py",
+    "variations": [
+      "assets/audio/sounds/sfx_combat_shield_hit_01.wav",
+      "assets/audio/sounds/sfx_combat_shield_hit_02.wav",
+      "assets/audio/sounds/sfx_combat_shield_hit_03.wav"
+    ]
   },
   {
     "name": "sfx_combat_shield_break",
     "category": "Shared combat",
-    "description": "Energy shell cracking apart",
+    "description": "A crack runs round the glass bubble, its pressure lets go, pieces fly",
     "target": "0.40\u20130.80 s",
     "path": "assets/audio/sounds/sfx_combat_shield_break.wav",
-    "duration": 0.6,
+    "duration": 0.95,
     "loop": false,
-    "peak_db": -10.17,
-    "rms_db": -25.09,
-    "sha256": "ef06ac699c1f6104d242cd99dae6905b9c966ea4171fd65f474f9f5d54be18b5"
+    "peak_db": -3.8,
+    "rms_db": -29.81,
+    "sha256": "5e309b779da9fee62c9ce744af9c3c65ec4d69b84f426914126badc9bcede665",
+    "source": "tool/sounds/combat.py"
   },
   {
     "name": "sfx_combat_heal",
     "category": "Shared combat",
-    "description": "Warm rising restorative shimmer",
+    "description": "A warm breath drawn in over a low stroked glass",
     "target": "0.60\u20131.00 s",
     "path": "assets/audio/sounds/sfx_combat_heal.wav",
-    "duration": 0.85,
+    "duration": 0.9,
     "loop": false,
-    "peak_db": -12.04,
-    "rms_db": -25.91,
-    "sha256": "e66074f8aee3c32a99df80d6c070241cea90de94c667a1fa4ce9269f51a237b8"
+    "peak_db": -16.92,
+    "rms_db": -33.81,
+    "sha256": "25cd6994910f29b47d0865bf6c81e9999940cd9d897a3912cd54c8dd16d99b18",
+    "source": "tool/sounds/combat.py"
   },
   {
     "name": "sfx_combat_danger",
     "category": "Shared combat",
-    "description": "Readable incoming attack warning",
+    "description": "The orb's glass strains -- a creak swelling under pressure -- and a fissure runs across it",
     "target": "0.30\u20130.60 s",
     "path": "assets/audio/sounds/sfx_combat_danger.wav",
-    "duration": 0.46,
+    "duration": 1.0,
     "loop": false,
-    "peak_db": -10.46,
-    "rms_db": -23.61,
-    "sha256": "47604fd69da588b6a9c6a59e7e624cdd736043436daee8c389eb85762d857ad9"
+    "peak_db": -12.29,
+    "rms_db": -28.9,
+    "sha256": "04dc99e0053a6c8536f68ca5800acdc4755f3bccf3e441d3c6db6567d2254f64",
+    "source": "tool/sounds/combat.py"
   },
   {
     "name": "sfx_combat_victory",
     "category": "Shared combat",
-    "description": "Short triumphant cosmic flourish",
+    "description": "Pressure let go into a vast dark room; something huge crumbles far off; pieces drift",
     "target": "2.00\u20133.50 s",
     "path": "assets/audio/sounds/sfx_combat_victory.wav",
-    "duration": 2.6,
+    "duration": 3.4,
     "loop": false,
-    "peak_db": -9.12,
-    "rms_db": -25.12,
-    "sha256": "b26595b285308d857526749dededfb56cd3a6e27b4488383ecb5cc93b78b6dc8"
+    "peak_db": -5.97,
+    "rms_db": -25.54,
+    "sha256": "935b8d57a512afe8043f27533272726a6392eb7340a018a8ccd297c55004b371",
+    "source": "tool/sounds/combat.py"
   },
   {
     "name": "sfx_combat_defeat",
     "category": "Shared combat",
-    "description": "Gentle descending unresolved chord",
+    "description": "A dull heavy give, the breath going out, pieces drifting off into a small dark room",
     "target": "1.50\u20132.50 s",
     "path": "assets/audio/sounds/sfx_combat_defeat.wav",
     "duration": 2.0,
     "loop": false,
-    "peak_db": -11.06,
-    "rms_db": -24.43,
-    "sha256": "5335f731ebb386fbb3b8ef2a836613b32a4238ba3202083cfa2dd4afa60cc86e"
+    "peak_db": -9.14,
+    "rms_db": -27.93,
+    "sha256": "b5d514fdcde241f98392d968b27a41e8d451c8aa77c6ed7914a960d514f03b42",
+    "source": "tool/sounds/combat.py"
   },
   {
     "name": "sfx_combat_special_cast",
     "category": "Shared combat",
-    "description": "Quiet mechanism releasing; a special has gone off. Layers UNDER the element cue, which says which element it was \u2014 so it carries no colour of its own and no flourish",
+    "description": "A latch releasing: a pawl clicks free and a heavy arm stops dead",
     "target": "0.30\u20130.50 s",
     "path": "assets/audio/sounds/sfx_combat_special_cast.wav",
-    "duration": 0.42,
+    "duration": 0.4,
     "loop": false,
-    "peak_db": -13.98,
-    "rms_db": -27.34,
-    "sha256": "272d4511c277c48ffabb28ec3306f2fe64f78dd112f426ed780646c556a81ff9"
+    "peak_db": -5.85,
+    "rms_db": -27.95,
+    "sha256": "01e3d1e84accb0522c66b28f77aafec96dfecd32e02ab97d3c80da325de0a9ce",
+    "source": "tool/sounds/combat.py"
   },
   {
     "name": "sfx_basic_mane",
     "category": "Shared combat",
-    "description": "Twin airy swipes, the second close behind the first",
+    "description": "Mane auto-attack: one throw lets two blades go together, one each side, flying off as a widening pair",
     "target": "0.10\u20130.25 s",
     "path": "assets/audio/sounds/sfx_basic_mane.wav",
-    "duration": 0.2,
+    "duration": 0.46,
     "loop": false,
-    "peak_db": -16.48,
-    "rms_db": -33.24,
-    "sha256": "05082c96cc5b129f975544fc710c76592749f3d9ac5d27e15f93bd484b72700d",
+    "peak_db": -13.81,
+    "rms_db": -34.97,
+    "sha256": "e9533cda999df57ffe5bcbadbfb2393bb3741d939e9d039eb2d51c5192c9082c",
     "variations": [
       "assets/audio/sounds/sfx_basic_mane_01.wav",
       "assets/audio/sounds/sfx_basic_mane_02.wav",
       "assets/audio/sounds/sfx_basic_mane_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/family_mane.py"
   },
   {
     "name": "sfx_basic_let",
     "category": "Shared combat",
-    "description": "One slow heavy lob with low body",
+    "description": "A heavy glowing rock thrown flat: a shove of air, then its rough flickering rush going away",
     "target": "0.15\u20130.30 s",
     "path": "assets/audio/sounds/sfx_basic_let.wav",
-    "duration": 0.28,
+    "duration": 0.6,
     "loop": false,
-    "peak_db": -15.39,
-    "rms_db": -28.47,
-    "sha256": "de0101592705d0a9e63e0e18b49b7438fdbcb9fa18b9d3b8d9ce6cfeae51dbdd",
+    "peak_db": -14.95,
+    "rms_db": -34.41,
+    "sha256": "b22d9c4dcf5738b4495c9641498fef56c5b92b3dbbc3013142e3059d25a22092",
     "variations": [
       "assets/audio/sounds/sfx_basic_let_01.wav",
       "assets/audio/sounds/sfx_basic_let_02.wav",
       "assets/audio/sounds/sfx_basic_let_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/family_let.py"
   },
   {
     "name": "sfx_basic_pip",
     "category": "Shared combat",
-    "description": "Three tiny high ticks in quick succession",
+    "description": "Three darts flicked in one fan: dry releases inside 12 ms, three thin cuts receding left, centre and right",
     "target": "0.10\u20130.22 s",
     "path": "assets/audio/sounds/sfx_basic_pip.wav",
-    "duration": 0.18,
+    "duration": 0.15,
     "loop": false,
-    "peak_db": -17.08,
-    "rms_db": -30.24,
-    "sha256": "7b9b16d957caeabbbebc64257f8c4ddc5b46834f9c971ba54a1cdacc5515c33e",
+    "peak_db": -15.59,
+    "rms_db": -34.84,
+    "sha256": "e420391b620abe9819493464b9b2f8c015cecc8e1f636bd09b473896e9d3d873",
     "variations": [
       "assets/audio/sounds/sfx_basic_pip_01.wav",
       "assets/audio/sounds/sfx_basic_pip_02.wav",
       "assets/audio/sounds/sfx_basic_pip_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/family_pip.py"
   },
   {
     "name": "sfx_basic_horn",
     "category": "Shared combat",
-    "description": "One low shove of air; weight without a bang",
+    "description": "Horn tosses its head: a heavy swing of air, a thick slug shoved away, the head's weight stopping under it",
     "target": "0.15\u20130.30 s",
     "path": "assets/audio/sounds/sfx_basic_horn.wav",
-    "duration": 0.28,
+    "duration": 0.32,
     "loop": false,
-    "peak_db": -15.39,
-    "rms_db": -28.38,
-    "sha256": "04b49f9034dc380993a70fc83feae55b000374c694998e2e9f66ab062a13575a",
+    "peak_db": -17.72,
+    "rms_db": -34.95,
+    "sha256": "2c0da8ae5ac4614517bb53680eee52039f6b4a47dac4c0db67c338ac5282d792",
     "variations": [
       "assets/audio/sounds/sfx_basic_horn_01.wav",
       "assets/audio/sounds/sfx_basic_horn_02.wav",
       "assets/audio/sounds/sfx_basic_horn_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/family_horn.py"
   },
   {
     "name": "sfx_basic_mask",
     "category": "Shared combat",
-    "description": "A thin focused zip that pierces rather than hits",
+    "description": "A breath through a narrow tube and a thin needle tearing the air, receding",
     "target": "0.10\u20130.22 s",
     "path": "assets/audio/sounds/sfx_basic_mask.wav",
-    "duration": 0.2,
+    "duration": 0.48,
     "loop": false,
-    "peak_db": -17.08,
-    "rms_db": -30.95,
-    "sha256": "69552352e1393195a6b0d4faa2c0afddeba2bf3ccc947d7a525b463cb7c2de7a",
+    "peak_db": -16.95,
+    "rms_db": -34.94,
+    "sha256": "0bd529b2d567d965a13e1d87a9e132bd83b95943e7f7c8102e3fde72a293affa",
     "variations": [
       "assets/audio/sounds/sfx_basic_mask_01.wav",
       "assets/audio/sounds/sfx_basic_mask_02.wav",
       "assets/audio/sounds/sfx_basic_mask_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/family_mask.py"
   },
   {
     "name": "sfx_basic_wing",
     "category": "Shared combat",
-    "description": "Two soft high blips, light and fast",
+    "description": "Two small glowing bolts leave together and draw apart: thin bright streaks receding over the ~0.24 s flight, a fizz behind each",
     "target": "0.10\u20130.22 s",
     "path": "assets/audio/sounds/sfx_basic_wing.wav",
-    "duration": 0.18,
+    "duration": 0.38,
     "loop": false,
-    "peak_db": -17.72,
-    "rms_db": -31.68,
-    "sha256": "0d952217a23a043b0abc539f0956f93738268658e8f42acbbed6e92cc9579ee6",
+    "peak_db": -17.38,
+    "rms_db": -34.89,
+    "sha256": "f6bd0cb5643561a7c909546c4c88126db0207803e4992f86c9a4879a02fd11b0",
     "variations": [
       "assets/audio/sounds/sfx_basic_wing_01.wav",
       "assets/audio/sounds/sfx_basic_wing_02.wav",
       "assets/audio/sounds/sfx_basic_wing_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/family_wing.py"
   },
   {
     "name": "sfx_basic_kin",
     "category": "Shared combat",
-    "description": "A small charge gathering, then letting go",
+    "description": "A kin's charged line let go: a narrow sear at full at once, dying with the 0.28 s beam",
     "target": "0.15\u20130.30 s",
     "path": "assets/audio/sounds/sfx_basic_kin.wav",
-    "duration": 0.3,
+    "duration": 0.4,
     "loop": false,
-    "peak_db": -15.92,
-    "rms_db": -30.83,
-    "sha256": "f71f277b19186ce650d203d76eda5274b7b16e8478470504124bb3763c02353a",
+    "peak_db": -16.65,
+    "rms_db": -34.99,
+    "sha256": "8403a284aef0083f52b8de15c5cbeb882ba468b5b9e1e5c0af19ce6a46b8549e",
     "variations": [
       "assets/audio/sounds/sfx_basic_kin_01.wav",
       "assets/audio/sounds/sfx_basic_kin_02.wav",
       "assets/audio/sounds/sfx_basic_kin_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/family_kin.py"
   },
   {
     "name": "sfx_basic_mystic",
     "category": "Shared combat",
-    "description": "Three soft mid blips, gentler than a pip's darts",
+    "description": "Three soft motes let go on one frame: a single hushed release, three narrow airs receding together, a breath of warmth under it",
     "target": "0.10\u20130.25 s",
     "path": "assets/audio/sounds/sfx_basic_mystic.wav",
-    "duration": 0.22,
+    "duration": 0.5,
     "loop": false,
-    "peak_db": -17.08,
-    "rms_db": -28.76,
-    "sha256": "20ca454da38f52d3e29813872d9907abb90b2eab41203903d1f266515182a47b",
+    "peak_db": -16.61,
+    "rms_db": -34.99,
+    "sha256": "ff4940983dc0997f35e3a8858757d219cbb41f0017689784e857f606192bf831",
     "variations": [
       "assets/audio/sounds/sfx_basic_mystic_01.wav",
       "assets/audio/sounds/sfx_basic_mystic_02.wav",
       "assets/audio/sounds/sfx_basic_mystic_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/family_mystic.py"
   },
   {
     "name": "sfx_survival_wave_start",
     "category": "Survival-specific events",
-    "description": "Focused rising challenge pulse",
+    "description": "A wave forming beyond the rim: pressure leaning in, a low swell, a far clatter of many dark bodies",
     "target": "0.60\u20131.00 s",
     "path": "assets/audio/sounds/sfx_survival_wave_start.wav",
-    "duration": 0.85,
+    "duration": 1.35,
     "loop": false,
-    "peak_db": -10.46,
-    "rms_db": -23.68,
-    "sha256": "3b25c2336c1840ee1a3d4ef0973f2e97d9f3a67664fb3b7ad6fcb3675d48cb9b"
+    "peak_db": -12.79,
+    "rms_db": -28.12,
+    "sha256": "abc388f528f587b0f5093684007c136417809d946d71f685da10079f6535733c",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_survival_wave_clear",
     "category": "Survival-specific events",
-    "description": "Brief resolved success pulse",
+    "description": "The wave broken: the pressure let out, its dust settling, the low swell going",
     "target": "0.70\u20131.20 s",
     "path": "assets/audio/sounds/sfx_survival_wave_clear.wav",
-    "duration": 1.0,
+    "duration": 1.2,
     "loop": false,
-    "peak_db": -10.75,
-    "rms_db": -24.1,
-    "sha256": "6fa9de0e37cc37f94fc81394cb8d586a68eecc737485073809184561a79b0970"
+    "peak_db": -13.03,
+    "rms_db": -29.26,
+    "sha256": "d4f97c7ea243e7b081f4740ea4ce8b3e68bedf83fb083b4b0c41d75cd386c10a",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_survival_boss_arrive",
     "category": "Survival-specific events",
-    "description": "Low ominous swell with a clear arrival hit",
+    "description": "A boss arriving: space ruptured, a great obsidian mass driven in groaning, settling with a weight",
     "target": "1.50\u20132.50 s",
     "path": "assets/audio/sounds/sfx_survival_boss_arrive.wav",
-    "duration": 2.2,
+    "duration": 2.6,
     "loop": false,
-    "peak_db": -7.96,
-    "rms_db": -25.0,
-    "sha256": "fc65dc68644753ac82550f8309cc05c9512f3042d287fdcc1d8c51d1f20b6d86"
+    "peak_db": -6.1,
+    "rms_db": -23.31,
+    "sha256": "fe2403e75318892b34d4c293471732279d5f93ed3195d4c978041fc8a37d657a",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_survival_powerup_collect",
     "category": "Survival-specific events",
-    "description": "Bright energizing pop",
+    "description": "The meter surging full: a hot rush filling the vessel to the brim, its dark glass core taking the charge",
     "target": "0.30\u20130.60 s",
     "path": "assets/audio/sounds/sfx_survival_powerup_collect.wav",
-    "duration": 0.45,
+    "duration": 0.75,
     "loop": false,
-    "peak_db": -11.06,
-    "rms_db": -24.57,
-    "sha256": "63f7aae6898c34f54eb9d77241d89a7240337d850f49f42ff5df52b909775dd9"
+    "peak_db": -10.09,
+    "rms_db": -30.27,
+    "sha256": "1170fd5c5b2efa070fecf7671310b0f52eebca72398d4144e1cbd346f9adfcd5",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_survival_powerup_choose",
     "category": "Survival-specific events",
-    "description": "Stronger confirmation for draft selection",
+    "description": "A power taken: the charge drawn in and a heavy glass stopper seated",
     "target": "0.50\u20130.90 s",
     "path": "assets/audio/sounds/sfx_survival_powerup_choose.wav",
-    "duration": 0.7,
+    "duration": 0.65,
     "loop": false,
-    "peak_db": -10.17,
-    "rms_db": -23.95,
-    "sha256": "b20be92ac0c31bae1ddc4ba0aa3cae49c6e165a17e681866c755b9a19db65722"
+    "peak_db": -9.61,
+    "rms_db": -30.94,
+    "sha256": "2121861b27eafb21d7da33500b6802f17dcba4bdebf7638da93c943305f01a65",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_survival_outbreak",
     "category": "Survival-specific events",
-    "description": "Unstable alarm texture, distinct from boss cue",
+    "description": "An outbreak growing: flesh stretching, something wet bubbling up, spores puffed out at its anchors",
     "target": "1.00\u20131.80 s",
     "path": "assets/audio/sounds/sfx_survival_outbreak.wav",
-    "duration": 1.4,
+    "duration": 1.55,
     "loop": false,
-    "peak_db": -9.63,
-    "rms_db": -22.45,
-    "sha256": "090842ed48691de779496b05feb6f87bfd546081869d55ad36432466c03f1973"
+    "peak_db": -10.63,
+    "rms_db": -27.49,
+    "sha256": "0ce6eea7a43648ec5a3436de59b0638b1198c7f6b262d8fd549487f58077c326",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_survival_milestone",
     "category": "Survival-specific events",
-    "description": "Larger achievement flourish for major waves",
+    "description": "Wave 50 broken: a heavy settle, a long exhale into something vast, dust coming down",
     "target": "1.50\u20132.50 s",
     "path": "assets/audio/sounds/sfx_survival_milestone.wav",
-    "duration": 2.0,
+    "duration": 2.4,
     "loop": false,
-    "peak_db": -9.37,
-    "rms_db": -23.2,
-    "sha256": "c61882588f07231d2e05ecb9ef0d8ac1267877174f667598547d1436c5e8e326"
+    "peak_db": -4.98,
+    "rms_db": -26.13,
+    "sha256": "1dc071f11b1ecf23d3b27c4c8faeb181d61470bfd61fdab7bacea127c963ee1c",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_dungeon_interact",
     "category": "Dungeon interactions",
-    "description": "Tactile magical activation",
+    "description": "A touch on carved stone that gives a hair and catches",
     "target": "0.20\u20130.40 s",
     "path": "assets/audio/sounds/sfx_dungeon_interact.wav",
-    "duration": 0.3,
+    "duration": 0.4,
     "loop": false,
-    "peak_db": -12.4,
-    "rms_db": -29.0,
-    "sha256": "a3394268a80929cdb021923ddb1db017941f98bcda5ce55155ec44e120176b45"
+    "peak_db": -15.06,
+    "rms_db": -33.26,
+    "sha256": "9753bec362f686d3221efcafe101df7e669d20c74e8b165ce1a8be206bcf4c14",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_gate_open",
     "category": "Dungeon interactions",
-    "description": "Ancient stone mechanism unlocking and moving",
+    "description": "A catch lets go, a slab grinds clear shedding dust, and seats",
     "target": "1.00\u20132.00 s",
     "path": "assets/audio/sounds/sfx_dungeon_gate_open.wav",
-    "duration": 1.65,
+    "duration": 1.9,
     "loop": false,
-    "peak_db": -9.9,
-    "rms_db": -26.47,
-    "sha256": "f86635b80b92ad71ba1528f857ab0db538604538a997fcc7a5bfb0035d9db678"
+    "peak_db": -6.54,
+    "rms_db": -26.57,
+    "sha256": "a23a87bf11183a6d793641684d2d4de6ddb61f72a3325df557b6a75e110d5894",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_switch",
     "category": "Dungeon interactions",
-    "description": "Weighted switch click",
+    "description": "A mechanism turned one notch: stone pivot, pin into detent, its glass lit under",
     "target": "0.20\u20130.45 s",
     "path": "assets/audio/sounds/sfx_dungeon_switch.wav",
-    "duration": 0.3,
+    "duration": 0.62,
     "loop": false,
-    "peak_db": -12.04,
-    "rms_db": -27.68,
-    "sha256": "d682d48c499180363e5fc6767b41248f45934f9c4d7d9d748625d63cb49a250a"
+    "peak_db": -10.39,
+    "rms_db": -30.4,
+    "sha256": "1a3332ea0d572cac5a991591be38daaab93b12909c317a3cf6599dd775ac7a36",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_puzzle_solved",
     "category": "Dungeon interactions",
-    "description": "Recognizable ascending discovery phrase",
+    "description": "The room's mechanism travels and seats home; its leaded glass lights under it",
     "target": "1.00\u20131.80 s",
     "path": "assets/audio/sounds/sfx_dungeon_puzzle_solved.wav",
-    "duration": 1.4,
+    "duration": 2.3,
     "loop": false,
-    "peak_db": -10.46,
-    "rms_db": -23.89,
-    "sha256": "1f8247ed1559c39904373885fd4d2551d76a4610f8c591c92b5ed556d5d9587a"
+    "peak_db": -4.38,
+    "rms_db": -27.72,
+    "sha256": "d5db4d71cdcaab1cae6ab23166b2e870f5113b4b798ecff5b6ade7ba71338729",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_star_collect",
     "category": "Dungeon interactions",
-    "description": "Bright memorable star reward flourish",
+    "description": "A star drawn up on a breath and set into its stone socket, glass lit beneath",
     "target": "1.50\u20132.50 s",
     "path": "assets/audio/sounds/sfx_dungeon_star_collect.wav",
-    "duration": 2.0,
+    "duration": 2.513,
     "loop": false,
-    "peak_db": -9.37,
-    "rms_db": -26.14,
-    "sha256": "66d9bddb2542dfe0c04b57a5f1b0a4c8fde891e4a2011308dfe2135ea12932b7"
+    "peak_db": -6.93,
+    "rms_db": -32.87,
+    "sha256": "10bd3b3a8911c1d7aa98b4264207484253a83684fc2049f64f68411afc62452f",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_secret_reveal",
     "category": "Dungeon interactions",
-    "description": "Quiet unveiling with a sparkling finish",
+    "description": "A stone gives way to one side and a leaded piece lights up behind it",
     "target": "0.80\u20131.50 s",
     "path": "assets/audio/sounds/sfx_dungeon_secret_reveal.wav",
-    "duration": 1.15,
+    "duration": 1.7,
     "loop": false,
-    "peak_db": -12.04,
-    "rms_db": -25.61,
-    "sha256": "e00cba0d7c9c7fca4d322a3798da4bb3b0821238ca4ec3c4ab27734a116fc57b"
+    "peak_db": -10.14,
+    "rms_db": -30.46,
+    "sha256": "8c021ea393614ee18a59a086de4cdc406f0472df91061875b1305e4036d4bf00",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_wall_break",
     "category": "Dungeon interactions",
-    "description": "Stone crack and falling rubble",
+    "description": "Masonry cracks, falls in pieces, rubble scatters, dust hangs",
     "target": "0.50\u20131.00 s",
     "path": "assets/audio/sounds/sfx_dungeon_wall_break.wav",
-    "duration": 0.8,
+    "duration": 1.35,
     "loop": false,
-    "peak_db": -8.87,
-    "rms_db": -25.67,
-    "sha256": "35661292e8a4183bc2824ba538725b3ca3f3ae4154dd5634a0dbf34e6aa343c5"
+    "peak_db": -7.71,
+    "rms_db": -27.16,
+    "sha256": "e6a83eea1f406d209b73b270c651e61a80ca2b0c7c7e6bbce6ede459d51721fa",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_block_move",
     "category": "Dungeon interactions",
-    "description": "Short stone scrape for a discrete movement",
+    "description": "A stone block grinds one place along and settles",
     "target": "0.40\u20130.80 s",
     "path": "assets/audio/sounds/sfx_dungeon_block_move.wav",
-    "duration": 0.6,
+    "duration": 1.15,
     "loop": false,
-    "peak_db": -11.7,
-    "rms_db": -28.54,
-    "sha256": "9b78901379b36af1ccf0add7679b0c1847255f7879c121a9d731b89cceb600f2"
+    "peak_db": -8.26,
+    "rms_db": -28.65,
+    "sha256": "ac4d7c2417c284471304b09065146afaf536cffa12d6cbe282f13f88a17506a9",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_hazard_trigger",
     "category": "Dungeon interactions",
-    "description": "Mechanical/magical trap snap",
+    "description": "A lurch of shifting stone and grit pouring down after it",
     "target": "0.30\u20130.70 s",
     "path": "assets/audio/sounds/sfx_dungeon_hazard_trigger.wav",
-    "duration": 0.45,
+    "duration": 0.75,
     "loop": false,
-    "peak_db": -10.75,
-    "rms_db": -31.42,
-    "sha256": "744876b294370b097ec819b8f2bbf91dc99a30063b90c2d68aa40c6f6ee4c731"
+    "peak_db": -10.33,
+    "rms_db": -30.63,
+    "sha256": "5641d690ef5d5ff6ec786368c404b0f130ccd53612eb673716a576cb8f4df761",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_checkpoint",
     "category": "Dungeon interactions",
-    "description": "Reassuring resonance for a bank/save event",
+    "description": "A breath in and something set down gently on stone, warm glass under",
     "target": "0.60\u20131.20 s",
     "path": "assets/audio/sounds/sfx_dungeon_checkpoint.wav",
-    "duration": 0.95,
+    "duration": 1.1,
     "loop": false,
-    "peak_db": -11.37,
-    "rms_db": -25.17,
-    "sha256": "9c84ce33c261f54ed5b03d3fa412cab2f1dd59530b7326a266c8bb185b2f6542"
+    "peak_db": -6.31,
+    "rms_db": -29.38,
+    "sha256": "38457126ab69bb3b7b2c142524ca04039cc3f6781a4466bdd04ee2566bca6cd3",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_relic_collect",
     "category": "Dungeon interactions",
-    "description": "Deep ancient chime with bright overtones",
+    "description": "Old weight pressed into stone; deep leaded glass lights slowly under it",
     "target": "1.50\u20132.50 s",
     "path": "assets/audio/sounds/sfx_dungeon_relic_collect.wav",
-    "duration": 2.0,
+    "duration": 2.9,
     "loop": false,
-    "peak_db": -9.9,
-    "rms_db": -25.7,
-    "sha256": "a7c00925af4fd15c63f59dd8b4c84cb218b5d76f64121af4c05b26f5946121db"
+    "peak_db": -4.98,
+    "rms_db": -29.1,
+    "sha256": "533c5d2ced0d2beefeebb922f50a2d31363c53cfb913a733a5a1194fd5ec64a2",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_step_stone",
     "category": "Dungeon interactions",
-    "description": "Restrained stone footstep; make 4 variations",
+    "description": "A padded foot on dressed stone, a little grit under it",
     "target": "0.08\u20130.18 s",
     "path": "assets/audio/sounds/sfx_dungeon_step_stone.wav",
-    "duration": 0.14,
+    "duration": 0.17,
     "loop": false,
-    "peak_db": -14.89,
-    "rms_db": -29.84,
-    "sha256": "f4949f94eb7871f212cbc5cd1729e8795ae1bf671015164e53d912b9c4cf3ff2",
+    "peak_db": -15.12,
+    "rms_db": -32.57,
+    "sha256": "c01b7182541744e21e86fcf2d23b51c81037d95f9a7f87b15936dfc6bec4ed99",
     "variations": [
       "assets/audio/sounds/sfx_dungeon_step_stone_01.wav",
       "assets/audio/sounds/sfx_dungeon_step_stone_02.wav",
       "assets/audio/sounds/sfx_dungeon_step_stone_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_dungeon_step_water",
     "category": "Dungeon interactions",
-    "description": "Light shallow splash; make 4 variations",
+    "description": "A foot into shallow water: plunge, slosh, trapped bubbles, drops",
     "target": "0.10\u20130.25 s",
     "path": "assets/audio/sounds/sfx_dungeon_step_water.wav",
-    "duration": 0.2,
+    "duration": 0.26,
     "loop": false,
-    "peak_db": -14.89,
-    "rms_db": -30.62,
-    "sha256": "fb68e4a5ee339661563251c2ddde89777adb30b1cc1558533cd774cb59e9dbfb",
+    "peak_db": -16.65,
+    "rms_db": -34.91,
+    "sha256": "80c5d7b95adaada6f08d3518e52c6538290e01e87c9839bc48a37150a3677bd1",
     "variations": [
       "assets/audio/sounds/sfx_dungeon_step_water_01.wav",
       "assets/audio/sounds/sfx_dungeon_step_water_02.wav",
       "assets/audio/sounds/sfx_dungeon_step_water_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "sfx_creature_summon",
     "category": "Creatures, breeding, and everyday progression",
-    "description": "Friendly magical materialization",
+    "description": "A companion gathering out of its grains: a swirl in, easing as they land feet first, whole",
     "target": "0.50\u20131.00 s",
     "path": "assets/audio/sounds/sfx_creature_summon.wav",
-    "duration": 0.8,
+    "duration": 1.35,
     "loop": false,
-    "peak_db": -11.37,
-    "rms_db": -25.01,
-    "sha256": "761d3962112b11d508af46c65d4210aacb12f7f8b9e7c0d417fd18359ef3b80b"
+    "peak_db": -6.96,
+    "rms_db": -29.96,
+    "sha256": "a4b86bd3f5211080ebb37b7026ae95b6eb9b4a83f6cfa3389b08c203686cca89",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_capture_throw",
@@ -841,7 +904,7 @@
     "peak_db": -10.54,
     "rms_db": -33.94,
     "sha256": "05a48d423303f84520c3c762be9ffe8a4824e92cd5cd8e400da9961ef4c61af7",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/harvest.py"
   },
   {
     "name": "sfx_capture_attempt",
@@ -854,7 +917,7 @@
     "peak_db": -7.84,
     "rms_db": -29.16,
     "sha256": "74bfaa27b4ad4b41f66920e52fd9214ff10da9866bf875903d922bb1aac6ca8f",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/harvest.py"
   },
   {
     "name": "sfx_capture_success",
@@ -867,7 +930,7 @@
     "peak_db": -6.16,
     "rms_db": -27.59,
     "sha256": "329e073d93c4df6368dc255e93c716a2555d9c6b7d0c3cb298b36d04c8bd4ee0",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/harvest.py"
   },
   {
     "name": "sfx_capture_escape",
@@ -880,19 +943,7 @@
     "peak_db": -7.46,
     "rms_db": -30.2,
     "sha256": "bff8a6ab56e8b3bf3261e0c77138fc9fbb9d2d5247b76e9c61717f8051a8412d",
-    "source": "tool/material_sounds.py"
-  },
-  {
-    "name": "sfx_breeding_start",
-    "category": "Creatures, breeding, and everyday progression",
-    "description": "Two tones blending into a pulsing shimmer",
-    "target": "0.80\u20131.50 s",
-    "path": "assets/audio/sounds/sfx_breeding_start.wav",
-    "duration": 1.2,
-    "loop": false,
-    "peak_db": -11.06,
-    "rms_db": -26.32,
-    "sha256": "fdff19c7ab1a7af4be78cbcb05b5e60021a296beb85247bac2ca8a84e3874585"
+    "source": "tool/sounds/harvest.py"
   },
   {
     "name": "sfx_harvest_collect",
@@ -905,7 +956,7 @@
     "peak_db": -7.42,
     "rms_db": -29.85,
     "sha256": "4efce8bbf3ff488959c32d844fd7f435113ddaaca0244a248f3c8d4d5e657fb2",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/harvest.py"
   },
   {
     "name": "sfx_extraction_complete",
@@ -918,31 +969,7 @@
     "peak_db": -11.21,
     "rms_db": -30.45,
     "sha256": "250c15f912d70e1b99b0791c624df184cac63d23ece74e2e0b0bfce909a71eb6",
-    "source": "tool/material_sounds.py"
-  },
-  {
-    "name": "sfx_extraction_reaction_start",
-    "category": "Alchemical extraction",
-    "description": "Accelerating liquid bubbles and rising reactive energy",
-    "target": "1.20\u20132.00 s",
-    "path": "assets/audio/sounds/sfx_extraction_reaction_start.wav",
-    "duration": 1.6,
-    "loop": false,
-    "peak_db": -11.06,
-    "rms_db": -25.03,
-    "sha256": "6651c61b6e8a75ad3fe0e13ded98a80d224fbafc6a9acba9a9bfee9f5dc32fbd"
-  },
-  {
-    "name": "sfx_extraction_reaction_burst",
-    "category": "Alchemical extraction",
-    "description": "Pressurized vapor and a rounded magical release",
-    "target": "0.50\u20131.00 s",
-    "path": "assets/audio/sounds/sfx_extraction_reaction_burst.wav",
-    "duration": 0.75,
-    "loop": false,
-    "peak_db": -9.37,
-    "rms_db": -26.98,
-    "sha256": "be0c273c77dcf6edbf1e18df6efe14e2bc5068accc9ce00ef5974cf018bd6e8e"
+    "source": "tool/sounds/harvest.py"
   },
   {
     "name": "sfx_extraction_creature_reveal",
@@ -955,7 +982,7 @@
     "peak_db": -8.78,
     "rms_db": -28.84,
     "sha256": "49c0b1c0f907da2ba119ee31b497c28b975348db958d96481b590fe3ca6a141c",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/extraction.py"
   },
   {
     "name": "sfx_extraction_rare_reveal",
@@ -968,319 +995,429 @@
     "peak_db": -9.58,
     "rms_db": -30.43,
     "sha256": "9f5ed57980cbfae5d08c6f58a423facaee94ba328056f803373f2fd5163a6256",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/extraction.py"
   },
   {
     "name": "sfx_element_fire",
     "category": "Element identity pass",
-    "description": "Compact flame ignition and whoosh",
+    "description": "Ignition and crackle: a breath of gas catching into a fluttering flame",
     "target": "0.40\u20130.80 s",
     "path": "assets/audio/sounds/sfx_element_fire.wav",
-    "duration": 0.65,
+    "duration": 0.78,
     "loop": false,
-    "peak_db": -10.46,
-    "rms_db": -29.61,
-    "sha256": "718b7687bbe501caa4a397d3bc808e53a5c1f381d5f8f7c62215de6c62a696bd"
+    "peak_db": -8.55,
+    "rms_db": -30.14,
+    "sha256": "985e453004da17ee8f383fe38816276cac80061587e6b99fddc51d92d137b680",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_fire_01.wav",
+      "assets/audio/sounds/sfx_element_fire_02.wav",
+      "assets/audio/sounds/sfx_element_fire_03.wav"
+    ]
   },
   {
     "name": "sfx_element_water",
     "category": "Element identity pass",
-    "description": "Rounded splash and flowing droplets",
+    "description": "A splash, the bubble cloud it drives under, droplets and a swaying slosh",
     "target": "0.40\u20130.80 s",
     "path": "assets/audio/sounds/sfx_element_water.wav",
-    "duration": 0.65,
+    "duration": 0.75,
     "loop": false,
-    "peak_db": -11.06,
-    "rms_db": -27.21,
-    "sha256": "668e25de4f803231f2004771e28e635366573ad543701fde7d00c0132cc233b7"
+    "peak_db": -13.05,
+    "rms_db": -30.53,
+    "sha256": "ebddec084881468594f240bd55f4c38a01279ba49e92e0c88eba6a70cef8323a",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_water_01.wav",
+      "assets/audio/sounds/sfx_element_water_02.wav",
+      "assets/audio/sounds/sfx_element_water_03.wav"
+    ]
   },
   {
     "name": "sfx_element_air",
     "category": "Element identity pass",
-    "description": "Clean spiraling gust",
+    "description": "A gust that leans in, circles the field like a whirlwind and lifts away",
     "target": "0.30\u20130.60 s",
     "path": "assets/audio/sounds/sfx_element_air.wav",
-    "duration": 0.45,
+    "duration": 0.72,
     "loop": false,
-    "peak_db": -12.4,
-    "rms_db": -30.32,
-    "sha256": "e0ee9fde5ca7793a54d2b22e9ccdba9ad3b2d1da20113c7df7887fb3e6f5c225"
+    "peak_db": -12.48,
+    "rms_db": -29.75,
+    "sha256": "e1dad87bc6dddbad0f634e4510a09dd263c7ad62603b1380aa00cfa959892675",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_air_01.wav",
+      "assets/audio/sounds/sfx_element_air_02.wav",
+      "assets/audio/sounds/sfx_element_air_03.wav"
+    ]
   },
   {
     "name": "sfx_element_earth",
     "category": "Element identity pass",
-    "description": "Dense stone thud and grit",
+    "description": "Stone grinding loose, grit pouring down, the heap taking its weight and one small bounce",
     "target": "0.40\u20130.80 s",
     "path": "assets/audio/sounds/sfx_element_earth.wav",
-    "duration": 0.65,
+    "duration": 0.8,
     "loop": false,
-    "peak_db": -9.37,
-    "rms_db": -25.06,
-    "sha256": "e067eb6a8710e34cdac669385339452f23eabe1bde11a9de152271f32274b61e"
+    "peak_db": -14.2,
+    "rms_db": -30.36,
+    "sha256": "1d5fd632ea14ab9fdfa93769cdbf9d70ba699d0aaec9ae7862eb54efdad11f2d",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_earth_01.wav",
+      "assets/audio/sounds/sfx_element_earth_02.wav",
+      "assets/audio/sounds/sfx_element_earth_03.wav"
+    ]
   },
   {
     "name": "sfx_element_lightning",
     "category": "Element identity pass",
-    "description": "Sharp electric snap with short buzz",
+    "description": "An electric discharge: leader crackle into a snap, then arcing bursts that jump about the field",
     "target": "0.20\u20130.50 s",
     "path": "assets/audio/sounds/sfx_element_lightning.wav",
-    "duration": 0.35,
+    "duration": 0.62,
     "loop": false,
-    "peak_db": -9.63,
-    "rms_db": -29.85,
-    "sha256": "e8fea161ed4911cd02cce60f58e0481a429cdc37ddf89836116502ef63da9789"
+    "peak_db": -5.83,
+    "rms_db": -28.89,
+    "sha256": "9126a1df2d97189ba075c5c3724e1441dca0c888d5f28de600f0064482a9f4f9",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_lightning_01.wav",
+      "assets/audio/sounds/sfx_element_lightning_02.wav",
+      "assets/audio/sounds/sfx_element_lightning_03.wav"
+    ]
   },
   {
     "name": "sfx_element_steam",
     "category": "Element identity pass",
-    "description": "Pressurized vapor release",
+    "description": "A valve chuffs and vents a falling hiss that widens as it billows, droplets spitting",
     "target": "0.50\u20130.90 s",
     "path": "assets/audio/sounds/sfx_element_steam.wav",
-    "duration": 0.7,
+    "duration": 0.8,
     "loop": false,
     "peak_db": -11.37,
-    "rms_db": -30.46,
-    "sha256": "7fe542f4997e754b46fcd9dea9775b0f8b63f4db48bae31d2e8b5a70c8b9b225"
+    "rms_db": -28.4,
+    "sha256": "d60ba1612297d751a2331a66f6f2508d6cee5dea31b9828caaf2598d829b8f0f",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_steam_01.wav",
+      "assets/audio/sounds/sfx_element_steam_02.wav",
+      "assets/audio/sounds/sfx_element_steam_03.wav"
+    ]
   },
   {
     "name": "sfx_element_lava",
     "category": "Element identity pass",
-    "description": "Thick bubbling impact and low flame",
+    "description": "A heavy viscous glorp, big slow bubbles bursting through it, a fine sizzle and a thick drip",
     "target": "0.50\u20131.00 s",
     "path": "assets/audio/sounds/sfx_element_lava.wav",
-    "duration": 0.8,
+    "duration": 0.88,
     "loop": false,
-    "peak_db": -9.63,
-    "rms_db": -25.31,
-    "sha256": "8def5e8ee29f6cd7ede5a88cb0d21bb6b7e6d1a744d97584a63579482577a225"
+    "peak_db": -8.5,
+    "rms_db": -28.69,
+    "sha256": "b8c9c29dc4410eef2e7a65fbb560f4ff836da66375da84ebb267bd84aa6e8577",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_lava_01.wav",
+      "assets/audio/sounds/sfx_element_lava_02.wav",
+      "assets/audio/sounds/sfx_element_lava_03.wav"
+    ]
   },
   {
     "name": "sfx_element_poison",
     "category": "Element identity pass",
-    "description": "Acidic bubble pop and short hiss",
+    "description": "Wet acrid bubbling: blisters swelling and bursting, a sour fizz, a drip",
     "target": "0.40\u20130.80 s",
     "path": "assets/audio/sounds/sfx_element_poison.wav",
-    "duration": 0.65,
+    "duration": 0.78,
     "loop": false,
-    "peak_db": -11.06,
-    "rms_db": -24.87,
-    "sha256": "b7fc5b466b94b88ac4898351618ba05ad53398d50613d7a2548f346bd8c16e7a"
+    "peak_db": -13.15,
+    "rms_db": -30.1,
+    "sha256": "e9ccc8231bd6f5c42de0d35b3abc0ae0c9005b2e76211f273de6179bf3ba7201",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_poison_01.wav",
+      "assets/audio/sounds/sfx_element_poison_02.wav",
+      "assets/audio/sounds/sfx_element_poison_03.wav"
+    ]
   },
   {
     "name": "sfx_element_ice",
     "category": "Element identity pass",
-    "description": "Brittle freeze crack and icy tinkle",
+    "description": "Frost crackling in, the sheet cracking and creaking under strain, one cold glassy tick",
     "target": "0.30\u20130.70 s",
     "path": "assets/audio/sounds/sfx_element_ice.wav",
-    "duration": 0.5,
+    "duration": 0.78,
     "loop": false,
-    "peak_db": -11.06,
-    "rms_db": -26.71,
-    "sha256": "2a27ef792f2f43c53f8ff8c1529af9ecd3363a672bf5ce73a7596391e5cd6982"
+    "peak_db": -6.19,
+    "rms_db": -29.12,
+    "sha256": "edc03971d504889f64d26831973868b51c92f6d4064b9939b3eadfd3a3a6c9a0",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_ice_01.wav",
+      "assets/audio/sounds/sfx_element_ice_02.wav",
+      "assets/audio/sounds/sfx_element_ice_03.wav"
+    ]
   },
   {
     "name": "sfx_element_mud",
     "category": "Element identity pass",
-    "description": "Heavy wet squelch",
+    "description": "A thick suck and squelch, then slow plops into the puddle",
     "target": "0.30\u20130.70 s",
     "path": "assets/audio/sounds/sfx_element_mud.wav",
-    "duration": 0.5,
+    "duration": 0.75,
     "loop": false,
-    "peak_db": -11.06,
-    "rms_db": -27.43,
-    "sha256": "da18bd9104ac833973b413f8646438c0c7437bdc59c05458b631c86b236cff78"
+    "peak_db": -12.71,
+    "rms_db": -30.22,
+    "sha256": "01281c942ba2889722372f2ae672c7f05362c7091fba7ab8b21f71cba75390d1",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_mud_01.wav",
+      "assets/audio/sounds/sfx_element_mud_02.wav",
+      "assets/audio/sounds/sfx_element_mud_03.wav"
+    ]
   },
   {
     "name": "sfx_element_dust",
     "category": "Element identity pass",
-    "description": "Dry granular swirl",
+    "description": "A dry sandy whoosh: the wind takes it and sand streams downwind",
     "target": "0.40\u20130.80 s",
     "path": "assets/audio/sounds/sfx_element_dust.wav",
-    "duration": 0.65,
+    "duration": 0.78,
     "loop": false,
-    "peak_db": -12.4,
-    "rms_db": -30.34,
-    "sha256": "29af1bdc06e04aedab1d5eff7b7c7f84dffef61b43c622f69527403fb6b554fd"
+    "peak_db": -8.73,
+    "rms_db": -29.74,
+    "sha256": "7323e842b9abe7b6c6fab17d036c2a47813407848c48513f597b0eb612825a2e",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_dust_01.wav",
+      "assets/audio/sounds/sfx_element_dust_02.wav",
+      "assets/audio/sounds/sfx_element_dust_03.wav"
+    ]
   },
   {
     "name": "sfx_element_crystal",
     "category": "Element identity pass",
-    "description": "Clear faceted glass resonance",
+    "description": "Crisp fractures and one clear quartz body answering, its facets glittering",
     "target": "0.40\u20130.90 s",
     "path": "assets/audio/sounds/sfx_element_crystal.wav",
-    "duration": 0.7,
+    "duration": 0.85,
     "loop": false,
-    "peak_db": -11.06,
-    "rms_db": -27.76,
-    "sha256": "7c7ca5bfb6d6dc9bc027bc98737a506e339e504c927a5a9087a414d08c5ba582"
+    "peak_db": -11.14,
+    "rms_db": -31.46,
+    "sha256": "1c59bb19e91fd689759b514e697a5be701adf9015a4aadce83790201012d64d6",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_crystal_01.wav",
+      "assets/audio/sounds/sfx_element_crystal_02.wav",
+      "assets/audio/sounds/sfx_element_crystal_03.wav"
+    ]
   },
   {
     "name": "sfx_element_plant",
     "category": "Element identity pass",
-    "description": "Rapid vine growth and leaf rustle",
+    "description": "Leaves shaking out and rustling as they sway, a woody creak of stems growing",
     "target": "0.40\u20130.80 s",
     "path": "assets/audio/sounds/sfx_element_plant.wav",
-    "duration": 0.65,
+    "duration": 0.85,
     "loop": false,
-    "peak_db": -11.7,
-    "rms_db": -28.51,
-    "sha256": "70b2040aac6b0bd29957f6c640fdb0acab66d4e74a8831dc4cbb23d8b7e73815"
+    "peak_db": -8.13,
+    "rms_db": -29.76,
+    "sha256": "3471970c8b7b394b6ffc5dda40247c718c2f973dea927d9b9220fce7cbc7161a",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_plant_01.wav",
+      "assets/audio/sounds/sfx_element_plant_02.wav",
+      "assets/audio/sounds/sfx_element_plant_03.wav"
+    ]
   },
   {
     "name": "sfx_element_spirit",
     "category": "Element identity pass",
-    "description": "Ethereal nonverbal spectral resonance",
+    "description": "A whispered breath rising and thinning, a glass stroked faintly under it",
     "target": "0.60\u20131.20 s",
     "path": "assets/audio/sounds/sfx_element_spirit.wav",
-    "duration": 0.95,
+    "duration": 0.92,
     "loop": false,
-    "peak_db": -11.37,
-    "rms_db": -24.95,
-    "sha256": "aa2efc92f94c5a273a82e37c3925195f4a9c32c976a0c3ba2b6b0b9eb64b4295"
+    "peak_db": -13.32,
+    "rms_db": -29.56,
+    "sha256": "ed000d9077e953b31fa9a4cf5fbd5948085a92200db460e6be63d60923a80b53",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_spirit_01.wav",
+      "assets/audio/sounds/sfx_element_spirit_02.wav",
+      "assets/audio/sounds/sfx_element_spirit_03.wav"
+    ]
   },
   {
     "name": "sfx_element_dark",
     "category": "Element identity pass",
-    "description": "Hollow inward pull and muted low pulse",
+    "description": "An inhale: the room drawn in, its top closing, swirling faster until it is swallowed",
     "target": "0.50\u20131.00 s",
     "path": "assets/audio/sounds/sfx_element_dark.wav",
-    "duration": 0.8,
+    "duration": 0.66,
     "loop": false,
-    "peak_db": -9.9,
-    "rms_db": -24.6,
-    "sha256": "275ee2dda94b7a9593dd82426ac7b346171fab97682e066c59b84b0348f30fa9"
+    "peak_db": -11.04,
+    "rms_db": -28.98,
+    "sha256": "e1053fabb8149ded05d8c8f504151811fcdeb87fdc3c56157f7576e8e5890bfb",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_dark_01.wav",
+      "assets/audio/sounds/sfx_element_dark_02.wav",
+      "assets/audio/sounds/sfx_element_dark_03.wav"
+    ]
   },
   {
     "name": "sfx_element_light",
     "category": "Element identity pass",
-    "description": "Radiant bell-like burst",
+    "description": "A soft bright swell opening from the centre: warm air, flickering shimmer, a few motes",
     "target": "0.50\u20131.00 s",
     "path": "assets/audio/sounds/sfx_element_light.wav",
-    "duration": 0.8,
+    "duration": 0.88,
     "loop": false,
-    "peak_db": -11.06,
-    "rms_db": -27.09,
-    "sha256": "ef99a7d66edeb3dbdf22da40fda7971edf50b91962a534cc6d9516386081eba1"
+    "peak_db": -14.3,
+    "rms_db": -30.33,
+    "sha256": "5da4d1bc5528c66b53c70a2492a0dcc79e9d1c7141c963b1400330f2b3f8d1db",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_light_01.wav",
+      "assets/audio/sounds/sfx_element_light_02.wav",
+      "assets/audio/sounds/sfx_element_light_03.wav"
+    ]
   },
   {
     "name": "sfx_element_blood",
     "category": "Element identity pass",
-    "description": "Deep heartbeat and liquid energy pulse",
+    "description": "A heartbeat heard as flow: two thick surges through a vessel and a viscous gurgle",
     "target": "0.40\u20130.80 s",
     "path": "assets/audio/sounds/sfx_element_blood.wav",
-    "duration": 0.65,
+    "duration": 0.82,
     "loop": false,
-    "peak_db": -10.46,
-    "rms_db": -23.83,
-    "sha256": "9cb341e185ce1a6a6c4b3758e1c0f7cd45d2b5b609cf244b2717e774bdcc818a"
+    "peak_db": -8.11,
+    "rms_db": -29.98,
+    "sha256": "8defb9442fdb3c8963a9f59184b2b7c768d320a07913992aca37529e94b806ab",
+    "source": "tool/sounds/elements.py",
+    "variations": [
+      "assets/audio/sounds/sfx_element_blood_01.wav",
+      "assets/audio/sounds/sfx_element_blood_02.wav",
+      "assets/audio/sounds/sfx_element_blood_03.wav"
+    ]
   },
   {
     "name": "amb_cosmic_space_loop",
     "category": "Optional ambience and music",
-    "description": "Quiet deep-space resonance and distant particles",
+    "description": "The open cosmos: a deep slow tide of air, a far hush, dust drifting past, something enormous turning far off",
     "target": "30\u201360 s",
     "loop_seam_delta": 0.001373,
     "path": "assets/audio/sounds/amb_cosmic_space_loop.wav",
     "duration": 30.0,
     "loop": true,
-    "peak_db": -16.48,
-    "rms_db": -26.76,
-    "sha256": "090f6c9d9f0ea2cfe9d7841b6afd8160a2dadfbc30c21da8028e5c3333976296"
+    "peak_db": -18.59,
+    "rms_db": -34.98,
+    "sha256": "593cf7d0e3100789f51be90b0749bbed624a78ac3b03fcd9b4e8fd0725baf0c0",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "amb_dungeon_ruins_loop",
     "category": "Optional ambience and music",
-    "description": "Hollow air and occasional distant stone movement",
+    "description": "Stone ruins: still dark air, a wandering draught, grit and pebbles far off",
     "target": "30\u201360 s",
     "loop_seam_delta": 0.002502,
     "path": "assets/audio/sounds/amb_dungeon_ruins_loop.wav",
     "duration": 30.0,
     "loop": true,
-    "peak_db": -16.48,
-    "rms_db": -27.24,
-    "sha256": "1c5291193b51d890ee321e6b758db21e811145cd92d17191c60ccb5a4cafa024"
+    "peak_db": -20.86,
+    "rms_db": -36.14,
+    "sha256": "969519b0e48e348ef879370b1d322de7c88e002db0f361cbfb10cea926d2b220",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "amb_dungeon_water_loop",
     "category": "Optional ambience and music",
-    "description": "Underground flow and scattered drips",
+    "description": "Wet stone: a far trickle, slow lapping, drips into pools at no pace",
     "target": "20\u201340 s",
     "loop_seam_delta": 0.010315,
     "path": "assets/audio/sounds/amb_dungeon_water_loop.wav",
     "duration": 30.0,
     "loop": true,
-    "peak_db": -16.48,
-    "rms_db": -29.74,
-    "sha256": "0dbf558f6a9d161d896e2335ebf0561ef7eeb6482ef125f7d988867ec2c34c96"
+    "peak_db": -17.4,
+    "rms_db": -35.04,
+    "sha256": "48cb439355236796d91461913c532810d1d607d2e6a2b02f1bbf608aee96e9ab",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "amb_dungeon_fire_loop",
     "category": "Optional ambience and music",
-    "description": "Restrained crackle and subterranean heat rumble",
+    "description": "Hot stone: a fire breathing in another chamber, embers cracking, heat ticks",
     "target": "20\u201340 s",
     "loop_seam_delta": 0.000122,
     "path": "assets/audio/sounds/amb_dungeon_fire_loop.wav",
     "duration": 30.0,
     "loop": true,
-    "peak_db": -16.48,
-    "rms_db": -29.9,
-    "sha256": "47b4842455ee74c5303323a229a00c28466df5ecc61dfee9d7aa3f5953f529f6"
+    "peak_db": -16.36,
+    "rms_db": -33.83,
+    "sha256": "4df3a0ba24512cf400cc81c70afc590f605b9da0aada4abef8995c77aee5c3d6",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "amb_dungeon_arcane_loop",
     "category": "Optional ambience and music",
-    "description": "Slow magical oscillations and crystal resonance",
+    "description": "Arcane stone: unpitched low resonance in the walls, air moving in a large room",
     "target": "30\u201360 s",
     "loop_seam_delta": 0.003662,
     "path": "assets/audio/sounds/amb_dungeon_arcane_loop.wav",
     "duration": 30.0,
     "loop": true,
-    "peak_db": -16.48,
-    "rms_db": -26.36,
-    "sha256": "a98e2728d7ff43c9d2dda3305a931510b8b4415333c8658d785631eaf5546b97"
+    "peak_db": -16.23,
+    "rms_db": -33.11,
+    "sha256": "abe61380b43a65662ecd1bc7a28e4f57a0ae7d65408e08a0c5da9dd4dc2a762c",
+    "source": "tool/sounds/dungeon.py"
   },
   {
     "name": "amb_lab_loop",
     "category": "Optional ambience and music",
-    "description": "Soft equipment hum and occasional alchemical bubbles",
+    "description": "The Harvest room: warm low air, a flask simmering faintly, the bench settling now and then",
     "target": "20\u201340 s",
     "loop_seam_delta": 0.00296,
     "path": "assets/audio/sounds/amb_lab_loop.wav",
-    "duration": 30.0,
+    "duration": 24.0,
     "loop": true,
-    "peak_db": -16.48,
-    "rms_db": -27.53,
-    "sha256": "9c9819cedc7e327d8ab9ca4a11c90efa89785d6af4b25980aed370139d7f6a1f"
+    "peak_db": -17.07,
+    "rms_db": -34.77,
+    "sha256": "afa88d56a14cf497deb43aeaadf556dd2ab6eba5a7f6252ce777a584c3630417",
+    "source": "tool/sounds/interface.py"
   },
   {
     "name": "sfx_cosmic_matter_collect",
     "category": "Later additions",
-    "description": "Alchemical matter drawn into the meter \u2014 a soft intake, not a coin",
+    "description": "A mote of matter drawn into the hold: a short soft intake and a pinch of grains settling",
     "target": "0.15\u20130.30 s",
     "path": "assets/audio/sounds/sfx_cosmic_matter_collect.wav",
-    "duration": 0.34,
+    "duration": 0.26,
     "loop": false,
-    "peak_db": -16.48,
-    "rms_db": -31.73,
-    "sha256": "3886af3429474c0bb2e412655a895083443669a29fa33e8a283af167cde70e1d",
+    "peak_db": -10.94,
+    "rms_db": -34.44,
+    "sha256": "53c9fef2397ec8c961d04d4cb1ccb305dc22e5263fdde021efc80743cfc0b7cf",
     "variations": [
       "assets/audio/sounds/sfx_cosmic_matter_collect_01.wav",
       "assets/audio/sounds/sfx_cosmic_matter_collect_02.wav",
       "assets/audio/sounds/sfx_cosmic_matter_collect_03.wav"
-    ]
+    ],
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "amb_cosmic_boost_loop",
     "category": "Later additions",
-    "description": "The booster held down \u2014 a continuous thruster, not a repeated whoosh",
+    "description": "The booster held: turbulent combustion roar, flame flutter, crackle, exhaust hiss, the hull shaken under it",
     "target": "30 s",
     "loop_seam_delta": 0.00174,
     "path": "assets/audio/sounds/amb_cosmic_boost_loop.wav",
-    "duration": 4.0,
+    "duration": 5.0,
     "loop": true,
-    "peak_db": -16.48,
-    "rms_db": -26.04,
-    "sha256": "df86ba66a1a680a5a7e7078fdbef9095bcca278051fa090766ffd0f24be6ee0c"
+    "peak_db": -11.24,
+    "rms_db": -32.37,
+    "sha256": "789311a2676419c53b2c8b6b216e7d69d215c01b4182fc14a6df4df077f03966",
+    "source": "tool/sounds/cosmic.py"
   },
   {
     "name": "sfx_extraction_ceremony",
@@ -1292,7 +1429,7 @@
     "peak_db": -5.48,
     "rms_db": -26.14,
     "sha256": "6a30da370a6a410475d14ca174d8fe8181b4364881ddb9f01b70dbb81c874be7",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/extraction.py"
   },
   {
     "name": "sfx_fusion_merge",
@@ -1304,7 +1441,7 @@
     "peak_db": -5.74,
     "rms_db": -27.57,
     "sha256": "5ed7539460eb8c961910081530544f96d3c924804cf8b51a7986c24be0c70496",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/fusion.py"
   },
   {
     "name": "sfx_fusion_eruption",
@@ -1316,7 +1453,7 @@
     "peak_db": -5.97,
     "rms_db": -27.42,
     "sha256": "49edaf92c82d7c4a7aae555b8398202b1d85ecd2a35f1282a0c32f0a5221131c",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/fusion.py"
   },
   {
     "name": "sfx_fusion_calibrate",
@@ -1328,7 +1465,7 @@
     "peak_db": -4.9,
     "rms_db": -29.97,
     "sha256": "03f92cdce3bf1b0860c164fe58f5d8c5dbb1ff029220587f1699f6fc06604268",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/fusion.py"
   },
   {
     "name": "sfx_fusion_pour",
@@ -1340,7 +1477,7 @@
     "peak_db": -5.8,
     "rms_db": -27.62,
     "sha256": "6abc46889c2270c3a50674c326d374bbe6119286b8489436d8bd61177b9bf210",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/fusion.py"
   },
   {
     "name": "sfx_fusion_recoil",
@@ -1352,7 +1489,7 @@
     "peak_db": -9.25,
     "rms_db": -30.59,
     "sha256": "1ee72dc17c91fe15f0978d966eb1e1090523fc3930e6cb4b2c457a1b392c2454",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/fusion.py"
   },
   {
     "name": "sfx_reward_flight",
@@ -1364,6 +1501,1132 @@
     "peak_db": -7.8,
     "rms_db": -31.31,
     "sha256": "95cc518ad1cb8b33321f47e657545839ec84b0005bd1eac8cb4f12767ffcfc0f",
-    "source": "tool/material_sounds.py"
+    "source": "tool/sounds/harvest.py"
+  },
+  {
+    "name": "sfx_constellation_attune",
+    "description": "Grains run down a constellation link for 1.05 s, and the obsidian stone seats and ignites as they land",
+    "path": "assets/audio/sounds/sfx_constellation_attune.wav",
+    "duration": 2.05,
+    "loop": false,
+    "peak_db": -4.71,
+    "rms_db": -29.65,
+    "sha256": "8e2c76597b951de9c93a040acdc8c57d51ee1f31a3343651c81e24b6ba99df67",
+    "source": "tool/sounds/rewards.py"
+  },
+  {
+    "name": "sfx_altar_rite",
+    "description": "The Mystic Altar's rite: offerings pour into the middle, are crushed into a shivering, heating knot, and it bursts into a spray of grains and embers",
+    "path": "assets/audio/sounds/sfx_altar_rite.wav",
+    "duration": 4.6,
+    "loop": false,
+    "peak_db": -7.7,
+    "rms_db": -28.09,
+    "sha256": "7f10f711bd295882a86f8ff3eb6663ac7170c8af73737cf3e47dbc99d847992a",
+    "source": "tool/sounds/interface.py"
+  },
+  {
+    "name": "sfx_altar_awake",
+    "description": "The Mystic awake: its grains settle and it takes a first breath, in and a long breath out",
+    "path": "assets/audio/sounds/sfx_altar_awake.wav",
+    "duration": 2.5,
+    "loop": false,
+    "peak_db": -12.42,
+    "rms_db": -29.67,
+    "sha256": "8bad65a2965601162382c45c2793fb842f4f0d0c3a3e2dda8a67918056545b44",
+    "source": "tool/sounds/interface.py"
+  },
+  {
+    "name": "sfx_altar_seal",
+    "description": "Sealed and departing: grains wind into a sphere, a glass stopper is turned home, and it drops away",
+    "path": "assets/audio/sounds/sfx_altar_seal.wav",
+    "duration": 1.75,
+    "loop": false,
+    "peak_db": -8.71,
+    "rms_db": -30.24,
+    "sha256": "a156dc084c68caee53196fa61acfe7987b1728c5155cb53bf58e8f65fd4f5fd9",
+    "source": "tool/sounds/interface.py"
+  },
+  {
+    "name": "sfx_altar_rift_tear",
+    "description": "The Mystic Altar heart torn into the arcane rift: its grain disk spinning up over 3.4 s, tearing at the flash",
+    "path": "assets/audio/sounds/sfx_altar_rift_tear.wav",
+    "duration": 4.5,
+    "loop": false,
+    "peak_db": -6.3,
+    "rms_db": -24.99,
+    "sha256": "399925972ce586c9e1be5c9b96b0fa9ad96e84a067c05117cdb48dbdc27e5399",
+    "source": "tool/sounds/cosmic.py"
+  },
+  {
+    "name": "sfx_ship_bolt",
+    "description": "The ship's gun: a capacitor crack, the air the bolt shoves aside, the dark-glass hull knocked by the recoil",
+    "path": "assets/audio/sounds/sfx_ship_bolt.wav",
+    "duration": 0.16,
+    "loop": false,
+    "peak_db": -17.27,
+    "rms_db": -35.75,
+    "sha256": "404e7d58bc777739e34e4973046fb3f8f32704658a1cc3c913277b64877667ea",
+    "source": "tool/sounds/cosmic.py",
+    "variations": [
+      "assets/audio/sounds/sfx_ship_bolt_01.wav",
+      "assets/audio/sounds/sfx_ship_bolt_02.wav",
+      "assets/audio/sounds/sfx_ship_bolt_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_ship_missile",
+    "description": "A missile: a clamp lets go on the hull, the motor catches and tears away, thinning",
+    "path": "assets/audio/sounds/sfx_ship_missile.wav",
+    "duration": 0.8,
+    "loop": false,
+    "peak_db": -9.09,
+    "rms_db": -31.67,
+    "sha256": "12397977131b2b6cfafc5238eb10b54727ac2c64a197e841280b643a53348e86",
+    "source": "tool/sounds/cosmic.py"
+  },
+  {
+    "name": "sfx_special_pip",
+    "description": "A pip salvo: shafts sliding as the fan opens, a riffle of seven dry releases, keen cuts spreading wide and away",
+    "path": "assets/audio/sounds/sfx_special_pip.wav",
+    "duration": 0.42,
+    "loop": false,
+    "peak_db": -13.53,
+    "rms_db": -30.86,
+    "sha256": "a9fb499eff2750a89063221f45d6039b5ef7133cb83594c6b51b96d39977b366",
+    "source": "tool/sounds/family_pip.py"
+  },
+  {
+    "name": "sfx_special_pip_seeker",
+    "description": "Slow homing needles: a soft riffle, then low fluttering cuts that swing out and curl back in",
+    "path": "assets/audio/sounds/sfx_special_pip_seeker.wav",
+    "duration": 0.8,
+    "loop": false,
+    "peak_db": -12.41,
+    "rms_db": -30.99,
+    "sha256": "5c0d0c7815e9330bcf0eadd138ab9162b33a8b986df1f36ab616b486139cdf84",
+    "source": "tool/sounds/family_pip.py"
+  },
+  {
+    "name": "sfx_special_pip_heavy",
+    "description": "Three knapped stone heads let go: gritty flint knocks and thick low cuts of air",
+    "path": "assets/audio/sounds/sfx_special_pip_heavy.wav",
+    "duration": 0.55,
+    "loop": false,
+    "peak_db": -11.31,
+    "rms_db": -30.98,
+    "sha256": "5cdd10b5fd00370a56caaf37272cd2d13ab0d8e66c0595ab6fe417810f9e9c13",
+    "source": "tool/sounds/family_pip.py"
+  },
+  {
+    "name": "sfx_special_pip_ricochet",
+    "description": "A dart point skidding off obsidian and cutting away the other way: dry, a few ms, under the hit",
+    "path": "assets/audio/sounds/sfx_special_pip_ricochet.wav",
+    "duration": 0.12,
+    "loop": false,
+    "peak_db": -15.75,
+    "rms_db": -35.68,
+    "sha256": "e28e4e6f014af4fcb310ab7d4ebf320caf9a1486a69c119148c7838047f1a0ec",
+    "source": "tool/sounds/family_pip.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_pip_ricochet_01.wav",
+      "assets/audio/sounds/sfx_special_pip_ricochet_02.wav",
+      "assets/audio/sounds/sfx_special_pip_ricochet_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_pip_void",
+    "description": "Dark pip's black hole opening: air rushing in to a point, narrowing and darkening, grit falling in after it",
+    "path": "assets/audio/sounds/sfx_special_pip_void.wav",
+    "duration": 1.15,
+    "loop": false,
+    "peak_db": -13.17,
+    "rms_db": -31.94,
+    "sha256": "687fc4f7a6330f6dcdd6efd7e3b335155d88f63decd4051103f9aed12f352ccb",
+    "source": "tool/sounds/family_pip.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_pip_void_01.wav",
+      "assets/audio/sounds/sfx_special_pip_void_02.wav",
+      "assets/audio/sounds/sfx_special_pip_void_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mask",
+    "description": "A sowing sweep and many soft set-downs across the field at once; the ground answers",
+    "path": "assets/audio/sounds/sfx_special_mask.wav",
+    "duration": 0.95,
+    "loop": false,
+    "peak_db": -9.16,
+    "rms_db": -30.62,
+    "sha256": "f00d685e884377338721207159c71918214091ceed9ba0c2f0709462fb8fa455",
+    "source": "tool/sounds/family_mask.py"
+  },
+  {
+    "name": "sfx_special_mask_single",
+    "description": "One aimed sweep and one weighty set-down, the floor giving under it",
+    "path": "assets/audio/sounds/sfx_special_mask_single.wav",
+    "duration": 0.95,
+    "loop": false,
+    "peak_db": -5.67,
+    "rms_db": -30.93,
+    "sha256": "7ef7ad9c80451be874bda8dbc84f03a8ea4b2f481bd6cecb24fe3f6d0cba14df",
+    "source": "tool/sounds/family_mask.py"
+  },
+  {
+    "name": "sfx_special_mask_feed",
+    "description": "Fibres parting at the root and a thick trunk groaning as it swells",
+    "path": "assets/audio/sounds/sfx_special_mask_feed.wav",
+    "duration": 0.9,
+    "loop": false,
+    "peak_db": -5.13,
+    "rms_db": -30.47,
+    "sha256": "b0e97c3ee8fdce5843f6fc62098ac5eddea95022da7165cfb97ee1887f9843a4",
+    "source": "tool/sounds/family_mask.py"
+  },
+  {
+    "name": "sfx_special_mask_wrap",
+    "description": "Air circling round and five small stones knocking into their orbit",
+    "path": "assets/audio/sounds/sfx_special_mask_wrap.wav",
+    "duration": 1.0,
+    "loop": false,
+    "peak_db": -7.34,
+    "rms_db": -30.99,
+    "sha256": "b43bea47fd9f5d132033264c31745963a17820ff68718e5f99de935b7ad5c0c2",
+    "source": "tool/sounds/family_mask.py"
+  },
+  {
+    "name": "sfx_special_mask_spring_light",
+    "description": "A bright incision tearing, then air drawn into the slit, cut off",
+    "path": "assets/audio/sounds/sfx_special_mask_spring_light.wav",
+    "duration": 0.48,
+    "loop": false,
+    "peak_db": -14.84,
+    "rms_db": -32.75,
+    "sha256": "58ab13061f46ccfd833678665d3feb3dfc3ab8d4d747aca2e2879e88218a668e",
+    "source": "tool/sounds/family_mask.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mask_spring_light_01.wav",
+      "assets/audio/sounds/sfx_special_mask_spring_light_02.wav",
+      "assets/audio/sounds/sfx_special_mask_spring_light_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mask_spring_crystal",
+    "description": "A crystal cracks and breaks; three pieces land apart",
+    "path": "assets/audio/sounds/sfx_special_mask_spring_crystal.wav",
+    "duration": 0.42,
+    "loop": false,
+    "peak_db": -9.09,
+    "rms_db": -32.99,
+    "sha256": "c47130ccc9c86086f3f55c8606b994ce5ae703b41a40e3d619ceeab7003a478d",
+    "source": "tool/sounds/family_mask.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mask_spring_crystal_01.wav",
+      "assets/audio/sounds/sfx_special_mask_spring_crystal_02.wav",
+      "assets/audio/sounds/sfx_special_mask_spring_crystal_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mask_spring_fire",
+    "description": "A fire ball bursts into a pool: a flaring whumpf, flame spreading, embers",
+    "path": "assets/audio/sounds/sfx_special_mask_spring_fire.wav",
+    "duration": 0.5,
+    "loop": false,
+    "peak_db": -11.36,
+    "rms_db": -32.79,
+    "sha256": "77a93a97b2683b42e4a1e2ac5e8e0c53befbf6f2bc20909c7355543bab17bbd7",
+    "source": "tool/sounds/family_mask.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mask_spring_fire_01.wav",
+      "assets/audio/sounds/sfx_special_mask_spring_fire_02.wav",
+      "assets/audio/sounds/sfx_special_mask_spring_fire_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mask_spring_water",
+    "description": "A splash: the surface slapped open, bubbles, drops falling back",
+    "path": "assets/audio/sounds/sfx_special_mask_spring_water.wav",
+    "duration": 0.45,
+    "loop": false,
+    "peak_db": -12.77,
+    "rms_db": -32.91,
+    "sha256": "5fe02a66db4f69fc6abaadf8ea909da20b25902eed77f3f6aeb1769f7518d25d",
+    "source": "tool/sounds/family_mask.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mask_spring_water_01.wav",
+      "assets/audio/sounds/sfx_special_mask_spring_water_02.wav",
+      "assets/audio/sounds/sfx_special_mask_spring_water_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mask_spring_dark",
+    "description": "A gulp that closes off, then a streak of air thrown out to one side",
+    "path": "assets/audio/sounds/sfx_special_mask_spring_dark.wav",
+    "duration": 0.52,
+    "loop": false,
+    "peak_db": -14.32,
+    "rms_db": -32.51,
+    "sha256": "b51e62a206a2bcef944d4398590bee4a29eda0062030f51b8f7906b0d899a081",
+    "source": "tool/sounds/family_mask.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mask_spring_dark_01.wav",
+      "assets/audio/sounds/sfx_special_mask_spring_dark_02.wav",
+      "assets/audio/sounds/sfx_special_mask_spring_dark_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_wing",
+    "description": "The held beam, 2.1 s hold: a jet of pressure roaring out of the wing, a searing hiss, sparks where it lands thickening each tick; gone in a breath",
+    "path": "assets/audio/sounds/sfx_special_wing.wav",
+    "duration": 2.65,
+    "loop": false,
+    "peak_db": -13.44,
+    "rms_db": -31.97,
+    "sha256": "46ae0f9739e6549db7bfd50e365dce77085e65330213e9bdc7a8b39807e7f357",
+    "source": "tool/sounds/family_wing.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_wing_01.wav",
+      "assets/audio/sounds/sfx_special_wing_02.wav",
+      "assets/audio/sounds/sfx_special_wing_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_wing_ring",
+    "description": "Fire/Poison ring, 2.1 s: pressure laid out round the wing, a stream circling once per 1.85 s with the band dragging on the ground; fades over its last 0.45 s",
+    "path": "assets/audio/sounds/sfx_special_wing_ring.wav",
+    "duration": 2.65,
+    "loop": false,
+    "peak_db": -13.08,
+    "rms_db": -30.84,
+    "sha256": "95c0466e92b7fb82557e7cde46cb5081d8b12f7264887d25220c496ee2513e53",
+    "source": "tool/sounds/family_wing.py"
+  },
+  {
+    "name": "sfx_special_wing_charge",
+    "description": "Lightning: 3 s of air drawn into a growing storm orb, sparks and arcs quickening, then one tearing blast down the line and the air settling",
+    "path": "assets/audio/sounds/sfx_special_wing_charge.wav",
+    "duration": 4.03,
+    "loop": false,
+    "peak_db": -7.19,
+    "rms_db": -31.9,
+    "sha256": "0f65c1a5687f0aeee1280e5b98ebb4936d152743ea74c6f8b10fc4fa18f6c640",
+    "source": "tool/sounds/family_wing.py"
+  },
+  {
+    "name": "sfx_special_mane",
+    "description": "Mane catapult: a heavy body heaved off, its churning rush crawling away and darkening over ~2 s",
+    "path": "assets/audio/sounds/sfx_special_mane.wav",
+    "duration": 2.4,
+    "loop": false,
+    "peak_db": -18.98,
+    "rms_db": -35.68,
+    "sha256": "5bbcf71ff68e2979f75c338786045ef38bb152ce39983bae10166d3c02ea19e0",
+    "source": "tool/sounds/family_mane.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mane_01.wav",
+      "assets/audio/sounds/sfx_special_mane_02.wav",
+      "assets/audio/sounds/sfx_special_mane_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mane_gale",
+    "description": "Mane Air: a heavy gust thrown hard, buffeted, tearing away to one side in under a second",
+    "path": "assets/audio/sounds/sfx_special_mane_gale.wav",
+    "duration": 1.05,
+    "loop": false,
+    "peak_db": -13.73,
+    "rms_db": -34.96,
+    "sha256": "1876f8164819df289cdd7f06eaf18edce0ee6840052cc5f2d61d11ce24c30600",
+    "source": "tool/sounds/family_mane.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mane_gale_01.wav",
+      "assets/audio/sounds/sfx_special_mane_gale_02.wav",
+      "assets/audio/sounds/sfx_special_mane_gale_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mane_volley",
+    "description": "Mane Fire: one throw comes apart into a spray of small fast tears of air across the field",
+    "path": "assets/audio/sounds/sfx_special_mane_volley.wav",
+    "duration": 1.0,
+    "loop": false,
+    "peak_db": -13.71,
+    "rms_db": -34.97,
+    "sha256": "3ed3c182edfc991b30bb0148de1830903b354e61688a2134099e583e44db9fa5",
+    "source": "tool/sounds/family_mane.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mane_volley_01.wav",
+      "assets/audio/sounds/sfx_special_mane_volley_02.wav",
+      "assets/audio/sounds/sfx_special_mane_volley_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mane_scatter",
+    "description": "Mane Lightning: a handful of small orbs flung out every way at once, light flicks all round",
+    "path": "assets/audio/sounds/sfx_special_mane_scatter.wav",
+    "duration": 0.95,
+    "loop": false,
+    "peak_db": -17.67,
+    "rms_db": -36.48,
+    "sha256": "c0923f632d0a69feedf9703b63d3103055b951ecbcdfa270c15bf85c9dbcca23",
+    "source": "tool/sounds/family_mane.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mane_scatter_01.wav",
+      "assets/audio/sounds/sfx_special_mane_scatter_02.wav",
+      "assets/audio/sounds/sfx_special_mane_scatter_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mane_stream",
+    "description": "Mane Spirit: the throw, a ripple of edges in close file, a lighter body crawling away",
+    "path": "assets/audio/sounds/sfx_special_mane_stream.wav",
+    "duration": 2.0,
+    "loop": false,
+    "peak_db": -18.35,
+    "rms_db": -35.91,
+    "sha256": "3df08b04fb209c400c5cd7526f93ef47a555077342588213a3cf6d366faa6cb8",
+    "source": "tool/sounds/family_mane.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mane_stream_01.wav",
+      "assets/audio/sounds/sfx_special_mane_stream_02.wav",
+      "assets/audio/sounds/sfx_special_mane_stream_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mane_ward",
+    "description": "Mane Light: a weight swung out and taken into orbit, one slow arc of air settling into a held turning",
+    "path": "assets/audio/sounds/sfx_special_mane_ward.wav",
+    "duration": 1.5,
+    "loop": false,
+    "peak_db": -19.65,
+    "rms_db": -35.01,
+    "sha256": "50afb116367c790998c67ecb0a13872c43830e55c068d4ded6a5aee59a8ad75a",
+    "source": "tool/sounds/family_mane.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mane_ward_01.wav",
+      "assets/audio/sounds/sfx_special_mane_ward_02.wav",
+      "assets/audio/sounds/sfx_special_mane_ward_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mane_orb_land",
+    "description": "Mane Lightning orb seats and its shock field takes: a soft settle and a spreading crackle",
+    "path": "assets/audio/sounds/sfx_special_mane_orb_land.wav",
+    "duration": 0.5,
+    "loop": false,
+    "peak_db": -11.34,
+    "rms_db": -34.56,
+    "sha256": "21ecb91e2811b8825ece2154ece8af0aaf287735dc900db1abc0562ede765abe",
+    "source": "tool/sounds/family_mane.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mane_orb_land_01.wav",
+      "assets/audio/sounds/sfx_special_mane_orb_land_02.wav",
+      "assets/audio/sounds/sfx_special_mane_orb_land_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mane_burst",
+    "description": "Mane Mud ball bursts on its first hit: a thick wet splat and ten clods flung every way",
+    "path": "assets/audio/sounds/sfx_special_mane_burst.wav",
+    "duration": 0.75,
+    "loop": false,
+    "peak_db": -12.37,
+    "rms_db": -32.83,
+    "sha256": "0aeee9e22c30ef80c6834bdfb322772c27c052de23589fe8164adc11964005da",
+    "source": "tool/sounds/family_mane.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mane_burst_01.wav",
+      "assets/audio/sounds/sfx_special_mane_burst_02.wav",
+      "assets/audio/sounds/sfx_special_mane_burst_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mane_shatter",
+    "description": "Mane Crystal prism blows on a boss: a crack runs, a dense mineral crunch under a blast, facets fly",
+    "path": "assets/audio/sounds/sfx_special_mane_shatter.wav",
+    "duration": 1.7,
+    "loop": false,
+    "peak_db": -12.4,
+    "rms_db": -35.35,
+    "sha256": "610901247ddd0c202792c6b8c9f9fa660d9d63f32294333de0720033954eaeed",
+    "source": "tool/sounds/family_mane.py"
+  },
+  {
+    "name": "sfx_special_mane_quake",
+    "description": "Mane Earth slab sheds a chunk: a short stone crack, a dull damped body, grit",
+    "path": "assets/audio/sounds/sfx_special_mane_quake.wav",
+    "duration": 0.5,
+    "loop": false,
+    "peak_db": -13.45,
+    "rms_db": -35.34,
+    "sha256": "c9358c4594758c54267c280971423a11fb02fdaa5f86b79eaf6f9050d19e94a3",
+    "source": "tool/sounds/family_mane.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mane_quake_01.wav",
+      "assets/audio/sounds/sfx_special_mane_quake_02.wav",
+      "assets/audio/sounds/sfx_special_mane_quake_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_wing_long",
+    "description": "The held beam, 2.7 s hold: a jet of pressure roaring out of the wing, a searing hiss, sparks where it lands thickening each tick; gone in a breath",
+    "path": "assets/audio/sounds/sfx_special_wing_long.wav",
+    "duration": 3.25,
+    "loop": false,
+    "peak_db": -10.32,
+    "rms_db": -31.97,
+    "sha256": "611bd0764b05626e5bc515f30c2f16cc98204e8023ca13a791fd81ba9b0dee57",
+    "source": "tool/sounds/family_wing.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_wing_long_01.wav",
+      "assets/audio/sounds/sfx_special_wing_long_02.wav",
+      "assets/audio/sounds/sfx_special_wing_long_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_wing_longest",
+    "description": "The held beam, 3.4 s hold: a jet of pressure roaring out of the wing, a searing hiss, sparks where it lands thickening each tick; gone in a breath",
+    "path": "assets/audio/sounds/sfx_special_wing_longest.wav",
+    "duration": 3.95,
+    "loop": false,
+    "peak_db": -10.42,
+    "rms_db": -31.97,
+    "sha256": "749d1c946aa42cdb48dd7b824bf6ca7feb74d532f078d14a347a043d30dcc8bf",
+    "source": "tool/sounds/family_wing.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_wing_longest_01.wav",
+      "assets/audio/sounds/sfx_special_wing_longest_02.wav",
+      "assets/audio/sounds/sfx_special_wing_longest_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_wing_ring_long",
+    "description": "Fire/Poison ring, 2.7 s: pressure laid out round the wing, a stream circling once per 1.85 s with the band dragging on the ground; fades over its last 0.45 s",
+    "path": "assets/audio/sounds/sfx_special_wing_ring_long.wav",
+    "duration": 3.25,
+    "loop": false,
+    "peak_db": -11.29,
+    "rms_db": -30.82,
+    "sha256": "f92f59592b65890c9ed989f8721c082fa69eb9657b249ee725001fe98deb2416",
+    "source": "tool/sounds/family_wing.py"
+  },
+  {
+    "name": "sfx_special_wing_ring_longest",
+    "description": "Fire/Poison ring, 3.4 s: pressure laid out round the wing, a stream circling once per 1.85 s with the band dragging on the ground; fades over its last 0.45 s",
+    "path": "assets/audio/sounds/sfx_special_wing_ring_longest.wav",
+    "duration": 3.95,
+    "loop": false,
+    "peak_db": -12.77,
+    "rms_db": -30.85,
+    "sha256": "812c7724b4a71d6b161d05a25dc2f94c41ae5ebf539952091db569c25858585e",
+    "source": "tool/sounds/family_wing.py"
+  },
+  {
+    "name": "sfx_basic_let_deadfall",
+    "description": "Deadfall: a small burning rock falling 0.52 s onto its mark, peaking at touchdown",
+    "path": "assets/audio/sounds/sfx_basic_let_deadfall.wav",
+    "duration": 0.64,
+    "loop": false,
+    "peak_db": -12.34,
+    "rms_db": -34.55,
+    "sha256": "df2f987213b0c791ec5b7f37dccf695d2da683529fb9515e3135ec1f966a7742",
+    "source": "tool/sounds/family_let.py",
+    "variations": [
+      "assets/audio/sounds/sfx_basic_let_deadfall_01.wav",
+      "assets/audio/sounds/sfx_basic_let_deadfall_02.wav",
+      "assets/audio/sounds/sfx_basic_let_deadfall_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_let",
+    "description": "A burning rock falling out of the sky for 0.52 s: far and dark, nearer, louder and wider until touchdown",
+    "path": "assets/audio/sounds/sfx_special_let.wav",
+    "duration": 0.7,
+    "loop": false,
+    "peak_db": -7.79,
+    "rms_db": -29.4,
+    "sha256": "8f7eca7da9a4f363cfa337749ad0ae05ba1dd17c9a2ee5db3d60247e2e535dbb",
+    "source": "tool/sounds/family_let.py"
+  },
+  {
+    "name": "sfx_special_let_earth",
+    "description": "Earth's moon drop: a bigger rock falling 0.70 s from higher, its roar reaching lower",
+    "path": "assets/audio/sounds/sfx_special_let_earth.wav",
+    "duration": 0.882,
+    "loop": false,
+    "peak_db": -5.13,
+    "rms_db": -28.11,
+    "sha256": "c31cca259bdaf4a6c6f5794efcd49d12d2850d83fb894106452f97fe6bbeffd9",
+    "source": "tool/sounds/family_let.py"
+  },
+  {
+    "name": "sfx_special_let_impact",
+    "description": "A meteor landing: the ground takes the mass, the stone seats, pressure goes out, clods patter back down",
+    "path": "assets/audio/sounds/sfx_special_let_impact.wav",
+    "duration": 1.25,
+    "loop": false,
+    "peak_db": -4.19,
+    "rms_db": -26.34,
+    "sha256": "6d7976df12e57c45344b63e7ec3fe5ff099cf426ef0d7ed14c45d86d82c7ef6f",
+    "source": "tool/sounds/family_let.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_let_impact_01.wav",
+      "assets/audio/sounds/sfx_special_let_impact_02.wav",
+      "assets/audio/sounds/sfx_special_let_impact_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_let_impact_earth",
+    "description": "The moon drop landing like a hammer: a deeper mass, more ground thrown, a tremor after",
+    "path": "assets/audio/sounds/sfx_special_let_impact_earth.wav",
+    "duration": 1.6,
+    "loop": false,
+    "peak_db": -5.43,
+    "rms_db": -25.46,
+    "sha256": "6895d29b7097741a2e9e57ed6f59ecc76a779ac7be8cddc42f5534eb9db64643",
+    "source": "tool/sounds/family_let.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_let_impact_earth_01.wav",
+      "assets/audio/sounds/sfx_special_let_impact_earth_02.wav",
+      "assets/audio/sounds/sfx_special_let_impact_earth_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_let_impact_airy",
+    "description": "Air/Spirit/Light landing: the mass and the pressure front, no curtain of ground thrown",
+    "path": "assets/audio/sounds/sfx_special_let_impact_airy.wav",
+    "duration": 1.0,
+    "loop": false,
+    "peak_db": -7.12,
+    "rms_db": -27.05,
+    "sha256": "bc8eeb43341cc10747e6a2130e9469eaf539c3f4ec2bb50158c5df9eaf446e0d",
+    "source": "tool/sounds/family_let.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_let_impact_airy_01.wav",
+      "assets/audio/sounds/sfx_special_let_impact_airy_02.wav",
+      "assets/audio/sounds/sfx_special_let_impact_airy_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_let_impact_barrage",
+    "description": "One of Dark's follow-up meteors landing: a full landing with its tail cut short",
+    "path": "assets/audio/sounds/sfx_special_let_impact_barrage.wav",
+    "duration": 0.75,
+    "loop": false,
+    "peak_db": -8.77,
+    "rms_db": -28.36,
+    "sha256": "55b7fad1a3c722b3d99de3b1b12d09b36b9dc3da5d3775f4a4ee74c9293f044c",
+    "source": "tool/sounds/family_let.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_let_impact_barrage_01.wav",
+      "assets/audio/sounds/sfx_special_let_impact_barrage_02.wav",
+      "assets/audio/sounds/sfx_special_let_impact_barrage_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_let_impact_minor",
+    "description": "A small mastery rock landing in its minor crater: a small mass, a short crush, a few clods",
+    "path": "assets/audio/sounds/sfx_special_let_impact_minor.wav",
+    "duration": 0.55,
+    "loop": false,
+    "peak_db": -13.83,
+    "rms_db": -30.63,
+    "sha256": "403acd065fa72b525ad70cb9f5d50e48b47933fc6ba044d993e8b24b61c623d0",
+    "source": "tool/sounds/family_let.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_let_impact_minor_01.wav",
+      "assets/audio/sounds/sfx_special_let_impact_minor_02.wav",
+      "assets/audio/sounds/sfx_special_let_impact_minor_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mystic",
+    "description": "A Mystic opens its world: the seal scribed in one turn, the world gathering in from the screen's edges over 0.6 s into a large dark space that rings on",
+    "path": "assets/audio/sounds/sfx_special_mystic.wav",
+    "duration": 3.4,
+    "loop": false,
+    "peak_db": -14.43,
+    "rms_db": -31.86,
+    "sha256": "2d1f5d5300a326b21d4da9a42ce23cbcef51f0f0b4643c5385f9ef904ffe0ce9",
+    "source": "tool/sounds/family_mystic.py"
+  },
+  {
+    "name": "sfx_special_mystic_rise",
+    "description": "A world that grows after the seal (Dark's maw, Plant's grove): the edges gather slower over a heavy material straining open for ~1 s",
+    "path": "assets/audio/sounds/sfx_special_mystic_rise.wav",
+    "duration": 3.8,
+    "loop": false,
+    "peak_db": -9.82,
+    "rms_db": -29.96,
+    "sha256": "eb76e3c13042070da7ea3767695570d44d1ae6cb0f4e0a1cb7ea7ea948e3a27a",
+    "source": "tool/sounds/family_mystic.py"
+  },
+  {
+    "name": "sfx_special_mystic_close",
+    "description": "The caster gone, its world closes over 1.8 s: the edge air thins and darkens and the big room draws in to nothing",
+    "path": "assets/audio/sounds/sfx_special_mystic_close.wav",
+    "duration": 2.4,
+    "loop": false,
+    "peak_db": -14.73,
+    "rms_db": -31.82,
+    "sha256": "97f3ae12d840df424477ccf7d20c4f853bf226b11d6ab19905e76f1c45b52d77",
+    "source": "tool/sounds/family_mystic.py"
+  },
+  {
+    "name": "sfx_special_mystic_strike",
+    "description": "Lightning world: static drawn in for 0.62 s, a tearing strike, thunder rolling off far away",
+    "path": "assets/audio/sounds/sfx_special_mystic_strike.wav",
+    "duration": 2.92,
+    "loop": false,
+    "peak_db": -8.62,
+    "rms_db": -30.51,
+    "sha256": "a7bf2a28511a2b26afc764a7cd65b4fe98f54ab4b5da257c0d7d83aa40812230",
+    "source": "tool/sounds/family_mystic.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mystic_strike_01.wav",
+      "assets/audio/sounds/sfx_special_mystic_strike_02.wav",
+      "assets/audio/sounds/sfx_special_mystic_strike_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mystic_quake",
+    "description": "Earth world: stone grinding harder for 1.6 s, then the ground heaves and a front of rubble crosses the arena; grit settles",
+    "path": "assets/audio/sounds/sfx_special_mystic_quake.wav",
+    "duration": 4.45,
+    "loop": false,
+    "peak_db": -5.32,
+    "rms_db": -29.38,
+    "sha256": "6a7b3ddbfbc286f5ccc715ab749b89b93dda3ebb2e4fcd6e0fb0ffd1c4af5142",
+    "source": "tool/sounds/family_mystic.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mystic_quake_01.wav",
+      "assets/audio/sounds/sfx_special_mystic_quake_02.wav",
+      "assets/audio/sounds/sfx_special_mystic_quake_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mystic_vent",
+    "description": "Steam world: the arena exhales -- a vast hiss leaving the middle and billowing outward with the front, gone in ~1.2 s",
+    "path": "assets/audio/sounds/sfx_special_mystic_vent.wav",
+    "duration": 2.05,
+    "loop": false,
+    "peak_db": -9.55,
+    "rms_db": -29.76,
+    "sha256": "b49bdb715c11f6c5040454e6d428a89df0ba25e0b4a9091ef1c19ef1ff1000c0",
+    "source": "tool/sounds/family_mystic.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mystic_vent_01.wav",
+      "assets/audio/sounds/sfx_special_mystic_vent_02.wav",
+      "assets/audio/sounds/sfx_special_mystic_vent_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mystic_rain",
+    "description": "Lava world: a crack flares with a molten roar and spitting fire, and rocks rush down out of the sky",
+    "path": "assets/audio/sounds/sfx_special_mystic_rain.wav",
+    "duration": 2.3,
+    "loop": false,
+    "peak_db": -11.34,
+    "rms_db": -30.52,
+    "sha256": "d927437572057f372e8c0a0050e54f2cf1af8208b4b780591d37a086f1335544",
+    "source": "tool/sounds/family_mystic.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mystic_rain_01.wav",
+      "assets/audio/sounds/sfx_special_mystic_rain_02.wav",
+      "assets/audio/sounds/sfx_special_mystic_rain_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mystic_meteor",
+    "description": "One molten rock landing: a dull heavy body, the crust crunching, spatter, the scorch hissing",
+    "path": "assets/audio/sounds/sfx_special_mystic_meteor.wav",
+    "duration": 0.9,
+    "loop": false,
+    "peak_db": -11.99,
+    "rms_db": -32.79,
+    "sha256": "86d379643a21893e605c15f42d3df8a544e566d3bbd90587a0381b5c3bfa6e38",
+    "source": "tool/sounds/family_mystic.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_mystic_meteor_01.wav",
+      "assets/audio/sounds/sfx_special_mystic_meteor_02.wav",
+      "assets/audio/sounds/sfx_special_mystic_meteor_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_mystic_dawn",
+    "description": "Light world: the star breaks -- a warm rush rolling out with the bloom, then a lit, open space with two low bodies glowing under it",
+    "path": "assets/audio/sounds/sfx_special_mystic_dawn.wav",
+    "duration": 3.2,
+    "loop": false,
+    "peak_db": -11.36,
+    "rms_db": -29.79,
+    "sha256": "039f6beb608440863223bb9fa5bb480c7eac2f4bf4810b5fb23c5717c352b986",
+    "source": "tool/sounds/family_mystic.py"
+  },
+  {
+    "name": "sfx_special_horn",
+    "description": "A ram: the horn sets off and the rough air it shoves comes up fast, holds while it runs and lets go",
+    "path": "assets/audio/sounds/sfx_special_horn.wav",
+    "duration": 1.1,
+    "loop": false,
+    "peak_db": -11.45,
+    "rms_db": -30.94,
+    "sha256": "a7b2739ad42d3396e4cec168c2d649933a918ceff4bc08ea482eaff3076a8b63",
+    "source": "tool/sounds/family_horn.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_horn_01.wav",
+      "assets/audio/sounds/sfx_special_horn_02.wav",
+      "assets/audio/sounds/sfx_special_horn_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_horn_heavy",
+    "description": "Lava/Earth ram: a slow deep set-off, a lower rougher shove and grit ground loose all the way",
+    "path": "assets/audio/sounds/sfx_special_horn_heavy.wav",
+    "duration": 1.45,
+    "loop": false,
+    "peak_db": -12.03,
+    "rms_db": -29.58,
+    "sha256": "d970962b1f80a4d504831631901fc4cf24287d9580d721e85e93f3b281819cf4",
+    "source": "tool/sounds/family_horn.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_horn_heavy_01.wav",
+      "assets/audio/sounds/sfx_special_horn_heavy_02.wav",
+      "assets/audio/sounds/sfx_special_horn_heavy_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_horn_circle",
+    "description": "Water: the shove of air goes once round the listener in a second, near side bright, far side dark",
+    "path": "assets/audio/sounds/sfx_special_horn_circle.wav",
+    "duration": 1.35,
+    "loop": false,
+    "peak_db": -10.73,
+    "rms_db": -30.77,
+    "sha256": "acb92a2e8f6e4c98d73f29c0afad6f26a92cb54794b6da8feb7aa015d3a2d4e0",
+    "source": "tool/sounds/family_horn.py"
+  },
+  {
+    "name": "sfx_special_horn_gather",
+    "description": "Crystal: held 1.2 s, horn and sinew creaking tighter as the air turns round it, then the ram",
+    "path": "assets/audio/sounds/sfx_special_horn_gather.wav",
+    "duration": 2.2,
+    "loop": false,
+    "peak_db": -10.88,
+    "rms_db": -30.92,
+    "sha256": "1caeb2d7739c247dfd2641cd8fa192934a2ab4df421e7c2b738d83128628f6a8",
+    "source": "tool/sounds/family_horn.py"
+  },
+  {
+    "name": "sfx_special_horn_brace",
+    "description": "Spirit: held 2.0 s, the strain building as the swarm turns in, then the ram",
+    "path": "assets/audio/sounds/sfx_special_horn_brace.wav",
+    "duration": 3.0,
+    "loop": false,
+    "peak_db": -8.2,
+    "rms_db": -30.92,
+    "sha256": "bb45be9384b7d704924ebf9c0d29ff4e4db34865645c02da97e47393b64bbe13",
+    "source": "tool/sounds/family_horn.py"
+  },
+  {
+    "name": "sfx_special_horn_void",
+    "description": "Dark: five seconds straining against a growing pull, the air dragged past, reeled-in bodies knocking together, then a very fast ram",
+    "path": "assets/audio/sounds/sfx_special_horn_void.wav",
+    "duration": 6.1,
+    "loop": false,
+    "peak_db": -8.12,
+    "rms_db": -30.48,
+    "sha256": "2731a8667d885ca0a7e6d643a9979820910ea7e4161d9b88bd67fb64ccd8b5cb",
+    "source": "tool/sounds/family_horn.py"
+  },
+  {
+    "name": "sfx_special_horn_barrier",
+    "description": "Light: the horn plants itself, and inside the dome the air takes its hollow hush over a low stroked glass for five seconds, breathing, then thins",
+    "path": "assets/audio/sounds/sfx_special_horn_barrier.wav",
+    "duration": 5.6,
+    "loop": false,
+    "peak_db": -8.57,
+    "rms_db": -36.26,
+    "sha256": "75fb0117ca3eba04ec6b22b0512d2487efbec777e4e0781dd935d61c6e263f29",
+    "source": "tool/sounds/family_horn.py"
+  },
+  {
+    "name": "sfx_special_horn_slam",
+    "description": "A ram landing: a dense dull blow, stone giving, a short skid, the shock and the debris thrown forward",
+    "path": "assets/audio/sounds/sfx_special_horn_slam.wav",
+    "duration": 0.62,
+    "loop": false,
+    "peak_db": -7.33,
+    "rms_db": -28.17,
+    "sha256": "102ec9f942c8cd36077506aaaf0a0a20ef7bc57a3d6f5a11e3c86d108534ad54",
+    "source": "tool/sounds/family_horn.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_horn_slam_01.wav",
+      "assets/audio/sounds/sfx_special_horn_slam_02.wav",
+      "assets/audio/sounds/sfx_special_horn_slam_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_horn_slam_heavy",
+    "description": "Earth/Lava ram landing: lower and softer in the blow, bigger pieces thrown, the heap settling",
+    "path": "assets/audio/sounds/sfx_special_horn_slam_heavy.wav",
+    "duration": 0.82,
+    "loop": false,
+    "peak_db": -5.01,
+    "rms_db": -28.21,
+    "sha256": "ddef16be3c485a144e570e4a09db87705623d0a6c01a43c13fdd718142970087",
+    "source": "tool/sounds/family_horn.py",
+    "variations": [
+      "assets/audio/sounds/sfx_special_horn_slam_heavy_01.wav",
+      "assets/audio/sounds/sfx_special_horn_slam_heavy_02.wav",
+      "assets/audio/sounds/sfx_special_horn_slam_heavy_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_horn_brew",
+    "description": "Lightning horn holding 3 s: static crawling thicker, arcs jumping more often, the air tightening",
+    "path": "assets/audio/sounds/sfx_special_horn_brew.wav",
+    "duration": 3.05,
+    "loop": false,
+    "peak_db": -11.91,
+    "rms_db": -32.82,
+    "sha256": "7c2d669f1d38ffab53d9d2aced5dfc39403bc88aa7f45f87e9526123b4bec88e",
+    "source": "tool/sounds/family_horn.py"
+  },
+  {
+    "name": "sfx_special_horn_discharge",
+    "description": "The brewed storm let go: crackle leaning in and spreading, pressure shoved out, sparks thinning away",
+    "path": "assets/audio/sounds/sfx_special_horn_discharge.wav",
+    "duration": 1.1,
+    "loop": false,
+    "peak_db": -7.15,
+    "rms_db": -29.46,
+    "sha256": "a15f75edceba74a2e5e8745c6760c04509e00e0d0147fd8f1b6518ad7938c805",
+    "source": "tool/sounds/family_horn.py"
+  },
+  {
+    "name": "sfx_basic_kin_charge",
+    "description": "The last 0.6 s of a kin's charge: motes drawn into the glow, air narrowing; ends on the release",
+    "path": "assets/audio/sounds/sfx_basic_kin_charge.wav",
+    "duration": 0.6,
+    "loop": false,
+    "peak_db": -19.23,
+    "rms_db": -37.88,
+    "sha256": "78c8b55c3a320603a1ff4f40b83be8ba7453ee22ad25bb000eb2fd4c030af0c1",
+    "source": "tool/sounds/family_kin.py",
+    "variations": [
+      "assets/audio/sounds/sfx_basic_kin_charge_01.wav",
+      "assets/audio/sounds/sfx_basic_kin_charge_02.wav",
+      "assets/audio/sounds/sfx_basic_kin_charge_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_special_kin",
+    "description": "A kin's blessing welling up: a warm swell rising, a few motes lifted away",
+    "path": "assets/audio/sounds/sfx_special_kin.wav",
+    "duration": 1.5,
+    "loop": false,
+    "peak_db": -14.5,
+    "rms_db": -30.91,
+    "sha256": "1e98d8d4953644db20cbbebc11564b0926a25f6f8570ae844ae912cdd929d4a3",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_escort",
+    "description": "Guards set turning round the kin, then peeling off to the ship (Light, Crystal)",
+    "path": "assets/audio/sounds/sfx_special_kin_escort.wav",
+    "duration": 2.4,
+    "loop": false,
+    "peak_db": -15.16,
+    "rms_db": -30.99,
+    "sha256": "45e53a89ebcb7c9073e4c364b9f66cc05e31d5a6347c26553518789e112059b4",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_rain",
+    "description": "A cloud gathering over the ship and rain starting on the hull (Water)",
+    "path": "assets/audio/sounds/sfx_special_kin_rain.wav",
+    "duration": 2.6,
+    "loop": false,
+    "peak_db": -5.42,
+    "rms_db": -30.72,
+    "sha256": "1d18f29c4d7f96c86108f27f361e2d8d9bec2598e7a6a721aa1ca57862dbc8a5",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_updraft",
+    "description": "A wind column taking hold round the ship, debris ticking up it (Air)",
+    "path": "assets/audio/sounds/sfx_special_kin_updraft.wav",
+    "duration": 2.7,
+    "loop": false,
+    "peak_db": -14.74,
+    "rms_db": -30.59,
+    "sha256": "77958bcf00780cff4ab9318de1473b8c84e03ee80eb4f98ba4f53808fcee7e08",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_garden",
+    "description": "Damp loam opening as shoots push up, roots straining (Plant)",
+    "path": "assets/audio/sounds/sfx_special_kin_garden.wav",
+    "duration": 1.9,
+    "loop": false,
+    "peak_db": -8.28,
+    "rms_db": -29.86,
+    "sha256": "c44685041bf1c19d58eb9c3231aac0504432c44bee33cf22dbe609ff0e5782d1",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_wall",
+    "description": "A stone rampart heaved up along an arc, sections seating, grit running off (Earth)",
+    "path": "assets/audio/sounds/sfx_special_kin_wall.wav",
+    "duration": 1.6,
+    "loop": false,
+    "peak_db": -7.69,
+    "rms_db": -27.19,
+    "sha256": "0c3b73b8b7d7fd9a1037bdda572d9d9f354bd36bb73d53026cb3f14399a368f3",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_bank",
+    "description": "A bank of dust settling far off, fine grit left hanging in it (Dust)",
+    "path": "assets/audio/sounds/sfx_special_kin_bank.wav",
+    "duration": 2.1,
+    "loop": false,
+    "peak_db": -12.31,
+    "rms_db": -30.5,
+    "sha256": "f66c06474b586630f1a03f409c50faf241e5238836da19ca984384a8ea8ef25d",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_darts",
+    "description": "A ring of wet spits round the field and the darts zipping away (Poison)",
+    "path": "assets/audio/sounds/sfx_special_kin_darts.wav",
+    "duration": 1.0,
+    "loop": false,
+    "peak_db": -5.48,
+    "rms_db": -29.99,
+    "sha256": "fd93053c3139f4ce86a249530534c2c778e7b91d3b2a0d8631370a44f6d0f911",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_charge",
+    "description": "Frost forming finer and denser, ice under strain, air drawn in (Ice charge)",
+    "path": "assets/audio/sounds/sfx_special_kin_charge.wav",
+    "duration": 3.4,
+    "loop": false,
+    "peak_db": -7.39,
+    "rms_db": -32.46,
+    "sha256": "fe5502233a77200e39c44a480a28011968e220cc90c867ccf78dfdab99e33824",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_ice_release",
+    "description": "A frozen sheet giving, cold rushing out, fine ice thrown wide (Ice release)",
+    "path": "assets/audio/sounds/sfx_special_kin_ice_release.wav",
+    "duration": 1.4,
+    "loop": false,
+    "peak_db": -3.69,
+    "rms_db": -28.96,
+    "sha256": "2921dc1a95140a46709a5ff128805c48834d59a4b77e86dbe6d30ce0f19074bb",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_channel",
+    "description": "A held charge: corona hiss with arcs crawling on it, pulsing (Lightning)",
+    "path": "assets/audio/sounds/sfx_special_kin_channel.wav",
+    "duration": 2.4,
+    "loop": false,
+    "peak_db": -5.96,
+    "rms_db": -30.93,
+    "sha256": "8313df6d1746aca163a5a8e9549d82a719d77ef73b506d516ac4d6392776bd37",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_plate",
+    "description": "Basalt plates closing on each body, heat in the seams (Lava)",
+    "path": "assets/audio/sounds/sfx_special_kin_plate.wav",
+    "duration": 1.3,
+    "loop": false,
+    "peak_db": -5.62,
+    "rms_db": -29.69,
+    "sha256": "c70d3bed426d5de5ffcafb6deef498b093801164502ae830a6e03a7a77870c17",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_boiler",
+    "description": "An iron hatch seated, its wheel turned tight, pressure groaning inside (Steam)",
+    "path": "assets/audio/sounds/sfx_special_kin_boiler.wav",
+    "duration": 1.7,
+    "loop": false,
+    "peak_db": -4.1,
+    "rms_db": -28.75,
+    "sha256": "3d56522ec7ce0d54cd1d393030fed789291cb332509992c869134f0c10eaab99",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_sling",
+    "description": "Mud slung onto the hull with a wet slap, the trail starting (Mud)",
+    "path": "assets/audio/sounds/sfx_special_kin_sling.wav",
+    "duration": 2.4,
+    "loop": false,
+    "peak_db": -3.71,
+    "rms_db": -29.85,
+    "sha256": "3ca81a640c65d6d138ba65e6103985be8c5fed1b142e4821f6a9eef228fef853",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_veil",
+    "description": "A heavy cloth drawn over and everything hushed beneath it (Dark)",
+    "path": "assets/audio/sounds/sfx_special_kin_veil.wav",
+    "duration": 1.8,
+    "loop": false,
+    "peak_db": -10.3,
+    "rms_db": -30.96,
+    "sha256": "ffad51594f0c0bb4024fd876b0cee932338374e5aafbbaf7b906097466f773be",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_pact",
+    "description": "Sinew cords pulled taut round the field, the strain swelling once (Blood)",
+    "path": "assets/audio/sounds/sfx_special_kin_pact.wav",
+    "duration": 1.9,
+    "loop": false,
+    "peak_db": -7.59,
+    "rms_db": -30.66,
+    "sha256": "e8349be2f1714a40f2a31de3d3acdf8222c3db95269afab448971d032c37453c",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_wisp",
+    "description": "A soul-flame kindled like a wick, fluttering as it swings round (Spirit)",
+    "path": "assets/audio/sounds/sfx_special_kin_wisp.wav",
+    "duration": 1.9,
+    "loop": false,
+    "peak_db": -10.56,
+    "rms_db": -31.96,
+    "sha256": "fd3f0e31c26ce4e0619f3554499b44587893c1dfd95db8f05634cca5810bd5a8",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_wisp_tier",
+    "description": "The wisp's flame swelling larger and lower, a veil unfurling (Spirit tier-up)",
+    "path": "assets/audio/sounds/sfx_special_kin_wisp_tier.wav",
+    "duration": 1.3,
+    "loop": false,
+    "peak_db": -13.36,
+    "rms_db": -30.85,
+    "sha256": "22ded81606f37bdfb2239251da15e031f604bbe9c7a4e30fbc0e468fd97944f9",
+    "source": "tool/sounds/family_kin.py"
+  },
+  {
+    "name": "sfx_special_kin_phoenix",
+    "description": "Fire bursting back to life, embers thrown, reborn flames circling (Fire save)",
+    "path": "assets/audio/sounds/sfx_special_kin_phoenix.wav",
+    "duration": 2.5,
+    "loop": false,
+    "peak_db": -3.71,
+    "rms_db": -27.78,
+    "sha256": "0eb73b23e100e10a343e7c067eb7c9d4cc797f8e9caa77488f9847c8fe430c0d",
+    "source": "tool/sounds/family_kin.py"
   }
 ]

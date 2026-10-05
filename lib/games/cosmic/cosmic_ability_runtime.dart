@@ -305,10 +305,12 @@ class CosmicAbilityRuntime {
 
     p.skyfallRemaining = max(0.0, p.skyfallRemaining - dt);
     final remaining = p.skyfallRemaining / p.skyfallDuration;
-    // Height is the square of time-remaining, so the meteor creeps at the top
-    // of its arc and slams through the last stretch. Linear descent reads as
+    // A fall: it leaves the top at rest and is fastest at touchdown, so the
+    // meteor creeps at the top of its arc and slams through the last
+    // stretch. (It was remaining², which is the other way round — fastest
+    // at the top, easing to a stop on the ground.) Linear descent reads as
     // a lift, not a fall.
-    final height = p.skyfallDistance * remaining * remaining;
+    final height = p.skyfallDistance * remaining * (2 - remaining);
     p.position = p.skyfallImpact - Offset(cos(p.angle), sin(p.angle)) * height;
     return p.skyfallRemaining <= 0;
   }

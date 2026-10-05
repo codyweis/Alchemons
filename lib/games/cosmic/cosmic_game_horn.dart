@@ -386,6 +386,7 @@ extension CosmicHornRuntime on CosmicGame {
           element: c.member.element,
         ),
       );
+      _soundHornSlam(c.member.element);
     }
     // Lightning brews its storm where it landed before the burst goes.
     if (horn &&
@@ -395,6 +396,7 @@ extension CosmicHornRuntime on CosmicGame {
         ..hornPostDashWindUpTimer = HornRules.postDashBrew
         ..chargeTarget = null
         ..chargeHitIds = null;
+      onSound?.call(SoundCue.specialHornBrew);
       _postChargeReanchor(c);
       return;
     }
@@ -559,6 +561,7 @@ extension CosmicHornRuntime on CosmicGame {
         _rng,
         _hornParticle,
       );
+      onSound?.call(SoundCue.specialHornDischarge);
       _spawnHitSpark(chainZone.position, hornLightningFlashColor);
       _hornEmitAll(c, pending);
     }

@@ -45,14 +45,18 @@ double _radius(Projectile p) =>
 class MaskTrapVisuals {
   final List<_MaskContact> _contacts = [];
   int get activeCount => _contacts.length;
-  void contact(Projectile p) {
+
+  /// True only when a new echo starts -- the trap SPRINGING, which is when
+  /// its sound plays (never on the contact frames that follow).
+  bool contact(Projectile p) {
     if (!_isTrap(p) ||
         !_contactElements.contains(p.element) ||
         _contacts.any((fx) => identical(fx.source, p))) {
-      return;
+      return false;
     }
     if (_contacts.length >= 24) _contacts.removeAt(0);
     _contacts.add(_MaskContact(p, p.position, _radius(p), p.element!));
+    return true;
   }
 
   void update(double dt) {

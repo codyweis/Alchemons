@@ -704,7 +704,7 @@ extension CosmicAbilityPass on CosmicGame {
       CosmicEnemy enemy, {
       required bool killed,
     }) {
-      _maskTrapVisuals.contact(projectile);
+      if (_maskTrapVisuals.contact(projectile)) _soundMaskSpring(projectile);
       if (projectile.abilityFamily == 'let') {
         resolveLetMeteorHit(projectile, enemy, killed: killed);
         return;
@@ -849,6 +849,12 @@ extension CosmicAbilityPass on CosmicGame {
           color: elementColor(p.element ?? 'Fire'),
           element: p.element,
           radius: blast,
+        ),
+      );
+      onSound?.call(
+        SoundCue.forLetImpact(
+          p.element ?? '',
+          barrageChild: p.effectStacks >= 1,
         ),
       );
 
@@ -1301,6 +1307,7 @@ extension CosmicAbilityPass on CosmicGame {
           // Mane Mud: the first body struck splits it into ten fragments.
           if (ManeRuntime.shattersOnHit(p)) {
             p.clustered = true;
+            onSound?.call(SoundCue.specialManeBurst);
             companionProjectiles.addAll(
               ManeRuntime.mudShards(p, enemy.position),
             );
@@ -1353,6 +1360,9 @@ extension CosmicAbilityPass on CosmicGame {
               }
             }
             if (next != null) {
+              if (isPipSpecialProjectile) {
+                onSound?.call(SoundCue.specialPipRicochet);
+              }
               p.angle = atan2(
                 next.position.dy - p.position.dy,
                 next.position.dx - p.position.dx,
@@ -1417,6 +1427,7 @@ extension CosmicAbilityPass on CosmicGame {
             final isCrystalmaneBossHit =
                 cp.abilityFamily == 'mane' && cp.element == 'Crystal';
             if (isCrystalmaneBossHit) {
+              onSound?.call(SoundCue.specialManeShatter);
               boss.shieldUp = false;
               boss.shieldHealth = 0;
               _damageOpenFoesNear(
@@ -1433,7 +1444,9 @@ extension CosmicAbilityPass on CosmicGame {
             }
             if (cp.abilityFamily == 'mask') {
               _activateMaskContactPlacement(cp, boss.position, flash: false);
-              if (cp.trapSpent) _maskTrapVisuals.contact(cp);
+              if (cp.trapSpent && _maskTrapVisuals.contact(cp)) {
+                _soundMaskSpring(cp);
+              }
             }
             final bossDamage = cp.damage;
             if (boss.shieldUp &&

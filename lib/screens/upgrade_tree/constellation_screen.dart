@@ -1114,6 +1114,15 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
       // pour runs down the link and lights the stone. Covering that would
       // hide the only part of this the player wants to watch.
       HapticFeedback.heavyImpact();
+      // Heard the same way: a linked stone waits for its pour (1.05 s) and
+      // ignites as it lands; a stone with no link ignites at once.
+      if (mounted) {
+        context.sound(
+          skill.prerequisites.isEmpty
+              ? SoundCue.upgradeComplete
+              : SoundCue.constellationAttune,
+        );
+      }
       return;
     }
     // The button is disabled when you cannot afford it, so this only fires on

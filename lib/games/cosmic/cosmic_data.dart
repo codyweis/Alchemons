@@ -7827,7 +7827,8 @@ CosmicSpecialResult _pipSpecial(
   }
 
   final count = scaledCount(_pipElementCount(element));
-  final bounces = scaledBounce(_pipElementBounce(element));
+  // Unscaled here: scalePipProjectile buys bounces with Beauty, once.
+  final bounces = _pipElementBounce(element);
   List<Projectile> genericVolley() => List.generate(count, (i) {
     final offset = (i - (count - 1) / 2) * 0.20;
     final a = baseAngle + offset;

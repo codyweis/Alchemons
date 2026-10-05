@@ -382,6 +382,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     if (!effectiveSoundsEnabled) return;
     if (_sustainCue == cue && _sustainPlayer.playing) return;
     _sustainCue = cue;
+    _sustainGeneration++;
     try {
       await _sustainPlayer.setAsset(cue.asset);
       await _sustainPlayer.setLoopMode(LoopMode.one);
@@ -393,10 +394,26 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Bumped by every start, so a fade-out that a new start overtakes leaves
+  /// the new sound alone.
+  int _sustainGeneration = 0;
+
+  /// Lets a held effect go over ~120 ms rather than cutting it: a roar
+  /// stopped mid-cycle is a click and reads as chopped off.
   Future<void> stopSustained() async {
     _sustainCue = null;
     if (_disposed) return;
+    final generation = _sustainGeneration;
     try {
+      if (_sustainPlayer.playing) {
+        final from = _sustainPlayer.volume;
+        for (var i = 1; i <= 6; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          if (_disposed || generation != _sustainGeneration) return;
+          await _sustainPlayer.setVolume(from * (1 - i / 6));
+        }
+      }
+      if (generation != _sustainGeneration) return;
       await _sustainPlayer.stop();
     } catch (_) {}
   }

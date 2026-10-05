@@ -62,6 +62,9 @@ void main() {
     final droppable = SoundCue.values.where((c) => c.priority == 0).toSet();
     expect(droppable, {
       SoundCue.combatProjectile,
+      // The ship's gun, held down for whole fights: the shots give way to
+      // the hits they cause.
+      SoundCue.shipBolt,
       SoundCue.combatHitLight,
       SoundCue.combatHitHeavy,
       SoundCue.combatEnemyDefeat,
@@ -80,6 +83,14 @@ void main() {
       SoundCue.basicWing,
       SoundCue.basicKin,
       SoundCue.basicMystic,
+      SoundCue.basicKinCharge,
+      SoundCue.basicLetDeadfall,
+      // Contacts whose damage already sounds.
+      SoundCue.specialPipRicochet,
+      SoundCue.specialMaskSpringCrystal,
+      SoundCue.specialMaskSpringFire,
+      SoundCue.specialMaskSpringDark,
+      SoundCue.specialMaskSpringWater,
     });
   });
 }

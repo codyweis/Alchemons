@@ -301,6 +301,9 @@ class _RelicDropFx {
   /// Rises out of the guardian's last grains instead of falling in.
   final bool fromGrains;
   static const double duration = 3.6;
+
+  /// When the hover ends and the relic starts expanding away (the claim).
+  static const double claimAt = 2.6;
   bool get done => t >= duration;
 }
 
@@ -424,6 +427,11 @@ class PlanetDungeonGame extends FlameGame {
 
   final void Function(int starIndex) onStarEarned;
   final void Function(String cloudId)? onCloudDiscovered;
+
+  /// Secrets whose finding was already heard -- the planet cued it on the
+  /// frame it happened -- so the screen does not sound it a second time when
+  /// the rite pays it out ~2.5 s later.
+  final Set<String> soundedSecrets = {};
 
   /// The guardian-intro popup hook (§5.6 "four occasions, one chrome"): fires
   /// the moment the mystic's combat spawns, with its name and its one arrival
@@ -3233,11 +3241,15 @@ class PlanetDungeonGame extends FlameGame {
     if (guardianHitFlash > 0) guardianHitFlash -= dt;
     final relicFx = _relicFx;
     if (relicFx != null) {
+      final was = relicFx.t;
       relicFx.t += dt;
-      if (relicFx.done) {
+      // The relic is TAKEN as its claim begins (it expands away into your
+      // keeping over its last second). The cue used to wait for [done],
+      // when the relic had already gone from the screen.
+      if (was < _RelicDropFx.claimAt && relicFx.t >= _RelicDropFx.claimAt) {
         _cue(SoundCue.dungeonRelicCollect);
-        _relicFx = null;
       }
+      if (relicFx.done) _relicFx = null;
     }
     // A dungeon guardian's death plays wherever the party is standing, so
     // the relic it hands over to is never left waiting on a frozen clock.
@@ -4468,6 +4480,7 @@ class PlanetDungeonGame extends FlameGame {
         }
       }
       if (phoenix != null) {
+        _cue(SoundCue.specialKinPhoenix);
         comp.currentHp = max(1, (comp.maxHp * 0.25).round());
         phoenix.kinFireOrbitalFlameActive = true;
         comp.invincibleTimer = max(comp.invincibleTimer, 1.0);
@@ -5034,6 +5047,7 @@ class PlanetDungeonGame extends FlameGame {
     final dist = toTarget.distance;
     final step = Projectile.speed * max(0.25, p.speedMultiplier) * dt;
     if (dist <= step || dist < 8) {
+      _cue(SoundCue.specialManeOrbLand);
       combatProjectiles.add(
         Projectile(
           position: target,
@@ -5098,7 +5112,9 @@ class PlanetDungeonGame extends FlameGame {
   void _detonateLetSkyfall(Projectile p) {
     final centre = p.skyfallImpact;
     final blast = letSkyfallBlastRadius(p);
-    _cue(SoundCue.combatHitHeavy);
+    _cue(
+      SoundCue.forLetImpact(p.element ?? '', barrageChild: p.effectStacks >= 1),
+    );
     pushLetSkyfallImpact(
       _letSkyfallImpacts,
       LetSkyfallImpact(
@@ -5439,6 +5455,7 @@ class PlanetDungeonGame extends FlameGame {
             !p.clustered &&
             p.effectStacks == 0) {
           p.clustered = true;
+          _cue(SoundCue.specialManeBurst);
           for (var fi = 0; fi < 10; fi++) {
             combatProjectiles.add(
               Projectile(
@@ -5491,6 +5508,7 @@ class PlanetDungeonGame extends FlameGame {
             }
           }
           if (next != null) {
+            if (isPipSpecialProjectile) _cue(SoundCue.specialPipRicochet);
             p.angle = atan2(
               next.position.dy - p.position.dy,
               next.position.dx - p.position.dx,
@@ -5527,6 +5545,9 @@ class PlanetDungeonGame extends FlameGame {
     required Offset origin,
     required double angle,
   }) {
+    if (beams.isEmpty) return;
+    // The cast's one sound, sized to how long the beam will hold.
+    _cue(SoundCue.forWingBeam(beams.first.element, beams.first.duration));
     for (final descriptor in beams) {
       _activeWingBeams.add(
         _DungeonWingBeam(
@@ -5553,6 +5574,10 @@ class PlanetDungeonGame extends FlameGame {
         beam.chargeTimer = max(0, beam.chargeTimer - dt);
         if (beam.chargeTimer > 0) continue;
         beam.tickTimer = 0;
+        // The element accent, moved here from the cast: it is the blast.
+        if (beam.descriptor.element == 'Lightning') {
+          _cue(SoundCue.elementLightning);
+        }
       }
 
       beam.tickTimer -= dt;
@@ -6093,6 +6118,7 @@ class PlanetDungeonGame extends FlameGame {
       if (comp.kinIceChargeTimer > 0) {
         comp.kinIceChargeTimer = max(0, comp.kinIceChargeTimer - dt);
         if (comp.kinIceChargeTimer == 0 && creature != null) {
+          _cue(SoundCue.specialKinIceRelease);
           final radius =
               220.0 *
               _effStatScale(
@@ -6805,13 +6831,22 @@ class PlanetDungeonGame extends FlameGame {
     }
     // TWO CUES, AND THEY SAY DIFFERENT THINGS. The element cue carries the
     // colour — which element just went off — and has always played here. The
-    // cast cue says only that it was a SPECIAL rather than a basic, which is
-    // the distinction a player needs and the one nothing was making. It is
-    // deliberately plain and sits under the element at a little over half
-    // gain; it is not a reward sting.
+    // family cue is the special's own gesture, which also says it was a
+    // SPECIAL rather than a basic. Wing's sounds where its beam starts (the
+    // only place its length is known), and Lightning Wing's accent waits for
+    // the blast.
+    final castFamily = comp.member.family;
     final elementSound = SoundCue.forElement(comp.member.element);
-    if (elementSound != null) _cue(elementSound);
-    _cue(SoundCue.combatSpecialCast);
+    if (elementSound != null &&
+        !(castFamily.toLowerCase() == 'wing' &&
+            comp.member.element == 'Lightning')) {
+      _cue(elementSound);
+    }
+    final familySound = SoundCue.forFamilySpecial(
+      castFamily,
+      comp.member.element,
+    );
+    if (familySound != null) _cue(familySound);
     // Specials auto-target the nearest enemy anywhere in the room; the
     // fallback aim point is only for genuinely empty rooms.
     final target = _nearestCombatEnemy(
@@ -7243,7 +7278,13 @@ class PlanetDungeonGame extends FlameGame {
         comp.kinAutoChargeTarget = null;
         continue;
       }
+      final was = comp.kinAutoChargeTimer;
       comp.kinAutoChargeTimer += dt;
+      // The charge's swell, timed to lead into the release by 0.6 s.
+      const swellAt = _kinChargeTime - 0.6;
+      if (was < swellAt && comp.kinAutoChargeTimer >= swellAt) {
+        _cue(SoundCue.basicKinCharge);
+      }
       if (comp.kinAutoChargeTimer < _kinChargeTime) continue;
 
       // Fire: prefer the locked enemy if still alive, else nearest.
@@ -7395,6 +7436,9 @@ class PlanetDungeonGame extends FlameGame {
           );
         }
         if (comp.hornPostDashWindUpTimer <= 0) {
+          if (comp.pendingChargeBurst?.isNotEmpty ?? false) {
+            _cue(SoundCue.specialHornDischarge);
+          }
           _releasePendingChargeBurst(comp, creature);
         }
         continue;
@@ -7571,11 +7615,14 @@ class PlanetDungeonGame extends FlameGame {
         element: comp.member.element,
       ),
     );
+    final slam = SoundCue.forHornSlam(comp.member.element);
+    if (slam != null) _cue(slam);
     // Horn+Lightning: brew the storm for 3s, then discharge.
     if (comp.member.family.toLowerCase() == 'horn' &&
         comp.member.element == 'Lightning' &&
         comp.pendingChargeBurst != null) {
       comp.hornPostDashWindUpTimer = 3.0;
+      _cue(SoundCue.specialHornBrew);
       comp.iceWallTrailTimer = 0;
       comp.chargeTarget = null;
       comp.chargePathType = '';
@@ -8105,6 +8152,7 @@ class PlanetDungeonGame extends FlameGame {
             p.sourceSlotIndex == companion.slotIndex &&
             p.decoy,
       )) {
+        if (wisp.effectStacks < tier) _cue(SoundCue.specialKinWispTier);
         wisp.effectStacks = tier;
         wisp.tauntRadius = tier >= 2 ? 115 : 0;
         wisp.effectPower = tier >= 3 ? companion.abilityAtk * 0.30 : 0;
@@ -8329,6 +8377,8 @@ class PlanetDungeonGame extends FlameGame {
         );
         break;
       case 'Dark':
+        // Pip+Dark never casts; the void opening is its special's sound.
+        _cue(SoundCue.specialPipVoid);
         combatProjectiles.add(
           Projectile(
             position: position,
@@ -8403,7 +8453,9 @@ class PlanetDungeonGame extends FlameGame {
         projectile.abilityGrowthTimer = 1.0; // activation flash
         return false;
       case 'Light':
-        // The void is always lethal; bright collapse, then expire.
+        // The void is always lethal; bright collapse, then expire. It springs
+        // on its first contact (the one that cuts its life short).
+        if (projectile.life > 0.4) _cue(SoundCue.specialMaskSpringLight);
         _damageEnemyDirect(
           enemy,
           enemy.hp + 1,
@@ -8413,7 +8465,9 @@ class PlanetDungeonGame extends FlameGame {
         projectile.life = min(projectile.life, 0.4);
         return true;
       case 'Dark':
-        // Yeet: sling the enemy hard away from the void hole.
+        // Yeet: sling the enemy hard away from the void hole. Every contact
+        // frame asks; the cue's cooldown keeps it to one per fling.
+        _cue(SoundCue.specialMaskSpringDark);
         final dir = enemy.position - projectile.position;
         final dist = dir.distance;
         if (dist > 0.01) {
@@ -8428,6 +8482,7 @@ class PlanetDungeonGame extends FlameGame {
         enemy.slowMultiplier = min(enemy.slowMultiplier, 0.55);
         return true;
       case 'Crystal':
+        _cue(SoundCue.specialMaskSpringCrystal);
         _damageEnemyDirect(
           enemy,
           projectile.damage,
@@ -8439,6 +8494,7 @@ class PlanetDungeonGame extends FlameGame {
         projectile.life = min(projectile.life, 0.3);
         return true;
       case 'Fire':
+        _cue(SoundCue.specialMaskSpringFire);
         _damageEnemyDirect(
           enemy,
           projectile.damage,
@@ -10881,14 +10937,14 @@ class PlanetDungeonGame extends FlameGame {
       rise = (fx.fromGrains ? 26 : -70) * (1 - e);
       scale = 0.75 + 0.25 * e;
       alpha = (u * 2).clamp(0.0, 1.0);
-    } else if (t < 2.6) {
+    } else if (t < _RelicDropFx.claimAt) {
       // Hover: a gentle bob with a breathing glint.
       rise = sin((t - 0.7) * 2.6) * 6;
       scale = 1.0 + 0.04 * sin(t * 3.4);
       alpha = 1;
     } else {
       // Claim: expands away and dissolves.
-      final u = ((t - 2.6) / 1.0).clamp(0.0, 1.0);
+      final u = ((t - _RelicDropFx.claimAt) / 1.0).clamp(0.0, 1.0);
       rise = -34 * u;
       scale = 1.0 + 2.4 * Curves.easeIn.transform(u);
       alpha = 1 - u;
@@ -10930,7 +10986,7 @@ class PlanetDungeonGame extends FlameGame {
       );
     }
     // Hovering glints orbiting the relic.
-    if (t >= 0.7 && t < 2.6 && _fx.ready) {
+    if (t >= 0.7 && t < _RelicDropFx.claimAt && _fx.ready) {
       for (var i = 0; i < 3; i++) {
         final a = _time * 1.8 + i * 2.094;
         drawGlow(

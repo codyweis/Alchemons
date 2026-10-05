@@ -675,9 +675,9 @@ class _ActionsState extends State<_Actions> {
                 ? null
                 : () async {
                     setState(() => _busy = true);
+                    // The unlock is heard from the chart, scored to its
+                    // pour and ignition (ConstellationScreen._performUnlock).
                     await widget.onUnlock?.call();
-                    if (!context.mounted) return;
-                    context.sound(SoundCue.upgradeComplete, owner: this);
                     if (mounted) setState(() => _busy = false);
                   },
           ),

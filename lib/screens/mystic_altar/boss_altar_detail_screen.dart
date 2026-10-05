@@ -321,7 +321,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
             f.summon >= AltarRiteField.formEnd + 0.15) {
           setState(() => _rite = _Rite.awake);
           HapticFeedback.heavyImpact();
-          context.sound(SoundCue.achievementUnlock);
+          context.sound(SoundCue.altarAwake);
         }
       case _Rite.sealing:
         f.summon += dt;
@@ -331,17 +331,18 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     _clock.value = f.time;
   }
 
-  /// The rite is felt: the knot's quickening pulse, then the burst.
+  /// The rite is felt: the knot's quickening pulse, then the burst. It is
+  /// heard as one cue from its first beat, scored to these same times (pour,
+  /// knot, the burst at knotEnd), so the burst cannot drift from its knot.
   void _riteBeats(double s) {
     const beats = [0.0, 1.0, 1.6, 2.05, 2.4, AltarRiteField.knotEnd];
     while (_beat < beats.length && s >= beats[_beat]) {
       final last = _beat == beats.length - 1;
       if (last) {
         HapticFeedback.heavyImpact();
-        context.sound(SoundCue.extractionReactionBurst);
       } else if (_beat == 0) {
         HapticFeedback.mediumImpact();
-        context.sound(SoundCue.extractionReactionStart);
+        context.sound(SoundCue.altarRite);
       } else {
         HapticFeedback.lightImpact();
       }
@@ -501,7 +502,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     final f = _field;
     if (f == null || _rite != _Rite.awake) return;
     HapticFeedback.mediumImpact();
-    context.sound(SoundCue.extractionComplete);
+    context.sound(SoundCue.altarSeal);
     setState(() => _rite = _Rite.sealing);
   }
 

@@ -20,6 +20,43 @@ extension CosmicCombatActions on CosmicGame {
     }
   }
 
+  /// A creature's attack sounds in open space as it does in Survival (space
+  /// combat = survival): its family's own basic...
+  void _soundOpenBasic(String family) => onSound?.call(
+    SoundCue.forFamilyBasic(family) ?? SoundCue.combatProjectile,
+  );
+
+  /// ...and, on a special, its element under its family's own cast. A
+  /// [garrison] creature rams at once (no Horn wind-up), so it takes the
+  /// plain gesture. Wing's cast sounds where its beam starts, and Lightning
+  /// Wing's accent waits for the blast.
+  void _soundOpenSpecial(
+    String family,
+    String element, {
+    bool garrison = false,
+  }) {
+    final castElement = SoundCue.forElement(element);
+    if (castElement != null &&
+        !(family.toLowerCase() == 'wing' && element == 'Lightning')) {
+      onSound?.call(castElement);
+    }
+    final cast = SoundCue.forFamilySpecial(family, element, garrison: garrison);
+    if (cast != null) onSound?.call(cast);
+  }
+
+  /// A Horn ram landing, on the frame its slam is drawn.
+  void _soundHornSlam(String element) {
+    final cue = SoundCue.forHornSlam(element);
+    if (cue != null) onSound?.call(cue);
+  }
+
+  /// A Mask trap springing (once per contact echo); silent for the elements
+  /// whose contact is ongoing rather than an event.
+  void _soundMaskSpring(Projectile trap) {
+    final cue = SoundCue.forMaskSpring(trap.element ?? '');
+    if (cue != null) onSound?.call(cue);
+  }
+
   /// The family's basic attack, fired along [CosmicCompanion.angle].
   void _fireCompanionBasic(CosmicCompanion comp) {
     comp.basicCooldown = comp.effectiveBasicCooldown;
@@ -40,6 +77,7 @@ extension CosmicCombatActions on CosmicGame {
       }
     }
     companionProjectiles.addAll(basics);
+    _soundOpenBasic(comp.member.family);
     if (comp.member.family.toLowerCase() == 'pip' &&
         comp.member.element == 'Earth') {
       comp.specialCooldown = max(0, comp.specialCooldown - 0.4);
@@ -58,6 +96,7 @@ extension CosmicCombatActions on CosmicGame {
   /// a Kin support).
   void _castCompanionSpecial(CosmicCompanion comp, Offset targetPos) {
     comp.specialCooldown = comp.effectiveSpecialCooldown;
+    _soundOpenSpecial(comp.member.family, comp.member.element);
     _clearPipPoisonWeb(comp.member);
     // Generate family+element special ability
     final result = createCosmicSpecialAbility(

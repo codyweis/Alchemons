@@ -1768,6 +1768,7 @@ class CosmicGame extends FlameGame with PanDetector {
           element: comp.member.element,
         ),
       );
+      _soundHornSlam(comp.member.element);
     }
     final delta = comp.position - (comp.pendingChargeOrigin ?? comp.position);
     for (final p in pending) {
@@ -1791,6 +1792,7 @@ class CosmicGame extends FlameGame with PanDetector {
         element: g.member.element,
       ),
     );
+    _soundHornSlam(g.member.element);
     final delta = g.position - (g.pendingChargeOrigin ?? g.position);
     for (final p in pending) {
       p.position += delta;
@@ -1900,6 +1902,8 @@ class CosmicGame extends FlameGame with PanDetector {
         );
         break;
       case 'Dark':
+        // Pip+Dark never casts; the void opening is its special's sound.
+        onSound?.call(SoundCue.specialPipVoid);
         companionProjectiles.add(
           Projectile(
             position: position,
@@ -2898,7 +2902,7 @@ class CosmicGame extends FlameGame with PanDetector {
       final angle = autoAimGun && autoTarget != null
           ? atan2(autoTarget.dy - ship.pos.dy, autoTarget.dx - ship.pos.dx)
           : ship.angle;
-      onSound?.call(SoundCue.combatProjectile);
+      onSound?.call(SoundCue.shipBolt);
       projectiles.add(
         Projectile(
           position: Offset(
@@ -2923,7 +2927,7 @@ class CosmicGame extends FlameGame with PanDetector {
       if (missileAmmo > 0) {
         _missileShootCooldown = 0.85;
         missileAmmo--;
-        onSound?.call(SoundCue.combatProjectile);
+        onSound?.call(SoundCue.shipMissile);
         _missiles.add(
           _HomingMissile(
             position: Offset(
@@ -3702,11 +3706,15 @@ class CosmicGame extends FlameGame with PanDetector {
               }
             }
             companionProjectiles.addAll(basics);
+            _soundOpenBasic(g.member.family);
           }
 
           // Special attack — family+element ability!
+          // A Mystic's world is a Survival ability; a garrisoned one casts
+          // nothing here, the same as a summoned one.
           if (g.specialCooldown <= 0 &&
               toTarget.distance <= g.specialRange &&
+              castsSpecialOutsideSurvival(g.member.family) &&
               !isPassiveOnlyCosmicAbility(g.member.family, g.member.element)) {
             g.specialCooldown = alchemonSpecialInterval(
               family: g.member.family,
@@ -3715,6 +3723,11 @@ class CosmicGame extends FlameGame with PanDetector {
               abilityAtk: g.stats.abilityAtk,
             );
             _clearPipPoisonWeb(g.member);
+            _soundOpenSpecial(
+              g.member.family,
+              g.member.element,
+              garrison: true,
+            );
             final result = createCosmicSpecialAbility(
               origin: g.position,
               baseAngle: g.faceAngle,

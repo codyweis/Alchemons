@@ -595,6 +595,7 @@ extension BlackSunDungeon on PlanetDungeonGame {
           orElse: () => b.path.last,
         );
         _cue(SoundCue.dungeonSecretReveal);
+        soundedSecrets.add(kDarkEggId);
         beginMaximRite(
           kDarkEggId,
           at.room == currentRoomId

@@ -2,9 +2,11 @@
 
 Suggested production targets, not measured requirements. Durations include the audible decay.
 
-Production status: all 89 core sounds have been synthesized as WAV prototypes, including six 30-second stereo ambience loops. There are also 21 additional variations across projectiles, light/heavy hits, enemy defeat, orb pickup, and stone/water footsteps. The ten samples approved during review were preserved byte-for-byte. The extraction sequence now uses an alchemical reaction and specimen scanning rather than egg cracking/hatching. The first runtime pass is implemented; see [integration coverage](audio_integration.md) for connected events, remaining hooks, and device-validation limits.
+**How the sounds are made now (2026-10-04).** Every sound effect and ambience loop is rendered by `tool/material_sounds.py` from the family modules in `tool/sounds/` (extraction, fusion, harvest, rewards, interface, combat, cosmic, dungeon, elements); `tool/sounds/core.py` holds the shared voices and the levelling rule. Each cue is built from the material its moment is about (grains where the picture is grains; coins, stone, wood, wax, fire, water, ice, obsidian impacts elsewhere) and scored to what its screen does, with the timing constants named after the Dart they come from. No clean sine tones, sweeps, note runs, chimes, drum thumps or crash bursts. Levels are set by what a phone speaker plays (300 Hz–8 kHz RMS). Frequent cues have real variants (`_01`–`_03`, each its own render); loops are joined seamlessly.
 
-Preview: `build/audio_review/index.html` (searchable by name and category). Exact durations, paths, levels, and variant filenames: `assets/audio/sounds/sound_manifest.json`. Regenerate the remaining library and full preview with `tool/generate_sound_library.py` using Python with NumPy installed. The earlier `tool/generate_ui_sound_samples.py` recreates the first ten samples and its smaller preview; run the full-library generator afterward to restore the complete preview.
+Render: `python tool/material_sounds.py [sfx_name ...]` (NumPy + SciPy; `--list` shows every cue and its module, `--out DIR` renders elsewhere). Inspect what you cannot hear: `python tool/sound_inspect.py file.wav --png DIR`. The manifest (`assets/audio/sounds/sound_manifest.json`) records each cue's current description, level and source module, and is the place to read what a sound is now. The old tone-based generator and its preview were retired.
+
+The tables below are the original production brief: the targets the first library was made against, kept for the uses and lengths they record. Where a row's description and the manifest disagree, the manifest describes the sound that ships.
 
 ## Direction and delivery
 
@@ -30,10 +32,10 @@ Cosmic alchemy: warm crystalline tones, soft electronic pulses, mysterious reson
 | P1 | `sfx_ui_denied.wav` | 0.20–0.40 s | Muted low double pulse; locked or unavailable |
 | P2 | `sfx_ui_select.wav` | 0.08–0.18 s | Party/item selection tick |
 | P1 | `sfx_reward_collect.wav` | 0.40–0.80 s | Small sparkling reward |
-| P2 | `sfx_currency_gain.wav` | 0.20–0.50 s | Brief coin/crystal scatter |
-| P2 | `sfx_purchase_success.wav` | 0.40–0.80 s | Satisfying transactional chime |
-| P2 | `sfx_upgrade_complete.wav` | 0.80–1.50 s | Rising energy and resolved tone |
-| P2 | `sfx_achievement_unlock.wav` | 1.50–2.50 s | Distinct celebratory flourish |
+| P2 | `sfx_currency_gain.wav` | 0.20–0.50 s | Coins or silver in: a small bright pinch and a little high glass |
+| P2 | `sfx_purchase_success.wav` | 0.40–0.80 s | Bought: a pinch into glass, settled |
+| P2 | `sfx_upgrade_complete.wav` | 0.80–1.50 s | Upgraded: grains gather and a glass blooms |
+| P2 | `sfx_achievement_unlock.wav` | 1.50–2.50 s | Claimed: a pour into two glasses, mostly gone before the reward flight lands |
 
 Do not stack tap + confirm + purchase for the same action; choose the most meaningful cue.
 
@@ -51,7 +53,7 @@ The first five rows already have cue definitions and calls in the app. Their gen
 | P2 | `sfx_cosmic_dash.wav` | 0.20–0.45 s | Fast airy energy streak |
 | P2 | `sfx_cosmic_planet_enter.wav` | 1.00–2.00 s | Atmospheric descent sweep |
 | P2 | `sfx_cosmic_cache_open.wav` | 0.80–1.50 s | Sealed crystal vessel releasing treasure |
-| P2 | `sfx_cosmic_discovery.wav` | 1.00–2.00 s | Curious ascending constellation tones |
+| P2 | `sfx_cosmic_discovery.wav` | 1.00–2.00 s | Found in the cosmos: a wide shimmer gathering over a stroked glass |
 | P3 | `sfx_cosmic_scan.wav` | 0.60–1.20 s | Soft sonar ripple with magical shimmer |
 
 ## Shared combat: survival, cosmic enemies, and dungeon guardians
@@ -67,8 +69,8 @@ The first five rows already have cue definitions and calls in the app. Their gen
 | P2 | `sfx_combat_shield_break.wav` | 0.40–0.80 s | Energy shell cracking apart |
 | P2 | `sfx_combat_heal.wav` | 0.60–1.00 s | Warm rising restorative shimmer |
 | P1 | `sfx_combat_danger.wav` | 0.30–0.60 s | Readable incoming attack warning |
-| P1 | `sfx_combat_victory.wav` | 2.00–3.50 s | Short triumphant cosmic flourish |
-| P1 | `sfx_combat_defeat.wav` | 1.50–2.50 s | Gentle descending unresolved chord |
+| P1 | `sfx_combat_victory.wav` | 2.00–3.50 s | Won: grains swell in from wide, settle, two glasses bloom |
+| P1 | `sfx_combat_defeat.wav` | 1.50–2.50 s | Lost: grains falling away and a muted glass |
 | P1 | `sfx_combat_special_cast.wav` | 0.30–0.50 s | Quiet mechanism releasing; a special has gone off. Layers UNDER the element cue, which says which element it was — so it carries no colour of its own and no flourish |
 
 ### Alchemon auto-attacks, one per family
@@ -115,14 +117,14 @@ Keep frequent launch/hit sounds understated. Throttle overlapping hits and picku
 | P1 | `sfx_dungeon_interact.wav` | 0.20–0.40 s | Tactile magical activation |
 | P1 | `sfx_dungeon_gate_open.wav` | 1.00–2.00 s | Ancient stone mechanism unlocking and moving |
 | P2 | `sfx_dungeon_switch.wav` | 0.20–0.45 s | Weighted switch click |
-| P1 | `sfx_dungeon_puzzle_solved.wav` | 1.00–1.80 s | Recognizable ascending discovery phrase |
-| P1 | `sfx_dungeon_star_collect.wav` | 1.50–2.50 s | Bright memorable star reward flourish |
-| P2 | `sfx_dungeon_secret_reveal.wav` | 0.80–1.50 s | Quiet unveiling with a sparkling finish |
+| P1 | `sfx_dungeon_puzzle_solved.wav` | 1.00–1.80 s | Solved: a pour settling into place, two glasses |
+| P1 | `sfx_dungeon_star_collect.wav` | 1.50–2.50 s | A star: a cluster of glints, then a clear glass |
+| P2 | `sfx_dungeon_secret_reveal.wav` | 0.80–1.50 s | A secret opens: a stroked glass swelling up, fine grains glittering loose |
 | P2 | `sfx_dungeon_wall_break.wav` | 0.50–1.00 s | Stone crack and falling rubble |
 | P2 | `sfx_dungeon_block_move.wav` | 0.40–0.80 s | Short stone scrape for a discrete movement |
 | P2 | `sfx_dungeon_hazard_trigger.wav` | 0.30–0.70 s | Mechanical/magical trap snap |
-| P2 | `sfx_dungeon_checkpoint.wav` | 0.60–1.20 s | Reassuring resonance for a bank/save event |
-| P2 | `sfx_dungeon_relic_collect.wav` | 1.50–2.50 s | Deep ancient chime with bright overtones |
+| P2 | `sfx_dungeon_checkpoint.wav` | 0.60–1.20 s | Banked: something set down, low and quiet |
+| P2 | `sfx_dungeon_relic_collect.wav` | 1.50–2.50 s | A relic: a slow pour into a deep glass that rings long |
 | P3 | `sfx_dungeon_step_stone.wav` | 0.08–0.18 s | Restrained stone footstep; make 4 variations |
 | P3 | `sfx_dungeon_step_water.wav` | 0.10–0.25 s | Light shallow splash; make 4 variations |
 
@@ -137,7 +139,6 @@ Use UI denied for unmet gates, shared danger for guardian telegraphs, shared vic
 | P2 | `sfx_capture_attempt.wav` | 0.60–1.00 s | Rings of motes close on the specimen, bite, and strain as it shoves (on HarvestParticleField.beats engage) |
 | P1 | `sfx_capture_success.wav` | 1.20–2.00 s | The specimen turned to grains and drawn down, turning, into the harvester, sealed with a small glass (on the take beat) |
 | P2 | `sfx_capture_escape.wav` | 0.50–0.90 s | The field thrown apart with a breath of heat; the specimen shrugs it off (on the shatter beat) |
-| P2 | `sfx_breeding_start.wav` | 0.80–1.50 s | Two tones blending into a pulsing shimmer |
 | P2 | `sfx_harvest_collect.wav` | 0.30–0.60 s | A chamber collected: the flask drains (1.1 s), its essence venting up out of the surface |
 | P2 | `sfx_extraction_complete.wav` | 0.80–1.30 s | Collect all: every finished chamber lets go at once; the reward flights carry the landing |
 
@@ -147,8 +148,6 @@ The reveal animation depicts an alchemical extraction reaction, not a shell crac
 
 | Priority | Filename | Length | Sound / use |
 |---|---|---|---|
-| P1 | `sfx_extraction_reaction_start.wav` | 1.20–2.00 s | Accelerating liquid bubbles and rising reactive energy |
-| P1 | `sfx_extraction_reaction_burst.wav` | 0.50–1.00 s | Pressurized vapor and a rounded magical release |
 | P1 | `sfx_extraction_creature_reveal.wav` | 2.00–2.50 s | Grains swirl home and settle with a soft weight; a low glass rings once |
 | P2 | `sfx_extraction_rare_reveal.wav` | 3.00–3.50 s | A held, charged beat, then grains swirl home and settle into two glass bodies |
 | P1 | `sfx_extraction_ceremony.wav` | 6.05 s | Two parents' grains gather into one shell, settle as it cinches (4.25 s), and ring it open as it unravels (5.24 s) |
@@ -159,7 +158,7 @@ The reveal animation depicts an alchemical extraction reaction, not a shell crac
 | P1 | `sfx_fusion_recoil.wav` | 1.2 s | The verdict failed: grains run back up into the pair, which settle whole |
 | P1 | `sfx_reward_flight.wav` | 1.6 s | Any reward flight (playRewardCollect): thrown out of its card, drawn in faster and faster, settled into its total at 0.98 s |
 
-The two reveals are built from materials by `tool/material_sounds.py` (grains, struck glass, body, room; no tones, sweeps or note runs), timed to the card's essence reveal: grains land at 1.20 s, or 1.77 s after a rare specimen's held beat. `generate_sound_library.py` leaves them alone. The prior egg-crack, egg-hatch, and creature-rare-reveal prototypes are retired from the active library. Their backups are in `build/audio_review/retired/`. Regenerate the two reaction cues with `tool/generate_sound_library.py --only-extraction`, and the reveals with `tool/material_sounds.py`.
+The extraction sounds are the ceremony (scored to the shell's per-strand motion) and the card's reveal (grains land at 1.20 s, or 1.77 s after a rare specimen's held beat); see `tool/sounds/extraction.py`. The prior egg-crack, egg-hatch and reaction prototypes are retired.
 
 ## Element identity pass
 
@@ -202,11 +201,7 @@ Keep WAV ambience as production masters; choose compressed runtime exports after
 
 ## Later additions
 
-Appended rather than filed by theme, on purpose. The generator seeds each
-sound from its **row index** in this document, so inserting a row mid-file
-re-rolls the noise in every sound below it — and the approved-hash assertion
-at the end of `tool/generate_sound_library.py` will stop the run when it does.
-New rows go here, at the bottom, where they shift nothing.
+Rows added after the first production pass.
 
 | Priority | Filename | Length | Sound / use |
 |---|---|---|---|
