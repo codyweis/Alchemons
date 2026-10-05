@@ -1,6 +1,7 @@
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
@@ -119,4 +120,36 @@ void main() {
       expect(shop.getPurchaseCount(type.shopOfferId), 0);
     });
   }
+
+  test('home decor: bought into the inventory, up to what a realm stands', () async {
+    await db.settingsDao.setSetting('wallet_silver', '10000');
+    final lantern = HomeDecor.byId('lantern_post')!;
+    expect(shop.allowsQuantity(
+      ShopService.allOffers.firstWhere((o) => o.id == lantern.offerId),
+    ), isTrue);
+    // More than the cap asked for: only the cap is bought, and paid for.
+    expect(await shop.purchase(lantern.offerId, qty: 20), isTrue);
+    expect(await db.inventoryDao.getItemQty(lantern.inventoryKey), lantern.max);
+    expect(
+      (await db.currencyDao.getAllCurrencies())['silver'],
+      10000 - lantern.silver * lantern.max,
+    );
+    expect(shop.canPurchase(lantern.offerId), isFalse, reason: 'at the cap');
+    expect(shop.getPurchaseStatus(lantern.offerId), 'MAX');
+
+    // A Wonder is bought once, for 150 gold.
+    await db.settingsDao.setSetting('wallet_gold', '300');
+    final spring = HomeDecor.byId('hot_spring')!;
+    expect(spring.gold, 150);
+    expect(await shop.purchase(spring.offerId), isTrue);
+    expect(shop.canPurchase(spring.offerId), isFalse);
+    expect((await db.currencyDao.getAllCurrencies())['gold'], 150);
+    expect(await db.inventoryDao.getItemQty(spring.inventoryKey), 1);
+
+    // Every Wonder costs the same, and every piece has a grant.
+    for (final d in HomeDecor.all) {
+      if (d.tier == DecorTier.wonder) expect(d.gold, 150, reason: d.id);
+      expect(d.cost, isNotEmpty, reason: d.id);
+    }
+  });
 }

@@ -1,8 +1,8 @@
 // lib/widgets/wallet_panel.dart
 //
 // The one place the game shows everything the player can spend: gold and
-// silver over the five element resources, in a bracket frame. The shop and
-// the inventory both open with it.
+// silver over the five element resources, in a bracket frame. The inventory
+// opens with it; the shop's supplies show its elements alone.
 
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -18,7 +18,11 @@ import 'package:provider/provider.dart';
 /// element resources. Every element is shown, held or not, so the row never
 /// shifts and a price in an element you have none of still has its column.
 class WalletPanel extends StatelessWidget {
-  const WalletPanel({super.key});
+  const WalletPanel({super.key, this.showCoins = true});
+
+  /// False for the elements alone, where the coins already sit in the
+  /// screen's header (the shop's supplies).
+  final bool showCoins;
 
   @override
   Widget build(BuildContext context) {
@@ -41,40 +45,44 @@ class WalletPanel extends StatelessWidget {
               ),
               child: Container(
                 color: palette.surfaceFill(),
-                padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                padding: showCoins
+                    ? const EdgeInsets.fromLTRB(10, 10, 10, 10)
+                    : const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Center(
-                            child: CoinAmount(
-                              kind: CoinKind.gold,
-                              amount: coins['gold'] ?? 0,
-                              size: 15,
+                    if (showCoins) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Center(
+                              child: CoinAmount(
+                                kind: CoinKind.gold,
+                                amount: coins['gold'] ?? 0,
+                                size: 15,
+                              ),
                             ),
                           ),
-                        ),
-                        Container(
-                          width: 1,
-                          height: 18,
-                          color: palette.lineSoft,
-                        ),
-                        Expanded(
-                          child: Center(
-                            child: CoinAmount(
-                              kind: CoinKind.silver,
-                              amount: coins['silver'] ?? 0,
-                              size: 15,
+                          Container(
+                            width: 1,
+                            height: 18,
+                            color: palette.lineSoft,
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: CoinAmount(
+                                kind: CoinKind.silver,
+                                amount: coins['silver'] ?? 0,
+                                size: 15,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 9),
-                    Container(height: 1, color: palette.lineSoft),
-                    const SizedBox(height: 8),
+                        ],
+                      ),
+                      const SizedBox(height: 9),
+                      Container(height: 1, color: palette.lineSoft),
+                      const SizedBox(height: 8),
+                    ],
                     Row(
                       children: [
                         for (final r in ElementResources.all)

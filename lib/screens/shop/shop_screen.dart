@@ -7,6 +7,7 @@
 // All logic, routing, purchase flows, and service calls unchanged.
 //
 
+import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/faction.dart';
 import 'dart:async';
 
@@ -37,7 +38,9 @@ import 'package:alchemons/widgets/background/alchemical_particle_background.dart
     show routeObserver;
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/black_market_button.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/wallet_panel.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/perf/viewport_ticker_gate.dart';
@@ -88,6 +91,13 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   /// under a TickerMode keyed on this, so nothing keeps driving frames behind
   /// a route the player is actually looking at.
   bool _routeIsCurrent = true;
+
+  /// 0 = supplies, 1 = cosmetics.
+  int _tab = 0;
+
+  /// Cosmetics is built the first time it is opened and kept after, so a
+  /// player who never looks at it never bakes its effect cards.
+  bool _cosmeticsBuilt = false;
 
   late final Map<String, int> _slot2Cost;
   late final Map<String, int> _slot3Cost;
@@ -250,10 +260,24 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
         body: SafeArea(
           child: Column(
             children: [
-              // The header animates continuously (black-market pulse, currency
-              // and resource tickers). Without its own layer every one of those
-              // frames re-records the whole screen, scroll content included.
+              // The header animates continuously (the black-market pulse).
+              // Without its own layer every one of those frames re-records the
+              // whole screen, scroll content included.
               RepaintBoundary(child: _buildHeader(theme)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                child: BracketTabs(
+                  labels: const ['SUPPLIES', 'COSMETICS'],
+                  icons: const [AppIcons.science, AppIcons.auto_awesome],
+                  selected: _tab,
+                  onSelect: (i) => setState(() {
+                    _tab = i;
+                    if (i == 1) _cosmeticsBuilt = true;
+                  }),
+                  palette: BracketPalette.fromTheme(theme),
+                  accent: bracketReadableAccent(theme),
+                ),
+              ),
               Expanded(
                 child: TickerMode(
                   enabled: _routeIsCurrent,
@@ -269,43 +293,40 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
   // ── HEADER ─────────────────────────────────────────────────────────────────
 
+  /// One row: the black market's stall, the name, what the player holds and
+  /// the door to the specimen exchange. The five element resources are only
+  /// spent on supplies, so they sit at the top of that tab rather than here.
   Widget _buildHeader(FactionTheme theme) {
     final palette = BracketPalette.fromTheme(theme);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      padding: const EdgeInsets.fromLTRB(10, 8, 16, 0),
+      child: Row(
         children: [
-          Row(
-            children: [
-              _buildBlackMarketFloatingButton(context, theme.accent),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Research Shop',
-                      style: bracketText(context, 26, palette.ink),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Supplies, devices and rarer stock.',
-                      style: bracketText(
-                        context,
-                        12.5,
-                        palette.muted,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ),
+          _buildBlackMarketFloatingButton(context, theme.accent),
+          const SizedBox(width: 4),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Research Shop',
+                maxLines: 1,
+                style: bracketText(context, 24, palette.ink),
               ),
-              _buildExchangeFloatingButton(context),
-            ],
+            ),
           ),
-          const SizedBox(height: 12),
-          const WalletPanel(),
+          const SizedBox(width: 10),
+          // The door stands as tall as the purse beside it.
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const CurrencyDisplayWidget(),
+                const SizedBox(width: 8),
+                _buildExchangeFloatingButton(context),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -451,109 +472,32 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                   for (final it in invList) it.key: it.qty,
                 };
 
-                return SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildSectionHeader('SPECIAL UNLOCKS'),
-                      _buildSpecialUnlocksGrid(
+                // Each tab keeps its own scroll position, and only the one
+                // on screen runs its animations.
+                return IndexedStack(
+                  index: _tab,
+                  sizing: StackFit.expand,
+                  children: [
+                    TickerMode(
+                      enabled: _tab == 0,
+                      child: _buildSuppliesTab(
                         theme,
                         allCurrencies,
                         resourceBalances,
-                      ),
-
-                      _buildSectionHeader('COMMON ITEMS'),
-                      // The vial is a routine restock like the other two, so
-                      // it shares their grid — same cell, same size — instead
-                      // of a full-width card above them. Its live brewing
-                      // particle field keeps its own layer, paused once it
-                      // scrolls out of the viewport.
-                      _buildInstantItemsGrid(
-                        theme,
-                        allCurrencies,
-                        inventoryByKey,
-                        _commonConsumableIds,
-                        leading: [
-                          ViewportTickerGate(
-                            child: _buildDailyVialSection(theme, allCurrencies),
-                          ),
-                        ],
-                      ),
-
-                      _buildSectionHeader('GOLD VAULT', coin: CoinKind.gold),
-                      // One grain field on one ticker; its own layer, and
-                      // paused once it scrolls out of the viewport.
-                      ViewportTickerGate(child: _buildGoldVaultSection(theme)),
-
-                      _buildSectionHeader('HARVEST DEVICES'),
-                      _buildHarvestDevicesGrid(
-                        theme,
-                        allCurrencies,
-                        inventoryByKey,
-                        resourceBalances,
-                      ),
-
-                      // Power Orbs raise Enhancement ranks, so they are
-                      // stock for a screen the player cannot open yet. Hidden
-                      // until Enhance is unlocked, the way Enhance itself is
-                      // hidden on the home dock.
-                      if (context
-                          .watch<ShopService>()
-                          .hasElementalCreatorUnlocked()) ...[
-                        _buildSectionHeader('ALCHEMICAL POWERUPS'),
-                        // Five floating/pulsing orbs, each with a blurred
-                        // glow; own layer, paused once out of the viewport.
-                        ViewportTickerGate(
-                          child: _buildAlchemicalPowerupsRow(
-                            theme,
-                            allCurrencies,
-                            inventoryByKey,
-                          ),
-                        ),
-                      ],
-
-                      _buildSectionHeader('SPECIAL ITEMS'),
-                      _buildInstantItemsGrid(
-                        theme,
-                        allCurrencies,
-                        inventoryByKey,
-                        _specialConsumableIds,
-                      ),
-
-                      _buildSectionHeader('ALCHEMY EFFECTS'),
-                      _buildAlchemyEffectsGrid(
-                        theme,
-                        allCurrencies,
                         inventoryByKey,
                       ),
-
-                      _buildSectionHeader('SELL'),
-                      _buildCurrencyExchangeGrid(
-                        theme,
-                        allCurrencies,
-                        resourceBalances,
-                      ),
-
-                      _buildSectionHeader('PORTAL KEYS'),
-                      _buildPortalKeysGrid(
-                        theme,
-                        allCurrencies,
-                        inventoryByKey,
-                      ),
-
-                      // 'SURVIVAL ORB SKINS' removed — an orb skin is
-                      // chosen where it is worn. Base Command sells and
-                      // equips them side by side, so buying one here meant a
-                      // trip to a second screen to put it on, and the two
-                      // lists could disagree about what you owned. The
-                      // offers still exist: Base Command reads them for
-                      // pricing and for the once-only limit.
-
-                      // 'COSMIC EXPLORATION' removed — discovery will occur in-world
-                    ],
-                  ),
+                    ),
+                    TickerMode(
+                      enabled: _tab == 1,
+                      child: _cosmeticsBuilt
+                          ? _buildCosmeticsTab(
+                              theme,
+                              allCurrencies,
+                              inventoryByKey,
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
                 );
               },
             );
@@ -563,7 +507,209 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     );
   }
 
+  /// Everything that does something: unlocks, consumables, devices, gold,
+  /// keys and the element exchange. The element resources sit pinned above
+  /// it, since harvesters and the exchange are priced in them.
+  Widget _buildSuppliesTab(
+    FactionTheme theme,
+    Map<String, int> allCurrencies,
+    Map<String, int> resourceBalances,
+    Map<String, int> inventoryByKey,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 10, 16, 6),
+          child: WalletPanel(showCoins: false),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSectionHeader('SPECIAL UNLOCKS'),
+                _buildSpecialUnlocksGrid(
+                  theme,
+                  allCurrencies,
+                  resourceBalances,
+                ),
+
+                _buildSectionHeader('COMMON ITEMS'),
+                // The vial is a routine restock like the other two, so
+                // it shares their grid — same cell, same size — instead
+                // of a full-width card above them. Its live brewing
+                // particle field keeps its own layer, paused once it
+                // scrolls out of the viewport.
+                _buildInstantItemsGrid(
+                  theme,
+                  allCurrencies,
+                  inventoryByKey,
+                  _commonConsumableIds,
+                  leading: [
+                    ViewportTickerGate(
+                      child: _buildDailyVialSection(theme, allCurrencies),
+                    ),
+                  ],
+                ),
+
+                _buildSectionHeader('GOLD VAULT', coin: CoinKind.gold),
+                // One grain field on one ticker; its own layer, and
+                // paused once it scrolls out of the viewport.
+                ViewportTickerGate(child: _buildGoldVaultSection(theme)),
+
+                _buildSectionHeader('HARVEST DEVICES'),
+                _buildHarvestDevicesGrid(
+                  theme,
+                  allCurrencies,
+                  inventoryByKey,
+                  resourceBalances,
+                ),
+
+                // Power Orbs raise Enhancement ranks, so they are
+                // stock for a screen the player cannot open yet. Hidden
+                // until Enhance is unlocked, the way Enhance itself is
+                // hidden on the home dock.
+                if (context
+                    .watch<ShopService>()
+                    .hasElementalCreatorUnlocked()) ...[
+                  _buildSectionHeader('ALCHEMICAL POWERUPS'),
+                  // Five floating/pulsing orbs, each with a blurred
+                  // glow; own layer, paused once out of the viewport.
+                  ViewportTickerGate(
+                    child: _buildAlchemicalPowerupsRow(
+                      theme,
+                      allCurrencies,
+                      inventoryByKey,
+                    ),
+                  ),
+                ],
+
+                _buildSectionHeader('SPECIAL ITEMS'),
+                _buildInstantItemsGrid(
+                  theme,
+                  allCurrencies,
+                  inventoryByKey,
+                  _specialConsumableIds,
+                ),
+
+                _buildSectionHeader('SELL'),
+                _buildCurrencyExchangeGrid(
+                  theme,
+                  allCurrencies,
+                  resourceBalances,
+                ),
+
+                _buildSectionHeader('PORTAL KEYS'),
+                _buildPortalKeysGrid(theme, allCurrencies, inventoryByKey),
+
+                // 'SURVIVAL ORB SKINS' removed — an orb skin is
+                // chosen where it is worn. Base Command sells and
+                // equips them side by side, so buying one here meant a
+                // trip to a second screen to put it on, and the two
+                // lists could disagree about what you owned. The
+                // offers still exist: Base Command reads them for
+                // pricing and for the once-only limit.
+
+                // 'COSMIC EXPLORATION' removed — discovery will occur in-world
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Things that only change how something looks. Alchemy effects for now;
+  /// home planet customisations join them here.
+  Widget _buildCosmeticsTab(
+    FactionTheme theme,
+    Map<String, int> allCurrencies,
+    Map<String, int> inventoryByKey,
+  ) {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildSectionHeader('ALCHEMY EFFECTS'),
+          _buildAlchemyEffectsGrid(theme, allCurrencies, inventoryByKey),
+          // The home biome's decor, simple to grand (models/home_decor.dart).
+          for (final tier in DecorTier.values) ...[
+            _buildSectionHeader('HOME · ${tier.label}'),
+            _buildHomeDecorGrid(theme, allCurrencies, tier),
+          ],
+        ],
+      ),
+    );
+  }
+
   // ── GRIDS (logic unchanged, padding/spacing preserved) ─────────────────────
+
+  /// The home decor of [tier]: a card each, how many owned of the most one
+  /// realm can stand.
+  Widget _buildHomeDecorGrid(
+    FactionTheme theme,
+    Map<String, int> allCurrencies,
+    DecorTier tier,
+  ) {
+    return Consumer<ShopService>(
+      builder: (context, shopService, _) {
+        final cards = [
+          for (final offer in shopService.getHomeDecorOffers(tier))
+            () {
+              final canPurchase = shopService.canPurchase(offer.id);
+              final effectiveCost = shopService.getEffectiveCost(offer);
+              final canAffordUnit = effectiveCost.entries.every(
+                (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+              );
+              final status = shopService.getPurchaseStatus(offer.id);
+              return GestureDetector(
+                onTap: context.soundAction(
+                  () => canPurchase
+                      ? _handlePurchase(
+                          context,
+                          offer,
+                          allCurrencies,
+                          canAffordUnit,
+                        )
+                      : _showDetails(
+                          context,
+                          offer,
+                          allCurrencies,
+                          canAffordUnit,
+                        ),
+                ),
+                child: GameShopCard(
+                  key: ValueKey('decor-${offer.id}'),
+                  title: offer.name,
+                  offer: offer,
+                  theme: theme,
+                  costWidgets: [
+                    for (final entry in effectiveCost.entries)
+                      CostChip(
+                        currencyType: entry.key,
+                        amount: entry.value,
+                        available: allCurrencies[entry.key] ?? 0,
+                      ),
+                  ],
+                  statusText: status.isEmpty ? null : status,
+                  enabled: canPurchase,
+                  canAfford: canAffordUnit,
+                ),
+              );
+            }(),
+        ];
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: ShopGrid(children: cards),
+        );
+      },
+    );
+  }
 
   Widget _buildAlchemyEffectsGrid(
     FactionTheme theme,
@@ -1397,11 +1543,14 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     // Result snackbar. An alchemy effect goes to the inventory, to be put on
     // a specimen from there whenever the player likes.
     final isEffect = offer.id.startsWith('effects.');
+    final isDecor = HomeDecor.byOffer(offer.id) != null;
     _toast(
       !success
           ? 'Purchase failed'
           : isEffect
           ? '${offer.name} added to inventory'
+          : isDecor
+          ? '${offer.name} ready to place at home'
           : '${offer.name} × $qty',
       icon: success ? AppIcons.check_rounded : AppIcons.error_rounded,
       color: success ? t.success : t.danger,
@@ -1509,6 +1658,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
       builder: (context, marketService, child) => AnimatedBlackMarketButton(
         isOpen: marketService.isOpen,
         accent: accent,
+        size: 54,
         onTap: marketService.isOpen
             ? () {
                 HapticFeedback.lightImpact();
@@ -1982,7 +2132,7 @@ class _ShopDoor extends StatelessWidget {
         ),
         child: Container(
           width: 56,
-          height: 52,
+          constraints: const BoxConstraints(minHeight: 48),
           color: lit
               ? palette.accentWash(accent, darkAlpha: 0.16)
               : palette.surfaceMutedFill(),

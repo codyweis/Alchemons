@@ -7,11 +7,15 @@ class AnimatedBlackMarketButton extends StatefulWidget {
   final Color accent;
   final VoidCallback onTap;
 
+  /// The square the button takes up; the stall picture is drawn at 80% of it.
+  final double size;
+
   const AnimatedBlackMarketButton({
     super.key,
     required this.isOpen,
     required this.accent,
     required this.onTap,
+    this.size = 75,
   });
 
   @override
@@ -92,8 +96,8 @@ class AnimatedBlackMarketButtonState extends State<AnimatedBlackMarketButton>
                                   (pulse - 1.0) /
                                   0.08, // Smooth opacity change
                             ),
-                            blurRadius: 30,
-                            spreadRadius: 10,
+                            blurRadius: widget.size * 0.4,
+                            spreadRadius: widget.size * 0.13,
                           ),
                         ],
                       ),
@@ -105,8 +109,8 @@ class AnimatedBlackMarketButtonState extends State<AnimatedBlackMarketButton>
               Transform.scale(
                 scale: pulse,
                 child: SizedBox(
-                  width: 75,
-                  height: 75,
+                  width: widget.size,
+                  height: widget.size,
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
@@ -116,8 +120,8 @@ class AnimatedBlackMarketButtonState extends State<AnimatedBlackMarketButton>
                           widget.isOpen
                               ? 'assets/images/ui/blackmarketicon.png'
                               : 'assets/images/ui/blackmarketofficon.png',
-                          width: 60,
-                          height: 60,
+                          width: widget.size * 0.8,
+                          height: widget.size * 0.8,
                         ),
                       ),
 

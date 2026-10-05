@@ -7,6 +7,7 @@ import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/economy_balance.dart';
+import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
@@ -237,6 +238,21 @@ class ShopService extends ChangeNotifier {
     return _unlockedContestEffectOfferIds.contains(offerId);
   }
 
+  /// The home decor of [tier], as the shop sells it.
+  List<ShopOffer> getHomeDecorOffers(DecorTier tier) => [
+    for (final d in HomeDecor.ofTier(tier))
+      allOffers.firstWhere((o) => o.id == d.offerId),
+  ];
+
+  /// How many more of the decor [offerId] can be bought: one realm stands
+  /// at most its cap, and owning more would buy nothing (see
+  /// [HomeDecor.max]). Null for an offer that is not decor.
+  int? homeDecorRoom(String offerId) {
+    final d = HomeDecor.byOffer(offerId);
+    if (d == null) return null;
+    return (d.max - (_inventoryCache[d.inventoryKey] ?? 0)).clamp(0, d.max);
+  }
+
   List<ShopOffer> getAlchemyEffectOffers() {
     return allOffers
         .where((o) => o.id.startsWith('effects.'))
@@ -364,6 +380,19 @@ class ShopService extends ChangeNotifier {
 
   // ==== Offers (existing + new) ====
   static final List<ShopOffer> allOffers = [
+    // ── Home decor (models/home_decor.dart) ──
+    for (final d in HomeDecor.all)
+      ShopOffer(
+        id: d.offerId,
+        name: d.name,
+        description: d.line,
+        icon: AppIcons.home_rounded,
+        cost: d.cost,
+        reward: const {},
+        rewardType: 'boost',
+        limit: d.max == 1 ? PurchaseLimit.once : PurchaseLimit.unlimited,
+        inventoryKey: d.inventoryKey,
+      ),
     // ── Cosmic Alchemy ──
     ShopOffer(
       id: 'cosmic.ship',
@@ -1200,7 +1229,7 @@ class ShopService extends ChangeNotifier {
         final now = DateTime.now().toUtc();
         return now.difference(last).inDays >= 1;
       case PurchaseLimit.unlimited:
-        return true;
+        return (homeDecorRoom(offerId) ?? 1) > 0;
     }
   }
 
@@ -1221,6 +1250,12 @@ class ShopService extends ChangeNotifier {
         return hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
 
       case PurchaseLimit.unlimited:
+        // Decor: how many are owned of the most a realm can stand.
+        final decor = HomeDecor.byOffer(offerId);
+        if (decor != null) {
+          final qty = _inventoryCache[decor.inventoryKey] ?? 0;
+          return qty >= decor.max ? 'MAX' : (qty > 0 ? '$qty/${decor.max}' : '');
+        }
         // NEW: show inventory total ONLY if the offer is inventory-able.
         if (offer.inventoryKey != null) {
           final qty = _inventoryCache[offer.inventoryKey!] ?? 0;
@@ -1301,7 +1336,7 @@ class ShopService extends ChangeNotifier {
 
   Future<bool> _purchase(String offerId, {required int qty}) async {
     if (!canPurchase(offerId)) return false;
-    qty = qty.clamp(1, 999);
+    qty = qty.clamp(1, homeDecorRoom(offerId) ?? 999);
     final offer = _resolveOfferById(offerId);
     if (offer == null) return false;
     if (!allowsQuantity(offer) && qty != 1) return false;
@@ -1385,6 +1420,12 @@ class ShopService extends ChangeNotifier {
   }
 
   Future<bool> _applyBoost(String offerId, int qty) async {
+    // Home decor: owned as a count, placed in the home biome.
+    final decor = HomeDecor.byOffer(offerId);
+    if (decor != null) {
+      await _db.inventoryDao.addItemQty(decor.inventoryKey, qty);
+      return true;
+    }
     for (final powerup in AlchemicalPowerupType.values) {
       if (offerId == powerup.shopOfferId) {
         await _db.inventoryDao.addItemQty(powerup.inventoryKey, qty);

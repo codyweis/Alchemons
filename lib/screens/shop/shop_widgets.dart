@@ -1,3 +1,5 @@
+import 'package:alchemons/models/home_decor.dart';
+import 'package:alchemons/widgets/fx/keepsake_view.dart';
 import 'package:alchemons/widgets/wildlife_lure_glyph.dart';
 import 'package:alchemons/audio/audio.dart';
 // lib/widgets/shop_widgets.dart
@@ -616,6 +618,14 @@ Widget _buildOfferPreview(
   required FactionTheme theme,
   bool animate = true,
 }) {
+  // Home decor is drawn as it stands in the home biome.
+  if (HomeDecor.byOffer(offer.id) case final decor?) {
+    return SizedBox.square(
+      dimension: size,
+      child: KeepsakeView(decor.id, animate: animate),
+    );
+  }
+
   // Potential Souls use their real molecular orb everywhere, including this
   // detail preview, rather than falling through to the placeholder icon.
   if (offer.id == ShopService.potentialSoulOfferId ||
@@ -924,6 +934,14 @@ Widget _buildOfferPreviewForDialog(
   double size = 120.0,
   required FactionTheme theme,
 }) {
+  // Home decor, living, as it stands in the home biome.
+  if (HomeDecor.byOffer(offer.id) case final decor?) {
+    return SizedBox.square(
+      dimension: size,
+      child: KeepsakeView(decor.id, animate: true),
+    );
+  }
+
   // SPECIAL CASE: DAILY VIAL - Show actual vial card
   if (offer.id.startsWith('vial.daily.common.')) {
     final groupName = offer.id.split('.').last;
