@@ -7,6 +7,7 @@ export 'package:alchemons/audio/sound_cue.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -135,7 +136,12 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _refreshAssetCacheIfStale() async {
     try {
       final info = await PackageInfo.fromPlatform();
-      final build = '${info.version}+${info.buildNumber}';
+      // The sounds themselves are part of the key: the manifest carries a
+      // checksum per file, so a rebuilt sound clears the cache even in a
+      // build that kept its number (a test install, a re-run of the same
+      // release).
+      final build =
+          '${info.version}+${info.buildNumber}:${await _soundsFingerprint()}';
       if (!kDebugMode &&
           await _db.settingsDao.getSetting(_kAssetCacheBuild) == build) {
         return;
@@ -145,6 +151,23 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       // No cache yet, or no temp directory: nothing stale to clear.
       debugPrint('Audio asset cache refresh skipped: $e');
+    }
+  }
+
+  /// FNV-1a over the sound manifest: stable across launches, unlike
+  /// String.hashCode.
+  static Future<String> _soundsFingerprint() async {
+    try {
+      final text = await rootBundle.loadString(
+        'assets/audio/sounds/sound_manifest.json',
+      );
+      var hash = 0x811c9dc5;
+      for (final unit in text.codeUnits) {
+        hash = ((hash ^ unit) * 0x01000193) & 0xffffffff;
+      }
+      return hash.toRadixString(16);
+    } catch (_) {
+      return '';
     }
   }
 
