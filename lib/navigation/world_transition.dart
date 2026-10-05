@@ -151,6 +151,11 @@ class VoidPortal {
   /// the portal counter-rotates itself so it stays upright in the player's
   /// hand. The full [orientation] list is allowed again once revealed.
   ///
+  /// Turning to landscape, [page] is pushed the moment the turn is asked for
+  /// and laid out at its landscape size straight away (see [_PreTurned]), so
+  /// whatever it does on its first frame happens once, at its real size,
+  /// while the system is still turning.
+  ///
   /// Unlike [push], the returned future completes with the route's result
   /// when the page is popped.
   static Future<T?> pushThroughGlyphs<T>(
@@ -167,6 +172,13 @@ class VoidPortal {
   }) {
     final navigator = Navigator.of(context);
     final routeResult = Completer<T?>();
+    final counterTurns = switch (orientation?.first) {
+      DeviceOrientation.landscapeLeft => 3,
+      DeviceOrientation.landscapeRight => 1,
+      _ => 0,
+    };
+    // True once the window has turned, or plainly will not.
+    final turned = ValueNotifier<bool>(counterTurns == 0);
     late OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => _GlyphPortalOverlay(
@@ -177,11 +189,8 @@ class VoidPortal {
         ready: ready,
         palette: palette,
         tint: tint,
-        counterTurns: switch (orientation?.first) {
-          DeviceOrientation.landscapeLeft => 3,
-          DeviceOrientation.landscapeRight => 1,
-          _ => 0,
-        },
+        counterTurns: counterTurns,
+        onTurned: () => turned.value = true,
         onCovered: () async {
           try {
             if (orientation != null && orientation.isNotEmpty) {
@@ -193,7 +202,9 @@ class VoidPortal {
                   PageRouteBuilder(
                     transitionDuration: Duration.zero,
                     reverseTransitionDuration: Duration.zero,
-                    pageBuilder: (_, __, ___) => page,
+                    pageBuilder: (_, __, ___) => counterTurns == 0
+                        ? page
+                        : _PreTurned(turned: turned, child: page),
                   ),
                 )
                 .then((result) async {
@@ -442,6 +453,50 @@ class VoidPortal {
 // Glyph portal overlay
 // ============================================================================
 
+/// Lays a page pushed under the black out at the size the window will have
+/// once it has turned to landscape, until [turned] says it has (or plainly
+/// will not).
+///
+/// The turn takes the system a few hundred milliseconds, and a page built
+/// before it lands would be built tall and then again wide — a wild field's
+/// first frame bakes all its art (70–290 ms each on a desktop test run), so
+/// that is two bakes, one thrown away, on black. Built at the wide size from
+/// the start, the field bakes once, while the system turns, and the turn
+/// landing changes nothing it measured.
+class _PreTurned extends StatelessWidget {
+  const _PreTurned({required this.turned, required this.child});
+
+  final ValueListenable<bool> turned;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    return ValueListenableBuilder<bool>(
+      valueListenable: turned,
+      builder: (context, settled, _) {
+        final size = media.size;
+        final turning = !settled && size.height > size.width;
+        final laid = turning ? size.flipped : size;
+        // The same widgets either way, so the page keeps its state (and its
+        // bake) when the turn lands. Nothing of it shows meanwhile: the
+        // portal's black covers it.
+        return MediaQuery(
+          data: turning ? media.copyWith(size: laid) : media,
+          child: OverflowBox(
+            alignment: Alignment.topLeft,
+            minWidth: laid.width,
+            maxWidth: laid.width,
+            minHeight: laid.height,
+            maxHeight: laid.height,
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _GlyphPortalOverlay extends StatefulWidget {
   const _GlyphPortalOverlay({
     required this.title,
@@ -454,6 +509,7 @@ class _GlyphPortalOverlay extends StatefulWidget {
     required this.tint,
     required this.onCovered,
     required this.onComplete,
+    this.onTurned,
     this.onReveal,
   });
 
@@ -475,6 +531,10 @@ class _GlyphPortalOverlay extends StatefulWidget {
   /// Starts the orientation switch and the push; completes once both have
   /// been started (not when the page is popped).
   final Future<void> Function() onCovered;
+
+  /// Runs once the window has turned after [onCovered], or the wait for it
+  /// has given up (through-black only).
+  final VoidCallback? onTurned;
 
   /// Runs once, the moment the portal starts to fade out.
   final VoidCallback? onReveal;
@@ -578,12 +638,14 @@ class _GlyphPortalOverlayState extends State<_GlyphPortalOverlay>
       // The push reports its own failure through the route future.
     }
     if (widget.counterTurns != 0) {
-      while (mounted &&
-          _portraitNow == _startedPortrait &&
-          _now - began < _settleTimeoutSeconds) {
+      // Until the window is wide — which it may already have been, so wait
+      // for wide rather than for a change — or the system has plainly
+      // ignored the request.
+      while (mounted && _portraitNow && _now - began < _settleTimeoutSeconds) {
         await SchedulerBinding.instance.endOfFrame;
       }
     }
+    widget.onTurned?.call();
     for (var i = 0; i < _settleFrames && mounted; i++) {
       await SchedulerBinding.instance.endOfFrame;
     }
