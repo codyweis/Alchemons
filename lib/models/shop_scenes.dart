@@ -71,6 +71,15 @@ const List<ShopScene> kShopScenes = [
       'Icekin',
     ],
   ),
+  ShopScene(
+    sceneId: 'tidal',
+    title: 'Tidal Shelf',
+    line:
+        'A basalt shore on the open sea, with a real tide. Adds a realm to '
+        'the wild map and a new place to build your home.',
+    gold: 500,
+    species: ['Watermask', 'Waterkin', 'Mudmask', 'Mudkin'],
+  ),
 ];
 
 /// The shop's realm with [sceneId], or null for one that is not sold.

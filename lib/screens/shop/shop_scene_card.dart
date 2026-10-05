@@ -15,6 +15,7 @@ import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
 import 'package:alchemons/models/scenes/geode/geode_scene.dart';
+import 'package:alchemons/models/scenes/tidal/tidal_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/shop_scenes.dart';
 import 'package:alchemons/services/shop_service.dart';
@@ -26,6 +27,7 @@ import 'package:flutter/material.dart';
 /// The wild scene a realm for sale is drawn from.
 SceneDefinition sceneForShop(String sceneId) => switch (sceneId) {
   'geode' => geodeScene,
+  'tidal' => tidalScene,
   _ => dunesScene,
 };
 

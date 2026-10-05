@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 part 'arcane_field.dart';
 part 'dunes_field.dart';
 part 'geode_field.dart';
+part 'tidal_field.dart';
 part 'sky_field.dart';
 part 'swamp_field.dart';
 part 'valley_field.dart';

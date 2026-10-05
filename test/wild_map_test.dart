@@ -48,6 +48,8 @@ WildMapField _field({
   List<String> slots = kWildCoreSlots,
   bool glass = false,
   bool rime = false,
+  bool shells = false,
+  double tide = 0.5,
   Size size = _size,
 }) => WildMapField()
   ..weather = weather
@@ -58,6 +60,8 @@ WildMapField _field({
   ..slots = slots
   ..glass = glass
   ..rime = rime
+  ..shells = shells
+  ..tide = tide
   ..layout(size)
   ..settle();
 
@@ -154,8 +158,8 @@ void main() {
     test('an id that is no realm here leaves its circle empty', () {
       final f = _field(
         arcane: true,
-        slots: ['tidal', 'sky', 'volcano', 'swamp'],
-        ready: {'tidal', 'valley'},
+        slots: ['terraces', 'sky', 'volcano', 'swamp'],
+        ready: {'terraces', 'valley'},
       );
       final at = _centreOf(WildRealm.valley);
       expect(f.sceneAt(at), isNull);
@@ -428,6 +432,161 @@ void main() {
       final notOut = seen(_field(ready: geode, weather: frostfall, rime: true));
       expect(notOut.frost + notOut.glints, 0);
     });
+  });
+
+  group('the Tidal Shelf', () {
+    test('it fills whichever circle it is given, and only that one', () {
+      for (var k = 0; k < 4; k++) {
+        final slots = [...kWildCoreSlots]..[k] = 'tidal';
+        final f = _field(arcane: true, slots: slots, ready: {'tidal'});
+        final at = _centreOf(WildRealm.values[k]);
+        final ring = f.circleOf(WildRealm.tidal).width / 2;
+        expect(f.shows(WildRealm.tidal), isTrue);
+        expect(f.circleOf(WildRealm.tidal).center, at);
+        expect(f.sceneAt(at), 'tidal');
+        for (var y = 0.0; y < _size.height; y += 6) {
+          for (var x = 0.0; x < _size.width; x += 6) {
+            final p = Offset(x, y);
+            final hit = f.sceneAt(p);
+            if (hit == 'tidal') {
+              expect((p - at).distance, lessThanOrEqualTo(ring * 1.04));
+            }
+            expect(
+              hit == null || hit == 'arcane' || slots.contains(hit),
+              isTrue,
+              reason: '$slots: $hit',
+            );
+          }
+        }
+        f.step(1 / 60);
+        f.paint(_CensusCanvas());
+        expect(f.debugFormOf(WildRealm.tidal), 1);
+        expect(f.debugGrains, greaterThan(500), reason: 'its rim, live');
+      }
+      final f = _field(ready: {'tidal'});
+      expect(f.shows(WildRealm.tidal), isFalse);
+      for (var y = 0.0; y < _size.height; y += 6) {
+        for (var x = 0.0; x < _size.width; x += 6) {
+          expect(f.sceneAt(Offset(x, y)), isNot('tidal'));
+        }
+      }
+    });
+
+    test('the sea stands higher up the columns at high water', () {
+      const slots = ['valley', 'sky', 'tidal', 'swamp'];
+      final low = _field(slots: slots, tide: 0);
+      final high = _field(slots: slots, tide: 1);
+      expect(high.debugSeaGrains, greaterThan(low.debugSeaGrains * 1.15));
+      // The tide moves nothing when the Tidal Shelf is not out.
+      final a = _field(tide: 0), b = _field(tide: 1);
+      expect(a.debugSeaGrains, 0);
+      for (final r in _core) {
+        expect(a.circleOf(r), b.circleOf(r));
+      }
+      // A new tide lays the shelf out again.
+      final f = _field(slots: slots, tide: 0);
+      final before = f.debugSeaGrains;
+      f
+        ..tide = 1
+        ..layout(_size);
+      expect(f.debugSeaGrains, greaterThan(before));
+    });
+
+    test('dust until something waits, then its shape; a stir settles', () {
+      const slots = ['valley', 'sky', 'tidal', 'swamp'];
+      final f = _field(slots: slots);
+      f
+        ..step(1 / 60)
+        ..paint(_CensusCanvas());
+      // The sand, the dust of the valley, the tidal shelf, the swamp, the
+      // cloud and the tree, three layers each.
+      expect(f.debugPictures, 1 + 5 * 3);
+      f.ready = {'tidal'};
+      for (var i = 0; i < 150; i++) {
+        f.step(1 / 60);
+      }
+      expect(f.debugFormOf(WildRealm.tidal), 1);
+      final at = f.circleOf(WildRealm.tidal).center;
+      for (var i = 0; i < 12; i++) {
+        f
+          ..stir(at + Offset(-40 + i * 7.0, 0), const Offset(7, 0), 1 / 60)
+          ..step(1 / 60);
+      }
+      expect(f.debugDisplacement, greaterThan(4));
+      for (var i = 0; i < 300; i++) {
+        f.step(1 / 60);
+      }
+      expect(f.debugDisplacement, lessThan(0.05));
+      f.paint(_CensusCanvas());
+      expect(f.debugPictures, 1 + 1 + 4 * 3);
+    });
+
+    test(
+      'fog drifts over it; a swell throws spray; shells only when clear',
+      () {
+        ({int fog, int spray, int shells}) seen(WildMapField f) {
+          var fog = 0, spray = 0, shells = 0;
+          for (var i = 0; i < 60 * 4; i++) {
+            f
+              ..step(1 / 60)
+              ..paint(_CensusCanvas());
+            fog = math.max(fog, f.debugFog);
+            spray = math.max(spray, f.debugSpray);
+            shells = math.max(shells, f.debugShells);
+          }
+          return (fog: fog, spray: spray, shells: shells);
+        }
+
+        const slots = ['valley', 'sky', 'tidal', 'swamp'];
+        const tidal = {'tidal'};
+        final clear = seen(_field(slots: slots, ready: tidal));
+        expect(clear.fog + clear.spray + clear.shells, 0);
+        final fog = seen(
+          _field(
+            slots: slots,
+            ready: tidal,
+            weather: {'tidal': WeatherKind.fog},
+          ),
+        );
+        expect(fog.fog, greaterThan(150));
+        expect(fog.spray, 0);
+        // As dust the fog still drifts.
+        expect(
+          seen(_field(slots: slots, weather: {'tidal': WeatherKind.fog})).fog,
+          greaterThan(150),
+        );
+        final swell = seen(
+          _field(
+            slots: slots,
+            ready: tidal,
+            weather: {'tidal': WeatherKind.swell},
+          ),
+        );
+        expect(swell.spray, greaterThan(40));
+        expect(swell.fog, 0);
+        final shells = seen(_field(slots: slots, ready: tidal, shells: true));
+        expect(shells.shells, greaterThan(5));
+        // Owed, but a swell again: the shells wait for it to pass.
+        final again = seen(
+          _field(
+            slots: slots,
+            ready: tidal,
+            shells: true,
+            weather: {'tidal': WeatherKind.swell},
+          ),
+        );
+        expect(again.shells, 0);
+        // Not out today: none of it.
+        final notOut = seen(
+          _field(
+            ready: tidal,
+            shells: true,
+            weather: {'tidal': WeatherKind.fog},
+          ),
+        );
+        expect(notOut.fog + notOut.spray + notOut.shells, 0);
+      },
+    );
   });
 
   test('a swipe moves the grains, and they settle back', () {
@@ -777,6 +936,7 @@ void main() {
       ['valley', 'sky', 'dunes', 'swamp'],
       ['dunes', 'sky', 'volcano', 'swamp'],
       ['valley', 'geode', 'dunes', 'swamp'],
+      ['tidal', 'geode', 'dunes', 'swamp'],
     ]) {
       for (final (weather, ink, volcano, rainbow) in [
         (const <String, WeatherKind>{}, false, WildVolcano.still, true),
@@ -792,17 +952,20 @@ void main() {
         ({'geode': WeatherKind.frostfall}, false, WildVolcano.still, true),
         ({'geode': WeatherKind.frostfall}, true, WildVolcano.erupting, false),
         ({'geode': WeatherKind.singing}, false, WildVolcano.smoking, false),
+        ({'tidal': WeatherKind.fog}, false, WildVolcano.still, false),
+        ({'tidal': WeatherKind.swell}, true, WildVolcano.still, true),
       ]) {
         final f =
             _field(
                 weather: weather,
-                ready: {'valley', 'dunes', 'geode', 'arcane'},
+                ready: {'valley', 'dunes', 'geode', 'tidal', 'arcane'},
                 arcane: true,
                 volcano: volcano,
                 rainbow: rainbow,
                 slots: slots,
                 glass: rainbow,
                 rime: rainbow,
+                shells: rainbow,
               )
               ..ink = ink
               ..debugStrike();

@@ -27,7 +27,15 @@ enum WeatherKind {
   frostfall,
 
   /// Geode Hollow singing: light rolling through its crystals on its own.
-  singing;
+  singing,
+
+  /// Sea fog over the Tidal Shelf: the horizon gone, the light grey and
+  /// soft.
+  fog,
+
+  /// A swell on the Tidal Shelf: the surf thrown up the columns; it leaves
+  /// shells and glass on the sand.
+  swell;
 
   /// A state the land is in rather than weather passing over it: already
   /// there when the scene opens, never rolling in or clearing in front of
@@ -59,7 +67,7 @@ class WildWeather {
   final WeatherKind kind;
 
   /// What the map calls it while it waits: `STORM`, `RAIN`, `SNOW`, `DRY`,
-  /// `METEORS`, `AURORA`, `SANDSTORM`, `FROSTFALL`, `SINGING`.
+  /// `METEORS`, `AURORA`, `SANDSTORM`, `FROSTFALL`, `SINGING`, `FOG`, `SWELL`.
   final String label;
 
   final double chance;

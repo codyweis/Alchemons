@@ -23,6 +23,7 @@ import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
 import 'package:alchemons/models/scenes/geode/geode_scene.dart';
+import 'package:alchemons/models/scenes/tidal/tidal_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
@@ -164,6 +165,19 @@ enum HomeRealm {
       HomeMood('singing', 'SINGING', weather: WeatherKind.singing),
       HomeMood('rime', 'RIME', aftermath: true),
     ],
+  ),
+  // Bought in the shop (models/shop_scenes.dart).
+  tidal(
+    'Tidal Shelf',
+    'water',
+    near: HomeRow(SceneLayer.layer4, 0.80, 100),
+    far: HomeRow(SceneLayer.layer3, 0.62, 70),
+    moods: [
+      HomeMood('clear', 'CLEAR'),
+      HomeMood('fog', 'FOG', weather: WeatherKind.fog),
+      HomeMood('swell', 'SWELL', weather: WeatherKind.swell),
+      HomeMood('shells', 'SHELLS', aftermath: true),
+    ],
   );
 
   const HomeRealm(
@@ -195,6 +209,7 @@ enum HomeRealm {
     HomeRealm.arcane => arcaneScene,
     HomeRealm.dunes => dunesScene,
     HomeRealm.geode => geodeScene,
+    HomeRealm.tidal => tidalScene,
   };
 
   HomeRow row({required bool back}) => back ? far : near;
@@ -393,6 +408,18 @@ enum HomeRealm {
         far: false,
       ),
     ],
+    HomeRealm.tidal => const [
+      HomeScenery(
+        FieldPiece.basalt,
+        'ROCK',
+        w: 50,
+        h: 60,
+        half: 2.4,
+        solid: true,
+        farW: 30,
+        farH: 44,
+      ),
+    ],
   };
 
   HomeScenery? sceneryOf(String piece) =>
@@ -501,6 +528,15 @@ enum HomeRealm {
             scale: kind == FieldPiece.tarn
                 ? w / s(kind)!.w
                 : h / s(kind)!.height(back: back),
+          ),
+      ],
+      HomeRealm.tidal => [
+        for (final (back, fx, _, h) in TidalField.homeBasalt)
+          piece(
+            FieldPiece.basalt,
+            fx,
+            back: back,
+            scale: h / s(FieldPiece.basalt)!.height(back: back),
           ),
       ],
     };
@@ -750,6 +786,7 @@ class HomePiece {
     FieldPiece.column,
     FieldPiece.geode,
     FieldPiece.tarn,
+    FieldPiece.basalt,
   };
 
   HomePiece copyWith({

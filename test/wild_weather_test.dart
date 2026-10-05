@@ -12,6 +12,7 @@ import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
 import 'package:alchemons/models/encounters/pools/dunes_pool.dart';
 import 'package:alchemons/models/encounters/pools/geode_pool.dart';
+import 'package:alchemons/models/encounters/pools/tidal_pool.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
@@ -486,6 +487,13 @@ void main() {
     expect(geodeFrostfall.aftermath, isTrue);
     expect(await s.debugBringWeather('geode', WeatherKind.singing), isTrue);
     expect(s.weatherIn('geode'), same(geodeSinging));
+  });
+
+  test('the Tidal Shelf\'s weathers are fog and a swell, and the swell '
+      'leaves shells', () {
+    expect(WildernessSpawnService.weathers['tidal'], [tidalFog, tidalSwell]);
+    expect(tidalSwell.aftermath, isTrue);
+    expect(tidalFog.aftermath, isFalse);
   });
 
   // ── The Arcane: a meteor shower, the northern lights ─────────────────────

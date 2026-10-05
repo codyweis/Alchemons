@@ -31,7 +31,11 @@
 // quartz points on a rock, their tips glowing faintly, a shaft of light
 // falling on them; in a frostfall ice drifts down across it, and after one
 // the crystals are rimed white and glittering; while they sing, waves of
-// light roll up through the points one after another.
+// light roll up through the points one after another. The Tidal Shelf
+// (bought): dark weathered sea rocks standing out of a patch of sea, a foam
+// line breathing where the water meets them, the water as high up them as
+// the real tide; fog hazes it, a swell throws foam up the rocks, and
+// after a swell shells and a glass float lie on the sand.
 //
 // Cheap at rest: grains that hold still are drawn once into a picture and
 // that picture drawn again each frame; the cloud's bob, the tree's sway,
@@ -61,7 +65,8 @@ enum WildRealm {
   volcano('volcano', 0.25, 0.75),
   swamp('swamp', 0.75, 0.75),
   dunes('dunes', 0.5, 1, bought: true),
-  geode('geode', 0.5, 1, bought: true);
+  geode('geode', 0.5, 1, bought: true),
+  tidal('tidal', 0.5, 1, bought: true);
 
   const WildRealm(this.sceneId, this.x, this.y, {this.bought = false});
 
@@ -74,7 +79,7 @@ enum WildRealm {
 
 /// How many realms there are ([WildRealm.values]); the first four come
 /// first.
-const int _nRealms = 6;
+const int _nRealms = 7;
 const int _core = 4;
 
 /// Arcane's index wherever it stands beside the realms (its grains' realm,
@@ -104,6 +109,39 @@ const int _dune = 18, _duneFar = 19, _duneFloor = 20;
 // Geode Hollow: its amethyst points, its pale quartz ones, the rock under
 // them.
 const int _amethyst = 21, _quartz = 22, _geoRock = 23;
+// The Tidal Shelf: its sea rocks, the sea, the foam where they meet, the
+// sand at its foot.
+const int _seaRock = 24, _sea = 26, _foam = 27;
+const int _tideSand = 28;
+
+/// A weathered sea rock of the Tidal Shelf (unit square): its middle, half
+/// its width at its broad foot, where its top is, and how square its
+/// shoulders are (higher, squarer; still rounded). Back to front: a tall
+/// stack, a broad low rock in front of it, a small one.
+typedef _SeaRock = (double, double, double, double);
+
+const _seaRocks = <_SeaRock>[
+  (0.46, 0.155, 0.3, 3.2),
+  (0.68, 0.16, 0.5, 2.2),
+  (0.26, 0.105, 0.5, 2.0),
+];
+
+/// Where the rocks reach, left and right.
+const double _rocksFrom = 0.16, _rocksTo = 0.84;
+
+/// The top of sea rock [r] at [u], or null beside it: a dome with rounded
+/// shoulders falling to a broad foot, smooth, a little uneven.
+double? _rockTop(_SeaRock r, double u) {
+  final (c, hw, top, sq) = r;
+  final x = (u - c) / hw;
+  if (x.abs() >= 1) return null;
+  final f = math.pow(1 - math.pow(x.abs(), sq), 0.5).toDouble();
+  return 0.96 - (0.96 - top) * f + 0.012 * math.sin(x * 2.6 + c * 9) * f;
+}
+
+/// Where the sea stands on the Tidal Shelf's rocks at a [tide] (0 low
+/// water, 1 high), in its unit square.
+double _seaAt(double tide) => 0.75 - 0.14 * tide;
 
 // Groups, in the order they draw. Each is one picture at rest, and only
 // the ones a finger reaches go back to live grains.
@@ -384,6 +422,14 @@ class WildMapField {
   /// left: the cave frosted white.
   bool rime = false;
 
+  /// The tide on the Tidal Shelf (0 low water, 1 high), as the real clock
+  /// has it: the sea that much higher up its rocks. Read at [layout].
+  double tide = 0.5;
+
+  /// Whether the Tidal Shelf's next clear visit finds the shells and glass
+  /// floats a swell left on its sand.
+  bool shells = false;
+
   /// Drawn in ink on a light page instead of light on the dark: light
   /// adding up shows nothing on parchment.
   bool ink = false;
@@ -446,7 +492,11 @@ class WildMapField {
   /// rebuilt only when either changes.
   void layout(Size size) {
     assert(WildRealm.values.length == _nRealms);
-    final key = slots.join(',');
+    // (The tide is in the key only while the Tidal Shelf is out, in steps,
+    // so the map is laid out again only when it has moved.)
+    final key = slots.contains('tidal')
+        ? '${slots.join(',')}|${(tide.clamp(0.0, 1.0) * 20).round()}'
+        : slots.join(',');
     if (size.isEmpty || (size == _size && key == _laidSlots)) return;
     _size = size;
     _laidSlots = key;
@@ -505,6 +555,7 @@ class WildMapField {
     _buildRainbow(rng);
     _buildGlints();
     _buildGeode();
+    _buildTidal();
     _fieldW = (size.width / _cell).ceil() + 1;
     _fieldH = (size.height / _cell).ceil() + 1;
     _fu = Float32List(_fieldW * _fieldH);
@@ -765,6 +816,67 @@ class WildMapField {
         rock.lineTo(o.dx, o.dy);
       }
       _parts[g].add((rock..close(), _geoRock));
+    }
+    // The Tidal Shelf (when out): sea rocks standing out of a patch of
+    // sea, a line of foam where they meet it, a spit of sand in front.
+    final td = WildRealm.tidal.index;
+    _parts[td].clear();
+    if (_shown[td]) {
+      for (final r in _seaRocks) {
+        final (c, hw, _, _) = r;
+        final p = Path();
+        const steps = 40;
+        for (var k = 0; k <= steps; k++) {
+          final u = c - hw + 2 * hw * k / steps;
+          final o = _at(td, u, _rockTop(r, u) ?? 0.96);
+          k == 0 ? p.moveTo(o.dx, o.dy) : p.lineTo(o.dx, o.dy);
+        }
+        final a = _at(td, c + hw, 0.98), b = _at(td, c - hw, 0.98);
+        p
+          ..lineTo(a.dx, a.dy)
+          ..lineTo(b.dx, b.dy)
+          ..close();
+        _parts[td].add((p, _seaRock));
+      }
+      final level = _seaAt(tide);
+      final sea = Path();
+      for (var k = 0; k <= 32; k++) {
+        final u = k / 32;
+        final o = _at(td, u, level + 0.008 * math.sin(u * 26));
+        k == 0 ? sea.moveTo(o.dx, o.dy) : sea.lineTo(o.dx, o.dy);
+      }
+      // Down to the foot of the square: it fades out at its sides and
+      // below rather than ending in an edge.
+      for (final (u, v) in const [(1.0, 0.97), (0.0, 0.97)]) {
+        final o = _at(td, u, v);
+        sea.lineTo(o.dx, o.dy);
+      }
+      _parts[td].add((sea..close(), _sea));
+      final sand = Path()
+        ..addOval(
+          Rect.fromCenter(
+            center: _at(td, 0.2, 0.925),
+            width: _side * 0.3,
+            height: _side * 0.05,
+          ),
+        );
+      _parts[td].add((sand, _tideSand));
+      // The foam: thick where the water meets the rocks, a thread across
+      // the rest of the surface.
+      final foam = Path()
+        ..addRect(
+          Rect.fromPoints(
+            _at(td, _rocksFrom, level - 0.02),
+            _at(td, _rocksTo, level + 0.014),
+          ),
+        )
+        ..addRect(
+          Rect.fromPoints(
+            _at(td, 0.0, level - 0.006),
+            _at(td, 1.0, level + 0.006),
+          ),
+        );
+      _parts[td].add((foam, _foam));
     }
     // A realm not out today has no shape on the map.
     for (var i = 0; i < _nRealms; i++) {
@@ -1440,6 +1552,70 @@ class WildMapField {
         col = _mix(col, pale ? 0xFF2A3040 : 0xFF1E1030, 0.12 * n);
         // Rimed: frosted white.
         return (col, _mix(col, 0xFFE6EEF8, 0.58), part);
+      case _seaRock:
+        // The rock it is in (front-most), how far across it (-1 left, 1
+        // right) and how far under its top.
+        var x = 0.0, under = 0.1, high = 0.5;
+        for (var k = _seaRocks.length - 1; k >= 0; k--) {
+          final r = _seaRocks[k];
+          final t = _rockTop(r, u);
+          if (t == null || v < t) continue;
+          x = (u - r.$1) / r.$2;
+          under = v - t;
+          high = _clamp01((0.96 - v) / (0.96 - r.$3));
+          break;
+        }
+        // Lit from the upper left round its curve, darker toward its foot.
+        final lit = _clamp01(0.5 - 0.42 * x + 0.3 * high - 0.6 * under);
+        var col = _mix(0xFF141619, 0xFF62666E, lit);
+        // Its top edge wet and catching the light.
+        if (under < 0.022 && x < 0.55) {
+          col = _mix(col, 0xFFA6B2BE, 0.5 * (1 - under / 0.022));
+        }
+        // The tide line: a dark band where high water reaches, and below it
+        // wet rock, darker, a little green.
+        final mark = _seaAt(1);
+        if ((v - mark).abs() < 0.012) {
+          col = _mix(col, 0xFF0A0C0E, 0.55);
+        } else if (v > mark) {
+          col = _mix(col, 0xFF0C1A1A, 0.35);
+        }
+        col = _mix(col, 0xFF0C0D10, 0.18 * n);
+        return (col, _mix(col, 0xFF8A949C, 0.6), _seaRock);
+      case _sea:
+        // Bands of swell across it, lighter toward the surface.
+        final level = _seaAt(tide);
+        final deep = _clamp01((v - level) / 0.2);
+        final band = math.sin(
+          (v - level) * 95 + u * 3 + 3 * _fbm(x * 0.05, y * 0.05, 91),
+        );
+        var col = _mix(0xFF2A7686, 0xFF0A2832, deep);
+        if (band > 0.5) col = _mix(col, 0xFF5AB6C4, 0.65 * (1 - deep * 0.5));
+        if (band < -0.6) col = _mix(col, 0xFF061C24, 0.35);
+        col = _mix(col, 0xFF061820, 0.12 * n);
+        // Thinning out to its sides and below.
+        final side = _clamp01(math.min(u, 1 - u) / 0.2);
+        final below = _clamp01((0.97 - v) / 0.12);
+        final fade = _smooth(side) * _smooth(below);
+        return (
+          (_byte(fade) << 24) | (col & 0xFFFFFF),
+          _mix(col, 0xFF7A868E, 0.62),
+          _sea,
+        );
+      case _foam:
+        final col = _mix(0xFFB6D2D8, 0xFFF2F8FA, n);
+        // Thick against the rocks, fading along the open surface.
+        const c0 = _rocksFrom, c1 = _rocksTo;
+        final off = u < c0 ? c0 - u : (u > c1 ? u - c1 : 0.0);
+        final fade = off == 0 ? 1.0 : 0.55 * (1 - _smooth(_clamp01(off / 0.2)));
+        return (
+          (_byte(fade) << 24) | (col & 0xFFFFFF),
+          _mix(col, 0xFFB0B8BE, 0.4),
+          _foam,
+        );
+      case _tideSand:
+        final col = _mix(0xFF5E5040, 0xFFA48C6A, _clamp01(n * 1.3 - 0.1));
+        return (col, _mix(col, 0xFF8A8C88, 0.55), _tideSand);
       case _geoRock:
         final lit = _clamp01((0.88 - v) / 0.1) * 0.7 + (1 - u) * 0.3;
         var col = _mix(0xFF2A2630, 0xFF7E7688, _clamp01(lit));
@@ -1514,6 +1690,7 @@ class WildMapField {
     0xFF2E5034,
     0xFF9A6A34,
     0xFF6A3E9A,
+    0xFF1E5A6A,
   ];
   static const _washAlt = [
     0xFFD0DAE6,
@@ -1522,6 +1699,7 @@ class WildMapField {
     0xFF6A5A38,
     0xFF7A6448,
     0xFFAEB8D0,
+    0xFF8A949C,
   ];
 
   void _paintWashes() {
@@ -1567,6 +1745,25 @@ class WildMapField {
         _side * 0.6,
         _argb(0.08 * _erupt, 1, 0.42, 0.18),
       );
+    }
+    // Fog over the Tidal Shelf: grey hanging in the circle in slow banks.
+    final ti = WildRealm.tidal.index;
+    final fogged = _shown[ti] ? _wx[ti] : 0.0;
+    if (fogged > 0) {
+      final c = _centre[ti];
+      for (var k = 0; k < 6; k++) {
+        final drift = (t * 0.04 + _hash(k * 3 + 951)) % 1.0;
+        final x = c.dx + _ringR * (drift * 1.6 - 0.8);
+        final y = c.dy + _ringR * (_hash(k * 3 + 952) * 1.1 - 0.55);
+        final m = _zone(ti, x, y);
+        if (m <= 0) continue;
+        _wash.add(
+          x,
+          y,
+          _ringR * (0.9 + 0.4 * _hash(k * 3 + 953)),
+          _argb(0.09 * fogged * m, 0.66, 0.7, 0.74),
+        );
+      }
     }
     // A sandstorm over the Dunes: dust hanging in the whole circle, in
     // slow drifting banks.
@@ -2113,6 +2310,200 @@ class WildMapField {
         if (over && k % 3 == 0) {
           _glow.add(x, y, grain * 0.02, _argb(0.35 * a, 0.8, 0.9, 1));
         }
+      }
+    }
+  }
+
+  // ── The Tidal Shelf: foam, fog, a swell, shells ──────────────────────
+
+  // Spots on the sea for whitecaps, and on the sand for shells.
+  Float32List _seaX = Float32List(0), _seaY = Float32List(0);
+  Float32List _sandX = Float32List(0), _sandY = Float32List(0);
+
+  void _buildTidal() {
+    final td = WildRealm.tidal.index;
+    final sx = <double>[], sy = <double>[], hx = <double>[], hy = <double>[];
+    if (_shown[td]) {
+      final rng = math.Random(_seed + 900);
+      final b = _box[td];
+      for (var tries = 0; sx.length < 120 && tries < 5000; tries++) {
+        final p = Offset(
+          b.left + rng.nextDouble() * _side,
+          b.top + (_seaAt(tide) + 0.03 + rng.nextDouble() * 0.2) * _side,
+        );
+        if (_partAt(td, p) == _sea) {
+          sx.add(p.dx);
+          sy.add(p.dy);
+        }
+      }
+      for (var tries = 0; hx.length < 16 && tries < 3000; tries++) {
+        final p = Offset(
+          b.left + (0.05 + 0.3 * rng.nextDouble()) * _side,
+          b.top + (0.9 + 0.05 * rng.nextDouble()) * _side,
+        );
+        if (_partAt(td, p) == _tideSand) {
+          hx.add(p.dx);
+          hy.add(p.dy);
+        }
+      }
+    }
+    _seaX = Float32List.fromList(sx);
+    _seaY = Float32List.fromList(sy);
+    _sandX = Float32List.fromList(hx);
+    _sandY = Float32List.fromList(hy);
+  }
+
+  /// Drawn with the live grains: the foam breathing where the sea meets the
+  /// rocks; in a fog, grey drifting across the circle; in a swell,
+  /// whitecaps on the sea and foam thrown up the rocks now and then; and
+  /// after one, shells and a glass float on the sand.
+  void _paintTidal() {
+    final i = WildRealm.tidal.index;
+    if (!_shown[i]) return;
+    final grain = _unit;
+    final t = time;
+    final form = _form[i];
+    final fog = _wx[i];
+    final swell = _swell;
+    final level = _seaAt(tide);
+    if (form > 0.02) {
+      // The foam line, breathing: a soft light along it and loose foam
+      // sliding to and fro.
+      const u0 = _rocksFrom, u1 = _rocksTo;
+      for (var k = 0; k < 12; k++) {
+        final u = u0 + (u1 - u0) * (k + 0.5) / 12;
+        final p = _at(i, u, level - 0.004);
+        final breathe = 0.6 + 0.4 * _fsin(t * 0.7 + k * 0.9);
+        _glow.add(
+          p.dx,
+          p.dy,
+          grain * 0.05,
+          _argb(0.1 * breathe * form * (1 - 0.6 * fog), 0.86, 0.96, 1),
+        );
+      }
+      for (var k = 0; k < 50; k++) {
+        final h = k * 3 + 2501;
+        final u =
+            0.06 + 0.88 * _hash(h) + 0.012 * _fsin(t * 0.6 + _hash(h + 1) * 9);
+        final p = _at(i, u, level - 0.012 + 0.03 * _hash(h + 2));
+        final a = (0.35 + 0.35 * _fsin(t * 0.7 + u * 12)) * form;
+        if (a < 0.04) continue;
+        _dots.add(p.dx, p.dy, grain * 0.0032, _argb(a, 0.92, 0.97, 1));
+      }
+      if (swell > 0) {
+        // Whitecaps, each breaking now and then.
+        for (var k = 0; k < _seaX.length; k++) {
+          final w = _fsin(t * (0.8 + 0.6 * _hash(k + 2601)) + k * 2.3);
+          if (w < 0.6) continue;
+          final a = (w - 0.6) / 0.4 * swell * form;
+          debugSpray++;
+          _dots.add(
+            _seaX[k],
+            _seaY[k],
+            grain * 0.0036,
+            _argb(0.9 * a, 0.94, 0.98, 1),
+          );
+          _dots.add(
+            _seaX[k] - 1.6,
+            _seaY[k] + 0.4,
+            grain * 0.003,
+            _argb(0.6 * a, 0.9, 0.96, 1),
+          );
+        }
+        // Foam thrown up a rock, one burst after another.
+        for (var slot = 0; slot < 3; slot++) {
+          final beat = t / 1.9 + slot / 3;
+          final a = beat % 1.0;
+          if (a > 0.7) continue;
+          final s = a / 0.7;
+          final which = (_hash(beat.floor() * 7 + slot) * _seaRocks.length)
+              .floor()
+              .clamp(0, _seaRocks.length - 1);
+          final (rc, rhw, top, _) = _seaRocks[which];
+          final c0 = rc - rhw * 0.7, c1 = rc + rhw * 0.7;
+          final reach = math.min(level - top + 0.1, 0.4);
+          for (var j = 0; j < 44; j++) {
+            final h = slot * 97 + j * 5 + 2701;
+            final cu = c0 + (c1 - c0) * (0.15 + 0.7 * _hash(h));
+            final up = reach * (0.5 + 0.5 * _hash(h + 1));
+            final lift = math.sin(math.pi * s) * up;
+            final p = _at(
+              i,
+              cu + (_hash(h + 2) - 0.5) * 0.14 * s,
+              level - lift,
+            );
+            final f = swell * form * (1 - s) * (0.6 + 0.4 * _hash(h + 3));
+            if (f < 0.04) continue;
+            debugSpray++;
+            _dots.add(
+              p.dx,
+              p.dy,
+              grain * (0.0028 + 0.0016 * _hash(h + 4)),
+              _argb(f, 0.95, 0.98, 1),
+            );
+          }
+        }
+      }
+      // Shells and a glass float on the sand, after a swell.
+      if (_shells > 0) {
+        for (var k = 0; k < _sandX.length; k++) {
+          final glass = k < 2;
+          final x = _sandX[k], y = _sandY[k];
+          if (glass) {
+            final w = 0.6 + 0.4 * _fsin(t * 1.3 + k * 2.1);
+            debugShells++;
+            _dots.add(
+              x,
+              y,
+              grain * 0.0052,
+              _argb(_shells * form, 0.5, 0.86, 0.62),
+            );
+            _glow.add(
+              x,
+              y,
+              grain * 0.024,
+              _argb(0.35 * w * _shells * form, 0.5, 0.95, 0.7),
+            );
+            continue;
+          }
+          final pink = k.isEven;
+          debugShells++;
+          _dots.add(
+            x,
+            y,
+            grain * 0.0036,
+            pink
+                ? _argb(0.9 * _shells * form, 0.98, 0.8, 0.8)
+                : _argb(0.9 * _shells * form, 1, 0.95, 0.86),
+          );
+        }
+      }
+    }
+    // Fog: grey drifting across in slow banks.
+    if (fog > 0) {
+      final c = _centre[i];
+      final span = _ringR * 2.3;
+      for (var k = 0; k < 300; k++) {
+        final h = k * 5 + 2901;
+        final ph = _hash(h), ph2 = _hash(h + 1), ph3 = _hash(h + 2);
+        final x =
+            c.dx -
+            span / 2 +
+            (ph * span + t * _ringR * (0.05 + 0.06 * ph2)) % span;
+        final y =
+            c.dy + _ringR * (ph3 * 1.8 - 0.9) + 3 * _fsin(t * 0.3 + ph * 20);
+        final m = math.min(1.0, _zone(i, x, y) * 2);
+        if (m < 0.05) continue;
+        final bank = 0.55 + 0.45 * _fsin(x * 0.03 + y * 0.02 + t * 0.2);
+        final a = 0.4 * fog * m * bank;
+        if (a < 0.04) continue;
+        debugFog++;
+        _dots.add(
+          x,
+          y,
+          grain * (0.004 + 0.002 * ph2),
+          _argb(a, 0.78, 0.82, 0.85),
+        );
       }
     }
   }
@@ -2694,6 +3085,8 @@ class WildMapField {
   double _glass = 0;
   // A frostfall over Geode Hollow, and its crystals singing.
   double _frost = 0, _sing = 0;
+  // A swell on the Tidal Shelf, and the shells one leaves.
+  double _swell = 0, _shells = 0;
   double _flash = 0;
   double _nextStrike = 2;
   final List<Offset> _bolt = [], _fork = [];
@@ -2717,6 +3110,8 @@ class WildMapField {
       // Its crystals frosted white: the rime a frostfall leaves, once it
       // has passed.
       WildRealm.geode => rime && w == null ? 1 : 0,
+      // Hazed in a fog.
+      WildRealm.tidal => w == WeatherKind.fog ? 1 : 0,
       // How warm the mountain is.
       WildRealm.volcano => switch (volcano) {
         WildVolcano.still => 0,
@@ -2742,6 +3137,12 @@ class WildMapField {
       _shown[WildRealm.geode.index] && weather['geode'] == WeatherKind.frostfall
       ? 1
       : 0;
+
+  bool get _tidalOut => _shown[WildRealm.tidal.index];
+  double get _swellTo =>
+      _tidalOut && weather['tidal'] == WeatherKind.swell ? 1 : 0;
+  double get _shellsTo =>
+      _tidalOut && shells && weather['tidal'] == null ? 1 : 0;
 
   double get _singTo =>
       _shown[WildRealm.geode.index] && weather['geode'] == WeatherKind.singing
@@ -2783,6 +3184,8 @@ class WildMapField {
     _glass = _glassTo;
     _frost = _frostTo;
     _sing = _singTo;
+    _swell = _swellTo;
+    _shells = _shellsTo;
   }
 
   static double _ease(double v, double to, double k) {
@@ -2816,6 +3219,8 @@ class WildMapField {
     _glass = _ease(_glass, _glassTo, k);
     _frost = _ease(_frost, _frostTo, k);
     _sing = _ease(_sing, _singTo, k);
+    _swell = _ease(_swell, _swellTo, k);
+    _shells = _ease(_shells, _shellsTo, k);
     _stepField(dt);
     _stepStorm(dt);
     _stepMeteors(dt);
@@ -3529,6 +3934,20 @@ class WildMapField {
   /// Light of Geode Hollow's singing drawn in the last frame.
   int debugSinging = 0;
 
+  /// The Tidal Shelf's fog, the swell's spray and whitecaps, and its
+  /// shells, drawn in the last frame.
+  int debugFog = 0, debugSpray = 0, debugShells = 0;
+
+  /// How many of the Tidal Shelf's grains are sea (tests: the higher the
+  /// tide, the more sea).
+  int get debugSeaGrains {
+    var n = 0;
+    for (var k = 0; k < _n; k++) {
+      if (_part[k] == _sea) n++;
+    }
+    return n;
+  }
+
   /// Grains of Arcane's weather (meteors, northern lights) drawn in the
   /// last frame.
   int debugArcaneSky = 0;
@@ -3589,6 +4008,7 @@ class WildMapField {
     debugBombs = debugSmoke = debugRainbow = debugArcaneSky = 0;
     debugSandstorm = debugGlints = debugFrost = debugRimeGlints = 0;
     debugSinging = 0;
+    debugFog = debugSpray = debugShells = 0;
     if (_syncKey()) _restepBatches();
     final dots = ink ? _inkOver : _over;
 
@@ -3615,6 +4035,7 @@ class WildMapField {
           _paintWeather();
           _paintDunes();
           _paintGeode();
+          _paintTidal();
           debugGrains += _dots.n;
           _dots.draw(canvas, _atlas!, dots);
         } else if (_whole(g)) {
@@ -3626,6 +4047,7 @@ class WildMapField {
             _paintWeather();
             _paintDunes();
             _paintGeode();
+            _paintTidal();
           }
           debugGrains += _dots.n;
           _dots.draw(canvas, _atlas!, dots);

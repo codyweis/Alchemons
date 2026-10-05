@@ -12,6 +12,7 @@ import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
 import 'package:alchemons/models/encounters/pools/dunes_pool.dart';
 import 'package:alchemons/models/encounters/pools/geode_pool.dart';
+import 'package:alchemons/models/encounters/pools/tidal_pool.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
@@ -20,6 +21,7 @@ import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
 import 'package:alchemons/models/scenes/geode/geode_scene.dart';
+import 'package:alchemons/models/scenes/tidal/tidal_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
@@ -233,6 +235,96 @@ void main() {
       // The roof's underside is about a fifth of the way down.
       expect(p.normalizedPos.dy, greaterThan(0.33), reason: p.id);
     }
+  });
+
+  // ── The Tidal Shelf: every creature on a column top, partners too ───────
+
+  onlyFloatersAloft('Tidal', tidalScene, tidalEncounterPools);
+
+  double tidalPeriod(SceneLayer layer) =>
+      tidalScene.worldWidth *
+      (1 + tidalScene.layers.firstWhere((l) => l.id == layer).parallaxFactor);
+
+  TidalField builtTidal(double h) {
+    final field = TidalField()
+      ..layout(
+        tidalScene.spawnPoints,
+        tidalScene.worldWidth,
+        loop: tidalScene.loop,
+      );
+    final screen = Size(h * 1.6, h);
+    for (final layer in [
+      SceneLayer.layer2,
+      SceneLayer.layer3,
+      SceneLayer.layer4,
+      SceneLayer.layer5,
+    ]) {
+      field.build(layer, Size(tidalPeriod(layer), h), screen);
+    }
+    return field;
+  }
+
+  for (final h in const [412.0, 475.0, 700.0]) {
+    test('every Tidal standing point stands on its own columns at $h', () {
+      final field = builtTidal(h);
+      for (final p in tidalScene.spawnPoints.where(
+        (p) => p.perch == SpawnPerch.ground,
+      )) {
+        final x = p.normalizedPos.dx * tidalPeriod(p.anchor);
+        final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
+        expect(field.perchFor(p.id), closeTo(feet, 1e-6), reason: p.id);
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} has no columns');
+        expect(ground!.rest, closeTo(feet, 1e-6), reason: p.id);
+      }
+    });
+
+    test('every Tidal encounter partner has columns to stand on at $h', () {
+      final field = builtTidal(h);
+      for (final p in tidalScene.spawnPoints) {
+        final x =
+            p.normalizedPos.dx * tidalPeriod(p.anchor) +
+            p.partnerSide * kFieldPairGap;
+        final ground = field.groundAt(p.anchor, x);
+        expect(ground, isNotNull, reason: '${p.id} partner has no columns');
+      }
+    });
+  }
+
+  test('the Tidal Shelf\'s swimmers are Water only, in open sea', () {
+    final field = builtTidal(475);
+    final swimmers = tidalScene.spawnPoints
+        .where((p) => p.perch == SpawnPerch.wade)
+        .toList();
+    expect(swimmers, hasLength(2));
+    for (final p in swimmers) {
+      // No rock under it: it is in the water.
+      final x = p.normalizedPos.dx * tidalPeriod(p.anchor);
+      expect(field.groundAt(p.anchor, x), isNull, reason: p.id);
+      for (final id in ['LET02', 'MAN02', 'KIN02', 'MSK02']) {
+        expect(p.takes(id), isTrue, reason: '${p.id} $id');
+      }
+      for (final id in ['LET08', 'KIN08', 'LET14', 'WNG04']) {
+        expect(p.takes(id), isFalse, reason: '${p.id} $id');
+      }
+    }
+    // And the scene's own pool has Water creatures for them to roll.
+    final pool = tidalEncounterPools(tidalScene).sceneWide.entries;
+    expect(pool.any((e) => speciesCanWade(e.speciesId)), isTrue);
+  });
+
+  test('the mud\'s own come out only while the tide is out', () {
+    // A low water and a high one a quarter of a day apart, give or take.
+    final start = DateTime.utc(2026, 10, 5);
+    DateTime? low, high;
+    for (var m = 0; m < 24 * 60 && (low == null || high == null); m += 10) {
+      final t = start.add(Duration(minutes: m));
+      final tide = TidalField.tideAt(t);
+      if (tide < 0.1) low ??= t;
+      if (tide > 0.9) high ??= t;
+    }
+    expect(tidalLowWater(low!), isTrue);
+    expect(tidalLowWater(high!), isFalse);
   });
 
   test('sky points sit on a layer with ground, for a partner who cannot '

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
 import 'package:alchemons/models/encounters/pools/dunes_pool.dart';
 import 'package:alchemons/models/encounters/pools/geode_pool.dart';
+import 'package:alchemons/models/encounters/pools/tidal_pool.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
@@ -55,6 +56,7 @@ class WildernessSpawnService extends ChangeNotifier {
     'arcane': [arcaneMeteors, arcaneAurora],
     'dunes': [dunesSandstorm],
     'geode': [geodeFrostfall, geodeSinging],
+    'tidal': [tidalFog, tidalSwell],
   };
 
   /// The weather over each scene whose current batch came with one.

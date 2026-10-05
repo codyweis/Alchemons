@@ -26,6 +26,7 @@ import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
 import 'package:alchemons/models/scenes/geode/geode_scene.dart';
+import 'package:alchemons/models/scenes/tidal/tidal_scene.dart';
 import 'package:alchemons/services/wild_rotation.dart';
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
 import 'package:alchemons/screens/party_picker/party_picker.dart';
@@ -120,6 +121,10 @@ class _MapScreenState extends State<MapScreen>
   /// Today's four realms, one to each circle (see [WildRotation]).
   List<String> _wildSlots = kCoreRealms;
 
+  /// The tide on the Tidal Shelf, read once as the map opens: the map is
+  /// not laid out again while it is open.
+  final double _tide = TidalField.tideAt(DateTime.now());
+
   /// The cosmic ship has come down in the Valley and waits to be claimed:
   /// the Valley's rim pulses, as for anything else waiting there.
   bool _shipWaitsInValley = false;
@@ -194,6 +199,7 @@ class _MapScreenState extends State<MapScreen>
     'arcane': 'Arcane Expanse',
     'dunes': 'Glass Dunes',
     'geode': 'Geode Hollow',
+    'tidal': 'Tidal Shelf',
   };
 
   /// The element whose portal twist each region's entry borrows.
@@ -205,6 +211,7 @@ class _MapScreenState extends State<MapScreen>
     'arcane': 'spirit',
     'dunes': 'dust',
     'geode': 'crystal',
+    'tidal': 'water',
   };
 
   Future<void> _handlePeekRegion(String biomeId) async {
@@ -341,6 +348,7 @@ class _MapScreenState extends State<MapScreen>
                       theme: theme,
                       arcaneUnlocked: _arcaneUnlocked,
                       slots: _wildSlots,
+                      tide: _tide,
                       shipWaitsInValley: _shipWaitsInValley,
                       onSelectRegion: (biomeId, scene) {
                         _handleRegionTap(context, biomeId, scene);
@@ -936,6 +944,7 @@ class SpawnDebugPanel extends StatelessWidget {
       ('arcane', 'Arcane Portal'),
       ('dunes', 'Dunes'),
       ('geode', 'Geode'),
+      ('tidal', 'Tidal'),
     ];
 
     return Container(
@@ -1049,6 +1058,7 @@ class _WildMap extends StatelessWidget {
     this.arcaneUnlocked = false,
     this.slots = kCoreRealms,
     this.shipWaitsInValley = false,
+    this.tide = 0.5,
   });
 
   final FactionTheme theme;
@@ -1058,6 +1068,9 @@ class _WildMap extends StatelessWidget {
 
   /// Today's four realms, one to each circle (see [WildRotation.today]).
   final List<String> slots;
+
+  /// The tide on the Tidal Shelf as the map opened (0 low, 1 high).
+  final double tide;
   final bool shipWaitsInValley;
 
   static final Map<String, SceneDefinition> _scenes = {
@@ -1068,6 +1081,7 @@ class _WildMap extends StatelessWidget {
     'arcane': arcaneScene,
     'dunes': dunesScene,
     'geode': geodeScene,
+    'tidal': tidalScene,
   };
 
   @override
@@ -1105,6 +1119,11 @@ class _WildMap extends StatelessWidget {
         glass: spawnService.owesAftermath('dunes'),
         // The rime a frostfall leaves on Geode Hollow's crystals.
         rime: spawnService.owesAftermath('geode'),
+        // The real tide, as the map opened: the sea that high up the Tidal
+        // Shelf's columns.
+        tide: tide,
+        // The shells and glass floats a swell leaves on its sand.
+        shells: spawnService.owesAftermath('tidal'),
         ink: theme.brightness == Brightness.light,
         onEnter: (id) {
           final scene = _scenes[id];

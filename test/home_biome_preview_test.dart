@@ -117,6 +117,7 @@ void main() {
       // So is a realm the shop sells, once bought.
       await db.settingsDao.setSetting('scene_unlocked_dunes', '1');
       await db.settingsDao.setSetting('scene_unlocked_geode', '1');
+      await db.settingsDao.setSetting('scene_unlocked_tidal', '1');
       for (final (id, base) in roster) {
         await db.creatureDao.insertInstance(
           instanceId: id,
@@ -221,6 +222,8 @@ void main() {
         (HomeRealm.dunes, 'glass', 23.0),
         (HomeRealm.geode, 'frostfall', 12.0),
         (HomeRealm.geode, 'rime', 12.0),
+        (HomeRealm.tidal, 'fog', 12.0),
+        (HomeRealm.tidal, 'swell', 13.0),
       ]) {
         await shoot(
           'wx_${realm.name}_$mood',
@@ -624,6 +627,7 @@ void main() {
         HomeRealm.arcane,
         HomeRealm.dunes,
         HomeRealm.geode,
+        HomeRealm.tidal,
       ]) {
         await shoot(
           'scenery_${realm.name}',

@@ -225,6 +225,7 @@ void main() {
     HomeRealm.arcane => ArcaneField(),
     HomeRealm.dunes => DunesField(),
     HomeRealm.geode => GeodeField(),
+    HomeRealm.tidal => TidalField(),
   };
 
   for (final realm in HomeRealm.values) {

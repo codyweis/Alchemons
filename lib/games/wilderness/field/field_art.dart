@@ -257,6 +257,8 @@ abstract class FieldArt {
 ///            width and height
 ///   tarn     Geode Hollow black pool on the floor — size.x is its half
 ///            width
+///   basalt   Tidal Shelf stand of basalt columns, seated on its row — size
+///            is its half width and height
 ///
 /// Sizes are at the reference height (475 units), as the fields' own are.
 abstract final class FieldPiece {
@@ -268,6 +270,7 @@ abstract final class FieldPiece {
   static const pillar = 'pillar', arch = 'arch', outcrop = 'outcrop';
   static const cluster = 'cluster', column = 'column', geode = 'geode';
   static const tarn = 'tarn';
+  static const basalt = 'basalt';
 }
 
 /// A seed for the piece at [id] that stays its own whatever else moves —

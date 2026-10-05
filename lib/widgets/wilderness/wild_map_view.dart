@@ -23,6 +23,8 @@ class WildMapView extends StatefulWidget {
     this.slots = kWildCoreSlots,
     this.glass = false,
     this.rime = false,
+    this.tide = 0.5,
+    this.shells = false,
     this.ink = false,
     this.labelFor,
     this.field,
@@ -55,6 +57,13 @@ class WildMapView extends StatefulWidget {
   /// Whether Geode Hollow's next clear visit finds the rime a frostfall
   /// left.
   final bool rime;
+
+  /// The tide on the Tidal Shelf (0 low water, 1 high).
+  final double tide;
+
+  /// Whether the Tidal Shelf's next clear visit finds the shells a swell
+  /// left.
+  final bool shells;
 
   /// Drawn in ink, for a light page.
   final bool ink;
@@ -102,6 +111,8 @@ class _WildMapViewState extends State<WildMapView>
       ..slots = widget.slots
       ..glass = widget.glass
       ..rime = widget.rime
+      ..tide = widget.tide
+      ..shells = widget.shells
       ..ink = widget.ink;
   }
 

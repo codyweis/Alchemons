@@ -391,6 +391,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     HomeRealm.arcane => const Color(0xFFC9B6FF),
     HomeRealm.dunes => const Color(0xFFF0D2A0),
     HomeRealm.geode => const Color(0xFFCDB8FF),
+    HomeRealm.tidal => const Color(0xFFA8E4F0),
   };
 
   bool _canLift(String spawnId) {

@@ -101,6 +101,8 @@ void main() {
       List<String> slots = kWildCoreSlots,
       bool glass = false,
       bool rime = false,
+      bool shells = false,
+      double tide = 0.5,
       Size at = size,
     }) {
       final f = WildMapField()
@@ -112,6 +114,8 @@ void main() {
         ..slots = slots
         ..glass = glass
         ..rime = rime
+        ..shells = shells
+        ..tide = tide
         ..layout(at)
         ..settle();
       for (var i = 0; i < 90; i++) {
@@ -306,6 +310,73 @@ void main() {
       shoot(
         fresh(slots: geodeOut, weather: {'geode': WeatherKind.singing}),
         crop: geodeCircle,
+      ),
+      onSheet: false,
+    );
+    // The Tidal Shelf, out today in the Volcano's circle: clear at half
+    // tide, at low water and at high, in a fog, in a swell, and with the
+    // shells a swell leaves.
+    const tidal = {'tidal'};
+    const tidalOut = ['valley', 'sky', 'tidal', 'swamp'];
+    final tidalClear = fresh(slots: tidalOut, ready: tidal, arcane: true);
+    final tidalCircle = tidalClear.circleOf(WildRealm.tidal).inflate(6);
+    await save('30_tidal_ready', shoot(tidalClear));
+    await save(
+      'zoom_tidal',
+      shoot(tidalClear, crop: tidalCircle),
+      onSheet: false,
+    );
+    for (final (name, tide) in const [('low', 0.0), ('high', 1.0)]) {
+      await save(
+        'zoom_tidal_$name',
+        shoot(
+          fresh(slots: tidalOut, ready: tidal, tide: tide),
+          crop: tidalCircle,
+        ),
+        onSheet: false,
+      );
+    }
+    await save(
+      'zoom_tidal_fog',
+      shoot(
+        fresh(
+          slots: tidalOut,
+          ready: tidal,
+          weather: {'tidal': WeatherKind.fog},
+        ),
+        crop: tidalCircle,
+      ),
+      onSheet: false,
+    );
+    final swell = fresh(
+      slots: tidalOut,
+      ready: tidal,
+      weather: {'tidal': WeatherKind.swell},
+    );
+    await save('31_tidal_swell', shoot(swell));
+    await save(
+      'zoom_tidal_swell',
+      shoot(swell, crop: tidalCircle),
+      onSheet: false,
+    );
+    await save(
+      'zoom_tidal_shells',
+      shoot(
+        fresh(slots: tidalOut, ready: tidal, shells: true),
+        crop: tidalCircle,
+      ),
+      onSheet: false,
+    );
+    await save(
+      'size_phone_412_tidal_geode_dunes',
+      shoot(
+        fresh(
+          slots: const ['tidal', 'geode', 'dunes', 'swamp'],
+          arcane: true,
+          ready: const {'tidal', 'geode', 'dunes', 'swamp', 'arcane'},
+          at: const Size(412, 915),
+        ),
+        at: const Size(412, 915),
       ),
       onSheet: false,
     );

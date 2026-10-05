@@ -329,6 +329,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _owedTidalShells() async {
+    HapticFeedback.mediumImpact();
+    await context.read<WildernessSpawnService>().debugSetAftermath('tidal');
+    if (!mounted) return;
+    showGameSnack(
+      context,
+      'The next clear visit to the Tidal Shelf shows what the swell left',
+      icon: AppIcons.wb_sunny_rounded,
+    );
+  }
+
   Future<void> _owedGeodeRime() async {
     HapticFeedback.mediumImpact();
     await context.read<WildernessSpawnService>().debugSetAftermath('geode');
@@ -2254,6 +2265,102 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 'The northern lights',
                               ),
                             ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('TIDAL FOG', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Replace the Tidal Shelf\'s spawns with a '
+                                  'batch that comes with sea fog',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'BRING',
+                            icon: AppIcons.cloud_rounded,
+                            onTap: context.soundAction(
+                              () => _bringWeather(
+                                'tidal',
+                                WeatherKind.fog,
+                                'Sea fog',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('TIDAL SWELL', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Replace the Tidal Shelf\'s spawns with a '
+                                  'batch that comes with a swell',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'BRING',
+                            icon: AppIcons.waves_rounded,
+                            onTap: context.soundAction(
+                              () => _bringWeather(
+                                'tidal',
+                                WeatherKind.swell,
+                                'A swell',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('TIDAL SHELLS', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Make the next clear visit to the Tidal '
+                                  'Shelf show what a swell left',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'SET',
+                            icon: AppIcons.wb_sunny_rounded,
+                            onTap: context.soundAction(_owedTidalShells),
                           ),
                         ],
                       ),
