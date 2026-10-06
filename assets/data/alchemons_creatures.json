@@ -2298,9 +2298,9 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
-        "rows": 1,
-        "frameDurationMs": 100
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 55
       },
       "baseStats": {
         "speed": 90,

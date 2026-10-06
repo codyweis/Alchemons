@@ -20,9 +20,10 @@ abstract final class DarkletRing {
   static bool matches(double frameWidth, double frameHeight) =>
       frameWidth == 543 && frameHeight == 724;
 
-  // Head centre per eye frame, in frame pixels.
-  static const List<double> _headX = [260, 268, 268, 267];
-  static const double _headY = 360;
+  // Head centre per eye frame, in frame pixels: the sheet bobs the body
+  // up and down a few pixels (up, mid, down, mid).
+  static const double _headX = 271;
+  static const List<double> _headY = [315, 319, 323, 319];
 
   // The ring was designed at 0.88 of the frame; radii below are in those units.
   static const double _unit = 1 / 0.88;
@@ -77,8 +78,8 @@ abstract final class DarkletRing {
     if (opacity <= 0) return;
     final s = frame.width / frameSize.width;
     final k = s * _unit;
-    final cx = frame.left + _headX[index.clamp(0, 3)] * s;
-    final cy = frame.top + _headY * s;
+    final cx = frame.left + _headX * s;
+    final cy = frame.top + _headY[index.clamp(0, 3)] * s;
     final cosT = math.cos(_tilt), sinT = math.sin(_tilt);
     final depth = (front ? 1.0 : .62) * opacity;
 

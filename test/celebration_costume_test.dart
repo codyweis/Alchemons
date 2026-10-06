@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/celebration_costume.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -170,10 +173,25 @@ void main() {
       FamilyCostume.fitAt('WNG01', 3)!.y,
       lessThan(FamilyCostume.fitAt('WNG01', 0)!.y),
     );
-    // Every Wing's hat and every Pip's nose is tracked through its four
-    // frames.
+    // Every Wing's hat and every Pip's nose is tracked through every frame
+    // of its sheet.
+    final frameCounts = {
+      for (final c
+          in (jsonDecode(
+                    File(
+                      'assets/data/alchemons_creatures.json',
+                    ).readAsStringSync(),
+                  )
+                  as Map<String, dynamic>)['creatures']
+              as List)
+        c['id'] as String: c['spriteData']?['totalFrames'] as int?,
+    };
     for (final species in FamilyCostume.placements.keys) {
-      expect(FamilyCostume.frameFits[species]?.length, 4, reason: species);
+      expect(
+        FamilyCostume.frameFits[species]?.length,
+        frameCounts[species],
+        reason: species,
+      );
     }
   });
 
