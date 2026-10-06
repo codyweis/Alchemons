@@ -1324,13 +1324,10 @@ class DungeonRoom {
   /// grids themselves are authored in planet_dungeon_layout_light.dart.
   final ShadowBay? hall;
 
-  /// Blood (the Sanguine Orrery): this chamber's content on the figure-eight
-  /// of veins — its star, and the single objects (the pericardium, the rite's
-  /// balance, the heart-drum, the arena's vagal node). One field, because the
-  /// orrery's passages, ostia and collaterals are authored whole in
-  /// planet_dungeon_layout_blood.dart rather than per room, exactly as Ice's
-  /// shaft, Plant's crypt and Dark's vault are.
-  final SanguineChamber? sanguine;
+  /// Blood (the Blood Rites): which room this is — the Circle, a captive
+  /// room, the vault or the arena. The grids and rules are authored whole in
+  /// planet_dungeon_blood_rites.dart, exactly as Dark's and Light's are.
+  final RiteBay? rite;
 
   /// Dust (the Ruins of Time): this room's content on the buried city's two
   /// Z-layers — its star, the drift yard, and the single objects (vane, silt,
@@ -1442,7 +1439,7 @@ class DungeonRoom {
     this.grove,
     this.sun,
     this.hall,
-    this.sanguine,
+    this.rite,
   });
 }
 
@@ -1593,7 +1590,7 @@ extension DungeonRoomAffordances on DungeonRoom {
       grove != null ||
       sun != null ||
       hall != null ||
-      sanguine != null ||
+      rite != null ||
       ruins != null ||
       prism != null ||
       funeral != null;
@@ -1812,12 +1809,9 @@ class DungeonLayout {
       if (room.sun?.starIndex != null) seen.add(room.sun!.starIndex!);
       // Light's two stars are banked by pairs of rooms (I and II, III and IV).
       if (room.hall?.starIndex != null) seen.add(room.hall!.starIndex!);
-      // Blood carries its two non-guardian stars on the chamber a room is:
-      // the vena crossing where the eight crosses itself, and the capillary
-      // weave at the far end of the lung.
-      if (room.sanguine?.starIndex != null) {
-        seen.add(room.sanguine!.starIndex!);
-      }
+      // Blood declares BOTH of its non-guardian stars on the Circle: freeing
+      // the fourth captive banks the pair.
+      if (room.rite != null) seen.addAll(room.rite!.starIndices);
     }
     return seen;
   }

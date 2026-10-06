@@ -21,6 +21,7 @@ import 'package:alchemons/models/shop_scenes.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/celebration_costume.dart';
 
 enum PurchaseLimit { once, daily, unlimited }
 
@@ -916,6 +917,32 @@ class ShopService extends ChangeNotifier {
       inventoryKey: InvKeys.alchemyDustRing,
     ),
 
+    // Family costumes: each goes on one of its own family.
+    ShopOffer(
+      id: FamilyCostume.partyHat.offerId,
+      name: FamilyCostume.partyHat.title,
+      description: 'Puts a party hat on one of your Wings.',
+      icon: AppIcons.auto_awesome_rounded,
+      iconColor: const Color(0xFFAE82FF),
+      cost: const {'gold': 10},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyCelebration,
+    ),
+    ShopOffer(
+      id: FamilyCostume.nose.offerId,
+      name: FamilyCostume.nose.title,
+      description: 'Puts a bubble nose on one of your Pips.',
+      icon: AppIcons.auto_awesome_rounded,
+      iconColor: const Color(0xFFFF4F7B),
+      cost: const {'gold': 10},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyNose,
+    ),
+
     // ── Portal Keys ──────────────────────────────────────────────────────────
     ShopOffer(
       id: 'key.portal.volcanic',
@@ -1267,7 +1294,9 @@ class ShopService extends ChangeNotifier {
         final decor = HomeDecor.byOffer(offerId);
         if (decor != null) {
           final qty = _inventoryCache[decor.inventoryKey] ?? 0;
-          return qty >= decor.max ? 'MAX' : (qty > 0 ? '$qty/${decor.max}' : '');
+          return qty >= decor.max
+              ? 'MAX'
+              : (qty > 0 ? '$qty/${decor.max}' : '');
         }
         // NEW: show inventory total ONLY if the offer is inventory-able.
         if (offer.inventoryKey != null) {
@@ -1437,6 +1466,12 @@ class ShopService extends ChangeNotifier {
     final scene = shopSceneByOffer(offerId);
     if (scene != null) {
       await _db.settingsDao.setSetting(scene.settingKey, '1');
+      return true;
+    }
+    // A family costume, like any effect: one each.
+    final costume = FamilyCostume.ofOffer(offerId);
+    if (costume != null) {
+      await _db.inventoryDao.addItemQty(costume.itemKey, qty);
       return true;
     }
     // Home decor: owned as a count, placed in the home biome.

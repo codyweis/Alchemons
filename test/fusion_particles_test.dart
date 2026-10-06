@@ -246,7 +246,7 @@ void main() {
         u,
         colors: const [Color(0xFFE05030), Color(0xFF3080E0)],
         accent: const Color(0xFFFF6B3D),
-        sigil: FusionSigil.starAndElement,
+        sigil: FusionSigil.octagramAndElement,
         element: 'earth',
         pure: true,
         clock: u,

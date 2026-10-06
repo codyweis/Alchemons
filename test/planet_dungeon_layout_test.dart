@@ -576,12 +576,8 @@ void main() {
             if (room.hall?.starIndex != null) {
               nonGuardianStars.add(room.hall!.starIndex!);
             }
-            // Blood carries its two non-guardian stars on the chamber a room
-            // is: the vena crossing where the figure-eight crosses itself,
-            // and the capillary weave at the far end of the lung.
-            if (room.sanguine?.starIndex != null) {
-              nonGuardianStars.add(room.sanguine!.starIndex!);
-            }
+            // Blood declares both of its non-guardian stars on the Circle.
+            if (room.rite != null) nonGuardianStars.addAll(room.rite!.starIndices);
           }
           expect(nonGuardianStars, isNot(contains(2)));
           expect(nonGuardianStars, containsAll([0, 1]));

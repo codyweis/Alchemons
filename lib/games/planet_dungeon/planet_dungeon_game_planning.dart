@@ -15,52 +15,12 @@ extension DungeonPlanning on PlanetDungeonGame {
     // The Beacon Archive shows NEXT PRESS in the readout instead; a line in
     // the capsule at every beacon covered the room (the author, 2026-09-28).
     if (_isArchive) return null;
-    if (_isHeart) return _heartPreview(a);
+    // The Blood Rites show their previews in the rooms themselves (the
+    // Water room's flip ghost); nothing to say in the capsule.
     return null;
   }
-
-  bool _planningNear(DungeonCreature a, Offset? at) =>
-      at != null && (a.position - at).distance <= 100;
-
-  String _planRoom(String id) =>
-      _roomIdentityLine(id) ?? id.replaceAll('_', ' ');
 
   /// The Black Sun shows its aim on the floor itself (a ghost mouth on the
   /// face a Dark is looking at); a line in the capsule would say it twice.
   String? _vaultPreview(DungeonCreature a) => null;
-
-  String? _heartPreview(DungeonCreature a) {
-    for (final o in ostiaIn(currentRoomId)) {
-      if (!_planningNear(a, o.position) || heart.ostiaPrimed.contains(o.id)) {
-        continue;
-      }
-      return '${o.element} · prime on ${phaseTag(o.phase)}\n'
-          'Lay a hand, then use NEXT PULSE to reach its phase. Stay in this room.';
-    }
-    // The exits in the NEXT phase make the skip a route decision, not a blind
-    // fast-forward. Hidden collaterals remain undisclosed until grafted.
-    final next = nextPulsePhase(heart.phase);
-    final exits = <String>[];
-    for (final d in currentRoom.doors) {
-      final p = _heartPassageFor(currentRoom, d);
-      if (p == null || _heartDoorHidden(currentRoom, d)) continue;
-      if (_guardianDoorSealed(d) || _guardianFightSeal(currentRoom)) continue;
-      final finale = layout.finaleDoor;
-      if (finale != null &&
-          finale.matches(currentRoom, d) &&
-          !guardianRiteUnlocked) {
-        continue;
-      }
-      if (p.carriesFrom(
-        currentRoomId,
-        next,
-        grafted: heart.grafted.contains(p.id),
-      )) {
-        exits.add(_planRoom(d.targetRoomId));
-      }
-    }
-    return 'Next pulse · ${phaseTag(next)}\n'
-        '${exits.isEmpty ? 'No flowing exits; another phase will open them' : 'Routes: ${exits.join(', ')}'}. '
-        'Advance when ready.';
-  }
 }

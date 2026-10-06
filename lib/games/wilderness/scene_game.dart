@@ -119,6 +119,9 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   /// A field drawn in code (see [SceneDefinition.art]), and its clock.
   FieldArt? _art;
+
+  /// The field's art, when it is drawn in code.
+  FieldArt? get fieldArt => _art;
   double _fieldTime = 0;
 
   /// The hour that lights the field: the phone's own clock, so the sky
@@ -1430,6 +1433,8 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
     _touch(info.eventPosition.widget, info.delta.global);
     if (_mode == SceneMode.encounter) return;
+    // Held still: a finger only plays in the field.
+    if (viewLocked && !arranging) return;
 
     // Pinch zoom
     final startZoom = _pinchStartZoom ?? cam.viewfinder.zoom;
@@ -1494,6 +1499,11 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// Whether a resident can be picked up and moved with a finger. A drag
   /// that starts on nothing still pans the field.
   bool arranging = false;
+
+  /// The camera held where it is, so a finger drawn over the field only
+  /// plays in it (the home's Living Sands) — no pan, no pinch. Arranging
+  /// pans as ever.
+  bool viewLocked = false;
 
   final Map<String, WildMonComponent> _residents = {};
   final Map<String, (Creature, CreatureInstance?, bool)> _residentLooks = {};
@@ -3189,6 +3199,12 @@ class _FieldTapComponent extends Component
 /// The field's sky, fixed to the screen behind every layer.
 class _FieldSkyComponent extends Component with HasGameReference<SceneGame> {
   _FieldSkyComponent(this.art);
+
+  @override
+  void onRemove() {
+    art.dispose();
+    super.onRemove();
+  }
 
   final FieldArt art;
 

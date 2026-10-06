@@ -223,6 +223,7 @@ class WildernessSpawnService extends ChangeNotifier {
   bool isSceneActive(String sceneId) => _activeScenes.contains(sceneId);
 
   Future<bool> _isSceneEligible(String sceneId) async {
+    if (shopSceneOf(sceneId)?.homeOnly ?? false) return false;
     final openingAllowed = await OpeningWildernessService.isSceneAllowed(
       _db.settingsDao,
       sceneId,

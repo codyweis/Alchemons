@@ -19,6 +19,8 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/vfx_shapes.dart';
+import 'package:alchemons/models/celebration_costume.dart';
+import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 import 'package:flutter/painting.dart';
@@ -58,6 +60,8 @@ abstract final class AlchemyEffectPaint {
   /// Every effect the shop sells. These strings are what owned effects are
   /// saved as: never change one.
   static const Set<String> keys = {
+    FamilyCostume.hatPreview,
+    FamilyCostume.nosePreview,
     alchemyGlow,
     elementalAura,
     volcanicAura,
@@ -74,6 +78,8 @@ abstract final class AlchemyEffectPaint {
     dustRing,
   };
 
+  /// Whether [key] paints round a creature. A worn family costume does
+  /// not: it is part of the sprite (see `CostumePaint.paintWorn`).
   static bool has(String? key) => keys.contains(key);
 
   /// Whether [key] also draws a layer over the creature — Prismatic's and
@@ -81,6 +87,7 @@ abstract final class AlchemyEffectPaint {
   /// wisps pass in front of it. Hosts paint that with `front: true` after
   /// the sprite.
   static bool hasFront(String? key) =>
+      FamilyCostume.ofPreview(key) != null ||
       key == prismaticCascade ||
       key == speedFlux ||
       key == intelligenceHalo ||
@@ -111,6 +118,14 @@ abstract final class AlchemyEffectPaint {
     if (r <= 0 || opacity <= 0) return;
     if (front && !hasFront(key)) return;
     final o = opacity.clamp(0.0, 1.0);
+    // A family costume on its own, for a card: only ever over the creature.
+    final preview = FamilyCostume.ofPreview(key);
+    if (preview != null) {
+      if (front) {
+        CostumePaint.paintPreview(canvas, preview, center, r, t, opacity: o);
+      }
+      return;
+    }
     switch (key) {
       case alchemyGlow:
         _Resonance.paint(canvas, center, r, t, o, dark);

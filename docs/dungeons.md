@@ -3115,6 +3115,221 @@ in-world chrome rather than a dialog, and worth judging on its own terms.)
 no feedback until the chart closes, and silvering the whole ring — the brute
 force move — always fails, because a false frame in the water always forks.
 
+### BLOOD — THE BLOOD RITES (2026-10-05; designed with the author, PROTOTYPED; supersedes the Sanguine Orrery below once built)
+
+The Sanguine Orrery was never played. It had the fault the last four
+rebuilds fixed, in a new form: its four-phase clock was the puzzle, so the
+player's real move was to stand in the right room and wait. The author asked
+for a final dungeon that is "really fun", turned down three concepts of mine
+(bloodbending, a drawn vein, a player-paced heart), and wrote this one.
+
+**The author's calls:**
+  · **Entry needs ONE Blood Alchemon** (not a trio). It goes down alone.
+  · **Four rooms: Fire, Water, Air, Earth.** Each holds a captive Alchemon of
+    that element. Solve the room and the captive is "blood sacrificed": it
+    dissolves into blood that runs home. **At the boss all four join you.**
+  · **Each room has an elemental fusion,** using the game's own recipe table
+    (assets/data/alchemons_element_recipes.json). The two ingredients meet at
+    the captive; that meeting is the rite.
+  · **The centre circle leads to the four rooms, and hides the maxim.**
+  · **Two stars when all four are freed;** the boss is the third.
+  · Its own rule only. No callbacks to earlier planets.
+  · Hints: the author found my partner verbs ("poison bites the vein")
+    cheesy. Rule since: nothing in the dungeon behaves in a way you have to
+    be told.
+
+**The rooms (docs/prototypes/blood_rites — page rites.html built by
+build.js from rites.src.html + earth/water/hub-engine.js + rites-rooms.js;
+`node solve.js` proves everything and writes proofs.txt):**
+  · **EARTH — the tendril floor** (the author's line puzzle + "we can rotate
+    the floor too"). Blood tendrils grow from the walls in pairs; lead each to
+    its partner; two tendrils never share a square. The floor has TURNING
+    PLATES; whatever stands on a plate turns with it (stones, a root stump,
+    the captive's hearth); a plate won't turn while a tendril lies on it.
+    Fusion: the Dust tendril and the Water tendril both end at the captive
+    (Dust + Water → Earth). *Found while authoring:* on a flat floor, roots
+    in the wrong order can never be joined, so turning a plate only matters
+    if the plate CARRIES a root — the aha is a plate with two roots in the
+    wrong order; turn it and they swap. Proof: impossible as it starts,
+    exactly one of 16 plate settings works, each plate required. The room was
+    found by random search and then every stone not needed for the proof was
+    stripped.
+  · **WATER — the turning room** (the author's flip). FLIP turns the room
+    over: downhill becomes uphill. Ice slides straight downhill; water falls
+    and then runs along the floor to the nearest drop. Blood stops anything
+    that slides into it, and when Blood steps aside it falls on. Ice resting
+    against fire melts (Fire + Ice → Water, no water in the room at the
+    start); water touching fire puts it out, so each brazier melts one block.
+    Grates pass water only; pits swallow. Fill the captive's basin. The page
+    shows a dashed ghost of what the next flip will do (plan, then commit).
+    Proof: fewest 3 flips, 62% of reachable states are dead ends (the page
+    says "can't be finished from here — reset it"), Blood has to hold. The
+    aha: stand on top of the ice's column so it stops BESIDE the fire
+    instead of sliding past; step up and it follows you into the flame.
+    *Changed while authoring:* water first fell straight down its column
+    only, which made every room unsolvable — water has to spread.
+  · **FIRE — the twin** (Air + Lava → Fire; the author picked it from two,
+    2026-10-05). A pool of blood runs down the middle; Blood stands on one
+    side and its twin on the other as its mirror image. Every step Blood
+    takes, the twin takes the mirrored one (north is north, east is west).
+    Each is stopped by its own side's walls, so walking into a wall moves
+    only the other one. Plates hold the gate of their colour open on the
+    far side while somebody stands on them (a gate won't close on anybody);
+    a pit sends you both back to the pool. Win: Blood on the bellows and the
+    twin on the lava sluice after the same step. *Found while authoring:* a
+    mirror-symmetric room can never pull the two apart (both hit the same
+    walls at once), so asymmetry is the whole puzzle. The chosen room has
+    ONE inner wall; the gates are the asymmetry. Proof: 21 steps, 17 of
+    them moving only one body; impossible with every gate shut, impossible
+    with no plates or gates.
+  · **AIR — the weightless room** (Ice + Light → Air). No floor to push
+    against: Blood drifts in a straight line until something stops it. Up
+    against ice, a push sends the ice drifting instead. Ice that drifts into
+    a shaft of sunlight turns to air; beside the glass bell the air goes in,
+    anywhere else it is lost. The ice is both the only thing to stop against
+    and the only fuel. Proof: the bell needs 2, there are 4 blocks, 19
+    pushes fewest, 74% of reachable states are dead ends (the page says so
+    and names the reset). The room has no inner walls at all — the first
+    search's strip-down removed the stray sunbeam too and the rooms became
+    90%+ dead ends, so the strip now keeps one trap shaft and caps the
+    length at 20.
+  · **THE CIRCLE — the hub and the maxim.** Doors at N (Air), E (Fire),
+    S (Earth), W (Water). A freed captive's blood runs from its door into its
+    cup; four cups open the boss seal in the middle. Two turning rings of
+    eight sectors lie across the streams; where BOTH have a groove at a door,
+    that stream runs past its cup into the middle. Two streams in the middle
+    fuse (adjacent pairs only — Lightning, Lava, Mud, Ice); all four make
+    **the quintessence, the Lost Maxim.** Proof: home setting sends nothing
+    to the middle; both rings must turn; no setting ever puts one or three
+    in. (Two 8-sector rings cannot give all six pairs AND a four — the
+    search proved it — so the opposite pairs, Steam and Dust, are out.)
+    Cups latch, so turning the rings never undoes progress.
+
+**THE BOSS — Sanguorath, in stages (the author's design, 2026-10-05).**
+The four freed captives reform from their cups and come down with Blood.
+  · **Four breaks, at 80%, 60%, 40% and 20%.** At each, Sanguorath pulls
+    into a shell of blood and takes no more damage until one ally gives
+    itself.
+  · **The shell shows an element, and its OPPOSITE breaks it:** a shell of
+    flame → Water goes; of water → Fire; of stone → Air; of wind → Earth.
+    The shell's element is rolled per fight among the allies still standing
+    (a deduction that can't be looked up; never a chance roll on success).
+    The last break is always whoever is left.
+  · **You control all five** (the author): switch between Blood and the
+    four allies like any dungeon party, and send one by walking it into the
+    shell yourself.
+  · **The choice is the whole mechanic.** Read the shell, walk the right
+    ally into it; it dissolves into grains and pours in, and the shell breaks.
+  · **A wrong ally is refused:** the shell throws it back and Sanguorath
+    heals a little (never above the top of the current stretch). Nobody is
+    lost to a mistake.
+  · **The last 20% is truly alone:** plain Blood against Sanguorath, with
+    nothing inherited from the four.
+  · Between breaks it is ordinary combat, the way Dark's Noctryos is (the
+    author's ruling there). Stars: two for all four freed, the boss is the
+    third.
+
+**THE VAULT — the flooded pit, in the Water room (2026-10-05; the author
+chose "hide it in a room" over a lava fusion in the Circle).** Ice that
+drops into the Water room's pit fills it as floor; WATER that drops in makes
+it a deep pool, and Blood can step into the pool and dive down to the vault.
+It hides in the room's commonest mistake: flip without thinking, flip back,
+and the stranded meltwater pours into the pit — the room says it can't be
+finished, and the curious player steps in instead of resetting (Mud's and
+the old thrombus' lesson: the reward lives in the act the room punishes).
+Proof: the main solution is unchanged (3 flips, 61% dead ends); the vault is
+reachable in 4 moves (flip, flip, two steps). A freed room stays playable
+(it resets without its captive), so the vault can be found before or after.
+
+**Open:** the author's playtest of the prototype; party switching for five (the dungeon's party code assumes three — still to be read); Sanguorath's own attacks; then the Dart build, which replaces the Orrery
+(`planet_dungeon_*_blood*.dart`) and changes `kCosmicPlanetEntry['Blood']`
+to a single Blood.
+
+**BUILT IN DART (2026-10-05; the author: "lets build it in dart").** The
+Sanguine Orrery's code is gone (its layout, play, art and three tests);
+`DungeonRoom.sanguine` became `DungeonRoom.rite` (a `RiteBay`).
+  · `planet_dungeon_blood_rites.dart` — the rules, pure, ported line for
+    line from the prototype. test/planet_dungeon_blood_rites_test.dart
+    replays every proved plan and re-checks every proof (state counts,
+    dead-end shares, the 1-of-16 plate setting, the rings' 64 settings).
+  · `planet_dungeon_layout_blood.dart` — seven rooms: `rite_circle`
+    (entrance, hub, maxim; the boss seal is a door in its floor),
+    `rite_earth|water|fire|air`, `rite_vault` (under the Water room's pit),
+    `sanguorath_heart`. **Geography forced two re-proofs:** every room's
+    door faces the Circle, so the Water room is the prototype's MIRRORED
+    (re-proved: 3 flips, 50% dead ends, the vault 4 moves in — the
+    west-wins tie-break is the only asymmetry) and Air's arrival is its
+    door square (4,7) (re-proved: 19 pushes, 74%). Fire's door is west of
+    Blood's start, which the proof never needs to push into.
+  · `planet_dungeon_game_blood.dart` — the play. EARTH: walk to a root,
+    LEAD (it takes the root you face), walk and the tendril follows, walk
+    into the partner and it joins, LET GO to leave it; TURN beside an axle
+    or on a plate (Blood turns with it). A pair is led from EITHER root (a
+    bug the prototype had: a tendril always grew from the map's first
+    root). WATER: every square entered settles the room; FLIP on the pad;
+    the pit's door exists only while it is a pool. FIRE: a step the twin
+    can take but Blood can't still steps the twin, once per 0.3s of
+    pressing. AIR: one flick of the stick, one push; the stick must come
+    back to centre between pushes; pushing out through the door from its
+    square leaves. On a grid, walking eases onto the middle of its row or
+    column. REGROUP in a captive room starts that room again (the honest
+    undo, and the way out of the 50–74% of states that are dead ends —
+    the room says so and names it). Freed captives persist as
+    `gate:rite_freed_<El>` discoveries; the fourth banks Stars 1 and 2;
+    four full cups latch A+B and Sanguorath wakes below the seal.
+  · SANGUORATH — the captives' bodies are built at load from real species
+    (`riteCaptivesFrom(catalog)`, one per element, passed by the screen);
+    they join the party on the way down (five to control) and wait at the
+    seal if you climb back up. Shells at 80/60/40/20%: `_enemyDamageTakenScale`
+    is 0 while one is up, and `_riteHoldShell` — called right after every
+    one of the engine's eight damage subtractions, and again each frame —
+    keeps any hit from carrying it past the next break. An ally within 74
+    of the body: the right one gives itself (leaves the party), the wrong
+    one is thrown 150 back and the boss mends 4% (capped at the stretch's
+    top; 1.4s per-ally cooldown).
+  · **THE MOMENTS (2026-10-05; the author: "a lot better animation … the
+    blood sacrifice, the alchemon being released … the water moving").**
+    `blood_rite_fx.dart` — plain Dart, driven by time, in the house rules
+    (eased, trailed grains that drift and dissolve; no bursts; nothing left
+    at the end). A body is the creature's OWN sprite read into grains (the
+    guardian death's SpecimenGrains read, off the game loop; a disc if it
+    has no sprite).
+      – THE RELEASE (5.4s): the room's two ingredients run in grains along
+        their ways into the captive (Earth along the Dust and Water
+        tendrils, Water from the spent braziers and the basin, Fire from
+        bellows and sluice, Air from the shafts beside the bell); the blood
+        bands swell and let go; the body comes apart top to bottom and warms
+        to blood; it leaves as a bowed, wandering ribbon of grains (with a
+        faint glow under it) out by the room's door, thinning to nothing.
+        Captives are drawn 1.35× so this reads.
+      – THE SACRIFICE (3.9s): blood rises round the ally; it comes apart feet
+        first; its grains go out into a wide orbit round Sanguorath and are
+        drawn in, warming to blood; the shell warms to blood as it takes
+        them, then sheds outward and goes out.
+      – WATER: each settle pass is recorded by the rules (`FlipFrame.moves` /
+        `gone`), so the render SLIDES every block exactly (0.075s a pass);
+        nothing moves until the room has finished turning over; the turn
+        darkens edge-on; water is one body (unioned, lit along its surface,
+        stretched along its way while it moves); a melt shrinks into its
+        water with drips; a drowned fire's flame sinks while steam rises; a
+        basin square fills from the bottom; a pit takes water as a slow pool.
+        Each moment sounds as its pass lands, not at the press.
+      – SMALL THINGS: the led tendril reaches to Blood mid-step with a living
+        head; a turning plate sheds stone dust; the Fire gates slide; the
+        bellows breathe at the hearth when Blood stands on them; a drift
+        leaves a wake; ice in sunlight breaks into vapour that is drawn into
+        the bell, where the air it holds turns; the Circle's streams run down
+        their channels before the cups fill; the seal's six leaves iris back
+        after the last cup is full. The three alchemy bursts the first build
+        used (freeing, giving, a ring's fusion) are gone.
+    test/planet_dungeon_blood_rites_moments_test.dart films each moment with
+    real creatures into BloodMoments_<name>.png strips.
+  · test/planet_dungeon_blood_rites_game_test.dart drives the real game:
+    all four rooms solved with the stick and pad, the vault dive, the
+    stars, the rite, a ring turn into the quintessence, and all four
+    shells including a refused wrong ally.
+
+
 ### ◐ BLOOD — the pass, minus the device session (2026-09-20)
 
 The seventeenth and last, and the one §7.10 singled out for GENERIC

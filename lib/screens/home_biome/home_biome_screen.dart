@@ -20,17 +20,20 @@ import 'dart:math' as math;
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/wilderness/field/field_art.dart';
+import 'package:alchemons/games/wilderness/field/home_sand_field.dart';
 import 'package:alchemons/games/wilderness/keepsake_component.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/home_biome.dart';
+import 'package:alchemons/models/home_sand.dart';
 import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/home_keepsakes.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
+import 'package:alchemons/screens/home_biome/home_sand_tray.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
@@ -203,8 +206,9 @@ class HomeBiomeScreen extends StatefulWidget {
   State<HomeBiomeScreen> createState() => _HomeBiomeScreenState();
 }
 
-/// Which tray is open along the bottom while arranging.
-enum _Tray { none, scenery, keepsakes, decor }
+/// Which tray is open along the bottom while arranging: Living Sands has
+/// two, its colours and its settings.
+enum _Tray { none, scenery, keepsakes, decor, sand, sandSettings }
 
 class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     with TickerProviderStateMixin {
@@ -234,6 +238,14 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
 
   bool _arranging = false;
   _Tray _tray = _Tray.none;
+
+  /// Which of Living Sands' colours the sand tray is picking: one of its
+  /// sands, or (at [kSandMaxCount]) the shimmer.
+  int _sandSlot = 0;
+
+  /// Living Sands held still, so a finger plays in the sand instead of
+  /// panning round it.
+  bool _locked = false;
 
   /// Zoomed out to see the whole field while arranging.
   bool _zoomedOut = false;
@@ -367,6 +379,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       ..fieldStage = mood.stage
       ..arranging = _arranging
       ..overview = _arranging
+      ..viewLocked = _locked
       ..lively = true
       ..ghostTint = _ghostTint(_layout.realm)
       ..canLift = _canLift
@@ -392,6 +405,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     HomeRealm.dunes => const Color(0xFFF0D2A0),
     HomeRealm.geode => const Color(0xFFCDB8FF),
     HomeRealm.tidal => const Color(0xFFA8E4F0),
+    HomeRealm.sand => _layout.sandStyle.shimmer,
   };
 
   bool _canLift(String spawnId) {
@@ -442,7 +456,14 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     if (realm == _layout.realm) return;
     HapticFeedback.selectionClick();
     _select(null);
-    setState(() => _veiled = true);
+    setState(() {
+      _veiled = true;
+      // Only Living Sands is held still to play in, and has its trays.
+      _locked = false;
+      if (_tray == _Tray.sand || _tray == _Tray.sandSettings) {
+        _tray = _Tray.none;
+      }
+    });
     var layout = _layout.copyWith(realm: realm);
     layout = layout.withPlaced(_placedOwned(layout));
     _commit(_settle(layout));
@@ -513,6 +534,43 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       residents: [...out.residents]
         ..sort((a, b) => order[a.instanceId]!.compareTo(order[b.instanceId]!)),
     );
+  }
+
+  /// Living Sands in [style] as the finger moves: the floor dressed again
+  /// where it lies, saved only when the finger lifts ([_saveSand]).
+  void _previewSand(HomeSandStyle style) {
+    setState(() => _layout = _layout.copyWith(sandStyle: style));
+    final game = _game;
+    if (game == null) return;
+    final art = game.fieldArt;
+    if (art is HomeSandField) art.style = style;
+    game.ghostTint = _ghostTint(_layout.realm);
+  }
+
+  void _saveSand() => _commit(_layout);
+
+  /// Living Sands as [style] at once, and saved: a choice made with a tap.
+  void _setSand(HomeSandStyle style) {
+    HapticFeedback.selectionClick();
+    _previewSand(style);
+    _saveSand();
+  }
+
+  /// Living Sands held still to play in, or let go.
+  void _toggleLock() {
+    HapticFeedback.selectionClick();
+    setState(() => _locked = !_locked);
+    _game?.viewLocked = _locked;
+  }
+
+  /// Sand that stayed where it was pushed or mixed, all of it back where it
+  /// lay.
+  void _smoothSand() {
+    final art = _game?.fieldArt;
+    if (art is! HomeSandField) return;
+    HapticFeedback.lightImpact();
+    _play(SoundCue.homeSceneryGather);
+    art.smooth();
   }
 
   void _setMood(HomeMood mood) {
@@ -1296,8 +1354,10 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
         ..overviewBottom =
             pad.bottom + (_tray == _Tray.keepsakes || _tray == _Tray.decor
                 ? 168
-                : _tray == _Tray.scenery
-                ? 56
+                : _tray == _Tray.sand
+                ? 148
+                : _tray == _Tray.sandSettings
+                ? 124
                 : 56);
     }
     return Scaffold(
@@ -1420,6 +1480,26 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
           child: _arranging ? _realmRow(context) : const SizedBox.shrink(),
         ),
         const SizedBox(width: 10),
+        // Living Sands, looked at: held still to play in, and smoothed.
+        if (!_arranging && _ready && _layout.realm == HomeRealm.sand) ...[
+          if (_layout.sandStyle.stays) ...[
+            _HudButton(
+              label: 'Smooth',
+              icon: AppIcons.waves_rounded,
+              accent: _amber,
+              onTap: _smoothSand,
+            ),
+            const SizedBox(width: 10),
+          ],
+          _HudButton(
+            label: _locked ? 'Locked' : 'Lock',
+            icon: _locked ? AppIcons.lock_rounded : AppIcons.lock_open_rounded,
+            accent: _amber,
+            active: _locked,
+            onTap: _toggleLock,
+          ),
+          const SizedBox(width: 10),
+        ],
         _HudButton(
           label: _arranging ? 'Done' : 'Arrange',
           icon: _arranging ? AppIcons.check_rounded : AppIcons.tune_rounded,
@@ -1501,18 +1581,40 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
             onTap: () => _openTray(_Tray.decor),
           ),
           const SizedBox(width: 16),
-          for (final m in _layout.realm.moods) ...[
+          // Living Sands has no weather and no hour: only its colours and
+          // how it lies.
+          if (_layout.realm == HomeRealm.sand) ...[
             _Chip(
-              label: m.label,
-              selected: m.id == mood.id,
-              onTap: () => _setMood(m),
+              label: 'COLORS',
+              selected: _tray == _Tray.sand,
+              accent: _amber,
+              onTap: () => _openTray(_Tray.sand),
             ),
             const SizedBox(width: 6),
-          ],
-          const SizedBox(width: 10),
-          for (final (label, h) in _hours) ...[
-            _Chip(label: label, selected: h == hour, onTap: () => _setHour(h)),
-            const SizedBox(width: 6),
+            _Chip(
+              label: 'SETTINGS',
+              selected: _tray == _Tray.sandSettings,
+              accent: _amber,
+              onTap: () => _openTray(_Tray.sandSettings),
+            ),
+          ] else ...[
+            for (final m in _layout.realm.moods) ...[
+              _Chip(
+                label: m.label,
+                selected: m.id == mood.id,
+                onTap: () => _setMood(m),
+              ),
+              const SizedBox(width: 6),
+            ],
+            const SizedBox(width: 10),
+            for (final (label, h) in _hours) ...[
+              _Chip(
+                label: label,
+                selected: h == hour,
+                onTap: () => _setHour(h),
+              ),
+              const SizedBox(width: 6),
+            ],
           ],
         ],
       ),
@@ -1687,6 +1789,175 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     );
   }
 
+  /// The solid ground of Living Sands' trays: the field must not show
+  /// through.
+  Widget _sandPanel({required List<Widget> children}) => Container(
+    color: Color.alphaBlend(_palette.surfaceFill(), const Color(0xFF05060B)),
+    padding: const EdgeInsets.fromLTRB(8, 8, 10, 8),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    ),
+  );
+
+  TextStyle _stripLabel(BuildContext context) => bracketText(
+    context,
+    9.5,
+    _palette.muted,
+    weight: FontWeight.w800,
+    letterSpacing: 1.2,
+  );
+
+  /// Living Sands' colours: how many sands, each one's colour and the
+  /// shimmer's, and strips to pick the chosen one's.
+  Widget _sandTray(BuildContext context) {
+    final style = _layout.sandStyle;
+    final count = style.count;
+    // Fewer sands than the one being picked: the last that is left.
+    final slot = _sandSlot == kSandMaxCount
+        ? _sandSlot
+        : math.min(_sandSlot, count - 1);
+    final picked = slot == kSandMaxCount ? style.shimmer : style.colors[slot];
+    return _sandPanel(
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _Chip(
+                label: '−',
+                selected: false,
+                onTap: count > 1
+                    ? () => _setSand(style.copyWith(count: count - 1))
+                    : () {},
+              ),
+              _TrayLabel(count == 1 ? '1 SAND' : '$count SANDS'),
+              _Chip(
+                label: '+',
+                selected: false,
+                onTap: count < kSandMaxCount
+                    ? () => _setSand(style.copyWith(count: count + 1))
+                    : () {},
+              ),
+              const SizedBox(width: 14),
+              for (var i = 0; i < count; i++) ...[
+                _Chip(
+                  label: 'SAND ${i + 1}',
+                  selected: i == slot,
+                  accent: style.colors[i],
+                  dot: true,
+                  onTap: () => setState(() => _sandSlot = i),
+                ),
+                const SizedBox(width: 6),
+              ],
+              _Chip(
+                label: 'SHIMMER',
+                selected: slot == kSandMaxCount,
+                accent: style.shimmer,
+                dot: true,
+                onTap: () => setState(() => _sandSlot = kSandMaxCount),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        SandColorStrips(
+          color: picked,
+          labelStyle: _stripLabel(context),
+          onChanged: (c) => _previewSand(
+            slot == kSandMaxCount
+                ? style.copyWith(shimmer: c)
+                : style.withColor(slot, c),
+          ),
+          onDone: _saveSand,
+        ),
+      ],
+    );
+  }
+
+  /// How Living Sands lies and moves: its pattern, whether pushed sand
+  /// springs back, stays or mixes, and its amounts.
+  Widget _sandSettingsTray(BuildContext context) {
+    final style = _layout.sandStyle;
+    Widget amount(
+      String label,
+      SandAmount kind,
+      double value,
+      HomeSandStyle Function(double v) set,
+    ) => Expanded(
+      child: SandAmountStrip(
+        label: label,
+        kind: kind,
+        value: value,
+        sand: style.colors.first,
+        shimmer: style.shimmer,
+        labelStyle: _stripLabel(context),
+        onChanged: (v) => _previewSand(set(v)),
+        onDone: _saveSand,
+      ),
+    );
+    return _sandPanel(
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final p in SandPattern.values) ...[
+                _Chip(
+                  label: p.label,
+                  selected: p == style.pattern,
+                  onTap: () => _setSand(style.copyWith(pattern: p)),
+                ),
+                const SizedBox(width: 6),
+              ],
+              const SizedBox(width: 14),
+              for (final m in SandMotion.values) ...[
+                if (m != SandMotion.values.first) const SizedBox(width: 6),
+                _Chip(
+                  label: m.label,
+                  selected: m == style.motion,
+                  onTap: () => _setSand(style.copyWith(motion: m)),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            amount(
+              'DENSITY',
+              SandAmount.density,
+              style.density,
+              (v) => style.copyWith(density: v),
+            ),
+            const SizedBox(width: 18),
+            amount(
+              'GRAIN',
+              SandAmount.grain,
+              style.grain,
+              (v) => style.copyWith(grain: v),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            amount(
+              'SHIMMER',
+              SandAmount.sparkle,
+              style.sparkle,
+              (v) => style.copyWith(sparkle: v),
+            ),
+            const SizedBox(width: 18),
+            const Spacer(),
+          ],
+        ),
+      ],
+    );
+  }
+
   /// Every piece of decor in this realm back on the shelf.
   void _putAllDecorAway() {
     final game = _game;
@@ -1713,6 +1984,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   /// keepsakes, to place.
   Widget _trayRow(BuildContext context) {
     if (_tray == _Tray.decor) return _decorTray(context);
+    if (_tray == _Tray.sand) return _sandTray(context);
+    if (_tray == _Tray.sandSettings) return _sandSettingsTray(context);
     if (_tray == _Tray.scenery) {
       final count = _layout.scenery.length;
       return SingleChildScrollView(

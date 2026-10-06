@@ -1,3076 +1,1582 @@
 // lib/games/planet_dungeon/planet_dungeon_game_blood.dart
 //
-// HEMAVORN — the Sanguine Orrery. Blood's puzzle logic + rendering, as a
-// `part of planet_dungeon_game.dart` (the treatment every planet after the Air
-// pilot gets). The layout, the passage graph, the pulse algebra, the ostia and
-// the collaterals all live in planet_dungeon_layout_blood.dart; this file is
-// the rules that drive them.
+// HEMAVORN — THE BLOOD RITES. Blood's play, as a `part of
+// planet_dungeon_game.dart`. The rules are planet_dungeon_blood_rites.dart
+// (pure, proved against the prototype); the rooms are
+// planet_dungeon_layout_blood.dart; the drawing is
+// planet_dungeon_game_blood_art.dart. This file turns a joystick and one pad
+// button into the rules' sentences:
 //
-// World rule: *the dungeon is alive, and it beats on a rhythm.* See the layout
-// header for the full statement of the pulse, the figure-eight, the vault
-// trick, and why this planet needs no reset valve.
-// Peaceful exploration can now advance a phase with NEXT PULSE. Waiting is
-// optional; the guardian and clot fights retain their real-time rhythm.
+//   · EARTH — walk to a root and press LEAD: the tendril follows you, square
+//     by square; walk back over it and it comes back in; walk into its
+//     partner and it joins. Press LET GO to leave it lying. TURN, standing
+//     on a plate or beside its axle, turns the plate a quarter (and you with
+//     it). Dust and Water both led to the captive frees it.
+//   · WATER — walk; every square you step on, the room settles. FLIP turns
+//     it over. Step into a flooded pit and you dive (the vault).
+//   · FIRE  — walk; the twin takes the mirrored step. Pressing into a wall
+//     you cannot pass still steps the twin (once per press-and-hold beat).
+//   · AIR   — push the stick and Blood drifts until stopped; push again into
+//     ice beside you and the ice drifts instead. Let the stick go between
+//     pushes.
+//   · THE CIRCLE — walk the round floor; TURN on a ring's band turns that
+//     ring an eighth. Freed blood fills its cup unless both rings carry it
+//     to the middle; all four in the middle is the quintessence.
+//   · SANGUORATH — the four come down with Blood and the player controls all
+//     five. At 80/60/40/20% it shells; the shell shows an element, and the
+//     OPPOSITE ally walked into it gives itself. The wrong one is thrown
+//     back and the boss heals a little. The last fifth is Blood alone.
 //
-//  • Entry — the pericardium is stitched over the gate. BLOOD unpicks its own
-//    sac and the orrery opens (§5.5, the eased entry reveal).
-//  • Star 0 (Priming) — THE FOUR OSTIA. Each mouth drinks on one phase of the
-//    beat and nowhere else, and the four sit in four different chambers — so
-//    the priming cannot be finished on one beat. ELEMENT-ONLY, all three
-//    entry elements used: this is the star §4 guarantees to any trio of the
-//    right elements on a first descent.
-//  • Star 1 (Graft) — THE COLLATERALS (§6's S2, "route life-flow through
-//    correct veins"). A DARK hand grafts a dead vessel (element-only — it was
-//    a Dark Mask gate until the family was judged a second lock on a planet
-//    that already asks for a Mane); a LIGHT hand flags which vessels are
-//    thrombosed, element-only and purely informational; and a graft is the
-//    only world-edit on the planet — always additive, never a subtraction.
-//    Three of the five collaterals are sound, rolled per descent.
-//  • Rite (the Myocardium) — conduit A is the Blood MANE cannula (§6 put a
-//    Kin gate on Star 1; §4's first-descent guarantee wins, so it moved here,
-//    and a Kin was later judged too rare, so it answers a Mane);
-//    the BALANCE is §6's "balance dark/light beams around the heart",
-//    element-only Blood with **Dark+Light→Blood** as the braid.
-//  • Star 2 (Systole) — MYS17 SANGUORATH. §7: the guardian fights WITH the
-//    planet's rule. Its lull exists only on the FLATLINE, and every strike
-//    beat it throws the heart forward a whole phase. The arena's VAGAL NODE
-//    is the party's own hand on the clock.
-//  • Lost Maxim — THE THROMBUS. The two dead vessels the Graft Star tells you
-//    to leave alone: turn them anyway (the clots come), Light shows the clot
-//    for what it is, and on a FLATLINE — no pressure on it — Blood breaks it,
-//    and the vessel takes. Both, and every road in the eight carries: the
-//    blood is the life. No reaction window anywhere on the planet now.
+// RESTART: the regroup button, in a captive room, starts that room again
+// with Blood at its door — the honest undo, and the way out of a dead end.
 //
-// NON-STRANDABILITY (see `solveSanguineOrrery`): Hemavorn is the first planet
-// whose state advances WITHOUT the player, which is a stranding hazard no
-// earlier proof had to answer — a window can close while you are somewhere
-// only that window could have let you leave, and waiting is not obviously a
-// remedy. Here it is, and provably: the beat is an unbranching period-4 cycle
-// nothing can stop, every chamber is safe to stand in for ever, both lobes of
-// the eight are CLOSED cycles, the heart's wall is phase-free, the vault's
-// leaflet is two-way and the arena's arrest is bounded. The measured result
-// agrees: **0 strandable across all ten rolls of the corruption, with no
-// reset valve** — against a large number if either lobe is opened, if the
-// leaflet is cut one-way, or if the arrest is allowed to hold for ever.
+// Nothing here is timed and nothing is chance; the shell's element is rolled
+// per fight, but bringing the right ally always works.
 
 part of 'planet_dungeon_game.dart';
 
-/// Blood's lost maxim discovery id (the screen pays 20 gold on first find).
-/// The string keeps the drum's old id so a save that found it stays found.
-const String kBloodLifeEggId = 'egg:blood_drum';
+/// The release and sacrifice read a body out of a square this many world
+/// units across, at this many pixels per unit.
+const double kRiteSnapBox = 96, kRiteSnapRatio = 3;
 
-// ── Device-tunable knobs ───────────────────────────────────
-// Blood has never been on a device; every number the feel depends on is named
-// here so a tuning pass is edit-one-block. The phase LENGTHS live in the
-// layout (`kPulsePhaseSeconds`), because the proof reads them too.
+/// Captives are drawn this much larger than the party (they are the room's
+/// subject, and their release has to read).
+const double kRiteCaptiveScale = 1.35;
 
-/// How close a creature must stand to a mouth, a cock, the pericardium, the
-/// balance, the drum or the vagal node to act on it.
-const double _kHeartReach = 70.0;
+/// Seconds one pass of a Water settle takes on screen.
+const double kRiteWaterPass = 0.075;
 
-/// How close the second body of a Dark+Light braid must stand (§6's recipe —
-/// it substitutes the ELEMENT, never a family).
-const double _kHeartBraidReach = 150.0;
+/// Everything the Blood Rites track for one run, plus the clocks the render
+/// reads.
+class BloodRun {
+  BloodRun() {
+    resetRooms();
+  }
 
-/// How close a Blood KIN must stand to a doorway to steady the vein behind it.
-const double _kSteadyReach = 96.0;
+  // ── The four rooms (the rules' rooms never change; their states do) ──
+  final TendrilFloor earthFloor = TendrilFloor(kRiteEarthMap);
+  final FlipRoom waterRoom = FlipRoom(kRiteWaterMap);
+  final TwinRoom fireRoom = TwinRoom(kRiteFireMap);
+  final DriftRoom airRoom = DriftRoom(kRiteAirMap, need: kRiteAirNeed);
 
-/// Seconds a steadied vein stays open past the turn. §6's "Bloodkin
-/// stabilizes heartbeat doors (time movement)", honoured as what §4 calls a
-/// family-exclusive BONUS — no puzzle requires it, and it is purely additive.
-const double _kSteadySeconds = 4.5;
+  late TendrilState earth;
+  late FlipState water;
+  late TwinState fire;
+  late DriftState air;
 
-/// Seconds the arena's vagal node holds the heart still. BOUNDED on purpose:
-/// see the layout header, reason 7.
-const double _kAsystoleSeconds = 4.0;
+  /// Blood's square in the Earth room (the other rooms' states carry it).
+  RiteCell earthAt = kRiteArrival['Earth']!;
 
-/// Seconds before the vagal node answers again.
-const double _kVagalCooldown = 7.0;
+  /// The tendril Blood is leading, if any.
+  String? leading;
 
-/// Seconds the pulse ring takes to cross a chamber at a phase turn. Purely
-/// visual.
-const double _kPulseTurnSeconds = 0.5;
+  /// The plates' eased angles (radians), for the render.
+  List<double> plateAng = [0, 0];
 
-/// Clots a primed mouth wakes (Star 0's one consequence). Waking a dead organ
-/// wakes what has been living in it.
-const int _kOstiumClots = 2;
+  // Water: a settle being played back, a pass at a time.
+  List<FlipFrame> waterFrames = [];
+  double waterFrameT = 0;
+  double flipT = 1; // 0..1 while the room turns over
 
-/// Clots a THROMBOSED cock wakes (Star 1's one consequence). The price of
-/// opening a vessel blind is a fight, never a road.
-const int _kThrombusClots = 3;
+  /// The frame a settle is leaving (the render slides from it to the next).
+  FlipFrame? waterFrom;
 
-// ── The orrery's palette (§5.5 VISUAL GRAMMAR) ─────────────
-// A body, not a machine: wet crimson, old rust, wet bone. Nothing here is
-// drawn like Dark's pewter/void inversion or Water's tide line.
-const Color _kHeartCrimson = Color(0xFFB4213A);
-const Color _kHeartRust = Color(0xFF7A2A24);
-const Color _kHeartBone = Color(0xFFE6D9C8);
-const Color _kHeartInk = Color(0xFF14080B);
+  /// When something last happened on a square, keyed 'x,y' — a melt, a fire
+  /// put out, a basin square filling, a pit taking something. The render
+  /// plays each moment from it.
+  final Map<String, double> meltT = {}, douseT = {}, basinT = {}, pitT = {};
 
-extension SanguineOrreryDungeon on PlanetDungeonGame {
+  /// The Water and Air rooms' finishable states (built on first entry).
+  Set<String>? waterLive, airLive;
+  bool deadSpoken = false;
+
+  // ── The moments (blood_rite_fx.dart) ──
+  final RiteGrainField grains = RiteGrainField();
+  final RiteGrainBatch batch = RiteGrainBatch();
+  RiteReleaseFx? release;
+  String? releaseEl;
+  RiteSacrificeFx? sacrifice;
+  DungeonCreature? sacrificed;
+
+  /// The shell shedding while a sacrifice plays (its element).
+  String? shedElement;
+
+  /// When each cup filled (the render pours it), and when the seal opened.
+  final Map<String, double> cupT = {};
+
+  /// When the seal opened: −1 not yet, −99 open before this run began.
+  double sealT = -1;
+
+  /// The Fire room's gates as SHOWN: 0 shut, 1 open (eased).
+  final Map<String, double> gateShown = {};
+  double puffT = 0;
+
+  // Fire: the twin's eased position, and the bump clock.
+  Offset twinShown = Offset.zero;
+  double bumpCooldown = 0;
+
+  // Air: a drift being played back.
+  List<RiteCell> driftPath = const [];
+  List<RiteCell> icePath = const [];
+  RiteCell? iceMelted;
+  bool iceIntoBell = false;
+  double driftT = 1;
+  bool stickArmed = true;
+
+  // ── The Circle ──
+  int outerTurn = 0, innerTurn = 0;
+  double outerAng = 0, innerAng = 0;
+  final Set<String> cups = {};
+  String? lastCentre;
+  double centreT = -9;
+
+  /// When each captive was freed this run (the dissolve plays from it).
+  final Map<String, double> freedT = {};
+
+  // ── Sanguorath ──
+  /// Breaks done (0..4); the shell up now, and its element.
+  int shellsBroken = 0;
+  bool shellUp = false;
+  String? shellElement;
+  double shellT = -9;
+
+  /// Allies waiting to come down (built at load), and those given.
+  final List<DungeonCreature> allies = [];
+  final Set<String> given = {};
+  bool alliesDown = false;
+  final Map<String, double> refusedT = {};
+
+  void resetRooms() {
+    waterFrom = null;
+    meltT.clear();
+    douseT.clear();
+    basinT.clear();
+    pitT.clear();
+    grains.clear();
+    earth = TendrilState.start(earthFloor);
+    water = flipStart(waterRoom);
+    fire = twinStart(fireRoom);
+    air = driftStart(airRoom);
+    earthAt = kRiteArrival['Earth']!;
+    leading = null;
+    waterFrames = [];
+    flipT = 1;
+    driftT = 1;
+    driftPath = const [];
+    icePath = const [];
+    deadSpoken = false;
+  }
+
+  void resetRoom(String element) {
+    switch (element) {
+      case 'Earth':
+        earth = TendrilState.start(earthFloor);
+        earthAt = kRiteArrival['Earth']!;
+        leading = null;
+      case 'Water':
+        water = flipStart(waterRoom);
+        waterFrames = [];
+        flipT = 1;
+      case 'Fire':
+        fire = twinStart(fireRoom);
+      case 'Air':
+        air = driftStart(airRoom);
+        driftT = 1;
+        driftPath = const [];
+        icePath = const [];
+    }
+    deadSpoken = false;
+  }
+
+  void resetFight() {
+    sacrifice = null;
+    sacrificed = null;
+    shedElement = null;
+    shellsBroken = 0;
+    shellUp = false;
+    shellElement = null;
+    given.clear();
+    refusedT.clear();
+    alliesDown = false;
+  }
+}
+
+extension BloodRitesDungeon on PlanetDungeonGame {
   // ── Lifecycle ────────────────────────────────────────────
 
-  void _resetHeartState() {
-    if (!_isHeart) return;
-    // A death re-stitches no pericardium and un-grafts nothing by itself —
-    // the orrery is puzzle state like every other planet's, so it resets with
-    // the run. The CORRUPTION is the one exception (see below): re-rolling it
-    // mid-run would make the Light flagging a lie.
-    heart.reset();
-    if (heart.soundCollaterals.isEmpty) {
-      heart.rollCorruption(_combatRng.nextInt);
+  void _resetRitesState() {
+    if (!_isRites) return;
+    rites.resetRooms();
+    rites.resetFight();
+    rites.cups.clear();
+    rites.outerTurn = rites.innerTurn = 0;
+    rites.outerAng = rites.innerAng = 0;
+    _riteSyncCups();
+    // What was already done when the run began is simply there: no pour.
+    for (final el in rites.cups) {
+      rites.cupT[el] = -99;
+    }
+    rites.sealT = rites.cups.length == 4 && guardianRiteUnlocked ? -99 : -1;
+  }
+
+  /// The captives freed — this run or any before (a freed captive stays
+  /// freed: it is a discovery, persisted across descents).
+  Set<String> get riteFreed => {
+    for (final el in kRiteElements)
+      if (discoveredClouds.contains(riteFreedId(el)) || hasStar(0)) el,
+  };
+
+  RiteBay? get _riteBay => currentRoom.rite;
+
+  /// The captive room the view is in, as its element.
+  String? get _riteRoomEl => _riteBay?.element;
+
+  bool get _riteInArena => _riteBay?.kind == RiteKind.arena;
+
+  /// Build the four allies' bodies (sprites loaded, not yet in the party).
+  Future<void> _loadRiteAllies() async {
+    if (!_isRites) return;
+    rites.allies.clear();
+    for (final el in kRiteElements) {
+      final m =
+          riteCaptives.where((c) => c.element == el).firstOrNull ??
+          (party.isEmpty ? null : _riteStandIn(party.first, el));
+      if (m == null) continue;
+      final c = DungeonCreature(member: m);
+      await _loadSprite(c);
+      rites.allies.add(c);
     }
   }
 
-  // ── The map, at the moment it is ─────────────────────────
+  /// A test or a catalog without the species: Blood's own body, renamed.
+  CosmicPartyMember _riteStandIn(CosmicPartyMember b, String el) =>
+      CosmicPartyMember(
+        instanceId: 'rite_captive_$el',
+        baseId: b.baseId,
+        displayName: '$el captive',
+        imagePath: b.imagePath,
+        element: el,
+        family: b.family,
+        level: b.level,
+        statSpeed: b.statSpeed,
+        statIntelligence: b.statIntelligence,
+        statStrength: b.statStrength,
+        statBeauty: b.statBeauty,
+        slotIndex: -1,
+        staminaBars: b.staminaBars,
+        staminaMax: b.staminaMax,
+        spriteSheet: b.spriteSheet,
+      );
 
-  /// The passage a door IS. One chamber pair, one passage (pinned by the
-  /// tests), so the door the player walks and the edge the proof walks are the
-  /// same object and can never drift apart.
-  HeartPassage? _heartPassageFor(DungeonRoom room, DungeonDoor door) =>
-      heartPassageBetween(room.id, door.targetRoomId);
+  // ── Placement ────────────────────────────────────────────
 
-  /// An UNGRAFTED collateral is not a door you have not opened — the vessel is
-  /// dead and the wall it is behind is blank. Same for every way out of the
-  /// gate while the pericardium is still stitched over it.
-  bool _heartDoorHidden(DungeonRoom room, DungeonDoor door) {
-    if (!_isHeart) return false;
-    if (room.id == layout.entranceRoomId && !entryDoorRevealed) return true;
-    final p = _heartPassageFor(room, door);
-    if (p == null) return false;
-    return p.kind == PassageKind.collateral && !heart.grafted.contains(p.id);
+  /// Blood's square in the grid room the view is in (null elsewhere).
+  RiteCell? get _riteBloodAt => switch (_riteRoomEl) {
+    'Earth' => rites.earthAt,
+    'Water' => rites.water.b,
+    'Fire' => rites.fire.b,
+    'Air' => rites.air.b,
+    _ => null,
+  };
+
+  void _riteSnapBlood() {
+    final at = _riteBloodAt;
+    final a = active;
+    if (at == null || a == null) return;
+    a
+      ..position = riteCentreOf(at.x, at.y)
+      ..lastSafe = riteCentreOf(at.x, at.y);
   }
 
-  /// A collapsed vein is the opposite: you can see the mouth of it perfectly
-  /// well and there is nothing coming through. Visible and refused, because
-  /// being told what the beat has taken is the whole teaching layer of this
-  /// planet (§5.6 BLOCKED).
-  bool _heartDoorBlocked(DungeonRoom room, DungeonDoor door) {
-    if (!_isHeart) return false;
-    final p = _heartPassageFor(room, door);
-    if (p == null) return false;
-    return !heart.carriesFrom(p, room.id);
-  }
-
-  /// One short clause naming exactly what is missing (§5.6 BLOCKED) — never a
-  /// method. When the beat opens a road is Mask's earned reading.
-  String _heartDoorHint(DungeonRoom room, DungeonDoor door) {
-    final p = _heartPassageFor(room, door)!;
-    switch (p.kind) {
-      case PassageKind.valve:
-        return 'This valve is pressed shut. It opens on the flatline';
-      case PassageKind.collateral:
-        return 'Grafted, but slack while ${lobeWord(p.lobe!)} is running';
-      case PassageKind.mural:
-        return 'This wall doesn\'t open';
-      case PassageKind.vein:
-        final flow = veinFlow(p.lobe!, heart.phase);
-        if (flow == 0) return 'This vein is empty right now';
-        return 'This vein is flowing the other way right now';
+  /// A door into a captive room puts Blood on that room's own square: the
+  /// arrival square for a fresh room, or wherever the room's state has it
+  /// (rooms keep their state for the run).
+  bool _ritePassThroughDoor(DungeonDoor d) {
+    if (!_isRites) return false;
+    rites.grains.clear();
+    rites.release = null;
+    rites.releaseEl = null;
+    final target = layout.rooms[d.targetRoomId]!;
+    final kind = target.rite?.kind;
+    // Down to Sanguorath: the freed come with you.
+    if (kind == RiteKind.arena) {
+      _riteAlliesJoin();
+      return false;
     }
-  }
-
-  // ── Verbs ────────────────────────────────────────────────
-
-  /// Every Blood verb, in priority order. Returns true when one was consumed.
-  /// The arena's vagal node outranks the guardian's own catch (Ice's pillar,
-  /// Lightning's spike, Plant's root-gall and Dark's shadow-vane set that
-  /// precedent) — the fight's errand must never be eaten by a strike.
-  bool _tryHeartVerb(DungeonCreature a) {
-    if (!_isHeart) return false;
-    return _tryPericardium(a) ||
-        _tryVagalNode(a) ||
-        _tryOstium(a) ||
-        _tryCollateralCock(a) ||
-        _tryHeartBalance(a) ||
-        // LAST, and deliberately: the steadying is a bonus, so it must never
-        // swallow a press meant for anything else in the chamber.
-        _trySteadyVein(a);
-  }
-
-  /// Blood is the planet's own element, and **Dark+Light→Blood** (§6) stands
-  /// in as a BRAID — two bodies at the same spot — for a party whose Blood
-  /// hand is down. A recipe substitutes the ELEMENT, never a family, so it is
-  /// never accepted at the cannula or at a collateral cock.
-  bool _heartHasBloodHand(DungeonCreature a) {
-    final el = a.member.element;
-    if (el == 'Blood') return true;
-    if (el != 'Dark' && el != 'Light') return false;
-    final want = el == 'Dark' ? 'Light' : 'Dark';
-    return creatures.any(
-      (c) =>
-          !identical(c, a) &&
-          c.alive &&
-          c.member.element == want &&
-          (c.position - a.position).distance < _kHeartBraidReach,
-    );
-  }
-
-  /// The entry rite: Blood unpicks its own sac.
-  bool _tryPericardium(DungeonCreature a) {
-    final pos = currentRoom.sanguine?.pericardium;
-    if (pos == null || entryDoorRevealed) return false;
-    if ((a.position - pos).distance > _kHeartReach) return false;
-    if (a.member.element != 'Blood') {
-      _setBlockedHint('Only Blood can open this sac');
-      return true;
-    }
-    entryDoorRevealed = true;
-    _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
-    _cue(SoundCue.dungeonGateOpen);
-    _setHint('The pericardium comes away, and Hemavorn is keeping time');
-    _spawnAlchemyBurst(
-      pos,
-      producedElement: 'Blood',
-      reagentElements: const ['Dark', 'Light'],
-      particleCount: 30,
-      intensity: 1.25,
-    );
-    return true;
-  }
-
-  // ── Star 0 · THE PRIMING ─────────────────────────────────
-
-  /// The chamber the Priming Star banks in, wherever it is (the tally reads it
-  /// without walking there).
-  DungeonRoom? get _primingStarRoom {
-    for (final r in layout.rooms.values) {
-      if (r.sanguine?.starIndex == 0) return r;
-    }
-    return null;
-  }
-
-  /// An ostium. Element-only (§4), and the mouth drinks on ONE phase — which
-  /// is the whole star: four primings, and the beat can never offer more than
-  /// one of them at a time.
-  ///
-  /// This is a WHERE, not a WHEN. Walk in, stand still, and the phase arrives
-  /// within one beat; every chamber on this planet is safe to wait in for
-  /// ever, so a mistimed arrival costs a wait and nothing else.
-  bool _tryOstium(DungeonCreature a) {
-    for (final o in ostiaIn(currentRoomId)) {
-      if ((a.position - o.position).distance > _kHeartReach) continue;
-      if (heart.ostiaPrimed.contains(o.id)) {
-        _setAmbientHint('It is drinking, and it is warm');
-        return true;
-      }
-      if (a.member.element != o.element) {
-        _setBlockedHint('This mouth only takes ${o.element}');
-        return true;
-      }
-      if (heart.phase != o.phase) {
-        // PLAN, THEN COMMIT: the hand stays on it, and the mouth drinks by
-        // itself when its phase comes. Nothing to press at the right instant.
-        if (heart.laid.add(o.id)) {
-          _cue(SoundCue.dungeonInteract);
-          _spawnAlchemyBurst(
-            o.position,
-            producedElement: o.element,
-            particleCount: 8,
-            intensity: 0.5,
+    if (_riteInArena) _riteAlliesLeave();
+    if (target.rite?.isGrid != true) return false;
+    final el = target.rite!.element!;
+    final arrive = kRiteArrival[el]!;
+    // Blood comes in at the door; a room's puzzle keeps its own state, so
+    // Blood's square in the rules moves to the door square (a room's state
+    // never puts Blood anywhere it could not walk back from).
+    switch (el) {
+      case 'Earth':
+        rites.leading = null;
+        rites.earthAt = arrive;
+      case 'Water':
+        if (flipWalkable(rites.water, arrive.x, arrive.y) ||
+            rites.water.b == arrive) {
+          rites.water = FlipState(
+            rites.water.down,
+            arrive,
+            rites.water.cells,
+            rites.water.loose,
           );
+        } else {
+          rites.resetRoom('Water');
         }
-        // SPOKEN: a plain hint from a press is dropped unless HINT is
-        // being pressed, and this is the one line that says the press took.
-        speakConsequence(
-          'Your hand is on it. It drinks on ${phaseWord(o.phase)} if you '
-          'stay in this room',
-        );
-        return true;
-      }
-      _primeOstium(o);
-      return true;
+        rites.waterLive ??= flipLiveStates(rites.waterRoom).live;
+      case 'Fire':
+        // The twin's room only makes sense from a start: a fresh pair.
+        rites.fire = twinStart(rites.fireRoom);
+      case 'Air':
+        // Drifting has no way back to a square: the room starts again.
+        rites.resetRoom('Air');
+        rites.airLive ??= driftGraph(rites.airRoom).live;
+    }
+    rites.deadSpoken = false;
+    return false; // the engine finishes the transit
+  }
+
+  /// After the engine has moved Blood into a room: put it on its square.
+  void _riteAfterTransit() {
+    if (!_isRites) return;
+    if (_riteBay?.isGrid == true) {
+      _riteSnapBlood();
+      rites.twinShown = riteCentreOf(rites.fire.t.x, rites.fire.t.y);
+    }
+  }
+
+  /// The regroup button: in a captive room, start that room again with
+  /// Blood at its door. True when handled.
+  bool _riteRegroup() {
+    if (!_isRites) return false;
+    final el = _riteRoomEl;
+    if (el == null) return false;
+    rites.resetRoom(el);
+    final arrive = kRiteArrival[el]!;
+    if (el == 'Earth') rites.earthAt = arrive;
+    _riteSnapBlood();
+    rites.twinShown = riteCentreOf(rites.fire.t.x, rites.fire.t.y);
+    _clearHints();
+    _setHint('The room starts again');
+    onChanged();
+    return true;
+  }
+
+  /// Fit the whole room on screen: every captive room and the Circle are
+  /// read whole (the rings and all four cups have to be in view at once).
+  bool get _riteFitsRoom =>
+      _isRites && _riteBay != null && !_riteInArena && _riteBay!.kind != RiteKind.vault;
+
+  // ── Walking ──────────────────────────────────────────────
+
+  static const String _riteBlockPrefix = 'rite:';
+
+  /// Does Blood's next position leave what the rules allow?
+  bool _riteBlocksAt(Offset center, DungeonRoom room) {
+    final bay = room.rite;
+    if (bay == null) return false;
+    if (bay.kind == RiteKind.circle) return _riteCircleBlocks(center);
+    if (!bay.isGrid) return false;
+    final a = active;
+    if (a == null) return false;
+    final here = _riteBloodAt!;
+    final t = riteSquareAt(center);
+    final dx = t.x - here.x, dy = t.y - here.y;
+    if (dx == 0 && dy == 0) return false;
+    if (dx.abs() + dy.abs() != 1) return true;
+    final dir = dx == 1
+        ? 1
+        : dx == -1
+        ? 3
+        : dy == 1
+        ? 2
+        : 0;
+    // A doorway square is the way out: let the engine take the door.
+    if (_riteDoorSquare(room, t)) return false;
+    switch (bay.element) {
+      case 'Earth':
+        return _riteEarthBlocks(t);
+      case 'Water':
+        if (rites.waterFrames.isNotEmpty || rites.flipT < 1) return true;
+        if (rites.water.cells[t.y][t.x] == 'p') return false; // the dive
+        return !flipWalkable(rites.water, t.x, t.y);
+      case 'Fire':
+        return _riteFireBlocks(dir);
+      case 'Air':
+        return true; // nobody walks on air
+    }
+    return true;
+  }
+
+  /// Is (x,y) the square of one of [room]'s wall doors?
+  bool _riteDoorSquare(DungeonRoom room, RiteCell t) {
+    for (final d in room.doors) {
+      if (d.chromeless) continue;
+      if (riteSquareAt(d.rect.center) == t) return true;
     }
     return false;
   }
 
-  /// A mouth drinks: the star's one step, whoever triggered it.
-  void _primeOstium(Ostium o) {
-    heart.laid.remove(o.id);
-    heart.ostiaPrimed.add(o.id);
-    _cue(SoundCue.elementBlood);
-    _spawnAlchemyBurst(
-      o.position,
-      producedElement: 'Blood',
-      reagentElements: [o.element],
-      particleCount: 26,
-      intensity: 1.15,
-    );
-    // THE CONSEQUENCE (§7, one per star): waking a dead organ wakes what has
-    // been living in it.
-    spawnWispWave(
-      element: 'Blood',
-      center: o.position,
-      count: _kOstiumClots,
-      unstable: true,
-      announce: false,
-    );
-    if (!heart.everyOstiumPrimed) {
-      speakConsequence('The mouth drinks, and something in the wall lets go');
-      return;
+  /// The round floor: stone outside the circle, but each door's mouth is
+  /// open through it.
+  bool _riteCircleBlocks(Offset p) {
+    final r = (p - kRiteCircleCentre).distance;
+    if (r <= kRiteCircleRadius - 18) return false;
+    final c = kRiteCircleCentre;
+    final inNS = (p.dx - c.dx).abs() < 46;
+    final inEW = (p.dy - c.dy).abs() < 46;
+    return !(inNS || inEW);
+  }
+
+  bool _riteEarthBlocks(RiteCell t) {
+    final f = rites.earthFloor;
+    final s = rites.earth;
+    final g = f.grid(s.turns);
+    final id = rites.leading;
+    if (id != null) {
+      final r = tendrilExtend(f, s, id, t.x, t.y);
+      if (r.ok) {
+        // The step is taken next frame, when Blood is on the square; a join
+        // (walking into the partner) is taken now — nobody stands on a root.
+        final pts = r.state!.lines[id];
+        final job = f.jobs(g).firstWhere((j) => j.id == id);
+        if (tendrilJoined(job, pts)) {
+          rites.earth = r.state!;
+          rites.leading = null;
+          _cue(SoundCue.dungeonSwitch);
+          _haptic(DungeonHaptic.success);
+          _releaseBlockedExcept(_riteBlockPrefix, const {});
+          if (tendrilSolved(f, rites.earth)) _riteFree('Earth');
+          return true;
+        }
+        _releaseBlockedExcept(_riteBlockPrefix, const {});
+        return false;
+      }
+      if (r.why != 'blocked' && r.why != 'One square at a time.') {
+        _setBlockedHintOnce('$_riteBlockPrefix${t.x},${t.y}', r.why!);
+      }
+      return true;
     }
-    final idx = _primingStarRoom?.sanguine?.starIndex;
-    if (idx != null && !hasStar(idx)) {
-      _setHint('Four mouths drinking, and never two of them on one beat');
-      earnStar(idx);
+    if (t.y < 0 || t.y >= f.h || t.x < 0 || t.x >= f.w) return true;
+    return g[t.y][t.x] != '.';
+  }
+
+  bool _riteFireBlocks(int dir) {
+    final st = twinStep(rites.fireRoom, rites.fire, dir);
+    if (!st.ok) return true;
+    if (st.bMoved && st.pit == null) return false; // taken when Blood arrives
+    // Blood can't go there, but the twin can (or someone falls): take the
+    // step now, once per beat while the stick is held.
+    if (rites.bumpCooldown > 0) return true;
+    rites.bumpCooldown = 0.3;
+    _riteFireCommit(st);
+    return true;
+  }
+
+  void _riteFireCommit(TwinStepResult st) {
+    rites.fire = st.state!;
+    if (st.pit != null) {
+      _cue(SoundCue.dungeonHazardTrigger);
+      speakConsequence(
+        st.pit == 'b'
+            ? 'Blood fell. You both rise again at the pool'
+            : 'The twin fell. You both rise again at the pool',
+      );
+      _riteSnapBlood();
+      rites.twinShown = riteCentreOf(rites.fire.t.x, rites.fire.t.y);
+    } else {
+      _cue(SoundCue.dungeonStepStone);
+    }
+    if (twinSolved(rites.fireRoom, rites.fire)) _riteFree('Fire');
+  }
+
+  // ── The pad ──────────────────────────────────────────────
+
+  /// What the utility button says here (null: the planet doesn't use it).
+  String? get riteUtilityLabel {
+    if (!_isRites) return null;
+    final a = active;
+    if (a == null) return null;
+    final bay = _riteBay;
+    if (bay == null) return null;
+    switch (bay.kind) {
+      case RiteKind.circle:
+        return _riteRingAt(a.position) == null ? null : 'TURN';
+      case RiteKind.earth:
+        if (rites.leading != null) return 'LET GO';
+        if (_riteEarthLeadTarget() != null) return 'LEAD';
+        if (_riteEarthPlateHere() >= 0) return 'TURN';
+        return null;
+      case RiteKind.water:
+        return 'FLIP';
+      default:
+        return null;
     }
   }
 
-  // ── Star 1 · THE GRAFTS ──────────────────────────────────
+  bool _tryRiteVerb(DungeonCreature a) {
+    if (!_isRites) return false;
+    final bay = _riteBay;
+    if (bay == null) return false;
+    switch (bay.kind) {
+      case RiteKind.circle:
+        final ring = _riteRingAt(a.position);
+        if (ring == null) return false;
+        _riteTurnRing(ring);
+        return true;
+      case RiteKind.earth:
+        return _riteEarthVerb();
+      case RiteKind.water:
+        _riteFlip();
+        return true;
+      default:
+        return false;
+    }
+  }
 
-  DungeonRoom? get _graftStarRoom {
-    for (final r in layout.rooms.values) {
-      if (r.sanguine?.starIndex == 1) return r;
+  // ── Earth ────────────────────────────────────────────────
+
+  /// What LEAD would take: (tendril id, the root it starts from), or the tip
+  /// Blood stands on (resume).
+  (String, RiteCell?)? _riteEarthLeadTarget() {
+    final f = rites.earthFloor;
+    final s = rites.earth;
+    final at = rites.earthAt;
+    // Standing on an unjoined tip: take it up again.
+    final g = f.grid(s.turns);
+    final jobs = f.jobs(g);
+    for (final e in s.lines.entries) {
+      final job = jobs.where((j) => j.id == e.key).firstOrNull;
+      if (job == null || tendrilJoined(job, e.value)) continue;
+      if (e.value.last == at) return (e.key, null);
+    }
+    // Beside a root: start its tendril from there — the one Blood faces
+    // first, if two are within reach.
+    final a = active;
+    final facing = a == null
+        ? 0
+        : const [1, 2, 3, 0][((a.aimAngle / (pi / 2)).round() % 4 + 4) % 4];
+    for (final d in [facing, 0, 1, 2, 3]) {
+      final x = at.x + kRiteDx[d], y = at.y + kRiteDy[d];
+      if (y < 0 || y >= f.h || x < 0 || x >= f.w) continue;
+      final ch = g[y][x];
+      if (!TendrilFloor.isRoot(ch)) continue;
+      return (ch, (x: x, y: y));
     }
     return null;
   }
 
-  /// A collateral cock. Three things happen here, in this order: a LIGHT hand
-  /// flags whether the vessel behind it is sound (element-only, purely
-  /// informational — you may always open blind); a DARK MASK grafts it (the
-  /// star's ONE hard family gate, §4); and a thrombosed vessel does not take,
-  /// which wakes clots and changes nothing else at all.
-  bool _tryCollateralCock(DungeonCreature a) {
-    for (final c in cocksIn(currentRoomId)) {
-      if ((a.position - c.position).distance > _kHeartReach) continue;
-      final p = heartPassageById(c.passageId)!;
-      if (heart.grafted.contains(p.id)) {
-        _setAmbientHint('It is carrying, and it was not built to');
-        return true;
-      }
-      if (heart.cocksTurned.contains(p.id)) {
-        // ── THE THROMBUS (the Lost Maxim) ──
-        // A turned cock on a dead vessel. The Graft Star told you to leave
-        // these alone; the secret is what a party does with one anyway.
-        return _tryThrombus(a, c, p);
-      }
-
-      // The flagging. Element-only Light (§4), and it never consumes the cock
-      // — §6 hands this to a Lightmask, but a family-exclusive PENALTY is
-      // never legal in v2 and this one gates nothing.
-      if (a.member.element == 'Light' && !heart.flagged.contains(p.id)) {
-        heart.flagged.add(p.id);
-        _cue(SoundCue.dungeonInteract);
-        final far = p.from == currentRoomId ? p.to : p.from;
-        _setInsightHint(
-          heart.isSound(p.id)
-              ? 'It runs clean, the whole way to ${_heartRoomWord(far)}'
-              : 'It is thrombosed to the wall, nothing gets to '
-                    '${_heartRoomWord(far)} through this',
-          4.0,
-        );
-        return true;
-      }
-
-      // ELEMENT-ONLY. This was a Dark MASK gate; grafting a collateral is an
-      // act on the vessel, and Dark is what the vessel answers to — the
-      // family was a second lock on a planet that already asks for a Mane.
-      const req = DungeonInteractionRequirement(element: 'Dark');
-      switch (evaluateInteraction(a.member, req)) {
-        case InteractionResult.passed:
-        case InteractionResult.passedViaRecipe:
-          break;
-        case InteractionResult.blockedFamily:
-          // "The seal remembers" (§4): the chip stamps on first refusal.
-          final gate = layout.familyGateFor('collateral_cock');
-          if (gate != null) {
-            _stampFamilyGate(gate);
-          } else {
-            _setBlockedHint('Only Dark can graft this vessel');
-          }
-          return true;
-        case InteractionResult.blockedElement:
-        case InteractionResult.blockedStat:
-          _setBlockedHint('Only Dark can graft this vessel');
-          return true;
-      }
-
-      heart.cocksTurned.add(p.id);
-      if (!heart.isSound(p.id)) {
-        // THE CONSEQUENCE (§7): a thrombosed vessel does not take. Nothing is
-        // closed and nothing is lost — the price of guessing is a fight.
-        _cue(SoundCue.dungeonHazardTrigger);
-        speakConsequence(
-          'The cock turns on nothing, the vessel is packed solid',
-        );
-        spawnWispWave(
-          element: 'Blood',
-          center: c.position,
-          count: _kThrombusClots,
-          unstable: true,
-          announce: false,
-        );
-        return true;
-      }
-
-      heart.grafted.add(p.id);
-      _cue(SoundCue.dungeonSwitch);
-      _spawnAlchemyBurst(
-        c.position,
-        producedElement: 'Blood',
-        reagentElements: const ['Dark'],
-        particleCount: 28,
-        intensity: 1.2,
-      );
-      // The graft is a road the beat never gave the eight, so it deserves the
-      // engine's reveal flourish at both ends.
-      _queueDoorReveal(p.from, p.to);
-      _queueDoorReveal(p.to, p.from);
-      if (!heart.everyGraftTaken) {
-        _setHint('It takes, and the eight has a road it did not have');
-        return true;
-      }
-      final idx = _graftStarRoom?.sanguine?.starIndex;
-      if (idx != null && !hasStar(idx)) {
-        _setHint(
-          'Three dead vessels carrying, and the heart is not the only '
-          'thing moving blood',
-        );
-        earnStar(idx);
-      }
-      return true;
+  /// The plate Blood stands on, or whose axle it stands beside (−1: none).
+  int _riteEarthPlateHere() {
+    final f = rites.earthFloor;
+    final at = rites.earthAt;
+    final on = f.plateOf(at.x, at.y);
+    if (on >= 0) return on;
+    for (var i = 0; i < f.plates.length; i++) {
+      final p = f.plates[i];
+      if ((p.cx - at.x).abs() + (p.cy - at.y).abs() == 1) return i;
     }
-    return false;
+    return -1;
   }
 
-  // ── Steadying a vein (element-only) ──────────────────────
-
-  /// §6's S1 line, "Bloodkin stabilizes heartbeat doors (time movement)",
-  /// now ELEMENT-ONLY: any Blood hand standing in a doorway holds that vein
-  /// open past the turn.
-  ///
-  /// It was a Kin exclusive, which §4 permits as a BONUS — but a
-  /// family-exclusive behaviour nobody announces is the same trap as an
-  /// undeclared gate, only quieter: a player who happens to own a Blood Kin
-  /// gets a mechanic that nothing told them about, and everyone else never
-  /// learns it exists. Blood is what the vein answers to.
-  ///
-  /// Still purely ADDITIVE — it can only ever leave a road open longer — so
-  /// the no-strand proof continues to ignore it and stays conservative.
-  bool _trySteadyVein(DungeonCreature a) {
-    if (a.member.element != 'Blood') return false;
-    for (final d in currentRoom.doors) {
-      if ((a.position - d.rect.center).distance > _kSteadyReach) continue;
-      final p = _heartPassageFor(currentRoom, d);
-      if (p == null || p.kind != PassageKind.vein) continue;
-      if (!heart.carriesFrom(p, currentRoom.id)) continue;
-      if (heart.steadied.containsKey(p.id)) continue;
-      heart.steadied[p.id] = _kSteadySeconds;
-      heart.steadyDir[p.id] = currentRoom.id == p.from ? 1 : -1;
-      _cue(SoundCue.elementBlood);
-      speakConsequence(
-        'You\'re holding ${p.look} open for a few seconds, even if the beat '
-        'turns',
-      );
-      _spawnAlchemyBurst(
-        d.rect.center,
-        producedElement: 'Blood',
-        particleCount: 16,
-        intensity: 0.9,
-      );
-      return true;
-    }
-    return false;
-  }
-
-  // ── The rite · THE MYOCARDIUM ────────────────────────────
-
-  /// The rite's second half — §6's "balance dark/light beams around the
-  /// heart". Element-only Blood with the Dark+Light braid, so a party missing
-  /// the Kin meets exactly ONE refusal in this chamber rather than two.
-  bool _tryHeartBalance(DungeonCreature a) {
-    final pos = currentRoom.sanguine?.balance;
-    if (pos == null) return false;
-    if ((a.position - pos).distance > _kHeartReach) return false;
-    if ((conduitEnergy['B'] ?? 0) > 0) return false;
-    if (!_heartHasBloodHand(a)) {
-      _setBlockedHint('Only Blood can level the sconces');
-      return true;
-    }
-    if (!guardianRiteUnlocked) {
-      _setBlockedHint(
-        'The sconces need the ${layout.starName(0)} and '
-        '${layout.starName(1)} first',
-      );
-      return true;
-    }
-    conduitEnergy['B'] = double.infinity;
-    _cue(SoundCue.dungeonSwitch);
-    // SPOKEN: a plain hint from a press is dropped unasked.
-    speakConsequence('The dark and light sconces are level. They stay level');
-    _spawnAlchemyBurst(
-      pos,
-      producedElement: 'Blood',
-      reagentElements: const ['Dark', 'Light'],
-      particleCount: 30,
-      intensity: 1.2,
-    );
-    return true;
-  }
-
-  // ── Star 2 · SANGUORATH ──────────────────────────────────
-
-  /// The arena's vagal node: stop the heart. The party's only hand on the
-  /// clock anywhere on Hemavorn, and it is BOUNDED — an unbounded arrest
-  /// would kill the periodicity the whole no-strand proof rests on (the
-  /// layout header, reason 7; the counterfactual measures it).
-  bool _tryVagalNode(DungeonCreature a) {
-    final pos = currentRoom.sanguine?.vagalNode;
-    if (pos == null) return false;
-    if ((a.position - pos).distance > _kHeartReach) return false;
-    if (heart.vagalCooldown > 0) {
-      _setBlockedHint('The node needs a moment to recover');
-      return true;
-    }
-    if (!_heartHasBloodHand(a)) {
-      _setBlockedHint('Only Blood can press the node');
-      return true;
-    }
-    heart.arrestFor(_kAsystoleSeconds);
-    heart.vagalCooldown = _kVagalCooldown;
-    heart.turn = _kPulseTurnSeconds;
-    _cue(SoundCue.dungeonSwitch);
-    // A CONSEQUENCE (§5.7): every vein on the planet has just shut at once.
-    speakConsequence(
-      'The heart stops, and everything in Hemavorn stops with it',
-    );
-    _spawnAlchemyBurst(
-      pos,
-      producedElement: 'Blood',
-      reagentElements: const ['Dark'],
-      particleCount: 32,
-      intensity: 1.3,
-    );
-    return true;
-  }
-
-  /// §7 — the guardian fights WITH the planet's rule. Sanguorath IS the
-  /// arrhythmia: its lull exists only on the FLATLINE, and the moment the
-  /// window shuts it throws the beat forward a whole phase, so the rhythm the
-  /// party learned outside will not hold in here. The vagal node is their
-  /// answer, and the chordae gate is phase-free, so nothing in this fight can
-  /// shut them in.
-  void _updateSanguorath(DungeonRoom room, double dt) {
-    if (room.guardian == null || !guardianAwake) return;
-    if (heart.phase != PulsePhase.flatline) {
-      guardianVulnerable = false;
-      _sanguorathBitLastFrame = false;
-      return;
-    }
-    if (guardianVulnerable && !_sanguorathBitLastFrame) {
-      // The window opened: the heart is still, and so is the thing in it.
-      _sanguorathBitLastFrame = true;
-      return;
-    }
-    if (!guardianVulnerable && _sanguorathBitLastFrame) {
-      _sanguorathBitLastFrame = false;
-      heart.arrest = 0;
-      heart.skipPhase();
-      heart.turn = _kPulseTurnSeconds;
-      _cue(SoundCue.dungeonHazardTrigger);
-      // A closing announces itself (§5.7): from update, where a plain line is
-      // dropped unasked, and every leaflet on the planet just shut.
-      speakConsequence('Sanguorath throws the beat forward, the pause is gone');
-    }
-  }
-
-  // ── The Lost Maxim · THE THROMBUS ────────────────────────
-  //
-  // THE BLOOD IS THE LIFE (2026-09-20; the §7 maxim standard, and Mud's
-  // lesson that the best place to hide a secret is the state your own stars
-  // punish — and the author's rule that a puzzle rewards thinking, never
-  // timing).
-  //
-  // It was the heart-drum: twelve strikes inside a ±0.85s window on the
-  // systole onset, kept as "the one reaction-timed thing on the planet"
-  // because it was optional. Optional or not, it was a reflex test on the
-  // one planet built to have none. It is gone. The secret is THE THROMBUS
-  // now, and it lives in the exact act the Graft Star punishes:
-  //
-  //   1. TURN A DEAD VESSEL'S COCK ANYWAY. Two of the five collaterals are
-  //      thrombosed; the Light flag tells you which, and the star's whole
-  //      lesson is to leave them alone — a turned thrombus costs you a clot
-  //      fight and nothing else. Turn it. The cock stands turned on a vessel
-  //      packed solid.
-  //   2. LIGHT SHOWS THE CLOT FOR WHAT IT IS — the flagging hand's own verb,
-  //      on the same cock: the thrombus runs the whole vessel, and it is old
-  //      blood standing still.
-  //   3. ON A FLATLINE, BLOOD BREAKS IT. Nothing is pushing on the clot in
-  //      the pause between beats, and the heart's own hand is what moves old
-  //      blood. The vessel TAKES, like any sound graft — a road the beat
-  //      never gave the eight. The window is a whole phase, and the ask is
-  //      WHERE to be standing, never when to press.
-  //   4. BOTH DEAD VESSELS — the repeated beat — and every one of the five
-  //      collaterals carries: the blood is the life. The rite of three.
-  //
-  // Nothing here asks for a family the riddle did not name (the cock is
-  // element-only), a wrong hand or a wrong phase answers with a puff and a
-  // sentence, nothing is spent (a graft only ever ADDS a passage, so the
-  // no-strand argument is untouched), and the star path never passes it: the
-  // Graft Star wants three sound vessels, and the flag is there so you never
-  // turn a dead one.
-
-  /// The dead vessels this descent — the two the Graft Star leaves alone.
-  Iterable<String> get _thrombosed => [
-    for (final c in kHeartCocks)
-      if (!heart.isSound(c.passageId)) c.passageId,
-  ];
-
-  /// Every dead vessel broken and carrying: the maxim's win.
-  bool get everyVesselCarries =>
-      _thrombosed.every((id) => heart.grafted.contains(id));
-
-  /// A turned cock on a thrombosed vessel: the clot, seen and broken.
-  bool _tryThrombus(DungeonCreature a, CollateralCock c, HeartPassage p) {
-    if (discoveredClouds.contains(kBloodLifeEggId)) {
-      _setBlockedHint('This vessel is already flowing');
-      return true;
-    }
-    final el = a.member.element;
-    // ── 2 · the clot, shown ──
-    if (el == 'Light' && !heart.clotSeen.contains(p.id)) {
-      heart.clotSeen.add(p.id);
+  bool _riteEarthVerb() {
+    final f = rites.earthFloor;
+    if (rites.leading != null) {
+      rites.leading = null;
       _cue(SoundCue.dungeonInteract);
-      _spawnAlchemyBurst(
-        c.position,
-        producedElement: 'Light',
-        particleCount: 14,
-        intensity: 0.7,
-      );
-      _setInsightHint(
-        'A clot fills this whole vessel, and nothing is pushing on it',
-        4.0,
-      );
       return true;
     }
-    if (!_heartHasBloodHand(a)) {
-      _spawnAlchemyBurst(
-        c.position,
-        producedElement: el,
-        particleCount: 8,
-        intensity: 0.5,
-      );
-      _setBlockedHint(
-        heart.clotSeen.contains(p.id)
-            ? 'Only Blood can shift this clot'
-            : 'This vessel is blocked solid',
-      );
-      return true;
-    }
-    if (!heart.clotSeen.contains(p.id)) {
-      _spawnAlchemyBurst(
-        c.position,
-        producedElement: 'Blood',
-        particleCount: 8,
-        intensity: 0.5,
-      );
-      _setBlockedHint('Too dark in there to see what is blocking it');
-      return true;
-    }
-    // ── 3 · broken, on the pause ──
-    if (heart.phase != PulsePhase.flatline) {
-      // The hand stays on the clot; it gives by itself on the next pause.
-      if (heart.laid.add(p.id)) {
+    final lead = _riteEarthLeadTarget();
+    if (lead != null) {
+      final (id, root) = lead;
+      if (root == null) {
+        rites.leading = id;
         _cue(SoundCue.dungeonInteract);
-        _spawnAlchemyBurst(
-          c.position,
-          producedElement: 'Blood',
-          particleCount: 8,
-          intensity: 0.5,
-        );
+        return true;
       }
-      speakConsequence(
-        'Your hand is on the clot. It gives on the flatline if you stay in '
-        'this room',
+      // A fresh tendril from this root, out onto Blood's own square.
+      final cleared = rites.earth.cleared(id);
+      final r = tendrilExtend(
+        f,
+        cleared,
+        id,
+        rites.earthAt.x,
+        rites.earthAt.y,
+        from: root,
       );
+      if (!r.ok) {
+        _setBlockedHint(r.why == 'Tendrils never cross.'
+            ? 'Another tendril lies where you stand'
+            : 'That tendril can\'t start here');
+        return true;
+      }
+      rites.earth = r.state!;
+      rites.leading = id;
+      _cue(SoundCue.dungeonInteract);
       return true;
     }
-    _breakClot(c, p);
-    return true;
+    final i = _riteEarthPlateHere();
+    if (i >= 0) {
+      final r = tendrilTurn(f, rites.earth, i);
+      if (!r.ok) {
+        _setBlockedHint(r.why!);
+        return true;
+      }
+      rites.earth = r.state!;
+      // Standing on the plate, Blood turns with it.
+      final p = f.plates[i];
+      final at = rites.earthAt;
+      if (f.plateOf(at.x, at.y) == i) {
+        final dx = at.x - p.cx, dy = at.y - p.cy;
+        rites.earthAt = (x: p.cx - dy, y: p.cy + dx);
+        _riteSnapBlood();
+      }
+      _cue(SoundCue.dungeonSwitch);
+      return true;
+    }
+    return false;
   }
 
-  /// A clot gives on the pause, and the vessel takes like any graft.
-  void _breakClot(CollateralCock c, HeartPassage p) {
-    heart.laid.remove(p.id);
-    heart.grafted.add(p.id);
+  // ── Water ────────────────────────────────────────────────
+
+  void _riteFlip() {
+    if (rites.waterFrames.isNotEmpty || rites.flipT < 1) return;
+    if (flipSolved(rites.water)) return;
+    final before = rites.water;
+    final st = flipTurn(rites.waterRoom, rites.water, frames: true);
+    rites.flipT = 0;
     _cue(SoundCue.dungeonWallBreak);
-    _spawnAlchemyBurst(
-      c.position,
-      producedElement: 'Blood',
-      reagentElements: const ['Light', 'Dark'],
-      particleCount: 30,
-      intensity: 1.2,
-    );
-    _queueDoorReveal(p.from, p.to);
-    _queueDoorReveal(p.to, p.from);
-    if (!everyVesselCarries) {
-      speakConsequence('The clot gives, and the vessel carries');
+    _riteWaterCommit(st, before);
+  }
+
+  /// A settle is taken now (the rules) and played back a pass at a time (the
+  /// render slides each thing from square to square, and the moments — a
+  /// melt, a fire put out, a basin filling — sound as the picture reaches
+  /// them, in [_riteWaterPass]).
+  void _riteWaterCommit(FlipStep st, FlipState before) {
+    rites.waterFrom = FlipFrame(before);
+    rites.waterFrames = List.of(st.frames);
+    rites.waterFrameT = 0;
+    rites.water = st.state!;
+    if (flipSolved(rites.water)) {
+      _riteFree('Water');
       return;
     }
-    // ── 4 · every vessel carrying: the blood is the life ──
-    _cue(SoundCue.dungeonGateOpen);
-    // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    beginMaximRite(kBloodLifeEggId, c.position);
-    _spawnAlchemyBurst(
-      c.position,
-      producedElement: 'Blood',
-      reagentElements: const ['Dark', 'Light'],
-      particleCount: 44,
-      intensity: 1.5,
-    );
+    _riteSpeakIfDead(rites.waterLive, rites.water.key);
   }
 
-  // ── Per-frame ────────────────────────────────────────────
+  void _riteSpeakIfDead(Set<String>? live, String key) {
+    if (live == null || riteFreed.contains(_riteRoomEl)) return;
+    if (live.contains(key)) {
+      rites.deadSpoken = false;
+      return;
+    }
+    if (rites.deadSpoken) return;
+    rites.deadSpoken = true;
+    speakConsequence('This room can\'t be finished from here. Regroup to '
+        'start it again');
+  }
 
-  /// Exploration can advance the puzzle clock without waiting. Combat keeps
-  /// real time: skipping must never manufacture a guardian's vulnerability
-  /// or bypass a clot fight. This adds no edges to the phase graph.
-  bool get canAdvanceHeartPulse =>
-      _isHeart &&
-      !isRaid &&
-      canAct &&
-      entryDoorRevealed &&
-      !hasCombatTargets &&
-      !inGuardianFight &&
-      heart.arrest <= 0;
+  // ── Air ──────────────────────────────────────────────────
 
-  void advanceHeartPulse() {
-    if (!canAdvanceHeartPulse) return;
-    heart.advance(heart.secondsUntil(nextPulsePhase(heart.phase)));
-    _heartPhaseTurn(currentRoom);
-    _settleLaidHands();
+  void _riteAirInput() {
+    final j = joystickDirection;
+    if (j.distance < 0.25) {
+      rites.stickArmed = true;
+      return;
+    }
+    if (!rites.stickArmed || rites.driftT < 1) return;
+    if (j.distance < 0.6) return;
+    rites.stickArmed = false;
+    final d = j.dx.abs() > j.dy.abs() ? (j.dx > 0 ? 1 : 3) : (j.dy > 0 ? 2 : 0);
+    final r = driftPush(rites.airRoom, rites.air, d);
+    if (!r.ok) {
+      // Pushing off the door's own square, out through it: leave.
+      final at = rites.air.b;
+      final door = currentRoom.doors.where(
+        (dd) => !dd.chromeless && riteSquareAt(dd.rect.center) ==
+            (x: at.x + kRiteDx[d], y: at.y + kRiteDy[d]),
+      );
+      if (door.isNotEmpty) {
+        passThroughDoor(door.first);
+        return;
+      }
+      if (r.why != 'blocked') _setBlockedHint(r.why!);
+      return;
+    }
+    rites.air = r.state!;
+    rites.driftPath = r.bloodPath;
+    rites.icePath = r.icePath;
+    rites.iceMelted = r.meltedAt;
+    rites.iceIntoBell = r.intoBell;
+    rites.driftT = 0;
+    _cue(r.icePath.isNotEmpty ? SoundCue.dungeonBlockMove : SoundCue.dungeonStepStone);
+    if (r.meltedAt != null && !r.intoBell) {
+      speakConsequence('The ice turned to air in the open, and the air is '
+          'gone');
+    }
+  }
+
+  // ── The Circle ───────────────────────────────────────────
+
+  /// 0 = the outer ring, 1 = the inner; null off both bands.
+  int? _riteRingAt(Offset p) {
+    final r = (p - kRiteCircleCentre).distance;
+    if (r >= kRiteOuterBand.$1 && r <= kRiteOuterBand.$2) return 0;
+    if (r >= kRiteInnerBand.$1 && r <= kRiteInnerBand.$2) return 1;
+    return null;
+  }
+
+  void _riteTurnRing(int ring) {
+    if (ring == 0) {
+      rites.outerTurn = (rites.outerTurn + 1) % 8;
+    } else {
+      rites.innerTurn = (rites.innerTurn + 1) % 8;
+    }
+    _cue(SoundCue.dungeonSwitch);
+    _riteSyncCups();
+    // What the middle makes is drawn there, in grains (the Circle's art).
     onChanged();
   }
 
-  void _heartPhaseTurn(DungeonRoom room) {
-    heart.turn = _kPulseTurnSeconds;
-    if (heart.phase == PulsePhase.systole) _cue(SoundCue.dungeonBlockMove);
-    for (final d in room.doors) {
-      final p = _heartPassageFor(room, d);
-      if (p == null || !heart.carriesFrom(p, room.id)) continue;
-      if (p.kind == PassageKind.collateral && !heart.grafted.contains(p.id)) {
-        continue;
-      }
-      _queueDoorReveal(room.id, d.targetRoomId);
-    }
-  }
-
-  void _updateHeart(DungeonCreature a, DungeonRoom room, double dt) {
-    if (!_isHeart) return;
-    _tickHeartHaptic(dt);
-    // The pulse runs naturally; NEXT PULSE also reaches the same phase edge
-    // immediately outside combat. Settle on that edge, not one frame later.
-    if (heart.advance(dt)) {
-      _heartPhaseTurn(room);
-    }
-    _settleLaidHands();
-    _updateSanguorath(room, dt);
-  }
-
-  /// A hand laid on a mouth or a clot outside its phase takes by itself
-  /// when the phase comes round, while the party stays in that chamber.
-  void _settleLaidHands() {
-    if (heart.laid.isEmpty) return;
-    for (final id in heart.laid.toList()) {
-      Ostium? o;
-      for (final x in kHeartOstia) {
-        if (x.id == id) o = x;
-      }
-      if (o != null) {
-        if (o.roomId != currentRoomId) {
-          heart.laid.remove(id);
-        } else if (heart.phase == o.phase) {
-          _primeOstium(o);
-        }
-        continue;
-      }
-      CollateralCock? c;
-      for (final x in kHeartCocks) {
-        if (x.passageId == id && x.roomId == currentRoomId) c = x;
-      }
-      if (c == null) {
-        heart.laid.remove(id);
-      } else if (heart.phase == PulsePhase.flatline) {
-        _breakClot(c, heartPassageById(id)!);
+  /// Every freed stream that is NOT carried to the middle fills its cup.
+  void _riteSyncCups() {
+    for (final el in riteFreed) {
+      if (!riteStreamToCentre(el, rites.outerTurn, rites.innerTurn)) {
+        if (rites.cups.add(el)) rites.cupT[el] = _time;
       }
     }
   }
 
-  // ── THE HEART, FELT (2026-09-25) ──────────────────────────
-  //
-  // The orrery's beat is the PUZZLE's clock — 25 s a cycle, because every
-  // window is a whole phase you can plan for — and far too slow to feel like
-  // a heart. So the hand gets its own pulse, laid over the clock and never
-  // against it: a heavy lub-dub the whole time you are on Hemavorn, SILENT on
-  // the flatline (the pause every valve and every clot waits for, so the
-  // silence in your hand is information), and quicker the nearer the end is.
+  // ── Freeing a captive ────────────────────────────────────
 
-  /// Resting and racing rates for the felt heartbeat.
-  static const double _kHeartBpmRest = 60, _kHeartBpmRace = 140;
-
-  /// 0 at the gate on a fresh run → 1 with Sanguorath nearly down.
-  double get _heartUrgency {
-    if (hasStar(2)) return 0.05; // it has been answered; it settles
-    var u = 0.0;
-    if (hasStar(0)) u += 0.12;
-    if (hasStar(1)) u += 0.12;
-    if (guardianAwake) {
-      u += 0.16;
-      if (layout.rooms[currentRoomId]?.guardian != null) {
-        u += 0.6 * (1 - _guardianHpFraction);
-      }
-    }
-    return u.clamp(0.0, 1.0);
-  }
-
-  double get heartBpm =>
-      _kHeartBpmRest + (_kHeartBpmRace - _kHeartBpmRest) * _heartUrgency;
-
-  void _tickHeartHaptic(double dt) {
-    if (heart.phase == PulsePhase.flatline) {
-      // Nothing is pushing. The first beat after the pause lands promptly.
-      _heartHapticT = min(_heartHapticT, 0.25);
+  void _riteFree(String el) {
+    rites.freedT[el] = _time;
+    final already = discoveredClouds.contains(riteFreedId(el)) || hasStar(0);
+    if (already) {
+      _setHint('The room is done again');
       return;
     }
-    _heartHapticT -= dt;
-    if (_heartHapticT > 0) return;
-    _haptic(DungeonHaptic.heartbeat);
-    _heartHapticT += 60 / heartBpm;
-    if (_heartHapticT < 0) _heartHapticT = 60 / heartBpm;
-  }
-
-  // ── Readouts, hints, insight (§5.6) ──────────────────────
-
-  /// STATE LEAVES THE CAPSULE (§5.6): the counters live beside the star
-  /// tracker, per chamber, never as prose that fades. THE PULSE is the
-  /// default, because on this planet it is the one thing every decision turns
-  /// on — and it is drawn as four marks in phase order with the live one
-  /// filled, so a player can read where the beat is and what is coming at a
-  /// glance. That readability is what makes the windows plannable.
-  DungeonProgressReadout? _heartProgressReadout() {
-    final ch = layout.rooms[currentRoomId]?.sanguine;
-    final left = heart.arrest > 0
-        ? heart.arrest
-        : heart.secondsUntil(nextPulsePhase(heart.phase));
-    if (ch?.starIndex == 0 && !hasStar(0)) {
-      final n = heart.ostiaPrimed.length;
-      return DungeonProgressReadout(
-        label: phaseTag(heart.phase),
-        value: '${left.ceil()}s · $n/${kHeartOstia.length}',
-        fraction: n / kHeartOstia.length,
-      );
+    _discoverCloud(riteFreedId(el));
+    _cue(SoundCue.dungeonPuzzleSolved);
+    _haptic(DungeonHaptic.big);
+    final (a, b) = _riteBay?.recipe ?? ('', '');
+    final at = _riteCaptiveAt(el);
+    // THE RELEASE: the ingredients run into the captive, its bands let go,
+    // its own body comes apart into grains and runs home as blood.
+    final body = RiteBody(elementColor(el));
+    final ally = rites.allies.where((c) => c.member.element == el).firstOrNull;
+    final img = ally == null ? null : _riteSnapshot(ally, scale: kRiteCaptiveScale);
+    if (img != null) {
+      body.read(img, kRiteSnapRatio);
+    } else {
+      body.force();
     }
-    if (ch?.starIndex == 1 && !hasStar(1)) {
-      final n = heart.grafted.length;
-      return DungeonProgressReadout(
-        label: phaseTag(heart.phase),
-        value: '${left.ceil()}s · $n/$kSoundCollateralCount',
-        fraction: n / kSoundCollateralCount,
-      );
-    }
-    // THE PULSE, with a COUNTDOWN to the turn. The header promised that a
-    // window here is something a player can PLAN for; four marks say where
-    // the beat is, and the seconds say how long you have to get in place.
-    final marks = [
-      for (final p in PulsePhase.values) p == heart.phase ? '■' : '□',
-    ].join();
-    return DungeonProgressReadout(
-      label: phaseTag(heart.phase),
-      value: '$marks ${left.ceil()}s',
-      fraction: (heart.clock / kPulseCycleSeconds).clamp(0.0, 1.0),
+    rites.release = RiteReleaseFx(
+      at: at,
+      exit: _riteExitOf(currentRoom),
+      sources: _riteSources(el, at),
+      body: body,
     );
+    rites.releaseEl = el;
+    speakConsequence('$a and $b meet. $el is freed, and its blood runs to '
+        'the Circle');
+    _riteSyncCups();
+    if (riteFreed.length == 4) {
+      if (!hasStar(0)) earnStar(0);
+      if (!hasStar(1)) earnStar(1);
+    }
+    onChanged();
   }
 
-  String _heartRoomWord(String roomId) => switch (roomId) {
-    'pericard_gate' => 'the Pericard Gate',
-    'arterial_run' => 'the Arterial Run',
-    'aortic_arch' => 'the Aortic Arch',
-    'vena_crossing' => 'the Vena Crossing',
-    'pulmonic_stair' => 'the Pulmonic Stair',
-    'capillary_weave' => 'the Capillary Weave',
-    'atrial_gallery' => 'the Atrial Gallery',
-    'myocardium' => 'the Myocardium',
-    'auricle_reliquary' => 'a pocket the beat keeps shut',
-    _ => 'somewhere past the chordae',
+  /// Where a room's captive lies (world units).
+  Offset _riteCaptiveAt(String el) {
+    switch (el) {
+      case 'Earth':
+        final g = rites.earthFloor.grid(rites.earth.turns);
+        for (var y = 0; y < g.length; y++) {
+          for (var x = 0; x < g[y].length; x++) {
+            if (g[y][x] == 'C') return riteCentreOf(x, y);
+          }
+        }
+      case 'Water':
+        final r = rites.waterRoom;
+        final xs = <int>[];
+        var y0 = 0;
+        for (var y = 0; y < r.h; y++) {
+          for (var x = 0; x < r.w; x++) {
+            if (r.fixed[y][x] == 'C') {
+              xs.add(x);
+              y0 = y;
+            }
+          }
+        }
+        if (xs.isNotEmpty) {
+          final mx = xs.reduce((a, b) => a + b) / xs.length;
+          return Offset((mx + .5) * kRiteCell, (y0 + .5) * kRiteCell);
+        }
+      case 'Fire':
+        for (var y = 0; y < rites.fireRoom.h; y++) {
+          for (var x = 0; x < rites.fireRoom.w; x++) {
+            if (rites.fireRoom.cells[y][x] == 'H') return riteCentreOf(x, y);
+          }
+        }
+      case 'Air':
+        for (var y = 0; y < rites.airRoom.h; y++) {
+          for (var x = 0; x < rites.airRoom.w; x++) {
+            if (rites.airRoom.cells[y][x] == 'C') return riteCentreOf(x, y);
+          }
+        }
+    }
+    return currentRoom.bounds.center;
+  }
+
+  // ── Doors ────────────────────────────────────────────────
+
+  /// The pit's way down only exists while the pit is a pool.
+  bool _riteDoorHidden(DungeonRoom room, DungeonDoor door) {
+    if (room.rite?.kind != RiteKind.water || !door.chromeless) return false;
+    return rites.water.cells[kRiteWaterPit.y][kRiteWaterPit.x] != 'p';
+  }
+
+  // ── The per-frame rules ──────────────────────────────────
+
+  void _updateRites(DungeonCreature a, DungeonRoom room, double dt) {
+    if (!_isRites) return;
+    rites.bumpCooldown = max(0, rites.bumpCooldown - dt);
+    final bay = room.rite;
+    _riteTickMoments(a, room, dt);
+
+    // The rings ease to their turns (always forwards).
+    double ease(double cur, int turn) {
+      final want = turn * pi / 4;
+      var d = want - cur;
+      while (d < -pi) {
+        d += 2 * pi;
+      }
+      while (d > pi) {
+        d -= 2 * pi;
+      }
+      return cur + d * min(1.0, dt * 8);
+    }
+
+    rites.outerAng = ease(rites.outerAng, rites.outerTurn);
+    rites.innerAng = ease(rites.innerAng, rites.innerTurn);
+    for (var i = 0; i < rites.plateAng.length; i++) {
+      final want = rites.earth.turns[i] * pi / 2;
+      var d = want - rites.plateAng[i];
+      while (d < -pi) {
+        d += 2 * pi;
+      }
+      while (d > pi) {
+        d -= 2 * pi;
+      }
+      rites.plateAng[i] += d * min(1.0, dt * 9);
+    }
+
+    if (bay == null) return;
+    // On a grid, walking keeps to the middle of the row (or column) you are
+    // walking along, so a step lands on its square and a doorway is met
+    // square-on.
+    if (bay.kind == RiteKind.earth ||
+        bay.kind == RiteKind.water ||
+        bay.kind == RiteKind.fire) {
+      final j = joystickDirection;
+      if (j.distance > 0.2) {
+        final sq = riteSquareAt(a.position);
+        final mid = riteCentreOf(sq.x, sq.y);
+        final k = min(1.0, dt * 12);
+        if (j.dx.abs() >= j.dy.abs()) {
+          a.position = Offset(a.position.dx, a.position.dy + (mid.dy - a.position.dy) * k);
+        } else {
+          a.position = Offset(a.position.dx + (mid.dx - a.position.dx) * k, a.position.dy);
+        }
+      }
+    }
+    switch (bay.kind) {
+      case RiteKind.circle:
+        _riteSyncCups();
+        _riteCircleUpdate(a);
+      case RiteKind.earth:
+        final t = riteSquareAt(a.position);
+        if (t != rites.earthAt) {
+          // Only ever one legal step at a time; anything else (a body set
+          // down somewhere by the engine) goes back to its square.
+          final g = rites.earthFloor.grid(rites.earth.turns);
+          final legal =
+              _riteDirTo(rites.earthAt, t) >= 0 &&
+              t.y >= 0 &&
+              t.y < g.length &&
+              t.x >= 0 &&
+              t.x < g[0].length &&
+              g[t.y][t.x] == '.';
+          if (!legal) {
+            if (!_riteDoorSquare(room, t)) _riteSnapBlood();
+            break;
+          }
+          final id = rites.leading;
+          if (id != null) {
+            final r = tendrilExtend(
+              rites.earthFloor,
+              rites.earth,
+              id,
+              t.x,
+              t.y,
+            );
+            if (r.ok) {
+              rites.earth = r.state!;
+              final line = r.state!.lines[id];
+              // Walked all the way back to the root: it is let go.
+              if (line == null) rites.leading = null;
+            }
+          }
+          rites.earthAt = t;
+        }
+      case RiteKind.water:
+        rites.flipT = min(1, rites.flipT + dt * 2.2);
+        // Nothing slides until the room has finished turning over.
+        if (rites.flipT >= 1 && rites.waterFrames.isNotEmpty) {
+          rites.waterFrameT += dt;
+          while (rites.waterFrames.isNotEmpty &&
+              rites.waterFrameT >= kRiteWaterPass) {
+            rites.waterFrameT -= kRiteWaterPass;
+            final to = rites.waterFrames.removeAt(0);
+            _riteWaterPass(rites.waterFrom, to);
+            rites.waterFrom = to;
+          }
+          if (rites.waterFrames.isEmpty) {
+            rites.waterFrom = null;
+            rites.waterFrameT = 0;
+          }
+        }
+        final t = riteSquareAt(a.position);
+        if (t != rites.water.b && flipWalkable(rites.water, t.x, t.y)) {
+          final d = _riteDirTo(rites.water.b, t);
+          if (d >= 0) {
+            final before = rites.water;
+            final st = flipStep(rites.waterRoom, rites.water, d, frames: true);
+            if (st.ok) _riteWaterCommit(st, before);
+          }
+        }
+      case RiteKind.fire:
+        final t = riteSquareAt(a.position);
+        if (t != rites.fire.b) {
+          final d = _riteDirTo(rites.fire.b, t);
+          if (d >= 0) {
+            final st = twinStep(rites.fireRoom, rites.fire, d);
+            if (st.ok && st.bMoved) _riteFireCommit(st);
+          }
+          if (rites.fire.b != t && !_riteDoorSquare(room, t)) {
+            a.position = riteCentreOf(rites.fire.b.x, rites.fire.b.y);
+          }
+        }
+        final want = riteCentreOf(rites.fire.t.x, rites.fire.t.y);
+        rites.twinShown =
+            Offset.lerp(rites.twinShown, want, min(1.0, dt * 14))!;
+      case RiteKind.air:
+        if (rites.driftT < 1) {
+          final n = max(1, max(rites.driftPath.length, rites.icePath.length) - 1);
+          rites.driftT = min(1, rites.driftT + dt * 10 / n);
+          if (rites.driftT >= 1) {
+            if (rites.iceMelted != null) _riteSublimate();
+            if (driftSolved(rites.airRoom, rites.air)) {
+              _riteFree('Air');
+            } else {
+              _riteSpeakIfDead(rites.airLive, rites.air.key);
+            }
+          }
+        } else {
+          _riteAirInput();
+        }
+        // Blood rides its drift (the engine doesn't move it here).
+        a.position = _riteDriftPos();
+        a.lastSafe = a.position;
+      case RiteKind.arena:
+        _riteArenaUpdate(a, room, dt);
+      case RiteKind.vault:
+        break;
+    }
+  }
+
+  int _riteDirTo(RiteCell from, RiteCell to) {
+    final dx = to.x - from.x, dy = to.y - from.y;
+    if (dx.abs() + dy.abs() != 1) return -1;
+    return dx == 1
+        ? 1
+        : dx == -1
+        ? 3
+        : dy == 1
+        ? 2
+        : 0;
+  }
+
+  /// Blood's drawn position along its drift (eased).
+  Offset _riteDriftPos() {
+    final p = rites.driftPath;
+    if (p.length < 2 || rites.driftT >= 1) {
+      return riteCentreOf(rites.air.b.x, rites.air.b.y);
+    }
+    final e = 1 - (1 - rites.driftT) * (1 - rites.driftT);
+    final f = e * (p.length - 1);
+    final i = f.floor().clamp(0, p.length - 2);
+    final k = f - i;
+    return Offset.lerp(
+      riteCentreOf(p[i].x, p[i].y),
+      riteCentreOf(p[i + 1].x, p[i + 1].y),
+      k,
+    )!;
+  }
+
+  void _riteCircleUpdate(DungeonCreature a) {
+    final c = riteCentre(riteFreed, rites.outerTurn, rites.innerTurn);
+    final k = c.ins.join('+');
+    if (k != rites.lastCentre) {
+      rites.lastCentre = k;
+      rites.centreT = _time;
+    }
+    // THE LOST MAXIM: the quintessence.
+    if (c.kind == RiteCentreKind.quintessence &&
+        !discoveredClouds.contains(kBloodEggId) &&
+        _ritePendingEgg != kBloodEggId) {
+      _cue(SoundCue.dungeonSecretReveal);
+      soundedSecrets.add(kBloodEggId);
+      beginMaximRite(kBloodEggId, kRiteCircleCentre);
+    }
+    // THE RITE: all four cups full wakes Sanguorath below the seal.
+    if (rites.cups.length == 4 &&
+        guardianRiteUnlocked &&
+        (conduitEnergy['A'] ?? 0) <= 0) {
+      conduitEnergy['A'] = double.infinity;
+      conduitEnergy['B'] = double.infinity;
+      if (rites.sealT == -1) rites.sealT = _time;
+    }
+  }
+
+  // ═══ SANGUORATH ═══════════════════════════════════════════
+
+  /// The four (who have not given themselves) come down with Blood.
+  void _riteAlliesJoin() {
+    if (rites.alliesDown) return;
+    rites.alliesDown = true;
+    for (final c in rites.allies) {
+      if (rites.given.contains(c.member.element)) continue;
+      if (!riteFreed.contains(c.member.element)) continue;
+      if (creatures.contains(c)) continue;
+      c
+        ..hp = c.maxHp
+        ..downHandled = false
+        ..respawnTimer = 0;
+      creatures.add(c);
+      combatCompanions.add(_createCombatCompanion(c.member, Offset.zero));
+    }
+  }
+
+  /// Back up from the arena: the allies wait at the seal.
+  void _riteAlliesLeave() {
+    if (!rites.alliesDown) return;
+    rites.alliesDown = false;
+    _riteDropAllies((c) => rites.allies.contains(c));
+  }
+
+  void _riteDropAllies(bool Function(DungeonCreature) which) {
+    for (var i = creatures.length - 1; i >= 0; i--) {
+      if (!which(creatures[i])) continue;
+      if (i < combatCompanions.length) combatCompanions.removeAt(i);
+      creatures.removeAt(i);
+      if (activeIndex >= creatures.length) activeIndex = 0;
+      if (activeIndex > i) activeIndex--;
+    }
+  }
+
+  /// The allies still standing (not given).
+  Set<String> get _riteStanding => {
+    for (final c in creatures)
+      if (rites.allies.contains(c) && c.alive) c.member.element,
   };
 
-  /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
-  String? _heartObjectiveHint(DungeonRoom room) {
-    if (room.guardian != null) {
-      return 'Sanguorath\'s Systole. The last star is here';
+  /// The top of the stretch the fight is in (where a heal stops).
+  double get _riteStretchTop =>
+      rites.shellsBroken == 0 ? 1.0 : kRiteShellAt[rites.shellsBroken - 1];
+
+  void _riteArenaUpdate(DungeonCreature a, DungeonRoom room, double dt) {
+    final g = _guardianEnemy;
+    if (g == null) return;
+    // Damage over time lands outside the hit paths: hold the shell here too.
+    if (rites.shellsBroken < 4 && g.isDead) g.isDead = false;
+    _riteHoldShell(g);
+    if (g.isDead) return;
+    if (rites.shellsBroken >= 4) return;
+    final at = kRiteShellAt[rites.shellsBroken];
+    if (!rites.shellUp) {
+      if (g.hp / max(1, g.maxHp) <= at + 1e-6) {
+        g.hp = max(g.hp, g.maxHp * at);
+        final standing = _riteStanding;
+        if (standing.isEmpty) return; // nobody to give; wait for a revive
+        rites.shellUp = true;
+        rites.shellElement = riteShellElement(
+          standing,
+          (n) => _combatRng.nextInt(n),
+        );
+        rites.shellT = _time;
+        _cue(SoundCue.dungeonHazardTrigger);
+        speakConsequence(_riteShellLine(rites.shellElement!));
+      }
+      return;
     }
-    if (room.sanguine?.balance != null) {
-      return 'The Myocardium. The rite happens here';
+    // While the shell is up, an ally walked into it gives itself — or is
+    // thrown back.
+    for (final c in List.of(creatures)) {
+      if (!rites.allies.contains(c) || !c.alive) continue;
+      if ((c.position - g.position).distance > 74) continue;
+      final el = c.member.element;
+      final want = kRiteOpposite[rites.shellElement]!;
+      if (el == want) {
+        _riteGive(c, g);
+        return;
+      }
+      final last = rites.refusedT[el] ?? -9;
+      if (_time - last < 1.4) continue;
+      rites.refusedT[el] = _time;
+      final away = c.position - g.position;
+      final dir = away.distance < 1 ? const Offset(0, 1) : away / away.distance;
+      c.position = _clampToBounds(g.position + dir * 150, room);
+      g.hp = min(g.maxHp * _riteStretchTop, g.hp + g.maxHp * kRiteWrongHeal);
+      _cue(SoundCue.dungeonBlockMove);
+      _haptic(DungeonHaptic.refuse);
+      speakConsequence('The shell throws $el back. Sanguorath mends');
     }
-    if (room.sanguine?.starIndex == 0) {
-      return hasStar(0)
-          ? null
-          : 'The Vena Crossing. Four mouths in four chambers need priming. '
-                'One is here';
+  }
+
+  String _riteShellLine(String el) => switch (el) {
+    'Fire' => 'Sanguorath pulls into a shell of flame',
+    'Water' => 'Sanguorath pulls into a shell of water',
+    'Earth' => 'Sanguorath pulls into a shell of stone',
+    'Air' => 'Sanguorath pulls into a shell of wind',
+    _ => 'Sanguorath pulls into a shell',
+  };
+
+  void _riteGive(DungeonCreature c, CosmicSurvivalEnemy g) {
+    final el = c.member.element;
+    rites.given.add(el);
+    // THE SACRIFICE: its own body, in grains, drawn round into the shell —
+    // and the shell sheds as it takes them.
+    final body = RiteBody(elementColor(el));
+    final img = _riteSnapshot(c);
+    if (img != null) {
+      body.read(img, kRiteSnapRatio);
+    } else {
+      body.force();
     }
-    if (room.sanguine?.starIndex == 1) {
-      return hasStar(1)
-          ? null
-          : 'The Capillary Weave. The brass cocks in the Aortic Arch, the '
-                'Arterial Run, the Pulmonic Stair and the Atrial Gallery graft '
-                'unused vessels open';
+    rites.sacrifice = RiteSacrificeFx(
+      from: c.position,
+      body: body,
+      allyColor: elementColor(el),
+    )..target = g.position;
+    rites.sacrificed = c;
+    rites.shedElement = rites.shellElement;
+    rites.shellUp = false;
+    rites.shellElement = null;
+    rites.shellsBroken++;
+    _cue(SoundCue.dungeonWallBreak);
+    _haptic(DungeonHaptic.big);
+    final wasActive = identical(active, c);
+    _riteDropAllies((o) => identical(o, c));
+    if (wasActive) {
+      final blood = creatures.indexWhere((o) => !rites.allies.contains(o));
+      activeIndex = blood < 0 ? 0 : blood;
     }
-    if (room.vaultCache != null) {
-      return 'A sealed pocket. Something is stored here';
+    speakConsequence(
+      rites.shellsBroken >= 4
+          ? '$el gives itself, and the shell breaks. It is you alone now'
+          : '$el gives itself, and the shell breaks',
+    );
+    onChanged();
+  }
+
+  /// Damage on Sanguorath: nothing lands on the shell, and a hit can never
+  /// carry it past the next break.
+  double _riteDamageScale(CosmicSurvivalEnemy enemy) {
+    if (!identical(enemy, _guardianEnemy)) return 1;
+    return rites.shellUp ? 0 : 1;
+  }
+
+  /// Called right after any damage lands on an enemy: Sanguorath's health
+  /// never goes below the next break while one is still to come, so no hit —
+  /// however big — carries it past a shell (or kills it before the last).
+  void _riteHoldShell(CosmicSurvivalEnemy e) {
+    if (!_isRites || !identical(e, _guardianEnemy)) return;
+    if (rites.shellsBroken >= 4) return;
+    final floor = e.maxHp * kRiteShellAt[rites.shellsBroken];
+    if (e.hp < floor) e.hp = floor;
+  }
+
+  // ═══ THE MOMENTS ═════════════════════════════════════════
+
+  /// A creature as it stands, painted into a [kRiteSnapBox]-unit square at
+  /// [kRiteSnapRatio] px per unit — the body a release or a sacrifice reads
+  /// into grains. Null when it has no sprite (it is then a disc).
+  ui.Image? _riteSnapshot(DungeonCreature c, {double scale = 1}) {
+    final ticker = c.ticker;
+    if (ticker == null) return null;
+    final px = (kRiteSnapBox * kRiteSnapRatio).ceil();
+    final rec = ui.PictureRecorder();
+    final canvas = Canvas(rec)
+      ..scale(kRiteSnapRatio)
+      ..translate(kRiteSnapBox / 2, kRiteSnapBox / 2)
+      ..scale(c.spriteScale * scale);
+    ticker.getSprite().render(canvas, anchor: Anchor.center);
+    return rec.endRecording().toImageSync(px, px);
+  }
+
+  /// Just outside a room's way back to the Circle: where its blood leaves.
+  Offset _riteExitOf(DungeonRoom room) {
+    for (final d in room.doors) {
+      if (d.chromeless) continue;
+      final c = d.rect.center;
+      final out = (c - room.bounds.center);
+      return c + out / max(1, out.distance) * 40;
     }
-    if (room.id == 'atrial_gallery') {
-      return 'The Atrial Gallery, the last chamber of the lesser round';
+    return room.bounds.topCenter;
+  }
+
+  /// The room's two ingredients, each as a way to the captive and a colour.
+  List<(List<Offset>, Color)> _riteSources(String el, Offset at) {
+    const dust = Color(0xFFD4B072), water = Color(0xFF4F9BD8);
+    const fire = Color(0xFFF08A3A), ice = Color(0xFFBFE8F5);
+    const air = Color(0xFFDCEBF2), lava = Color(0xFFFF7A2A);
+    const light = Color(0xFFFFE6A0);
+    final out = <(List<Offset>, Color)>[];
+    switch (el) {
+      case 'Earth':
+        for (final (id, col) in const [('d', dust), ('w', water)]) {
+          final pts = rites.earth.lines[id];
+          if (pts == null) continue;
+          out.add(([for (final c in pts) riteCentreOf(c.x, c.y), at], col));
+        }
+      case 'Water':
+        final r = rites.water;
+        for (var y = 0; y < r.cells.length; y++) {
+          for (var x = 0; x < r.cells[y].length; x++) {
+            final ch = r.cells[y][x];
+            if (ch == 'f') out.add(([riteCentreOf(x, y), at], fire));
+            if (ch == 'c') out.add(([riteCentreOf(x, y) + const Offset(0, 20), at], ice));
+          }
+        }
+      case 'Fire':
+        final r = rites.fireRoom;
+        for (var y = 0; y < r.h; y++) {
+          for (var x = 0; x < r.w; x++) {
+            if (r.cells[y][x] == 'B') out.add(([riteCentreOf(x, y), at], air));
+            if (r.cells[y][x] == 'L') out.add(([riteCentreOf(x, y), at], lava));
+          }
+        }
+      case 'Air':
+        final r = rites.airRoom;
+        var i = 0;
+        for (var y = 0; y < r.h; y++) {
+          for (var x = 0; x < r.w; x++) {
+            if (r.cells[y][x] == '*' && r.bellBeside(x, y)) {
+              out.add(([riteCentreOf(x, y), at], i.isEven ? ice : light));
+              i++;
+            }
+          }
+        }
     }
-    if (room.id == layout.entranceRoomId) {
-      return entryDoorRevealed
-          ? 'The Pericard Gate. Its doors only open on some beats'
-          : 'The Pericard Gate. A sac is stitched over the way in';
+    return out;
+  }
+
+  /// One pass of a Water settle has been shown: what happened in it — a
+  /// melt, a fire put out, a basin square filled, a pit taking something —
+  /// is heard and seen now, as the picture gets there.
+  void _riteWaterPass(FlipFrame? from, FlipFrame to) {
+    if (from == null) return;
+    final down = kRiteDy[rites.water.down].toDouble();
+    for (var y = 0; y < to.cells.length; y++) {
+      for (var x = 0; x < to.cells[y].length; x++) {
+        final was = from.cells[y][x], now = to.cells[y][x];
+        if (was == now) continue;
+        final k = '$x,$y';
+        final c = riteCentreOf(x, y);
+        if (was == 'F' && now == 'f') {
+          rites.douseT[k] = _time;
+          _cue(SoundCue.dungeonHazardTrigger);
+          // Steam off the drowned fire: it lifts and wanders and goes.
+          for (var i = 0; i < 22; i++) {
+            rites.grains.add(RiteGrain(
+              x: c.dx + (_combatRng.nextDouble() - .5) * 26,
+              y: c.dy - 6,
+              vx: (_combatRng.nextDouble() - .5) * 14,
+              vy: -18 - _combatRng.nextDouble() * 20,
+              life: 1.4 + _combatRng.nextDouble(),
+              color: i % 3 == 0 ? const Color(0xFFE8E4E0) : const Color(0xFFB8B0A8),
+              lift: 26,
+              wander: 22,
+              drag: 1.1,
+              seed: i * 1.7,
+            ));
+          }
+        } else if (was == 'C' && now == 'c') {
+          rites.basinT[k] = _time;
+          _cue(SoundCue.dungeonStepWater);
+        } else if (was == '_') {
+          rites.pitT[k] = _time;
+          _cue(now == 'p' ? SoundCue.dungeonStepWater : SoundCue.dungeonBlockMove);
+        }
+      }
     }
+    for (final e in to.loose.entries) {
+      if (e.value == '~' && from.loose[e.key] == 'I') {
+        rites.meltT[e.key] = _time;
+        _cue(SoundCue.dungeonStepWater);
+        final p = e.key.split(',').map(int.parse).toList();
+        final c = riteCentreOf(p[0], p[1]);
+        // Drips off the melting block, falling the way the room falls.
+        for (var i = 0; i < 10; i++) {
+          rites.grains.add(RiteGrain(
+            x: c.dx + (_combatRng.nextDouble() - .5) * 40,
+            y: c.dy + (_combatRng.nextDouble() - .5) * 30,
+            vy: down * (10 + _combatRng.nextDouble() * 20),
+            life: .6 + _combatRng.nextDouble() * .5,
+            color: i.isEven ? const Color(0xFFBFE8F5) : const Color(0xFF7FC0E8),
+            lift: -down * 60,
+            wander: 4,
+            drag: .6,
+          ));
+        }
+      }
+    }
+  }
+
+  /// Ice turned to air in a shaft of light: it comes apart into vapour that
+  /// rises and goes — or, beside the bell, is drawn in.
+  void _riteSublimate() {
+    final at = rites.iceMelted!;
+    final c = riteCentreOf(at.x, at.y);
+    Offset? bell;
+    if (rites.iceIntoBell) {
+      for (var d = 0; d < 4; d++) {
+        final x = at.x + kRiteDx[d], y = at.y + kRiteDy[d];
+        if (rites.airRoom.cells[y][x] == 'C') bell = riteCentreOf(x, y);
+      }
+    }
+    _cue(SoundCue.dungeonStepWater);
+    for (var i = 0; i < 46; i++) {
+      final a = _combatRng.nextDouble() * pi * 2;
+      final r = _combatRng.nextDouble() * 22;
+      rites.grains.add(RiteGrain(
+        x: c.dx + cos(a) * r,
+        y: c.dy + sin(a) * r,
+        vx: cos(a) * 10,
+        vy: sin(a) * 10 - 8,
+        life: bell != null ? 1.3 + _combatRng.nextDouble() * .5 : 1.6 + _combatRng.nextDouble(),
+        color: i % 3 == 0
+            ? const Color(0xFFFFE6A0)
+            : i.isEven
+            ? const Color(0xFFDCEBF2)
+            : const Color(0xFFBFE8F5),
+        lift: bell != null ? 0 : 22,
+        wander: bell != null ? 8 : 16,
+        to: bell,
+        pull: bell != null ? 5 : 0,
+        drag: bell != null ? 2.4 : 1.0,
+        seed: i * 0.9,
+      ));
+    }
+  }
+
+  /// Every frame: the moments run, and the small things that feel the room
+  /// — dust off a turning plate, a drift's wake, the bellows breathing, the
+  /// gates sliding.
+  void _riteTickMoments(DungeonCreature a, DungeonRoom room, double dt) {
+    rites.grains.update(dt, _time);
+    final rel = rites.release;
+    if (rel != null) {
+      rel.update(dt);
+      if (rel.done) {
+        rites.release = null;
+        rites.releaseEl = null;
+      }
+    }
+    final sac = rites.sacrifice;
+    if (sac != null) {
+      final g = _guardianEnemy;
+      if (g != null && !g.isDead) sac.target = g.position;
+      sac.update(dt);
+      if (sac.done) {
+        rites.sacrifice = null;
+        rites.sacrificed = null;
+        rites.shedElement = null;
+      }
+    }
+    final kind = room.rite?.kind;
+    if (kind == RiteKind.earth) {
+      // Stone dust off a plate while it turns.
+      final f = rites.earthFloor;
+      for (var i = 0; i < f.plates.length; i++) {
+        final want = rites.earth.turns[i] * pi / 2;
+        var d = want - rites.plateAng[i];
+        while (d < -pi) {
+          d += 2 * pi;
+        }
+        while (d > pi) {
+          d -= 2 * pi;
+        }
+        if (d.abs() < .04) continue;
+        final p = riteCentreOf(f.plates[i].cx, f.plates[i].cy);
+        for (var k = 0; k < 2; k++) {
+          final ang = _combatRng.nextDouble() * pi * 2;
+          rites.grains.add(RiteGrain(
+            x: p.dx + cos(ang) * kRiteCell * 1.5,
+            y: p.dy + sin(ang) * kRiteCell * 1.5,
+            vx: -sin(ang) * 14 * d.sign,
+            vy: cos(ang) * 14 * d.sign,
+            life: .7 + _combatRng.nextDouble() * .4,
+            color: k.isEven ? const Color(0xFF8A7A70) : const Color(0xFF5E504A),
+            lift: -14,
+            wander: 6,
+            drag: 2.5,
+          ));
+        }
+      }
+    } else if (kind == RiteKind.air && rites.driftT < 1 && rites.driftPath.length > 1) {
+      // A drift leaves a wake.
+      for (var k = 0; k < 2; k++) {
+        rites.grains.add(RiteGrain(
+          x: a.position.dx + (_combatRng.nextDouble() - .5) * 16,
+          y: a.position.dy + (_combatRng.nextDouble() - .5) * 16,
+          life: .5 + _combatRng.nextDouble() * .4,
+          color: k.isEven ? const Color(0xFFDCE6F0) : const Color(0xFFC8283C),
+          wander: 10,
+          drag: 3,
+        ));
+      }
+    } else if (kind == RiteKind.fire) {
+      final r = rites.fireRoom;
+      final on = twinPressed(r, rites.fire);
+      // The gates slide rather than blink.
+      for (var y = 0; y < r.h; y++) {
+        for (var x = 0; x < r.w; x++) {
+          final ch = r.cells[y][x];
+          if (!'abc'.contains(ch)) continue;
+          final plate = {'a': '1', 'b': '2', 'c': '3'}[ch]!;
+          final open = on.contains(plate) ||
+              rites.fire.b == (x: x, y: y) ||
+              rites.fire.t == (x: x, y: y);
+          final k = '$x,$y';
+          final was = rites.gateShown[k] ?? (open ? 1.0 : 0.0);
+          rites.gateShown[k] = was + ((open ? 1.0 : 0.0) - was) * min(1.0, dt * 9);
+        }
+      }
+      // The bellows breathe when Blood stands on them.
+      rites.puffT -= dt;
+      if (r.cells[rites.fire.b.y][rites.fire.b.x] == 'B' && rites.puffT <= 0) {
+        rites.puffT = .22;
+        final b = riteCentreOf(rites.fire.b.x, rites.fire.b.y);
+        final h = _riteCaptiveAt('Fire');
+        for (var k = 0; k < 4; k++) {
+          rites.grains.add(RiteGrain(
+            x: b.dx + 20,
+            y: b.dy + (_combatRng.nextDouble() - .5) * 10,
+            vx: (h.dx - b.dx) * .9,
+            vy: (h.dy - b.dy) * .9,
+            life: .7,
+            color: const Color(0xFFDCEBF2),
+            wander: 8,
+            drag: 1.4,
+          ));
+        }
+      }
+    }
+  }
+
+  // ── Test seams ───────────────────────────────────────────
+
+  /// Free [el]'s captive as its room would (the release plays).
+  @visibleForTesting
+  void debugFreeCaptive(String el) => _riteFree(el);
+
+  /// Load a creature's sprite, as onLoad does for the party.
+  @visibleForTesting
+  Future<void> debugLoadSprite(DungeonCreature c) => _loadSprite(c);
+
+  /// Build the four allies' bodies, as onLoad does.
+  @visibleForTesting
+  Future<void> debugLoadRiteAllies() => _loadRiteAllies();
+
+  /// The maxim waiting to play (or found).
+  @visibleForTesting
+  String? get debugMaximPending =>
+      _ritePendingEgg ??
+      (discoveredClouds.contains(kBloodEggId) ? kBloodEggId : null);
+
+  /// Sanguorath's combat body, once it has landed.
+  @visibleForTesting
+  CosmicSurvivalEnemy? get debugGuardianBody => _guardianEnemy;
+
+  /// A hit, through the same path a strike takes.
+  @visibleForTesting
+  void debugDamageEnemy(CosmicSurvivalEnemy e, double amount) =>
+      _damageEnemyDirect(e, amount);
+
+  // ── Words ────────────────────────────────────────────────
+
+  String? _riteObjectiveHint(DungeonRoom room) {
+    final bay = room.rite;
+    if (bay == null) return null;
+    final el = bay.element;
+    if (el != null && riteFreed.contains(el)) return 'This captive is freed';
     return null;
   }
 
-  /// AMBIENT is flavour only (§5.6): no mechanics, no elements, no families.
-  void _heartAmbientHint(DungeonCreature a, DungeonRoom room) {
-    for (final o in ostiaIn(room.id)) {
-      if ((a.position - o.position).distance > 110) continue;
-      _setAmbientHint('It opens and shuts, and it is not breathing');
-      return;
-    }
-    for (final c in cocksIn(room.id)) {
-      if ((a.position - c.position).distance > 110) continue;
-      _setAmbientHint(
-        heart.grafted.contains(c.passageId)
-            ? 'Something is going through it that has not gone anywhere in an '
-                  'age'
-            : 'Cold brass, and the wall behind it is quiet',
-      );
-      return;
-    }
-    _setAmbientHint(switch (heart.phase) {
-      PulsePhase.systole => 'The floor comes up under you, once, and settles',
-      PulsePhase.dicrotic => 'Something sloshes back the way it came',
-      PulsePhase.diastole => 'Far off, a long slow filling sound',
-      PulsePhase.flatline => 'Nothing. Nothing at all, for a moment',
-    });
-  }
-
-  /// INSIGHT is the only channel allowed to teach method (§5.6), and it is
-  /// tiered by Intelligence.
-  void _heartReveal(DungeonCreature a, DungeonRoom room) {
-    final tier = revealHintTier(a.member.statIntelligence);
-    if (ostiaIn(room.id).isNotEmpty) {
-      final o = ostiaIn(room.id).first;
-      _setInsightHint(switch (tier) {
-        0 => 'This mouth only drinks at one point in the beat',
-        1 =>
-          'Press it once with ${o.element}. It drinks on '
-              '${phaseWord(o.phase)} if you stay in this room',
-        _ =>
-          'Press it with ${o.element} at any time, then stay in this room. '
-              'It drinks when ${phaseWord(o.phase)} comes. The four mouths '
-              'drink on different phases, so prime them one at a time',
-      });
-      return;
-    }
-    final deadTurned = cocksIn(room.id).any(
-      (c) =>
-          heart.cocksTurned.contains(c.passageId) &&
-          !heart.isSound(c.passageId) &&
-          !heart.grafted.contains(c.passageId),
-    );
-    if (deadTurned && !discoveredClouds.contains(kBloodLifeEggId)) {
-      // ONE OBLIQUE LINE and nothing after it (the §7 maxim standard). It
-      // takes over from the cocks' teaching only once a dead one is turned.
-      _setInsightHint(
-        'A dead vessel is just a clot. It can\'t move while the heart '
-        'pushes, but it might when the heart stops',
-      );
-      return;
-    }
-    if (cocksIn(room.id).isNotEmpty) {
-      _setInsightHint(switch (tier) {
-        0 => 'These walls hold unused vessels that can be grafted open',
-        1 =>
-          'A grafted vessel flows while the round beside it is at rest, '
-              'giving you routes the beat normally won\'t',
-        _ =>
-          'Five vessels, and only three are healthy. Light shows which '
-              'before you graft. A dead one just starts a fight',
-      });
-      return;
-    }
-    if (room.vaultCache != null ||
-        heartPassageBetween(room.id, 'auricle_reliquary') != null) {
-      _setInsightHint(switch (tier) {
-        0 => 'That valve is pressed shut from both sides',
-        1 => 'It only opens when there is no pressure at all',
-        _ =>
-          'It opens on the flatline, the pause between beats. Wait beside '
-              'it. It opens the same way back, so you can\'t get stuck',
-      });
-      return;
-    }
-    if (room.sanguine?.vagalNode != null) {
-      _setInsightHint(switch (tier) {
-        0 => 'This node controls the heartbeat',
-        1 => 'Press it and the heart stops for a moment',
-        _ =>
-          'Sanguorath only holds still while the heart is stopped. Press '
-              'the node to make that pause yourself',
-      });
-      return;
-    }
-    // Anywhere in the orrery, insight reads the PULSE — which is the planet.
-    _setInsightHint(switch (tier) {
-      0 => 'Routes here open and close with the heartbeat',
-      1 =>
-        'A vein only carries you downstream, while blood is pushed through '
-            'it. The greater round reverses on the backwash. The lesser '
-            'round never does',
-      _ =>
-        'Four phases, always in the same order. The greater round flows out '
-            'on the systole and back on the backwash. The lesser round flows '
-            'one way on the diastole. On the flatline nothing flows and every '
-            'valve opens. Plan where to stand, not how fast to move',
-    });
-  }
-
-  /// Per-chamber mood — the gate is grey daylight through a torn sac and the
-  /// arena is the inside of a closed fist, but the real driver is the beat: a
-  /// chamber goes darker as the blood leaves it.
-  double get _heartMoodTarget {
-    final base = switch (currentRoomId) {
-      'pericard_gate' => 0.68,
-      'arterial_run' => 0.56,
-      'aortic_arch' => 0.48,
-      'vena_crossing' => 0.42,
-      'pulmonic_stair' => 0.38,
-      'capillary_weave' => 0.30,
-      'atrial_gallery' => 0.34,
-      'myocardium' => 0.26,
-      'auricle_reliquary' => 0.22,
-      _ => guardianAwake ? 0.12 : 0.24,
-    };
-    return switch (heart.phase) {
-      PulsePhase.systole => base * 1.18,
-      PulsePhase.dicrotic => base,
-      PulsePhase.diastole => base * 0.9,
-      PulsePhase.flatline => base * 0.7,
-    };
-  }
-
-  // ── Render (§5.5 VISUAL GRAMMAR) ─────────────────────────
-
-  void _renderHeart(Canvas canvas, DungeonRoom room) {
-    _renderHeartGround(canvas, room);
-    // The porphyry walls, baked (planet_dungeon_game_blood_art.dart).
-    _renderHeartShell(canvas, room);
-    _renderGlassDoorPlugs(canvas, room);
-    _renderHeartLumens(canvas, room);
-    _renderHeartObstacles(canvas, room);
-    _renderHeartObjects(canvas, room);
-    _renderHeartTurn(canvas, room);
-  }
-
-  /// THE ONE MOVING NUMBER ON THE PLANET. A decaying thump at each of the two
-  /// onsets a real beat has: the squeeze, and the rebound off the closing
-  /// valve — which this layout already calls the backwash, so the lub-dub is
-  /// not invented, it is the phase table read out loud.
-  ///
-  /// The pulse is Hemavorn's whole identity, which makes it the one planet
-  /// where the temptation is to animate everything; heavy per-frame work is
-  /// this repo's known jank source, so instead EVERY shape on the floor is
-  /// cached and static and reads this single scalar. A wall that swells two
-  /// pixels on the beat is worth more than a hundred moving particles and
-  /// costs one multiply.
-  double _heartSwell() {
-    // The vagal node stops the heart, so it stops the room with it. The
-    // arrest is the only hand anybody has on this clock and it should be
-    // FELT, not just read in the capsule.
-    if (heart.arrest > 0) return 0;
-    double thump(double since, double len) {
-      if (since < 0 || since > len) return 0.0;
-      final t = 1 - since / len;
-      return t * t;
-    }
-
-    return (thump(heart.clock, 1.4) +
-            0.5 * thump(heart.clock - kPulsePhaseSeconds[0], 1.0))
-        .clamp(0.0, 1.0);
-  }
-
-  /// THE CHAMBER ITSELF — wet tissue, valve leaves and vessel wall, built
-  /// once per room and cached (see `_buildHeartGround`). What varies per frame
-  /// is three numbers: the phase's [fill], the beat's swell, and one sine on
-  /// the standing blood.
-  void _renderHeartGround(Canvas canvas, DungeonRoom room) {
-    final b = room.bounds;
-    final g = _heartGround(room);
-    // How full the chamber is, eased off the phase. Systole floods it, the
-    // flatline leaves it flat and bone-still.
-    final fill = switch (heart.phase) {
-      PulsePhase.systole => 0.85,
-      PulsePhase.dicrotic => 0.6,
-      PulsePhase.diastole => 0.45,
-      PulsePhase.flatline => 0.12,
-    };
-    final swell = _heartSwell();
-
-    // The floor. Ink first, so the tissue drawn over it has something to be
-    // wet against; then a rust wash that thickens as the chamber fills. Both
-    // sit inside the FLOOR TRANSLUCENCY RULE — the sky shader is the room's
-    // mood and has to keep showing through the meat.
-    // Square to the room: the porphyry walls are its edge now (§7.11).
-    final rr = RRect.fromRectAndRadius(b, Radius.zero);
-    // DARKER THAN IT WAS (2026-09-24): one red for floor, tissue and
-    // signal made every chamber unreadable. The meat recedes now, and the
-    // crimson is spent on what MOVES — the beat and the flow.
-    canvas.drawRRect(rr, Paint()..color = _kHeartInk.withValues(alpha: 0.6));
-    canvas.drawRRect(
-      rr,
-      Paint()..color = _kHeartRust.withValues(alpha: 0.05 + 0.12 * fill),
-    );
-
-    // THE BREATH, in one matrix. The tissue grows a little over half a
-    // percent on the thump and the floor under it does not, so the chamber
-    // reads as a wall pressing in rather than as the camera lurching.
-    //
-    // CLIPPED TO THE FLOOR. The first cut of this let seams, spindles and
-    // vessel throats run off the edge of the chamber and hang in the sky,
-    // which turned a body into a diagram drawn on a card. Tissue stops at the
-    // wall; one clip does it for everything, including the swell.
-    canvas.save();
-    canvas.clipRRect(rr);
-    canvas.translate(b.center.dx, b.center.dy);
-    canvas.scale(1 + 0.006 * swell);
-    canvas.translate(-b.center.dx, -b.center.dy);
-
-    // Standing blood, lying in the low places. Dark, because pooled blood is
-    // nearly black and the crimson belongs to what is moving.
-    for (var i = 0; i < g.pools.length; i++) {
-      canvas.drawPath(
-        g.pools[i],
-        Paint()..color = _kHeartWet.withValues(alpha: 0.50),
-      );
-      final c = g.poolCentres[i];
-      final y = sin(heart.clock * 0.7 + i * 1.7) * 5;
-      canvas.drawLine(
-        Offset(c.dx - 26, c.dy + y),
-        Offset(c.dx + 24, c.dy + y - 2),
-        Paint()
-          ..strokeWidth = 1.6
-          ..color = _kHeartCrimson.withValues(alpha: 0.16 + 0.16 * fill),
-      );
-    }
-
-    for (final p in g.pieces) {
-      final k = p.swell * swell;
-      final paint = Paint()
-        ..color = p.color.withValues(
-          alpha: (p.alpha * 0.78 * (1 + 0.35 * k)).clamp(0.0, 1.0),
-        );
-      if (p.stroke > 0) {
-        paint
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = p.stroke * (1 + 0.22 * k)
-          ..strokeCap = StrokeCap.round;
-      }
-      canvas.drawPath(p.path, paint);
-    }
-    canvas.restore();
-
-    // THE BEAT, IN THE WALL. A vein runs round the inside of the porphyry and
-    // floods on every thump — the one thing on the planet that should be
-    // felt from anywhere in the room. One stroke.
-    canvas.drawRect(
-      b.deflate(16),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3 + 3 * swell
-        ..color = _kHeartCrimson.withValues(alpha: 0.18 + 0.6 * swell),
-    );
-
-    if (heart.phase == PulsePhase.flatline) {
-      // The pause is drawn by ABSENCE: one hard bone hairline across the
-      // chamber, the flat trace on a stopped heart.
-      canvas.drawLine(
-        Offset(b.left + 12, b.center.dy),
-        Offset(b.right - 12, b.center.dy),
-        Paint()
-          ..color = _kHeartBone.withValues(alpha: 0.55)
-          ..strokeWidth = 2,
-      );
-    }
-  }
-
-  /// A glyph at every passage the chamber can see, so what the beat is doing
-  /// is legible before you walk into it: an open vein is a filled TUBE with an
-  /// arrowhead pointing the way it runs, a collapsed one is the same tube
-  /// pinched to a hairline, a leaflet is two facing curves, and an ungrafted
-  /// collateral is not drawn at all — it is not there (see `_heartDoorHidden`).
-  void _renderHeartLumens(Canvas canvas, DungeonRoom room) {
-    for (final d in room.doors) {
-      if (isDoorHidden(room, d)) continue;
-      final p = _heartPassageFor(room, d);
-      if (p == null || p.kind == PassageKind.mural) continue;
-      // Stood off the wall, a pace into the room, so the glass doorway does
-      // not cover what the passage is doing.
-      final b = room.bounds;
-      final dc = d.rect.center;
-      final at =
-          dc +
-          (dc.dx <= b.left + 40
-              ? const Offset(48, 0)
-              : dc.dx >= b.right - 40
-              ? const Offset(-48, 0)
-              : dc.dy <= b.top + 40
-              ? const Offset(0, 62)
-              : const Offset(0, -48));
-      final live = heart.carriesFrom(p, room.id);
-      if (p.kind == PassageKind.valve) {
-        final paint = Paint()
-          ..color = _kHeartBone.withValues(alpha: live ? 0.85 : 0.30)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = live ? 3.5 : 2;
-        final gap = live ? 9.0 : 1.5;
-        canvas.drawArc(
-          Rect.fromCenter(center: at.translate(-gap, 0), width: 26, height: 30),
-          -1.2,
-          2.4,
-          false,
-          paint,
-        );
-        canvas.drawArc(
-          Rect.fromCenter(center: at.translate(gap, 0), width: 26, height: 30),
-          1.94,
-          2.4,
-          false,
-          paint,
-        );
-        continue;
-      }
-      // The lumen: a tube whose bore is the flow.
-      final bore = live ? 13.0 : 2.0;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: at, width: 40, height: bore),
-          Radius.circular(bore / 2),
-        ),
-        Paint()
-          ..color = live
-              ? _kHeartCrimson.withValues(alpha: 0.8)
-              : _kHeartRust.withValues(alpha: 0.55),
-      );
-      if (!live) continue;
-      // The flow, moving: a bright bead running down the bore on the beat.
-      final ft = (heart.clock * 0.9) % 1.0;
-      canvas.drawCircle(
-        at.translate(-18 + 36 * ft, 0),
-        4,
-        Paint()..color = const Color(0xFFFFE4E8).withValues(alpha: 0.85),
-      );
-      // Which way it runs. A collateral carries both ways, so it gets two.
-      final forward = room.id == p.from;
-      final both = p.kind == PassageKind.collateral;
-      for (final dir in both ? const [1, -1] : [forward ? 1 : -1]) {
-        final tip = at.translate(dir * 20.0, 0);
-        final head = Path()
-          ..moveTo(tip.dx, tip.dy)
-          ..lineTo(tip.dx - dir * 11, tip.dy - 8)
-          ..lineTo(tip.dx - dir * 11, tip.dy + 8)
-          ..close();
-        canvas.drawPath(
-          head,
-          Paint()..color = _kHeartBone.withValues(alpha: 0.8),
-        );
-      }
-    }
-  }
-
-  void _renderHeartObjects(Canvas canvas, DungeonRoom room) {
-    final ch = room.sanguine;
-    // THE MOUTHS: a sphincter, not a target — a fleshy ring of folds round a
-    // dark throat. It DILATES on its own phase (the folds open and the throat
-    // shows), and once primed it stays open and wet. The chord of the element
-    // it answers is kept: never a letter, never a label.
-    for (final o in ostiaIn(room.id)) {
-      final primed = heart.ostiaPrimed.contains(o.id);
-      final ready = heart.canPrime(o);
-      final open = primed || ready;
-      final pulse = 0.5 + 0.5 * sin(_time * (ready ? 4.0 : 1.4));
-      final outer = 26.0 + (open ? 3 * pulse : 0);
-      final throat = open ? 12.0 + 3 * pulse : 5.0;
-      // Folds: twelve petals round the ring.
-      for (var i = 0; i < 12; i++) {
-        final a = i * pi / 6 + pulse * 0.1;
-        final r0 = throat + 2;
-        final fold = Path()
-          ..moveTo(
-            o.position.dx + cos(a - 0.22) * r0,
-            o.position.dy + sin(a - 0.22) * r0,
-          )
-          ..lineTo(
-            o.position.dx + cos(a) * outer,
-            o.position.dy + sin(a) * outer,
-          )
-          ..lineTo(
-            o.position.dx + cos(a + 0.22) * r0,
-            o.position.dy + sin(a + 0.22) * r0,
-          )
-          ..close();
-        canvas.drawPath(
-          fold,
-          Paint()
-            ..color = (primed ? _kHeartCrimson : _kHeartRust).withValues(
-              alpha: i.isEven ? 0.85 : 0.65,
-            ),
-        );
-      }
-      canvas.drawCircle(
-        o.position,
-        throat,
-        Paint()..color = _kHeartInk.withValues(alpha: 0.92),
-      );
-      if (primed) {
-        canvas.drawCircle(
-          o.position,
-          throat * 0.6,
-          Paint()..color = _kHeartCrimson.withValues(alpha: 0.6 + 0.3 * pulse),
-        );
-      }
-      canvas.drawCircle(
-        o.position,
-        outer + 3,
-        Paint()
-          ..color = _kHeartBone.withValues(alpha: ready ? 0.85 : 0.3)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = ready ? 2.5 : 1.2,
-      );
-      // A HAND LAID ON IT, waiting for its phase: the element's colour closes
-      // round the mouth as a filled collar that breathes — so a player who
-      // has committed can see it is holding, and leave it be.
-      if (heart.laid.contains(o.id) && !primed) {
-        final r0 = outer + 5, r1 = outer + 11 + 2 * pulse;
-        canvas.drawPath(
-          Path()
-            ..fillType = PathFillType.evenOdd
-            ..addOval(Rect.fromCircle(center: o.position, radius: r1))
-            ..addOval(Rect.fromCircle(center: o.position, radius: r0)),
-          Paint()
-            ..color = elementColor(
-              o.element,
-            ).withValues(alpha: 0.35 + 0.2 * pulse),
-        );
-      }
-      if (!primed) {
-        canvas.drawArc(
-          Rect.fromCircle(center: o.position, radius: outer + 10),
-          -0.6,
-          1.2,
-          false,
-          Paint()
-            ..color = elementColor(o.element).withValues(alpha: 0.85)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3,
-        );
-      }
-    }
-    // THE COCKS: a brass stopcock on a stub of vessel let into the wall. The
-    // handle lies ACROSS the stub while shut and turns along it when turned;
-    // grafted, the stub runs red; thrombosed and turned, it is packed dark;
-    // seen, the packing shows its length; the Light flag stays a ring.
-    for (final c in cocksIn(room.id)) {
-      final grafted = heart.grafted.contains(c.passageId);
-      final turned = heart.cocksTurned.contains(c.passageId);
-      final flagged = heart.flagged.contains(c.passageId);
-      final dead = turned && !grafted;
-      final seen = heart.clotSeen.contains(c.passageId);
-      final at = c.position;
-      // A Blood hand laid on the clot, waiting for the pause.
-      if (heart.laid.contains(c.passageId)) {
-        final b = 0.5 + 0.5 * sin(_time * 2.4);
-        canvas.drawPath(
-          Path()
-            ..fillType = PathFillType.evenOdd
-            ..addOval(Rect.fromCircle(center: at, radius: 30 + 2 * b))
-            ..addOval(Rect.fromCircle(center: at, radius: 23)),
-          Paint()..color = _kHeartCrimson.withValues(alpha: 0.35 + 0.2 * b),
-        );
-      }
-      // The stub of vessel, running down into the floor.
-      final stub = Rect.fromCenter(
-        center: at + const Offset(0, 22),
-        width: 18,
-        height: 44,
-      );
-      // The stub is a vessel of garnet glass (§7.11): lit while it carries,
-      // smoked while it is dead, dull while it has never been turned.
-      _drawVesselGlass(canvas, stub, grafted: grafted, dead: dead);
-      if (grafted) {
-        // Flow: a bright thread running down the lumen.
-        final t = (_time * 1.2) % 1.0;
-        canvas.drawCircle(
-          Offset(at.dx, stub.top + 6 + t * (stub.height - 12)),
-          3.5,
-          Paint()..color = _kHeartBone.withValues(alpha: 0.7),
-        );
-      } else if (dead && seen) {
-        // The clot, its length shown: pale granules packed the whole stub.
-        for (var i = 0; i < 5; i++) {
-          canvas.drawCircle(
-            Offset(at.dx + (i.isEven ? -3 : 3), stub.top + 8 + i * 7.5),
-            3,
-            Paint()..color = _kHeartBone.withValues(alpha: 0.55),
+  /// The HINT button: what is wrong, and nothing more.
+  void _riteReveal(DungeonCreature a, DungeonRoom room) {
+    final bay = room.rite;
+    if (bay == null) return;
+    final freed = riteFreed;
+    switch (bay.kind) {
+      case RiteKind.circle:
+        if (freed.length < 4) {
+          _setInsightHint(
+            freed.isEmpty
+                ? 'Four rooms each hold a captive'
+                : '${4 - freed.length} of the captives are still held',
           );
-        }
-      }
-      // The body of the cock: a brass boss.
-      canvas.drawCircle(at, 14, Paint()..color = const Color(0xFF8C6F36));
-      canvas.drawCircle(
-        at,
-        14,
-        Paint()
-          ..color = const Color(0xFFE4C16A).withValues(alpha: 0.7)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6,
-      );
-      // The handle: across (shut) or along (turned).
-      final along = turned;
-      canvas.drawLine(
-        at + (along ? const Offset(0, -20) : const Offset(-20, 0)),
-        at + (along ? const Offset(0, 20) : const Offset(20, 0)),
-        Paint()
-          ..color = const Color(0xFFE4C16A).withValues(alpha: 0.95)
-          ..strokeWidth = 5
-          ..strokeCap = StrokeCap.round,
-      );
-      canvas.drawCircle(at, 3, Paint()..color = _kHeartInk);
-      // THE BLOOD IS THE LIFE, kept: a garnet heart on every cock.
-      if (_lifeShown > 0) _drawLifeHeart(canvas, at, kHeartCocks.indexOf(c));
-      if (flagged && !turned) {
-        // The Light hand's flag: a clean ring for a sound vessel, a broken one
-        // for a thrombus. Earned information, drawn on the object.
-        final sound = heart.isSound(c.passageId);
-        final paint = Paint()
-          ..color = elementColor('Light').withValues(alpha: 0.9)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5;
-        final r = Rect.fromCircle(center: at, radius: 24);
-        if (sound) {
-          canvas.drawCircle(at, 24, paint);
+        } else if (rites.cups.length < 4) {
+          _setInsightHint('Not every cup is full');
         } else {
-          canvas.drawArc(r, -2.6, 2.0, false, paint);
-          canvas.drawArc(r, 0.5, 2.0, false, paint);
+          _setInsightHint('The seal is open');
         }
-      }
-      if (dead && seen && heart.phase == PulsePhase.flatline) {
-        // The pause: the clot can be moved now. A bone ring, breathing.
-        canvas.drawCircle(
-          at,
-          26,
-          Paint()
-            ..color = _kHeartBone.withValues(alpha: 0.5 + 0.3 * sin(_time * 4))
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2,
+      case RiteKind.earth:
+        _setInsightHint(
+          tendrilSolved(rites.earthFloor, rites.earth)
+              ? 'Every tendril is joined'
+              : 'Some tendrils are not joined',
         );
-      }
-    }
-    if (ch == null) return;
-    // The pericardium: stitching across the way out.
-    final sac = ch.pericardium;
-    if (sac != null && !entryDoorRevealed) {
-      final paint = Paint()
-        ..color = _kHeartBone.withValues(alpha: 0.7)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3;
-      for (var i = -3; i <= 3; i++) {
-        canvas.drawLine(
-          sac.translate(-14, i * 11.0),
-          sac.translate(14, i * 11.0 + 6),
-          paint,
+      case RiteKind.water:
+        _setInsightHint(
+          flipSolved(rites.water) ? 'The basin is full' : 'The basin is dry',
         );
-      }
-    }
-    // THE BALANCE: a beam on a pivot post with two sconces hung off its ends,
-    // one dark and one light. It tilts until the rite levels it.
-    final bal = ch.balance;
-    if (bal != null) {
-      final lit = (conduitEnergy['B'] ?? 0) > 0;
-      final tilt = lit ? 0.0 : 0.16 + 0.03 * sin(_time * 0.8);
-      // Post and foot.
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: bal + const Offset(0, 46),
-          width: 44,
-          height: 14,
-        ),
-        Paint()..color = _kHeartInk.withValues(alpha: 0.8),
-      );
-      canvas.drawLine(
-        bal + const Offset(0, 44),
-        bal,
-        Paint()
-          ..color = const Color(0xFF8C6F36)
-          ..strokeWidth = 5,
-      );
-      // Beam.
-      final l = bal + Offset(-44 * cos(tilt), -44 * sin(tilt));
-      final r = bal + Offset(44 * cos(tilt), 44 * sin(tilt));
-      canvas.drawLine(
-        l,
-        r,
-        Paint()
-          ..color = const Color(0xFFE4C16A).withValues(alpha: lit ? 0.95 : 0.7)
-          ..strokeWidth = 4
-          ..strokeCap = StrokeCap.round,
-      );
-      canvas.drawCircle(bal, 5, Paint()..color = const Color(0xFF8C6F36));
-      // Sconces hung by chains.
-      for (final (end, el) in [(l, 'Dark'), (r, 'Light')]) {
-        final cup = end + const Offset(0, 22);
-        canvas.drawLine(
-          end,
-          cup + const Offset(0, -8),
-          Paint()
-            ..color = _kHeartBone.withValues(alpha: 0.5)
-            ..strokeWidth = 1.2,
+      case RiteKind.fire:
+        _setInsightHint('The hearth is cold');
+      case RiteKind.air:
+        _setInsightHint(
+          rites.air.air == 0 ? 'The bell is empty' : 'The bell is not full',
         );
-        canvas.drawPath(
-          Path()
-            ..moveTo(cup.dx - 11, cup.dy - 8)
-            ..lineTo(cup.dx + 11, cup.dy - 8)
-            ..lineTo(cup.dx + 7, cup.dy + 6)
-            ..lineTo(cup.dx - 7, cup.dy + 6)
-            ..close(),
-          Paint()..color = const Color(0xFF8C6F36).withValues(alpha: 0.9),
-        );
-        canvas.drawCircle(
-          cup + const Offset(0, -12),
-          6 + (lit ? 2 * (0.5 + 0.5 * sin(_time * 5)) : 0),
-          Paint()..color = elementColor(el).withValues(alpha: lit ? 0.95 : 0.7),
-        );
-      }
-    }
-    // THE VAGAL NODE: a knot of nerve in the floor, five cords running into
-    // one ganglion, throbbing with the beat while it will answer and dull
-    // while it will not.
-    final node = ch.vagalNode;
-    if (node != null) {
-      final ready = heart.vagalCooldown <= 0;
-      final throb = ready ? 0.5 + 0.5 * sin(_time * 3.2) : 0.0;
-      for (var i = 0; i < 5; i++) {
-        final a = i * 2 * pi / 5 + 0.4;
-        final far = node + Offset(cos(a), sin(a)) * 62;
-        final mid = node + Offset(cos(a + 0.5), sin(a + 0.5)) * 34;
-        canvas.drawPath(
-          Path()
-            ..moveTo(node.dx, node.dy)
-            ..quadraticBezierTo(mid.dx, mid.dy, far.dx, far.dy),
-          Paint()
-            ..color = _kHeartBone.withValues(alpha: ready ? 0.55 : 0.25)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.5
-            ..strokeCap = StrokeCap.round,
-        );
-      }
-      canvas.drawCircle(
-        node,
-        18 + throb * 3,
-        Paint()..color = _kHeartCrimson.withValues(alpha: ready ? 0.85 : 0.35),
-      );
-      canvas.drawCircle(
-        node,
-        18 + throb * 3,
-        Paint()
-          ..color = _kHeartBone.withValues(alpha: ready ? 0.8 : 0.25)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
-      canvas.drawCircle(
-        node,
-        6,
-        Paint()..color = _kHeartInk.withValues(alpha: 0.8),
-      );
-    }
-  }
-
-  /// The phase turn: ONE wet pulse ring thrown out from the chamber's centre.
-  /// Never a wipe (Dark's grammar) and never a fade — the player has to read
-  /// it as the body doing something, not as a lamp changing.
-  void _renderHeartTurn(Canvas canvas, DungeonRoom room) {
-    if (heart.turn <= 0) return;
-    final t = 1 - (heart.turn / _kPulseTurnSeconds).clamp(0.0, 1.0);
-    final b = room.bounds;
-    canvas.drawCircle(
-      b.center,
-      t * b.longestSide * 0.62,
-      Paint()
-        ..color = _kHeartCrimson.withValues(alpha: 0.42 * (1 - t))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 10 * (1 - t) + 2,
-    );
-  }
-
-  // ── THE NO-STRAND PROOF ──────────────────────────────────
-
-  /// Exhaustive reachability over the orrery's whole state graph, **in TIME**.
-  ///
-  /// A state is (which chamber you stand in) × (**which phase the beat is
-  /// in**) × (which collaterals are grafted), enumerated separately for every
-  /// one of the ten rolls the corruption can come up as. Every legal move is
-  /// expanded: walking any passage that carries out of the chamber you are in
-  /// at that phase, grafting a sound collateral whose cock is in the chamber
-  /// you stand in, pulling the arena's vagal node — and **the beat**, which is
-  /// not a move the player chooses at all and which is available from every
-  /// single state, because a heart does not wait for anybody.
-  ///
-  /// That last point is the whole difference from the sixteen planets before
-  /// this one. Their state only moved when the player moved it, so "wait" was
-  /// a no-op and the search could ignore it. Here the world advances on its
-  /// own, so the beat is modelled as an always-available edge in BOTH the
-  /// forward enumeration and the escape audit: the enumerated set is therefore
-  /// everything the world can put the party in, and the audit asks the honest
-  /// question — from anywhere the CLOCK can leave you, can you still get out.
-  ///
-  /// The Blood KIN's steadying is deliberately NOT modelled. It only ever
-  /// leaves a vein open longer, so including it could only add edges; leaving
-  /// it out makes every number below a conservative bound.
-  ///
-  /// Seven answers, all by construction rather than by argument:
-  ///
-  ///  1. `strandable` — states from which some chamber is no longer
-  ///     reachable. **It must be zero, and it is zero WITHOUT a reset valve.**
-  ///     "Reachable" is checked for EVERY chamber in the layout, which is
-  ///     stronger than the brief asks: not just the exit and the unearned
-  ///     stars, but the vault and the arena as well.
-  ///  2. `strandableWithOpenLesserRound` — the counterfactual for the closed
-  ///     cycle: delete the sinus mouth, so the lesser lobe is a one-way chain
-  ///     instead of a one-way ring. It must be catastrophic, because the lung
-  ///     never reverses and a party that walks in could never walk out. This
-  ///     is the single most load-bearing line of the layout.
-  ///  3. `strandableWithOneWayLeaflet` — the counterfactual for the vault
-  ///     trick: cut the leaflet as a one-way vein INTO the reliquary instead
-  ///     of a two-way valve. It must be non-zero, because a pocket with a
-  ///     one-way door is a trap however periodic the world outside is.
-  ///  4. `strandableWithUnboundedArrest` — the counterfactual for
-  ///     periodicity itself: let the vagal node hold the heart still for ever.
-  ///     It must be non-zero, and it is the number that says premise one of
-  ///     the whole proof — the beat cannot be stopped — is load-bearing
-  ///     rather than decorative.
-  ///  5. `worstWaitPhases` — the longest any state has to wait, in phases,
-  ///     before SOME road opens. This is the "planned, not reacted to" claim
-  ///     as a number: the beat has four phases, so anything at or under three
-  ///     means no state is ever stuck waiting more than one turn of the
-  ///     clock.
-  ///  6. `ostiaPrimable` — how many of the four mouths have their own chamber
-  ///     reachable ON their own phase with nothing grafted. It must be four,
-  ///     or Star 0 is not earnable by a party without the Dark Mask, and §4's
-  ///     first-descent guarantee fails.
-  ///  7. `vaultReachableUngrafted` — whether the reliquary is reachable on a
-  ///     flatline with nothing grafted, i.e. whether the vault sits behind the
-  ///     planet's family gate. It must be true: one gate per star, and the
-  ///     cache is not a star.
-  ({
-    int rolls,
-    int states,
-    int strandable,
-    int strandableWithOpenLesserRound,
-    int strandableWithOneWayLeaflet,
-    int strandableWithUnboundedArrest,
-    int worstWaitPhases,
-    int ostiaPrimable,
-    bool vaultReachableUngrafted,
-  })
-  solveSanguineOrrery() {
-    final rooms = layout.rooms.keys.toList()..sort();
-    final arena = layout.rooms.values.firstWhere((r) => r.guardian != null).id;
-    final rolls = heartCollateralRolls();
-
-    /// One state, encoded. `a` is the arrested flag, which only the
-    /// unbounded-arrest counterfactual ever sets.
-    String enc(String room, PulsePhase ph, int mask, bool a) =>
-        '$room|${ph.index}|$mask|${a ? 1 : 0}';
-
-    var total = 0;
-    var strandable = 0;
-    var openRound = 0;
-    var oneWay = 0;
-    var unbounded = 0;
-    var worstWait = 0;
-    var ostiaOk = 0;
-    var vaultOk = false;
-
-    /// Everything the world and the player can do from one state, under the
-    /// three counterfactual switches.
-    List<(String, PulsePhase, int, bool)> moves(
-      String room,
-      PulsePhase ph,
-      int mask,
-      bool arrested,
-      List<String> sound, {
-      required bool closedLesserRound,
-      required bool twoWayLeaflet,
-      required bool boundedArrest,
-    }) {
-      final out = <(String, PulsePhase, int, bool)>[];
-      // THE BEAT. Always available, never chosen, and — unless the
-      // counterfactual has stopped the heart — never absent. Premise one.
-      if (!arrested) out.add((room, nextPulsePhase(ph), mask, false));
-      // Walking. Derived from the SAME rule the engine gates real doors with,
-      // via the chamber's own door list, so the proof can never drift from the
-      // doors the player actually meets.
-      for (final d in layout.rooms[room]!.doors) {
-        final p = heartPassageBetween(room, d.targetRoomId);
-        if (p == null) {
-          out.add((d.targetRoomId, ph, mask, arrested));
-          continue;
+      case RiteKind.arena:
+        if (rites.shellUp && rites.shellElement != null) {
+          _setInsightHint(_riteShellLine(rites.shellElement!));
         }
-        if (!closedLesserRound && p.id == 'vn_sinus') continue;
-        if (!twoWayLeaflet && p.id == 'vv_leaflet') {
-          // Cut as a one-way vein into the pocket.
-          if (room == p.from && ph == PulsePhase.flatline) {
-            out.add((p.to, ph, mask, arrested));
-          }
-          continue;
-        }
-        var grafted = false;
-        if (p.kind == PassageKind.collateral) {
-          final i = sound.indexOf(p.id);
-          if (i < 0) continue; // thrombosed this roll: never a road
-          grafted = mask & (1 << i) != 0;
-        }
-        if (!p.carriesFrom(room, ph, grafted: grafted)) continue;
-        out.add((d.targetRoomId, ph, mask, arrested));
-      }
-      // Grafting. Irreversible, but purely ADDITIVE — it only ever grows the
-      // edge set, so it cannot shrink reachability.
-      for (var i = 0; i < sound.length; i++) {
-        if (mask & (1 << i) != 0) continue;
-        final cock = cockFor(sound[i]);
-        if (cock == null || cock.roomId != room) continue;
-        out.add((room, ph, mask | (1 << i), arrested));
-      }
-      // The vagal node. Bounded: it only ever puts the beat at the top of a
-      // flatline and lets go. Unbounded (the counterfactual): it stops the
-      // heart and never gives it back.
-      if (room == arena && !arrested) {
-        out.add((
-          arena,
-          PulsePhase.flatline,
-          mask,
-          boundedArrest ? false : true,
-        ));
-      }
-      return out;
-    }
-
-    int audit(
-      List<String> sound, {
-      required bool closedLesserRound,
-      required bool twoWayLeaflet,
-      required bool boundedArrest,
-      void Function(Map<String, (String, PulsePhase, int, bool)> live)? report,
-    }) {
-      final first = (layout.entranceRoomId, PulsePhase.systole, 0, false);
-      final live = <String, (String, PulsePhase, int, bool)>{};
-      live[enc(first.$1, first.$2, first.$3, first.$4)] = first;
-      final queue = [first];
-      while (queue.isNotEmpty) {
-        final (rm, ph, mk, ar) = queue.removeLast();
-        for (final m in moves(
-          rm,
-          ph,
-          mk,
-          ar,
-          sound,
-          closedLesserRound: closedLesserRound,
-          twoWayLeaflet: twoWayLeaflet,
-          boundedArrest: boundedArrest,
-        )) {
-          final k = enc(m.$1, m.$2, m.$3, m.$4);
-          if (live.containsKey(k)) continue;
-          live[k] = m;
-          queue.add(m);
-        }
-      }
-      var bad = 0;
-      for (final st in live.values) {
-        final seen = <String>{enc(st.$1, st.$2, st.$3, st.$4)};
-        final hit = <String>{st.$1};
-        final q = [st];
-        while (q.isNotEmpty) {
-          final (rm, ph, mk, ar) = q.removeLast();
-          for (final m in moves(
-            rm,
-            ph,
-            mk,
-            ar,
-            sound,
-            closedLesserRound: closedLesserRound,
-            twoWayLeaflet: twoWayLeaflet,
-            boundedArrest: boundedArrest,
-          )) {
-            final k = enc(m.$1, m.$2, m.$3, m.$4);
-            if (!seen.add(k)) continue;
-            hit.add(m.$1);
-            q.add(m);
-          }
-        }
-        if (hit.length < rooms.length) bad++;
-      }
-      if (report != null) report(live);
-      return bad;
-    }
-
-    for (final sound in rolls) {
-      strandable += audit(
-        sound,
-        closedLesserRound: true,
-        twoWayLeaflet: true,
-        boundedArrest: true,
-        report: (live) {
-          total += live.length;
-          for (final st in live.values) {
-            // How many beats this state must sit through before ANY road
-            // opens. The "planned, not reacted to" claim, measured.
-            var wait = 0;
-            var ph = st.$2;
-            while (wait < PulsePhase.values.length) {
-              final walks = moves(
-                st.$1,
-                ph,
-                st.$3,
-                false,
-                sound,
-                closedLesserRound: true,
-                twoWayLeaflet: true,
-                boundedArrest: true,
-              ).where((m) => m.$1 != st.$1);
-              if (walks.isNotEmpty) break;
-              wait++;
-              ph = nextPulsePhase(ph);
-            }
-            if (wait > worstWait) worstWait = wait;
-          }
-        },
-      );
-      openRound += audit(
-        sound,
-        closedLesserRound: false,
-        twoWayLeaflet: true,
-        boundedArrest: true,
-      );
-      oneWay += audit(
-        sound,
-        closedLesserRound: true,
-        twoWayLeaflet: false,
-        boundedArrest: true,
-      );
-      unbounded += audit(
-        sound,
-        closedLesserRound: true,
-        twoWayLeaflet: true,
-        boundedArrest: false,
-      );
-    }
-
-    // Star 0 and the vault, with NOTHING grafted — i.e. what a party with no
-    // Dark Mask can still reach. §4's first-descent guarantee lives here.
-    {
-      final live = <String>{};
-      final first = (layout.entranceRoomId, PulsePhase.systole, 0, false);
-      final q = [first];
-      live.add(enc(first.$1, first.$2, 0, false));
-      while (q.isNotEmpty) {
-        final (rm, ph, mk, ar) = q.removeLast();
-        for (final m in moves(
-          rm,
-          ph,
-          mk,
-          ar,
-          const [], // no collateral is ever a road: nothing can be grafted
-          closedLesserRound: true,
-          twoWayLeaflet: true,
-          boundedArrest: true,
-        )) {
-          final k = enc(m.$1, m.$2, m.$3, m.$4);
-          if (!live.add(k)) continue;
-          q.add(m);
-        }
-      }
-      for (final o in kHeartOstia) {
-        if (live.contains(enc(o.roomId, o.phase, 0, false))) ostiaOk++;
-      }
-      vaultOk = live.contains(
-        enc('auricle_reliquary', PulsePhase.flatline, 0, false),
-      );
-    }
-
-    return (
-      rolls: rolls.length,
-      states: total,
-      strandable: strandable,
-      strandableWithOpenLesserRound: openRound,
-      strandableWithOneWayLeaflet: oneWay,
-      strandableWithUnboundedArrest: unbounded,
-      worstWaitPhases: worstWait,
-      ostiaPrimable: ostiaOk,
-      vaultReachableUngrafted: vaultOk,
-    );
-  }
-}
-
-// ═════════════════════════════════════════════════════════
-// THE GROUND — what Hemavorn actually IS
-// ═════════════════════════════════════════════════════════
-//
-// Every chamber of the terminal planet stood on the generic tinted slab with
-// four evenly spaced hairlines ruled across it. Four equal lines is not a
-// heart; it is a page of graph paper, and it was the same page in all ten
-// rooms. What follows draws the inside of something ALIVE instead: an
-// endocardial lining with muscle cords webbing its walls, standing blood in
-// the low places, a vessel tracery in the wall itself — and then, per
-// chamber, the one piece of anatomy that chamber is NAMED for. A run down
-// the orrery should be legible as a tour of a body: sac, artery, arch,
-// sinus, stair, lung, comb, muscle, ear, valve.
-//
-// Three rules this file keeps, all of them learned the hard way:
-//
-//  • **NOTHING ON A GRID.** Anatomy is never regular. Every spacing here is
-//    jittered, every run skips, every length and angle varies, and the two
-//    places that wanted to be a lattice (the myocardium's fibres, the
-//    auricle's ridges) are built out of tapered bundles and bowed ribs
-//    precisely so they cannot tile.
-//  • **BUILT ONCE.** All of it is a pure function of the room's own bounds
-//    through a small LCG, cached in `_heartGroundCache`, so a chamber looks
-//    the same every time you walk into it and costs nothing to walk into
-//    twice. Strokes are merged into compound paths wherever one paint can
-//    serve many shapes, which keeps a room to roughly fifty draw calls.
-//  • **NO `MaskFilter.blur`, ANYWHERE.** The wetness is alpha, dark pools and
-//    a pale meniscus. Blur in a per-frame paint is this repo's main jank
-//    source and there is none of it on this planet.
-//
-// The centre of a chamber is left to walk and fight in — the arena and the
-// crossing take an explicit open radius — and every big fill stays inside the
-// FLOOR TRANSLUCENCY RULE so the sky shader still reads through the meat.
-
-/// Deep muscle in section — what the wall of a heart looks like cut.
-const Color _kHeartMeat = Color(0xFF5A1420);
-
-/// Tendon, cartilage and valve leaf: the pale, dry things inside a wet one.
-const Color _kHeartSinew = Color(0xFFD9BFA2);
-
-/// Standing blood. Nearly black, because pooled blood is — the crimson in
-/// this planet belongs to what is still moving.
-const Color _kHeartWet = Color(0xFF2A0A11);
-
-/// One drawn piece of a chamber: a compound path plus the paint it wants.
-///
-/// [swell] is how much of the beat this piece takes — 0 for dead tissue that
-/// should sit still, 1 for a wall that should visibly push. It is the only
-/// per-frame input any of this has.
-class _HeartPiece {
-  const _HeartPiece(
-    this.path,
-    this.color, {
-    this.stroke = 0,
-    this.alpha = 0.4,
-    this.swell = 0,
-  });
-
-  final Path path;
-  final Color color;
-
-  /// Stroke width, or 0 to fill.
-  final double stroke;
-  final double alpha;
-  final double swell;
-}
-
-/// One chamber's static geometry.
-class _HeartGround {
-  final List<_HeartPiece> pieces = [];
-
-  /// Standing blood is kept apart from [pieces] because it is the one thing
-  /// with a moving highlight on it.
-  final List<Path> pools = [];
-  final List<Offset> poolCentres = [];
-}
-
-/// Built once per chamber, keyed by room id, and never rebuilt.
-final Map<String, _HeartGround> _heartGroundCache = {};
-
-_HeartGround _heartGround(DungeonRoom room) =>
-    _heartGroundCache.putIfAbsent(room.id, () => _buildHeartGround(room));
-
-// ── Small geometry helpers ────────────────────────────────
-
-/// The control point that bows a straight run between [a] and [b] out to one
-/// side by [bow]. Nothing in a body runs straight, so almost every line in
-/// this file goes through here.
-Offset _heartBow(Offset a, Offset b, double bow) {
-  final m = Offset.lerp(a, b, 0.5)!;
-  final d = b - a;
-  final len = d.distance;
-  if (len < 0.001) return m;
-  return m + Offset(-d.dy / len, d.dx / len) * bow;
-}
-
-/// A bowed run from [a] to [b], appended to [into] (or a fresh path).
-Path _heartArcTo(Offset a, Offset b, double bow, [Path? into]) {
-  final c = _heartBow(a, b, bow);
-  final p = into ?? Path();
-  p.moveTo(a.dx, a.dy);
-  p.quadraticBezierTo(c.dx, c.dy, b.dx, b.dy);
-  return p;
-}
-
-/// A point on that same bowed run, so things can be hung along it (stitches
-/// on a seam, voussoirs on an arch) without re-deriving the curve.
-Offset _heartArcAt(Offset a, Offset b, double bow, double t) {
-  final c = _heartBow(a, b, bow);
-  final u = 1 - t;
-  return Offset(
-    u * u * a.dx + 2 * u * t * c.dx + t * t * b.dx,
-    u * u * a.dy + 2 * u * t * c.dy + t * t * b.dy,
-  );
-}
-
-/// A closed, ragged-lipped blob: eight points round an ellipse, each pushed
-/// in or out and joined with quadratics, so no pool of blood in this dungeon
-/// has a clean edge.
-Path _heartBlob(
-  Offset c,
-  double rx,
-  double ry,
-  double Function() rnd, {
-  double wobble = 0.30,
-}) {
-  const n = 8;
-  final pts = <Offset>[];
-  for (var i = 0; i < n; i++) {
-    final a = i / n * pi * 2;
-    final k = 1 + (rnd() - 0.5) * 2 * wobble;
-    pts.add(Offset(c.dx + cos(a) * rx * k, c.dy + sin(a) * ry * k));
-  }
-  final path = Path();
-  final mid0 = Offset.lerp(pts[n - 1], pts[0], 0.5)!;
-  path.moveTo(mid0.dx, mid0.dy);
-  for (var i = 0; i < n; i++) {
-    final cur = pts[i];
-    final mid = Offset.lerp(cur, pts[(i + 1) % n], 0.5)!;
-    path.quadraticBezierTo(cur.dx, cur.dy, mid.dx, mid.dy);
-  }
-  path.close();
-  return path;
-}
-
-/// A closed contour round [r] with every point nudged off true, smoothed
-/// through its own midpoints. Anywhere a chamber wants an outline, it gets
-/// one of these rather than a rectangle — a body has no straight edges and a
-/// ruled border is the single loudest way to make a room look like a diagram.
-Path _heartLoop(Rect r, double Function() rnd, double jitter) {
-  final pts = <Offset>[];
-  void side(Offset a, Offset z, int n) {
-    final d = z - a;
-    final l = d.distance;
-    final nrm = Offset(-d.dy / l, d.dx / l);
-    for (var i = 0; i < n; i++) {
-      pts.add(Offset.lerp(a, z, i / n)! + nrm * ((rnd() - 0.5) * 2 * jitter));
+      case RiteKind.vault:
+        break;
     }
   }
 
-  side(r.topLeft, r.topRight, 7);
-  side(r.topRight, r.bottomRight, 5);
-  side(r.bottomRight, r.bottomLeft, 7);
-  side(r.bottomLeft, r.topLeft, 5);
-  final path = Path();
-  final n = pts.length;
-  final mid0 = Offset.lerp(pts[n - 1], pts[0], 0.5)!;
-  path.moveTo(mid0.dx, mid0.dy);
-  for (var i = 0; i < n; i++) {
-    final cur = pts[i];
-    final mid = Offset.lerp(cur, pts[(i + 1) % n], 0.5)!;
-    path.quadraticBezierTo(cur.dx, cur.dy, mid.dx, mid.dy);
-  }
-  path.close();
-  return path;
-}
-
-/// A branching vessel, recursively. A TREE is the one thing that can never
-/// come out looking like a lattice however many of them you draw, which is
-/// why the wall tracery and the lung's weave are both built out of it.
-void _heartBranch(
-  Path p,
-  Offset at,
-  double ang,
-  double len,
-  int depth,
-  double Function() rnd,
-) {
-  if (depth <= 0 || len < 7) return;
-  final end = at + Offset(cos(ang) * len, sin(ang) * len);
-  _heartArcTo(at, end, (rnd() - 0.5) * len * 0.35, p);
-  final forks = rnd() < 0.30 ? 3 : 2;
-  for (var i = 0; i < forks; i++) {
-    _heartBranch(
-      p,
-      end,
-      ang + (rnd() - 0.5) * 1.6,
-      len * (0.48 + rnd() * 0.30),
-      depth - 1,
-      rnd,
-    );
-  }
-}
-
-// ── The lining every chamber has ──────────────────────────
-
-/// THE WALL. A heart chamber is not a floor with a border; it is a muscular
-/// tube seen from inside, so the rim gets a thick band of meat, a wet inner
-/// line, and endocardial fibres combed inward off it.
-///
-/// The fibres are where the "nothing on a grid" rule earns its keep: the
-/// first cut of them was evenly spaced and read as the teeth of a zip round
-/// every room. They now skip about a fifth of their steps, lean by a random
-/// amount and vary from a stub to a finger.
-void _heartLining(_HeartGround g, Rect b, double Function() rnd) {
-  final rim = RRect.fromRectAndRadius(b, const Radius.circular(28));
-  g.pieces.add(
-    _HeartPiece(
-      Path()..addRRect(rim.deflate(14)),
-      _kHeartMeat,
-      stroke: 28,
-      alpha: 0.36,
-      swell: 0.6,
-    ),
-  );
-  // THE WET LINE where the lining meets the floor. It was a perfect rounded
-  // rectangle, which in every single room read as a HUD frame ruled round the
-  // outside of the picture — the exact fault this pass exists to remove. It
-  // is a wobbling closed contour now: the same line, but grown.
-  g.pieces.add(
-    _HeartPiece(
-      _heartLoop(b.deflate(24), rnd, 9),
-      _kHeartCrimson,
-      stroke: 2.6,
-      alpha: 0.34,
-      swell: 1,
-    ),
-  );
-
-  // THE GRAIN OF THE FLOOR. Long, faint, bowed strokes right across the
-  // chamber. Muscle has a direction, and without this the open middle of a
-  // room — which the arena and the crossing are REQUIRED to keep clear —
-  // came out as a flat wash with furniture round the edge of it. It is
-  // texture, never an obstacle: nothing here is above a tenth of an alpha.
-  final grain = Path();
-  for (var i = 0; i < 8; i++) {
-    final t0 = rnd();
-    _heartArcTo(
-      _heartPerimeter(b, t0),
-      _heartPerimeter(b, t0 + 0.32 + rnd() * 0.28),
-      (rnd() - 0.5) * 320,
-      grain,
-    );
-  }
-  g.pieces.add(
-    _HeartPiece(grain, _kHeartCrimson, stroke: 2.2, alpha: 0.09, swell: 0.8),
-  );
-
-  final fib = Path();
-  void comb(
-    double along0,
-    double along1,
-    Offset Function(double) at,
-    Offset dir,
-  ) {
-    var t = along0 + rnd() * 40;
-    while (t < along1) {
-      if (rnd() > 0.20) {
-        final len = 9 + rnd() * 28;
-        final lean = (rnd() - 0.5) * 0.7;
-        final a = at(t);
-        final d = Offset(
-          dir.dx * cos(lean) - dir.dy * sin(lean),
-          dir.dx * sin(lean) + dir.dy * cos(lean),
-        );
-        _heartArcTo(a, a + d * len, (rnd() - 0.5) * 9, fib);
-      }
-      t += 9 + rnd() * 26;
-    }
-  }
-
-  comb(
-    b.left + 26,
-    b.right - 26,
-    (t) => Offset(t, b.top + 26),
-    const Offset(0, 1),
-  );
-  comb(
-    b.left + 26,
-    b.right - 26,
-    (t) => Offset(t, b.bottom - 26),
-    const Offset(0, -1),
-  );
-  comb(
-    b.top + 40,
-    b.bottom - 40,
-    (t) => Offset(b.left + 26, t),
-    const Offset(1, 0),
-  );
-  comb(
-    b.top + 40,
-    b.bottom - 40,
-    (t) => Offset(b.right - 26, t),
-    const Offset(-1, 0),
-  );
-  g.pieces.add(
-    _HeartPiece(fib, _kHeartCrimson, stroke: 2.0, alpha: 0.34, swell: 1),
-  );
-}
-
-/// A point [t] of the way round the perimeter of [b], t in [0,1).
-Offset _heartPerimeter(Rect b, double t) {
-  final per = 2 * (b.width + b.height);
-  var d = (t % 1.0) * per;
-  if (d < 0) d += per;
-  if (d < b.width) return Offset(b.left + d, b.top);
-  d -= b.width;
-  if (d < b.height) return Offset(b.right, b.top + d);
-  d -= b.height;
-  if (d < b.width) return Offset(b.right - d, b.bottom);
-  d -= b.width;
-  return Offset(b.left, b.bottom - d);
-}
-
-/// TRABECULAE CARNEAE — the fleshy cords that web the inside of a chamber and
-/// are the reason a heart's interior looks knotted rather than smooth.
-///
-/// ANCHORED AT BOTH ENDS. The first cut of these grew out of one wall and
-/// stopped in mid-air, and a room full of them read as a floor strewn with
-/// fallen branches. A trabecula is a BRIDGE: it leaves the wall, arches into
-/// the chamber and comes back to the wall, which is both what the tissue
-/// actually does and what makes the room read as webbed rather than littered.
-/// [openRadius] keeps the arches shallow in a room that has to be fought in.
-///
-/// Bucketed into three thicknesses so all of them cost six draw calls rather
-/// than two per cord.
-void _heartTrabeculae(
-  _HeartGround g,
-  Rect b,
-  double Function() rnd, {
-  int count = 13,
-  double openRadius = 0,
-}) {
-  final under = [Path(), Path(), Path()];
-  final over = [Path(), Path(), Path()];
-  const widths = [3.0, 5.0, 7.5];
-  final per = 2 * (b.width + b.height);
-  for (var i = 0; i < count; i++) {
-    final t0 = rnd();
-    final a = _heartPerimeter(b, t0);
-    final z = _heartPerimeter(b, t0 + (70 + rnd() * 300) / per);
-    final d = z - a;
-    final l = d.distance;
-    if (l < 40) continue;
-    // Bow whichever way is into the room.
-    final nrm = Offset(-d.dy / l, d.dx / l);
-    final toward = b.center - Offset.lerp(a, z, 0.5)!;
-    final sign = (nrm.dx * toward.dx + nrm.dy * toward.dy) >= 0 ? 1.0 : -1.0;
-    final bow = sign * (26 + rnd() * 120);
-    if (openRadius > 0 &&
-        (_heartArcAt(a, z, bow, 0.5) - b.center).distance < openRadius) {
-      continue;
-    }
-    final bucket = (rnd() * 3).floor();
-    _heartArcTo(a, z, bow, under[bucket]);
-    _heartArcTo(a, z, bow, over[bucket]);
-  }
-  for (var i = 0; i < 3; i++) {
-    g.pieces.add(
-      _HeartPiece(under[i], _kHeartInk, stroke: widths[i] + 3, alpha: 0.46),
-    );
-    g.pieces.add(
-      _HeartPiece(
-        over[i],
-        _kHeartCrimson,
-        stroke: widths[i],
-        alpha: 0.32,
-        swell: 1,
-      ),
-    );
-  }
-}
-
-/// Standing blood, in the low places. Never round, never centred: a chamber
-/// that has been beating for an age has puddles where the floor sags.
-void _heartPools(
-  _HeartGround g,
-  Rect b,
-  double Function() rnd, {
-  int count = 5,
-  double openRadius = 0,
-}) {
-  for (var i = 0; i < count; i++) {
-    final c = Offset(
-      b.left + 60 + rnd() * (b.width - 120),
-      b.top + 50 + rnd() * (b.height - 100),
-    );
-    if (openRadius > 0 && (c - b.center).distance < openRadius) continue;
-    final rx = 32 + rnd() * 60;
-    g.pools.add(_heartBlob(c, rx, rx * (0.34 + rnd() * 0.28), rnd));
-    g.poolCentres.add(c);
-  }
-}
-
-/// VASA VASORUM — the vessels that feed the vessel. A fine tracery growing
-/// out of the wall itself, which is what stops the rim reading as a painted
-/// border: the wall has a supply, so it is tissue.
-void _heartVasa(
-  _HeartGround g,
-  Rect b,
-  double Function() rnd, {
-  int trees = 5,
-}) {
-  final p = Path();
-  for (var i = 0; i < trees; i++) {
-    final side = (rnd() * 4).floor();
-    final u = rnd();
-    final (at, ang) = switch (side) {
-      0 => (Offset(b.left + 40 + u * (b.width - 80), b.top + 16), pi / 2),
-      1 => (Offset(b.left + 40 + u * (b.width - 80), b.bottom - 16), -pi / 2),
-      2 => (Offset(b.left + 16, b.top + 50 + u * (b.height - 100)), 0.0),
-      _ => (Offset(b.right - 16, b.top + 50 + u * (b.height - 100)), pi),
-    };
-    _heartBranch(p, at, ang + (rnd() - 0.5) * 0.9, 46 + rnd() * 36, 4, rnd);
-  }
-  g.pieces.add(
-    _HeartPiece(p, _kHeartCrimson, stroke: 1.3, alpha: 0.26, swell: 0.5),
-  );
-}
-
-// ── What each chamber is ──────────────────────────────────
-
-/// THE PERICARD GATE — the sac. Leathery seams sweeping the whole width of
-/// the room with sutures crossing them at irregular intervals, because the
-/// thing the party's own BLOOD unpicks to open this planet ought to be
-/// visibly SEWN. A fifth of the stitches are already gone.
-void _buildSac(_HeartGround g, Rect b, double Function() rnd) {
-  final dark = Path();
-  final pale = Path();
-  final stitch = Path();
-  for (var i = 0; i < 4; i++) {
-    final y = b.top + b.height * (0.13 + 0.25 * i) + (rnd() - 0.5) * 56;
-    // TWO SEAMS ACROSS AND TWO DOWN. Four near-horizontal bands, however much
-    // they sag and tilt, still read as a ruled page — and a sac is not sewn
-    // in one direction anyway. The down-seams cross the across-seams, which
-    // is what makes the room read as something CLOSED UP rather than lined.
-    final across = i.isEven;
-    final x = b.left + b.width * (0.24 + 0.46 * i) + (rnd() - 0.5) * 70;
-    final a = across
-        ? Offset(b.left - 14, y + (rnd() - 0.5) * 110)
-        : Offset(x + (rnd() - 0.5) * 90, b.top - 14);
-    final c = across
-        ? Offset(b.right + 14, y + (rnd() - 0.5) * 110)
-        : Offset(x + (rnd() - 0.5) * 90, b.bottom + 14);
-    // A seam that barely bends is a clothesline. These sag and rise by up to
-    // a fifth of the room.
-    final bow = (rnd() - 0.5) * 210;
-    // Two lips of membrane drawn TOGETHER — a seam is where two edges have
-    // been pulled up against each other, which is why the stitches read as
-    // holding something shut rather than as ticks on a wire.
-    for (final lip in const [-5.0, 5.0]) {
-      final off = across ? Offset(0, lip) : Offset(lip, 0);
-      _heartArcTo(a + off, c + off, bow, dark);
-    }
-    _heartArcTo(a, c, bow, pale);
-    // Sutures. Spacing is jittered and a fifth of them are missing, so the
-    // seam reads as hand-sewn and half-unpicked rather than machined.
-    // A WHIP STITCH, which leans the same way all along one seam. Ticks at
-    // random angles read as tally marks; a consistent slant reads as
-    // somebody's hand going round and round the same edge.
-    final slant = (i.isEven ? 0.72 : -0.72) + (rnd() - 0.5) * 0.3;
-    var t = 0.04 + rnd() * 0.08;
-    while (t < 0.96) {
-      if (rnd() > 0.22) {
-        final at = _heartArcAt(a, c, bow, t);
-        final lean = slant + (rnd() - 0.5) * 0.22 + (across ? 0 : pi / 2);
-        final h = 8 + rnd() * 9;
-        stitch.moveTo(at.dx - sin(lean) * h, at.dy - cos(lean) * h);
-        stitch.lineTo(at.dx + sin(lean) * h, at.dy + cos(lean) * h);
-      }
-      t += 0.035 + rnd() * 0.055;
-    }
-  }
-  g.pieces.add(_HeartPiece(dark, _kHeartInk, stroke: 11, alpha: 0.44));
-  g.pieces.add(
-    _HeartPiece(pale, _kHeartSinew, stroke: 3.2, alpha: 0.26, swell: 0.4),
-  );
-  g.pieces.add(
-    _HeartPiece(stitch, _kHeartBone, stroke: 1.8, alpha: 0.34, swell: 0.3),
-  );
-}
-
-/// THE ARTERIAL RUN — a length of great artery, seen from inside. Bands of
-/// circular muscle cross the corridor at irregular intervals and every one of
-/// them is BROKEN in the middle, which does two jobs at once: it leaves a
-/// clear lane to run down, and a band you can see through reads as wrapped
-/// around a tube rather than painted on a floor.
-void _buildRun(_HeartGround g, Rect b, double Function() rnd) {
-  // BANDS, NOT BARS. The first cut bowed these by a few pixels over two
-  // hundred and the run came out looking like a row of railings; a hoop
-  // wrapped round a tube has a real belly to it, and no two of them here have
-  // the same belly, the same gap or the same thickness.
-  final dark = [Path(), Path(), Path()];
-  final lit = [Path(), Path(), Path()];
-  const widths = [6.0, 9.5, 14.0];
-  const lane = 78.0;
-  var x = b.left + 40 + rnd() * 30;
-  while (x < b.right - 30) {
-    final bow = (rnd() < 0.5 ? -1 : 1) * (44 + rnd() * 62);
-    final k = (rnd() * 3).floor();
-    final drift = (rnd() - 0.5) * 44;
-    final gapTop = b.center.dy - lane - rnd() * 34;
-    final gapBottom = b.center.dy + lane + rnd() * 34;
-    final foot = x + (rnd() - 0.5) * 24;
-    for (final into in [dark[k], lit[k]]) {
-      _heartArcTo(Offset(x, b.top + 14), Offset(x + drift, gapTop), bow, into);
-      _heartArcTo(
-        Offset(x + drift, gapBottom),
-        Offset(foot, b.bottom - 14),
-        bow,
-        into,
-      );
-    }
-    x += 40 + rnd() * 86;
-  }
-  for (var i = 0; i < 3; i++) {
-    g.pieces.add(
-      _HeartPiece(dark[i], _kHeartInk, stroke: widths[i] + 7, alpha: 0.40),
-    );
-    g.pieces.add(
-      _HeartPiece(
-        lit[i],
-        _kHeartMeat,
-        stroke: widths[i],
-        alpha: 0.50,
-        swell: 1,
-      ),
-    );
-  }
-  // Elastic laminae: a few long ridges running the LENGTH of the run, which
-  // is the direction the party travels and the direction blood does.
-  final lam = Path();
-  for (var i = 0; i < 6; i++) {
-    final y = b.top + 40 + rnd() * (b.height - 80);
-    final x0 = b.left + rnd() * b.width * 0.4;
-    final x1 = x0 + 160 + rnd() * 320;
-    _heartArcTo(
-      Offset(x0, y),
-      Offset(min(x1, b.right - 20), y + (rnd() - 0.5) * 40),
-      (rnd() - 0.5) * 40,
-      lam,
-    );
-  }
-  g.pieces.add(
-    _HeartPiece(lam, _kHeartCrimson, stroke: 2.6, alpha: 0.40, swell: 0.7),
-  );
-}
-
-/// THE AORTIC ARCH — an arch, and the only piece of this dungeon that is
-/// genuinely ARCHITECTURE. Three nested muscular bands spring from both
-/// haunches and cross the chamber overhead, with voussoir divisions cut
-/// across the outer one at uneven intervals (an evenly divided arch reads as
-/// masonry, and this one is grown, not laid).
-void _buildArch(_HeartGround g, Rect b, double Function() rnd) {
-  final dark = Path();
-  final band = Path();
-  final tick = Path();
-  for (var i = 0; i < 3; i++) {
-    final inset = 60.0 + i * 52;
-    final a = Offset(b.left + inset * 0.5, b.bottom - 26);
-    final c = Offset(b.right - inset * 0.5, b.bottom - 26);
-    // A quadratic's crown rises only half its control offset, so the first
-    // cut of this — one room-height of bow — put the springing of the arch
-    // where its crown should be and left the top third of the chamber empty.
-    final bow = -(b.height - inset) * 1.62;
-    _heartArcTo(a, c, bow, dark);
-    _heartArcTo(a, c, bow, band);
-    if (i != 0) continue;
-    var t = 0.06 + rnd() * 0.06;
-    while (t < 0.94) {
-      if (rnd() > 0.18) {
-        final p0 = _heartArcAt(a, c, bow, t);
-        final p1 = _heartArcAt(a, c, bow + 46, t);
-        tick.moveTo(p0.dx, p0.dy);
-        tick.lineTo(p1.dx, p1.dy);
-      }
-      t += 0.04 + rnd() * 0.06;
-    }
-  }
-  g.pieces.add(_HeartPiece(dark, _kHeartInk, stroke: 22, alpha: 0.42));
-  g.pieces.add(
-    _HeartPiece(band, _kHeartMeat, stroke: 13, alpha: 0.48, swell: 1),
-  );
-  g.pieces.add(
-    _HeartPiece(tick, _kHeartSinew, stroke: 2.0, alpha: 0.24, swell: 0.4),
-  );
-}
-
-/// THE VENA CROSSING — the sinus, where the figure of eight crosses itself.
-/// Two great throats come in from opposite corners and EMPTY into a common
-/// pool in the middle: their walls are drawn only at the ends of each run and
-/// stop before they reach the centre, so the hub keeps an open floor and
-/// still reads as the one place two vessels meet.
-void _buildSinus(_HeartGround g, Rect b, double Function() rnd) {
-  final dark = Path();
-  final wall = Path();
-  final axes = [
-    (Offset(b.left - 40, b.top - 30), Offset(b.right + 40, b.bottom + 30)),
-    (Offset(b.left - 40, b.bottom + 30), Offset(b.right + 40, b.top - 30)),
-  ];
-  // A THROAT IS A HOLLOW, not a stick. The first cut drew each vessel as two
-  // long thin strokes and the crossing came out looking like scaffolding
-  // poles laid over the floor; each mouth is a tapered opening now, with a
-  // dark hollow inside it and a wall of meat on either lip.
-  final bore = Path();
-  for (final (a, c) in axes) {
-    final d = c - a;
-    final len = d.distance;
-    final n = Offset(-d.dy / len, d.dx / len);
-    for (final seg in const [(0.0, 0.36), (1.0, 0.64)]) {
-      final mouth = Offset.lerp(a, c, seg.$1)!;
-      final inner = Offset.lerp(a, c, seg.$2)!;
-      final wide = 116.0 + rnd() * 30;
-      final narrow = 70.0 + rnd() * 20;
-      final m0 = mouth + n * wide;
-      final m1 = mouth - n * wide;
-      final i0 = inner + n * narrow;
-      final i1 = inner - n * narrow;
-      final c0 = _heartBow(m0, i0, 30);
-      final c1 = _heartBow(i1, m1, 30);
-      bore.addPath(
-        Path()
-          ..moveTo(m0.dx, m0.dy)
-          ..quadraticBezierTo(c0.dx, c0.dy, i0.dx, i0.dy)
-          ..lineTo(i1.dx, i1.dy)
-          ..quadraticBezierTo(c1.dx, c1.dy, m1.dx, m1.dy)
-          ..close(),
-        Offset.zero,
-      );
-      for (final into in [dark, wall]) {
-        _heartArcTo(m0, i0, 30, into);
-        _heartArcTo(i1, m1, 30, into);
-      }
-    }
-  }
-  // The lumen has to be DARKER than the chamber or the throat reads as two
-  // lines rather than a hole: blood standing in a vessel is nearly black.
-  g.pieces.add(_HeartPiece(bore, _kHeartWet, alpha: 0.58));
-  g.pieces.add(_HeartPiece(dark, _kHeartInk, stroke: 20, alpha: 0.46));
-  g.pieces.add(
-    _HeartPiece(wall, _kHeartMeat, stroke: 11, alpha: 0.52, swell: 1),
-  );
-  // The sinus itself: one broad shallow pool of standing blood under the
-  // crossing. Scenery to stand in, never an obstacle.
-  g.pools.add(_heartBlob(b.center, 150, 96, rnd, wobble: 0.22));
-  g.poolCentres.add(b.center);
-}
-
-/// THE PULMONIC STAIR — terraces of tissue climbing out of the crossing into
-/// the lung. Each shelf has a pale cartilage lip on its tread and a fringe of
-/// roots hanging under its nose; the rise and the run of every step differ,
-/// because a stair grown by a body is not a stair anybody cut.
-void _buildStair(_HeartGround g, Rect b, double Function() rnd) {
-  final tread = Path();
-  final shadow = Path();
-  final lip = Path();
-  final fringe = Path();
-  var x = b.left + 34;
-  var y = b.bottom - 70;
-  for (var i = 0; i < 6 && x < b.right - 70; i++) {
-    final w = 130 + rnd() * 110;
-    final h = 30 + rnd() * 22;
-    final a = Offset(x, y);
-    final c = Offset(min(x + w, b.right - 24), y + (rnd() - 0.5) * 16);
-    final slab = RRect.fromRectAndRadius(
-      Rect.fromLTRB(a.dx, a.dy, c.dx, a.dy + h),
-      Radius.circular(h * 0.45),
-    );
-    // THE SHADOW IS THE STEP. Seen from above, a shelf is only a shelf
-    // because of what it casts; the first cut had treads at the same value as
-    // the floor and the whole stair was invisible in the picture.
-    shadow.addRRect(slab.shift(const Offset(5, 11)));
-    tread.addRRect(slab);
-    _heartArcTo(a, c, -6 - rnd() * 8, lip);
-    // The roots under the nose. Jittered, and a quarter of them missing.
-    var t = 0.05 + rnd() * 0.1;
-    while (t < 0.95) {
-      if (rnd() > 0.25) {
-        final at = Offset.lerp(a, c, t)!.translate(0, h);
-        fringe.moveTo(at.dx, at.dy);
-        fringe.lineTo(at.dx + (rnd() - 0.5) * 12, at.dy + 8 + rnd() * 20);
-      }
-      t += 0.05 + rnd() * 0.08;
-    }
-    x += w * (0.62 + rnd() * 0.3);
-    y -= 48 + rnd() * 34;
-  }
-  g.pieces.add(_HeartPiece(shadow, _kHeartInk, alpha: 0.55));
-  g.pieces.add(_HeartPiece(tread, _kHeartMeat, alpha: 0.60, swell: 0.5));
-  g.pieces.add(
-    _HeartPiece(lip, _kHeartSinew, stroke: 4.0, alpha: 0.46, swell: 0.6),
-  );
-  g.pieces.add(_HeartPiece(fringe, _kHeartInk, stroke: 2.0, alpha: 0.5));
-}
-
-/// THE CAPILLARY WEAVE — the deepest chamber of the lung, and the busiest
-/// room on the planet. A dense branching mesh grown off every wall, cross-
-/// linked by anastomoses, with bunches of alveoli crowded where the weave is
-/// thickest.
-void _buildWeave(_HeartGround g, Rect b, double Function() rnd) {
-  final fine = Path();
-  for (var i = 0; i < 11; i++) {
-    final side = (rnd() * 4).floor();
-    final u = rnd();
-    final (at, ang) = switch (side) {
-      0 => (Offset(b.left + 30 + u * (b.width - 60), b.top + 14), pi / 2),
-      1 => (Offset(b.left + 30 + u * (b.width - 60), b.bottom - 14), -pi / 2),
-      2 => (Offset(b.left + 14, b.top + 40 + u * (b.height - 80)), 0.0),
-      _ => (Offset(b.right - 14, b.top + 40 + u * (b.height - 80)), pi),
-    };
-    _heartBranch(fine, at, ang + (rnd() - 0.5) * 1.1, 50 + rnd() * 40, 5, rnd);
-  }
-  // ANASTOMOSES — short cross-links between neighbouring twigs. A capillary
-  // bed is a network, not a set of separate trees, and the links are what
-  // make it read as woven.
-  for (var i = 0; i < 14; i++) {
-    final a = Offset(
-      b.left + 24 + rnd() * (b.width - 48),
-      b.top + 24 + rnd() * (b.height - 48),
-    );
-    _heartArcTo(
-      a,
-      a + Offset((rnd() - 0.5) * 120, (rnd() - 0.5) * 90),
-      (rnd() - 0.5) * 34,
-      fine,
-    );
-  }
-  g.pieces.add(
-    _HeartPiece(fine, _kHeartCrimson, stroke: 1.7, alpha: 0.34, swell: 0.8),
-  );
-
-  // ALVEOLI. Bunches, never a scatter and never a grid: a cluster centre with
-  // five to nine sacs crowded round it at varying radii.
-  final sacs = Path();
-  final rims = Path();
-  for (var i = 0; i < 5; i++) {
-    final c = Offset(
-      b.left + 60 + rnd() * (b.width - 120),
-      b.top + 50 + rnd() * (b.height - 100),
-    );
-    final n = 5 + (rnd() * 5).floor();
-    for (var k = 0; k < n; k++) {
-      final a = rnd() * pi * 2;
-      final d = 6 + rnd() * 34;
-      final at = c + Offset(cos(a) * d, sin(a) * d * 0.8);
-      final r = 7 + rnd() * 10;
-      sacs.addOval(Rect.fromCircle(center: at, radius: r));
-      rims.addOval(Rect.fromCircle(center: at, radius: r));
-    }
-  }
-  g.pieces.add(_HeartPiece(sacs, _kHeartWet, alpha: 0.44));
-  g.pieces.add(
-    _HeartPiece(rims, _kHeartCrimson, stroke: 1.4, alpha: 0.36, swell: 1),
-  );
-}
-
-/// THE ATRIAL GALLERY — pectinate muscle, the comb an atrium actually has
-/// inside it. A thick crista runs the length of the chamber and the teeth
-/// spring off it in a FAN, with varied lengths, a fifth of them missing and
-/// some of them forked. Parallel teeth of one length would be a garden rake;
-/// this is a gallery of ribs.
-void _buildGallery(_HeartGround g, Rect b, double Function() rnd) {
-  final crista = Path();
-  final teeth = Path();
-  final dark = Path();
-  for (final run in const [0.26, 0.78]) {
-    final down = run < 0.5 ? 1.0 : -1.0;
-    final y = b.top + b.height * run;
-    final a = Offset(b.left + 20, y + (rnd() - 0.5) * 30);
-    final c = Offset(b.right - 20, y + (rnd() - 0.5) * 30);
-    final bow = (rnd() - 0.5) * 130;
-    _heartArcTo(a, c, bow, crista);
-    var t = 0.03 + rnd() * 0.06;
-    while (t < 0.97) {
-      if (rnd() > 0.20) {
-        final at = _heartArcAt(a, c, bow, t);
-        // Fanned: the lean runs from one end of the crista to the other, so
-        // no two teeth are parallel.
-        final lean = (t - 0.5) * 1.1 + (rnd() - 0.5) * 0.35;
-        // Lengths are deliberately bimodal — mostly stubs with the occasional
-        // long rib. Teeth of one length is a garden rake, and the first cut
-        // of this was one.
-        final len = rnd() < 0.40 ? 78 + rnd() * 105 : 22 + rnd() * 52;
-        final end = at + Offset(sin(lean) * len, down * cos(lean) * len);
-        _heartArcTo(at, end, (rnd() - 0.5) * 22, teeth);
-        _heartArcTo(at, end, (rnd() - 0.5) * 22, dark);
-        if (rnd() < 0.25) {
-          // A forked tooth. Real pectinate muscle branches.
-          final mid = Offset.lerp(at, end, 0.6)!;
-          _heartArcTo(
-            mid,
-            mid +
-                Offset(
-                  sin(lean + 0.7) * len * 0.5,
-                  down * cos(lean + 0.7) * len * 0.5,
-                ),
-            8,
-            teeth,
-          );
-        }
-      }
-      t += 0.022 + rnd() * 0.045;
-    }
-  }
-  g.pieces.add(_HeartPiece(dark, _kHeartInk, stroke: 7, alpha: 0.46));
-  g.pieces.add(
-    _HeartPiece(teeth, _kHeartMeat, stroke: 4.6, alpha: 0.62, swell: 1),
-  );
-  // A hairline of light down each rib. Without it the comb read as dark
-  // stubble on the floor rather than as tissue standing up off it.
-  g.pieces.add(
-    _HeartPiece(teeth, _kHeartSinew, stroke: 1.1, alpha: 0.20, swell: 0.6),
-  );
-  g.pieces.add(_HeartPiece(crista, _kHeartInk, stroke: 20, alpha: 0.46));
-  g.pieces.add(
-    _HeartPiece(crista, _kHeartMeat, stroke: 9, alpha: 0.44, swell: 0.8),
-  );
-}
-
-/// THE MYOCARDIUM — standing INSIDE the heart's wall, which is the one place
-/// on the planet where you see the muscle rather than the cavity. Helical
-/// fibre bundles, drawn as long tapered spindles at two interleaved angles.
-///
-/// Two families of lines at two angles is a LATTICE, which is what the first
-/// cut of this looked like; what stops it here is that no bundle shares a
-/// length, a width or an exact angle with any other, and they overlap.
-void _buildMyocardium(_HeartGround g, Rect b, double Function() rnd) {
-  final body = Path();
-  final edge = Path();
-  final striae = Path();
-  for (var i = 0; i < 14; i++) {
-    // Two helical families, badly behaved on purpose.
-    final mean = i.isEven ? -0.44 : 0.36;
-    final ang = mean + (rnd() - 0.5) * 0.34;
-    final len = 170 + rnd() * 250;
-    final half = 9 + rnd() * 17;
-    // Spread right out to the walls: the first cut kept every centre well
-    // inside the room and left the muscle as one diagonal raft with bare
-    // corners round it. The floor clip takes care of the overhang.
-    final c = Offset(
-      b.left + 30 + rnd() * (b.width - 60),
-      b.top + 40 + rnd() * (b.height - 80),
-    );
-    final d = Offset(cos(ang), sin(ang));
-    final n = Offset(-d.dy, d.dx);
-    final a = c - d * (len / 2);
-    final z = c + d * (len / 2);
-    // A spindle: two opposed bows meeting at tapered ends.
-    final p = Path()
-      ..moveTo(a.dx, a.dy)
-      ..quadraticBezierTo(
-        c.dx + n.dx * half * 2,
-        c.dy + n.dy * half * 2,
-        z.dx,
-        z.dy,
-      )
-      ..quadraticBezierTo(
-        c.dx - n.dx * half * 2,
-        c.dy - n.dy * half * 2,
-        a.dx,
-        a.dy,
-      )
-      ..close();
-    body.addPath(p, Offset.zero);
-    edge.addPath(p, Offset.zero);
-    for (var k = 0; k < 2; k++) {
-      final off = n * ((rnd() - 0.5) * half);
-      _heartArcTo(
-        a + d * (len * 0.12) + off,
-        z - d * (len * 0.12) + off,
-        half * 0.8,
-        striae,
-      );
-    }
-  }
-  g.pieces.add(_HeartPiece(body, _kHeartMeat, alpha: 0.40, swell: 0.8));
-  g.pieces.add(_HeartPiece(edge, _kHeartInk, stroke: 2.4, alpha: 0.46));
-  g.pieces.add(
-    _HeartPiece(striae, _kHeartCrimson, stroke: 1.6, alpha: 0.42, swell: 1),
-  );
-}
-
-/// THE AURICLE RELIQUARY — the little ear off the atrium, and the pocket the
-/// vault trick hides in. An auricle is lined all round with ridges running
-/// down into it, so the whole pouch is texture converging on the cache; the
-/// ribs stop well short of the middle, bow in alternating directions and vary
-/// wildly in length, which is what keeps a radial fan from reading as a
-/// sunburst.
-void _buildAuricle(_HeartGround g, Rect b, double Function() rnd) {
-  final ribs = Path();
-  final dark = Path();
-  final c = b.center;
-  var a = rnd() * pi * 2;
-  for (var i = 0; i < 26; i++) {
-    a += 0.14 + rnd() * 0.30;
-    if (rnd() < 0.15) continue;
-    final outer = Offset(
-      c.dx + cos(a) * (b.width * 0.5 - 18),
-      c.dy + sin(a) * (b.height * 0.5 - 18),
-    );
-    final inner = Offset.lerp(outer, c, 0.30 + rnd() * 0.42)!;
-    final bow = (i.isEven ? 1 : -1) * (8 + rnd() * 22);
-    _heartArcTo(outer, inner, bow, ribs);
-    _heartArcTo(outer, inner, bow, dark);
-  }
-  g.pieces.add(_HeartPiece(dark, _kHeartInk, stroke: 8, alpha: 0.44));
-  g.pieces.add(
-    _HeartPiece(ribs, _kHeartMeat, stroke: 4.4, alpha: 0.52, swell: 1),
-  );
-  // Two muscle bands round the pouch. Wobbled, not oval: two true ellipses
-  // round a small room read as a target reticle drawn on the floor.
-  final bands = Path();
-  for (final r in const [0.62, 0.86]) {
-    bands.addPath(
-      _heartLoop(
-        Rect.fromCenter(
-          center: c,
-          width: b.width * r,
-          height: b.height * r * 0.92,
-        ),
-        rnd,
-        11,
-      ),
-      Offset.zero,
-    );
-  }
-  g.pieces.add(
-    _HeartPiece(bands, _kHeartCrimson, stroke: 2.2, alpha: 0.28, swell: 0.7),
-  );
-}
-
-/// SANGUORATH'S SYSTOLE — the last arena in the campaign, and the inside of
-/// the valve itself. Papillary muscles stand off the four corners, chordae
-/// tendineae fan off their apexes to the rim, and three great cusps hang from
-/// the upper wall.
-///
-/// EVERYTHING IS AT THE EDGE. The middle of this floor is where the final
-/// fight of the game happens and where the vagal node sits, so nothing is
-/// drawn within [open] of the guardian's stand — the cords all run OUTWARD
-/// from their mounds, which is both what real chordae do and what keeps the
-/// arena clear.
-void _buildArena(_HeartGround g, Rect b, double Function() rnd) {
-  const open = 205.0;
-  final heartCentre = Offset(b.center.dx, b.top + b.height * 0.47);
-  final mound = Path();
-  final moundEdge = Path();
-  final cord = Path();
-  // THE ANNULUS — the fibrous ring the cusps actually hang from, round the
-  // edge of the open floor, and the thing that frames the last fight in the
-  // campaign with a piece of the body instead of a painted circle.
-  //
-  // IN FOUR PIECES, WITH GAPS. A closed ring came out as a rounded rectangle
-  // inside a rounded rectangle — a box drawn inside a box, which is the exact
-  // fault this whole pass exists to remove. A real annulus is four arcs
-  // meeting at commissures, and broken arcs cannot read as a frame.
-  final annulus = Path();
-  var a0 = 0.4 + rnd();
-  for (var i = 0; i < 4; i++) {
-    final span = 0.85 + rnd() * 0.55;
-    for (var k = 0; k <= 8; k++) {
-      final t = a0 + span * k / 8;
-      final at =
-          heartCentre +
-          Offset(
-            cos(t) * (288 + (rnd() - 0.5) * 30),
-            sin(t) * (212 + (rnd() - 0.5) * 30),
-          );
-      k == 0 ? annulus.moveTo(at.dx, at.dy) : annulus.lineTo(at.dx, at.dy);
-    }
-    a0 += span + 0.34 + rnd() * 0.5;
-  }
-  g.pieces.add(_HeartPiece(annulus, _kHeartInk, stroke: 28, alpha: 0.34));
-  g.pieces.add(
-    _HeartPiece(annulus, _kHeartMeat, stroke: 14, alpha: 0.44, swell: 1),
-  );
-  final mounts = [
-    Offset(b.left + 120, b.bottom - 90),
-    Offset(b.right - 120, b.bottom - 96),
-    Offset(b.left + 150, b.top + 190),
-    Offset(b.right - 150, b.top + 178),
-  ];
-  for (final base in mounts) {
-    final w = 52 + rnd() * 30;
-    final h = 62 + rnd() * 44;
-    final apex = base.translate((rnd() - 0.5) * 26, -h);
-    // A DOME, not a cone. Control points pushed out past the base make the
-    // sides bulge; the first cut pulled them in and put four grey pyramids in
-    // the corners of the last arena in the game.
-    final p = Path()
-      ..moveTo(base.dx - w, base.dy)
-      ..quadraticBezierTo(
-        base.dx - w * 1.05,
-        base.dy - h * 0.92,
-        apex.dx,
-        apex.dy,
-      )
-      ..quadraticBezierTo(
-        base.dx + w * 1.05,
-        base.dy - h * 0.92,
-        base.dx + w,
-        base.dy,
-      )
-      ..close();
-    mound.addPath(p, Offset.zero);
-    moundEdge.addPath(p, Offset.zero);
-    // The chordae. A fan per mound, every cord a different length, all of
-    // them bowed (a straight fan of rays is a starburst, which is what the
-    // first cut of this drew), and none reaching past the open floor.
-    final n = 4 + (rnd() * 4).floor();
-    final away = base - heartCentre;
-    final base0 = atan2(away.dy, away.dx);
-    for (var k = 0; k < n; k++) {
-      final ang = base0 + (rnd() - 0.5) * 2.1;
-      final len = 58 + rnd() * 96;
-      final end = apex + Offset(cos(ang) * len, sin(ang) * len);
-      if ((end - heartCentre).distance < open) continue;
-      _heartArcTo(apex, end, (rnd() < 0.5 ? -1 : 1) * (14 + rnd() * 34), cord);
-    }
-  }
-  g.pieces.add(_HeartPiece(mound, _kHeartMeat, alpha: 0.50, swell: 0.9));
-  g.pieces.add(_HeartPiece(moundEdge, _kHeartInk, stroke: 3, alpha: 0.5));
-  // Tendon is the one DRY thing in this dungeon, so it is the one pale thing
-  // — and it goes taut on the beat, which is the swell doing real work.
-  g.pieces.add(
-    _HeartPiece(cord, _kHeartSinew, stroke: 1.8, alpha: 0.40, swell: 1),
-  );
-
-  // THE CUSPS. Three leaves hanging off the upper wall, uneven, overlapping.
-  final leaf = Path();
-  final leafEdge = Path();
-  final cusps = [
-    (b.left + 180.0, 270.0, 158.0),
-    (b.center.dx, 205.0, 96.0),
-    (b.right - 175.0, 255.0, 172.0),
-  ];
-  final leafRib = Path();
-  for (final (cx, w, drop) in cusps) {
-    final top = b.top + 14;
-    final p = Path()
-      ..moveTo(cx - w / 2, top)
-      ..quadraticBezierTo(cx - w * 0.42, top + drop * 1.15, cx, top + drop)
-      ..quadraticBezierTo(cx + w * 0.42, top + drop * 1.15, cx + w / 2, top)
-      ..close();
-    leaf.addPath(p, Offset.zero);
-    leafEdge.addPath(p, Offset.zero);
-    // Ribs down the leaf, unevenly spaced and none of them reaching the free
-    // edge. A cusp with no grain in it read as a lampshade.
-    for (var k = 0; k < 6; k++) {
-      final u = -0.4 + k * 0.16 + (rnd() - 0.5) * 0.08;
-      _heartArcTo(
-        Offset(cx + w * u * 0.5, top),
-        Offset(cx + w * u * 0.22, top + drop * (0.55 + rnd() * 0.3)),
-        (rnd() - 0.5) * 16,
-        leafRib,
-      );
-    }
-  }
-  g.pieces.add(_HeartPiece(leaf, _kHeartMeat, alpha: 0.54, swell: 0.7));
-  g.pieces.add(
-    _HeartPiece(leafRib, _kHeartRust, stroke: 2.0, alpha: 0.42, swell: 0.5),
-  );
-  g.pieces.add(_HeartPiece(leafEdge, _kHeartInk, stroke: 4.5, alpha: 0.45));
-  g.pieces.add(
-    _HeartPiece(leafEdge, _kHeartSinew, stroke: 1.8, alpha: 0.34, swell: 1),
-  );
-
-  // PURKINJE FIBRES — the conduction net, a pale tracery creeping along the
-  // floor at the rim. The thing that actually carries the beat, in the one
-  // room where the beat is the enemy.
-  final purkinje = Path();
-  for (var i = 0; i < 4; i++) {
-    final at = Offset(
-      i.isEven ? b.left + 30 : b.right - 30,
-      b.top + 120 + rnd() * (b.height - 200),
-    );
-    _heartBranch(purkinje, at, i.isEven ? 0.4 : pi - 0.4, 54, 4, rnd);
-  }
-  g.pieces.add(
-    _HeartPiece(purkinje, _kHeartBone, stroke: 1.1, alpha: 0.14, swell: 0.6),
-  );
-}
-
-/// Which architecture each chamber gets. A room that is not in here still
-/// gets the lining, the cords and the pools — nothing can come out empty.
-final Map<String, void Function(_HeartGround, Rect, double Function())>
-_heartArchitects = {
-  'pericard_gate': _buildSac,
-  'arterial_run': _buildRun,
-  'aortic_arch': _buildArch,
-  'vena_crossing': _buildSinus,
-  'pulmonic_stair': _buildStair,
-  'capillary_weave': _buildWeave,
-  'atrial_gallery': _buildGallery,
-  'myocardium': _buildMyocardium,
-  'auricle_reliquary': _buildAuricle,
-  'sanguorath_systole': _buildArena,
-};
-
-/// One chamber, built once. Deterministic from the room's own bounds through
-/// a plain LCG, so a chamber looks the same every descent and no two of the
-/// ten look alike (every room on this planet has its own size).
-_HeartGround _buildHeartGround(DungeonRoom room) {
-  final b = room.bounds.deflate(10);
-  final g = _HeartGround();
-  var seed = (b.width * 31 + b.height * 17).toInt() | 1;
-  double rnd() {
-    seed = (seed * 1103515245 + 12345) & 0x3FFFFFFF;
-    return (seed >> 8) / 0x3FFFFF;
-  }
-
-  // The two rooms that have to be fought and gathered in keep their middles
-  // clear: the guardian arena, and the hub where both rounds cross.
-  final open = switch (room.id) {
-    'sanguorath_systole' => 210.0,
-    'vena_crossing' => 185.0,
-    _ => 0.0,
+  double get _riteMoodTarget => switch (_riteBay?.kind) {
+    RiteKind.arena => 1.0,
+    RiteKind.circle => .55,
+    _ => .45,
   };
-
-  _heartLining(g, b, rnd);
-  _heartVasa(g, b, rnd, trees: room.id == 'auricle_reliquary' ? 3 : 5);
-  _heartPools(
-    g,
-    b,
-    rnd,
-    count: (b.width * b.height / 86000).clamp(3, 7).toInt(),
-    openRadius: open,
-  );
-  _heartArchitects[room.id]?.call(g, b, rnd);
-  // The arena asks for more of them than anywhere else: its middle is out of
-  // bounds by design, so the only way to keep the biggest room in the dungeon
-  // from reading as bare is to web its edges properly.
-  _heartTrabeculae(
-    g,
-    b,
-    rnd,
-    count: switch (room.id) {
-      'auricle_reliquary' => 6,
-      'sanguorath_systole' => 24,
-      _ => 13,
-    },
-    openRadius: open,
-  );
-  return g;
 }

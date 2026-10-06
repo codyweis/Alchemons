@@ -2,7 +2,8 @@ import 'package:alchemons/database/daos/settings_dao.dart';
 
 /// A realm bought in the shop. Buying it opens it twice over: a new realm on
 /// the wild map, with Alchemons that are found nowhere else in the wild, and
-/// a new home to build on the home planet.
+/// a new home to build on the home planet — or, for one [homeOnly], only the
+/// home.
 class ShopScene {
   const ShopScene({
     required this.sceneId,
@@ -10,11 +11,16 @@ class ShopScene {
     required this.line,
     required this.gold,
     required this.species,
+    this.homeOnly = false,
   });
 
   /// The scene id the wild uses (its spawns, its map circle, its music) —
   /// and the home realm's name.
   final String sceneId;
+
+  /// A home only: never on the wild map, never spawning, nothing found
+  /// there ([species] is empty).
+  final bool homeOnly;
 
   /// What it is called everywhere: the shop, the map's portal, the home.
   final String title;
@@ -79,6 +85,17 @@ const List<ShopScene> kShopScenes = [
         'the wild map and a new place to build your home.',
     gold: 500,
     species: ['Watermask', 'Waterkin', 'Mudmask', 'Mudkin'],
+  ),
+  ShopScene(
+    sceneId: 'sand',
+    title: 'Living Sands',
+    line:
+        'A floor of sand you can draw in with a finger. Pick up to five sand '
+        'colors, how they lie and how the sand moves. A new place to build '
+        'your home; it does not appear on the wild map.',
+    gold: 500,
+    species: [],
+    homeOnly: true,
   ),
 ];
 

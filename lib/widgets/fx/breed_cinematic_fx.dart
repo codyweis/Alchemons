@@ -811,8 +811,8 @@ class _ChamberPainter extends CustomPainter {
       pure: pure,
       sigil: switch (kind) {
         FusionRevealKind.pureElement => FusionSigil.element,
-        FusionRevealKind.pureBoth => FusionSigil.starAndElement,
-        _ => FusionSigil.star,
+        FusionRevealKind.pureBoth => FusionSigil.octagramAndElement,
+        _ => FusionSigil.octagram,
       },
       element: outcome?.element,
       clock: clock,

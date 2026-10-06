@@ -33,7 +33,11 @@ abstract final class WildRotation {
     SettingsDao settings, {
     DateTime? now,
   }) async {
-    final bought = await ownedShopScenes(settings);
+    final owned = await ownedShopScenes(settings);
+    final bought = {
+      for (final s in kShopScenes)
+        if (!s.homeOnly && owned.contains(s.sceneId)) s.sceneId,
+    };
     if (bought.isEmpty) return kCoreRealms;
     // The opening (and its ship hunt) is played on the first four.
     if (await settings.getSetting('cosmic_ship_unlocked') != '1') {

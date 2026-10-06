@@ -224,10 +224,10 @@ class Keepsake {
     Keepsake(
       'garnet_heart',
       'The Garnet Heart',
-      'The Blood Is the Life, Blood. It beats.',
+      'The Quintessence, Blood. Four bloods beat in it as one.',
       source: KeepsakeSource.maxim,
       element: 'Blood',
-      eggId: 'egg:blood_drum',
+      eggId: 'egg:blood_quintessence',
     ),
     Keepsake(
       'crown_mirror',
@@ -290,15 +290,14 @@ class KeepsakeLedger {
     final owned = <Keepsake>[
       for (final k in Keepsake.all)
         if (switch (k.source) {
-          KeepsakeSource.maxim => stars
-              .discoveredCloudsFor(k.element!)
-              .contains(k.eggId),
+          KeepsakeSource.maxim =>
+            stars.discoveredCloudsFor(k.element!).contains(k.eggId),
           KeepsakeSource.contest => contests.isMastered(k.trait!),
           KeepsakeSource.effigy => false,
         })
           k,
-      for (final e in (bred.entries.toList()
-        ..sort((a, b) => a.key.compareTo(b.key))))
+      for (final e
+          in (bred.entries.toList()..sort((a, b) => a.key.compareTo(b.key))))
         if (e.value >= kEffigyBredCount)
           Keepsake.effigy(e.key, speciesName(e.key)),
     ];

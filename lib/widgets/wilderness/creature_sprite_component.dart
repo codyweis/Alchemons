@@ -6,8 +6,10 @@ import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
+import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
+import 'package:alchemons/models/celebration_costume.dart';
 import 'package:flame/components.dart';
 import 'package:flame/extensions.dart';
 import 'package:flame/game.dart';
@@ -22,6 +24,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
   final double effectScale;
 
   late final SpriteAnimationComponent _anim;
+  _CostumeLayer? _costume;
   double _prismaticHue = 0;
 
   /// How solid the creature is drawn, so an effect can thin it out rather
@@ -30,6 +33,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
   double get spriteOpacity => _anim.isMounted ? _anim.opacity : 1.0;
   set spriteOpacity(double value) {
     if (_anim.isMounted) _anim.opacity = value.clamp(0.0, 1.0);
+    _costume?.opacity = value.clamp(0.0, 1.0);
   }
 
   bool get _isAlbino => visuals.brightness == 1.45;
@@ -99,6 +103,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
           (alpha * _anim.opacity).clamp(0.0, 1.0),
         ),
     );
+    _costume?.paintOn(canvas, alpha);
     canvas.restore();
   }
 
@@ -224,6 +229,10 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
 
     _applyColorFilters();
     add(_anim);
+    // A worn costume is part of the sprite: drawn after each frame, in it.
+    if (FamilyCostume.isEffect(alchemyEffect)) {
+      _anim.add(_costume = _CostumeLayer(alchemyEffect!, _anim));
+    }
   }
 
   Future<Image> _loadFallbackImage() async {
@@ -466,4 +475,34 @@ List<double> albinoMatrix(double brightness) {
     1,
     0,
   ];
+}
+
+/// A worn family costume, a child of the sprite: drawn in the frame's own
+/// space after it, at the fit of the frame that is up, so it moves with
+/// whatever the sprite does.
+class _CostumeLayer extends Component {
+  _CostumeLayer(this.effect, this.sprite);
+
+  final String effect;
+  final SpriteAnimationComponent sprite;
+
+  /// Two creatures in the same costume are not in step.
+  double _t = math.Random().nextDouble() * 10;
+  double opacity = 1;
+
+  @override
+  void update(double dt) => _t += dt;
+
+  @override
+  void render(Canvas canvas) => paintOn(canvas, 1);
+
+  /// Draws it at [alpha] of itself, in the sprite's local units.
+  void paintOn(Canvas canvas, double alpha) => CostumePaint.paintWorn(
+    canvas,
+    effect,
+    Offset.zero & sprite.size.toSize(),
+    sprite.animationTicker?.currentIndex ?? 0,
+    _t,
+    opacity: (alpha * opacity).clamp(0.0, 1.0),
+  );
 }

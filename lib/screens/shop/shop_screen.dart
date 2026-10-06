@@ -98,6 +98,33 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   /// 0 = supplies, 1 = scenes, 2 = cosmetics.
   int _tab = 0;
 
+  /// The scene card nearest the middle of the Scenes tab: the only realm that
+  /// plays. Every Flame field ticks on its own loop, so the rest are held.
+  final ValueNotifier<String?> _focusedScene = ValueNotifier<String?>(null);
+  final ScrollController _scenesScroll = ScrollController();
+  final Map<String, GlobalKey> _sceneKeys = {
+    for (final s in kShopScenes) s.sceneId: GlobalKey(),
+  };
+  bool _focusCheckScheduled = false;
+
+  final PageController _pages = PageController();
+
+  void _selectTab(int i) {
+    if (i == _tab) return;
+    setState(() {
+      _tab = i;
+      if (i == 1) _cosmeticsBuilt = true;
+      if (i == 2) _scenesBuilt = true;
+    });
+    if (_pages.hasClients) {
+      _pages.animateToPage(
+        i,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
   /// The scenes tab runs a live field per realm, so it too is built only
   /// once opened.
   bool _scenesBuilt = false;
@@ -144,8 +171,39 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
   @override
   void dispose() {
+    _pages.dispose();
+    _scenesScroll.dispose();
+    _focusedScene.dispose();
     routeObserver.unsubscribe(this);
     super.dispose();
+  }
+
+  void _scheduleSceneFocus() {
+    if (_focusCheckScheduled) return;
+    _focusCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusCheckScheduled = false;
+      if (!mounted || !_scenesScroll.hasClients) return;
+      final viewport = _scenesScroll.position.context.storageContext
+          .findRenderObject();
+      if (viewport is! RenderBox || !viewport.hasSize) return;
+      final mid = viewport.size.height / 2;
+      String? best;
+      var bestDist = double.infinity;
+      _sceneKeys.forEach((id, key) {
+        final box = key.currentContext?.findRenderObject();
+        if (box is! RenderBox || !box.attached || !box.hasSize) return;
+        final top = box.localToGlobal(Offset.zero, ancestor: viewport).dy;
+        final bottom = top + box.size.height;
+        if (bottom < 0 || top > viewport.size.height) return;
+        final d = ((top + bottom) / 2 - mid).abs();
+        if (d < bestDist) {
+          bestDist = d;
+          best = id;
+        }
+      });
+      _focusedScene.value = best;
+    });
   }
 
   void _syncRouteIsCurrent() {
@@ -281,11 +339,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                     AppIcons.landscape_rounded,
                   ],
                   selected: _tab,
-                  onSelect: (i) => setState(() {
-                    _tab = i;
-                    if (i == 1) _cosmeticsBuilt = true;
-                    if (i == 2) _scenesBuilt = true;
-                  }),
+                  onSelect: _selectTab,
                   palette: BracketPalette.fromTheme(theme),
                   accent: bracketReadableAccent(theme),
                 ),
@@ -486,36 +540,63 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
                 // Each tab keeps its own scroll position, and only the one
                 // on screen runs its animations.
-                return IndexedStack(
-                  index: _tab,
-                  sizing: StackFit.expand,
-                  children: [
-                    TickerMode(
-                      enabled: _tab == 0,
-                      child: _buildSuppliesTab(
-                        theme,
-                        allCurrencies,
-                        resourceBalances,
-                        inventoryByKey,
+                return NotificationListener<ScrollStartNotification>(
+                  onNotification: (n) {
+                    // A drag is about to reveal a neighbour: build it now.
+                    if (n.metrics.axis == Axis.horizontal &&
+                        !(_cosmeticsBuilt && _scenesBuilt)) {
+                      setState(() {
+                        if (_tab <= 1) _cosmeticsBuilt = true;
+                        if (_tab >= 1) _scenesBuilt = true;
+                      });
+                    }
+                    return false;
+                  },
+                  child: PageView(
+                    controller: _pages,
+                    physics: const _SnappyPagePhysics(),
+                    onPageChanged: (i) {
+                      if (i == _tab) return;
+                      setState(() {
+                        _tab = i;
+                        if (i == 1) _cosmeticsBuilt = true;
+                        if (i == 2) _scenesBuilt = true;
+                      });
+                    },
+                    children: [
+                      _KeepAlive(
+                        child: TickerMode(
+                          enabled: _tab == 0,
+                          child: _buildSuppliesTab(
+                            theme,
+                            allCurrencies,
+                            resourceBalances,
+                            inventoryByKey,
+                          ),
+                        ),
                       ),
-                    ),
-                    TickerMode(
-                      enabled: _tab == 1,
-                      child: _cosmeticsBuilt
-                          ? _buildCosmeticsTab(
-                              theme,
-                              allCurrencies,
-                              inventoryByKey,
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                    TickerMode(
-                      enabled: _tab == 2,
-                      child: _scenesBuilt
-                          ? _buildScenesTab(theme, allCurrencies)
-                          : const SizedBox.shrink(),
-                    ),
-                  ],
+                      _KeepAlive(
+                        child: TickerMode(
+                          enabled: _tab == 1,
+                          child: _cosmeticsBuilt
+                              ? _buildCosmeticsTab(
+                                  theme,
+                                  allCurrencies,
+                                  inventoryByKey,
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                      _KeepAlive(
+                        child: TickerMode(
+                          enabled: _tab == 2,
+                          child: _scenesBuilt
+                              ? _buildScenesTab(theme, allCurrencies)
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                  ),
                 );
               },
             );
@@ -645,59 +726,77 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   Widget _buildScenesTab(FactionTheme theme, Map<String, int> allCurrencies) {
     return Consumer<ShopService>(
       builder: (context, shopService, _) {
-        return ListView(
+        _scenesScroll.removeListener(_scheduleSceneFocus);
+        _scenesScroll.addListener(_scheduleSceneFocus);
+        _scheduleSceneFocus();
+        // Not a lazy ListView: every card (and its field) is built once and
+        // kept, so scrolling never builds or tears down a game.
+        return SingleChildScrollView(
+          controller: _scenesScroll,
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-          children: [
-            _buildSectionHeader('SCENES', coin: CoinKind.gold),
-            const SizedBox(height: 12),
-            for (final scene in kShopScenes)
-              () {
-                final offer = ShopService.allOffers.firstWhere(
-                  (o) => o.id == scene.offerId,
-                );
-                final owned = !shopService.canPurchase(offer.id);
-                final cost = shopService.getEffectiveCost(offer);
-                final canAfford = cost.entries.every(
-                  (e) => (allCurrencies[e.key] ?? 0) >= e.value,
-                );
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: ShopSceneCard(
-                    key: ValueKey('scene-${scene.sceneId}'),
-                    scene: scene,
-                    offer: offer,
-                    theme: theme,
-                    owned: owned,
-                    // Held still on another tab or under another route.
-                    active: _tab == 2 && _routeIsCurrent,
-                    costWidgets: [
-                      for (final e in cost.entries)
-                        CostChip(
-                          currencyType: e.key,
-                          amount: e.value,
-                          available: allCurrencies[e.key] ?? 0,
-                        ),
-                    ],
-                    onTap: context.soundTap(
-                      () => owned
-                          ? _showDetails(
-                              context,
-                              offer,
-                              allCurrencies,
-                              canAfford,
-                            )
-                          : _handlePurchase(
-                              context,
-                              offer,
-                              allCurrencies,
-                              canAfford,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildSectionHeader('SCENES', coin: CoinKind.gold),
+              const SizedBox(height: 12),
+              for (final scene in kShopScenes)
+                () {
+                  final offer = ShopService.allOffers.firstWhere(
+                    (o) => o.id == scene.offerId,
+                  );
+                  final owned = !shopService.canPurchase(offer.id);
+                  final cost = shopService.getEffectiveCost(offer);
+                  final canAfford = cost.entries.every(
+                    (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+                  );
+                  return Padding(
+                    key: _sceneKeys[scene.sceneId],
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: ValueListenableBuilder<String?>(
+                      valueListenable: _focusedScene,
+                      builder: (context, focused, _) => ShopSceneCard(
+                        key: ValueKey('scene-${scene.sceneId}'),
+                        scene: scene,
+                        offer: offer,
+                        theme: theme,
+                        owned: owned,
+                        // Only the realm in view plays; held still on another
+                        // tab or under another route.
+                        active:
+                            _tab == 2 &&
+                            _routeIsCurrent &&
+                            focused == scene.sceneId,
+                        warm: _tab == 2 && _routeIsCurrent,
+                        costWidgets: [
+                          for (final e in cost.entries)
+                            CostChip(
+                              currencyType: e.key,
+                              amount: e.value,
+                              available: allCurrencies[e.key] ?? 0,
                             ),
+                        ],
+                        onTap: context.soundTap(
+                          () => owned
+                              ? _showDetails(
+                                  context,
+                                  offer,
+                                  allCurrencies,
+                                  canAfford,
+                                )
+                              : _handlePurchase(
+                                  context,
+                                  offer,
+                                  allCurrencies,
+                                  canAfford,
+                                ),
+                        ),
+                      ),
                     ),
-                  ),
-                );
-              }(),
-          ],
+                  );
+                }(),
+            ],
+          ),
         );
       },
     );
@@ -1627,7 +1726,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     final isDecor = HomeDecor.byOffer(offer.id) != null;
     final scene = shopSceneByOffer(offer.id);
     // A realm opens with Alchemons already waiting in it.
-    if (success && scene != null) {
+    if (success && scene != null && !scene.homeOnly) {
       await context.read<WildernessSpawnService>().scheduleNextSpawnTime(
         scene.sceneId,
         windowMin: Duration.zero,
@@ -2250,5 +2349,41 @@ class _ShopDoor extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Short, stiff spring: a swipe settles on its tab almost at once.
+class _SnappyPagePhysics extends PageScrollPhysics {
+  const _SnappyPagePhysics({super.parent});
+
+  @override
+  _SnappyPagePhysics applyTo(ScrollPhysics? ancestor) =>
+      _SnappyPagePhysics(parent: buildParent(ancestor));
+
+  @override
+  SpringDescription get spring =>
+      const SpringDescription(mass: 0.5, stiffness: 600, damping: 40);
+
+  @override
+  double get minFlingVelocity => 60;
+}
+
+class _KeepAlive extends StatefulWidget {
+  const _KeepAlive({required this.child});
+  final Widget child;
+
+  @override
+  State<_KeepAlive> createState() => _KeepAliveState();
+}
+
+class _KeepAliveState extends State<_KeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

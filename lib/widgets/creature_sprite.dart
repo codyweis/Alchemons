@@ -3,11 +3,13 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/celebration_costume.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
+import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flame/flame.dart' show Flame;
@@ -264,6 +266,18 @@ class _CreatureSpriteState extends State<CreatureSprite>
       );
     }
 
+    // A worn costume is part of the sprite: over its frame, at that frame's
+    // fit, and clear of its colouring.
+    final costume = widget.alchemyEffect;
+    if (FamilyCostume.isEffect(costume)) {
+      sprite = WornCostume(
+        effect: costume!,
+        frameSize: Size(widget.frameSize.x, widget.frameSize.y),
+        frameIndex: () => _spriteTicker?.currentIndex ?? 0,
+        child: sprite,
+      );
+    }
+
     final scaled = Transform.scale(
       scale: widget.scale,
       child: RepaintBoundary(
@@ -434,6 +448,10 @@ class InstanceSprite extends StatelessWidget {
         isPrismatic: visuals.isPrismatic,
         tint: visuals.tint,
         mutation: visuals.mutation,
+        // A costume is drawn by the sprite itself; an effect, round it below.
+        alchemyEffect: FamilyCostume.isEffect(instance.alchemyEffect)
+            ? instance.alchemyEffect
+            : null,
       ),
     );
 

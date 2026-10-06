@@ -240,6 +240,22 @@ void main() {
       );
     }
 
+    // A wave's life, a frame every 0.4 s: breaking on the reef's rocks and
+    // running up the sand. Only when asked for (TIDAL_ONLY=seq…).
+    if (only != null) {
+      TidalField.debugTide = 0.45;
+      for (var i = 0; i < 16; i++) {
+        final t = 2.0 + i * 0.4;
+        final n = i.toString().padLeft(2, '0');
+        await add('seq_$n', () => shoot(t: t, hour: 13));
+        await add('seqnight_$n', () => shoot(t: t, hour: 23));
+        await add(
+          'seqswell_$n',
+          () => shoot(t: t, hour: 13, weather: WeatherKind.swell),
+        );
+      }
+    }
+
     await tester.runAsync(() async {
       for (final (name, img) in frames) {
         final bytes = await img.toByteData(format: ui.ImageByteFormat.png);

@@ -7,10 +7,13 @@
 //
 // The field is a Flame game, which ticks on its own loop and does not hear
 // TickerMode, so the card holds it still whenever [active] is false (another
-// tab, another route on top, scrolled away).
+// tab, another route on top, scrolled away). Fields load one at a time behind
+// a dark placeholder the first time the tab is shown, and stay built after.
 
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:alchemons/games/wilderness/field/home_sand_field.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
@@ -26,17 +29,25 @@ import 'package:flutter/material.dart';
 
 /// The wild scene a realm for sale is drawn from.
 SceneDefinition sceneForShop(String sceneId) => switch (sceneId) {
+  'sand' => homeSandScene(),
   'geode' => geodeScene,
   'tidal' => tidalScene,
   _ => dunesScene,
 };
 
 /// The realm, live and drifting.
+///
+/// Each field is a whole Flame game whose first frames (art layout, layer
+/// mounting, first paint) are heavy, so the previews are built one at a time
+/// through [_loadQueue] once the tab is on screen ([warm]), each warmed with
+/// two still steps behind a dark placeholder before it is shown. Scrolling
+/// then only moves pictures that already exist.
 class ShopScenePreview extends StatefulWidget {
   const ShopScenePreview({
     super.key,
     required this.scene,
     required this.active,
+    required this.warm,
   });
 
   final ShopScene scene;
@@ -44,26 +55,71 @@ class ShopScenePreview extends StatefulWidget {
   /// Runs while true; held still while false.
   final bool active;
 
+  /// The Scenes tab is on screen: time to load, if not loaded already.
+  final bool warm;
+
   @override
   State<ShopScenePreview> createState() => _ShopScenePreviewState();
 }
 
 class _ShopScenePreviewState extends State<ShopScenePreview> {
-  late final SceneGame _game = SceneGame(
-    scene: sceneForShop(widget.scene.sceneId),
-  )..panDrift = 14;
+  /// Previews load one after another, never two in the same frames.
+  static Future<void> _loadQueue = Future.value();
+
+  SceneGame? _game;
+  bool _queued = false;
+  bool _ready = false;
 
   @override
   void initState() {
     super.initState();
-    if (!widget.active) _game.pauseEngine();
+    if (widget.warm) _enqueue();
   }
 
   @override
   void didUpdateWidget(covariant ShopScenePreview old) {
     super.didUpdateWidget(old);
-    if (old.active == widget.active) return;
-    widget.active ? _game.resumeEngine() : _game.pauseEngine();
+    if (widget.warm && !_queued) _enqueue();
+    if (!_ready || old.active == widget.active) return;
+    widget.active ? _game!.resumeEngine() : _game!.pauseEngine();
+  }
+
+  void _enqueue() {
+    _queued = true;
+    final turn = Completer<void>();
+    final previous = _loadQueue;
+    _loadQueue = turn.future;
+    previous.whenComplete(() async {
+      try {
+        await _load();
+      } finally {
+        turn.complete();
+      }
+    });
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    // Paused before it is mounted, so the loop never starts on its own.
+    final game = SceneGame(scene: sceneForShop(widget.scene.sceneId))
+      ..panDrift = 14
+      ..pauseEngine();
+    setState(() => _game = game);
+    try {
+      await game.loaded.timeout(const Duration(seconds: 8));
+    } catch (_) {}
+    // Two still steps: the first mounts the world and camera, the second
+    // lays them out; each is painted before the next.
+    for (var i = 0; i < 2; i++) {
+      if (!mounted) return;
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      game.stepEngine(stepTime: 0);
+    }
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    setState(() => _ready = true);
+    if (widget.active) game.resumeEngine();
   }
 
   @override
@@ -75,13 +131,51 @@ class _ShopScenePreviewState extends State<ShopScenePreview> {
       math.max(screen.width, screen.height),
       math.min(screen.width, screen.height),
     );
+    final game = _game;
     return IgnorePointer(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        clipBehavior: Clip.hardEdge,
-        child: SizedBox.fromSize(
-          size: wide,
-          child: GameWidget(game: _game),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const ColoredBox(color: Colors.black),
+          if (game != null)
+            RepaintBoundary(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                clipBehavior: Clip.hardEdge,
+                child: SizedBox.fromSize(
+                  size: wide,
+                  child: GameWidget(game: game),
+                ),
+              ),
+            ),
+          AnimatedOpacity(
+            opacity: _ready ? 0 : 1,
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOut,
+            child: const _PreviewLoading(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The dark field a preview sits behind until it has drawn itself.
+class _PreviewLoading extends StatelessWidget {
+  const _PreviewLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.6,
+            color: Color(0x66E8D9B5),
+          ),
         ),
       ),
     );
@@ -99,6 +193,7 @@ class ShopSceneCard extends StatelessWidget {
     required this.owned,
     required this.costWidgets,
     required this.active,
+    required this.warm,
     required this.onTap,
   });
 
@@ -108,6 +203,7 @@ class ShopSceneCard extends StatelessWidget {
   final bool owned;
   final List<Widget> costWidgets;
   final bool active;
+  final bool warm;
   final VoidCallback onTap;
 
   @override
@@ -129,7 +225,11 @@ class ShopSceneCard extends StatelessWidget {
               AspectRatio(
                 aspectRatio: 16 / 9,
                 child: ClipRect(
-                  child: ShopScenePreview(scene: scene, active: active),
+                  child: ShopScenePreview(
+                    scene: scene,
+                    active: active,
+                    warm: warm,
+                  ),
                 ),
               ),
               const SizedBox(height: 10),

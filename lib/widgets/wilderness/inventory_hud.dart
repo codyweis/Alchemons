@@ -12,6 +12,9 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/celebration_costume.dart';
+import 'package:alchemons/widgets/costume/costume_color_sheet.dart';
+import 'package:alchemons/utils/alchemy_effect_apply.dart';
 
 /// What a field can use, in the order a player reaches for it.
 ///
@@ -381,20 +384,40 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
       theme: theme,
       searchHint: 'SELECT SPECIMEN',
       prefsScopeKey: 'wilderness_inventory_effect_specimens',
+      onWillSelectInstance: (instance) {
+        final costume = FamilyCostume.ofItem(item.key);
+        if (costume == null || costume.fits(instance.baseId)) return true;
+        _showToast(
+          '${costume.title} is for ${costume.familyName}.',
+          icon: AppIcons.auto_awesome_rounded,
+          color: Colors.orange,
+        );
+        return false;
+      },
     );
 
     if (selectedInstance == null || !mounted) return;
 
-    final effectType = InvKeys.alchemyEffectFor(item.key);
+    // A costume goes on in a colour picked on the creature.
+    Color? color;
+    final costume = FamilyCostume.ofItem(item.key);
+    if (costume != null) {
+      color = await pickCostumeColor(
+        context,
+        instance: selectedInstance,
+        costume: costume,
+        confirmLabel: 'WEAR ${costume.noun.toUpperCase()}',
+      );
+      if (color == null || !mounted) return;
+    }
 
-    if (effectType == null) return;
-
-    await db.creatureDao.updateAlchemyEffect(
+    final applied = await applyAlchemyEffect(
+      db,
       instanceId: selectedInstance.instanceId,
-      effect: effectType,
+      itemKey: item.key,
+      color: color,
     );
-
-    await db.inventoryDao.decrementItem(item.key, by: 1);
+    if (!applied) return;
 
     _showToast(
       'Applied ${def.name}!',

@@ -1,8 +1,6 @@
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
-import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_blood.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_plant.dart';
-import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 PlanetDungeonGame game(String element) {
@@ -97,111 +95,9 @@ void main() {
     expect(g.puzzlePreview, isNull);
   });
 
-  test('Blood advances exactly one phase from any point, including wrap', () {
+  test('Blood raises no planning line: its rooms show their own previews',
+      () {
     final g = game('Blood');
-    for (final phase in PulsePhase.values) {
-      for (final fraction in [0.0, 0.3, 0.99]) {
-        g.heart.reset();
-        g.heart.advance(
-          pulsePhaseStart(phase) + kPulsePhaseSeconds[phase.index] * fraction,
-        );
-        final beforeRoom = g.currentRoomId;
-        expect(g.canAdvanceHeartPulse, isTrue);
-        g.advanceHeartPulse();
-        expect(g.heart.phase, nextPulsePhase(phase));
-        expect(g.heart.clock, pulsePhaseStart(nextPulsePhase(phase)));
-        expect(g.currentRoomId, beforeRoom);
-        expect(g.heart.beats, phase == PulsePhase.flatline ? 1 : 0);
-      }
-    }
+    expect(g.puzzlePreview, isNull);
   });
-
-  test(
-    'Blood settles a queued mouth immediately and cannot skip its fight',
-    () {
-      final g = game('Blood');
-      final o = kHeartOstia.firstWhere((o) => o.phase != PulsePhase.systole);
-      stand(g, o.roomId, o.position);
-      g.setActive(g.party.indexWhere((m) => m.element == o.element));
-      g.activateAbility();
-      expect(g.heart.laid, contains(o.id));
-      for (var i = 0; i < 3 && g.heart.phase != o.phase; i++) {
-        g.advanceHeartPulse();
-      }
-      expect(g.heart.ostiaPrimed, contains(o.id));
-      expect(g.heart.laid, isNot(contains(o.id)));
-      expect(g.hasCombatTargets, isTrue);
-      final clock = g.heart.clock;
-      expect(g.canAdvanceHeartPulse, isFalse);
-      g.advanceHeartPulse();
-      expect(g.heart.clock, clock);
-    },
-  );
-
-  test('Blood does not prime a mouth after leaving its room', () {
-    final g = game('Blood');
-    final o = kHeartOstia.firstWhere((o) => o.phase != PulsePhase.systole);
-    stand(g, o.roomId, o.position);
-    g.setActive(g.party.indexWhere((m) => m.element == o.element));
-    g.activateAbility();
-    stand(g, g.layout.entranceRoomId, g.layout.entranceSpawn);
-    for (var i = 0; i < 4; i++) {
-      g.advanceHeartPulse();
-    }
-    expect(g.heart.ostiaPrimed, isEmpty);
-    expect(g.heart.laid, isEmpty);
-  });
-
-  test('Blood skips resolve an inspected clot on the flatline', () {
-    final g = game('Blood');
-    final cock = kHeartCocks.first;
-    g.heart.soundCollaterals.remove(cock.passageId);
-    g.heart.cocksTurned.add(cock.passageId);
-    g.heart.clotSeen.add(cock.passageId);
-    stand(g, cock.roomId, cock.position);
-    g.setActive(g.party.indexWhere((m) => m.element == 'Blood'));
-    g.activateAbility();
-    expect(g.heart.laid, contains(cock.passageId));
-    for (var i = 0; i < 3; i++) {
-      g.advanceHeartPulse();
-    }
-    expect(g.heart.phase, PulsePhase.flatline);
-    expect(g.heart.grafted, contains(cock.passageId));
-    expect(g.heart.laid, isEmpty);
-  });
-
-  test(
-    'Blood forecasts respect ritual gates and always show current phase',
-    () {
-      final g = game('Blood');
-      stand(g, 'myocardium', const Offset(20, 20));
-      expect(g.puzzlePreview, isNot(contains('Systole')));
-      for (final room in g.layout.rooms.values) {
-        g.currentRoomId = room.id;
-        expect(g.progressReadout!.label, phaseTag(g.heart.phase));
-      }
-    },
-  );
-
-  test(
-    'Blood cannot skip a guardian, arrest, closed entry or absent party',
-    () {
-      final g = game('Blood');
-      g.entryDoorRevealed = false;
-      expect(g.canAdvanceHeartPulse, isFalse);
-      g.entryDoorRevealed = true;
-      g.heart.arrestFor(3);
-      expect(g.canAdvanceHeartPulse, isFalse);
-      g.heart.reset();
-      g.currentRoomId = 'sanguorath_systole';
-      g.guardianAwake = true;
-      expect(g.canAdvanceHeartPulse, isFalse);
-      final clock = g.heart.clock;
-      g.advanceHeartPulse();
-      expect(g.heart.clock, clock);
-      g.currentRoomId = g.layout.entranceRoomId;
-      g.creatures.clear();
-      expect(g.canAdvanceHeartPulse, isFalse);
-    },
-  );
 }

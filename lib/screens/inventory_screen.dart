@@ -3,6 +3,8 @@ import 'package:alchemons/widgets/inventory_item_artwork.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
 import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/models/celebration_costume.dart';
+import 'package:alchemons/widgets/costume/costume_color_sheet.dart';
 // lib/screens/inventory_screen.dart - REDESIGNED
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/utils/alchemy_effect_apply.dart';
@@ -947,10 +949,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       service.dispose();
       if (!mounted) return;
       if (rewards.isEmpty) {
-        _showToast(
-          'No boxes remaining',
-          color: Colors.orange,
-        );
+        _showToast('No boxes remaining', color: Colors.orange);
         return;
       }
       final registry = buildInventoryRegistry(
@@ -989,10 +988,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       return;
     }
 
-    _showToast(
-      'Item usage not yet implemented',
-      color: Colors.blue,
-    );
+    _showToast('Item usage not yet implemented', color: Colors.blue);
   }
 
   Future<void> _useStaminaPotion(
@@ -1008,10 +1004,7 @@ class _InventoryScreenState extends State<InventoryScreen>
     final allInstances = await db.creatureDao.listAllInstances();
 
     if (allInstances.isEmpty) {
-      _showToast(
-        'No Alchemons available',
-        color: Colors.orange,
-      );
+      _showToast('No Alchemons available', color: Colors.orange);
       return;
     }
 
@@ -1028,10 +1021,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       selectedInstance.instanceId,
     );
     if (updated == null) {
-      _showToast(
-        'Failed to restore stamina',
-        color: Colors.red,
-      );
+      _showToast('Failed to restore stamina', color: Colors.red);
       return;
     }
 
@@ -1056,10 +1046,7 @@ class _InventoryScreenState extends State<InventoryScreen>
     final allInstances = await db.creatureDao.listAllInstances();
 
     if (allInstances.isEmpty) {
-      _showToast(
-        'No Alchemons to apply effect to',
-        color: Colors.orange,
-      );
+      _showToast('No Alchemons to apply effect to', color: Colors.orange);
       return;
     }
 
@@ -1067,43 +1054,62 @@ class _InventoryScreenState extends State<InventoryScreen>
       theme: theme,
       searchHint: 'SELECT SPECIMEN',
       prefsScopeKey: 'inventory_effect_specimens',
+      effectItemKey: item.key,
     );
 
     if (selectedInstance == null || !mounted) return;
 
     // Whatever effect it replaces goes back into the inventory.
+    // A costume goes on in a colour picked on the creature.
+    Color? color;
+    final costume = FamilyCostume.ofItem(item.key);
+    if (costume != null) {
+      color = await pickCostumeColor(
+        context,
+        instance: selectedInstance,
+        costume: costume,
+        confirmLabel: 'WEAR ${costume.noun.toUpperCase()}',
+      );
+      if (color == null || !mounted) return;
+    }
+
     final applied = await applyAlchemyEffect(
       db,
       instanceId: selectedInstance.instanceId,
       itemKey: item.key,
+      color: color,
     );
     if (!applied) return;
 
-    _showToast(
-      'Applied ${def.name}!',
-      color: Colors.green,
-    );
+    _showToast('Applied ${def.name}!', color: Colors.green);
   }
 
   Future<CreatureInstance?> _pickInventoryInstance({
     required FactionTheme theme,
     required String searchHint,
     required String prefsScopeKey,
+    String? effectItemKey,
   }) {
     return showSpecimenPickerRoute(
       context: context,
       theme: theme,
       searchHint: searchHint,
       prefsScopeKey: prefsScopeKey,
+      onWillSelectInstance: (instance) {
+        final costume = FamilyCostume.ofItem(effectItemKey);
+        if (costume == null || costume.fits(instance.baseId)) return true;
+        _showToast(
+          '${costume.title} is for ${costume.familyName}.',
+          color: Colors.orange,
+        );
+        return false;
+      },
     );
   }
 
   Future<void> _deleteItem(InventoryItem item, InventoryItemDef def) async {
     if (!def.canDispose) {
-      _showToast(
-        'Special items cannot be removed',
-        color: Colors.indigo,
-      );
+      _showToast('Special items cannot be removed', color: Colors.indigo);
       return;
     }
 
@@ -1138,22 +1144,13 @@ class _InventoryScreenState extends State<InventoryScreen>
     try {
       if (confirmed == 'all') {
         await db.inventoryDao.removeItem(item.key);
-        _showToast(
-          'Removed all ${def.name}',
-          color: Colors.red,
-        );
+        _showToast('Removed all ${def.name}', color: Colors.red);
       } else if (confirmed == 'one') {
         await db.inventoryDao.decrementItem(item.key, by: 1);
-        _showToast(
-          'Removed 1 ${def.name}',
-          color: Colors.orange,
-        );
+        _showToast('Removed 1 ${def.name}', color: Colors.orange);
       }
     } catch (e) {
-      _showToast(
-        'Failed to remove item',
-        color: Colors.red,
-      );
+      _showToast('Failed to remove item', color: Colors.red);
     }
   }
 
@@ -1166,10 +1163,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       vial.name,
     );
     if (qty <= 0) {
-      _showToast(
-        'No vials of this type available',
-        color: Colors.orange,
-      );
+      _showToast('No vials of this type available', color: Colors.orange);
       return;
     }
 
@@ -1196,10 +1190,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         color: res.color ?? Colors.red,
       );
     } else {
-      _showToast(
-        'Extraction complete!',
-        color: Colors.green,
-      );
+      _showToast('Extraction complete!', color: Colors.green);
     }
   }
 
@@ -1235,22 +1226,13 @@ class _InventoryScreenState extends State<InventoryScreen>
     try {
       if (confirmed == 'all') {
         await db.inventoryDao.removeItem(vial.id);
-        _showToast(
-          'Removed all ${vial.name} vials',
-          color: Colors.red,
-        );
+        _showToast('Removed all ${vial.name} vials', color: Colors.red);
       } else if (confirmed == 'one') {
         await db.inventoryDao.decrementItem(vial.id, by: 1);
-        _showToast(
-          'Removed 1 ${vial.name} vial',
-          color: Colors.orange,
-        );
+        _showToast('Removed 1 ${vial.name} vial', color: Colors.orange);
       }
     } catch (e) {
-      _showToast(
-        'Failed to remove vial',
-        color: Colors.red,
-      );
+      _showToast('Failed to remove vial', color: Colors.red);
     }
   }
 

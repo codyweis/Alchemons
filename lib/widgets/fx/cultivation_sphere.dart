@@ -152,7 +152,7 @@ class CultivationSphereField {
   CultivationSphereField(
     List<SpecimenGrains> parents, {
     int grains = 640,
-    FusionSigil sigil = FusionSigil.star,
+    FusionSigil sigil = FusionSigil.octagram,
     String? element,
   }) : assert(parents.length == 2) {
     final rng = math.Random(23);
@@ -214,49 +214,17 @@ class CultivationSphereField {
 
   // ── the ready sigil ───────────────────────────────────────────────────
 
-  /// A quarter of the grains draw the cultivation's sigil once it is ready
-  /// — the same sigil the fusion's reveal ended on.
-  static const double _sigilShare = 0.2;
+  /// A third of the grains draw the cultivation's sigil once it is ready
+  /// — the same sigil the fusion's reveal ended on. The ringed octagram has
+  /// about twice the line the old star had, and at a fifth it was too sparse
+  /// to read.
+  static const double _sigilShare = 0.34;
   late List<(List<Offset>, double)> _lines;
   late Float32List _lineLen;
   double _sigilLen = 1;
 
-  static List<Offset> _triangle(double rot, double r) => [
-    for (var k = 0; k <= 3; k++)
-      Offset(
-            math.cos(rot + k * 2 * math.pi / 3),
-            math.sin(rot + k * 2 * math.pi / 3),
-          ) *
-          r,
-  ];
-
   void _setSigil(FusionSigil sigil, String? element) {
-    final el = (element ?? '').toLowerCase();
-    final up = el == 'fire' || el == 'air' || el == 'lava';
-    final bar = el == 'air' || el == 'earth';
-    List<(List<Offset>, double)> elementLines(double r) => [
-      (_triangle(up ? -math.pi / 2 : math.pi / 2, r), 1),
-      if (bar)
-        (
-          [
-            Offset(-r * 0.42, (up ? 1 : -1) * r * 0.18),
-            Offset(r * 0.42, (up ? 1 : -1) * r * 0.18),
-          ],
-          1,
-        ),
-    ];
-    _lines = switch (sigil) {
-      FusionSigil.star => [
-        (_triangle(-math.pi / 2, 0.8), 1),
-        (_triangle(math.pi / 2, 0.8), -1),
-      ],
-      FusionSigil.element => elementLines(0.78),
-      FusionSigil.starAndElement => [
-        (_triangle(-math.pi / 2, 0.82), 1),
-        (_triangle(math.pi / 2, 0.82), -1),
-        ...elementLines(0.46),
-      ],
-    };
+    _lines = fusionSigilLines(sigil, element, elementRadius: 0.78);
     double len(List<Offset> pts) {
       var l = 0.0;
       for (var k = 1; k < pts.length; k++) {
@@ -781,7 +749,7 @@ class _CultivationSphereState extends State<CultivationSphere>
       () => _field = CultivationSphereField(
         parents,
         grains: widget.grains,
-        sigil: pure == null ? FusionSigil.star : FusionSigil.element,
+        sigil: pure == null ? FusionSigil.octagram : FusionSigil.element,
         element: pure,
       ),
     );

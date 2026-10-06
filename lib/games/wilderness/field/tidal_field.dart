@@ -150,7 +150,12 @@ class TidalField extends _GrainField {
   Color _seaMid = const Color(0xFF000000),
       _deep = const Color(0xFF000000),
       _shallow = const Color(0xFF000000),
-      _foam = const Color(0xFFFFFFFF);
+      _foam = const Color(0xFFFFFFFF),
+      _lip = const Color(0xFFFFFFFF),
+      _face = const Color(0xFF000000),
+      _sheen = const Color(0xFF000000),
+      _seaNear = const Color(0xFF000000),
+      _hazeLow = const Color(0xFF000000);
   static const _glow = Color(0xFF6CF2FF);
 
   @override
@@ -212,6 +217,8 @@ class TidalField extends _GrainField {
       );
     }
     final sea = sil(_gSeaNear);
+    _seaNear = sea;
+    _hazeLow = hazeLow;
     // The near sea's own colour where the swimmers are, a third of the way
     // down it, as it is baked: what is drawn over them must match it.
     _seaMid = Color.from(
@@ -228,6 +235,11 @@ class TidalField extends _GrainField {
       const Color(0xFFDDE8F0),
       0.3,
     )!;
+    // A wave's lit lip gives back the sky low over the sea; its face,
+    // turned to you, is the sea gone darker; wet sand gives back the sky.
+    _lip = Color.lerp(l.skyAt(0.48), _foam, 0.2)!;
+    _face = Color.lerp(_deep, const Color(0xFF000000), 0.35)!;
+    _sheen = Color.lerp(l.skyAt(0.42), _shallow, 0.45)!;
   }
 
   // ── Where the creatures stand ────────────────────────────────────────────
@@ -341,6 +353,7 @@ class TidalField extends _GrainField {
     _screen = screen;
     final w = size.width;
     _widths[layer] = w;
+    _bends.remove(layer);
     _makePlatforms();
     switch (layer) {
       case far:
@@ -353,6 +366,8 @@ class TidalField extends _GrainField {
             grade: _gSea,
             paint: (c) => _paintSea(c, w),
           ),
+          // The waves coming in, under the stacks.
+          FieldSheet.live(bounds: sea, live: _paintFarSwells),
           FieldSheet(
             bounds: sea,
             resolution: 0.8,
@@ -379,6 +394,8 @@ class TidalField extends _GrainField {
             grade: _gSeaNear,
             paint: (c) => _paintNearSea(c, w),
           ),
+          // The waves coming in, under the rocks.
+          FieldSheet.live(bounds: area, live: _paintReefSwells),
           ..._basaltSheets(reef, area, _gReef, 0.12),
         ];
       case shelf:
@@ -567,14 +584,16 @@ class TidalField extends _GrainField {
     SceneLayer layer,
   ) {
     final width = _widths[layer] ?? _worldWidth;
-    final foot = layer == reef ? _h * 0.74 : _h * 0.95;
+    // A reef rock ends just under the water: the sea hides the rest.
+    final foot = layer == reef ? _reefLine + 4 * _u : _h * 0.95;
+    final least = (layer == reef ? 14 : 22) * _u;
     final out = <({double x, double top, double base, double hw, int seed})>[
       for (final p in _platforms)
         if (p.layer == layer)
           (
             x: p.x,
             top: p.top,
-            base: math.max(foot, p.top + 22 * _u),
+            base: math.max(foot, p.top + least),
             hw: p.hw,
             seed: fieldSeedOf(p.id),
           ),
@@ -582,11 +601,11 @@ class TidalField extends _GrainField {
     if (_placed) {
       for (final p in _piecesOn(layer, {FieldPiece.basalt})) {
         final x = _spawnX(p);
-        final base = layer == reef ? _h * 0.72 : _h * 0.9;
+        final base = layer == reef ? _reefLine : _h * 0.9;
         out.add((
           x: x,
           top: base - p.size.y * _u,
-          base: base + 20 * _u,
+          base: base + (layer == reef ? 4 : 20) * _u,
           hw: p.size.x * _u,
           seed: fieldSeedOf(p.id),
         ));
@@ -595,11 +614,11 @@ class TidalField extends _GrainField {
       var i = 0;
       for (final (l, fx, hw, ht) in _wildBasalt) {
         if (l != layer) continue;
-        final base = layer == reef ? _h * 0.72 : _h * 0.9;
+        final base = layer == reef ? _reefLine : _h * 0.9;
         out.add((
           x: fx * width,
           top: base - ht * _u,
-          base: base + 20 * _u,
+          base: base + (layer == reef ? 4 : 20) * _u,
           hw: hw * _u,
           seed: 8800 + i++,
         ));
@@ -931,7 +950,7 @@ class TidalField extends _GrainField {
           _paintWrack(canvas, view);
         } else {
           _paintWake(canvas, view);
-          _paintSpray(canvas, view);
+          _paintShelfSurf(canvas, view);
         }
       case fore:
         final kelp = _kelp;
@@ -961,176 +980,717 @@ class TidalField extends _GrainField {
 
   final GrainBatch _pathBatch = GrainBatch(3);
 
-  /// The sun's path across the water, or the moon's: glitter in a column
-  /// under it, narrow at the horizon and spreading toward you, brightest
-  /// with the light low.
-  void _paintLightPath(Canvas canvas, FieldView view) {
+  /// The sun's path on the water in [view], or the moon's: where it runs
+  /// down the sea, how wide it spreads near, its colour, and how bright it
+  /// is — brightest with the light low. Null when there is none.
+  ({double x, double spread, Color color, double strength})? _path(
+    FieldView view,
+  ) {
     final byMoon = _sunUp < -0.05;
     final up = byMoon ? _moonUp : _sunUp;
-    if (up < -0.05) return;
+    if (up < -0.05) return null;
     final lit = byMoon
         ? (1 - math.cos(_moonPhase * 2 * math.pi)) / 2 * 0.7
         : 1.0;
     final low = (1 - up.clamp(0.0, 1.0) * 0.8);
     final strength = lit * low * (1 - fog * 0.9);
-    if (strength < 0.04) return;
-    final sx =
-        view.left + (byMoon ? _moonX : _sunX) * _screen.width / view.zoom;
+    if (strength < 0.04) return null;
+    return (
+      x: view.left + (byMoon ? _moonX : _sunX) * _screen.width / view.zoom,
+      spread: 70 * _u * (0.6 + 0.6 * low),
+      color: byMoon
+          ? const Color(0xFFDDE6FF)
+          : Color.lerp(_light.rim, const Color(0xFFFFFFFF), 0.4)!,
+      strength: strength,
+    );
+  }
+
+  /// The sun's path across the water, or the moon's: glitter in a column
+  /// under it, narrow at the horizon and spreading toward you.
+  void _paintLightPath(Canvas canvas, FieldView view) {
+    final path = _path(view);
+    if (path == null) return;
     final top = _h * _seaTop, span = _h * 0.3;
     final t = view.time;
     _pathBatch.clear();
     for (var i = 0; i < 300; i++) {
       final d = math.pow(fieldHash(i, 41), 1.4).toDouble();
       final y = top + 1 * _u + d * span;
-      final spread = (4 + d * 70) * _u * (0.6 + 0.6 * low);
+      final spread = path.spread * (4 / 70 + d);
       final across = (fieldHash(i, 43) - 0.5) * 2;
       // Concentrated in the middle of the path.
-      final x = sx + across * across.abs() * spread;
+      final x = path.x + across * across.abs() * spread;
       final s = math.sin(t * (1.5 + fieldHash(i, 47) * 2.5) + i * 1.7);
       if (s < 0.25) continue;
       _pathBatch.add(s > 0.85 ? 2 : (s > 0.55 ? 1 : 0), x, y);
     }
-    final col = byMoon
-        ? const Color(0xFFDDE6FF)
-        : Color.lerp(_light.rim, const Color(0xFFFFFFFF), 0.4)!;
     for (var lv = 0; lv < 3; lv++) {
       _pathBatch.draw(
         canvas,
         lv,
         (1.0 + 0.35 * lv) * _u,
-        col.withValues(alpha: (strength * (0.3 + 0.3 * lv)).clamp(0.0, 1.0)),
+        path.color.withValues(
+          alpha: (path.strength * (0.3 + 0.3 * lv)).clamp(0.0, 1.0),
+        ),
       );
     }
   }
 
-  final GrainBatch _foamBatch = GrainBatch(4);
+  // ── Waves ────────────────────────────────────────────────────────────────
+  //
+  // The sea comes in as waves: each a crest travelling toward you, a lit
+  // lip over a darker face, deeper as it nears. Where a wave is at x hangs
+  // on x as well as the time — the crests come in bent — so each reaches
+  // the rocks and the shore at its own moment along its length. On the
+  // reef it breaks on the rocks; on the flat it runs up the sand and slides
+  // back, leaving the sand wet behind it. A swell makes the waves bigger,
+  // never faster, so a weather coming in does not hurry them.
+  //
+  // All of it is soft filled water — bands and sheets drawn as one mesh a
+  // layer — with grains only for spray and froth.
 
-  /// Foam breathing round the feet of the far stacks.
+  /// Seconds between one wave and the next.
+  static const _wavePeriod = 6.5;
+
+  /// Each layer's run of waves: from where and to where (shares of the
+  /// height), and how many are on it at once. The flat's run is from its
+  /// far edge to the waterline.
+  static const _farFrom = 0.526, _farTo = 0.7, _farWaves = 4;
+  static const _reefFrom = 0.6, _reefTo = 0.815, _reefWaves = 3;
+  static const _shelfWaves = 2;
+
+  /// Where the sea stands at the reef rocks' feet.
+  double get _reefLine => _h * 0.72;
+
+  /// The nearer sea's colour at [y], as its sheet is baked and graded (see
+  /// [_paintNearSea]) — what is drawn over the sea must match it.
+  Color _nearSeaAt(double y) {
+    final f = ((y - _h * 0.6) / (_h * 0.3)).clamp(0.0, 1.0);
+    final k = f < 0.25 ? f / 0.25 : (f - 0.25) / 0.75;
+    final r = f < 0.25 ? 0.3 - 0.1 * k : 0.2 - 0.15 * k;
+    final b = f < 0.25 ? 0.3 + 0.15 * k : 0.45 + 0.25 * k;
+    final keep = 1 - r - 0.75 * b;
+    return Color.from(
+      alpha: 1,
+      red: (_seaNear.r * keep + _hazeLow.r * r).clamp(0.0, 1.0),
+      green: (_seaNear.g * keep + _hazeLow.g * r).clamp(0.0, 1.0),
+      blue: (_seaNear.b * keep + _hazeLow.b * r).clamp(0.0, 1.0),
+    );
+  }
+
+  /// The sea in front of a rock's foot, from where the water stands at [y]
+  /// down to its [base]: below the surface it is seen only dimly.
+  void _sinkFoot(double x0, double y, double base, double hw) {
+    if (base <= y) return;
+    const n = 10;
+    final w = hw * 1.55;
+    final top = _nearSeaAt(y), mid = _nearSeaAt(y + 5 * _u);
+    final bottom = _nearSeaAt(base + 3 * _u);
+    final first = _mesh.count;
+    for (var i = 0; i <= n; i++) {
+      final f = i / n * 2 - 1;
+      final side = 1 - _ss(0.9, 1, f.abs());
+      _mesh
+        ..add(x0 + f * w, y - 0.5 * _u, _argb(top, 0.45 * side))
+        ..add(x0 + f * w, y + 5 * _u, _argb(mid, 0.88 * side))
+        ..add(x0 + f * w, base + 3 * _u, _argb(bottom, 0.98 * side));
+    }
+    _mesh.strip(first, n + 1, 3);
+  }
+
+  /// How hard the waves come in: a swell throws them twice as high.
+  double get _surge => 1 + 1.4 * swell;
+
+  /// The waves' phase at [x] on [layer]: wave m is (phase − m) / count of
+  /// the way along its run.
+  double _wavePhase(SceneLayer layer, double x, double t) =>
+      t / _wavePeriod + _bendAt(layer, x);
+
+  /// How far behind the time the waves run at [x] on [layer]: what bends
+  /// the crests. It never changes, so it is kept for the columns drawn.
+  double _bendAt(SceneLayer layer, double x) {
+    final cache = _bends.putIfAbsent(layer, () => {});
+    final key = (x * 4 / _u).round();
+    final known = cache[key];
+    if (known != null) return known;
+    if (cache.length > 4096) cache.clear();
+    final p = _period(layer);
+    // Along the shore each stretch is at its own stage of the swash.
+    final bend = layer == shelf ? 0.7 : 0.32;
+    return cache[key] =
+        bend * fieldLoopNoise(x, 520 * _u, 4401 + layer.index, p) +
+        0.07 * fieldLoopNoise(x, 130 * _u, 4407 + layer.index, p);
+  }
+
+  final Map<SceneLayer, Map<int, double>> _bends = {};
+
+  /// How far down its run a crest [along] of the way along it has come,
+  /// 0 to 1 — it quickens as it nears, as anything coming toward you does.
+  static double _down(double along) => along * (0.55 + 0.45 * along);
+
+  /// How far along a run from [from] to [to] a crest at [y] is, 0 to 1:
+  /// the inverse of [_down].
+  static double _runAt(double y, double from, double to) {
+    final k = ((y - from) / (to - from)).clamp(0.0, 1.0);
+    return (math.sqrt(0.3025 + 1.8 * k) - 0.55) / 0.9;
+  }
+
+  /// Seconds since the last wave on a run reached [y] at [x], and which
+  /// wave that was.
+  (double, int) _sinceWave(
+    SceneLayer layer,
+    double x,
+    double y,
+    double t,
+    double from,
+    double to,
+    int count,
+  ) {
+    final u = _wavePhase(layer, x, t) - count * _runAt(y, from, to);
+    final m = u.floor();
+    return ((u - m) * _wavePeriod, m);
+  }
+
+  static double _ss(double a, double b, double x) {
+    final f = ((x - a) / (b - a)).clamp(0.0, 1.0);
+    return f * f * (3 - 2 * f);
+  }
+
+  /// [c] with [a] for its alpha, as a mesh vertex wants it.
+  static int _argb(Color c, double a) => _at(_rgb(c), a);
+
+  /// [c] without its alpha, for [_at] and [_mix] — colours worked as ints
+  /// so the hundreds of vertices a frame allocate nothing.
+  static int _rgb(Color c) => c.toARGB32() & 0xFFFFFF;
+
+  /// [rgb] with [a] for its alpha.
+  static int _at(int rgb, double a) =>
+      ((a.clamp(0.0, 1.0) * 255).round() << 24) | rgb;
+
+  /// [a] taken [k] of the way to [b] (both without alpha).
+  static int _mix(int a, int b, double k) {
+    if (k <= 0) return a;
+    if (k >= 1) return b;
+    var out = 0;
+    for (var sh = 0; sh <= 16; sh += 8) {
+      final x = (a >> sh) & 0xFF, y = (b >> sh) & 0xFF;
+      out |= (x + ((y - x) * k).round()) << sh;
+    }
+    return out;
+  }
+
+  /// The water drawn this frame, a layer at a time.
+  final _WaterMesh _mesh = _WaterMesh();
+  final List<double> _colX = [], _colU = [];
+
+  /// Lays into [_mesh] the waves on a run from [from] to [to] (layer units,
+  /// far to near): [count] on it at once, [thin] deep where they start and
+  /// [thick] at the end, showing as much as [strength] says.
+  void _swells(
+    FieldView view,
+    SceneLayer layer, {
+    required double from,
+    required double to,
+    required int count,
+    required double thin,
+    required double thick,
+    required double strength,
+    bool froth = false,
+    double caps = 1,
+  }) {
+    if (strength <= 0.01 || to - from < 2 * _u) return;
+    final t = view.time;
+    final p = _period(layer);
+    final step = (layer == far ? 16 : 8) * _u;
+    // Columns on a grid fixed to the layer, so nothing crawls as it pans.
+    final g0 = (view.left / step).floor() - 2;
+    final n = ((view.right - view.left) / step).ceil() + 5;
+    _colX.clear();
+    _colU.clear();
+    var lo = double.infinity, hi = -double.infinity;
+    for (var i = 0; i < n; i++) {
+      final x = (g0 + i) * step;
+      final u = _wavePhase(layer, x, t);
+      _colX.add(x);
+      _colU.add(u);
+      lo = math.min(lo, u);
+      hi = math.max(hi, u);
+    }
+    final path = _path(view);
+    final s = swell * caps;
+    final glow = _night * (1 - fog * 0.6);
+    final white = _rgb(Color.lerp(_foam, _glow, glow * 0.85)!);
+    final lipRgb = _rgb(_lip), faceRgb = _rgb(_face);
+    final pathRgb = path == null ? 0 : _rgb(path.color);
+    for (var m = lo.floor() - count + 1; m <= hi.floor(); m++) {
+      // A wave not yet on its run anywhere here, or past its end, shows
+      // nowhere.
+      if ((hi - m) / count <= 0 || (lo - m) / count >= 1) continue;
+      final seed = 4500 + (fieldHash(m, 4499) * 4000).floor();
+      final first = _mesh.count;
+      for (var i = 0; i < n; i++) {
+        final x = _colX[i];
+        final along = (_colU[i] - m) / count;
+        final a = along.clamp(0.0, 1.0);
+        final k = _down(a);
+        final y = from + (to - from) * k;
+        final th = thin + (thick - thin) * k;
+        final env = _ss(0, 0.16, along) * (1 - _ss(0.8, 1, along));
+        if (env <= 0) {
+          final none = _at(lipRgb, 0);
+          _mesh
+            ..add(x, y - th * 0.45, none)
+            ..add(x, y, none)
+            ..add(x, y + th * 0.3, none)
+            ..add(x, y + th, none);
+          continue;
+        }
+        final show = strength * env;
+        // Lit in long pieces along its length, never one ruled line.
+        final lit = _ss(
+          0.25,
+          0.8,
+          0.5 + 0.5 * fieldLoopNoise(x, 110 * _u, seed, p),
+        );
+        var lipA = show * (0.1 + 0.38 * lit) * (0.4 + 0.6 * a);
+        var faceA = show * (0.1 + 0.12 * lit) * (0.35 + 0.65 * a);
+        var lip = lipRgb, face = faceRgb;
+        // Where the sun's path crosses it, it catches the light.
+        if (path != null) {
+          final d = (x - path.x) / (path.spread * (0.3 + 0.9 * k));
+          if (d.abs() < 3) {
+            final g = path.strength * math.exp(-d * d) * show;
+            lip = _mix(lip, pathRgb, g * 1.2);
+            lipA += g * 0.45 * lit;
+          }
+        }
+        // In a swell the crests break white in streaks along them, and the
+        // white spills down their faces.
+        if (s > 0.02) {
+          final wc =
+              s *
+              env *
+              _ss(
+                0.55,
+                0.85,
+                0.5 + 0.5 * fieldLoopNoise(x, 34 * _u, seed + 7, p),
+              ) *
+              _ss(0.25, 0.55, a);
+          lip = _mix(lip, white, wc);
+          face = _mix(face, white, wc * 0.7);
+          lipA = math.max(lipA, wc * 0.8);
+          faceA += wc * 0.3;
+          // Froth on it, and down its face.
+          if (froth && wc > 0.2) {
+            for (var j = 0; j < 4; j++) {
+              final h = fieldHash(i * 5 + j, seed);
+              _spray.add(
+                h > 0.7 ? 4 : 3,
+                x + (fieldHash(i * 5 + j, seed + 1) - 0.5) * step,
+                y - th * 0.2 + h * th * 0.7 * wc,
+              );
+            }
+          }
+        }
+        _mesh
+          ..add(x, y - th * 0.45, _at(lip, 0))
+          ..add(x, y, _at(lip, lipA))
+          ..add(x, y + th * 0.3, _at(face, faceA))
+          ..add(x, y + th, _at(face, 0));
+      }
+      _mesh.strip(first, n, 4);
+    }
+  }
+
+  /// A band of white water lying on the sea at [y] across [cx] ± [half]:
+  /// tapered to nothing at its ends, [thick] deep (the water is seen nearly
+  /// edge on), [alpha] at most. [lace] is how much of it has come apart
+  /// into holes, which [seed] places and [drift] moves along.
+  void _foamBand(
+    double cx,
+    double y,
+    double half,
+    double thick,
+    double alpha,
+    Color col, {
+    int seed = 0,
+    double drift = 0,
+    double lace = 0.2,
+    double froth = 1,
+  }) {
+    if (alpha < 0.01 || half < 1) return;
+    final rgb = _rgb(col);
+    final n = math.max(6, (half * 2 / (5 * _u)).ceil());
+    _bandHoles.clear();
+    _bandLean.clear();
+    final first = _mesh.count;
+    for (var i = 0; i <= n; i++) {
+      final f = i / n * 2 - 1;
+      final x = cx + f * half;
+      final d = f * half / _u;
+      final holes =
+          0.5 +
+          0.5 *
+              (0.65 * fieldNoise(d / 16 + drift, seed) +
+                  0.35 * fieldNoise(d / 6 - drift * 1.7, seed + 1));
+      final lean = fieldNoise(d / 11, seed + 2) * thick * 0.25;
+      _bandHoles.add(holes);
+      _bandLean.add(lean);
+      final taper = math.pow(1 - f * f, 0.6).toDouble();
+      final a = alpha * taper * _ss(lace - 0.15, lace + 0.2, holes);
+      // Ragged along its edges, not ruled; soft, the froth on it is what
+      // shows.
+      final y0 = y + lean;
+      _mesh
+        ..add(x, y0 - thick * 0.35, _at(rgb, 0))
+        ..add(x, y0, _at(rgb, a * 0.6))
+        ..add(x, y0 + thick * 0.65, _at(rgb, 0));
+    }
+    _mesh.strip(first, n + 1, 3);
+    // The froth itself: bubbles packed where the foam holds together.
+    final grains = (half * thick / (2.8 * _u * _u) * froth * alpha).round();
+    for (var j = 0; j < grains; j++) {
+      final f = fieldHash(j, seed + 5) * 2 - 1;
+      final at = (f + 1) / 2 * n;
+      final i0 = math.min(n - 1, at.floor()), g = at - i0;
+      final holes = _bandHoles[i0] + (_bandHoles[i0 + 1] - _bandHoles[i0]) * g;
+      final lean = _bandLean[i0] + (_bandLean[i0 + 1] - _bandLean[i0]) * g;
+      final keep = alpha * (1 - f * f) * _ss(lace - 0.1, lace + 0.25, holes);
+      final r = fieldHash(j, seed + 6);
+      if (r > keep * 1.4) continue;
+      _spray.add(
+        r < keep * 0.5 ? 4 : 3,
+        cx + f * half,
+        y + lean + (fieldHash(j, seed + 7) - 0.4) * thick * 0.8,
+      );
+    }
+  }
+
+  final List<double> _bandHoles = [], _bandLean = [];
+
+  /// A ripple running out on the water round [cx], [cy]: a soft band [rx]
+  /// across, flattened to [ry] by how low we see the water, [w] wide and
+  /// broken in places. Only its near half when something stands in it
+  /// ([front]); none of it below [floor].
+  void _ripple(
+    double cx,
+    double cy,
+    double rx,
+    double ry,
+    double w,
+    double alpha,
+    Color col,
+    int seed, {
+    bool front = false,
+    double floor = double.infinity,
+  }) {
+    if (alpha < 0.01) return;
+    final rgb = _rgb(col);
+    final n = front ? 14 : 26;
+    final first = _mesh.count;
+    for (var i = 0; i <= n; i++) {
+      final ang = (front ? math.pi : 2 * math.pi) * i / n;
+      final c = math.cos(ang), s = math.sin(ang);
+      final whole = _ss(0.3, 0.6, 0.5 + 0.5 * fieldNoise(i * 0.55, seed));
+      final y = cy + s * ry;
+      final a = y > floor
+          ? 0.0
+          : alpha * whole * (front ? _ss(0, 0.25, s) : 1.0);
+      _mesh
+        ..add(cx + c * (rx - w), cy + s * (ry - w * 0.3), _at(rgb, 0))
+        ..add(cx + c * rx, y, _at(rgb, a))
+        ..add(cx + c * (rx + w), cy + s * (ry + w * 0.3), _at(rgb, 0));
+    }
+    _mesh.strip(first, n + 1, 3);
+  }
+
+  /// Spray and froth: 0 a drop's trail, 1 drops, 2 big drops, 3 and 4 the
+  /// froth in white water.
+  final GrainBatch _spray = GrainBatch(5);
+
+  void _drawSpray(Canvas canvas, Color col) {
+    _spray
+      ..draw(canvas, 0, 0.8 * _u, col.withValues(alpha: 0.2))
+      ..draw(canvas, 1, 1.0 * _u, col.withValues(alpha: 0.45))
+      ..draw(canvas, 2, 1.35 * _u, col.withValues(alpha: 0.65))
+      ..draw(canvas, 3, 0.9 * _u, col.withValues(alpha: 0.35))
+      ..draw(canvas, 4, 1.3 * _u, col.withValues(alpha: 0.5));
+  }
+
+  /// A wave breaking on a rock [hw] half wide standing at [x0], its feet in
+  /// the sea at [y] and its top at [top], [since] seconds after the wave
+  /// reached it ([hit] tells one wave from the next, [seed] one rock from
+  /// another). The white water climbs its face and drains back off it in
+  /// fingers, spray is thrown up and falls back, and a sheet of foam
+  /// spreads from its foot and comes apart on the water. Foam lies round
+  /// its foot always, [wet] of it. [force] scales the lot.
+  void _breakOn(
+    double x0,
+    double y,
+    double hw,
+    double top,
+    double since,
+    int hit,
+    int seed,
+    double force,
+    double glow,
+    double t, {
+    double wet = 1,
+  }) {
+    final hs = seed * 7 + hit * 131;
+    // At night the sea lights where it is stirred: brightest as a wave
+    // breaks, dimming as the water settles.
+    final col = Color.lerp(_foam, _glow, glow * 0.9)!;
+    final calm = Color.lerp(_foam, _glow, glow * 0.3)!;
+    // The foam always round its foot, lifted a little by each wave.
+    final after = math.exp(-since * 0.8);
+    _foamBand(
+      x0,
+      y + 1.5 * _u,
+      hw * (1.25 + 0.2 * after),
+      (3.5 + 2 * after) * _u * math.min(force, 1.6),
+      (0.3 + 0.35 * after) * wet,
+      Color.lerp(calm, col, after)!,
+      seed: seed,
+      drift: t * 0.12,
+      lace: 0.42 - 0.2 * after,
+    );
+
+    // The white water up its face: up fast, held a moment, down slower.
+    final rise = since < 0.45
+        ? 1 - math.pow(1 - since / 0.45, 3).toDouble()
+        : (since < 0.75 ? 1.0 : 1 - _ss(0.75, 2.6, since));
+    final climb = math.min(
+      (y - top) * 0.75,
+      (12 + 10 * fieldHash(hit, seed)) * _u * force,
+    );
+    if (rise > 0.01 && climb > 2 * _u) {
+      const n = 12;
+      final w = hw * 1.15;
+      final rgb = _rgb(col);
+      final first = _mesh.count;
+      final fade = 0.75 - 0.35 * _ss(0.6, 2.6, since);
+      _profile.clear();
+      for (var i = 0; i <= n; i++) {
+        final f = i / n * 2 - 1;
+        final prof = _tongues(f, hs);
+        _profile.add(prof);
+        // Draining, it runs off in fingers.
+        final drain =
+            (0.5 + 0.5 * fieldNoise(f * 6, hs + 1)) * _ss(0.75, 2.2, since);
+        final h = climb * rise * prof * (1 - 0.6 * drain);
+        final a = fade * math.pow(1 - f * f, 0.4).toDouble();
+        _mesh
+          ..add(x0 + f * w, y - h, _at(rgb, 0))
+          ..add(x0 + f * w, y - h * 0.6, _at(rgb, a * 0.3))
+          ..add(x0 + f * w, y - h * 0.15, _at(rgb, a * 0.5))
+          ..add(x0 + f * w, y + 2.5 * _u, _at(rgb, 0));
+      }
+      _mesh.strip(first, n + 1, 4);
+      // Froth in it.
+      for (var j = 0; j < 110; j++) {
+        final f = fieldHash(j, hs + 3) * 2 - 1;
+        final v = fieldHash(j, hs + 5);
+        final at = (f + 1) / 2 * n;
+        final i0 = math.min(n - 1, at.floor());
+        final prof =
+            _profile[i0] + (_profile[i0 + 1] - _profile[i0]) * (at - i0);
+        _spray.add(
+          v < 0.3 ? 4 : 3,
+          x0 + f * w * 0.95,
+          y - climb * rise * prof * math.sqrt(v) * 0.85,
+        );
+      }
+    }
+
+    // Spray thrown up off it, coming down — each drop with its trail.
+    final drops = (44 * force).round();
+    final g = 320 * _u;
+    for (var j = 0; j < drops; j++) {
+      final r1 = fieldHash(j, hs + 11),
+          r2 = fieldHash(j, hs + 13),
+          r3 = fieldHash(j, hs + 17);
+      final f = r1 * 2 - 1;
+      final age = since - (0.08 + r2 * 0.3);
+      if (age <= 0) continue;
+      final up = (40 + 100 * r3) * _u * math.sqrt(force) * (1 - 0.5 * f.abs());
+      final out = f * (12 + 30 * r2) * _u;
+      final from = x0 + f * hw * 0.85;
+      double lift(double a) => up * a - 0.5 * g * a * a;
+      if (lift(age) < -2 * _u) continue;
+      _spray.add(r3 > 0.7 ? 2 : 1, from + out * age, y - 3 * _u - lift(age));
+      final was = age - 0.035;
+      if (was > 0) {
+        _spray.add(0, from + out * was, y - 3 * _u - lift(was));
+      }
+    }
+
+    // The sheet of foam it leaves, spreading on the water and coming apart.
+    final age = since - 0.35;
+    const life = 4.6;
+    if (age > 0 && age < life) {
+      final k = age / life;
+      _foamBand(
+        x0,
+        y + 1.5 * _u + age * 1.2 * _u,
+        hw * (1.3 + 0.5 * age) * (0.8 + 0.2 * force),
+        (3 + 2 * force) * _u * (1 - 0.5 * k),
+        0.75 * math.pow(1 - k, 1.3).toDouble() * wet,
+        Color.lerp(col, calm, k)!,
+        seed: hs + 19,
+        drift: age * 0.25,
+        lace: 0.15 + 0.6 * k,
+      );
+    }
+  }
+
+  final List<double> _profile = [];
+
+  /// How high white water thrown up a rock's face reaches across it ([f]
+  /// −1 to 1): in tongues, broad-topped, not a dome.
+  static double _tongues(double f, int seed) {
+    final n =
+        0.5 +
+        0.5 *
+            (0.6 * fieldNoise(f * 4 + 3, seed) +
+                0.4 * fieldNoise(f * 10 + 7, seed + 2));
+    return math.pow(1 - math.pow(f.abs(), 2.5), 0.8).toDouble() *
+        (0.3 + 0.7 * n);
+  }
+
+  /// The far sea's waves, under the stacks.
+  void _paintFarSwells(Canvas canvas, FieldView view) {
+    _mesh.clear();
+    _swells(
+      view,
+      far,
+      from: _h * _farFrom,
+      to: _h * _farTo,
+      count: _farWaves,
+      thin: 0.5 * _u,
+      thick: 4 * _u,
+      strength: 0.75 * (1 - 0.85 * fog),
+      caps: 0.45,
+    );
+    _mesh.draw(canvas);
+  }
+
+  /// The nearer sea's waves, under the reef's rocks.
+  void _paintReefSwells(Canvas canvas, FieldView view) {
+    _mesh.clear();
+    _spray.clear();
+    _swells(
+      view,
+      reef,
+      from: _h * _reefFrom,
+      to: _h * _reefTo,
+      count: _reefWaves,
+      thin: 2.5 * _u,
+      thick: 9 * _u * (1 + 0.6 * swell),
+      strength: 1 - 0.5 * fog,
+      froth: true,
+    );
+    _mesh.draw(canvas);
+    _drawSpray(canvas, Color.lerp(_foam, _glow, _night * (1 - fog) * 0.85)!);
+  }
+
+  /// White water round the feet of the far stacks, lifting as each wave
+  /// passes them.
   void _paintStackFoam(Canvas canvas, FieldView view) {
     final t = view.time;
-    _foamBatch.clear();
     final w = _widths[far] ?? 1;
+    final glow = _night * (1 - fog * 0.6);
+    final col = Color.lerp(_foam, _glow, glow * 0.85)!;
+    final y = _h * (_seaTop + 0.028);
+    _mesh.clear();
+    _spray.clear();
     for (final shift in _shiftsFor(far, view, 40 * _u)) {
       for (var i = 0; i < _stacks.length; i++) {
         final (fx, hw, _) = _stacks[i];
         final x0 = fx * w + shift;
         final half = hw * _h;
         if (x0 + half * 2 < view.left || x0 - half * 2 > view.right) continue;
-        final y = _h * (_seaTop + 0.028);
-        for (var j = 0; j < 24; j++) {
-          final a = fieldHash(j, 70 + i);
-          final s = math.sin(t * 0.9 + a * 9 + i);
-          if (s < 0) continue;
-          _foamBatch.add(
-            j % 2,
-            x0 + (a - 0.5) * half * 2.6,
-            y - s * (1 + 3 * fieldHash(j, 71)) * _u,
-          );
-        }
+        final (since, _) = _sinceWave(
+          far,
+          fx * w,
+          y,
+          t,
+          _h * _farFrom,
+          _h * _farTo,
+          _farWaves,
+        );
+        final lift = math.exp(-since * 1.1);
+        _foamBand(
+          x0,
+          y,
+          half * (1.2 + 0.25 * lift),
+          (1.2 + 1.6 * lift) * _u,
+          (0.3 + 0.45 * lift) * (1 - 0.8 * fog),
+          col,
+          seed: 70 + i,
+          drift: t * 0.15,
+          lace: 0.35 - 0.2 * lift,
+          froth: 0.5,
+        );
       }
     }
-    _foamBatch
-      ..draw(canvas, 0, 1.2 * _u, _foam.withValues(alpha: 0.45))
-      ..draw(canvas, 1, 1.0 * _u, _foam.withValues(alpha: 0.65));
+    _mesh.draw(canvas);
+    _drawSpray(canvas, col);
   }
 
-  /// How hard the surf comes in: a swell throws it twice as high.
-  double get _surge => 1 + 1.4 * swell;
-
-  /// The surf on the reef: each stand of columns has the sea surging round
-  /// its feet, throwing foam up its sides and sliding back off. After dark
-  /// it glows blue where it breaks.
+  /// The surf on the reef: every wave that reaches a rock breaks on it.
+  /// After dark it glows blue where it breaks.
   void _paintSurf(Canvas canvas, FieldView view) {
     final t = view.time;
     final cols = _columnsOf(reef);
-    _foamBatch.clear();
-    for (final shift in _shiftsFor(reef, view, 80 * _u)) {
-      for (final k in cols) {
-        final x0 = k.x + shift;
-        if (x0 + k.hw * 2 < view.left || x0 - k.hw * 2 > view.right) continue;
-        final period = 5.5 - 2 * swell + fieldHash(k.seed, 3) * 2;
-        final ph = ((t + fieldHash(k.seed, 5) * period) / period) % 1.0;
-        // A wave's rise and its fall back.
-        final rise = ph < 0.35
-            ? math.sin(ph / 0.35 * math.pi / 2)
-            : math.pow(1 - (ph - 0.35) / 0.65, 2).toDouble();
-        final sea = _h * 0.72;
-        final reach = (14 + 22 * rise) * _u * _surge;
-        final n = (70 * (0.3 + rise) * (1 + 1.6 * swell)).round();
-        for (var j = 0; j < n; j++) {
-          final a = fieldHash(j, k.seed);
-          final b = fieldHash(j, k.seed + 7);
-          final x = x0 + (a - 0.5) * k.hw * 2.8;
-          // Higher at the columns, lower off their sides.
-          final atCol = (1 - ((a - 0.5).abs() * 2 - 0.6).clamp(0.0, 1.0));
-          // Most of it a low band of white water hugging the feet, the
-          // rest thrown up the columns.
-          final lift = b < 0.6 ? b * 0.15 : b;
-          final y = sea - lift * reach * atCol - (1 - atCol) * 2 * _u;
-          final level = b > 0.75 ? 3 : (b > 0.4 ? 2 : (b > 0.15 ? 1 : 0));
-          _foamBatch.add(level, x, y);
-        }
-      }
-    }
-    // Whitecaps across the near sea in a swell, breaking and gone.
-    if (swell > 0.05) {
-      final n = (160 * swell).round();
-      for (var i = 0; i < n; i++) {
-        final life = (t * 0.6 + fieldHash(i, 1201)) % 1.0;
-        if (life > 0.4) continue;
-        final round = (t * 0.6 + fieldHash(i, 1201)).floor();
-        final x =
-            view.left +
-            fieldHash(i * 31 + round, 1203) * (view.right - view.left);
-        final y = _h * (0.6 + 0.24 * fieldHash(i * 31 + round, 1205));
-        final level = life < 0.15 ? 3 : (life < 0.3 ? 2 : 1);
-        for (var j = 0; j < 4; j++) {
-          _foamBatch.add(level, x + (j - 1.5) * 2.2 * _u, y - (j % 2) * _u);
-        }
-      }
-    }
     final glow = _night * (1 - fog * 0.6);
     final col = Color.lerp(_foam, _glow, glow * 0.85)!;
-    for (var lv = 0; lv < 4; lv++) {
-      if (glow > 0.05 && lv >= 2) {
-        _foamBatch.draw(
-          canvas,
-          lv,
-          3.2 * _u,
-          _glow.withValues(alpha: 0.18 * glow),
+    _mesh.clear();
+    _spray.clear();
+    for (final shift in _shiftsFor(reef, view, 120 * _u)) {
+      for (final k in cols) {
+        final x0 = k.x + shift;
+        if (x0 + k.hw * 3 < view.left || x0 - k.hw * 3 > view.right) continue;
+        final y = math.min(_reefLine, k.base - 3 * _u);
+        final (since, hit) = _sinceWave(
+          reef,
+          k.x,
+          y,
+          t,
+          _h * _reefFrom,
+          _h * _reefTo,
+          _reefWaves,
         );
+        _sinkFoot(x0, y, k.base, k.hw);
+        _breakOn(x0, y, k.hw, k.top, since, hit, k.seed, _surge, glow, t);
       }
-      _foamBatch.draw(
-        canvas,
-        lv,
-        (1.0 + 0.25 * lv) * _u,
-        col.withValues(alpha: 0.25 + 0.18 * lv),
-      );
     }
+    _mesh.draw(canvas);
+    _drawSpray(canvas, col);
   }
 
   // ── Swimming ─────────────────────────────────────────────────────────────
 
-  final GrainBatch _swimBatch = GrainBatch(3);
-
   /// Whatever swims out in the sea at a point that wades: the sea drawn
-  /// again over its lower half, soft at the sides, with a ring of foam round
-  /// it where the water meets it and rings spreading off it. At night the
+  /// again over its lower half, soft at the sides, with foam where the
+  /// water meets it and ripples running out in front of it. At night the
   /// foam glows.
   void _paintSwimming(Canvas canvas, FieldView view) {
     final t = view.time;
-    _swimBatch.clear();
-    var any = false;
+    final glow = _night * (1 - fog * 0.6);
+    final col = Color.lerp(_foam, _glow, glow * 0.85)!;
+    _mesh.clear();
+    _spray.clear();
     for (final p in _spawns) {
       if (p.anchor != reef || p.perch != SpawnPerch.wade) continue;
       final feet = _feet(p);
       final line =
           feet - p.size.y * 0.38 + math.sin(t * 1.4 + p.id.length) * 1.2 * _u;
       final half = p.size.x * 0.62;
+      final seed = fieldSeedOf(p.id);
       for (final shift in _shiftsFor(reef, view, half * 1.4)) {
         final x = _spawnX(p) + shift;
         if (x + half * 1.4 < view.left || x - half * 1.4 > view.right) continue;
-        any = true;
         final rect = Rect.fromLTRB(
           x - half * 1.1,
           line,
@@ -1152,123 +1712,221 @@ class TidalField extends _GrainField {
               const [0.0, 0.25, 0.75, 1.0],
             ),
         );
-        // Foam where the water meets it, and two rings spreading.
-        for (var k = 0; k < 22; k++) {
-          final f = k / 21 * 2 - 1;
-          final shimmer = 0.5 + 0.5 * math.sin(t * 2.4 + k * 1.1);
-          if (shimmer < 0.3) continue;
-          _swimBatch.add(
-            shimmer > 0.8 ? 2 : 1,
-            x + f * half * 0.55,
-            line + (1 - f * f) * 1.8 * _u,
-          );
-        }
+        _foamBand(
+          x,
+          line + 0.8 * _u,
+          half * 0.62,
+          3 * _u,
+          0.6,
+          col,
+          seed: seed,
+          drift: t * 0.3,
+          lace: 0.25,
+        );
         for (var r = 0; r < 2; r++) {
-          final age = ((t * 0.45 + r * 0.5) % 1.0);
-          final rx = half * (0.6 + age * 0.9), ry = rx * 0.16;
-          final n = 30;
-          for (var k = 0; k < n; k++) {
-            if (fieldHash(k + r * 31, (t * 0.45 + r * 0.5).floor()) >
-                1 - age * 0.6) {
-              continue;
-            }
-            final a = k / n * math.pi * 2;
-            _swimBatch.add(
-              0,
-              x + math.cos(a) * rx,
-              line + 2 * _u + math.sin(a) * ry,
-            );
-          }
+          final run = t * 0.4 + r * 0.5;
+          final age = run % 1.0;
+          final rx = half * (0.65 + age * 0.9);
+          _ripple(
+            x,
+            line + 2 * _u,
+            rx,
+            rx * 0.16,
+            (1.2 + age * 1.5) * _u,
+            0.4 * (1 - age) * _ss(0, 0.15, age),
+            col,
+            seed + r + run.floor() * 7,
+            front: true,
+          );
         }
       }
     }
-    if (!any) return;
-    final glow = _night * (1 - fog * 0.6);
-    final col = Color.lerp(_foam, _glow, glow * 0.85)!;
-    _swimBatch
-      ..draw(canvas, 0, 1.2 * _u, col.withValues(alpha: 0.45))
-      ..draw(canvas, 1, 1.4 * _u, col.withValues(alpha: 0.6))
-      ..draw(canvas, 2, 1.7 * _u, col.withValues(alpha: 0.85));
-    if (glow > 0.05) {
-      _swimBatch.draw(canvas, 2, 3.4 * _u, _glow.withValues(alpha: 0.2 * glow));
-    }
+    _mesh.draw(canvas);
+    _drawSpray(canvas, col);
   }
 
   // ── The tide ─────────────────────────────────────────────────────────────
 
-  /// The water over the flat, as a live sheet under the columns: from the
-  /// flat's far edge down to the waterline, clear and shallow at its edge,
-  /// with the swash running up and back at the line itself.
+  /// The swash at [x] on the flat at [t]: where the water's edge is now,
+  /// how far down the sand the last wave ran (the wet sand between), how
+  /// long since it came in, and which wave it was. Each wave runs up fast,
+  /// slows, and slides back slower, its edge scalloped its own way.
+  ({double edge, double reach, double since, int wave}) _swash(
+    double x,
+    double t,
+  ) {
+    final p = _period(shelf);
+    final u = _wavePhase(shelf, x, t);
+    final wave = u.floor();
+    final since = (u - wave) * _wavePeriod;
+    final seed = 4700 + (fieldHash(wave, 4699) * 4000).floor();
+    final run =
+        (5 + 8 * swell) *
+            _u *
+            (0.75 + 0.25 * fieldLoopNoise(x, 260 * _u, 4701, p)) +
+        2.4 * _u * fieldLoopNoise(x, 40 * _u, seed, p);
+    final up = since < 1.3
+        ? 1 - math.pow(1 - since / 1.3, 3).toDouble()
+        : 0.5 +
+              0.5 *
+                  math.cos(
+                    math.pi *
+                        ((since - 1.3) / (_wavePeriod * 0.8 - 1.3)).clamp(
+                          0.0,
+                          1.0,
+                        ),
+                  );
+    return (
+      edge: _waterline + run * up,
+      reach: _waterline + run,
+      since: since,
+      wave: wave,
+    );
+  }
+
+  final List<double> _swX = [],
+      _swEdge = [],
+      _swReach = [],
+      _swSince = [],
+      _swFoam = [];
+  final List<int> _swWave = [];
+
+  /// The water over the flat, as a live sheet under the shelf's rocks: deep
+  /// where it is deep and a clear film at its edge, the waves coming in over
+  /// it, each running up the sand in a line of foam and sliding back, the
+  /// foam coming apart as it goes and the sand it left shining wet until it
+  /// dries. At night the foam glows.
   void _paintWater(Canvas canvas, FieldView view) {
     final t = view.time;
-    final swash =
-        math.sin(t * 0.8) * (3 + 6 * swell) * _u +
-        math.sin(t * 1.9 + 1) * 1.2 * _u;
-    final line = _waterline + swash;
     final top = _flatTop - 3 * _u;
-    if (line <= top + 1) return;
-    final rect = Rect.fromLTRB(view.left - 4, top, view.right + 4, line);
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = Gradient.linear(
-          Offset(0, top),
-          Offset(0, line),
-          [
-            _deep.withValues(alpha: 0.95),
-            Color.lerp(_deep, _shallow, 0.6)!.withValues(alpha: 0.75),
-            _shallow.withValues(alpha: 0.4),
-          ],
-          const [0.0, 0.75, 1.0],
-        ),
-    );
-    // The sky lying on it in long soft bands, drifting.
-    final sky = _light.skyAt(0.45);
-    for (var k = 0; k < 4; k++) {
-      final f = (k + 0.5) / 4;
-      final y = top + (line - top) * f + math.sin(t * 0.3 + k * 2) * 1.5 * _u;
-      final th = (1.5 + 3 * f) * _u;
-      canvas.drawRect(
-        Rect.fromLTRB(view.left - 4, y, view.right + 4, y + th),
-        Paint()
-          ..shader = Gradient.linear(
-            Offset(0, y),
-            Offset(0, y + th),
-            [
-              sky.withValues(alpha: 0),
-              sky.withValues(alpha: 0.22 * (1 - f * 0.5)),
-              sky.withValues(alpha: 0),
-            ],
-            const [0.0, 0.5, 1.0],
-          ),
-      );
-    }
-    // The swash's lace at the waterline, and its glow at night.
-    _foamBatch.clear();
-    final step = 3 * _u;
-    for (var x = view.left - (view.left % step); x < view.right; x += step) {
-      final i = (x / step).round();
-      final a = fieldHash(i, 811);
-      final y =
-          line - a * (2 + 3 * swell) * _u + math.sin(t * 2 + i * 0.7) * _u;
-      _foamBatch.add(a > 0.6 ? 2 : (a > 0.25 ? 1 : 0), x + a * step, y);
-      if (a > 0.85) _foamBatch.add(3, x, y - 3 * _u * a);
-    }
+    final p = _period(shelf);
+    final s = swell;
     final glow = _night * (1 - fog * 0.6);
-    final col = Color.lerp(_foam, _glow, glow * 0.8)!;
-    for (var lv = 0; lv < 4; lv++) {
-      _foamBatch.draw(
-        canvas,
-        lv,
-        (1.2 + 0.25 * lv) * _u,
-        col.withValues(alpha: 0.3 + 0.15 * lv),
-      );
+    final sky = _light.skyAt(0.45);
+    final step = 8 * _u;
+    final g0 = (view.left / step).floor() - 2;
+    final n = ((view.right - view.left) / step).ceil() + 5;
+    _swX.clear();
+    _swEdge.clear();
+    _swReach.clear();
+    _swSince.clear();
+    _swWave.clear();
+    _swFoam.clear();
+    for (var i = 0; i < n; i++) {
+      final x = (g0 + i) * step;
+      final w = _swash(x, t);
+      _swX.add(x);
+      _swEdge.add(w.edge);
+      _swReach.add(w.reach);
+      _swSince.add(w.since);
+      _swWave.add(w.wave);
     }
+    _mesh.clear();
+
+    // The water.
+    final deep = _argb(_deep, 0.95);
+    final mid = _argb(Color.lerp(_deep, sky, 0.14)!, 0.82);
+    final shoal = _argb(Color.lerp(_deep, _shallow, 0.65)!, 0.6);
+    final film = _argb(_shallow, 0.3), dry = _argb(_shallow, 0);
+    var first = _mesh.count;
+    for (var i = 0; i < n; i++) {
+      final x = _swX[i], e = _swEdge[i];
+      final m = top + (e - top) * 0.55;
+      _mesh
+        ..add(x, top, deep)
+        ..add(x, m, mid)
+        ..add(x, math.max(m, e - 5 * _u), shoal)
+        ..add(x, e, film)
+        ..add(x, e + 1.2 * _u, dry);
+    }
+    _mesh.strip(first, n, 5);
+
+    // The waves coming in over it.
+    _swells(
+      view,
+      shelf,
+      from: _flatTop,
+      to: _waterline,
+      count: _shelfWaves,
+      thin: 2.5 * _u,
+      thick: 6 * _u * (1 + 0.5 * s),
+      strength: 0.9 * _ss(4 * _u, 30 * _u, _waterline - _flatTop),
+    );
+
+    // The sand the last wave left, shining wet, drying.
+    final sheen = _rgb(_sheen);
+    first = _mesh.count;
+    for (var i = 0; i < n; i++) {
+      final x = _swX[i], e = _swEdge[i], since = _swSince[i];
+      final wet = since < 1.3
+          ? 0.0
+          : 0.45 * (1 - _ss(1.3, _wavePeriod, since));
+      _mesh
+        ..add(x, e, _at(sheen, wet))
+        ..add(x, math.max(e, _swReach[i]) + 1.5 * _u, _at(sheen, 0));
+    }
+    _mesh.strip(first, n, 2);
+
+    // The foam on its edge: a broad band of it coming in, bright at its
+    // front, thicker in some stretches than others, coming apart as it
+    // slides back. At night it lights as it breaks and dims as it settles.
+    _spray.clear();
+    final foam = _rgb(_foam), lights = _rgb(_glow);
+    first = _mesh.count;
+    for (var i = 0; i < n; i++) {
+      final x = _swX[i], e = _swEdge[i], since = _swSince[i];
+      final back = _ss(1.3, _wavePeriod * 0.7, since);
+      final stir = _ss(0, 0.4, since) * (1 - _ss(0.6, 2.8, since));
+      final seed = 4800 + (fieldHash(_swWave[i], 4799) * 4000).floor();
+      final holes = 0.5 + 0.5 * fieldLoopNoise(x, 20 * _u, seed, p);
+      final inner = 0.5 + 0.5 * fieldLoopNoise(x, 16 * _u, seed + 2, p);
+      final lace = 0.15 + 0.55 * back;
+      final a =
+          (0.75 - 0.5 * back) *
+          (1 + 0.25 * s) *
+          _ss(0, 0.35, since) *
+          _ss(lace - 0.15, lace + 0.2, holes);
+      final fw =
+          (3 + 5 * (0.5 + 0.5 * fieldLoopNoise(x, 60 * _u, seed + 3, p))) *
+          _u *
+          (1 + 0.4 * s) *
+          (1 - 0.45 * back);
+      final col = _mix(foam, lights, glow * (0.2 + 0.7 * stir));
+      _swFoam.add(a);
+      _mesh
+        ..add(x, e - fw, _at(col, 0))
+        ..add(x, e - fw * 0.5, _at(col, a * 0.6 * math.sqrt(inner)))
+        ..add(x, e - 0.6 * _u, _at(col, a * 0.65))
+        ..add(x, e + 1.4 * _u, _at(col, 0));
+      // Froth packed in it.
+      for (var j = 0; j < 4; j++) {
+        final r = fieldHash(i * 4 + j, seed + 4);
+        if (r > a * (0.6 + inner)) continue;
+        _spray.add(
+          r < a * 0.4 ? 4 : 3,
+          x + (fieldHash(i * 4 + j, seed + 5) - 0.5) * step,
+          e - 0.5 * _u - fieldHash(i * 4 + j, seed + 6) * fw * 0.8,
+        );
+      }
+    }
+    _mesh.strip(first, n, 4);
+
+    // After dark the water lights where it has just broken.
     if (glow > 0.05) {
-      _foamBatch
-        ..draw(canvas, 2, 3.4 * _u, _glow.withValues(alpha: 0.2 * glow))
-        ..draw(canvas, 3, 3.8 * _u, _glow.withValues(alpha: 0.24 * glow));
+      first = _mesh.count;
+      for (var i = 0; i < n; i++) {
+        final x = _swX[i], e = _swEdge[i], since = _swSince[i];
+        final stir = _ss(0, 0.4, since) * (1 - _ss(0.6, 2.8, since));
+        final lit = 0.3 + 0.7 * (_swFoam[i] / 0.75).clamp(0.0, 1.0);
+        _mesh
+          ..add(x, e - 7 * _u, _at(lights, 0))
+          ..add(x, e - 1 * _u, _at(lights, 0.32 * glow * stir * lit))
+          ..add(x, e + 4 * _u, _at(lights, 0));
+      }
+      _mesh.strip(first, n, 3);
     }
+    _mesh.draw(canvas);
+    _drawSpray(canvas, Color.lerp(_foam, _glow, glow * 0.5)!);
   }
 
   // ── Pools and their anemones ─────────────────────────────────────────────
@@ -1369,8 +2027,10 @@ class TidalField extends _GrainField {
     _wake.removeWhere((w) => t - w.$3 > 2.5);
     if (_wake.isEmpty) return;
     _wakeBatch.clear();
+    _mesh.clear();
     final period = _period(shelf);
     final glow = _night * (1 - fog * 0.5);
+    final col = Color.lerp(_foam, _glow, glow * 0.7)!;
     for (final (x0, y, at, k) in _wake) {
       var x = x0;
       if (period > 0) {
@@ -1381,14 +2041,17 @@ class TidalField extends _GrainField {
       final age = t - at;
       final r = (3 + age * 26) * _u;
       final fade = (1 - age / 2.5) * k;
-      final n = (8 + r / (2.4 * _u)).clamp(8, 36).round();
-      for (var i = 0; i < n; i++) {
-        if (fieldHash(i, (at * 100).round()) > fade + 0.2) continue;
-        final a = i / n * math.pi * 2;
-        final py = y + math.sin(a) * r * 0.3;
-        if (py > _waterline || py < _flatTop) continue;
-        _wakeBatch.add(0, x + math.cos(a) * r, py);
-      }
+      _ripple(
+        x,
+        y,
+        r,
+        r * 0.3,
+        (1 + age * 1.2) * _u,
+        0.32 * fade * _ss(0, 0.12, age),
+        col,
+        (at * 100).round(),
+        floor: _waterline,
+      );
       if (glow > 0.05) {
         for (var i = 0; i < 6; i++) {
           final s = math.sin(t * 5 + i * 1.7 + at);
@@ -1401,7 +2064,7 @@ class TidalField extends _GrainField {
         }
       }
     }
-    _wakeBatch.draw(canvas, 0, 1.3 * _u, _foam.withValues(alpha: 0.6));
+    _mesh.draw(canvas);
     if (glow > 0.05) {
       _wakeBatch
         ..draw(canvas, 1, 3 * _u, _glow.withValues(alpha: 0.14 * glow))
@@ -1491,37 +2154,67 @@ class TidalField extends _GrainField {
     }
   }
 
-  // ── Spray in a swell ─────────────────────────────────────────────────────
+  // ── Surf on the shelf ────────────────────────────────────────────────────
 
-  final GrainBatch _sprayBatch = GrainBatch(2);
-
-  /// In a swell, spray thrown up off the shelf's columns where the sea
-  /// reaches them, and the waterline lacing higher.
-  void _paintSpray(Canvas canvas, FieldView view) {
-    final s = swell;
-    if (s < 0.05) return;
+  /// Where the tide stands round the shelf's rocks, the waves that reach
+  /// them break on them — gently on a calm day, high in a swell.
+  void _paintShelfSurf(Canvas canvas, FieldView view) {
     final t = view.time;
-    _sprayBatch.clear();
-    for (final shift in _shiftsFor(shelf, view, 60 * _u)) {
+    final glow = _night * (1 - fog * 0.6);
+    final col = Color.lerp(_foam, _glow, glow * 0.85)!;
+    final force = 0.55 + 1.4 * swell;
+    _mesh.clear();
+    _spray.clear();
+    var any = false;
+    for (final shift in _shiftsFor(shelf, view, 80 * _u)) {
       for (final k in _columnsOf(shelf)) {
         final x0 = k.x + shift;
-        if (x0 + k.hw * 2 < view.left || x0 - k.hw * 2 > view.right) continue;
-        final period = 4.2 + fieldHash(k.seed, 9) * 2;
-        final ph = ((t + fieldHash(k.seed, 11) * period) / period) % 1.0;
-        if (ph > 0.45) continue;
-        final burst = math.sin(ph / 0.45 * math.pi);
-        for (var j = 0; j < 40; j++) {
-          final a = fieldHash(j, k.seed + 13);
-          final b = fieldHash(j, k.seed + 17);
-          final x = x0 + (a - 0.5) * k.hw * 2.4 + (a - 0.5) * 30 * _u * ph;
-          final y = k.top - b * 60 * _u * burst * s + ph * ph * 30 * _u;
-          _sprayBatch.add(b > 0.6 ? 1 : 0, x, y);
+        if (x0 + k.hw * 3 < view.left || x0 - k.hw * 3 > view.right) continue;
+        final foot = k.base - 2 * _u;
+        double since;
+        int wave;
+        var wet = 1.0;
+        if (foot <= _waterline) {
+          // Its foot in the sea: every wave passes it.
+          (since, wave) = _sinceWave(
+            shelf,
+            k.x,
+            foot,
+            t,
+            _flatTop,
+            _waterline,
+            _shelfWaves,
+          );
+        } else {
+          // Its foot on the sand: only a wave that runs up to it.
+          final w = _swash(k.x, t);
+          if (w.reach <= foot) continue;
+          final run = w.reach - _waterline;
+          final q = ((foot - _waterline) / run).clamp(0.0, 1.0);
+          since = w.since - 1.3 * (1 - math.pow(1 - q, 1 / 3).toDouble());
+          wave = w.wave;
+          if (since < 0) since += _wavePeriod;
+          wet = _ss(foot - 1 * _u, foot + 3 * _u, w.edge);
         }
+        any = true;
+        _breakOn(
+          x0,
+          foot,
+          k.hw,
+          k.top,
+          since,
+          wave,
+          k.seed,
+          force,
+          glow,
+          t,
+          wet: wet,
+        );
       }
     }
-    _sprayBatch
-      ..draw(canvas, 0, 1.4 * _u, _foam.withValues(alpha: 0.5 * s))
-      ..draw(canvas, 1, 1.8 * _u, _foam.withValues(alpha: 0.75 * s));
+    if (!any) return;
+    _mesh.draw(canvas);
+    _drawSpray(canvas, col);
   }
 
   // ── Fog ──────────────────────────────────────────────────────────────────
@@ -1610,5 +2303,72 @@ class TidalField extends _GrainField {
       }
     }
     return b.done();
+  }
+}
+
+/// Soft filled shapes built up over a frame and drawn in one call: the
+/// sea's moving water — waves, white water, swash — which may not be drawn
+/// as paths every frame. Each vertex carries its own colour, so a shape
+/// fades to nothing at its edges by its vertices alone.
+class _WaterMesh {
+  Float32List _pos = Float32List(8192);
+  Int32List _col = Int32List(4096);
+  Uint16List _idx = Uint16List(12288);
+  int _v = 0, _k = 0;
+  static final Paint _paint = Paint();
+
+  /// The vertices so far: the index the next one will have.
+  int get count => _v;
+
+  void clear() {
+    _v = 0;
+    _k = 0;
+  }
+
+  int add(double x, double y, int argb) {
+    if (_v >= _col.length) {
+      _pos = Float32List(_pos.length * 2)..setAll(0, _pos);
+      _col = Int32List(_col.length * 2)..setAll(0, _col);
+    }
+    _pos[_v * 2] = x;
+    _pos[_v * 2 + 1] = y;
+    _col[_v] = argb;
+    return _v++;
+  }
+
+  /// Joins [cols] columns of [rows] vertices each, added from [first] a
+  /// column at a time (each column's from the top down), into a sheet.
+  void strip(int first, int cols, int rows) {
+    final need = _k + (cols - 1) * (rows - 1) * 6;
+    if (need > _idx.length) {
+      _idx = Uint16List(math.max(need, _idx.length * 2))..setAll(0, _idx);
+    }
+    for (var i = 0; i + 1 < cols; i++) {
+      for (var r = 0; r + 1 < rows; r++) {
+        final a = first + i * rows + r, b = a + rows;
+        _idx
+          ..[_k++] = a
+          ..[_k++] = b
+          ..[_k++] = a + 1
+          ..[_k++] = a + 1
+          ..[_k++] = b
+          ..[_k++] = b + 1;
+      }
+    }
+  }
+
+  void draw(Canvas canvas) {
+    if (_k == 0) return;
+    assert(_v <= 0xFFFF, 'too much water in one mesh');
+    canvas.drawVertices(
+      Vertices.raw(
+        VertexMode.triangles,
+        Float32List.sublistView(_pos, 0, _v * 2),
+        colors: Int32List.sublistView(_col, 0, _v),
+        indices: Uint16List.sublistView(_idx, 0, _k),
+      ),
+      BlendMode.srcOver,
+      _paint,
+    );
   }
 }

@@ -10,6 +10,8 @@
 import 'dart:ui';
 
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
+import 'package:alchemons/models/celebration_costume.dart';
+import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Records what a frame asks the GPU to do.
@@ -99,10 +101,30 @@ void main() {
     print('most draws in a frame: $worst');
   });
 
+  test('a worn costume, drawn by the sprite, keeps the same budget', () {
+    for (final species in ['WNG01', 'WNG04', 'PIP01']) {
+      for (var f = 0; f < 60; f++) {
+        final c = _CensusCanvas();
+        CostumePaint.paintWorn(
+          c as Canvas,
+          FamilyCostume.effectFor(species),
+          const Rect.fromLTWH(0, 0, 200, 200),
+          f % 4,
+          f * 0.2,
+        );
+        expect(c.blurredDraws, 0, reason: species);
+        expect(c.get('saveLayer'), 0, reason: species);
+        expect(c.draws, inInclusiveRange(1, 16), reason: '$species ${c.counts}');
+      }
+    }
+  });
+
   test('every rebuilt key is known and an unknown one paints nothing', () {
     for (final key in AlchemyEffectPaint.keys) {
       expect(AlchemyEffectPaint.has(key), isTrue);
     }
+    // Worn, a costume is the sprite's, not an effect round it.
+    expect(AlchemyEffectPaint.has(FamilyCostume.effectFor('WNG04')), isFalse);
     expect(AlchemyEffectPaint.has('not_an_effect'), isFalse);
     expect(AlchemyEffectPaint.has(null), isFalse);
     final c = _CensusCanvas();

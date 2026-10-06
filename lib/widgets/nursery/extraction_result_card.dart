@@ -50,6 +50,7 @@ import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/card_dissolve.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/fx/essence_rim.dart';
+import 'package:alchemons/widgets/fx/grain_text.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -1217,7 +1218,9 @@ class _AnalysisRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
+            // The reading is sand: it gathers into its letters as the
+            // panel opens, then sits as one picture.
+            child: GrainText(
               value,
               style: bracketText(
                 context,

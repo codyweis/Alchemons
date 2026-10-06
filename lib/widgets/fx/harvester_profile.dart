@@ -63,7 +63,7 @@ class HarvesterProfile {
   /// How far the ring shards fly when the specimen breaks out.
   final double shatterSpread;
 
-  /// Draws a bound hexagram inside the rings.
+  /// Draws a bound octagram inside the rings.
   final bool sigil;
 
   /// Each ring takes a different element's colour.
@@ -221,7 +221,7 @@ class HarvesterProfile {
       shatterSpread: 1.5,
     ),
 
-    // SIGIL BIND — counter-spinning rings and a bound hexagram. The specimen
+    // SIGIL BIND — counter-spinning rings and a bound octagram. The specimen
     // is not clamped, it is written into place.
     'arcane': HarvesterProfile(
       biomeId: 'arcane',

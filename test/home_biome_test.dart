@@ -7,6 +7,7 @@
 
 import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/games/wilderness/field/grain_field.dart';
+import 'package:alchemons/games/wilderness/field/home_sand_field.dart';
 import 'package:alchemons/games/wilderness/field_essence.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/creature.dart';
@@ -226,9 +227,12 @@ void main() {
     HomeRealm.dunes => DunesField(),
     HomeRealm.geode => GeodeField(),
     HomeRealm.tidal => TidalField(),
+    HomeRealm.sand => HomeSandField(),
   };
 
-  for (final realm in HomeRealm.values) {
+  // Living Sands is a floor: everything on it stands on it, and it builds
+  // no ground of its own.
+  for (final realm in HomeRealm.values.where((r) => r != HomeRealm.sand)) {
     test('every resident in the ${realm.name} that stands has ground', () {
       final layout = household.copyWith(realm: realm);
       final scene = layout.scene(floats);

@@ -37,6 +37,8 @@ final _volcanicAuraOffer = _offerFor(InvKeys.alchemyVolcanicAura);
 
 /// Every alchemy effect the shop can put on a card.
 const _allEffectKeys = <String>[
+  InvKeys.alchemyCelebration,
+  InvKeys.alchemyNose,
   InvKeys.alchemyGlow,
   InvKeys.alchemyElementalAura,
   InvKeys.alchemyVolcanicAura,

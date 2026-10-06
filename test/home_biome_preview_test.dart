@@ -3,6 +3,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
@@ -15,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/home_biome.dart';
+import 'package:alchemons/models/home_sand.dart';
 import 'package:alchemons/screens/home_biome/home_biome_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -118,6 +120,7 @@ void main() {
       await db.settingsDao.setSetting('scene_unlocked_dunes', '1');
       await db.settingsDao.setSetting('scene_unlocked_geode', '1');
       await db.settingsDao.setSetting('scene_unlocked_tidal', '1');
+      await db.settingsDao.setSetting('scene_unlocked_sand', '1');
       for (final (id, base) in roster) {
         await db.creatureDao.insertInstance(
           instanceId: id,
@@ -266,6 +269,153 @@ void main() {
           },
         );
       }
+    }
+    if (wants('sandpan')) {
+      // Living Sands panned so two of its tiles meet mid-screen (no seam),
+      // then held still and a real finger drawn through it in a loop.
+      final sands = base.copyWith(realm: HomeRealm.sand);
+      Future<void> loop() async {
+        final x0 = game().cameraX;
+        final finger = await tester.startGesture(const Offset(607, 230));
+        for (var i = 1; i <= 40; i++) {
+          final a = i / 40 * 6.28;
+          await finger.moveTo(
+            Offset(457 + 150 * math.cos(a), 230 + 110 * math.sin(a)),
+          );
+          await settle(1, ms: 16);
+        }
+        await finger.up();
+        if ((game().cameraX - x0).abs() > 0.5) {
+          throw StateError('the view moved while locked');
+        }
+      }
+
+      await shoot('sand_seam', sands, then: () async => game().debugPanTo(235));
+      await shoot(
+        'sand_stirred',
+        sands,
+        then: () async {
+          await tester.tap(find.text('Lock'));
+          await settle(2);
+          await loop();
+        },
+      );
+      // Sand that stays: the loop left as a furrow, and Smooth beside the
+      // lock.
+      await shoot(
+        'sand_furrow',
+        sands.copyWith(
+          sandStyle: const HomeSandStyle(motion: SandMotion.staysPut),
+        ),
+        then: () async {
+          await tester.tap(find.text('Lock'));
+          await settle(2);
+          await loop();
+          await settle(60);
+        },
+      );
+      // MIXES chosen in the settings, then the loop drawn through it: the
+      // sands swirled through each other, nothing dug, and Smooth beside the
+      // lock.
+      await shoot(
+        'sand_mixed',
+        sands.copyWith(sandStyle: const HomeSandStyle(count: 3)),
+        then: () async {
+          await tester.tap(find.text('Arrange'));
+          await settle(4);
+          await tester.tap(find.text('SETTINGS'));
+          await settle(2);
+          await tester.tap(find.text('MIXES'));
+          await settle(2);
+          await tester.tap(find.text('Done'));
+          await settle(4);
+          await tester.tap(find.text('Lock'));
+          await settle(2);
+          await loop();
+          await settle(60);
+        },
+      );
+      // Arranging, with the colours open on the second of three sands.
+      await shoot(
+        'sand_tray',
+        sands.copyWith(sandStyle: const HomeSandStyle(count: 3)),
+        then: () async {
+          await tester.tap(find.text('Arrange'));
+          await settle(4);
+          await tester.tap(find.text('COLORS'));
+          await settle(2);
+          await tester.tap(find.text('SAND 2'));
+          await settle(2);
+        },
+      );
+      // The settings, laid in layers.
+      await shoot(
+        'sand_settings',
+        sands.copyWith(sandStyle: const HomeSandStyle(count: 3)),
+        then: () async {
+          await tester.tap(find.text('Arrange'));
+          await settle(4);
+          await tester.tap(find.text('SETTINGS'));
+          await settle(2);
+          await tester.tap(find.text('LAYERED'));
+          await settle(4);
+        },
+      );
+      // The second sand's hue drawn along to green: the floor follows the
+      // finger, and is saved when it lifts.
+      await shoot(
+        'sand_dragged',
+        sands,
+        then: () async {
+          await tester.tap(find.text('Arrange'));
+          await settle(4);
+          await tester.tap(find.text('COLORS'));
+          await settle(2);
+          await tester.tap(find.text('SAND 2'));
+          await settle(2);
+          final hue = tester.getCenter(find.text('HUE'));
+          final gesture = await tester.startGesture(Offset(665, hue.dy));
+          for (var i = 1; i <= 12; i++) {
+            await gesture.moveTo(Offset(665 - 30.0 * i, hue.dy));
+            await settle(1, ms: 16);
+          }
+          await gesture.up();
+          await settle(2);
+          final saved = await tester.runAsync(
+            () => HomeBiomeLayout.load(db.settingsDao),
+          );
+          final green = HSLColor.fromColor(saved!.sandStyle.colors[1]).hue;
+          if (green < 90 || green > 160) {
+            throw StateError('second sand saved at hue $green');
+          }
+        },
+      );
+      await shoot(
+        'sand_rose',
+        sands.copyWith(
+          sandStyle: const HomeSandStyle(
+            colors: [
+              Color(0xFFE88AA0),
+              Color(0xFF6FD3C8),
+              Color(0xFFE6DCC6),
+              Color(0xFF63B5A6),
+              Color(0xFFE6DCC6),
+            ],
+            count: 3,
+            pattern: SandPattern.drifts,
+            shimmer: Color(0xFFFFFFFF),
+          ),
+        ),
+      );
+      await shoot(
+        'sand_five',
+        sands.copyWith(
+          sandStyle: const HomeSandStyle(
+            count: 5,
+            pattern: SandPattern.layered,
+          ),
+        ),
+      );
     }
     if (wants('moved')) {
       // The Volcano after its fire horn is carried right of the light horn:

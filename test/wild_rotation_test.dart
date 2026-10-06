@@ -70,4 +70,18 @@ void main() {
     // Not always the Dunes: about one day in five without it.
     expect(withoutDunes, inInclusiveRange(3, 25));
   });
+
+  test('Living Sands is a home only: bought, it never comes out', () async {
+    await pastOpening();
+    await db.settingsDao.setSetting('scene_unlocked_sand', '1');
+    // Bought alone, nothing changes in the wild.
+    expect(await WildRotation.today(db.settingsDao), kCoreRealms);
+    await buyDunes();
+    for (var d = 1; d <= 40; d++) {
+      expect(
+        await WildRotation.today(db.settingsDao, now: DateTime(2026, 10, d)),
+        isNot(contains('sand')),
+      );
+    }
+  });
 }

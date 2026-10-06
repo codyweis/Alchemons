@@ -55,6 +55,8 @@ import '../../models/creature.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
+import 'package:alchemons/models/celebration_costume.dart';
+import 'package:alchemons/widgets/costume/costume_color_sheet.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -2078,14 +2080,17 @@ class _AlchemyEffectSlot extends StatelessWidget {
       builder: (context, snapshot) {
         final owned = <InventoryItem>[
           for (final item in snapshot.data ?? const <InventoryItem>[])
-            if (item.qty > 0 && InvKeys.alchemyEffectFor(item.key) != null)
+            if (item.qty > 0 &&
+                InvKeys.alchemyEffectFor(item.key) != null &&
+                // A costume only for the family it is made for.
+                (FamilyCostume.ofItem(item.key)?.fits(instance.baseId) ?? true))
               item,
         ];
         final currentKey = instance.alchemyEffect;
         String? currentName;
         if (currentKey != null) {
           for (final e in registry.entries) {
-            if (InvKeys.alchemyEffectFor(e.key) == currentKey) {
+            if (InvKeys.alchemyItemFor(currentKey) == e.key) {
               currentName = e.value.name;
               break;
             }
@@ -2165,8 +2170,11 @@ class _AlchemyEffectSlot extends StatelessWidget {
     String? currentName,
   ) async {
     final c = _C.of(context);
-    // An item key to apply, or the empty string to take the current one off.
+    // An item key to apply, or the empty string to take the current one off,
+    // or this to give the costume it wears another colour.
     const removeEffect = '';
+    const recolor = '#recolor';
+    final wornCostume = FamilyCostume.ofEffect(instance.alchemyEffect);
     final picked = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: c.bg1,
@@ -2195,6 +2203,39 @@ class _AlchemyEffectSlot extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 10),
+              if (wornCostume != null)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: SizedBox.square(
+                    dimension: 44,
+                    child: Center(
+                      child: Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: FamilyCostume.colorOf(instance.alchemyEffect),
+                        ),
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    'Change ${wornCostume.noun} colour',
+                    style: TextStyle(
+                      color: c.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  trailing: Text(
+                    'Free',
+                    style: TextStyle(
+                      color: c.textMuted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  onTap: () => Navigator.of(sheetCtx).pop(recolor),
+                ),
               for (final item in owned)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -2248,11 +2289,41 @@ class _AlchemyEffectSlot extends StatelessWidget {
     if (picked == removeEffect) {
       await removeAlchemyEffect(db, instanceId: instance.instanceId);
       message = 'Returned ${currentName ?? 'the effect'} to your inventory';
+    } else if (picked == recolor) {
+      final color = await pickCostumeColor(
+        context,
+        instance: instance,
+        costume: wornCostume!,
+        confirmLabel: 'SAVE COLOUR',
+      );
+      if (color == null) return;
+      if (!await recolorCostume(
+        db,
+        instanceId: instance.instanceId,
+        color: color,
+      )) {
+        return;
+      }
+      final noun = wornCostume.noun;
+      message = '${noun[0].toUpperCase()}${noun.substring(1)} colour saved';
     } else {
+      // A costume goes on in a colour picked on the creature.
+      Color? color;
+      final costume = FamilyCostume.ofItem(picked);
+      if (costume != null) {
+        color = await pickCostumeColor(
+          context,
+          instance: instance,
+          costume: costume,
+          confirmLabel: 'WEAR ${costume.noun.toUpperCase()}',
+        );
+        if (color == null) return;
+      }
       final applied = await applyAlchemyEffect(
         db,
         instanceId: instance.instanceId,
         itemKey: picked,
+        color: color,
       );
       if (!applied) return;
       message = 'Applied ${registry[picked]?.name ?? 'Effect'}!';

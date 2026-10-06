@@ -1,0 +1,1974 @@
+<title>The Blood Rites</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Alegreya+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: one column, a stage that holds the room, the room's own
+     controls under it. Dark only, like the game: blood-black stone, crimson,
+     old gold, and each element's own colour. */
+  :root {
+    color-scheme: dark;
+    --night: #110b0d;
+    --stone: #1f1619;
+    --seam: #3a2a2e;
+    --bone: #eee3d3;
+    --bone-dim: #a8998a;
+    --blood: #c8283c;
+    --gold: #d4a656;
+    --font-display: "Cormorant Garamond", Georgia, serif;
+    --font-body: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  html, body { background: var(--night); }
+  body { color: var(--bone); font: 17px/1.5 var(--font-body); }
+  .wrap { max-width: 820px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: grid; gap: 14px; }
+  header { display: grid; gap: 2px; }
+  .eyebrow { margin: 0; font: 500 12px/1.2 var(--font-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+  h1 { margin: 0; font: 600 clamp(34px, 7vw, 52px)/1 var(--font-display); letter-spacing: .01em; text-wrap: balance; }
+  h1 em { color: var(--blood); font-style: italic; font-weight: 500; }
+  .thesis { margin: 6px 0 0; color: var(--bone-dim); max-width: 62ch; }
+  .tally { margin: 0; font: 500 13px/1.4 var(--font-mono); color: var(--bone-dim); display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .tally b { color: var(--gold); font-weight: 500; }
+  nav { display: flex; flex-wrap: wrap; gap: 6px; }
+  button {
+    font: 500 15px/1.2 var(--font-body); color: var(--bone); background: var(--stone);
+    border: 1px solid var(--seam); border-radius: 6px; padding: 9px 14px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--bone-dim); }
+  button[aria-current="page"] { border-color: var(--gold); color: var(--gold); }
+  button:disabled { opacity: .4; cursor: default; }
+  button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  button .sub { display: block; font: 400 11px/1.2 var(--font-mono); color: var(--bone-dim); letter-spacing: .04em; margin-top: 2px; }
+  button.primary { background: #3a1219; border-color: var(--blood); }
+  .stage { position: relative; border-radius: 8px; overflow: hidden; background: #070405; box-shadow: 0 0 0 1px var(--seam), 0 24px 48px -28px #000; }
+  canvas { display: block; width: 100%; height: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .status { margin: 0; min-height: 1.5em; text-align: center; font: italic 500 20px/1.35 var(--font-display); color: var(--bone); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .note { margin: 0; color: var(--bone-dim); max-width: 66ch; }
+  .note strong { color: var(--bone); font-weight: 500; }
+  details { color: var(--bone-dim); font-size: 15px; border-top: 1px solid var(--seam); padding-top: 10px; }
+  summary { cursor: pointer; color: var(--bone); font-weight: 500; }
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 20px; margin-top: 10px; }
+  .legend p { margin: 0; min-width: 0; }
+  .legend strong { color: var(--bone); font-weight: 500; }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Hemavorn · Blood's descent · prototype</p>
+    <h1>The Blood <em>Rites</em></h1>
+    <p class="thesis">One Blood Alchemon goes down alone. Four rooms each hold a captive of a classical element. Solve the room, its two ingredients meet, and the captive's blood runs home to the Circle. At the boss, all four fight beside you.</p>
+    <p class="tally" id="tally"></p>
+  </header>
+
+  <nav id="nav" aria-label="Rooms"></nav>
+  <div class="stage"><canvas id="cv" aria-label="The room"></canvas></div>
+  <p class="status" id="status" role="status"></p>
+  <div class="actions" id="actions"></div>
+  <p class="note" id="note"></p>
+  <details>
+    <summary>How each room plays</summary>
+    <div class="legend">
+      <p><strong>The Circle.</strong> Tap a ring to turn it an eighth. A freed captive's blood runs from its door into its cup. Where both rings have a groove at a door, the blood runs past the cup into the middle instead.</p>
+      <p><strong>Earth.</strong> Drag from a root in the wall to lead its tendril. Drag back to pull it in. Tendrils never share a square. Tap a plate's iron hub to turn it a quarter. A plate won't turn while a tendril lies on it.</p>
+      <p><strong>Water.</strong> Tap the floor to walk Blood there (or use the arrow keys). FLIP turns the room over, and the faint outlines show where everything will land. Ice that rests against fire melts, and water puts fire out.</p>
+      <p><strong>Fire.</strong> Swipe or tap beside Blood to step. The twin takes the mirrored step. A plate holds its gate open, on either side, while someone stands on it.</p>
+      <p><strong>Air.</strong> Swipe or tap beside Blood to push off. You drift until something stops you. Push again against ice to send the ice drifting.</p>
+      <p><strong>Proved.</strong> Every room was solved by a search before it was drawn. Earth works with exactly one setting of its plates. Water needs at least three flips. Fire is impossible without its plates. Air takes nineteen pushes.</p>
+    </div>
+  </details>
+</div>
+
+<script>// THE TENDRIL ROOM (Earth) — rules shared by the page and the solver.
+//
+// Blood tendrils grow out of the walls in pairs. Blood leads each one across
+// the floor to its partner. Two tendrils never share a square, so they never
+// cross. The floor is laid in TURNING PLATES: a plate turns a quarter round
+// its axle, and everything standing on it turns with it (the stone on it,
+// the stump on it, the captive's hearth). A plate will not turn while a
+// tendril lies on it.
+//
+// The fusion: the last two tendrils are not a pair. One runs with Dust and
+// one with Water, and both must be led to the captive. Dust + Water → Earth.
+//
+// Map legend (one char per square, y down):
+//   #  wall            .  floor             X  stone standing on a plate
+//   a..k  a blood root (two of each letter make a pair)
+//   d  the Dust root   w  the Water root    C  the captive (needs d and w)
+//   o  a plate's axle (the centre of a 3×3 plate; solid)
+(function (root) {
+  const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0]; // north east south west
+
+  function parseRoom(def) {
+    const H = def.map.length, W = def.map[0].length;
+    const base = def.map.map((r) => r.split(''));
+    const plates = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (base[y][x] === 'o') plates.push({ cx: x, cy: y });
+    }
+    return { def, W, H, base, plates };
+  }
+
+  // The squares as they stand with each plate turned `turns[i]` quarters
+  // clockwise.
+  function grid(R, turns) {
+    const g = R.base.map((r) => r.slice());
+    R.plates.forEach((p, i) => {
+      const t = ((turns[i] || 0) % 4 + 4) % 4;
+      if (!t) return;
+      const src = [];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        src.push([dx, dy, R.base[p.cy + dy][p.cx + dx]]);
+      }
+      for (const [dx, dy, ch] of src) {
+        let x = dx, y = dy;
+        for (let k = 0; k < t; k++) { const nx = -y, ny = x; x = nx; y = ny; }
+        g[p.cy + y][p.cx + x] = ch;
+      }
+    });
+    return g;
+  }
+
+  const isTerminal = (ch) => /[a-kdwC]/.test(ch);
+  const isOpen = (ch) => ch === '.';
+
+  function plateOf(R, x, y) {
+    for (let i = 0; i < R.plates.length; i++) {
+      const p = R.plates[i];
+      if (Math.abs(x - p.cx) <= 1 && Math.abs(y - p.cy) <= 1) return i;
+    }
+    return -1;
+  }
+
+  // The jobs: every pair joined; d and w each led to C.
+  function jobs(g) {
+    const at = {};
+    g.forEach((row, y) => row.forEach((ch, x) => {
+      if (isTerminal(ch)) (at[ch] = at[ch] || []).push([x, y]);
+    }));
+    const list = [];
+    for (const k of Object.keys(at).sort()) {
+      if (k === 'C' || k === 'd' || k === 'w') continue;
+      if (at[k].length === 2) list.push({ id: k, a: at[k][0], b: at[k][1] });
+    }
+    if (at.C) {
+      if (at.d) list.push({ id: 'd', a: at.d[0], b: at.C[0] });
+      if (at.w) list.push({ id: 'w', a: at.w[0], b: at.C[0] });
+    }
+    return list;
+  }
+
+  // ── Play state ─────────────────────────────────────────
+  // lines: { id: [[x,y], ...] } — each from its root, through floor squares.
+  function start(R) {
+    return { turns: R.plates.map(() => 0), lines: {} };
+  }
+
+  function occupied(S, except) {
+    const o = new Map();
+    for (const [id, pts] of Object.entries(S.lines)) {
+      if (id === except) continue;
+      for (const [x, y] of pts) o.set(x + ',' + y, id);
+    }
+    return o;
+  }
+
+  function lineOnPlate(R, S, i) {
+    for (const pts of Object.values(S.lines)) {
+      for (const [x, y] of pts) if (plateOf(R, x, y) === i) return true;
+    }
+    return false;
+  }
+
+  function turn(R, S, i) {
+    if (lineOnPlate(R, S, i)) return { why: 'A tendril lies across that plate.' };
+    const turns = S.turns.slice();
+    turns[i] = (turns[i] + 1) % 4;
+    return { S: { turns, lines: S.lines } };
+  }
+
+  // Extend (or retract) line `id` to square (x,y). The first point of a line
+  // is its root; the target of a d/w line is the captive.
+  // A pair can be led from EITHER root (Dust and Water only from their own
+  // root — the captive is not a root); `from` is the root it was taken from.
+  function extend(R, S, id, x, y, from) {
+    const g = grid(R, S.turns);
+    const J = jobs(g).find((j) => j.id === id);
+    if (!J) return { why: 'No such tendril.' };
+    const start = from || J.a;
+    const isB = start[0] === J.b[0] && start[1] === J.b[1];
+    if (!S.lines[id] && !(start[0] === J.a[0] && start[1] === J.a[1]) && (!isB || id === 'd' || id === 'w')) return { why: 'No such tendril.' };
+    const pts = (S.lines[id] || [start]).slice();
+    const [tx, ty] = pts[pts.length - 1];
+    if (Math.abs(tx - x) + Math.abs(ty - y) !== 1) return { why: 'One square at a time.' };
+    const back = pts.length > 1 && pts[pts.length - 2][0] === x && pts[pts.length - 2][1] === y;
+    if (back) { pts.pop(); return { S: withLine(S, id, pts) }; }
+    if (done(g, J, pts)) return { why: 'That tendril is already joined.' };
+    const ch = g[y][x];
+    const far = pts[0][0] === J.b[0] && pts[0][1] === J.b[1] ? J.a : J.b;
+    const goal = x === far[0] && y === far[1];
+    if (!goal && !isOpen(ch)) return { why: 'blocked' };
+    if (pts.some(([px, py]) => px === x && py === y)) return { why: 'A tendril cannot cross itself.' };
+    if (!goal && occupied(S, id).has(x + ',' + y)) return { why: 'Tendrils never cross.' };
+    pts.push([x, y]);
+    return { S: withLine(S, id, pts) };
+  }
+
+  function withLine(S, id, pts) {
+    const lines = { ...S.lines };
+    if (pts.length <= 1) delete lines[id]; else lines[id] = pts;
+    return { turns: S.turns, lines };
+  }
+
+  function clear(S, id) { return withLine(S, id, []); }
+
+  function done(g, J, pts) {
+    if (!pts || pts.length < 2) return false;
+    const [x, y] = pts[pts.length - 1];
+    const [sx, sy] = pts[0];
+    const fromA = sx === J.a[0] && sy === J.a[1];
+    const far = fromA ? J.b : J.a;
+    return x === far[0] && y === far[1];
+  }
+
+  function solved(R, S) {
+    const g = grid(R, S.turns);
+    return jobs(g).every((J) => done(g, J, S.lines[J.id]));
+  }
+
+  // ── The solver ─────────────────────────────────────────
+  // For one set of plate turns: find vertex-disjoint paths for every job
+  // (backtracking with a connectivity prune). Returns the paths or null.
+  function route(R, turns, limit) {
+    const g = grid(R, turns);
+    const J = jobs(g);
+    const { W, H } = R;
+    const used = new Uint8Array(W * H);
+    const open = (x, y) => x >= 0 && y >= 0 && x < W && y < H && isOpen(g[y][x]) && !used[y * W + x];
+    let budget = limit || 2e6;
+    const paths = [];
+
+    // Can every unfinished job still reach its goal through free squares?
+    function viable(from, tip) {
+      for (let j = from; j < J.length; j++) if (!reach(j === from && tip ? tip : J[j].a, J[j].b)) return false;
+      return true;
+    }
+    function reach(a, b) {
+      const seen = new Uint8Array(W * H);
+      const q = [a];
+      seen[a[1] * W + a[0]] = 1;
+      while (q.length) {
+        const [x, y] = q.pop();
+        for (let d = 0; d < 4; d++) {
+          const nx = x + DX[d], ny = y + DY[d];
+          if (nx === b[0] && ny === b[1]) return true;
+          if (open(nx, ny) && !seen[ny * W + nx]) { seen[ny * W + nx] = 1; q.push([nx, ny]); }
+        }
+      }
+      return false;
+    }
+    function touchesSelf(path, nx, ny) {
+      for (let i = 0; i < path.length - 1; i++) {
+        if (Math.abs(path[i][0] - nx) + Math.abs(path[i][1] - ny) === 1) return true;
+      }
+      return false;
+    }
+    function go(j, path) {
+      if (--budget < 0) throw new Error('budget');
+      const job = J[j];
+      const [x, y] = path[path.length - 1];
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (nx === job.b[0] && ny === job.b[1]) {
+          paths[j] = path.concat([[nx, ny]]);
+          if (j + 1 === J.length) return true;
+          if (viable(j + 1) && go(j + 1, [J[j + 1].a])) return true;
+          continue;
+        }
+        if (!open(nx, ny)) continue;
+        // A path never needs to touch itself: any solution can be shortcut
+        // to one that doesn't, and shortcutting only frees squares.
+        if (touchesSelf(path, nx, ny)) continue;
+        used[ny * W + nx] = 1;
+        path.push([nx, ny]);
+        if (viable(j, [nx, ny]) && go(j, path)) return true;
+        path.pop();
+        used[ny * W + nx] = 0;
+      }
+      return false;
+    }
+    try {
+      if (!J.length || !viable(0)) return null;
+      return go(0, [J[0].a]) ? Object.fromEntries(J.map((job, i) => [job.id, paths[i]])) : null;
+    } catch (e) { return undefined; }
+  }
+
+  // Every combination of plate turns; which ones can be routed.
+  function solve(R, fixed) {
+    const n = R.plates.length, out = [];
+    for (let k = 0; k < 4 ** n; k++) {
+      const turns = [];
+      let v = k;
+      for (let i = 0; i < n; i++) { turns.push(v % 4); v = Math.floor(v / 4); }
+      if (fixed && turns.some((t, i) => fixed[i] != null && t !== fixed[i])) continue;
+      const p = route(R, turns);
+      out.push({ turns, solvable: p === undefined ? 'unknown' : !!p, paths: p });
+    }
+    return out;
+  }
+
+  const api = { DX, DY, parseRoom, grid, jobs, plateOf, start, turn, extend, clear, solved, route, solve, isTerminal };
+  if (typeof module !== 'undefined') module.exports = api; else root.EarthEngine = api;
+})(this);
+</script>
+<script>// THE TURNING ROOM (Water) — rules shared by the page and the solver.
+//
+// The room has a DOWNHILL. Blood turns the room over (FLIP) and downhill
+// becomes uphill. Everything loose slides downhill one square at a time
+// until something stops it: ice straight down its line, and water too — but
+// water that lands runs along the floor to the nearest place it can drop
+// (west wins a tie). Blood stops things too: anything that
+// slides into Blood rests against it, and when Blood steps aside it carries
+// on falling.
+//
+// Fire + Ice → Water. An ice block that comes to rest touching a lit brazier
+// melts into water where it stands. Water touching fire puts it out — so the
+// meltwater puts out the brazier that made it, and any water that runs past
+// a brazier puts that one out too. Every brazier melts at most one block.
+//
+// Water runs through grates; ice and Blood do not. Anything loose that slides
+// over a pit drops in and fills it, and a filled pit is floor. The captive
+// lies in a dry basin; fill every basin square with water and the rite is
+// done. Ice never goes into the basin: its rim stops ice like a step.
+//
+// THE VAULT: ice that drops into a pit fills it as floor. Water that drops
+// into a pit makes it a deep POOL instead — the room's commonest mistake
+// (that water is lost, and the room can't be finished) — and Blood can step
+// into the pool and dive down to the vault.
+//
+// There is no water in the room at the start.
+//
+// Map legend (y down; downhill starts SOUTH):
+//   #  wall     .  floor     B  Blood (start)
+//   I  ice      ~  water     F  lit brazier     f  spent brazier
+//   =  grate    _  pit       C  the captive's basin (dry)
+//   p  a pit flooded with water: a deep pool, the way down to the vault
+(function (root) {
+  const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0]; // N E S W
+
+  function parseRoom(def) {
+    const H = def.map.length, W = def.map[0].length;
+    const fixed = [], loose = [];
+    let blood = null;
+    for (let y = 0; y < H; y++) {
+      fixed.push([]);
+      for (let x = 0; x < W; x++) {
+        let ch = def.map[y][x];
+        if (ch === 'B') { blood = [x, y]; ch = '.'; }
+        if (ch === 'I' || ch === '~') { loose.push([x, y, ch]); ch = '.'; }
+        fixed[y].push(ch);
+      }
+    }
+    return { def, W, H, fixed, loose0: loose, blood0: blood };
+  }
+
+  // State: { down: 2 (S) or 0 (N), b: [x,y], cells: string grid of fixed
+  // squares that change (F→f, _→. , C→c full), loose: Map 'x,y' → 'I'|'~' }
+  function start(R) {
+    const S = {
+      down: 2,
+      b: R.blood0.slice(),
+      cells: R.fixed.map((r) => r.slice()),
+      loose: new Map(R.loose0.map(([x, y, ch]) => [x + ',' + y, ch])),
+    };
+    settle(R, S, []);
+    return S;
+  }
+
+  function clone(S) {
+    return { down: S.down, b: S.b.slice(), cells: S.cells.map((r) => r.slice()), loose: new Map(S.loose) };
+  }
+
+  // Can a loose thing of kind k move into (x,y)?
+  function canEnter(S, k, x, y) {
+    const ch = S.cells[y][x];
+    if (S.b[0] === x && S.b[1] === y) return false;
+    if (S.loose.has(x + ',' + y)) return false;
+    if (ch === '.' || ch === '_' || ch === 'c' || ch === 'p') return true; // 'c' = a full basin square, floor now
+    if (ch === '=') return k === '~';
+    if (ch === 'C') return k === '~';
+    return false;
+  }
+
+  // Slide everything downhill until nothing moves; then melt and douse;
+  // repeat until the room is still. `log` collects events for the page.
+  function settle(R, S, log, frames) {
+    for (let guard = 0; guard < 200; guard++) {
+      let moved = slideAll(R, S, log, frames);
+      const changed = react(R, S, log);
+      if (changed && frames) frames.push(snap(S));
+      if (!moved && !changed) return;
+    }
+  }
+
+  // A picture of the loose things and changing squares, for the page to
+  // play back one pass at a time.
+  function snap(S) {
+    return { cells: S.cells.map((r) => r.slice()), loose: new Map(S.loose) };
+  }
+
+  function slideAll(R, S, log, frames) {
+    const dy = DY[S.down];
+    let any = false;
+    for (let pass = 0; pass < 100; pass++) {
+      let moved = false;
+      // Downhill-most first, so a column falls together.
+      const keys = [...S.loose.keys()].map((k) => k.split(',').map(Number));
+      keys.sort((a, b) => (b[1] - a[1]) * dy);
+      for (const [x, y] of keys) {
+        const k = S.loose.get(x + ',' + y);
+        if (!k) continue;
+        let nx = x, ny = y + dy;
+        if (ny < 0 || ny >= R.H || !canEnter(S, k, x, ny)) {
+          // Ice stays put. Water runs sideways along the floor towards the
+          // nearest place it can drop (west wins a tie).
+          if (k !== '~') continue;
+          const side = runTo(R, S, x, y, dy);
+          if (!side) continue;
+          nx = x + side; ny = y;
+        }
+        S.loose.delete(x + ',' + y);
+        const ch = S.cells[ny][nx];
+        if (ch === '_') { S.cells[ny][nx] = k === '~' ? 'p' : '.'; log.push({ t: 'pit', x: nx, y: ny, k }); }
+        else if (ch === 'C') { S.cells[ny][nx] = 'c'; log.push({ t: 'basin', x: nx, y: ny }); }
+        else S.loose.set(nx + ',' + ny, k);
+        moved = any = true;
+      }
+      if (!moved) break;
+      if (frames) frames.push(snap(S));
+    }
+    return any;
+  }
+
+  // Which way (−1 west, +1 east, 0 stay) a landed water unit runs: towards
+  // the nearest square along its row that it can reach and drop from (or a
+  // pit/basin it can run straight into).
+  function runTo(R, S, x, y, dy) {
+    let best = 0, bestD = Infinity;
+    for (const s of [-1, 1]) {
+      for (let d = 1; d < R.W; d++) {
+        const cx = x + s * d;
+        if (!canEnter(S, '~', cx, y)) break;
+        const ch = S.cells[y][cx];
+        const sink = ch === '_' || ch === 'C';
+        const ny = y + dy;
+        const drop = sink || (ny >= 0 && ny < R.H && canEnter(S, '~', cx, ny));
+        if (drop) { if (d < bestD) { bestD = d; best = s; } break; }
+      }
+    }
+    return best;
+  }
+
+  function react(R, S, log) {
+    let changed = false;
+    // Ice touching a lit brazier melts.
+    for (const [key, k] of [...S.loose]) {
+      if (k !== 'I') continue;
+      const [x, y] = key.split(',').map(Number);
+      if (touches(S, x, y, 'F')) { S.loose.set(key, '~'); log.push({ t: 'melt', x, y }); changed = true; }
+    }
+    // Water touching a lit brazier puts it out.
+    for (const [key, k] of S.loose) {
+      if (k !== '~') continue;
+      const [x, y] = key.split(',').map(Number);
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (S.cells[ny] && S.cells[ny][nx] === 'F') { S.cells[ny][nx] = 'f'; log.push({ t: 'douse', x: nx, y: ny }); changed = true; }
+      }
+    }
+    return changed;
+  }
+
+  function touches(S, x, y, ch) {
+    for (let d = 0; d < 4; d++) if (S.cells[y + DY[d]] && S.cells[y + DY[d]][x + DX[d]] === ch) return true;
+    return false;
+  }
+
+  function walkable(S, x, y) {
+    const ch = S.cells[y] && S.cells[y][x];
+    return (ch === '.' || ch === 'c') && !S.loose.has(x + ',' + y);
+  }
+
+  // Blood steps one square. Afterwards everything settles (something resting
+  // on Blood may now fall).
+  function step(R, S, d, frames) {
+    const x = S.b[0] + DX[d], y = S.b[1] + DY[d];
+    if (!walkable(S, x, y)) return { why: 'blocked' };
+    const N = clone(S);
+    N.b = [x, y];
+    const log = [];
+    settle(R, N, log, frames);
+    return { S: N, log };
+  }
+
+  function flip(R, S, frames) {
+    const N = clone(S);
+    N.down = S.down === 2 ? 0 : 2;
+    const log = [];
+    settle(R, N, log, frames);
+    return { S: N, log };
+  }
+
+  function solved(R, S) {
+    return !S.cells.some((r) => r.includes('C'));
+  }
+
+  function key(S) {
+    return S.down + '|' + S.b + '|' + S.cells.map((r) => r.join('')).join('') + '|' + [...S.loose].sort().join(';');
+  }
+
+  // Breadth-first search over Blood's steps and flips. A plan is a list of
+  // 'N','E','S','W','flip'.
+  function solve(R, opts) {
+    opts = opts || {};
+    const S0 = start(R);
+    const seen = new Map([[key(S0), null]]);
+    let frontier = [S0];
+    const parent = new Map();
+    let states = 0;
+    const max = opts.max || 3e6;
+    let goal = null;
+    while (frontier.length && !goal) {
+      const next = [];
+      for (const S of frontier) {
+        const ks = key(S);
+        const moves = ['flip', 0, 1, 2, 3];
+        for (const m of moves) {
+          const r = m === 'flip' ? flip(R, S) : step(R, S, m);
+          if (r.why) continue;
+          const k = key(r.S);
+          if (seen.has(k)) continue;
+          seen.set(k, { from: ks, m });
+          if (++states > max) return { solvable: 'unknown', states };
+          if (solved(R, r.S)) { goal = k; break; }
+          next.push(r.S);
+        }
+        if (goal) break;
+      }
+      frontier = next;
+    }
+    if (!goal) return { solvable: false, states };
+    const plan = [];
+    for (let k = goal; seen.get(k); k = seen.get(k).from) plan.unshift(seen.get(k).m);
+    const names = ['N', 'E', 'S', 'W'];
+    return { solvable: true, states, plan: plan.map((m) => (m === 'flip' ? 'flip' : names[m])), steps: plan.length, flips: plan.filter((m) => m === 'flip').length };
+  }
+
+
+  // The whole state graph: is the room solvable, the fewest FLIPS it takes
+  // (walking is free), the share of reachable states that can no longer
+  // finish (dead ends), and whether the plan needs Blood to hold something
+  // (an event fires when Blood steps aside).
+  function graph(R, max) {
+    const S0 = start(R);
+    const idx = new Map([[key(S0), 0]]), states = [S0], edges = [[]], goals = [];
+    for (let i = 0; i < states.length; i++) {
+      if (states.length > (max || 2e5)) return null;
+      const S = states[i];
+      if (solved(R, S)) { goals.push(i); continue; }
+      for (const m of ['flip', 0, 1, 2, 3]) {
+        const r = m === 'flip' ? flip(R, S) : step(R, S, m);
+        if (r.why) continue;
+        const k = key(r.S);
+        let j = idx.get(k);
+        if (j == null) { j = states.length; idx.set(k, j); states.push(r.S); edges.push([]); }
+        edges[i].push([j, m, r.log.length > 0]);
+      }
+    }
+    const rev = states.map(() => []);
+    edges.forEach((es, i) => es.forEach(([j]) => rev[j].push(i)));
+    const live = new Uint8Array(states.length);
+    const q = goals.slice();
+    goals.forEach((g) => (live[g] = 1));
+    while (q.length) { const j = q.pop(); for (const i of rev[j]) if (!live[i]) { live[i] = 1; q.push(i); } }
+    // Fewest flips first, then fewest steps (lexicographic 0-1 BFS).
+    const cost = (c) => c[0] * 1e4 + c[1];
+    const dist = states.map(() => [Infinity, Infinity]), prev = states.map(() => null);
+    dist[0] = [0, 0];
+    const dq = [0];
+    while (dq.length) {
+      dq.sort((a, b) => cost(dist[a]) - cost(dist[b]));
+      const i = dq.shift();
+      for (const [j, m, ev] of edges[i]) {
+        const c = [dist[i][0] + (m === 'flip' ? 1 : 0), dist[i][1] + 1];
+        if (cost(c) < cost(dist[j])) { dist[j] = c; prev[j] = [i, m, ev]; dq.push(j); }
+      }
+    }
+    const g = goals.reduce((b, x) => (b == null || cost(dist[x]) < cost(dist[b]) ? x : b), null);
+    const plan = [];
+    let held = false;
+    for (let j = g; j != null && prev[j]; j = prev[j][0]) {
+      const [, m, ev] = prev[j];
+      plan.unshift(m === 'flip' ? 'flip' : 'NESW'[m]);
+      if (m !== 'flip' && ev) held = true;
+    }
+    return {
+      states: states.length, solvable: live[0] === 1, flips: g == null ? 0 : dist[g][0],
+      plan, held, dead: states.filter((_, i) => !live[i]).length / states.length,
+      live: new Set(states.filter((_, i) => live[i]).map(key)),
+    };
+  }
+
+  // Can Blood dive into a flooded pit from where it stands?
+  function diveFrom(S) {
+    for (let d = 0; d < 4; d++) {
+      const x = S.b[0] + DX[d], y = S.b[1] + DY[d];
+      if (S.cells[y] && S.cells[y][x] === 'p' && !S.loose.has(x + ',' + y)) return d;
+    }
+    return -1;
+  }
+
+  const api = { DX, DY, parseRoom, start, step, flip, solved, solve, graph, key, walkable, canEnter, diveFrom };
+  if (typeof module !== 'undefined') module.exports = api; else root.WaterEngine = api;
+})(this);
+</script>
+<script>// THE CIRCLE (hub) — where each freed captive's blood runs, and the maxim.
+(function (root) {
+  const ORDER = ['Air', 'Fire', 'Earth', 'Water'];
+
+  const has = (list, sector, turn) => list.includes((((sector - turn) % 8) + 8) % 8);
+
+  // Where each freed stream goes for these ring turns: 'centre' or 'socket'.
+  function flow(H, freed, turns) {
+    const out = {};
+    for (const el of ORDER) {
+      if (!freed[el]) continue;
+      const s = H.doors[el];
+      out[el] = has(H.outer, s, turns[0]) && has(H.inner, s, turns[1]) ? 'centre' : 'socket';
+    }
+    return out;
+  }
+
+  // What the centre holds: nothing, one stream, a fusion, or the quintessence.
+  function centre(H, f) {
+    const ins = ORDER.filter((el) => f[el] === 'centre');
+    if (ins.length === 4) return { kind: 'quintessence', ins };
+    if (ins.length === 2) {
+      const k = ins.slice().sort().join('+');
+      return { kind: 'fusion', ins, result: H.fusions[k] };
+    }
+    if (ins.length === 3) return { kind: 'churn', ins };
+    return { kind: ins.length ? 'one' : 'none', ins };
+  }
+
+  const api = { ORDER, flow, centre, has };
+  if (typeof module !== 'undefined') module.exports = api; else root.HubEngine = api;
+})(this);
+</script>
+<script>// THE TWIN (Fire) — rules shared by the page and the solver.
+//
+// A pool of blood runs down the middle of the room. Blood stands on one side
+// and its twin on the other, as its mirror image. Every step Blood takes, the
+// twin takes the mirrored step: north is north, but east is west. Each is
+// stopped by its own side's walls, so walking into a wall moves only the
+// other one — the only way to change where the two of you stand.
+//
+// A plate opens the gate of its letter (on either side) for as long as
+// somebody stands on it. A gate won't close on anybody standing in it. A pit
+// swallows whoever steps in, and both of you rise again where you started.
+//
+// Air + Lava → Fire: the bellows (B) on Blood's side and the lava sluice (L)
+// on the twin's side. When Blood stands on the bellows and the twin on the
+// sluice after the same step, air meets lava at the captive's hearth.
+//
+// Map legend (y down):
+//   #  wall     .  floor     |  the pool (nobody crosses it)
+//   @  Blood's start (the twin starts mirrored)
+//   B  bellows (Blood's side)     L  lava sluice (the twin's side)
+//   1 2 3  plates      a b c  the gates they open (1 opens a, 2 b, 3 c)
+//   O  pit           H  the captive's hearth (a wall, drawn on the pool)
+(function (root) {
+  const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+  const MIRROR = [0, 3, 2, 1]; // the twin's step for each of Blood's
+
+  function parseRoom(def) {
+    const H = def.map.length, W = def.map[0].length;
+    const cells = def.map.map((r) => r.split(''));
+    let b = null;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (cells[y][x] === '@') { b = [x, y]; cells[y][x] = '.'; }
+    }
+    return { def, W, H, cells, b0: b, t0: [W - 1 - b[0], b[1]] };
+  }
+
+  function start(R) { return { b: R.b0.slice(), t: R.t0.slice() }; }
+
+  const gateOf = { a: '1', b: '2', c: '3' };
+
+  function pressed(R, S) {
+    const on = new Set();
+    for (const [x, y] of [S.b, S.t]) {
+      const ch = R.cells[y][x];
+      if (/[123]/.test(ch)) on.add(ch);
+    }
+    return on;
+  }
+
+  function open(R, S, x, y, on) {
+    const ch = R.cells[y] && R.cells[y][x];
+    if (ch == null) return false;
+    if (ch === '#' || ch === '|' || ch === 'H') return false;
+    if (/[abc]/.test(ch)) return on.has(gateOf[ch]);
+    return true;
+  }
+
+  // One step: both try to move; a gate is judged by the plates pressed
+  // before the step (and stays open on anybody standing in it).
+  function step(R, S, d) {
+    const on = pressed(R, S);
+    const nb = [S.b[0] + DX[d], S.b[1] + DY[d]];
+    const md = MIRROR[d];
+    const nt = [S.t[0] + DX[md], S.t[1] + DY[md]];
+    const bm = open(R, S, nb[0], nb[1], on);
+    const tm = open(R, S, nt[0], nt[1], on);
+    if (!bm && !tm) return { why: 'blocked' };
+    let N = { b: bm ? nb : S.b.slice(), t: tm ? nt : S.t.slice() };
+    const ev = { b: bm, t: tm };
+    if (R.cells[N.b[1]][N.b[0]] === 'O' || R.cells[N.t[1]][N.t[0]] === 'O') {
+      ev.pit = R.cells[N.b[1]][N.b[0]] === 'O' ? 'b' : 't';
+      ev.from = N;
+      N = start(R);
+    }
+    return { S: N, ev };
+  }
+
+  function solved(R, S) {
+    return R.cells[S.b[1]][S.b[0]] === 'B' && R.cells[S.t[1]][S.t[0]] === 'L';
+  }
+
+  const key = (S) => S.b + '|' + S.t;
+
+  // Breadth-first: the shortest plan, how many of its steps moved only ONE
+  // of the two (the room's skill), and how many states can reach the goal.
+  function solve(R) {
+    const S0 = start(R);
+    const seen = new Map([[key(S0), null]]);
+    let q = [S0], goal = null;
+    while (q.length && !goal) {
+      const n = [];
+      for (const S of q) {
+        for (let d = 0; d < 4; d++) {
+          const r = step(R, S, d);
+          if (r.why) continue;
+          const k = key(r.S);
+          if (seen.has(k)) continue;
+          seen.set(k, { from: key(S), d, one: r.ev.b !== r.ev.t, pit: !!r.ev.pit });
+          if (solved(R, r.S)) { goal = k; break; }
+          n.push(r.S);
+        }
+        if (goal) break;
+      }
+      q = n;
+    }
+    if (!goal) return { solvable: false, states: seen.size };
+    const plan = [];
+    let single = 0;
+    for (let k = goal; seen.get(k); k = seen.get(k).from) { const e = seen.get(k); plan.unshift('NESW'[e.d]); if (e.one) single++; }
+    return { solvable: true, states: seen.size, steps: plan.length, single, plan };
+  }
+
+  const api = { DX, DY, MIRROR, parseRoom, start, step, solved, solve, pressed, open, key };
+  if (typeof module !== 'undefined') module.exports = api; else root.FireEngine = api;
+})(this);
+</script>
+<script>// THE WEIGHTLESS ROOM (Air) — rules shared by the page and the solver.
+//
+// There is no floor to push against. Blood pushes off in a direction and
+// drifts in a straight line until something stops it. Blood up against a
+// block of ice that pushes towards it sends the ice drifting the same way
+// instead; Blood stays where it is.
+//
+// Ice + Light → Air: shafts of sunlight fall through the roof. Ice that
+// drifts into the light turns to air and is gone. The captive is sealed in a
+// glass bell; air made in a shaft beside the bell goes into it. Fill the
+// bell. Air made anywhere else is lost.
+//
+// The ice is the only thing to stop against besides the walls, and it is
+// also the only fuel: the order it is spent in is the puzzle.
+//
+// Map legend (y down):
+//   #  wall     .  floor (open air)     @  Blood
+//   I  ice      *  a shaft of sunlight  C  the glass bell (a wall)
+//   def.need — how much air the bell needs
+(function (root) {
+  const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+
+  function parseRoom(def) {
+    const H = def.map.length, W = def.map[0].length;
+    const cells = def.map.map((r) => r.split(''));
+    let b = null;
+    const ice = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (cells[y][x] === '@') { b = [x, y]; cells[y][x] = '.'; }
+      if (cells[y][x] === 'I') { ice.push(x + ',' + y); cells[y][x] = '.'; }
+    }
+    return { def, W, H, cells, b0: b, ice0: ice.sort(), need: def.need || 1 };
+  }
+
+  function start(R) { return { b: R.b0.slice(), ice: R.ice0.slice(), air: 0 }; }
+
+  const solid = (R, x, y) => { const ch = R.cells[y] && R.cells[y][x]; return ch == null || ch === '#' || ch === 'C'; };
+  const hasIce = (S, x, y) => S.ice.includes(x + ',' + y);
+  const bellBeside = (R, x, y) => [0, 1, 2, 3].some((d) => R.cells[y + DY[d]] && R.cells[y + DY[d]][x + DX[d]] === 'C');
+
+  // One push. Returns the new state and a path for the page to animate.
+  function push(R, S, d) {
+    const [bx, by] = S.b;
+    const nx = bx + DX[d], ny = by + DY[d];
+    if (hasIce(S, nx, ny)) {
+      // shove the ice: it drifts until it is stopped or melts into the light
+      let x = nx, y = ny;
+      const path = [[x, y]];
+      const others = S.ice.filter((k) => k !== nx + ',' + ny);
+      let gone = null;
+      while (true) {
+        if (R.cells[y][x] === '*' && !(x === nx && y === ny)) { gone = [x, y]; break; }
+        const tx = x + DX[d], ty = y + DY[d];
+        if (solid(R, tx, ty) || others.includes(tx + ',' + ty) || (tx === bx && ty === by)) break;
+        x = tx; y = ty; path.push([x, y]);
+      }
+      if (path.length === 1 && !gone) return { why: 'The ice is up against something.' };
+      let ice = others, air = S.air, ev = null;
+      if (gone) {
+        if (bellBeside(R, gone[0], gone[1])) { air++; ev = 'bell'; } else ev = 'lost';
+      } else ice = others.concat([x + ',' + y]).sort();
+      return { S: { b: S.b, ice, air }, ice: path, ev, at: gone };
+    }
+    let x = bx, y = by;
+    const path = [[x, y]];
+    while (true) {
+      const tx = x + DX[d], ty = y + DY[d];
+      if (solid(R, tx, ty) || hasIce(S, tx, ty)) break;
+      x = tx; y = ty; path.push([x, y]);
+    }
+    if (path.length === 1) return { why: 'blocked' };
+    return { S: { b: [x, y], ice: S.ice, air: S.air }, blood: path };
+  }
+
+  const solved = (R, S) => S.air >= R.need;
+  const key = (S) => S.b + '|' + S.ice.join(';') + '|' + S.air;
+
+  // The whole state graph: fewest pushes, the share of dead ends, and the
+  // set of states that can still finish (for the page).
+  function graph(R, max) {
+    const S0 = start(R);
+    const idx = new Map([[key(S0), 0]]), states = [S0], edges = [[]], goals = [];
+    for (let i = 0; i < states.length; i++) {
+      if (states.length > (max || 3e5)) return null;
+      const S = states[i];
+      if (solved(R, S)) { goals.push(i); continue; }
+      for (let d = 0; d < 4; d++) {
+        const r = push(R, S, d);
+        if (r.why) continue;
+        const k = key(r.S);
+        let j = idx.get(k);
+        if (j == null) { j = states.length; idx.set(k, j); states.push(r.S); edges.push([]); }
+        edges[i].push([j, d, !!r.ice]);
+      }
+    }
+    const rev = states.map(() => []);
+    edges.forEach((es, i) => es.forEach(([j]) => rev[j].push(i)));
+    const live = new Uint8Array(states.length);
+    const q = goals.slice();
+    goals.forEach((g) => (live[g] = 1));
+    while (q.length) { const j = q.pop(); for (const i of rev[j]) if (!live[i]) { live[i] = 1; q.push(i); } }
+    const dist = new Array(states.length).fill(-1), prev = new Array(states.length).fill(null);
+    dist[0] = 0;
+    const bq = [0];
+    let goal = null;
+    while (bq.length) {
+      const i = bq.shift();
+      if (solved(R, states[i])) { goal = i; break; }
+      for (const [j, d, shove] of edges[i]) if (dist[j] < 0) { dist[j] = dist[i] + 1; prev[j] = [i, d, shove]; bq.push(j); }
+    }
+    const plan = [];
+    let shoves = 0;
+    for (let j = goal; j != null && prev[j]; j = prev[j][0]) { plan.unshift('NESW'[prev[j][1]]); if (prev[j][2]) shoves++; }
+    return {
+      states: states.length, solvable: live[0] === 1, pushes: plan.length, shoves, plan,
+      dead: states.filter((_, i) => !live[i]).length / states.length,
+      live: new Set(states.filter((_, i) => live[i]).map(key)),
+    };
+  }
+
+  const api = { DX, DY, parseRoom, start, push, solved, graph, key, bellBeside };
+  if (typeof module !== 'undefined') module.exports = api; else root.AirEngine = api;
+})(this);
+</script>
+<script>// Room data for the Blood prototype (Hemavorn, rebuilt 2026-10-05). Every
+// room is proved by solve.js before it is played. Coordinates [x, y], y down.
+(function (root) {
+  // THE CIRCLE — the hub. Four doors (Air north, Fire east, Earth south,
+  // Water west); a freed captive's blood runs from its door to its socket at
+  // the boss door in the middle. Two turning rings of eight sectors lie
+  // across the streams. A stream reaches the CENTRE only where BOTH rings
+  // have a groove at its angle; anywhere else the ring turns it aside to its
+  // socket. Two streams in the centre fuse (the game's own recipes); all
+  // four make the quintessence — the Lost Maxim.
+  const HUB = {
+    doors: { Air: 0, Fire: 2, Earth: 4, Water: 6 }, // sector of each door (45° steps, clockwise from north)
+    outer: [0, 1, 2, 3, 5, 7], // sectors with a groove to the inner ring (at turn 0)
+    inner: [1, 3, 5, 7], // sectors with a groove to the centre (at turn 0)
+    fusions: {
+      'Fire+Water': 'Steam', 'Earth+Fire': 'Lava', 'Earth+Water': 'Mud',
+      'Air+Water': 'Ice', 'Air+Earth': 'Dust', 'Air+Fire': 'Lightning',
+    },
+  };
+
+  const EARTH = {
+    id: 'earth',
+    label: 'Earth · The tendril floor',
+    element: 'Earth',
+    recipe: 'Dust + Water',
+    teaches: 'Lead every tendril to its partner. Tendrils never cross. Plates turn, and whatever stands on a plate turns with it. Lead the Dust and the Water to the captive.',
+    map: [
+      '###########',
+      'a.........#',
+      '#.......b.#',
+      'b.......o.#',
+      '#.......aX#',
+      'c.....#...#',
+      'd...o.....c',
+      '#..XC.....w',
+      '###########',
+    ],
+  };
+
+  const WATER = {
+    id: 'water',
+    label: 'Water · The turning room',
+    element: 'Water',
+    recipe: 'Fire + Ice',
+    teaches: 'FLIP turns the room over. Ice slides downhill; water runs downhill, then along the floor. Ice that comes to rest against fire melts. Water puts fire out. Blood stops anything that slides into it.',
+    map: [
+      '#########',
+      '#CCC..F##',
+      '#..F....#',
+      '#.......#',
+      '#.......#',
+      '#.F.._..#',
+      '#I..I.IB#',
+      '#########',
+    ],
+  };
+
+
+  const FIRE = {
+    id: 'fire',
+    label: 'Fire · The twin',
+    element: 'Fire',
+    recipe: 'Air + Lava',
+    teaches: 'Your twin takes the mirror of every step: north is north, east is west. Walk into a wall and only the other one moves. A plate holds its gate open on the far side while someone stands on it. Stand on the bellows while the twin stands on the sluice.',
+    map: [
+      '###########',
+      '#@b..|....#',
+      '##...|....#',
+      '#..1.|L...#',
+      '#....|...a#',
+      '#....H.2..#',
+      '#...B|....#',
+      '###########',
+    ],
+  };
+
+  const AIR = {
+    id: 'air',
+    label: 'Air · The weightless room',
+    element: 'Air',
+    recipe: 'Ice + Light',
+    need: 2,
+    teaches: 'Push off and you drift until something stops you. Drift up against ice and push again to send the ice drifting instead. Ice that drifts into sunlight turns to air. Beside the bell, the air goes in. Anywhere else, it is lost.',
+    map: [
+      '#########',
+      '#.......#',
+      '#...I...#',
+      '#.I.....#',
+      '#.I.....#',
+      '#......*#',
+      '#....I.C#',
+      '#.*.@..*#',
+      '#########',
+    ],
+  };
+
+  const ROOMS = { earth: EARTH, water: WATER, fire: FIRE, air: AIR };
+  const api = { HUB, ROOMS };
+  if (typeof module !== 'undefined') module.exports = api; else root.RitesRooms = api;
+})(this);
+</script>
+<script>
+(() => {
+  const EE = window.EarthEngine, WE = window.WaterEngine, HE = window.HubEngine, FE = window.FireEngine, AE = window.AirEngine;
+  const { HUB, ROOMS } = window.RitesRooms;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const EL = { Air: '#cfe2ea', Fire: '#ee7a3a', Earth: '#b98a4b', Water: '#4f9bd8' };
+  const FUSE = { Steam: '#d9dde0', Lava: '#ff5a1f', Mud: '#8a6440', Ice: '#a8e6f5', Dust: '#d8b98a', Lightning: '#f2e36a' };
+  const PAIR = { a: '#d0283c', b: '#9b2f73', c: '#e2623a', d: '#d4b072', w: '#4f9bd8' };
+  const BLOOD = '#c8283c', GOLD = '#d4a656';
+
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('status'), actionsEl = $('actions'), noteEl = $('note'), navEl = $('nav'), tallyEl = $('tally');
+
+  // ── shared state ────────────────────────────────────────
+  const store = (() => { try { return JSON.parse(localStorage.getItem('blood-rites') || '{}'); } catch (e) { return {}; } })();
+  const freed = Object.assign({ Air: false, Fire: false, Earth: false, Water: false }, store.freed || {});
+  const save = () => { try { localStorage.setItem('blood-rites', JSON.stringify({ freed, maxim: hub.maxim, cups: hub.cups, vault: hub.vault })); } catch (e) {} };
+  let view = 'hub', time = 0, dpr = 1, U = 40, ox = 0, oy = 0;
+  const say = (m) => { statusEl.textContent = m || ''; };
+  const particles = [];
+
+  // A cheap per-square hash so floors vary without random state.
+  const hash = (x, y, s = 0) => { let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
+
+  function resize(cols, rows, maxW) {
+    const w = Math.min(cv.parentElement.clientWidth, maxW || 820);
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    U = Math.floor(w / cols);
+    const pw = U * cols, ph = U * rows;
+    cv.width = pw * dpr; cv.height = ph * dpr;
+    cv.style.width = pw + 'px'; cv.style.height = ph + 'px';
+    cv.style.margin = '0 auto';
+    ox = 0; oy = 0;
+  }
+
+  // ── drawing kit: carved stone, glass, flesh ─────────────
+  function floorTile(x, y) {
+    const v = hash(x, y);
+    ctx.fillStyle = `rgb(${38 + v * 10},${28 + v * 7},${30 + v * 7})`;
+    ctx.fillRect(x * U, y * U, U, U);
+    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1;
+    ctx.strokeRect(x * U + .5, y * U + .5, U - 1, U - 1);
+    if (v > .7) { ctx.fillStyle = 'rgba(255,240,220,.03)'; ctx.fillRect(x * U + U * .2, y * U + U * .2, U * .3, U * .2); }
+  }
+  function wallTile(x, y) {
+    const v = hash(x, y, 3);
+    ctx.fillStyle = `rgb(${15 + v * 6},${10 + v * 4},${12 + v * 4})`;
+    ctx.fillRect(x * U, y * U, U, U);
+    ctx.fillStyle = 'rgba(255,230,220,.05)';
+    ctx.fillRect(x * U, y * U, U, Math.max(2, U * .08));
+  }
+  function bulb(cx, cy, r, col, pulse) {
+    const g = ctx.createRadialGradient(cx - r * .3, cy - r * .3, r * .1, cx, cy, r);
+    g.addColorStop(0, lighten(col, .35)); g.addColorStop(.7, col); g.addColorStop(1, darken(col, .45));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r * (1 + (pulse || 0)), 0, Math.PI * 2); ctx.fill();
+  }
+  function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+  function mix(h, t, to) { const a = hexToRgb(h); return '#' + a.map((v) => Math.round(v + (to - v) * t).toString(16).padStart(2, '0')).join(''); }
+  const lighten = (h, t) => mix(h, t, 255), darken = (h, t) => mix(h, t, 0);
+  function rgba(h, a) { const [r, g, b] = hexToRgb(h); return `rgba(${r},${g},${b},${a})`; }
+
+  function softGlow(cx, cy, r, col, a) {
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, rgba(col, a)); g.addColorStop(1, rgba(col, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // The captive: a curled figure in its element's colour, held by blood
+  // threads. `t` 0..1 dissolves it (the grains leave as particles).
+  function captive(cx, cy, r, el, gone) {
+    if (gone >= 1) return;
+    const col = EL[el];
+    ctx.save(); ctx.globalAlpha = 1 - gone;
+    softGlow(cx, cy, r * 1.8, col, .18 + .06 * Math.sin(time * 1.6));
+    const g = ctx.createRadialGradient(cx - r * .3, cy - r * .4, r * .1, cx, cy, r);
+    g.addColorStop(0, lighten(col, .25)); g.addColorStop(1, darken(col, .55));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(cx, cy + r * .1, r * .95, r * .75, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + r * .45, cy - r * .35, r * .42, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(10,5,6,.8)';
+    ctx.beginPath(); ctx.arc(cx + r * .6, cy - r * .42, r * .07, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = rgba(BLOOD, .85); ctx.lineWidth = Math.max(1.5, r * .09); ctx.lineCap = 'round';
+    for (const k of [-.35, .2]) {
+      ctx.beginPath(); ctx.ellipse(cx + k * r, cy + r * .1, r * .18, r * .82, .25, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Grains leaving a freed captive: they rise, swirl and thin out.
+  function release(cx, cy, col, n) {
+    for (let i = 0; i < (reduce ? n / 4 : n); i++) {
+      const a = Math.random() * Math.PI * 2, s = Math.random() * U * .6;
+      particles.push({ x: cx + Math.cos(a) * s, y: cy + Math.sin(a) * s, vx: (Math.random() - .5) * U * .6, vy: -U * (.4 + Math.random() * .9), life: 0, max: 2.2 + Math.random() * 1.6, col: Math.random() < .55 ? BLOOD : col, sw: Math.random() * 6 });
+    }
+  }
+  function drawParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.life += dt;
+      if (p.life > p.max) { particles.splice(i, 1); continue; }
+      p.vx += Math.sin(time * 2 + p.sw + p.y / U) * U * .9 * dt;
+      p.vx *= .985; p.vy *= .995;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      const a = Math.sin(Math.PI * Math.min(1, p.life / p.max));
+      ctx.fillStyle = rgba(p.col, .8 * a);
+      ctx.fillRect(p.x, p.y, Math.max(1.5, U * .05), Math.max(1.5, U * .05));
+    }
+  }
+
+  // ═══ EARTH — the tendril floor ═══════════════════════════
+  const earth = { R: EE.parseRoom(ROOMS.earth), S: null, ang: [], active: null, drag: false, freedT: -1 };
+  earth.S = EE.start(earth.R);
+  earth.ang = earth.R.plates.map(() => 0);
+  if (freed.Earth) earth.freedT = 0;
+
+  function earthDraw(dt) {
+    const R = earth.R, S = earth.S, g = EE.grid(R, S.turns);
+    const W = R.W, H = R.H;
+    ctx.fillStyle = '#0c0708'; ctx.fillRect(0, 0, W * U, H * U);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const ch = R.base[y][x];
+      if (EE.plateOf(R, x, y) >= 0) continue;
+      if (ch === '#' || /[a-kdw]/.test(ch) && (x === 0 || y === 0 || x === W - 1 || y === H - 1)) wallTile(x, y); else floorTile(x, y);
+    }
+    // Plates: a round turning stone; its contents drawn from the base map
+    // and rotated by the plate's eased angle.
+    R.plates.forEach((p, i) => {
+      const target = S.turns[i] * Math.PI / 2;
+      earth.ang[i] += (target - earth.ang[i]) * Math.min(1, dt * 9);
+      const cx = (p.cx + .5) * U, cy = (p.cy + .5) * U;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) floorTile(p.cx + dx, p.cy + dy);
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(earth.ang[i]);
+      const rr = U * 1.52;
+      const sg = ctx.createRadialGradient(0, 0, U * .3, 0, 0, rr);
+      sg.addColorStop(0, '#3a2b2b'); sg.addColorStop(1, '#251a1b');
+      ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(212,166,86,.35)'; ctx.lineWidth = Math.max(1, U * .04);
+      ctx.beginPath(); ctx.arc(0, 0, rr - U * .06, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 1;
+      for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(k * Math.PI / 2 + Math.PI / 4) * rr, Math.sin(k * Math.PI / 2 + Math.PI / 4) * rr); ctx.stroke(); }
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const ch = R.base[p.cy + dy][p.cx + dx];
+        const x = dx * U, y = dy * U;
+        if (ch === 'X') {
+          ctx.fillStyle = '#140d0e'; ctx.fillRect(x - U * .42, y - U * .42, U * .84, U * .84);
+          ctx.fillStyle = 'rgba(255,230,220,.07)'; ctx.fillRect(x - U * .42, y - U * .42, U * .84, U * .1);
+          ctx.strokeStyle = 'rgba(212,166,86,.22)'; ctx.strokeRect(x - U * .42, y - U * .42, U * .84, U * .84);
+        } else if (/[a-k]/.test(ch) || ch === 'd' || ch === 'w') {
+          bulb(x, y, U * .3, PAIR[ch] || BLOOD, .04 * Math.sin(time * 3 + i));
+        } else if (ch === 'C') {
+          // the hearth: a dark socket the captive lies in
+          ctx.fillStyle = '#0d0809'; ctx.beginPath(); ctx.arc(x, y, U * .46, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = rgba(EL.Earth, .5); ctx.lineWidth = Math.max(1, U * .04); ctx.stroke();
+        }
+      }
+      ctx.restore();
+    });
+    // The captive drawn upright at its current square (after the plate turn).
+    const cpos = findIn(g, 'C');
+    // Wall roots.
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const ch = R.base[y][x];
+      if (!/[a-kdw]/.test(ch) || EE.plateOf(R, x, y) >= 0) continue;
+      const nx = x === 0 ? .78 : x === W - 1 ? .22 : .5, ny = y === 0 ? .78 : y === H - 1 ? .22 : .5;
+      bulb((x + nx) * U, (y + ny) * U, U * .3, PAIR[ch], .04 * Math.sin(time * 3 + x));
+    }
+    // Tendrils.
+    const jobs = EE.jobs(g);
+    for (const [id, pts] of Object.entries(S.lines)) tendril(id, pts, jobs.find((j) => j.id === id), g);
+    // Axles on top.
+    R.plates.forEach((p, i) => {
+      const cx = (p.cx + .5) * U, cy = (p.cy + .5) * U;
+      const locked = lineOnPlate(i);
+      ctx.fillStyle = '#2b2224'; ctx.beginPath(); ctx.arc(cx, cy, U * .36, 0, Math.PI * 2); ctx.fill();
+      const g2 = ctx.createRadialGradient(cx - U * .1, cy - U * .1, 2, cx, cy, U * .3);
+      g2.addColorStop(0, locked ? '#6d6058' : '#e1c07a'); g2.addColorStop(1, locked ? '#2e2724' : '#7b5a26');
+      ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(cx, cy, U * .28, 0, Math.PI * 2); ctx.fill();
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(earth.ang[i]);
+      ctx.fillStyle = '#1a1112'; ctx.fillRect(-U * .04, -U * .26, U * .08, U * .2);
+      ctx.restore();
+    });
+    // Captive (upright).
+    if (cpos) {
+      const done = EE.solved(R, S);
+      const gone = earth.freedT < 0 ? 0 : Math.min(1, earth.freedT / 1.2);
+      const pi = EE.plateOf(R, cpos[0], cpos[1]), p = R.plates[pi];
+      const bc = findIn(R.base, 'C'), dx = bc[0] - p.cx, dy = bc[1] - p.cy, an = earth.ang[pi];
+      const px = (p.cx + .5 + dx * Math.cos(an) - dy * Math.sin(an)) * U, py = (p.cy + .5 + dx * Math.sin(an) + dy * Math.cos(an)) * U;
+      captive(px, py, U * .3, 'Earth', gone);
+      if (earth.freedT >= 0) earth.freedT += dt;
+    }
+    // Blood rides the active tip.
+    if (earth.active && S.lines[earth.active]) {
+      const t = S.lines[earth.active][S.lines[earth.active].length - 1];
+      bloodBody((t[0] + .5) * U, (t[1] + .5) * U, U * .26);
+    }
+  }
+  function findIn(g, ch) { for (let y = 0; y < g.length; y++) for (let x = 0; x < g[y].length; x++) if (g[y][x] === ch) return [x, y]; return null; }
+  function lineOnPlate(i) { return Object.values(earth.S.lines).some((pts) => pts.some(([x, y]) => EE.plateOf(earth.R, x, y) === i)); }
+
+  function bloodBody(cx, cy, r) {
+    softGlow(cx, cy, r * 2.2, BLOOD, .25);
+    bulb(cx, cy, r, BLOOD, .05 * Math.sin(time * 5));
+    ctx.fillStyle = 'rgba(255,235,225,.85)';
+    ctx.beginPath(); ctx.arc(cx + r * .3, cy - r * .2, r * .13, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // A tendril: a thick fleshy tube with a dark underside and a wet highlight;
+  // when joined, a bead of blood runs along it.
+  function tendril(id, pts, job, g) {
+    if (!pts || pts.length < 2) return;
+    const col = PAIR[id] || BLOOD;
+    const W = earth.R.W, H = earth.R.H;
+    const P = pts.map(([x, y], k) => {
+      if (k === 0 && (x === 0 || y === 0 || x === W - 1 || y === H - 1)) {
+        return [(x + (x === 0 ? .78 : x === W - 1 ? .22 : .5)) * U, (y + (y === 0 ? .78 : y === H - 1 ? .22 : .5)) * U];
+      }
+      return [(x + .5) * U, (y + .5) * U];
+    });
+    const done = job && pts[pts.length - 1][0] === job.b[0] && pts[pts.length - 1][1] === job.b[1];
+    const path = () => { ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length; i++) ctx.lineTo(P[i][0], P[i][1]); };
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    path(); ctx.strokeStyle = darken(col, .6); ctx.lineWidth = U * .5; ctx.stroke();
+    path(); ctx.strokeStyle = done ? col : darken(col, .15); ctx.lineWidth = U * .38; ctx.stroke();
+    ctx.save(); ctx.translate(-U * .05, -U * .05);
+    path(); ctx.strokeStyle = rgba(lighten(col, .5), done ? .5 : .3); ctx.lineWidth = U * .08; ctx.stroke();
+    ctx.restore();
+    if (done) {
+      const L = P.length - 1, t = ((time * 1.4) % (L + 2)) - 1;
+      if (t >= 0 && t <= L) {
+        const i = Math.min(L - 1, Math.floor(t)), f = t - i;
+        const x = P[i][0] + (P[i + 1][0] - P[i][0]) * f, y = P[i][1] + (P[i + 1][1] - P[i][1]) * f;
+        softGlow(x, y, U * .4, lighten(col, .4), .55);
+      }
+    }
+  }
+
+  function earthCell(e) {
+    const r = cv.getBoundingClientRect();
+    return [Math.floor((e.clientX - r.left) / U), Math.floor((e.clientY - r.top) / U)];
+  }
+  function earthDown(e) {
+    if (freed.Earth && earth.freedT >= 0 && EE.solved(earth.R, earth.S)) return;
+    const [x, y] = earthCell(e);
+    const R = earth.R, S = earth.S, g = EE.grid(R, S.turns);
+    const ch = g[y] && g[y][x];
+    // An axle: turn the plate.
+    const pi = R.plates.findIndex((p) => p.cx === x && p.cy === y);
+    if (pi >= 0) {
+      const r = EE.turn(R, S, pi);
+      if (r.why) say(r.why); else { earth.S = r.S; say(''); }
+      return;
+    }
+    // A root: start (or restart) its tendril.
+    if (/[a-kdw]/.test(ch || '')) {
+      earth.S = EE.clear(S, ch);
+      earth.active = ch; earth.from = [x, y]; earth.drag = true; say('');
+      return;
+    }
+    // A square on a tendril: pick it up there.
+    for (const [id, pts] of Object.entries(S.lines)) {
+      const k = pts.findIndex(([px, py]) => px === x && py === y);
+      if (k > 0) {
+        earth.S = { turns: S.turns, lines: { ...S.lines, [id]: pts.slice(0, k + 1) } };
+        earth.active = id; earth.drag = true;
+        return;
+      }
+    }
+  }
+  function earthMove(e) {
+    if (!earth.drag || !earth.active) return;
+    const [x, y] = earthCell(e);
+    let guard = 0;
+    while (guard++ < 30) {
+      const pts = earth.S.lines[earth.active] || [earth.from || EE.jobs(EE.grid(earth.R, earth.S.turns)).find((j) => j.id === earth.active).a];
+      const k = pts.findIndex(([px, py]) => px === x && py === y);
+      if (k >= 0 && k < pts.length - 1) {
+        earth.S = k === 0 ? EE.clear(earth.S, earth.active) : { turns: earth.S.turns, lines: { ...earth.S.lines, [earth.active]: pts.slice(0, k + 1) } };
+        return;
+      }
+      const [tx, ty] = pts[pts.length - 1];
+      if (tx === x && ty === y) return;
+      const nx = tx + Math.sign(x - tx) * (x !== tx ? 1 : 0), ny = x !== tx ? ty : ty + Math.sign(y - ty);
+      const r = EE.extend(earth.R, earth.S, earth.active, nx, ny, earth.from);
+      if (r.why) { if (r.why !== 'blocked' && r.why !== 'One square at a time.') say(r.why); return; }
+      earth.S = r.S; say('');
+      if (EE.solved(earth.R, earth.S)) { earthFreed(); return; }
+    }
+  }
+  function earthUp() { earth.drag = false; }
+  function earthFreed() {
+    earth.drag = false;
+    const c = findIn(EE.grid(earth.R, earth.S.turns), 'C');
+    if (!freed.Earth) {
+      freed.Earth = true; earth.freedT = 0;
+      release((c[0] + .5) * U, (c[1] + .5) * U, EL.Earth, 260);
+      hubLatch(); save();
+    }
+    say('Dust and Water meet. Earth is freed, and its blood runs to the Circle.');
+    renderChrome();
+  }
+
+  // ═══ WATER — the turning room ════════════════════════════
+  const water = { R: WE.parseRoom(ROOMS.water), S: null, hist: [], frames: [], ft: 0, flipT: 1, queue: [], live: null, freedT: -1, preview: true };
+  water.S = WE.start(water.R);
+  water.live = WE.graph(water.R, 5e5).live;
+  if (freed.Water) water.freedT = 99;
+
+  function waterDraw(dt) {
+    const R = water.R;
+    // play back frames of a slide
+    let shown = water.S;
+    if (water.frames.length) {
+      water.ft += dt;
+      if (water.ft > .055) { water.ft = 0; water.frames.shift(); }
+      if (water.frames.length) shown = { ...water.S, cells: water.frames[0].cells, loose: water.frames[0].loose };
+    }
+    water.flipT = Math.min(1, water.flipT + dt * 3.2);
+    const W = R.W, H = R.H;
+    ctx.fillStyle = '#0c0708'; ctx.fillRect(0, 0, W * U, H * U);
+    ctx.save();
+    // the turn: the room folds flat and opens again
+    const sq = water.flipT < 1 ? Math.abs(Math.cos(water.flipT * Math.PI)) : 1;
+    ctx.translate(0, H * U / 2); ctx.scale(1, Math.max(.04, sq)); ctx.translate(0, -H * U / 2);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const ch = shown.cells[y][x];
+      if (ch === '#') { wallTile(x, y); continue; }
+      floorTile(x, y);
+      const cx = (x + .5) * U, cy = (y + .5) * U;
+      if (ch === '_') {
+        const g = ctx.createRadialGradient(cx, cy, U * .05, cx, cy, U * .5);
+        g.addColorStop(0, '#000'); g.addColorStop(1, '#1a1012');
+        ctx.fillStyle = g; ctx.fillRect(x * U + U * .08, y * U + U * .08, U * .84, U * .84);
+      } else if (ch === 'p') {
+        // a flooded pit: deep water, darker than any pool on the floor
+        const g = ctx.createRadialGradient(cx, cy, U * .05, cx, cy, U * .5);
+        g.addColorStop(0, '#05121f'); g.addColorStop(1, '#1d4a72');
+        ctx.fillStyle = g; ctx.fillRect(x * U + U * .06, y * U + U * .06, U * .88, U * .88);
+        ctx.strokeStyle = 'rgba(200,230,255,.3)'; ctx.lineWidth = Math.max(1, U * .03);
+        const rr = ((time * .5) % 1) * U * .4;
+        ctx.beginPath(); ctx.arc(cx, cy, rr + U * .04, 0, Math.PI * 2); ctx.stroke();
+      } else if (ch === '=') {
+        ctx.fillStyle = '#0a0607'; ctx.fillRect(x * U + U * .1, y * U + U * .1, U * .8, U * .8);
+        ctx.strokeStyle = '#6b5a4e'; ctx.lineWidth = Math.max(1.5, U * .07);
+        for (let k = 1; k < 5; k++) { ctx.beginPath(); ctx.moveTo(x * U + U * .1 + k * U * .16, y * U + U * .12); ctx.lineTo(x * U + U * .1 + k * U * .16, y * U + U * .88); ctx.stroke(); }
+      } else if (ch === 'C' || ch === 'c') {
+        ctx.fillStyle = '#0b0707'; ctx.fillRect(x * U + U * .06, y * U + U * .1, U * .88, U * .8);
+        if (ch === 'c') waterSq(x, y, .95);
+      } else if (ch === 'F' || ch === 'f') brazier(cx, cy, ch === 'F');
+    }
+    // the captive lies across the basin
+    const basin = [];
+    R.fixed.forEach((r, y) => r.forEach((ch, x) => { if (ch === 'C') basin.push([x, y]); }));
+    if (basin.length) {
+      const mx = basin.reduce((s, b) => s + b[0], 0) / basin.length, my = basin[0][1];
+      if (water.freedT < 0) captive((mx + .5) * U, (my + .5) * U, U * .34, 'Water', 0);
+      else if (water.freedT < 1.2) { captive((mx + .5) * U, (my + .5) * U, U * .34, 'Water', water.freedT / 1.2); water.freedT += dt; }
+    }
+    for (const [k, v] of shown.loose) {
+      const [x, y] = k.split(',').map(Number);
+      if (v === 'I') ice(x, y); else waterSq(x, y, .85);
+    }
+    bloodBody((shown.b[0] + .5) * U, (shown.b[1] + .5) * U, U * .3);
+    // ghost of the next flip
+    if (water.preview && !water.frames.length && water.flipT >= 1 && !WE.solved(R, water.S)) {
+      const N = WE.flip(R, water.S).S;
+      ctx.setLineDash([U * .1, U * .08]); ctx.lineWidth = Math.max(1, U * .04);
+      for (const [k, v] of N.loose) {
+        if (water.S.loose.get(k) === v) continue;
+        const [x, y] = k.split(',').map(Number);
+        ctx.strokeStyle = v === 'I' ? 'rgba(200,235,250,.55)' : 'rgba(110,170,230,.6)';
+        ctx.strokeRect(x * U + U * .16, y * U + U * .16, U * .68, U * .68);
+      }
+      ctx.setLineDash([]);
+      N.cells.forEach((r, y) => r.forEach((ch, x) => {
+        const was = water.S.cells[y][x];
+        if (was === 'F' && ch === 'f') { ctx.strokeStyle = 'rgba(238,122,58,.7)'; ctx.lineWidth = U * .06; const cx = (x + .5) * U, cy = (y + .5) * U, s = U * .18; ctx.beginPath(); ctx.moveTo(cx - s, cy - s); ctx.lineTo(cx + s, cy + s); ctx.moveTo(cx + s, cy - s); ctx.lineTo(cx - s, cy + s); ctx.stroke(); }
+        if (was === 'C' && ch === 'c') { ctx.strokeStyle = 'rgba(110,170,230,.7)'; ctx.lineWidth = U * .05; ctx.strokeRect(x * U + U * .12, y * U + U * .16, U * .76, U * .68); }
+      }));
+    }
+    ctx.restore();
+    // downhill marks along both sides
+    const down = water.S.down === 2 ? 1 : -1;
+    for (const side of [U * .5, (W - .5) * U]) {
+      for (let k = 0; k < 3; k++) {
+        const y = H * U / 2 + (k - 1) * U * .55 + down * ((time * U * .6) % (U * .55));
+        ctx.strokeStyle = rgba(GOLD, .5); ctx.lineWidth = Math.max(1.5, U * .05);
+        ctx.beginPath(); ctx.moveTo(side - U * .16, y - down * U * .1); ctx.lineTo(side, y + down * U * .06); ctx.lineTo(side + U * .16, y - down * U * .1); ctx.stroke();
+      }
+    }
+  }
+  function waterSq(x, y, a) {
+    const g = ctx.createLinearGradient(x * U, y * U, x * U, (y + 1) * U);
+    g.addColorStop(0, rgba('#5aa7e0', a)); g.addColorStop(1, rgba('#24557f', a));
+    ctx.fillStyle = g; ctx.fillRect(x * U + U * .04, y * U + U * .04, U * .92, U * .92);
+    ctx.strokeStyle = 'rgba(220,240,255,.35)'; ctx.lineWidth = Math.max(1, U * .03);
+    const o = Math.sin(time * 2.4 + x + y * 1.7) * U * .06;
+    ctx.beginPath(); ctx.moveTo(x * U + U * .2, y * U + U * .38 + o); ctx.quadraticCurveTo(x * U + U * .5, y * U + U * .3 - o, x * U + U * .8, y * U + U * .38 + o); ctx.stroke();
+  }
+  function ice(x, y) {
+    const x0 = x * U + U * .08, y0 = y * U + U * .08, s = U * .84;
+    const g = ctx.createLinearGradient(x0, y0, x0 + s, y0 + s);
+    g.addColorStop(0, '#e4f7fd'); g.addColorStop(.5, '#8fcde3'); g.addColorStop(1, '#3d7f9c');
+    ctx.fillStyle = g; ctx.fillRect(x0, y0, s, s);
+    ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = Math.max(1, U * .03);
+    ctx.beginPath(); ctx.moveTo(x0 + s * .15, y0 + s * .7); ctx.lineTo(x0 + s * .55, y0 + s * .2); ctx.lineTo(x0 + s * .85, y0 + s * .45); ctx.stroke();
+    ctx.strokeStyle = 'rgba(20,50,70,.6)'; ctx.strokeRect(x0, y0, s, s);
+  }
+  function brazier(cx, cy, lit) {
+    ctx.fillStyle = '#2a1d17'; ctx.beginPath(); ctx.ellipse(cx, cy + U * .12, U * .34, U * .2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#7b5a26'; ctx.lineWidth = Math.max(1.5, U * .05); ctx.stroke();
+    if (lit) {
+      softGlow(cx, cy - U * .05, U * .8, '#ee7a3a', .28 + .05 * Math.sin(time * 9));
+      for (let k = 0; k < 3; k++) {
+        const h = U * (.38 + .08 * Math.sin(time * (7 + k) + k * 2)), w = U * (.16 - k * .03);
+        ctx.fillStyle = ['#e2502a', '#f08a3a', '#ffd27a'][k];
+        ctx.beginPath(); ctx.moveTo(cx - w, cy + U * .08); ctx.quadraticCurveTo(cx - w * .6, cy - h * .5, cx, cy - h + k * U * .04); ctx.quadraticCurveTo(cx + w * .6, cy - h * .5, cx + w, cy + U * .08); ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = '#120c0c'; ctx.beginPath(); ctx.ellipse(cx, cy + U * .08, U * .24, U * .1, 0, 0, Math.PI * 2); ctx.fill();
+      for (let k = 0; k < 2; k++) {
+        const t = (time * .5 + k * .5) % 1;
+        ctx.fillStyle = `rgba(160,150,140,${.25 * (1 - t)})`;
+        ctx.beginPath(); ctx.arc(cx + Math.sin(t * 6 + k) * U * .1, cy - t * U * .5, U * (.06 + t * .1), 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
+  function waterBusy() { return water.frames.length > 0 || water.flipT < 1; }
+  function waterApply(r) {
+    water.hist.push(water.S);
+    water.S = r.S;
+    water.ft = 0;
+    if (WE.solved(water.R, water.S)) waterFreed();
+    else if (!water.live.has(WE.key(water.S)) && !freed.Water) say('This room can\'t be finished from here. Reset it.');
+    else say('');
+    renderChrome();
+  }
+  function waterStep(d) {
+    if (waterBusy() || WE.solved(water.R, water.S)) return false;
+    const tx = water.S.b[0] + WE.DX[d], ty = water.S.b[1] + WE.DY[d];
+    if (water.S.cells[ty][tx] === 'p') { waterDive(tx, ty); return false; }
+    const frames = [];
+    const r = WE.step(water.R, water.S, d, frames);
+    if (r.why) return false;
+    water.frames = frames;
+    waterApply(r);
+    return true;
+  }
+  function waterFlip() {
+    if (waterBusy() || WE.solved(water.R, water.S)) return;
+    water.queue = [];
+    const frames = [];
+    const r = WE.flip(water.R, water.S, frames);
+    water.flipT = 0;
+    water.frames = [{ cells: water.S.cells, loose: water.S.loose }, ...Array(5).fill({ cells: water.S.cells, loose: water.S.loose }), ...frames];
+    waterApply(r);
+  }
+  function waterTap(e) {
+    const r = cv.getBoundingClientRect();
+    const tx = Math.floor((e.clientX - r.left) / U), ty = Math.floor((e.clientY - r.top) / U);
+    // breadth-first path for Blood over walkable squares
+    const S = water.S, prev = new Map([[S.b + '', null]]), q = [S.b];
+    while (q.length) {
+      const [x, y] = q.shift();
+      if (x === tx && y === ty) break;
+      for (let d = 0; d < 4; d++) {
+        const nx = x + WE.DX[d], ny = y + WE.DY[d];
+        if (!WE.walkable(S, nx, ny) || prev.has(nx + ',' + ny)) continue;
+        prev.set(nx + ',' + ny, [x, y, d]); q.push([nx, ny]);
+      }
+    }
+    if (!prev.has(tx + ',' + ty)) {
+      // tapping the flooded pit: walk beside it, then dive
+      if (S.cells[ty] && S.cells[ty][tx] === 'p') {
+        for (let d = 0; d < 4; d++) {
+          const k = (tx - WE.DX[d]) + ',' + (ty - WE.DY[d]);
+          if (prev.has(k)) { const steps = []; for (let q = k; prev.get(q); ) { const [x, y, dd] = prev.get(q); steps.unshift(dd); q = x + ',' + y; } steps.push(d); water.queue = steps; return; }
+        }
+      }
+      return;
+    }
+    const steps = [];
+    for (let k = tx + ',' + ty; prev.get(k); ) { const [x, y, d] = prev.get(k); steps.unshift(d); k = x + ',' + y; }
+    water.queue = steps;
+  }
+  function waterTick() {
+    if (!water.queue.length || waterBusy()) return;
+    const d = water.queue.shift();
+    if (!waterStep(d)) water.queue = [];
+  }
+  function waterDive(x, y) {
+    water.queue = [];
+    if (!hub.vault) { hub.vault = true; save(); }
+    release((x + .5) * U, (y + .5) * U, GOLD, 180);
+    say('Blood dives into the flooded pit and comes up in the vault.');
+    renderChrome();
+  }
+  function waterFreed() {
+    if (freed.Water) { water.freedT = 99; say('The basin is full again.'); return; }
+    if (!freed.Water) {
+      freed.Water = true;
+      const b = []; water.R.fixed.forEach((r, y) => r.forEach((ch, x) => { if (ch === 'C') b.push(x); }));
+      const mx = b.reduce((s, v) => s + v, 0) / b.length;
+      release((mx + .5) * U, 1.5 * U, EL.Water, 260);
+      hubLatch(); save();
+    }
+    water.freedT = 0;
+    say('Fire and Ice made Water. The captive is freed, and its blood runs to the Circle.');
+  }
+
+  // ═══ THE CIRCLE — the hub ════════════════════════════════
+  const hub = { turns: [0, 0], ang: [0, 0], cups: Object.assign({ Air: false, Fire: false, Earth: false, Water: false }, store.cups || {}), maxim: !!store.maxim, vault: !!store.vault, bloom: 0 };
+  function hubLatch() {
+    const f = HE.flow(HUB, freed, hub.turns);
+    for (const el of HE.ORDER) if (f[el] === 'socket') hub.cups[el] = true;
+    const c = HE.centre(HUB, f);
+    if (c.kind === 'quintessence' && !hub.maxim) { hub.maxim = true; hub.bloom = 0; }
+    save();
+  }
+  hubLatch();
+
+  function hubDraw(dt) {
+    const S = cv.width / dpr, cx = S / 2, cy = S / 2, R0 = S * .46;
+    ctx.fillStyle = '#0c0708'; ctx.fillRect(0, 0, S, S);
+    for (let i = 0; i < 2; i++) hub.ang[i] += (hub.turns[i] * Math.PI / 4 - hub.ang[i]) * Math.min(1, dt * 8);
+    // the circle floor
+    const g = ctx.createRadialGradient(cx, cy, R0 * .1, cx, cy, R0);
+    g.addColorStop(0, '#2a1d20'); g.addColorStop(1, '#1a1214');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(212,166,86,.3)'; ctx.lineWidth = 2; ctx.stroke();
+    const f = HE.flow(HUB, freed, hub.turns);
+    const centre = HE.centre(HUB, f);
+    const angOf = (sector) => sector * Math.PI / 4 - Math.PI / 2;
+    // doors, channels and cups
+    for (const el of HE.ORDER) {
+      const a = angOf(HUB.doors[el]), ca = Math.cos(a), sa = Math.sin(a);
+      // channel
+      ctx.strokeStyle = '#0d0809'; ctx.lineWidth = S * .035; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.moveTo(cx + ca * R0, cy + sa * R0); ctx.lineTo(cx + ca * R0 * .84, cy + sa * R0 * .84); ctx.stroke();
+      // door arch
+      ctx.save(); ctx.translate(cx + ca * R0, cy + sa * R0); ctx.rotate(a + Math.PI / 2);
+      ctx.fillStyle = '#0a0607'; ctx.beginPath(); ctx.arc(0, 0, S * .05, Math.PI, 0); ctx.lineTo(S * .05, S * .02); ctx.lineTo(-S * .05, S * .02); ctx.fill();
+      ctx.strokeStyle = freed[el] ? EL[el] : 'rgba(168,153,138,.35)'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.restore();
+      // label, set just inside the rim beside its door
+      ctx.fillStyle = freed[el] ? EL[el] : 'rgba(168,153,138,.6)';
+      ctx.font = `500 ${Math.max(11, S * .026)}px "IBM Plex Mono", monospace`;
+      ctx.textBaseline = 'middle';
+      const side = el === 'Fire' ? 1 : el === 'Water' ? -1 : 0;
+      ctx.textAlign = side === 1 ? 'right' : side === -1 ? 'left' : 'center';
+      const lx = side ? cx + side * (R0 - S * .02) : cx + S * .1, ly = side ? cy - S * .075 : cy + sa * (R0 - S * .045);
+      ctx.fillText(el.toUpperCase(), lx, ly);
+      // cup
+      const rx = cx + ca * R0 * .84, ry = cy + sa * R0 * .84;
+      ctx.fillStyle = '#0b0607'; ctx.beginPath(); ctx.arc(rx, ry, S * .032, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(212,166,86,.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+      if (hub.cups[el]) { bulb(rx, ry, S * .024, BLOOD, .05 * Math.sin(time * 3 + a)); ctx.fillStyle = EL[el]; ctx.beginPath(); ctx.arc(rx, ry, S * .008, 0, Math.PI * 2); ctx.fill(); }
+      // the stream from the door
+      if (freed[el]) {
+        flowLine(cx + ca * R0, cy + sa * R0, rx, ry, EL[el]);
+        if (f[el] === 'centre') flowLine(rx, ry, cx + ca * R0 * .14, cy + sa * R0 * .14, EL[el]);
+      }
+    }
+    // rings
+    ring(cx, cy, R0 * .56, R0 * .74, HUB.outer, hub.ang[0], S);
+    ring(cx, cy, R0 * .3, R0 * .48, HUB.inner, hub.ang[1], S);
+    // streams through the rings drawn again above the stone
+    for (const el of HE.ORDER) {
+      if (!freed[el] || f[el] !== 'centre') continue;
+      const a = angOf(HUB.doors[el]), ca = Math.cos(a), sa = Math.sin(a);
+      flowLine(cx + ca * R0 * .78, cy + sa * R0 * .78, cx + ca * R0 * .14, cy + sa * R0 * .14, EL[el]);
+    }
+    // the centre: the boss door, and whatever pools on it
+    const allCups = HE.ORDER.every((el) => hub.cups[el]);
+    ctx.fillStyle = '#080405'; ctx.beginPath(); ctx.arc(cx, cy, R0 * .22, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = allCups ? rgba(BLOOD, .9) : 'rgba(212,166,86,.4)'; ctx.lineWidth = 2; ctx.stroke();
+    // seal sigil: a circle-in-square, the old sign of the four elements bound
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(allCups ? time * .2 : 0);
+    ctx.strokeStyle = allCups ? rgba(BLOOD, .8) : 'rgba(212,166,86,.35)'; ctx.lineWidth = 1.5;
+    const q = R0 * .13; ctx.strokeRect(-q, -q, q * 2, q * 2);
+    ctx.beginPath(); ctx.arc(0, 0, q * .7, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    if (allCups) softGlow(cx, cy, R0 * .3, BLOOD, .25 + .08 * Math.sin(time * 2));
+    if (centre.kind === 'fusion') {
+      const col = FUSE[centre.result] || BLOOD;
+      for (let k = 0; k < 40; k++) {
+        const a = time * (1.2 + (k % 5) * .1) + k * 2.4, r = R0 * (.04 + (k % 7) * .022);
+        ctx.fillStyle = rgba(col, .75);
+        ctx.fillRect(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 2.5, 2.5);
+      }
+      softGlow(cx, cy, R0 * .2, col, .35);
+    }
+    if (centre.kind === 'quintessence' || hub.maxim) {
+      hub.bloom = Math.min(1, hub.bloom + dt * .4);
+      if (centre.kind === 'quintessence') {
+        softGlow(cx, cy, R0 * .45 * hub.bloom, '#fff4d8', .55 * hub.bloom);
+        for (let k = 0; k < 90; k++) {
+          const a = k * 2.399 + time * .5, r = R0 * .2 * Math.sqrt((k + 1) / 90) * hub.bloom;
+          ctx.fillStyle = rgba(k % 3 ? GOLD : '#fff4d8', .8);
+          ctx.fillRect(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 2, 2);
+        }
+      }
+    }
+  }
+  function ring(cx, cy, r1, r2, grooves, ang, S) {
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang);
+    ctx.fillStyle = '#2c2023'; ctx.beginPath(); ctx.arc(0, 0, r2, 0, Math.PI * 2); ctx.arc(0, 0, r1, 0, Math.PI * 2, true); ctx.fill();
+    ctx.strokeStyle = 'rgba(212,166,86,.32)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0, 0, r2, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, r1, 0, Math.PI * 2); ctx.stroke();
+    // sector seams
+    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1;
+    for (let s = 0; s < 8; s++) {
+      const a = (s + .5) * Math.PI / 4 - Math.PI / 2;
+      ctx.beginPath(); ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); ctx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2); ctx.stroke();
+    }
+    // grooves: radial slots cut clean through
+    for (const s of grooves) {
+      const a = s * Math.PI / 4 - Math.PI / 2;
+      ctx.save(); ctx.rotate(a);
+      ctx.fillStyle = '#0a0607';
+      ctx.fillRect(r1 - 1, -S * .016, r2 - r1 + 2, S * .032);
+      ctx.fillStyle = 'rgba(212,166,86,.18)';
+      ctx.fillRect(r1 - 1, -S * .016, r2 - r1 + 2, 1.5);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  function flowLine(x1, y1, x2, y2, col) {
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = darken(BLOOD, .4); ctx.lineWidth = Math.max(5, U * .2);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.strokeStyle = BLOOD; ctx.lineWidth = Math.max(3, U * .12); ctx.stroke();
+    const L = Math.hypot(x2 - x1, y2 - y1);
+    for (let k = 0; k < L / 18; k++) {
+      const t = ((time * 40 + k * 18) % L) / L;
+      ctx.fillStyle = rgba(lighten(col, .3), .8);
+      ctx.fillRect(x1 + (x2 - x1) * t - 1.5, y1 + (y2 - y1) * t - 1.5, 3, 3);
+    }
+  }
+  function hubTap(e) {
+    const r = cv.getBoundingClientRect(), S = r.width, R0 = S * .46;
+    const d = Math.hypot(e.clientX - r.left - S / 2, e.clientY - r.top - S / 2);
+    if (d > R0 * .55 && d < R0 * .76) hubTurn(0);
+    else if (d > R0 * .29 && d < R0 * .5) hubTurn(1);
+  }
+  function hubTurn(i) {
+    hub.turns[i] = (hub.turns[i] + 1) % 8;
+    // the eased angle keeps counting up so the ring always turns forward
+    if (hub.turns[i] === 0) hub.ang[i] -= Math.PI * 2;
+    hubLatch(); hubSay(); renderChrome();
+  }
+  function hubSay() {
+    const c = HE.centre(HUB, HE.flow(HUB, freed, hub.turns));
+    if (c.kind === 'quintessence') say('All four meet in the middle. The quintessence. You found the Lost Maxim.');
+    else if (c.kind === 'fusion') say(`${c.ins[0]} and ${c.ins[1]} meet in the middle and make ${c.result.toLowerCase()}.`);
+    else if (HE.ORDER.every((el) => hub.cups[el])) say('All four cups are full. The way down to Sanguorath is open.');
+    else say('');
+  }
+
+  // ═══ FIRE — the twin ═════════════════════════════════════
+  const GLYPH = { 1: GOLD, a: GOLD, 2: '#9fb7c9', b: '#9fb7c9' };
+  const fire = { R: FE.parseRoom(ROOMS.fire), S: null, hist: [], db: null, dt: null, freedT: freed.Fire ? 99 : -1, flash: 0 };
+  fire.S = FE.start(fire.R);
+  fire.db = fire.S.b.slice(); fire.dt = fire.S.t.slice();
+
+  function fireDraw(dt) {
+    const R = fire.R, S = fire.S, W = R.W, H = R.H;
+    ctx.fillStyle = '#0c0708'; ctx.fillRect(0, 0, W * U, H * U);
+    const on = FE.pressed(R, S);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const ch = R.cells[y][x], cx = (x + .5) * U, cy = (y + .5) * U;
+      if (ch === '#') { wallTile(x, y); continue; }
+      if (ch === '|' || ch === 'H') {
+        // the pool: a channel of blood, with the mirror line down its middle
+        ctx.fillStyle = '#2a0b10'; ctx.fillRect(x * U, y * U, U, U);
+        const g = ctx.createLinearGradient(x * U, 0, (x + 1) * U, 0);
+        g.addColorStop(0, '#5a0f1a'); g.addColorStop(.5, '#a01c2c'); g.addColorStop(1, '#5a0f1a');
+        ctx.fillStyle = g; ctx.fillRect(x * U + U * .12, y * U, U * .76, U);
+        ctx.strokeStyle = 'rgba(255,200,200,.18)'; ctx.lineWidth = 1;
+        const o = Math.sin(time * 1.5 + y) * U * .08;
+        ctx.beginPath(); ctx.moveTo(cx + o, y * U); ctx.lineTo(cx - o, (y + 1) * U); ctx.stroke();
+        if (ch === 'H') {
+          ctx.fillStyle = '#1d1414'; ctx.beginPath(); ctx.arc(cx, cy, U * .48, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = rgba('#ee7a3a', .6); ctx.lineWidth = Math.max(1.5, U * .05); ctx.stroke();
+          if (fire.freedT >= 0) { softGlow(cx, cy, U * 1.4, '#ee7a3a', .35 + .1 * Math.sin(time * 6)); brazier(cx, cy + U * .05, true); }
+          captive(cx, cy, U * .3, 'Fire', fire.freedT < 0 ? 0 : Math.min(1, fire.freedT / 1.2));
+        }
+        continue;
+      }
+      floorTile(x, y);
+      if (ch === 'O') {
+        const g = ctx.createRadialGradient(cx, cy, U * .05, cx, cy, U * .5);
+        g.addColorStop(0, '#000'); g.addColorStop(1, '#1a1012');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, U * .42, 0, Math.PI * 2); ctx.fill();
+      } else if (ch === 'B') {
+        // bellows: two boards and a leather fold, pointed at the hearth
+        ctx.fillStyle = '#4a2f1f'; ctx.beginPath(); ctx.moveTo(cx - U * .38, cy - U * .28); ctx.lineTo(cx + U * .3, cy - U * .08); ctx.lineTo(cx + U * .3, cy + U * .08); ctx.lineTo(cx - U * .38, cy + U * .28); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#8a6a3e'; ctx.lineWidth = Math.max(1, U * .04); ctx.stroke();
+        ctx.fillStyle = '#7b5a26'; ctx.fillRect(cx + U * .28, cy - U * .05, U * .2, U * .1);
+        if (S.b[0] === x && S.b[1] === y) softGlow(cx + U * .45, cy, U * .5, EL.Air, .4);
+      } else if (ch === 'L') {
+        // the lava sluice: a glowing channel under an iron gate
+        const g = ctx.createLinearGradient(x * U, cy, (x + 1) * U, cy);
+        g.addColorStop(0, '#ff9a3d'); g.addColorStop(1, '#a3240f');
+        ctx.fillStyle = '#140a08'; ctx.fillRect(x * U + U * .1, y * U + U * .1, U * .8, U * .8);
+        ctx.fillStyle = g; ctx.fillRect(x * U + U * .16, y * U + U * .34, U * .68, U * .32);
+        softGlow(cx, cy, U * .7, '#ff7a2a', .25 + .08 * Math.sin(time * 4));
+        ctx.strokeStyle = '#3a2d26'; ctx.lineWidth = Math.max(2, U * .07);
+        ctx.beginPath(); ctx.moveTo(x * U + U * .12, y * U + U * .2); ctx.lineTo(x * U + U * .12, y * U + U * .8); ctx.stroke();
+      } else if (/[12]/.test(ch)) {
+        const down = on.has(ch);
+        ctx.fillStyle = down ? '#1a1112' : '#3a2c2c'; ctx.beginPath(); ctx.arc(cx, cy, U * .34, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = rgba(GLYPH[ch], down ? .95 : .55); ctx.lineWidth = Math.max(1.5, U * .05); ctx.stroke();
+        pips(cx, cy, +ch, GLYPH[ch]);
+      } else if (/[ab]/.test(ch)) {
+        const open = on.has(ch === 'a' ? '1' : '2') || (S.b[0] === x && S.b[1] === y) || (S.t[0] === x && S.t[1] === y);
+        ctx.strokeStyle = rgba(GLYPH[ch], open ? .35 : .9); ctx.lineWidth = Math.max(2, U * .07);
+        const lift = open ? U * .62 : 0;
+        for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(x * U + k * U * .25, y * U + U * .06); ctx.lineTo(x * U + k * U * .25, y * U + U * .94 - lift); ctx.stroke(); }
+        ctx.beginPath(); ctx.moveTo(x * U + U * .1, y * U + U * .5 - lift / 2); ctx.lineTo(x * U + U * .9, y * U + U * .5 - lift / 2); ctx.stroke();
+        pips(cx, y * U + U * .9 - (open ? 0 : 0), ch === 'a' ? 1 : 2, GLYPH[ch], U * .05);
+      }
+    }
+    // eased bodies
+    const ease = Math.min(1, dt * 14);
+    for (const [d, s] of [[fire.db, S.b], [fire.dt, S.t]]) { d[0] += (s[0] - d[0]) * ease; d[1] += (s[1] - d[1]) * ease; }
+    bloodBody((fire.db[0] + .5) * U, (fire.db[1] + .5) * U, U * .3);
+    // the twin: the same blood, seen in the pool's mirror
+    ctx.save(); ctx.globalAlpha = .78;
+    const tx = (fire.dt[0] + .5) * U, ty = (fire.dt[1] + .5) * U, r = U * .3;
+    softGlow(tx, ty, r * 2.2, '#8a1626', .25);
+    bulb(tx, ty, r, '#8a1626', .05 * Math.sin(time * 5));
+    ctx.fillStyle = 'rgba(255,235,225,.7)'; ctx.beginPath(); ctx.arc(tx - r * .3, ty - r * .2, r * .13, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    if (fire.freedT >= 0 && fire.freedT < 99) fire.freedT += dt;
+  }
+  function pips(cx, cy, n, col, r) {
+    ctx.fillStyle = col;
+    for (let k = 0; k < n; k++) { ctx.beginPath(); ctx.arc(cx + (k - (n - 1) / 2) * U * .16, cy, r || U * .06, 0, Math.PI * 2); ctx.fill(); }
+  }
+  function fireMove(d) {
+    if (fire.freedT >= 0) return;
+    const r = FE.step(fire.R, fire.S, d);
+    if (r.why) return;
+    fire.hist.push(fire.S);
+    if (r.ev.pit) { fire.db = r.S.b.slice(); fire.dt = r.S.t.slice(); say(r.ev.pit === 'b' ? 'Blood fell. You both rise again at the pool.' : 'The twin fell. You both rise again at the pool.'); }
+    else say('');
+    fire.S = r.S;
+    if (FE.solved(fire.R, fire.S)) {
+      const h = findIn(fire.R.cells, 'H');
+      if (!freed.Fire) { freed.Fire = true; release((h[0] + .5) * U, (h[1] + .5) * U, EL.Fire, 260); hubLatch(); save(); }
+      fire.freedT = 0;
+      say('Air meets lava at the hearth. Fire is freed, and its blood runs to the Circle.');
+      renderChrome();
+    }
+  }
+  function resetFire() { fire.S = FE.start(fire.R); fire.hist = []; fire.db = fire.S.b.slice(); fire.dt = fire.S.t.slice(); fire.freedT = freed.Fire && fire.freedT >= 0 ? fire.freedT : -1; }
+
+  // ═══ AIR — the weightless room ═══════════════════════════
+  const air = { R: AE.parseRoom(ROOMS.air), S: null, hist: [], live: null, db: null, anim: null, freedT: freed.Air ? 99 : -1, motes: [] };
+  air.S = AE.start(air.R);
+  air.db = air.S.b.slice();
+  air.live = AE.graph(air.R, 5e5).live;
+  for (let i = 0; i < 60; i++) air.motes.push([Math.random(), Math.random(), Math.random()]);
+
+  function airDraw(dt) {
+    const R = air.R, S = air.S, W = R.W, H = R.H;
+    ctx.fillStyle = '#0c0708'; ctx.fillRect(0, 0, W * U, H * U);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const ch = R.cells[y][x];
+      if (ch === '#') { wallTile(x, y); continue; }
+      // open air: a darker, softer floor far below
+      const v = hash(x, y, 7);
+      ctx.fillStyle = `rgb(${20 + v * 6},${16 + v * 5},${20 + v * 6})`; ctx.fillRect(x * U, y * U, U, U);
+    }
+    // drifting motes: the room has no floor to settle on
+    for (const m of air.motes) {
+      m[0] = (m[0] + dt * .01 * (m[2] - .5)) % 1; m[1] = (m[1] - dt * .015 * (.3 + m[2]) + 1) % 1;
+      ctx.fillStyle = `rgba(220,230,240,${.12 + .12 * m[2]})`;
+      ctx.fillRect(U + m[0] * (W - 2) * U, U + m[1] * (H - 2) * U, 1.5, 1.5);
+    }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const ch = R.cells[y][x], cx = (x + .5) * U, cy = (y + .5) * U;
+      if (ch === '*') {
+        const g = ctx.createRadialGradient(cx, cy, U * .05, cx, cy, U * .7);
+        g.addColorStop(0, 'rgba(255,236,180,.55)'); g.addColorStop(1, 'rgba(255,236,180,0)');
+        ctx.fillStyle = g; ctx.fillRect(x * U - U * .2, y * U - U * .2, U * 1.4, U * 1.4);
+        ctx.fillStyle = 'rgba(255,240,200,.18)'; ctx.fillRect(x * U + U * .1, y * U + U * .1, U * .8, U * .8);
+        for (let k = 0; k < 4; k++) { const t = (time * .4 + k / 4) % 1; ctx.fillStyle = `rgba(255,240,200,${.6 * (1 - t)})`; ctx.fillRect(x * U + U * (.2 + .6 * hash(x, y, k)), y * U + U * (.1 + .8 * t), 2, 2); }
+      } else if (ch === 'C') {
+        // the glass bell: the captive inside, its air rising as it fills
+        captive(cx, cy + U * .05, U * .28, 'Air', air.freedT < 0 ? 0 : Math.min(1, air.freedT / 1.2));
+        const fill = Math.min(1, S.air / R.need);
+        if (fill > 0) softGlow(cx, cy, U * .6, EL.Air, .25 * fill + .05 * Math.sin(time * 3));
+        ctx.strokeStyle = 'rgba(210,230,240,.55)'; ctx.lineWidth = Math.max(1.5, U * .04);
+        ctx.beginPath(); ctx.moveTo(cx - U * .4, cy + U * .42); ctx.lineTo(cx - U * .4, cy - U * .05); ctx.arc(cx, cy - U * .05, U * .4, Math.PI, 0); ctx.lineTo(cx + U * .4, cy + U * .42); ctx.stroke();
+        ctx.fillStyle = 'rgba(210,230,240,.08)'; ctx.fill();
+        ctx.fillStyle = '#4a3a30'; ctx.fillRect(cx - U * .46, cy + U * .38, U * .92, U * .08);
+        for (let k = 0; k < R.need; k++) { ctx.fillStyle = k < S.air ? EL.Air : 'rgba(210,230,240,.2)'; ctx.beginPath(); ctx.arc(cx + (k - (R.need - 1) / 2) * U * .2, cy - U * .58, U * .05, 0, Math.PI * 2); ctx.fill(); }
+      }
+    }
+    // ice (one may be drifting)
+    for (const k of S.ice) {
+      if (air.anim && air.anim.ice && air.anim.to === k) continue;
+      const [x, y] = k.split(',').map(Number); ice(x, y);
+    }
+    if (air.anim && air.anim.ice) {
+      const a = air.anim; a.t = Math.min(1, a.t + dt * 10 / Math.max(1, a.len));
+      const e = 1 - (1 - a.t) * (1 - a.t);
+      const x = a.from[0] + (a.end[0] - a.from[0]) * e, y = a.from[1] + (a.end[1] - a.from[1]) * e;
+      ctx.save(); if (a.gone) ctx.globalAlpha = 1 - Math.max(0, (a.t - .7) / .3); ice(x, y); ctx.restore();
+      if (a.t >= 1) {
+        if (a.gone) release((a.end[0] + .5) * U, (a.end[1] + .5) * U, EL.Air, 70);
+        air.anim = null;
+      }
+    }
+    const ease = Math.min(1, dt * 10);
+    air.db[0] += (S.b[0] - air.db[0]) * ease; air.db[1] += (S.b[1] - air.db[1]) * ease;
+    bloodBody((air.db[0] + .5) * U, (air.db[1] + .5) * U, U * .3);
+    if (air.freedT >= 0 && air.freedT < 99) air.freedT += dt;
+  }
+  function airPush(d) {
+    if (air.freedT >= 0) return;
+    // a new push finishes any drift still under way rather than being lost
+    if (air.anim) { if (air.anim.gone) release((air.anim.end[0] + .5) * U, (air.anim.end[1] + .5) * U, EL.Air, 70); air.anim = null; }
+    const r = AE.push(air.R, air.S, d);
+    if (r.why) { if (r.why !== 'blocked') say(r.why); return; }
+    air.hist.push(air.S);
+    if (r.ice) {
+      const from = r.ice[0], end = r.at || r.ice[r.ice.length - 1];
+      air.anim = { ice: true, from, end, to: end + '', t: 0, len: Math.abs(end[0] - from[0]) + Math.abs(end[1] - from[1]), gone: !!r.at };
+    }
+    air.S = r.S;
+    if (r.ev === 'lost') say('The ice turned to air in the open, and the air is gone.');
+    else say('');
+    if (AE.solved(air.R, air.S)) {
+      const c = findIn(air.R.cells, 'C');
+      if (!freed.Air) { freed.Air = true; setTimeout(() => release((c[0] + .5) * U, (c[1] + .5) * U, EL.Air, 260), 500); hubLatch(); save(); }
+      air.freedT = 0;
+      say('Ice and light made air, and the bell is full. Air is freed, and its blood runs to the Circle.');
+      renderChrome();
+    } else if (!air.live.has(AE.key(air.S))) say('This room can\'t be finished from here. Reset it.');
+  }
+  function resetAir() { air.S = AE.start(air.R); air.hist = []; air.db = air.S.b.slice(); air.anim = null; air.freedT = freed.Air && air.freedT >= 0 ? air.freedT : -1; }
+
+  // A swipe goes that way; a tap goes towards where you tapped.
+  let swipe = null;
+  function dirFrom(e, body) {
+    const r = cv.getBoundingClientRect();
+    let dx, dy;
+    if (swipe && Math.hypot(e.clientX - swipe[0], e.clientY - swipe[1]) > 18) { dx = e.clientX - swipe[0]; dy = e.clientY - swipe[1]; }
+    else { dx = e.clientX - r.left - (body[0] + .5) * U; dy = e.clientY - r.top - (body[1] + .5) * U; if (Math.hypot(dx, dy) < U * .4) return -1; }
+    return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0);
+  }
+
+  // ═══ chrome: nav, actions, notes ═════════════════════════
+  const VIEWS = [
+    { id: 'hub', name: 'The Circle', sub: 'the hub' },
+    { id: 'earth', name: 'Earth', sub: 'Dust + Water', el: 'Earth' },
+    { id: 'water', name: 'Water', sub: 'Fire + Ice', el: 'Water' },
+    { id: 'fire', name: 'Fire', sub: 'Air + Lava', el: 'Fire' },
+    { id: 'air', name: 'Air', sub: 'Ice + Light', el: 'Air' },
+  ];
+  function renderChrome() {
+    navEl.innerHTML = '';
+    for (const v of VIEWS) {
+      const b = document.createElement('button');
+      b.innerHTML = `${v.name}<span class="sub">${v.sub}${v.el && freed[v.el] ? ' · freed' : ''}</span>`;
+      if (view === v.id) b.setAttribute('aria-current', 'page');
+      b.onclick = () => go(v.id);
+      navEl.appendChild(b);
+    }
+    const n = HE.ORDER.filter((el) => freed[el]).length;
+    const stars = n === 4 ? 2 : 0;
+    tallyEl.innerHTML = `<span>Freed <b>${n} / 4</b></span><span>Stars <b>${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</b> (two for all four freed, one for the boss)</span><span>Lost Maxim <b>${hub.maxim ? 'found' : '—'}</b></span><span>Vault <b>${hub.vault ? 'found' : '—'}</b></span>`;
+    actionsEl.innerHTML = '';
+    const btn = (label, fn, cls) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; if (cls) b.className = cls; actionsEl.appendChild(b); return b; };
+    const undoReset = (undo, reset) => { btn('Undo', undo); btn('Reset room', () => { reset(); say(''); renderChrome(); }); };
+    if (view === 'hub') {
+      btn('Turn outer ring', () => hubTurn(0));
+      btn('Turn inner ring', () => hubTurn(1));
+      btn('Start over', () => { for (const el of HE.ORDER) { freed[el] = false; hub.cups[el] = false; } hub.maxim = false; hub.vault = false; hub.turns = [0, 0]; hub.ang = [0, 0]; earth.freedT = water.freedT = fire.freedT = air.freedT = -1; resetEarth(); resetWater(); resetFire(); resetAir(); save(); say(''); renderChrome(); });
+      noteEl.innerHTML = '<strong>The Circle.</strong> Every freed captive\'s blood runs from its door to its cup at the rim. Fill all four cups and the seal in the middle opens on the boss. The two rings turn; nothing tells you why.';
+    } else if (view === 'earth') {
+      btn('Pull in every tendril', () => { earth.S = { turns: earth.S.turns, lines: {} }; earth.active = null; say(''); });
+      btn('Reset room', () => { resetEarth(); say(''); });
+      noteEl.innerHTML = `<strong>${ROOMS.earth.label}.</strong> ${ROOMS.earth.teaches}`;
+    } else if (view === 'water') {
+      btn('Flip', waterFlip, 'primary');
+      btn('Undo', () => { if (waterBusy() || !water.hist.length) return; water.S = water.hist.pop(); water.queue = []; water.freedT = freed.Water && WE.solved(water.R, water.S) ? 99 : -1; say(''); renderChrome(); });
+      btn('Reset room', () => { resetWater(); say(''); renderChrome(); });
+      const pv = btn(water.preview ? 'Hide flip preview' : 'Show flip preview', () => { water.preview = !water.preview; renderChrome(); });
+      pv.setAttribute('aria-pressed', String(water.preview));
+      noteEl.innerHTML = `<strong>${ROOMS.water.label}.</strong> ${ROOMS.water.teaches}`;
+    } else if (view === 'fire') {
+      undoReset(() => { if (!fire.hist.length || fire.freedT >= 0) return; fire.S = fire.hist.pop(); fire.db = fire.S.b.slice(); fire.dt = fire.S.t.slice(); say(''); }, resetFire);
+      noteEl.innerHTML = `<strong>${ROOMS.fire.label}.</strong> ${ROOMS.fire.teaches} Swipe, tap beside Blood, or use the arrow keys.`;
+    } else if (view === 'air') {
+      undoReset(() => { if (!air.hist.length || air.freedT >= 0) return; air.anim = null; air.S = air.hist.pop(); air.db = air.S.b.slice(); say(''); }, resetAir);
+      noteEl.innerHTML = `<strong>${ROOMS.air.label}.</strong> ${ROOMS.air.teaches} Swipe, tap beside Blood, or use the arrow keys.`;
+    }
+  }
+  function resetEarth() { earth.S = EE.start(earth.R); earth.active = null; earth.freedT = freed.Earth ? earth.freedT : -1; }
+  function resetWater() { water.S = WE.start(water.R); water.hist = []; water.frames = []; water.queue = []; water.flipT = 1; water.freedT = freed.Water ? 99 : -1; }
+  function go(id) {
+    view = id; say('');
+    try { history.replaceState(null, '', '#' + id); } catch (e) {}
+    layout(); renderChrome();
+    if (id === 'hub') hubSay();
+  }
+  function layout() {
+    if (view === 'earth') resize(earth.R.W, earth.R.H, 640);
+    else if (view === 'water') resize(water.R.W, water.R.H, 560);
+    else if (view === 'fire') resize(fire.R.W, fire.R.H, 640);
+    else if (view === 'air') resize(air.R.W, air.R.H, 560);
+    else { const w = Math.min(cv.parentElement.clientWidth, 600); resize(1, 1, w); U = w / 24; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', layout);
+
+  cv.addEventListener('pointerdown', (e) => {
+    cv.setPointerCapture(e.pointerId);
+    swipe = [e.clientX, e.clientY];
+    if (view === 'earth') earthDown(e);
+    else if (view === 'water') waterTap(e);
+    else if (view === 'hub') hubTap(e);
+  });
+  cv.addEventListener('pointermove', (e) => { if (view === 'earth') earthMove(e); });
+  cv.addEventListener('pointerup', (e) => {
+    if (view === 'earth') earthUp();
+    else if (view === 'fire') { const d = dirFrom(e, fire.S.b); if (d >= 0) fireMove(d); }
+    else if (view === 'air') { const d = dirFrom(e, air.S.b); if (d >= 0) airPush(d); }
+    swipe = null;
+  });
+  window.addEventListener('keydown', (e) => {
+    const d = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 }[e.key];
+    if (view === 'fire' && d != null) { e.preventDefault(); fireMove(d); }
+    if (view === 'air' && d != null) { e.preventDefault(); airPush(d); }
+    if (view !== 'water') return;
+    if (d != null) { e.preventDefault(); water.queue = []; waterStep(d); }
+    if (e.key === ' ' || e.key === 'f') { e.preventDefault(); waterFlip(); }
+  });
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(.05, (now - last) / 1000); last = now; time += dt;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (view === 'earth') earthDraw(dt);
+    else if (view === 'water') { waterTick(); waterDraw(dt); }
+    else if (view === 'fire') fireDraw(dt);
+    else if (view === 'air') airDraw(dt);
+    else hubDraw(dt);
+    drawParticles(dt);
+    requestAnimationFrame(frame);
+  }
+  const start = (location.hash || '').slice(1);
+  go(VIEWS.some((v) => v.id === start) ? start : 'hub');
+  requestAnimationFrame(frame);
+})();
+</script>

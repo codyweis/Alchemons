@@ -31,6 +31,7 @@ import 'package:alchemons/games/planet_dungeon/burn_field.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_glass.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
 import 'package:alchemons/games/planet_dungeon/guardian_grain_death.dart';
+import 'package:alchemons/games/planet_dungeon/blood_rite_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
@@ -43,6 +44,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_spirit.dart
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_light.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_blood.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_blood_rites.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
@@ -356,6 +358,7 @@ class PlanetDungeonGame extends FlameGame {
     this.onRaidExpired,
     this.onRaidWiped,
     this.clearedGuardianCount = 0,
+    this.riteCaptives = const [],
     DungeonLayout? layoutOverride,
   }) : layout = layoutOverride ?? kPlanetDungeonLayouts[element]! {
     discoveredClouds.addAll(initialDiscoveredCloudIds);
@@ -401,13 +404,18 @@ class PlanetDungeonGame extends FlameGame {
     _resetConservatoryState();
     _resetVaultState();
     _resetArchiveState();
-    _resetHeartState();
+    _resetRitesState();
     // Raids skip the altar puzzle: the guardian is already rampaging.
     if (isRaid) guardianAwake = true;
   }
 
   final String element;
   final List<CosmicPartyMember> party;
+
+  /// Blood: the four captives (Fire, Water, Earth, Air) the Rites hold. The
+  /// screen picks real species; a test may leave this empty (each captive
+  /// then wears the Blood's own body).
+  final List<CosmicPartyMember> riteCaptives;
   final int initialStarMask;
   final void Function(SoundCue cue)? onSound;
 
@@ -1057,9 +1065,6 @@ class PlanetDungeonGame extends FlameGame {
   final Map<String, double> _vaultDoorShown = {};
   String? _vaultDoorRoom;
 
-  /// Blood's garnet hearts as SHOWN: 0 → 1 as they light on every cock.
-  double _lifeShown = -1;
-
   bool get _isCathedral => layout.element == 'Fire';
 
   // ── Water (Mirror Tide) run-state ──
@@ -1268,6 +1273,11 @@ class PlanetDungeonGame extends FlameGame {
   /// puzzle — the lens, both ends of a portal, the seal — has to be in view
   /// at once). 1.0 everywhere else.
   double get _planetFitZoom {
+    if (_isRites && hasLayout) {
+      return _riteFitsRoom
+          ? _fitFrame(currentRoom.bounds).$2.clamp(kMinFitZoom, 1.0)
+          : 1.0;
+    }
     if (!_isVault || !hasLayout) return 1.0;
     if (currentRoom.sun?.grid == null) return 1.0;
     return _fitFrame(currentRoom.bounds).$2.clamp(kMinFitZoom, 1.0);
@@ -2012,17 +2022,12 @@ class PlanetDungeonGame extends FlameGame {
   final ShadowRun archive = ShadowRun();
 
   bool get _isArchive => layout.element == 'Light';
-  // ── Blood · the Sanguine Orrery (planet_dungeon_game_blood.dart) ──
-  /// The whole orrery: where the beat is, and what that has opened. ONE
-  /// field, because on this planet the CLOCK is the map — and it is the first
-  /// planet in the set whose state the player cannot author at all (see
-  /// planet_dungeon_layout_blood.dart).
-  final SanguineHeart heart = SanguineHeart();
+  // ── Blood · the Blood Rites (planet_dungeon_game_blood.dart) ──
+  /// The four captive rooms, the Circle's rings and cups, and Sanguorath's
+  /// shells. ONE field (see planet_dungeon_layout_blood.dart).
+  final BloodRun rites = BloodRun();
 
-  /// The strike-beat edge Sanguorath throws the pulse forward on.
-  bool _sanguorathBitLastFrame = false;
-
-  bool get _isHeart => layout.element == 'Blood';
+  bool get _isRites => layout.element == 'Blood';
 
   final Map<String, double> conduitEnergy = {}; // conduitId -> seconds left
   /// Initial hold per conduit — drives the visible drain-timer arc.
@@ -2478,7 +2483,6 @@ class PlanetDungeonGame extends FlameGame {
     if (_isConservatory) return _conservatoryProgressReadout();
     if (_isVault) return _vaultProgressReadout();
     if (_isArchive) return _archiveProgressReadout();
-    if (_isHeart) return _heartProgressReadout();
     return null;
   }
 
@@ -2761,9 +2765,6 @@ class PlanetDungeonGame extends FlameGame {
   double _hapticHitCd = 0;
   bool _hapticDoorSeen = false;
 
-  /// Seconds to the next felt heartbeat on Blood (see `_tickHeartHaptic`).
-  double _heartHapticT = 0.4;
-
   void _haptic(DungeonHaptic kind) => onHaptic?.call(kind);
 
   /// Edges the game cannot hand over as events: a hit landing on the active
@@ -2875,6 +2876,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetBogState();
     _resetRuinsState(); // the same, for Sablis's seal yard
     _resetVaultState(); // and Nythralor's dial and rings
+    _resetRitesState(); // and Hemavorn's rooms, cups and rings
     _resetArchiveState(); // and the archive's effigies and slips
     _resetFuneralState(); // and Requia's funeral
     _resetConservatoryState(); // and Verdanthos's wings, trellis and buds
@@ -2895,8 +2897,14 @@ class PlanetDungeonGame extends FlameGame {
       combatCompanions.add(_createCombatCompanion(m, Offset.zero));
     }
     await _loadGuardianArt();
+    await _loadRiteAllies();
     _placeAtEntrance();
-    _setHint('Three Alchemons enter. Three stars to collect', 5.5);
+    _setHint(
+      creatures.length == 1
+          ? 'One Alchemon enters alone. Three stars to collect'
+          : 'Three Alchemons enter. Three stars to collect',
+      5.5,
+    );
   }
 
   /// The planet guardian's Mystic sprite (fallback: procedural body) and its
@@ -3116,7 +3124,7 @@ class PlanetDungeonGame extends FlameGame {
     _resetConservatoryState();
     _resetVaultState();
     _resetArchiveState();
-    _resetHeartState();
+    _resetRitesState();
   }
 
   void _resetRun() {
@@ -3178,6 +3186,8 @@ class PlanetDungeonGame extends FlameGame {
   void regroup() {
     // Dark: everyone in THIS room back to its door; the others stay put.
     if (_isVault && _sunRegroup()) return;
+    // Blood: in a captive room, the room starts again.
+    if (_isRites && _riteRegroup()) return;
     final anchor = _roomEntryAnchor ?? active?.position;
     if (anchor == null) return;
     _spreadCreaturesAround(anchor);
@@ -3430,8 +3440,7 @@ class PlanetDungeonGame extends FlameGame {
       _updateLightGlass(dt);
       _easeWorldDoors(dt);
     }
-    _updateHeart(a, room, dt);
-    if (_isHeart) _updateBloodGlass(dt);
+    _updateRites(a, room, dt);
     _syncCombatFromCreatures();
     _updateCombat(dt);
     _syncCreaturesFromCombat();
@@ -3628,7 +3637,6 @@ class PlanetDungeonGame extends FlameGame {
     if (_isConservatory) _conservatoryAmbientHint(a, room);
     if (_isVault) _vaultAmbientHint(a, room);
     if (_isArchive) _archiveAmbientHint(a, room);
-    if (_isHeart) _heartAmbientHint(a, room);
   }
 
   /// Atmospheric flavor — the lowest channel. It can never take the capsule
@@ -4267,7 +4275,10 @@ class PlanetDungeonGame extends FlameGame {
         !(_isArchive && room.hall?.grid == 'door_of_shadow') &&
         // Dark's rite is the Heart: blood on the Great Seal latches A and B
         // from the module, and Noctryos wakes as it burns.
-        !(_isVault && room.sun?.grid == 'sun_heart')) {
+        !(_isVault && room.sun?.grid == 'sun_heart') &&
+        // Blood's rite is the Circle: all four cups full latch A and B from
+        // the module, and Sanguorath wakes below the seal.
+        !(_isRites && room.rite?.kind == RiteKind.circle)) {
       return;
     }
     // A debug rematch re-fights a guardian whose star is already banked; its
@@ -4314,7 +4325,7 @@ class PlanetDungeonGame extends FlameGame {
       // Not on the Black Sun: its party may be split across rooms when the
       // seal burns, and Noctryos' enemies come out of the arena's black
       // holes below.
-      if (!_isVault) {
+      if (!_isVault && !_isRites) {
         spawnWispWave(
           element: wakeEl,
           center: room.bounds.center,
@@ -5644,6 +5655,7 @@ class PlanetDungeonGame extends FlameGame {
     final dealt = damage * _enemyDamageTakenScale(enemy);
     _spawnDamageNumber(enemy, dealt);
     enemy.hp -= dealt;
+    _riteHoldShell(enemy);
     enemy.hitFlash = 0.18;
     if (enemy.hp <= 0) enemy.isDead = true;
   }
@@ -5654,6 +5666,8 @@ class PlanetDungeonGame extends FlameGame {
     final base = identical(enemy, _guardianEnemy) && !guardianVulnerable
         ? 0.35
         : 1.0;
+    // Blood: nothing lands on Sanguorath's shell.
+    if (_isRites) return base * _riteDamageScale(enemy);
     if (!_isVenom) return base;
     // Poison (§8): NOTHING LANDS ON A CLOSED PLAGUE. A bar ends with it
     // shutting, and the only thing that opens it is that plague's own
@@ -7321,6 +7335,7 @@ class PlanetDungeonGame extends FlameGame {
         );
         if (d <= enemy.radius + lateral) {
           enemy.hp -= dmg * _enemyDamageTakenScale(enemy);
+          _riteHoldShell(enemy);
           enemy.hitFlash = 0.18;
           if (enemy.hp <= 0) enemy.isDead = true;
         }
@@ -7537,6 +7552,7 @@ class PlanetDungeonGame extends FlameGame {
           !(comp.chargeHitIds?.contains(e.hashCode) ?? false)) {
         comp.chargeHitIds?.add(e.hashCode);
         e.hp -= comp.chargeDamage * _enemyDamageTakenScale(e);
+        _riteHoldShell(e);
         e.hitFlash = 0.18;
         if (e.hp <= 0) e.isDead = true;
         // Horn+Plant: root survivors in place.
@@ -7561,6 +7577,7 @@ class PlanetDungeonGame extends FlameGame {
             targetHp: e.hp,
             targetHpFraction: e.hpFraction,
           );
+          _riteHoldShell(e);
           if (e.hp <= 0) e.isDead = true;
         }
       }
@@ -8008,6 +8025,7 @@ class PlanetDungeonGame extends FlameGame {
     _cue(SoundCue.combatHitLight);
     final dealt = amount * _enemyDamageTakenScale(enemy);
     enemy.hp -= dealt;
+    _riteHoldShell(enemy);
     enemy.hitFlash = max(enemy.hitFlash, 0.14);
     _spawnDamageNumber(enemy, dealt);
     if (enemy.hp <= 0) {
@@ -8986,6 +9004,7 @@ class PlanetDungeonGame extends FlameGame {
           currentRoom,
         );
         e.hp -= comp.chargeDamage * 1.2 * _enemyDamageTakenScale(e);
+        _riteHoldShell(e);
         e.hitFlash = 0.2;
         if (e.hp <= 0) e.isDead = true;
       }
@@ -9207,7 +9226,7 @@ class PlanetDungeonGame extends FlameGame {
     // mouths, the collateral cocks, the rite's balance, the heart-drum and
     // the Kin's steadying all ride one dispatcher — and the vagal node, like
     // Dark's shadow-vane, must outrank the guardian's own catch.
-    if (_isHeart && _tryHeartVerb(a)) {
+    if (_isRites && _tryRiteVerb(a)) {
       onChanged();
       return true;
     }
@@ -9482,8 +9501,8 @@ class PlanetDungeonGame extends FlameGame {
       _archiveReveal(a, room);
       return;
     }
-    if (_isHeart) {
-      _heartReveal(a, room);
+    if (_isRites) {
+      _riteReveal(a, room);
       return;
     }
     if (room.clouds.isEmpty && room.anchors.isEmpty) {
@@ -9898,6 +9917,7 @@ class PlanetDungeonGame extends FlameGame {
       } else {
         e.hp -= e.maxHp / guardianStrikesNeeded;
       }
+      _riteHoldShell(e);
       e.hitFlash = 0.3;
       if (e.hp <= 0) e.isDead = true; // _updateCombat banks the star
     } else {
@@ -9968,6 +9988,8 @@ class PlanetDungeonGame extends FlameGame {
     if (_isArchive && _archiveBlocksAt(center, room)) return true;
     // Dark: the grid's rules, and a step into a portal.
     if (_isVault && _sunBlocksAt(center, room)) return true;
+    // Blood: each captive room's rules, and the Circle's round floor.
+    if (_isRites && _riteBlocksAt(center, room)) return true;
     // When walking, you can't leave solid ground (gaps / open sky block you).
     if (!flightActive && !_onSolidGround(center, room)) return true;
     return false;
@@ -10040,6 +10062,9 @@ class PlanetDungeonGame extends FlameGame {
   void passThroughDoor(DungeonDoor d) {
     // Dark: a door takes only the body you are steering.
     if (_isVault && _sunPassThroughDoor(d)) return;
+    // Blood: the freed come down to Sanguorath; a captive room keeps its
+    // state and puts Blood on its own square.
+    if (_isRites) _ritePassThroughDoor(d);
     // Ice: the ride SCOURS the flue and the rimefall THAWS the shaft.
     if (_isShaft) _onShaftTransit(currentRoom, d);
     // Mud: climbing a risen wallow HEAVES the fen back to its opening state.
@@ -10076,6 +10101,7 @@ class PlanetDungeonGame extends FlameGame {
       if (hint != null) _announceRoomEntry(hint);
     }
     _teachRoom(currentRoom);
+    if (_isRites) _riteAfterTransit();
     _maybeSpawnGuardianCombat(currentRoom);
     onChanged();
   }
@@ -10113,7 +10139,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isConservatory && _conservatoryDoorHidden(room, door)) return true;
     if (_isVault && _vaultDoorHidden(room, door)) return true;
     if (_isArchive && _archiveDoorHidden(room, door)) return true;
-    if (_isHeart && _heartDoorHidden(room, door)) return true;
+    if (_isRites && _riteDoorHidden(room, door)) return true;
     // The Steam vault shaft stays hidden until the burst-disc is blown.
     if (_isVapor &&
         !burstDiscBlown &&
@@ -10147,7 +10173,6 @@ class PlanetDungeonGame extends FlameGame {
     if (_isConservatory && _conservatoryDoorBlocked(room, door)) return true;
     if (_isVault && _vaultDoorBlocked(room, door)) return true;
     if (_isArchive && _archiveDoorBlocked(room, door)) return true;
-    if (_isHeart && _heartDoorBlocked(room, door)) return true;
     return _isTemple && _tideDoorBlocked(room, door);
   }
 
@@ -10238,9 +10263,6 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isArchive && _archiveDoorBlocked(room, door)) {
       return _archiveDoorHint(room, door);
-    }
-    if (_isHeart && _heartDoorBlocked(room, door)) {
-      return _heartDoorHint(room, door);
     }
     // Stars before the rite (the hint audit, 2026-09-25): where the finale
     // door leads into the guardian room, the rite line answered first and a
@@ -10345,7 +10367,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isConservatory) return _conservatoryObjectiveHint(room);
     if (_isVault) return _vaultObjectiveHint(room);
     if (_isArchive) return _archiveObjectiveHint(room);
-    if (_isHeart) return _heartObjectiveHint(room);
+    if (_isRites) return _riteObjectiveHint(room);
     // Air (§5.6): GOAL only. How a wind is woken, what it will scour, and how
     // the storm chooses its iron are all Mask-insight content.
     if (_isSpire) {
@@ -10743,7 +10765,7 @@ class PlanetDungeonGame extends FlameGame {
         puff: _fx.puff,
       );
       _drawSporeDrift(canvas, vp);
-    } else if (_isHeart) {
+    } else if (_isRites) {
       // A DARK RED HAZE, low. The generic sky clouds lay grey fog over the
       // meat of every chamber (§7.11).
       drawDriftingClouds(
@@ -10859,7 +10881,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isConservatory) _renderConservatory(canvas, room);
     if (_isVault) _renderVault(canvas, room);
     if (_isArchive) _renderArchive(canvas, room);
-    if (_isHeart) _renderHeart(canvas, room);
+    if (_isRites) _renderRites(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
@@ -11214,7 +11236,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isConservatory) return _conservatoryMoodTarget;
     if (_isVault) return _vaultMoodTarget;
     if (_isArchive) return _archiveMoodTarget;
-    if (_isHeart) return _heartMoodTarget;
+    if (_isRites) return _riteMoodTarget;
     return switch (_themeFor(currentRoom)) {
       _AirRoomTheme.summit => 0.78,
       _AirRoomTheme.ascent ||
@@ -13990,7 +14012,8 @@ class PlanetDungeonGame extends FlameGame {
     final b = room.bounds;
     // A room framed whole sits in the clear part of the view, centred there
     // rather than in the middle of a screen the HUD half covers.
-    if (_isVault && room.sun?.grid != null && hasLayout) {
+    if (((_isVault && room.sun?.grid != null) || _riteFitsRoom) &&
+        hasLayout) {
       final z = viewZoom;
       final (frame, _) = _fitFrame(b);
       if (b.width * z <= frame.width + 1 && b.height * z <= frame.height + 1) {
@@ -14017,6 +14040,9 @@ class PlanetDungeonGame extends FlameGame {
     // Dark's grid rooms draw their own floor, and their void is a real hole
     // down to the planet's black hole — a plain floor under it would fill it.
     if (_isVault && room.sun?.grid != null) return;
+    // Blood's rooms (the Circle, the captive rooms, the vault) lay their own
+    // floors.
+    if (_isRites && room.rite != null && !_riteInArena) return;
 
     // Open-sky rooms (platforms): floating ledges over the drifting sky.
     if (room.platforms.isNotEmpty) {
@@ -14054,7 +14080,8 @@ class PlanetDungeonGame extends FlameGame {
           room.id == layout.entranceRoomId &&
               !_isVault &&
               !_isArchive &&
-              !_isFuneral,
+              !_isFuneral &&
+              !_isRites,
         );
       }
       return;
@@ -14525,7 +14552,7 @@ class PlanetDungeonGame extends FlameGame {
     // inside is a decal), and the generic rock promptly drew over them.
     if (_isShaft) return room.walls.toSet();
     // And Blood: a rib, a keystone, a baffle, a knot — body, not rock.
-    if (_isHeart) return room.walls.toSet();
+    if (_isRites) return room.walls.toSet();
     // And Dark: its three are slabs of obsidian lying on the void.
     if (_isVault) return room.walls.toSet();
     // And Spirit's one wall is the chapel's bier.

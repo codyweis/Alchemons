@@ -18,8 +18,10 @@ import 'dart:ui';
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/games/wilderness/field/grain_field.dart';
+import 'package:alchemons/games/wilderness/field/home_sand_field.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/home_decor.dart';
+import 'package:alchemons/models/home_sand.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
 import 'package:alchemons/models/scenes/geode/geode_scene.dart';
@@ -178,6 +180,16 @@ enum HomeRealm {
       HomeMood('swell', 'SWELL', weather: WeatherKind.swell),
       HomeMood('shells', 'SHELLS', aftermath: true),
     ],
+  ),
+  // Bought in the shop, for a home only — never in the wild
+  // (models/shop_scenes.dart). A floor of sand in colours the player picks
+  // (games/wilderness/field/home_sand_field.dart): no weather, no hour.
+  sand(
+    'Living Sands',
+    'dust',
+    near: HomeRow(SceneLayer.layer4, 0.80, 100),
+    far: HomeRow(SceneLayer.layer3, 0.55, 70),
+    moods: [HomeMood('clear', 'CLEAR')],
   );
 
   const HomeRealm(
@@ -210,6 +222,7 @@ enum HomeRealm {
     HomeRealm.dunes => dunesScene,
     HomeRealm.geode => geodeScene,
     HomeRealm.tidal => tidalScene,
+    HomeRealm.sand => homeSandScene(),
   };
 
   HomeRow row({required bool back}) => back ? far : near;
@@ -228,6 +241,7 @@ enum HomeRealm {
 
   /// The pieces of this realm's own scenery the player can place.
   List<HomeScenery> get scenery => switch (this) {
+    HomeRealm.sand => const [],
     HomeRealm.valley => const [
       HomeScenery(FieldPiece.tree, 'GREAT TREE', w: 100, h: 100, half: 120),
       HomeScenery(
@@ -447,6 +461,7 @@ enum HomeRealm {
 
     final s = sceneryOf;
     return switch (this) {
+      HomeRealm.sand => [],
       HomeRealm.valley => [
         for (final (x, k) in ValleyField.homeTrees(nearP))
           piece(FieldPiece.tree, x, scale: k),
@@ -492,12 +507,7 @@ enum HomeRealm {
         for (final (fx, fy, hw) in VolcanoField.treeRocks)
           piece(FieldPiece.snag, fx, y: fy, scale: hw / 42),
         for (final (fx, _, h, seed) in VolcanoField.nearSpires)
-          piece(
-            FieldPiece.spire,
-            fx,
-            y: 0.86 + 0.006 * seed,
-            scale: h / 46,
-          ),
+          piece(FieldPiece.spire, fx, y: 0.86 + 0.006 * seed, scale: h / 46),
         for (final (fx, _, h, seed) in VolcanoField.midSpires)
           piece(
             FieldPiece.spire,
@@ -515,7 +525,12 @@ enum HomeRealm {
       ],
       HomeRealm.dunes => [
         for (final (back, kind, fx, w, _) in DunesField.homeRuins)
-          piece(kind, fx, back: back, scale: w / s(kind)!.width(back: back)),
+          piece(
+            kind,
+            fx,
+            back: back,
+            scale: w / s(kind)!.width(back: back),
+          ),
         for (final (fx, w, _) in DunesField.homeRocks)
           piece(FieldPiece.outcrop, fx, scale: w / s(FieldPiece.outcrop)!.w),
       ],
@@ -703,8 +718,7 @@ class HomeScenery {
 
   /// Its reach to either side of its point at [scale], in layer units.
   double reach({required bool back, double scale = 1}) =>
-      (half > 2 ? half * (back ? 0.62 : 1) : half * width(back: back)) *
-      scale;
+      (half > 2 ? half * (back ? 0.62 : 1) : half * width(back: back)) * scale;
 
   /// The sizes the player can choose between.
   static const scales = [0.7, 0.85, 1.0, 1.2, 1.45];
@@ -850,6 +864,7 @@ const int kHomeBiomeMaxScenery = 18;
 class HomeBiomeLayout {
   const HomeBiomeLayout({
     this.realm = HomeRealm.valley,
+    this.sandStyle = const HomeSandStyle(),
     this.moods = const {},
     this.hour,
     this.residents = const [],
@@ -858,6 +873,7 @@ class HomeBiomeLayout {
   });
 
   final HomeRealm realm;
+  final HomeSandStyle sandStyle;
 
   /// The mood picked for each realm, by realm name — each keeps its own, so
   /// going back to the Valley finds its rain still falling.
@@ -895,6 +911,7 @@ class HomeBiomeLayout {
 
   HomeBiomeLayout copyWith({
     HomeRealm? realm,
+    HomeSandStyle? sandStyle,
     Map<String, String>? moods,
     double? Function()? hour,
     List<HomeResident>? residents,
@@ -902,6 +919,7 @@ class HomeBiomeLayout {
     Set<String>? seen,
   }) => HomeBiomeLayout(
     realm: realm ?? this.realm,
+    sandStyle: sandStyle ?? this.sandStyle,
     moods: moods ?? this.moods,
     hour: hour != null ? hour() : this.hour,
     residents: residents ?? this.residents,
@@ -945,7 +963,8 @@ class HomeBiomeLayout {
   /// residents and what is placed. [floats] says which residents can be
   /// held in the air.
   SceneDefinition scene(bool Function(String instanceId) floats) =>
-      realm.wildScene.copyWith(spawnPoints: spawnPoints(floats));
+      (realm == HomeRealm.sand ? homeSandScene(sandStyle) : realm.wildScene)
+          .copyWith(spawnPoints: spawnPoints(floats));
 
   List<SpawnPoint> spawnPoints(bool Function(String instanceId) floats) => [
     for (final r in residents) spawnPointFor(r, floats: floats(r.instanceId)),
@@ -1054,7 +1073,12 @@ class HomeBiomeLayout {
               hostOf(p.spawnId, p.beside, back: back),
             )
           else if (realm.sceneryOf(p.kind) case final k? when k.solid)
-            (p.spawnId, p.x, k.reach(back: back, scale: p.scale) / period, null),
+            (
+              p.spawnId,
+              p.x,
+              k.reach(back: back, scale: p.scale) / period,
+              null,
+            ),
     ];
   }
 
@@ -1112,14 +1136,11 @@ class HomeBiomeLayout {
   double gap({required bool back, bool aloft = false}) =>
       2 * _reachOf(back: back, aloft: aloft);
 
-  bool _freeAt(
-    double at,
-    double reach,
-    List<(double, double)> taken,
-  ) => taken.every((o) {
-    final d = _wrap(at - o.$1).abs();
-    return d >= reach + o.$2 - 1e-9;
-  });
+  bool _freeAt(double at, double reach, List<(double, double)> taken) =>
+      taken.every((o) {
+        final d = _wrap(at - o.$1).abs();
+        return d >= reach + o.$2 - 1e-9;
+      });
 
   /// The free place nearest [x] on [back]'s row for something reaching
   /// [reach] to either side (a share of the loop), or null if the row has
@@ -1205,8 +1226,7 @@ class HomeBiomeLayout {
       final side = d >= 0 ? 1.0 : -1.0;
       // One on each side of it at most.
       final taken = all.any(
-        (o) =>
-            o.$4 == hid && o.$1 != id && _wrap(o.$2 - hx).sign == side,
+        (o) => o.$4 == hid && o.$1 != id && _wrap(o.$2 - hx).sign == side,
       );
       if (taken) continue;
       final keepsake = piece(hid)?.isKeepsake ?? false;
@@ -1239,32 +1259,35 @@ class HomeBiomeLayout {
 
   /// [layout] with whatever stood beside [hostId] moved along by [by] (a
   /// share of the loop) — it goes where its host goes.
-  HomeBiomeLayout carryBeside(String hostId, double by) => copyWith(
-    residents: [
-      for (final r in residents)
-        r.beside == hostId ? r.copyWith(x: (r.x + by) % 1.0) : r,
-    ],
-  ).withPlaced([
-    for (final p in placed)
-      p.beside == hostId ? p.copyWith(x: (p.x + by) % 1.0) : p,
-  ]);
+  HomeBiomeLayout carryBeside(String hostId, double by) =>
+      copyWith(
+        residents: [
+          for (final r in residents)
+            r.beside == hostId ? r.copyWith(x: (r.x + by) % 1.0) : r,
+        ],
+      ).withPlaced([
+        for (final p in placed)
+          p.beside == hostId ? p.copyWith(x: (p.x + by) % 1.0) : p,
+      ]);
 
   /// [layout] with nothing standing beside [hostId] any more — it went to
   /// the other row, or away.
-  HomeBiomeLayout freeBeside(String hostId) => copyWith(
-    residents: [
-      for (final r in residents)
-        r.beside == hostId ? r.copyWith(beside: () => null) : r,
-    ],
-  ).withPlaced([
-    for (final p in placed)
-      p.beside == hostId ? p.copyWith(beside: () => null) : p,
-  ]);
+  HomeBiomeLayout freeBeside(String hostId) =>
+      copyWith(
+        residents: [
+          for (final r in residents)
+            r.beside == hostId ? r.copyWith(beside: () => null) : r,
+        ],
+      ).withPlaced([
+        for (final p in placed)
+          p.beside == hostId ? p.copyWith(beside: () => null) : p,
+      ]);
 
   // ── Saving ───────────────────────────────────────────────────────────────
 
   Map<String, dynamic> toJson() => {
     'realm': realm.name,
+    'sandStyle': sandStyle.toJson(),
     if (moods.isNotEmpty) 'moods': moods,
     if (hour != null) 'hour': hour,
     'residents': [for (final r in residents) r.toJson()],
@@ -1290,6 +1313,7 @@ class HomeBiomeLayout {
     final seen = <String>{};
     return HomeBiomeLayout(
       realm: HomeRealm.byName(json['realm'] as String?),
+      sandStyle: HomeSandStyle.fromJson(json['sandStyle']),
       moods: moods is Map
           ? {
               for (final e in moods.entries)
@@ -1313,9 +1337,7 @@ class HomeBiomeLayout {
                   e.key as String: () {
                     final ids = <String>{};
                     return [
-                      for (final p in (e.value as List).map(
-                        HomePiece.fromJson,
-                      ))
+                      for (final p in (e.value as List).map(HomePiece.fromJson))
                         if (p != null && ids.add(p.id)) p,
                     ];
                   }(),

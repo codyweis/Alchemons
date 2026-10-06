@@ -1708,7 +1708,7 @@ class _NightBook extends KeepsakeArt {
   }
 }
 
-/// Blood — The Blood Is the Life: a garnet heart in its cradle, beating.
+/// Blood — The Quintessence: a garnet heart in its cradle, beating.
 class _GarnetHeart extends KeepsakeArt {
   _GarnetHeart() : super(const Color(0xFFE0405A));
 

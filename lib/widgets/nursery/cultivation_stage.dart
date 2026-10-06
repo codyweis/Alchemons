@@ -3,6 +3,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
+import 'package:alchemons/widgets/fx/grain_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -32,14 +33,19 @@ class VialActionButton extends StatelessWidget {
         // No pill, no border, no icon, and the same white whatever the
         // specimen's rarity is. The word is the button.
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'monospace',
-            color: Colors.white,
-            fontSize: 17.6,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2.2,
+        // Sand, like the vial it sits on: the word gathers out of grains
+        // as the dialog opens, then rests as one picture.
+        child: IntrinsicWidth(
+          child: GrainText(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: Colors.white,
+              fontSize: 17.6,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 2.2,
+            ),
           ),
         ),
       ),

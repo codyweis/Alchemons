@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:alchemons/widgets/fx/fusion_burst.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:flutter/rendering.dart';
@@ -110,18 +111,19 @@ class HarvestParticleField {
     _phase = Float32List.fromList(phase);
     _fly = Float32List.fromList(fly);
 
-    // Two triangles, sampled into points, at unit radius.
+    // The cultivation's octagram at unit radius, sampled evenly along its
+    // line into points; the rings are its ring. (It was a hexagram, which
+    // read as the Star of David rather than alchemy.)
     final sx = <double>[], sy = <double>[];
     if (profile.sigil) {
-      for (final rot in [-math.pi / 2, math.pi / 2]) {
-        for (var e = 0; e < 3; e++) {
-          final a0 = rot + e * 2 * math.pi / 3;
-          final a1 = rot + (e + 1) * 2 * math.pi / 3;
-          for (var k = 0; k < 26; k++) {
-            final f = k / 26;
-            sx.add(math.cos(a0) * (1 - f) + math.cos(a1) * f);
-            sy.add(math.sin(a0) * (1 - f) + math.sin(a1) * f);
-          }
+      final pts = octagramLine(1);
+      for (var k = 1; k < pts.length; k++) {
+        final a = pts[k - 1], b = pts[k];
+        final n = math.max(1, ((b - a).distance / 0.07).round());
+        for (var j = 0; j < n; j++) {
+          final p = Offset.lerp(a, b, j / n)!;
+          sx.add(p.dx);
+          sy.add(p.dy);
         }
       }
     }

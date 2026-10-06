@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'dart:math';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/celebration_costume.dart';
 
 class InventoryItemDef {
   final String key; // storage key
@@ -553,6 +554,8 @@ class InvKeys {
   static const harvesterStdEarthen = 'item.harvest_std_earthen';
   static const harvesterStdArcane = 'item.harvest_std_arcane';
   static const harvesterGuaranteed = 'item.harvest_guaranteed';
+  static const alchemyCelebration = 'alchemy.celebration';
+  static const alchemyNose = 'alchemy.nose';
   static const alchemyGlow = 'alchemy.glow';
   static const alchemyElementalAura = 'alchemy.elemental_aura';
   static const alchemyVolcanicAura = 'alchemy.volcanic_aura';
@@ -571,6 +574,8 @@ class InvKeys {
   /// The effect each alchemy item puts on a creature: the key it is saved
   /// as (see AlchemyEffectPaint.keys). Null for anything else.
   static String? alchemyEffectFor(String itemKey) => switch (itemKey) {
+    alchemyCelebration => FamilyCostume.hatPreview,
+    alchemyNose => FamilyCostume.nosePreview,
     alchemyGlow => 'alchemy_glow',
     alchemyElementalAura => 'elemental_aura',
     alchemyVolcanicAura => 'volcanic_aura',
@@ -592,6 +597,8 @@ class InvKeys {
   /// [alchemyEffectFor]), so taking one off a creature can return it.
   static String? alchemyItemFor(String? effect) {
     if (effect == null) return null;
+    final costume = FamilyCostume.ofEffect(effect);
+    if (costume != null) return costume.itemKey;
     for (final key in const [
       alchemyGlow,
       alchemyElementalAura,
@@ -741,6 +748,18 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       canUse: false,
     ),
     // Alchemy Effects
+    InvKeys.alchemyCelebration: InventoryItemDef(
+      key: InvKeys.alchemyCelebration,
+      name: FamilyCostume.partyHat.title,
+      description: 'Put a party hat on one of your Wings.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemyNose: InventoryItemDef(
+      key: InvKeys.alchemyNose,
+      name: FamilyCostume.nose.title,
+      description: 'Put a bubble nose on one of your Pips.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
     InvKeys.alchemyGlow: InventoryItemDef(
       key: InvKeys.alchemyGlow,
       name: 'Alchemical Resonance',

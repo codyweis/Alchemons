@@ -199,17 +199,14 @@ const Map<String, String> kDungeonRoomLabels = {
   'eclipse_walk': 'THE ECLIPSE',
   'solarin_orbit': 'SOLARIN',
   'sunless_reliquary': 'SUNLESS VAULT',
-  // Blood — Hemavorn.
-  'pericard_gate': 'PERICARD GATE',
-  'arterial_run': 'ARTERIAL RUN',
-  'aortic_arch': 'AORTIC ARCH',
-  'vena_crossing': 'VENA CROSSING',
-  'pulmonic_stair': 'PULMONIC STAIR',
-  'capillary_weave': 'CAPILLARIES',
-  'atrial_gallery': 'ATRIUM',
-  'myocardium': 'MYOCARDIUM',
-  'auricle_reliquary': 'AURICLE VAULT',
-  'sanguorath_systole': 'SYSTOLE',
+  // Blood — Hemavorn, the Blood Rites. (Each arrives as "The <label>".)
+  'rite_circle': 'CIRCLE',
+  'rite_earth': 'TENDRIL FLOOR',
+  'rite_water': 'TURNING ROOM',
+  'rite_fire': 'TWIN',
+  'rite_air': 'WEIGHTLESS ROOM',
+  'rite_vault': 'DROWNED VAULT',
+  'sanguorath_heart': 'HEART',
 };
 
 /// Test-only view of a room's centre on the expanded map, scaled onto
@@ -943,7 +940,7 @@ List<int> _roomStars(DungeonRoom room) => [
   ?room.grove?.starIndex,
   ?room.sun?.starIndex,
   ?room.hall?.starIndex,
-  ?room.sanguine?.starIndex,
+  ?room.rite?.starIndex,
   ?room.ruins?.starIndex,
   ?room.prism?.keep?.spectrumStarIndex,
   ?room.prism?.keep?.throneStarIndex,

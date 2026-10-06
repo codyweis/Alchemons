@@ -119,3 +119,23 @@ bool debugTrioIsExact(CreatureCatalog catalog, String element) {
   }
   return true;
 }
+
+/// Blood's four captives: one real species of each classical element (Air,
+/// Fire, Earth, Water) — animated, never a Mystic — chosen the same way every
+/// time so a captive is a creature the player can come to know.
+List<CosmicPartyMember> riteCaptivesFrom(CreatureCatalog catalog) {
+  final out = <CosmicPartyMember>[];
+  for (final el in const ['Air', 'Fire', 'Earth', 'Water']) {
+    final ofElement =
+        catalog
+            .byType(el)
+            .where((c) => c.spriteData != null)
+            .where((c) => (c.mutationFamily ?? '').toLowerCase() != 'mystic')
+            .toList()
+          ..sort((a, b) => a.id.compareTo(b.id));
+    if (ofElement.isEmpty) continue;
+    out.add(debugMemberFromCreature(ofElement.first, statTier: 3));
+  }
+  return out;
+}
+

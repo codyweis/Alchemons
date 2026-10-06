@@ -1463,8 +1463,10 @@ class _HomeScreenState extends State<HomeScreen>
     return [
       ..._coreWildernessBiomes,
       if (arcaneUnlocked) 'arcane',
-      // The shop's realms: spawns exist there only once they are bought.
-      for (final s in kShopScenes) s.sceneId,
+      // The shop's realms: spawns exist there only once they are bought
+      // (and never in one that is a home only).
+      for (final s in kShopScenes)
+        if (!s.homeOnly) s.sceneId,
     ];
   }
 
@@ -2196,7 +2198,8 @@ class _HomeScreenState extends State<HomeScreen>
                             final visibleBiomes = [
                               ..._coreWildernessBiomes,
                               if (_arcanePortalUnlocked) 'arcane',
-                              for (final s in kShopScenes) s.sceneId,
+                              for (final s in kShopScenes)
+                                if (!s.homeOnly) s.sceneId,
                             ];
                             final hasSpawns = visibleBiomes.any(
                               (biomeId) =>

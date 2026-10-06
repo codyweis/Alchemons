@@ -1,0 +1,30 @@
+earth (Earth · The tendril floor) plates=2 settings=16 solvable-at=21
+  as it starts: impossible
+  without turning plate 0 (axle 8,3): IMPOSSIBLE
+  without turning plate 1 (axle 4,6): IMPOSSIBLE
+  replayed from a fresh start: solved
+    ###########
+    aAAAAAAAAA#
+    #BBBBBBXaA#
+    bBCCCCBBo.#
+    #CC..C.Bb.#
+    cC.X.C#CCC#
+    d11CoCCC.Cc
+    #..2222222w
+    ###########
+water (Water · The turning room) start-still=true states=1892 solvable=true fewest-flips=3 dead-ends=50% blood-holds=true
+  replayed from a fresh start: solved
+  plan: N N N N W W N W flip S S S W W flip W flip N
+  flip first without thinking: not solved
+  the vault (dive into a flooded pit): reachable in 4 moves, 2 flips: flip flip N W
+fire (Fire · The twin) solvable=true states=381 fewest-steps=21 steps-moving-only-one=17
+  with every gate shut for good: IMPOSSIBLE (the plates are needed)
+  with no plates or gates: IMPOSSIBLE
+  replayed from a fresh start: solved
+  plan: E E S S S S E N N N S W W W S S S S E E E
+air (Air · The weightless room) needs=2 ice=4 states=5040 solvable=true fewest-pushes=19 ice-shoves=6 dead-ends=74%
+  replayed from a fresh start: solved
+  plan: N N W W E N W S S W N E S E E N E S S
+hub: home setting → none (every stream to its socket) · of 64 settings {"none":32,"fusion":16,"quintessence":16}
+  fusions you can find: Air+Fire→Lightning, Fire+Earth→Lava, Earth+Water→Mud, Air+Water→Ice
+  quintessence at (outer/inner): 1/1 1/3 1/5 1/7 3/1 3/3 3/5 3/7 5/1 5/3 5/5 5/7 7/1 7/3 7/5 7/7

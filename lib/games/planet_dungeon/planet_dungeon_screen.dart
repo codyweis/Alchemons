@@ -30,6 +30,10 @@ import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_debug_party.dart'
+    show riteCaptivesFrom;
+import 'package:alchemons/services/creature_repository.dart'
+    show CreatureCatalog;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _C {
@@ -239,6 +243,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   }
 
   Future<void> _init() async {
+    // Blood: the four captives the Rites hold are real species, one per
+    // classical element (read now, before the first await).
+    final captives = widget.element == 'Blood' && !_isRaid
+        ? riteCaptivesFrom(context.read<CreatureCatalog>())
+        : const <CosmicPartyMember>[];
     // Hydrate the persisted developer switch so `toolsVisible` reads true in a
     // RELEASE install on a real device — `kDebugMode` alone hid the dungeon's
     // debug affordances exactly where playtesting happens.
@@ -294,6 +303,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             onPlayerDown: _onPlayerDown,
             onChanged: () => _tick.value++,
             clearedGuardianCount: cleared,
+            riteCaptives: captives,
           );
 
     if (!mounted) return;
@@ -1129,8 +1139,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             // The joystick, bigger than the tray is tall: it sits in the
             // tray's corner and is allowed to rise a little above it.
             Positioned(
-              left: 12,
-              bottom: MediaQuery.of(context).padding.bottom + 4,
+              left: 8,
+              bottom: MediaQuery.of(context).padding.bottom + 2,
               child: VirtualJoystick(
                 sizeMultiplier: _kStickDiameter / 104,
                 onDirectionChanged: (dir) {
@@ -1317,26 +1327,6 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                                 if (readout != null) _progressReadout(readout),
                               ],
                             ),
-                            if (game.element == 'Blood' &&
-                                game.entryDoorRevealed)
-                              TextButton.icon(
-                                onPressed: game.canAdvanceHeartPulse
-                                    ? () {
-                                        _tapHaptic();
-                                        game.advanceHeartPulse();
-                                      }
-                                    : null,
-                                style: TextButton.styleFrom(
-                                  foregroundColor: _C.amberBright,
-                                  backgroundColor: _C.panel,
-                                  minimumSize: const Size(120, 44),
-                                ),
-                                icon: const Icon(
-                                  Icons.skip_next_rounded,
-                                  size: 18,
-                                ),
-                                label: const Text('NEXT PULSE'),
-                              ),
                           ],
                         );
                       },
@@ -1800,7 +1790,12 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// The joystick's full width. Taller than the tray on purpose (the
   /// author, 2026-09-24): a thumb control wants size more than it wants to
   /// stay inside a strip.
-  static const double _kStickDiameter = 112;
+  static const double _kStickDiameter = 152;
+
+  /// How much of the tray's row the stick reserves. Less than its diameter:
+  /// the rest spills up out of the tray and a little over the party rail's
+  /// padding instead of squeezing the party list.
+  static const double _kStickReserve = 136;
 
   /// Action-pad square, the gap between squares, and a party row's height.
   /// Three party rows and two pad rows both come to the same 110, so the
@@ -1862,7 +1857,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               // The joystick itself is drawn on its own layer (see
               // `_trayJoystick`) so it can rise above the tray; this keeps
               // its place in the row.
-              const SizedBox(width: _kStickDiameter),
+              const SizedBox(width: _kStickReserve),
               // The party fills the middle — the space that was empty — and
               // scales down rather than ever overflowing a narrow screen.
               Expanded(
@@ -1985,7 +1980,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         children: [
           Icon(elementIconFor(element), size: 24, color: _padInk(!enabled)),
           const SizedBox(width: 8),
-          _padLabel(game.sunUtilityLabel ?? 'UTILITY', !enabled),
+          _padLabel(
+            game.sunUtilityLabel ?? game.riteUtilityLabel ?? 'UTILITY',
+            !enabled,
+          ),
         ],
       ),
     );

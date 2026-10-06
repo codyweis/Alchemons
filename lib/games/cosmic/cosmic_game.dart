@@ -51,6 +51,7 @@ import 'package:alchemons/systems/effects/effect_loader.dart';
 import 'package:alchemons/systems/effects/effect_registry.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
+import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:alchemons/widgets/fx/grain_assembly.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
@@ -5494,9 +5495,7 @@ class CosmicGame extends FlameGame with PanDetector {
         active: staging ? _contestStageLight : 0,
         focus: staging ? _contestFocus() : null,
         // Held back while a contest is staged in it: it is the stage then.
-        mastery: masteredAt == null || staging
-            ? null
-            : _elapsed - masteredAt,
+        mastery: masteredAt == null || staging ? null : _elapsed - masteredAt,
       );
 
       if (!staging &&
@@ -5652,6 +5651,14 @@ class CosmicGame extends FlameGame with PanDetector {
               canvas.scale(g.spriteScale);
             }
             sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
+            _drawCostumeOnSprite(
+              canvas,
+              g.visuals?.alchemyEffect,
+              sprite,
+              g.ticker!.currentIndex,
+              _elapsed,
+              1,
+            );
             canvas.restore();
             if (g.visuals?.alchemyEffect != null) {
               _drawAlchemyEffectCanvas(
@@ -6185,6 +6192,14 @@ class CosmicGame extends FlameGame with PanDetector {
           canvas.scale(totalScale);
         }
         sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
+        _drawCostumeOnSprite(
+          canvas,
+          companionVisuals?.alchemyEffect,
+          sprite,
+          companionTicker.currentIndex,
+          _elapsed,
+          opacity,
+        );
         canvas.restore();
         if (companionVisuals?.alchemyEffect != null) {
           _drawAlchemyEffectCanvas(
@@ -6380,6 +6395,14 @@ class CosmicGame extends FlameGame with PanDetector {
           canvas.scale(totalScale);
         }
         sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
+        _drawCostumeOnSprite(
+          canvas,
+          _duelOpponentVisuals?.alchemyEffect,
+          sprite,
+          _duelOpponentTicker!.currentIndex,
+          _elapsed,
+          1,
+        );
         canvas.restore();
         if (_duelOpponentVisuals?.alchemyEffect != null) {
           _drawAlchemyEffectCanvas(

@@ -7,14 +7,85 @@ import 'fusion_particles.dart';
 
 /// The glyph a cultivation's sigil is drawn as (see [FusionBurstField]).
 enum FusionSigil {
-  /// Two triangles that turn into each other and lock as a six-point star.
-  star,
+  /// An eight-point star drawn as one unbroken line, inside a ring.
+  octagram,
 
   /// An element's triangle, point up or down, with a bar for air and earth.
   element,
 
-  /// The star, with the element's triangle inside it.
-  starAndElement,
+  /// The ringed octagram, with the element's triangle at its heart.
+  octagramAndElement,
+}
+
+/// The eight-point star at radius [r]: one unbroken line from each point to
+/// the third along, so it closes on itself.
+///
+/// It is never two squares laid across each other — that is the Rub el Hizb,
+/// as two triangles were the Star of David (what this sigil used to be).
+List<Offset> octagramLine(double r) => [
+  for (var k = 0; k <= 8; k++)
+    Offset(
+          math.cos(-math.pi / 2 + (k * 3 % 8) * 2 * math.pi / 8),
+          math.sin(-math.pi / 2 + (k * 3 % 8) * 2 * math.pi / 8),
+        ) *
+        r,
+];
+
+/// Each polyline of [sigil] at unit radius, with how it turns as it is drawn
+/// in (+1 one way, −1 the other). The fusion's reveal and the ready
+/// cultivation both draw from here, so they always end on the same glyph.
+List<(List<Offset>, double)> fusionSigilLines(
+  FusionSigil sigil,
+  String? element, {
+  double elementRadius = 0.74,
+}) {
+  List<Offset> triangle(Offset c, double r, {required bool up}) {
+    final rot = up ? -math.pi / 2 : math.pi / 2;
+    return [
+      for (var k = 0; k <= 3; k++)
+        c +
+            Offset(
+                  math.cos(rot + k * 2 * math.pi / 3),
+                  math.sin(rot + k * 2 * math.pi / 3),
+                ) *
+                r,
+    ];
+  }
+
+  List<List<Offset>> sign(String? element, Offset c, double r) {
+    final el = (element ?? '').toLowerCase();
+    final up = el == 'fire' || el == 'air' || el == 'lava';
+    final bar = el == 'air' || el == 'earth';
+    final y = c.dy + (up ? 1 : -1) * r * 0.18;
+    return [
+      triangle(c, r, up: up),
+      if (bar) [Offset(c.dx - r * 0.42, y), Offset(c.dx + r * 0.42, y)],
+    ];
+  }
+
+  if (sigil == FusionSigil.element) {
+    return [
+      for (final l in sign(element, Offset.zero, elementRadius)) (l, 0.6),
+    ];
+  }
+  return [
+    (
+      [
+        for (var k = 0; k <= 48; k++)
+          Offset(
+                math.cos(-math.pi / 2 + k * 2 * math.pi / 48),
+                math.sin(-math.pi / 2 + k * 2 * math.pi / 48),
+              ) *
+              0.84,
+      ],
+      -1.0,
+    ),
+    (octagramLine(0.74), 1.0),
+    // The star's middle is an octagon of about 0.3 across, so the sign sits
+    // inside it clear of the lines.
+    if (sigil == FusionSigil.octagramAndElement)
+      for (final l in sign(element, Offset.zero, 0.2)) (l, 0.6),
+  ];
 }
 
 /// The fusion cinematic's particles: the grains the two specimens were made
@@ -137,44 +208,10 @@ class FusionBurstField {
   late Float32List _lineLen;
   double _sigilLen = 1;
 
-  static List<Offset> _triangle(double rot, double r) => [
-    for (var k = 0; k <= 3; k++)
-      Offset(
-            math.cos(rot + k * 2 * math.pi / 3),
-            math.sin(rot + k * 2 * math.pi / 3),
-          ) *
-          r,
-  ];
-
   void _setSigil(FusionSigil sigil, String? element) {
     if (_linesFor == (sigil, element)) return;
     _linesFor = (sigil, element);
-    final el = (element ?? '').toLowerCase();
-    final up = el == 'fire' || el == 'air' || el == 'lava';
-    final bar = el == 'air' || el == 'earth';
-    List<(List<Offset>, double)> elementLines(double r) => [
-      (_triangle(up ? -math.pi / 2 : math.pi / 2, r), 0.6),
-      if (bar)
-        (
-          [
-            Offset(-r * 0.42, (up ? 1 : -1) * r * 0.18),
-            Offset(r * 0.42, (up ? 1 : -1) * r * 0.18),
-          ],
-          0.6,
-        ),
-    ];
-    _lines = switch (sigil) {
-      FusionSigil.star => [
-        (_triangle(-math.pi / 2, 0.8), 1.0),
-        (_triangle(math.pi / 2, 0.8), -1.0),
-      ],
-      FusionSigil.element => elementLines(0.74),
-      FusionSigil.starAndElement => [
-        (_triangle(-math.pi / 2, 0.82), 1.0),
-        (_triangle(math.pi / 2, 0.82), -1.0),
-        ...elementLines(0.46),
-      ],
-    };
+    _lines = fusionSigilLines(sigil, element);
     double len(List<Offset> pts) {
       var l = 0.0;
       for (var k = 1; k < pts.length; k++) {
@@ -233,7 +270,7 @@ class FusionBurstField {
 
   /// Paints the cinematic's particles at [u] seconds round [core]. [accent]
   /// and [sigil] are the reveal's (null until the outcome is known: the
-  /// cultivation is then drawn in the parents' own colours with the star).
+  /// cultivation is then drawn in the parents' own colours with the octagram).
   /// [colors] are the two specimens' element colours. [clock] keeps the
   /// settled cultivation turning while the cinematic waits.
   void paint(
@@ -242,7 +279,7 @@ class FusionBurstField {
     double u, {
     required List<Color> colors,
     Color? accent,
-    FusionSigil sigil = FusionSigil.star,
+    FusionSigil sigil = FusionSigil.octagram,
     String? element,
     bool pure = false,
     double clock = 0,

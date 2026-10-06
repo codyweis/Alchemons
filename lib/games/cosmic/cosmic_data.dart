@@ -1785,14 +1785,11 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // braid, the same Crystalmask and the same Spirit Pip behind a crack. No
   // recipe joins these three, and Steam was on no party but its own.
   'Light': ['Light', 'Dark', 'Steam'],
-  // Sanguine Orrery (Hemavorn): Blood (the pericardium, two of the four
-  // mouths, the rite's balance — and its Kin steadies the cannula in a wall
-  // that will not hold still) + Dark (the arch mouth, and its Mask is the
-  // only sight that can graft a dead vessel's unlit lumen) + Light (the weave
-  // mouth, and it flags which collaterals are thrombosed before you open
-  // one). **Dark+Light→Blood** is the planet's own braid and balances the
-  // heart when no Blood hand is free.
-  'Blood': ['Blood', 'Dark', 'Light'],
+  // The Blood Rites (Hemavorn, rebuilt 2026-10-05): ONE Blood goes down
+  // alone. Four captives of the classical elements are held below; freed,
+  // they come down to Sanguorath with it. Until 2026-10-05 this was Blood ·
+  // Dark · Light (the Sanguine Orrery).
+  'Blood': ['Blood'],
 };
 
 /// The IDEAL family for each of a planet's entry slots — index-aligned with
@@ -1824,7 +1821,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
     'Horn',
   ], // Darkmask · Darkwing · Lighthorn (no gates)
   'Light': ['Horn', 'Wing', 'Pip'], // Lighthorn · Darkwing · Steampip
-  'Blood': ['Mane', 'Mask', 'Mask'], // Bloodmane · Darkmask · Lightmask
+  'Blood': ['Mane'], // Bloodmane (no family gates on the Rites)
 };
 
 /// Planets whose descent is planned but whose dungeon isn't built yet. They

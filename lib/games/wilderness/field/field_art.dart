@@ -134,6 +134,9 @@ class FieldSheet {
 /// A field's art. One instance per game: it keeps what it prepares for the
 /// current screen height.
 abstract class FieldArt {
+  /// Release resources owned by this field when its game is removed.
+  void dispose() {}
+
   /// The scene's spawn points, before anything is built, so the field can
   /// give every creature standing on something something to stand on.
   /// Spawn x is `normalizedPos.dx * worldWidth`, in its layer's units.

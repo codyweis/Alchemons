@@ -118,7 +118,10 @@ void main() {
       }
     }
 
-    final theme = factionThemeFor(FactionId.oceanic, brightness: Brightness.dark);
+    final theme = factionThemeFor(
+      FactionId.oceanic,
+      brightness: Brightness.dark,
+    );
     await tester.pumpWidget(
       MultiProvider(
         providers: [
@@ -190,6 +193,12 @@ void main() {
         await tester.pump(const Duration(milliseconds: 33));
       }
       await shoot('06_scenes');
+      // Down to the last of them.
+      for (var i = 0; i < 3; i++) {
+        await tester.dragFrom(const Offset(195, 600), const Offset(0, -700));
+        await settle(10);
+      }
+      await shoot('07_scenes_last');
     }
 
     final cosmetics = find.text('COSMETICS');
