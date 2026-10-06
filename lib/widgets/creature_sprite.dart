@@ -10,6 +10,7 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
 import 'package:alchemons/widgets/fx/costume_paint.dart';
+import 'package:alchemons/widgets/fx/darklet_ring.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flame/flame.dart' show Flame;
@@ -273,6 +274,14 @@ class _CreatureSpriteState extends State<CreatureSprite>
       sprite = WornCostume(
         effect: costume!,
         frameSize: Size(widget.frameSize.x, widget.frameSize.y),
+        frameIndex: () => _spriteTicker?.currentIndex ?? 0,
+        child: sprite,
+      );
+    }
+
+    // Darklet's galaxy ring: far side behind the sprite, near side over it.
+    if (DarkletRing.matches(widget.frameSize.x, widget.frameSize.y)) {
+      sprite = DarkletRingView(
         frameIndex: () => _spriteTicker?.currentIndex ?? 0,
         child: sprite,
       );

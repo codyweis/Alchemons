@@ -7,6 +7,7 @@ import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/costume_paint.dart';
+import 'package:alchemons/widgets/fx/darklet_ring.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/models/celebration_costume.dart';
@@ -229,6 +230,20 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
 
     _applyColorFilters();
     add(_anim);
+    // Darklet's galaxy ring, in the sprite's own space: far side behind it,
+    // near side over it.
+    if (DarkletRing.matches(sheet.frameSize.x, sheet.frameSize.y)) {
+      for (final front in [false, true]) {
+        add(
+          _RingLayer(_anim, front: front)
+            ..size = sheet.frameSize
+            ..anchor = Anchor.center
+            ..position = size / 2
+            ..scale = Vector2.all(finalScale)
+            ..priority = front ? 1 : -1,
+        );
+      }
+    }
     // A worn costume is part of the sprite: drawn after each frame, in it.
     if (FamilyCostume.isEffect(alchemyEffect)) {
       _anim.add(_costume = _CostumeLayer(alchemyEffect!, _anim));
@@ -504,5 +519,27 @@ class _CostumeLayer extends Component {
     sprite.animationTicker?.currentIndex ?? 0,
     _t,
     opacity: (alpha * opacity).clamp(0.0, 1.0),
+  );
+}
+
+/// One side of Darklet's ring, laid over the sprite's frame.
+class _RingLayer extends PositionComponent {
+  _RingLayer(this.sprite, {required this.front});
+
+  final SpriteAnimationComponent sprite;
+  final bool front;
+  double _t = math.Random().nextDouble() * 10;
+
+  @override
+  void update(double dt) => _t += dt;
+
+  @override
+  void render(Canvas canvas) => DarkletRing.paint(
+    canvas,
+    Offset.zero & size.toSize(),
+    sprite.animationTicker?.currentIndex ?? 0,
+    _t,
+    front: front,
+    opacity: sprite.opacity,
   );
 }

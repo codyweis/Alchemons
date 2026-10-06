@@ -52,6 +52,7 @@ import 'package:alchemons/systems/effects/effect_registry.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/costume_paint.dart';
+import 'package:alchemons/widgets/fx/darklet_ring.dart';
 import 'package:alchemons/widgets/fx/grain_assembly.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
@@ -5650,6 +5651,14 @@ class CosmicGame extends FlameGame with PanDetector {
             } else {
               canvas.scale(g.spriteScale);
             }
+            _drawDarkletRing(
+              canvas,
+              sprite,
+              g.ticker!.currentIndex,
+              _elapsed,
+              1,
+              front: false,
+            );
             sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
             _drawCostumeOnSprite(
               canvas,
@@ -5658,6 +5667,14 @@ class CosmicGame extends FlameGame with PanDetector {
               g.ticker!.currentIndex,
               _elapsed,
               1,
+            );
+            _drawDarkletRing(
+              canvas,
+              sprite,
+              g.ticker!.currentIndex,
+              _elapsed,
+              1,
+              front: true,
             );
             canvas.restore();
             if (g.visuals?.alchemyEffect != null) {
@@ -6191,6 +6208,14 @@ class CosmicGame extends FlameGame with PanDetector {
         } else {
           canvas.scale(totalScale);
         }
+        _drawDarkletRing(
+          canvas,
+          sprite,
+          companionTicker.currentIndex,
+          _elapsed,
+          opacity,
+          front: false,
+        );
         sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
         _drawCostumeOnSprite(
           canvas,
@@ -6199,6 +6224,14 @@ class CosmicGame extends FlameGame with PanDetector {
           companionTicker.currentIndex,
           _elapsed,
           opacity,
+        );
+        _drawDarkletRing(
+          canvas,
+          sprite,
+          companionTicker.currentIndex,
+          _elapsed,
+          opacity,
+          front: true,
         );
         canvas.restore();
         if (companionVisuals?.alchemyEffect != null) {
@@ -6394,6 +6427,14 @@ class CosmicGame extends FlameGame with PanDetector {
         } else {
           canvas.scale(totalScale);
         }
+        _drawDarkletRing(
+          canvas,
+          sprite,
+          _duelOpponentTicker!.currentIndex,
+          _elapsed,
+          1,
+          front: false,
+        );
         sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
         _drawCostumeOnSprite(
           canvas,
@@ -6402,6 +6443,14 @@ class CosmicGame extends FlameGame with PanDetector {
           _duelOpponentTicker!.currentIndex,
           _elapsed,
           1,
+        );
+        _drawDarkletRing(
+          canvas,
+          sprite,
+          _duelOpponentTicker!.currentIndex,
+          _elapsed,
+          1,
+          front: true,
         );
         canvas.restore();
         if (_duelOpponentVisuals?.alchemyEffect != null) {

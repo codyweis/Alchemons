@@ -71,3 +71,28 @@ void _drawCostumeOnSprite(
     opacity: opacity,
   );
 }
+
+/// One side of Darklet's galaxy ring about [sprite], centred on the origin
+/// in the same transform; nothing for any other sprite.
+void _drawDarkletRing(
+  Canvas canvas,
+  Sprite sprite,
+  int index,
+  double elapsed,
+  double opacity, {
+  required bool front,
+}) {
+  if (!DarkletRing.matches(sprite.srcSize.x, sprite.srcSize.y)) return;
+  DarkletRing.paint(
+    canvas,
+    Rect.fromCenter(
+      center: Offset.zero,
+      width: sprite.srcSize.x,
+      height: sprite.srcSize.y,
+    ),
+    index,
+    elapsed,
+    front: front,
+    opacity: opacity,
+  );
+}
