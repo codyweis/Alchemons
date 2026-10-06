@@ -2225,7 +2225,7 @@
         "frameHeight": 1200,
         "totalFrames": 4,
         "rows": 1,
-        "frameDurationMs": 150
+        "frameDurationMs": 90
       },
       "baseStats": {
         "speed": 82,
@@ -2250,7 +2250,7 @@
         "frameHeight": 1200,
         "rows": 1,
         "totalFrames": 4,
-        "frameDurationMs": 150
+        "frameDurationMs": 110
       },
       "baseStats": {
         "speed": 80,
@@ -2373,7 +2373,7 @@
         "frameWidth": 1200,
         "frameHeight": 1200,
         "totalFrames": 4,
-        "frameDurationMs": 140
+        "frameDurationMs": 75
       },
       "baseStats": {
         "speed": 92,
@@ -2445,7 +2445,7 @@
         "frameWidth": 1200,
         "frameHeight": 1200,
         "totalFrames": 4,
-        "frameDurationMs": 150
+        "frameDurationMs": 105
       },
       "baseStats": {
         "speed": 84,
@@ -2517,7 +2517,7 @@
         "frameWidth": 1200,
         "frameHeight": 1200,
         "totalFrames": 4,
-        "frameDurationMs": 180
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 84,
@@ -2541,7 +2541,7 @@
         "frameWidth": 1200,
         "frameHeight": 1200,
         "totalFrames": 4,
-        "frameDurationMs": 160
+        "frameDurationMs": 140
       },
       "baseStats": {
         "speed": 85,
