@@ -3378,7 +3378,7 @@
       "description": "A soft black silhouette with pale points, it seems darker than the shadow beneath it.",
       "image": "creatures/uncommon/LET15_darklet.png",
       "spriteData": {
-        "frameWidth": 543,
+        "frameWidth": 724,
         "frameHeight": 724,
         "totalFrames": 4,
         "frameDurationMs": 120

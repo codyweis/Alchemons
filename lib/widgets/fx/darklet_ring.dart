@@ -15,14 +15,14 @@ import 'package:flutter/widgets.dart';
 
 abstract final class DarkletRing {
   /// Darklet's sheet is the only one cut at this frame size.
-  static const Size frameSize = Size(543, 724);
+  static const Size frameSize = Size(724, 724);
 
   static bool matches(double frameWidth, double frameHeight) =>
-      frameWidth == 543 && frameHeight == 724;
+      frameWidth == 724 && frameHeight == 724;
 
   // Head centre per eye frame, in frame pixels: the sheet bobs the body
   // up and down a few pixels (up, mid, down, mid).
-  static const double _headX = 271;
+  static const double _headX = 361;
   static const List<double> _headY = [315, 319, 323, 319];
 
   // The ring was designed at 0.88 of the frame; radii below are in those units.
