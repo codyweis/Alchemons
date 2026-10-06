@@ -58,7 +58,7 @@
   <header>
     <p class="eyebrow">Hemavorn · Blood's descent · prototype</p>
     <h1>The Blood <em>Rites</em></h1>
-    <p class="thesis">One Blood Alchemon goes down alone. Four rooms each hold a captive of a classical element. Solve the room, its two ingredients meet, and the captive's blood runs home to the Circle. At the boss, all four fight beside you.</p>
+    <p class="thesis">One Blood Alchemon goes down alone. Four rooms each hold a captive of a classical element. Solve the room, its two ingredients meet, and the captive's blood runs home to the Circle. Then the Heart takes Blood, and the four it freed have to make Blood again. At the boss, all four fight beside you.</p>
     <p class="tally" id="tally"></p>
   </header>
 
@@ -75,7 +75,8 @@
       <p><strong>Water.</strong> Tap the floor to walk Blood there (or use the arrow keys). FLIP turns the room over, and the faint outlines show where everything will land. Ice that rests against fire melts, and water puts fire out.</p>
       <p><strong>Fire.</strong> Swipe or tap beside Blood to step. The twin takes the mirrored step. A plate holds its gate open, on either side, while someone stands on it.</p>
       <p><strong>Air.</strong> Swipe or tap beside Blood to push off. You drift until something stops you. Push again against ice to send the ice drifting.</p>
-      <p><strong>Proved.</strong> Every room was solved by a search before it was drawn. Earth works with exactly one setting of its plates. Water needs at least three flips. Fire is impossible without its plates. Air takes nineteen pushes.</p>
+      <p><strong>The Heart.</strong> Tap one of the four, then tap where it should go. Two on an altar's stones fuse, and what they make shoots its power down that altar's lane. Whatever it breaks lets go of the element inside, which joins you. The split stage takes a fused creature apart. Light and Dark make Blood.</p>
+      <p><strong>Proved.</strong> Every room was solved by a search before it was drawn. Earth works with exactly one setting of its plates. Water needs at least three flips. Fire is impossible without its plates. Air takes nineteen pushes. The Heart takes nine fusions and two splits, and can't be done without the split stage.</p>
     </div>
   </details>
 </div>
@@ -906,6 +907,295 @@
   if (typeof module !== 'undefined') module.exports = api; else root.AirEngine = api;
 })(this);
 </script>
+<script>// THE HEART (the fifth rite) — rules shared by the page and the solver.
+//
+// The author's design (2026-10-06). Once all four captives are freed, the
+// seal in the Circle opens on the Heart. Blood goes in, comes apart and is
+// bound across the room; the four it freed pour in and stand on the stage.
+// Fire, Water, Earth and Air can make everything between them, so the room
+// is the game's own recipe table, played out — all the way up to Blood.
+//
+//   · Two standing together on an ALTAR fuse: the pair is gone, and a
+//     creature of what they make (a random species of that element) stands
+//     on the altar's front stone. The game's recipes, main result only — a
+//     right answer always works (no chance in puzzles). A pair with no
+//     recipe doesn't fuse.
+//   · As it forms, its POWER shoots down the altar's lane and hits the first
+//     thing in the way. Each element has its own power (Steam melts ice,
+//     Lightning shatters crystal, Mud fills a chasm, …); against anything
+//     else it only splashes.
+//   · Everything in the way is HOLDING an element. Break it and what was
+//     inside steps out and joins you (a Crystal out of the crystal wall, the
+//     Lava frozen in the ice, the Spirit down the chasm).
+//   · The SPLIT STAGE takes a fused creature apart into the two that made
+//     it — so nothing is used up for good, and fusing again fires a power
+//     again.
+//   · LIGHT + DARK make BLOOD, and Blood made here frees the Blood that was
+//     taken. (Light is Crystal + Spirit; Dark is Poison + Spirit.)
+//
+// Map legend (y down):
+//   #  wall     .  floor     S  the split stage     B  Blood, bound
+//   f w e a  where Fire, Water, Earth and Air start
+//   in the way:  I ice wall   T blood-thorn   K crystal wall   _ a chasm
+//                ^ blood-fire   ~ a pool
+// What each thing holds is in the room data (`holds`, 'x,y' → element).
+// Altars are in the room data too: {back:[x,y], front:[x,y]}; the power
+// leaves the front stone in the direction back → front.
+(function (root) {
+  const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+  const BASE = ['Fire', 'Water', 'Earth', 'Air'];
+  const START = { f: 'Fire', w: 'Water', e: 'Earth', a: 'Air' };
+
+  // assets/data/alchemons_element_recipes.json, each pair's main result
+  // (solve.js checks this copy against the file).
+  const RECIPES = {
+    'Fire+Water': 'Steam', 'Earth+Fire': 'Lava', 'Earth+Water': 'Mud',
+    'Air+Water': 'Ice', 'Air+Earth': 'Dust', 'Air+Fire': 'Lightning',
+    'Fire+Ice': 'Water', 'Crystal+Spirit': 'Light', 'Poison+Spirit': 'Dark',
+    'Dark+Light': 'Blood', 'Lava+Mud': 'Poison', 'Crystal+Lightning': 'Spirit',
+    'Dark+Plant': 'Poison', 'Fire+Plant': 'Dust', 'Earth+Lightning': 'Crystal',
+    'Spirit+Water': 'Ice', 'Air+Spirit': 'Lightning', 'Earth+Spirit': 'Crystal',
+    'Fire+Spirit': 'Steam', 'Air+Lava': 'Fire', 'Lightning+Plant': 'Fire',
+    'Earth+Light': 'Plant', 'Light+Spirit': 'Air', 'Dust+Water': 'Earth',
+    'Crystal+Lava': 'Earth', 'Light+Poison': 'Fire', 'Air+Ice': 'Water',
+    'Dust+Steam': 'Water', 'Dust+Mud': 'Earth', 'Ice+Light': 'Air',
+    'Ice+Lava': 'Steam', 'Fire+Mud': 'Lava', 'Ice+Water': 'Steam',
+    'Earth+Poison': 'Lava', 'Plant+Water': 'Mud', 'Air+Crystal': 'Ice',
+    'Air+Mud': 'Dust', 'Ice+Poison': 'Crystal', 'Light+Mud': 'Plant',
+    'Mud+Plant': 'Poison', 'Dark+Water': 'Spirit',
+  };
+  const recipe = (a, b) => RECIPES[[a, b].sort().join('+')] || null;
+
+  // What each element's power breaks. Against anything else it splashes.
+  const POWERS = {
+    Steam: 'I', // scalds the ice away
+    Fire: 'IT', // melts ice, burns the thorn
+    Lava: 'IT', // melts ice, burns the thorn
+    Mud: '_', // fills a chasm
+    Earth: '_', // fills a chasm
+    Ice: '~', // freezes a pool solid
+    Dust: '^', // smothers blood-fire
+    Water: '^', // puts blood-fire out
+    Lightning: 'K', // shatters crystal
+    Poison: 'T', // withers the thorn
+  };
+  const breaks = (el, ch) => (POWERS[el] || '').includes(ch);
+  const WALK = new Set(['.', 'S']);
+  const OBSTACLE = new Set(['I', 'T', 'K', '_', '^', '~']);
+
+  function parseRoom(def) {
+    const cells = def.map.map((r) => r.split(''));
+    const H = cells.length, W = cells[0].length;
+    const starts = [];
+    let blood = null;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const ch = cells[y][x];
+      if (START[ch]) { starts.push({ el: START[ch], at: [x, y] }); cells[y][x] = '.'; }
+      if (ch === 'B') blood = [x, y];
+    }
+    const altars = def.altars.map((a) => ({
+      back: a.back, front: a.front,
+      d: DX.findIndex((dx, i) => dx === a.front[0] - a.back[0] && DY[i] === a.front[1] - a.back[1]),
+    }));
+    starts.sort((p, q) => BASE.indexOf(p.el) - BASE.indexOf(q.el));
+    return { cells, W, H, starts, blood, altars, holds: Object.assign({}, def.holds || {}) };
+  }
+
+  /// A creature: its element and, if it was made, the two it was made of.
+  const mk = (el, parts, at) => ({ el, parts: parts || null, at: at.slice() });
+  const sig = (c) => (c.parts ? `${c.el}(${sig(c.parts[0])},${sig(c.parts[1])})` : c.el);
+
+  function start(R) {
+    return { cells: R.cells.map((r) => r.slice()), holds: Object.assign({}, R.holds), cs: R.starts.map((s) => mk(s.el, null, s.at)) };
+  }
+  const copy = (S) => ({ cells: S.cells.map((r) => r.slice()), holds: Object.assign({}, S.holds), cs: S.cs.slice() });
+
+  function walkable(R, cells, x, y) {
+    return x >= 0 && y >= 0 && x < R.W && y < R.H && WALK.has(cells[y][x]);
+  }
+
+  function reach(R, cells, x, y) {
+    const seen = new Set([x + ',' + y]), q = [[x, y]];
+    while (q.length) {
+      const [cx, cy] = q.pop();
+      for (let d = 0; d < 4; d++) {
+        const nx = cx + DX[d], ny = cy + DY[d], k = nx + ',' + ny;
+        if (!seen.has(k) && walkable(R, cells, nx, ny)) { seen.add(k); q.push([nx, ny]); }
+      }
+    }
+    return seen;
+  }
+
+  /// A shortest walk from a to b (array of [x,y], a first), or null.
+  function path(R, cells, a, b) {
+    const prev = new Map([[a.join(','), null]]), q = [a];
+    for (let i = 0; i < q.length; i++) {
+      const [cx, cy] = q[i];
+      if (cx === b[0] && cy === b[1]) {
+        const out = [];
+        for (let k = cx + ',' + cy; k; k = prev.get(k)) out.unshift(k.split(',').map(Number));
+        return out;
+      }
+      for (let d = 0; d < 4; d++) {
+        const nx = cx + DX[d], ny = cy + DY[d], k = nx + ',' + ny;
+        if (!prev.has(k) && walkable(R, cells, nx, ny)) { prev.set(k, cx + ',' + cy); q.push([nx, ny]); }
+      }
+    }
+    return null;
+  }
+
+  /// The connected run of one obstacle at (x, y) — a whole wall goes at once.
+  function group(R, cells, x, y) {
+    const ch = cells[y][x], out = [[x, y]], seen = new Set([x + ',' + y]);
+    for (let i = 0; i < out.length; i++) {
+      for (let d = 0; d < 4; d++) {
+        const nx = out[i][0] + DX[d], ny = out[i][1] + DY[d], k = nx + ',' + ny;
+        if (nx < 0 || ny < 0 || nx >= R.W || ny >= R.H || seen.has(k)) continue;
+        if (cells[ny][nx] === ch) { seen.add(k); out.push([nx, ny]); }
+      }
+    }
+    return out;
+  }
+
+  /// Where a power runs from altar [A]: the squares it crosses, then the
+  /// first thing in the way — {path, hit, ch, broke}.
+  function power(R, cells, A, el) {
+    const d = A.d, run = [];
+    let x = A.front[0] + DX[d], y = A.front[1] + DY[d];
+    while (x >= 0 && y >= 0 && x < R.W && y < R.H) {
+      const ch = cells[y][x];
+      if (OBSTACLE.has(ch)) return { path: run, hit: [x, y], ch, broke: breaks(el, ch) };
+      if (!WALK.has(ch)) return { path: run, hit: [x, y], ch, broke: false };
+      run.push([x, y]);
+      x += DX[d]; y += DY[d];
+    }
+    return { path: run, hit: null, ch: null, broke: false };
+  }
+
+  /// Fuse creatures i (on the back stone) and j (on the front stone) of
+  /// altar [ai]. Returns {S, made, run, freed:[creature], blood} or {why}.
+  function fuse(R, S, ai, i, j) {
+    const A = R.altars[ai], a = S.cs[i], b = S.cs[j];
+    const el = recipe(a.el, b.el);
+    if (!el) return { why: `${a.el} and ${b.el} don't fuse` };
+    const n = copy(S);
+    const made = mk(el, [a, b], A.front);
+    n.cs = n.cs.filter((_, k) => k !== i && k !== j).concat([made]);
+    if (el === 'Blood') return { S: n, made, run: { path: [], hit: null, ch: null, broke: false, changed: [] }, freed: [], blood: true };
+    const run = power(R, n.cells, A, el);
+    run.changed = [];
+    const freed = [];
+    if (run.broke) {
+      for (const [x, y] of group(R, n.cells, run.hit[0], run.hit[1])) {
+        n.cells[y][x] = '.';
+        run.changed.push([x, y]);
+        const held = n.holds[x + ',' + y];
+        if (held) { delete n.holds[x + ',' + y]; const c = mk(held, null, [x, y]); c.freedFrom = run.ch; freed.push(c); }
+      }
+      n.cs = n.cs.concat(freed);
+    }
+    return { S: n, made, run, freed, blood: false };
+  }
+
+  /// Take creature i apart on the split stage at (x, y).
+  function split(R, S, i, x, y) {
+    const c = S.cs[i];
+    if (!c.parts) return { why: `${c.el} isn't made of anything` };
+    const n = copy(S);
+    let other = [x, y];
+    for (let d = 0; d < 4; d++) if (walkable(R, n.cells, x + DX[d], y + DY[d])) { other = [x + DX[d], y + DY[d]]; break; }
+    const [p, q] = c.parts;
+    n.cs = n.cs.filter((_, k) => k !== i).concat([mk(p.el, p.parts, [x, y]), mk(q.el, q.parts, other)]);
+    return { S: n, parts: [p, q] };
+  }
+
+  // ── THE PROOF ────────────────────────────────────────────
+  // Walking is free, so a creature is only ever WHERE it can get to: its
+  // region. A state is what is still in the way plus each creature's
+  // make-up and region. A move is a fusion on an altar (both stones
+  // reachable by the two) or a split on the stage. Blood made is the goal.
+  function regions(R, cells) {
+    const id = R.cells.map((r) => r.map(() => -1));
+    let n = 0;
+    for (let y = 0; y < R.H; y++) for (let x = 0; x < R.W; x++) {
+      if (id[y][x] >= 0 || !walkable(R, cells, x, y)) continue;
+      for (const k of reach(R, cells, x, y)) { const [cx, cy] = k.split(',').map(Number); id[cy][cx] = n; }
+      n++;
+    }
+    return id;
+  }
+
+  /// Breadth-first by moves. opts.ban: elements that may not be made;
+  /// opts.max: state cap; opts.all: explore everything (no early stop).
+  function solve(R, opts = {}) {
+    const ban = new Set(opts.ban || []), max = opts.max || 2e6;
+    const s0 = start(R);
+    const splitAt = [];
+    for (let y = 0; y < R.H; y++) for (let x = 0; x < R.W; x++) if (R.cells[y][x] === 'S') splitAt.push([x, y]);
+    const keyOf = (S, reg) => S.cells.map((r) => r.join('')).join('') + '|' +
+      S.cs.map((c) => sig(c) + '@' + reg[c.at[1]][c.at[0]]).sort().join(';');
+    const seen = new Map(), q = [];
+    const k0 = keyOf(s0, regions(R, s0.cells));
+    seen.set(k0, null); q.push({ S: s0, k: k0 });
+    const made = new Set();
+    let goal = null, fewest = null;
+    for (let i = 0; i < q.length && seen.size < max; i++) {
+      const { S, k } = q[i];
+      if (S.cs.some((c) => c.el === 'Blood')) {
+        if (!goal) goal = k;
+        if (!opts.all) break;
+        continue;
+      }
+      const reg = regions(R, S.cells);
+      const rOf = (c) => reg[c.at[1]][c.at[0]];
+      const nexts = [];
+      R.altars.forEach((A, ai) => {
+        const rb = reg[A.back[1]][A.back[0]], rf = reg[A.front[1]][A.front[0]];
+        if (rb < 0 || rf < 0) return;
+        for (let a = 0; a < S.cs.length; a++) for (let b = 0; b < S.cs.length; b++) {
+          if (a === b || rOf(S.cs[a]) !== rb || rOf(S.cs[b]) !== rf) continue;
+          if (a > b && rb === rf) continue;
+          const el = recipe(S.cs[a].el, S.cs[b].el);
+          if (!el || ban.has(el)) continue;
+          const T = { cells: S.cells, holds: S.holds, cs: S.cs.map((c, kk) => (kk === a ? mk(c.el, c.parts, A.back) : kk === b ? mk(c.el, c.parts, A.front) : c)) };
+          const r = fuse(R, T, ai, a, b);
+          made.add(el);
+          const freed = r.freed.map((c) => c.el).join('+');
+          nexts.push({ S: r.S, how: `${S.cs[a].el}+${S.cs[b].el}→${el} on altar ${ai + 1}${r.run.broke ? ` (breaks ${r.run.ch}${freed ? `, frees ${freed}` : ''})` : ''}` });
+        }
+      });
+      for (const [sx, sy] of splitAt) {
+        const rs = reg[sy][sx];
+        S.cs.forEach((c, ci) => {
+          if (!c.parts || rOf(c) !== rs) return;
+          nexts.push({ S: split(R, S, ci, sx, sy).S, how: `split ${c.el}` });
+        });
+      }
+      for (const nx of nexts) {
+        const kk = keyOf(nx.S, regions(R, nx.S.cells));
+        if (seen.has(kk)) continue;
+        seen.set(kk, { from: k, how: nx.how });
+        q.push({ S: nx.S, k: kk });
+      }
+    }
+    if (!goal) return { solvable: false, states: seen.size, made: [...made].sort(), capped: seen.size >= max };
+    const plan = [];
+    for (let k = goal; seen.get(k); k = seen.get(k).from) plan.unshift(seen.get(k).how);
+    return {
+      solvable: true, states: seen.size, steps: plan.length,
+      fusions: plan.filter((p) => !p.startsWith('split')).length,
+      splits: plan.filter((p) => p.startsWith('split')).length,
+      plan, made: [...made].sort(),
+    };
+  }
+
+  const api = {
+    DX, DY, BASE, RECIPES, POWERS, WALK, OBSTACLE, recipe, breaks, parseRoom, start, walkable, reach,
+    path, power, group, fuse, split, solve, sig,
+  };
+  if (typeof module !== 'undefined') module.exports = api; else root.HeartEngine = api;
+})(this);
+</script>
 <script>// Room data for the Blood prototype (Hemavorn, rebuilt 2026-10-05). Every
 // room is proved by solve.js before it is played. Coordinates [x, y], y down.
 (function (root) {
@@ -1002,7 +1292,38 @@
     ],
   };
 
-  const ROOMS = { earth: EARTH, water: WATER, fire: FIRE, air: AIR };
+  // THE HEART — the fifth rite (the author's design, 2026-10-06). Blood is
+  // taken and bound across the room; the four it freed stand on the stage.
+  // Two on an altar fuse, and what they make shoots its power down that
+  // altar's lane at the first thing in the way. Everything in the way holds an
+  // element, and breaking it frees that element to join you. The split stage
+  // takes a fused creature apart again. Light + Dark make Blood, and Blood
+  // made here frees the Blood that was taken.
+  const HEART = {
+    id: 'heart',
+    label: 'The Heart',
+    teaches: 'Stand two together on an altar and they fuse. What they make shoots its power down that altar\'s lane. Break what is in the way and what it holds joins you. The split stage takes a fused creature apart. Make Blood.',
+    map: [
+      '################',
+      '#Sa......I######',
+      '#.....##########',
+      '#f......._######',
+      '#.....########B#',
+      '#w.......K.K####',
+      '#.....##########',
+      '#e.......T######',
+      '################',
+    ],
+    altars: [
+      { back: [4, 1], front: [5, 1] },
+      { back: [4, 3], front: [5, 3] },
+      { back: [4, 5], front: [5, 5] },
+      { back: [4, 7], front: [5, 7] },
+    ],
+    holds: { '9,1': 'Lava', '9,3': 'Spirit', '9,5': 'Crystal', '11,5': 'Crystal', '9,7': 'Plant' },
+  };
+
+  const ROOMS = { earth: EARTH, water: WATER, fire: FIRE, air: AIR, heart: HEART };
   const api = { HUB, ROOMS };
   if (typeof module !== 'undefined') module.exports = api; else root.RitesRooms = api;
 })(this);
@@ -1857,6 +2178,548 @@
   }
   function resetAir() { air.S = AE.start(air.R); air.hist = []; air.db = air.S.b.slice(); air.anim = null; air.freedT = freed.Air && air.freedT >= 0 ? air.freedT : -1; }
 
+  // ═══ THE HEART — the fifth rite (the author's design, 2026-10-06) ════════
+  // Blood is taken and bound in the niche across the room; the four it freed
+  // pour in and stand on the stage. Tap one, then tap where it should go. Two
+  // standing on an altar's stones fuse; what they make shoots its power down
+  // that altar's lane, and whatever it breaks lets go of the element it was
+  // holding, which joins you. The split stage takes a fused creature apart.
+  // Light + Dark make Blood, and that frees the Blood that was taken.
+  const HR = window.HeartEngine;
+  const FAMS = ['horn', 'kin', 'let', 'mane', 'mask', 'pip', 'wing'];
+  const ELC = Object.assign({}, EL, FUSE, {
+    Crystal: '#b7a2f2', Poison: '#86c94a', Spirit: '#e6e0ff', Light: '#fff0b0', Dark: '#7a5aa8',
+    Plant: '#5fb04a', Blood: BLOOD,
+  });
+  const heart = {
+    R: HR.parseRoom(ROOMS.heart), S: null, sel: null, walk: null, fx: [], pos: new Map(), names: new Map(),
+    hide: new Set(), oldCells: new Map(), capture: -1, freedT: -1,
+  };
+  let heartDone = (() => { try { return localStorage.getItem('blood-rites-heart') === '1'; } catch (e) { return false; } })();
+  function heartName(c) {
+    if (!heart.names.has(c)) heart.names.set(c, c.el + (c.parts || c.freedFrom ? FAMS[Math.floor(Math.random() * FAMS.length)] : 'kin'));
+    return heart.names.get(c);
+  }
+  function resetHeart(withCapture) {
+    heart.S = HR.start(heart.R);
+    heart.sel = null; heart.walk = null; heart.fx = []; heart.pos = new Map(); heart.hide = new Set(); heart.oldCells = new Map();
+    heart.freedT = -1; heart.reformed = false; heart.bloodFlow = null;
+    for (const c of heart.S.cs) heart.pos.set(c, [c.at[0], c.at[1]]);
+    heart.capture = withCapture && !reduce ? 0 : -1;
+  }
+  resetHeart(true);
+
+  const hc = (x) => (x + .5) * U;
+  function heartCell(e) {
+    const r = cv.getBoundingClientRect();
+    return [Math.floor((e.clientX - r.left) / U), Math.floor((e.clientY - r.top) / U)];
+  }
+  function creature(cx, cy, el, r, a) {
+    ctx.save(); ctx.globalAlpha = a == null ? 1 : a;
+    softGlow(cx, cy, r * 2.2, ELC[el] || GOLD, .22);
+    bulb(cx, cy, r, ELC[el] || GOLD, .04 * Math.sin(time * 4 + cx));
+    ctx.fillStyle = 'rgba(10,6,7,.75)';
+    ctx.font = `600 ${Math.max(9, r * .7)}px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(el.slice(0, 2), cx, cy + 1);
+    ctx.restore();
+  }
+
+  // ── drawing ──
+  function obstacle(ch, x, y, a, held) {
+    const cx = hc(x), cy = hc(y), x0 = x * U, y0 = y * U;
+    ctx.save(); ctx.globalAlpha = a;
+    // what it holds, seen through it
+    if (held && ch !== '_') { softGlow(cx, cy, U * .5, ELC[held], .35); }
+    if (ch === 'I') {
+      ice(x, y);
+      if (held) { ctx.globalAlpha = a * .55; bulb(cx, cy + U * .04, U * .2, ELC[held], 0); }
+    } else if (ch === 'T') {
+      ctx.fillStyle = '#2a0c12'; ctx.beginPath(); ctx.ellipse(cx, cy + U * .08, U * .44, U * .38, 0, 0, Math.PI * 2); ctx.fill();
+      if (held) { bulb(cx, cy + U * .05, U * .16, ELC[held], 0); }
+      for (let k = 0; k < 9; k++) {
+        const ang = k * 2.4 + .3, r1 = U * .18, r2 = U * (.42 + .06 * hash(x, y, k));
+        ctx.fillStyle = k % 2 ? '#8a1626' : '#c8283c';
+        ctx.beginPath(); ctx.moveTo(cx + Math.cos(ang - .25) * r1, cy + Math.sin(ang - .25) * r1);
+        ctx.lineTo(cx + Math.cos(ang) * r2, cy + Math.sin(ang) * r2); ctx.lineTo(cx + Math.cos(ang + .25) * r1, cy + Math.sin(ang + .25) * r1); ctx.fill();
+      }
+    } else if (ch === 'K') {
+      if (held) { ctx.globalAlpha = a * .7; bulb(cx, cy + U * .1, U * .2, ELC[held], 0); ctx.globalAlpha = a; }
+      for (let k = 0; k < 4; k++) {
+        const bx = x0 + U * (.12 + k * .2), h = U * (.6 + .3 * hash(x, y, k));
+        const g = ctx.createLinearGradient(bx, y0 + U - h, bx + U * .2, y0 + U);
+        g.addColorStop(0, 'rgba(239,230,255,.85)'); g.addColorStop(1, 'rgba(106,79,184,.85)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.moveTo(bx, y0 + U * .95); ctx.lineTo(bx + U * .11, y0 + U * .95 - h); ctx.lineTo(bx + U * .24, y0 + U * .95); ctx.fill();
+      }
+    } else if (ch === '_') {
+      ctx.fillStyle = '#030102'; ctx.fillRect(x0 + U * .04, y0 + U * .04, U * .92, U * .92);
+      ctx.fillStyle = '#24121a'; ctx.fillRect(x0 + U * .04, y0 + U * .04, U * .92, U * .14);
+      if (held) softGlow(cx, cy + U * .1 + Math.sin(time * 1.4) * U * .06, U * .35, ELC[held], .3);
+    } else if (ch === '^') {
+      softGlow(cx, cy, U * .8, '#ff5a1f', .35);
+      for (let k = 0; k < 3; k++) {
+        const h = U * (.5 + .12 * Math.sin(time * (7 + k) + k)), w = U * (.16 - k * .03);
+        ctx.fillStyle = ['#c8283c', '#ee7a3a', '#ffd27a'][k];
+        ctx.beginPath(); ctx.moveTo(cx - w * 2, cy + U * .38); ctx.quadraticCurveTo(cx - w, cy - h * .3, cx + Math.sin(time * 3 + k) * U * .06, cy + U * .38 - h);
+        ctx.quadraticCurveTo(cx + w, cy - h * .3, cx + w * 2, cy + U * .38); ctx.fill();
+      }
+    } else if (ch === '~') {
+      const g = ctx.createLinearGradient(x0, y0, x0, y0 + U);
+      g.addColorStop(0, '#3a7fa4'); g.addColorStop(1, '#0d2a3d');
+      ctx.fillStyle = g; ctx.fillRect(x0 + U * .04, y0 + U * .04, U * .92, U * .92);
+    }
+    ctx.restore();
+  }
+
+  function heartDraw(dt) {
+    const R = heart.R, S = heart.S, W = R.W, H = R.H;
+    ctx.fillStyle = '#0c0708'; ctx.fillRect(0, 0, W * U, H * U);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const k = x + ',' + y;
+      const old = heart.oldCells.get(k);
+      const ch = old ? old.ch : S.cells[y][x];
+      if (ch === '#' || ch === 'B') { wallTile(x, y); continue; }
+      floorTile(x, y);
+      if (R.cells[y][x] === 'S') {
+        const cx = hc(x), cy = hc(y);
+        softGlow(cx, cy, U * .7, GOLD, .12);
+        for (const s of [-1, 1]) {
+          ctx.fillStyle = '#3a2c2c'; ctx.beginPath();
+          ctx.arc(cx + s * U * .05, cy, U * .38, s < 0 ? Math.PI / 2 : -Math.PI / 2, s < 0 ? Math.PI * 1.5 : Math.PI / 2); ctx.fill();
+        }
+        ctx.strokeStyle = rgba(GOLD, .5); ctx.lineWidth = Math.max(1, U * .03);
+        ctx.beginPath(); ctx.arc(cx, cy, U * .38, 0, Math.PI * 2); ctx.stroke();
+      }
+      if (old) {
+        // What was broken stays until the power reaches it, then goes.
+        const a = old.t < 0 ? 1 : Math.max(0, 1 - old.t / .8);
+        obstacle(old.ch, x, y, a, old.held);
+        if (old.t >= 0) { old.t += dt; if (old.t > .8) heart.oldCells.delete(k); }
+      } else obstacle(ch, x, y, 1, S.holds[k]);
+    }
+    // the altars: two stones, the front one notched the way its power goes
+    for (const A of R.altars) {
+      for (const [sx, sy, front] of [[A.back[0], A.back[1], false], [A.front[0], A.front[1], true]]) {
+        const cx = hc(sx), cy = hc(sy);
+        softGlow(cx, cy, U * .6, BLOOD, .1);
+        ctx.fillStyle = front ? '#4a3034' : '#3a2629';
+        ctx.beginPath(); ctx.ellipse(cx, cy + U * .05, U * .4, U * .34, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = rgba(GOLD, .55); ctx.lineWidth = Math.max(1.5, U * .04); ctx.stroke();
+        if (front) {
+          ctx.fillStyle = rgba(GOLD, .7);
+          ctx.beginPath(); ctx.moveTo(cx + U * .32, cy - U * .1); ctx.lineTo(cx + U * .46, cy + U * .05); ctx.lineTo(cx + U * .32, cy + U * .2); ctx.fill();
+        }
+      }
+    }
+    // Blood, bound in its niche — or let go
+    const [bx, by] = R.blood;
+    const bcx = hc(bx), bcy = hc(by);
+    const bound = heart.capture < 0 || heart.capture > 3.4;
+    if (bound && !heart.reformed) {
+      bloodBody(bcx, bcy, U * .3);
+      const gone = heart.freedT < 0 ? 0 : Math.min(1, heart.freedT / 1.0);
+      if (gone < 1) {
+        ctx.save(); ctx.globalAlpha = 1 - gone;
+        ctx.strokeStyle = rgba(BLOOD, .9); ctx.lineWidth = Math.max(2, U * .08);
+        for (const k of [-.4, .4]) { ctx.beginPath(); ctx.ellipse(bcx + k * U * (.3 + gone), bcy, U * .12, U * .46, k * .5, 0, Math.PI * 2); ctx.stroke(); }
+        ctx.restore();
+      }
+    }
+    // powers (under the bodies)
+    for (let i = heart.fx.length - 1; i >= 0; i--) {
+      const f = heart.fx[i];
+      f.t += dt;
+      if (f.kind === 'power') drawPower(f);
+      if (f.t > f.dur) heart.fx.splice(i, 1);
+    }
+    // the creatures
+    for (const c of S.cs) {
+      if (heart.hide.has(c)) continue;
+      let p = heart.pos.get(c);
+      if (!p) { p = [c.at[0], c.at[1]]; heart.pos.set(c, p); }
+      const e = Math.min(1, dt * 16);
+      p[0] += (c.at[0] - p[0]) * e; p[1] += (c.at[1] - p[1]) * e;
+      if (c.formT != null && c.formT < .5) c.formT += dt;
+      const grow = c.formT == null ? 1 : Math.max(0, Math.min(1, c.formT / .5));
+      const cx = hc(p[0]), cy = hc(p[1]), r = U * .3 * grow;
+      if (r < 1) continue;
+      creature(cx, cy, c.el, r);
+      if (heart.sel === c) {
+        ctx.strokeStyle = GOLD; ctx.lineWidth = Math.max(2, U * .05);
+        ctx.beginPath(); ctx.arc(cx, cy, r + U * .1, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(238,227,211,.85)';
+      ctx.font = `500 ${Math.max(8, U * .17)}px ${getComputedStyle(document.body).fontFamily}`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(heartName(c), cx, cy + r + U * .2);
+    }
+    for (const f of heart.fx) if (f.kind !== 'power') drawFuse(f);
+    heartWalkTick(dt);
+    if (heart.capture >= 0) heartCapture(dt);
+    if (heart.freedT >= 0) heartFreed(dt);
+  }
+
+  // A fusion: the two spiral into the front stone, shedding grains, and what
+  // they make grows there out of its own colour.
+  function drawFuse(f) {
+    const k = Math.min(1, f.t / .7);
+    if (f.kind === 'fuse') {
+      const fx = hc(f.at[0]), fy = hc(f.at[1]);
+      f.from.forEach(([el, x, y], i) => {
+        if (k >= 1) return;
+        const ang = (1 - k) * 2.2 + i * Math.PI, rad = (1 - k) * Math.hypot(hc(x) - fx, hc(y) - fy);
+        const px = fx + Math.cos(ang) * rad, py = fy + Math.sin(ang) * rad;
+        creature(px, py, el, U * .3 * (1 - k * .6), 1 - k * .7);
+        if (Math.random() < .8) particles.push({ x: px, y: py, vx: (Math.random() - .5) * U, vy: (Math.random() - .5) * U, life: 0, max: .6 + Math.random() * .5, col: ELC[el], sw: Math.random() * 6 });
+      });
+      const s = Math.sin(Math.max(0, Math.min(1, (f.t - .45) / .65)) * Math.PI);
+      if (s > 0) softGlow(fx, fy, U * (.6 + .6 * s), ELC[f.el], .35 * s);
+    } else if (f.kind === 'split') {
+      const sx = hc(f.at[0]), sy = hc(f.at[1]);
+      if (k < 1) { creature(sx, sy, f.el, U * .3 * (1 + k * .3), 1 - k); softGlow(sx, sy, U * .9, GOLD, .25 * (1 - k)); }
+    } else if (f.kind === 'fizzle') {
+      softGlow(hc(f.at[0]), hc(f.at[1]), U * .7, '#888888', .25 * (1 - k));
+    }
+  }
+
+  // EVERY ELEMENT SHOWS ITSELF (the author, 2026-10-06: no "it breaks against
+  // the wall" — "if we form a crystal fusion, crystals form on the other
+  // side or something visually cool, and if it happens to solve it then
+  // something else happens"). As it forms, the element runs out across the
+  // room in its own way — crystals grow, lava pours, steam rolls, a wave
+  // breaks — up to the first thing in the way. If that thing gives way to
+  // it, it goes and what it held steps out. If not, the show simply ends.
+  // Nothing is said either way.
+  const SPEED = { Lightning: 30, Light: 22, Air: 14, Steam: 6, Dust: 7, Fire: 8, Water: 7, Spirit: 4.5,
+    Dark: 4.5, Poison: 4.5, Ice: 6, Crystal: 4.5, Lava: 3.5, Mud: 3, Earth: 6, Plant: 4 }; // squares a second
+  const T0 = .55, HOLD = .6, FADE = .7;
+  function powerReach(run) { return run.hit ? (run.path.length + .5) * U : Math.max(U, run.path.length * U); }
+  function powerTravel(run, el) { return Math.max(.18, powerReach(run) / U / (SPEED[el] || 6)); }
+  const hz = (i, s = 0) => hash(i, s, 11);
+  const MANIFEST = {
+    Crystal(r) {
+      for (let i = 0; ; i++) {
+        const x = U * .45 + i * U * .3;
+        if (x > r) break;
+        const g = Math.min(1, (r - x) / (U * .6));
+        for (const y of [-.18, .16]) {
+          const h = U * (.25 + .5 * hz(i, y > 0 ? 1 : 2)) * g, w = U * .09, lean = (hz(i, 3) - .5) * U * .2;
+          const gr = ctx.createLinearGradient(x, U * .3, x + lean, U * .3 - h);
+          gr.addColorStop(0, '#5a3fa8'); gr.addColorStop(1, '#f1eaff');
+          ctx.fillStyle = gr;
+          ctx.beginPath(); ctx.moveTo(x - w, y * U + U * .22); ctx.lineTo(x + lean, y * U + U * .22 - h); ctx.lineTo(x + w, y * U + U * .22); ctx.fill();
+        }
+        if (hz(i, 4) > .7) softGlow(x, -U * .1, U * .25, '#e6dcff', .4 * g);
+      }
+    },
+    Ice(r) {
+      ctx.fillStyle = 'rgba(190,232,248,.25)'; ctx.fillRect(0, -U * .42, r, U * .84);
+      for (let i = 0; ; i++) {
+        const x = U * .3 + i * U * .16;
+        if (x > r) break;
+        const y = (hz(i, 1) - .5) * U * .7, h = U * (.08 + .14 * hz(i, 2));
+        ctx.fillStyle = hz(i, 3) > .5 ? '#e8f8fd' : '#9fd8ec';
+        ctx.beginPath(); ctx.moveTo(x - U * .05, y + h * .3); ctx.lineTo(x, y - h); ctx.lineTo(x + U * .05, y + h * .3); ctx.fill();
+      }
+    },
+    Steam(r, L, k, t) {
+      for (let i = 0; ; i++) {
+        const x = i * U * .38;
+        if (x > r) break;
+        const age = (r - x) / U;
+        for (let j = 0; j < 3; j++) {
+          const rr = U * (.16 + .14 * Math.min(1, age) + .05 * j);
+          ctx.fillStyle = `rgba(226,230,234,${.22 - j * .05})`;
+          ctx.beginPath(); ctx.arc(x + j * U * .1, -age * U * .18 - j * U * .12 + Math.sin(t * 2 + i) * U * .05, rr, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    },
+    Lava(r, L, k, t) { tongue(r, t, ['#3a1006', '#c8380e', '#ff7a2a', '#ffd27a'], .24, .05); },
+    Mud(r, L, k, t) { tongue(r, t, ['#24160c', '#4a3220', '#6a4a2c', '#9a7448'], .3, .09); },
+    Water(r, L, k, t) {
+      const back = Math.max(0, r - U * 2.2);
+      const gr = ctx.createLinearGradient(back, 0, r, 0);
+      gr.addColorStop(0, 'rgba(40,110,170,0)'); gr.addColorStop(.7, 'rgba(60,140,200,.75)'); gr.addColorStop(1, 'rgba(150,210,240,.9)');
+      ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.moveTo(back, -U * .32);
+      for (let x = back; x <= r; x += U * .1) ctx.lineTo(x, -U * .32 + Math.sin(t * 5 + x * .08) * U * .04);
+      ctx.lineTo(r + U * .12, 0); ctx.lineTo(r, U * .32); ctx.lineTo(back, U * .32); ctx.fill();
+      for (let i = 0; i < 6; i++) { ctx.fillStyle = 'rgba(240,250,255,.8)'; ctx.beginPath(); ctx.arc(r + U * .05 - hz(i) * U * .2, (hz(i, 1) - .5) * U * .6, U * .04, 0, Math.PI * 2); ctx.fill(); }
+    },
+    Fire(r, L, k, t) {
+      for (let i = 0; ; i++) {
+        const x = U * .3 + i * U * .28;
+        if (x > r) break;
+        const h = U * (.3 + .25 * hz(i)) * (1 + .2 * Math.sin(t * 9 + i)) * Math.min(1, (r - x) / (U * .4) + .2);
+        for (const [c, s] of [['#c8283c', 1], ['#ee7a3a', .75], ['#ffd27a', .45]]) {
+          ctx.fillStyle = c;
+          ctx.beginPath(); ctx.moveTo(x - U * .12 * s, U * .25); ctx.quadraticCurveTo(x - U * .1 * s, U * .25 - h * .5 * s, x + Math.sin(t * 4 + i) * U * .05, U * .25 - h * s);
+          ctx.quadraticCurveTo(x + U * .1 * s, U * .25 - h * .5 * s, x + U * .12 * s, U * .25); ctx.fill();
+        }
+      }
+    },
+    Dust(r, L, k, t) {
+      for (let i = 0; i < 40; i++) {
+        const x = hz(i) * r, a = t * 3 + i;
+        ctx.fillStyle = i % 3 ? 'rgba(216,185,138,.7)' : 'rgba(170,140,100,.6)';
+        ctx.fillRect(x + Math.cos(a) * U * .2, Math.sin(a * 1.3) * U * .35, 2.5, 2.5);
+      }
+      for (let i = 0; i * U * .5 < r; i++) softGlow(i * U * .5, Math.sin(t * 2 + i) * U * .1, U * .45, '#d8b98a', .18);
+    },
+    Earth(r) {
+      for (let i = 0; ; i++) {
+        const x = U * .4 + i * U * .34;
+        if (x > r) break;
+        const g = Math.min(1, (r - x) / (U * .4)), h = U * (.2 + .35 * hz(i)) * g, w = U * (.12 + .06 * hz(i, 1));
+        ctx.fillStyle = hz(i, 2) > .5 ? '#8a6a46' : '#6a5038';
+        ctx.beginPath(); ctx.moveTo(x - w, U * .3); ctx.lineTo(x - w * .4, U * .3 - h); ctx.lineTo(x + w * .5, U * .3 - h * .85); ctx.lineTo(x + w, U * .3); ctx.fill();
+      }
+    },
+    Spirit(r, L, k, t) {
+      for (let i = 0; i < 6; i++) {
+        const x = r - i * U * .45;
+        if (x < 0) break;
+        softGlow(x, Math.sin(t * 3 + i * 1.7) * U * .25, U * .3, '#e6e0ff', .45 - i * .06);
+      }
+    },
+    Light(r) {
+      const gr = ctx.createLinearGradient(0, -U * .2, 0, U * .2);
+      gr.addColorStop(0, 'rgba(255,240,176,0)'); gr.addColorStop(.5, 'rgba(255,248,220,.9)'); gr.addColorStop(1, 'rgba(255,240,176,0)');
+      ctx.fillStyle = gr; ctx.fillRect(0, -U * .2, r, U * .4);
+      softGlow(r, 0, U * .6, '#fff0b0', .5);
+    },
+    Dark(r, L, k, t) {
+      const gr = ctx.createLinearGradient(0, -U * .45, 0, U * .45);
+      gr.addColorStop(0, 'rgba(20,8,30,0)'); gr.addColorStop(.5, 'rgba(20,8,30,.85)'); gr.addColorStop(1, 'rgba(20,8,30,0)');
+      ctx.fillStyle = gr; ctx.fillRect(0, -U * .45, r, U * .9);
+      for (let i = 0; i < 10; i++) softGlow(hz(i) * r, Math.sin(t * 2 + i) * U * .3, U * .12, '#7a5aa8', .5);
+    },
+    Poison(r, L, k, t) {
+      for (let i = 0; ; i++) {
+        const x = i * U * .22;
+        if (x > r) break;
+        const life = ((t * .8 + hz(i)) % 1), rr = U * (.05 + .1 * hz(i, 1)) * (1 + life);
+        ctx.fillStyle = `rgba(134,201,74,${.55 * (1 - life)})`;
+        ctx.beginPath(); ctx.arc(x, (hz(i, 2) - .5) * U * .6 - life * U * .3, rr, 0, Math.PI * 2); ctx.fill();
+      }
+      softGlow(r, 0, U * .5, '#86c94a', .25);
+    },
+    Plant(r, L, k, t) {
+      ctx.fillStyle = '#3f7a32';
+      for (let x = 0; x < r; x += U * .06) { const y = Math.sin(x * .09) * U * .18; ctx.fillRect(x, y - U * .04, U * .07, U * .08); }
+      for (let i = 0; ; i++) {
+        const x = U * .3 + i * U * .35;
+        if (x > r) break;
+        const y = Math.sin(x * .09) * U * .18, s = i % 2 ? 1 : -1;
+        ctx.fillStyle = '#5fb04a';
+        ctx.beginPath(); ctx.ellipse(x, y + s * U * .12, U * .1, U * .05, s * .6, 0, Math.PI * 2); ctx.fill();
+      }
+    },
+    Air(r, L, k, t) {
+      for (let i = 0; i < 5; i++) {
+        const x = r - i * U * .5;
+        if (x < 0) break;
+        ctx.fillStyle = `rgba(220,235,242,${.5 - i * .08})`;
+        ctx.beginPath(); ctx.ellipse(x, (i % 2 ? -1 : 1) * U * .15, U * .3, U * .05, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    },
+    Lightning(r, L, k, t) {
+      ctx.strokeStyle = 'rgba(255,248,180,.95)'; ctx.lineWidth = Math.max(2, U * .06); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      const n = Math.max(3, Math.round(r / (U * .3)));
+      for (let i = 1; i <= n; i++) ctx.lineTo(r * i / n, i < n ? (Math.random() - .5) * U * .4 : 0);
+      ctx.stroke();
+      softGlow(r, 0, U * .5, '#f2e36a', .4);
+    },
+  };
+  // Lava and mud: a tongue that pours along the floor, bright at its front
+  // and darkening behind as it cools (or thickens).
+  function tongue(r, t, cols, half, lump) {
+    if (r < 2) return;
+    const gr = ctx.createLinearGradient(0, 0, r, 0);
+    gr.addColorStop(0, cols[0]); gr.addColorStop(.5, cols[1]); gr.addColorStop(.85, cols[2]); gr.addColorStop(1, cols[3]);
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.moveTo(0, -U * half);
+    for (let x = 0; x <= r; x += U * .1) ctx.lineTo(x, -U * half + Math.sin(x * .2 + t) * U * lump);
+    ctx.quadraticCurveTo(r + U * .25, 0, r, U * half);
+    for (let x = r; x >= 0; x -= U * .1) ctx.lineTo(x, U * half + Math.sin(x * .17 - t) * U * lump);
+    ctx.fill();
+  }
+
+  function drawPower(f) {
+    const run = f.run, d = f.A.d;
+    if (f.t < T0) return;
+    const L = powerReach(run), travel = powerTravel(run, f.el);
+    const k = Math.min(1, (f.t - T0) / travel);
+    const after = f.t - T0 - travel;
+    const a = after <= HOLD ? 1 : Math.max(0, 1 - (after - HOLD) / FADE);
+    const e = 1 - (1 - k) * (1 - k);
+    if (a > .01) {
+      ctx.save();
+      ctx.translate(hc(f.A.front[0]), hc(f.A.front[1]));
+      ctx.rotate(Math.atan2(HR.DY[d], HR.DX[d]));
+      ctx.globalAlpha = a;
+      (MANIFEST[f.el] || ((r) => softGlow(r, 0, U * .5, ELC[f.el] || GOLD, .5)))(L * e, L, k, time);
+      ctx.restore();
+    }
+    if (k >= 1 && !f.landed) {
+      f.landed = true;
+      if (run.broke) {
+        // It was what this thing gives way to: it goes, and what it held
+        // steps out.
+        for (const [x, y] of run.changed) {
+          const o = heart.oldCells.get(x + ',' + y);
+          if (o) o.t = 0;
+          release(hc(x), hc(y), ELC[f.el] || GOLD, 50);
+        }
+        for (const c of f.freed) { heart.hide.delete(c); c.formT = -.2; }
+      }
+    }
+  }
+
+  // ── play ──
+  function heartBusy() { return heart.walk || heart.fx.length || heart.capture >= 0 || heart.freedT >= 0; }
+  function heartTap(e) {
+    if (heartBusy()) return;
+    const [x, y] = heartCell(e);
+    const S = heart.S;
+    const here = S.cs.filter((c) => c.at[0] === x && c.at[1] === y);
+    if (here.length && (!heart.sel || !here.includes(heart.sel) || here.length > 1)) {
+      const i = heart.sel ? (here.indexOf(heart.sel) + 1) % here.length : 0;
+      heart.sel = here[Math.max(0, i)];
+      say(`${heartName(heart.sel)}. Tap where it should go.`);
+      return;
+    }
+    if (!heart.sel) { say('Tap one of them first.'); return; }
+    if (heart.sel.at[0] === x && heart.sel.at[1] === y) { heart.sel = null; say(''); return; }
+    const p = HR.path(heart.R, S.cells, heart.sel.at, [x, y]);
+    if (!p) { say('It can\'t get there.'); return; }
+    heart.walk = { c: heart.sel, path: p, i: 0, t: 0 };
+  }
+  function heartStep(d) {
+    if (heartBusy() || !heart.sel) return;
+    const c = heart.sel, nx = c.at[0] + HR.DX[d], ny = c.at[1] + HR.DY[d];
+    if (!HR.walkable(heart.R, heart.S.cells, nx, ny)) return;
+    heart.walk = { c, path: [c.at.slice(), [nx, ny]], i: 0, t: 0 };
+  }
+  function heartWalkTick(dt) {
+    const w = heart.walk;
+    if (!w) return;
+    w.t += dt * 8;
+    while (w.t >= 1 && w.i < w.path.length - 1) { w.t -= 1; w.i++; w.c.at = w.path[w.i].slice(); }
+    if (w.i >= w.path.length - 1) { heart.walk = null; heartArrive(w.c); }
+  }
+  function heartArrive(c) {
+    const R = heart.R, S = heart.S;
+    R.altars.forEach((A, ai) => {
+      const onBack = c.at[0] === A.back[0] && c.at[1] === A.back[1];
+      const onFront = c.at[0] === A.front[0] && c.at[1] === A.front[1];
+      if (!onBack && !onFront) return;
+      const other = A[onBack ? 'front' : 'back'];
+      const o = S.cs.find((q) => q !== c && q.at[0] === other[0] && q.at[1] === other[1]);
+      if (!o) return;
+      const i = S.cs.indexOf(onBack ? c : o), j = S.cs.indexOf(onBack ? o : c);
+      const r = HR.fuse(R, S, ai, i, j);
+      if (r.why) { heart.fx.push({ kind: 'fizzle', at: A.front, t: 0, dur: .6 }); say(r.why + '.'); return; }
+      for (const [x, y] of r.run.changed) heart.oldCells.set(x + ',' + y, { ch: S.cells[y][x], t: -1, held: S.holds[x + ',' + y] });
+      const from = [[S.cs[i].el, ...S.cs[i].at], [S.cs[j].el, ...S.cs[j].at]];
+      heart.S = r.S;
+      r.made.formT = -.45;
+      heart.pos.set(r.made, A.front.slice());
+      heart.sel = r.made;
+      for (const fc of r.freed) { heart.hide.add(fc); heart.pos.set(fc, fc.at.slice()); }
+      heart.fx.push({ kind: 'fuse', at: A.front, from, el: r.made.el, t: 0, dur: 1.2 });
+      say(`${from[0][0]} and ${from[1][0]} make ${r.made.el}.`);
+      if (r.blood) { heartBlood(r.made); return; }
+      heart.fx.push({ kind: 'power', A, run: r.run, el: r.made.el, freed: r.freed, t: 0, dur: T0 + powerTravel(r.run, r.made.el) + HOLD + FADE });
+    });
+    if (R.cells[c.at[1]][c.at[0]] === 'S' && c.parts) {
+      const i = S.cs.indexOf(c);
+      const r = HR.split(R, S, i, c.at[0], c.at[1]);
+      heart.S = r.S;
+      const [p, q] = r.S.cs.slice(-2);
+      heart.names.set(p, heartName(c.parts[0])); heart.names.set(q, heartName(c.parts[1]));
+      p.formT = -.3; q.formT = -.3;
+      heart.pos.set(p, c.at.slice()); heart.pos.set(q, c.at.slice());
+      heart.sel = null;
+      heart.fx.push({ kind: 'split', at: c.at.slice(), el: c.el, t: 0, dur: .8 });
+      say(`${c.el} comes apart into ${c.parts[0].el} and ${c.parts[1].el}.`);
+    }
+  }
+
+  // BLOOD: the made Blood pours across the room into the one that was taken,
+  // and its bands let go.
+  function heartBlood(made) {
+    heart.sel = null;
+    heart.bloodFlow = { from: made, t: 0 };
+    heart.freedT = 0;
+    say('Light and Dark make Blood.');
+  }
+  function heartFreed(dt) {
+    heart.freedT += dt;
+    const t = heart.freedT;
+    const [bx, by] = heart.R.blood;
+    const fl = heart.bloodFlow;
+    if (fl && t < 2.2) {
+      const p = heart.pos.get(fl.from) || fl.from.at;
+      const k = Math.min(1, Math.max(0, (t - .8) / 1.2));
+      if (t > .8) {
+        heart.hide.add(fl.from);
+        const sx = hc(p[0]), sy = hc(p[1]), ex = hc(bx), ey = hc(by);
+        for (let i = 0; i < 6; i++) {
+          const tt = Math.max(0, k - Math.random() * .3);
+          particles.push({ x: sx + (ex - sx) * tt + (Math.random() - .5) * U * .3, y: sy + (ey - sy) * tt - Math.sin(tt * Math.PI) * U * 1.2, vx: 0, vy: 0, life: 0, max: .5, col: i % 3 ? BLOOD : '#ff8a94', sw: Math.random() * 6 });
+        }
+      }
+    }
+    if (t > 2.4 && !heart.reformed) {
+      heart.reformed = true;
+      release(hc(bx), hc(by), BLOOD, 120);
+      for (const c of heart.S.cs) if (!heart.hide.has(c)) release(hc(c.at[0]), hc(c.at[1]), ELC[c.el], 30);
+      // Blood steps out onto the stage; the four re-form round it.
+      const at = [3, 4];
+      heart.S.cs = [{ el: 'Blood', parts: null, at, formT: -.3 }].concat(HR.BASE.map((el, i) => ({ el, parts: null, at: [[2, 4], [4, 4], [3, 3], [3, 5]][i], formT: -.5 - i * .15 })));
+      heart.hide = new Set();
+      heart.S.cs.forEach((c) => { heart.names.set(c, c.el === 'Blood' ? 'Your Blood' : c.el + 'kin'); heart.pos.set(c, c.at.slice()); });
+      say('Your Blood is free. The four re-form beside it, and the floor opens on Sanguorath.');
+      if (!heartDone) { heartDone = true; try { localStorage.setItem('blood-rites-heart', '1'); } catch (e) {} }
+      renderChrome();
+    }
+    if (t > 4) heart.freedT = 4;
+  }
+
+  // THE CAPTURE (a sketch of the game's cutscene): Blood steps into the Heart,
+  // comes apart into grains, and the grains are drawn into the niche and
+  // bound; then the four pour in, each in its own colour, and stand.
+  function heartCapture(dt) {
+    const t = heart.capture += dt;
+    const [bx, by] = heart.R.blood;
+    const sx = hc(3), sy = hc(4);
+    if (t < 1.0) { bloodBody(sx, sy, U * .3); say('Blood steps into the Heart.'); }
+    else if (t < 1.1) { release(sx, sy, BLOOD, 120); say('It comes apart, and it is taken.'); }
+    else if (t < 3.4) {
+      const k = (t - 1.1) / 2.3;
+      for (let i = 0; i < 3; i++) particles.push({ x: sx + (hc(bx) - sx) * k + (Math.random() - .5) * U * .8, y: sy + (hc(by) - sy) * k - Math.sin(k * Math.PI) * U + (Math.random() - .5) * U * .8, vx: 0, vy: 0, life: 0, max: .5, col: BLOOD, sw: Math.random() * 6 });
+    }
+    heart.hide = new Set(heart.S.cs.filter((c, i) => t < 3.6 + i * .35));
+    if (t > 3.4 && t < 5.4) {
+      heart.S.cs.forEach((c, i) => {
+        const k = t - 3.6 - i * .35;
+        if (k > 0 && k < .4) for (let n = 0; n < 4; n++) particles.push({ x: hc(c.at[0]) + (Math.random() - .5) * U * .6, y: hc(c.at[1]) + (Math.random() - .5) * U * .6, vx: 0, vy: 0, life: 0, max: .5, col: ELC[c.el], sw: Math.random() * 6 });
+      });
+      say('The four you freed pour in after it.');
+    }
+    if (t > 5.4) { heart.capture = -1; heart.hide = new Set(); say('Tap one of the four, then tap where it should go.'); }
+  }
+  // A test seam: tap square (x, y) as a finger would.
+  window.__heartTap = (x, y) => {
+    const r = cv.getBoundingClientRect();
+    heartTap({ clientX: r.left + (x + .5) * U, clientY: r.top + (y + .5) * U });
+    return document.getElementById('status').textContent;
+  };
+
+
   // A swipe goes that way; a tap goes towards where you tapped.
   let swipe = null;
   function dirFrom(e, body) {
@@ -1874,6 +2737,7 @@
     { id: 'water', name: 'Water', sub: 'Fire + Ice', el: 'Water' },
     { id: 'fire', name: 'Fire', sub: 'Air + Lava', el: 'Fire' },
     { id: 'air', name: 'Air', sub: 'Ice + Light', el: 'Air' },
+    { id: 'heart', name: 'The Heart', sub: 'the fifth rite' },
   ];
   function renderChrome() {
     navEl.innerHTML = '';
@@ -1885,16 +2749,16 @@
       navEl.appendChild(b);
     }
     const n = HE.ORDER.filter((el) => freed[el]).length;
-    const stars = n === 4 ? 2 : 0;
-    tallyEl.innerHTML = `<span>Freed <b>${n} / 4</b></span><span>Stars <b>${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</b> (two for all four freed, one for the boss)</span><span>Lost Maxim <b>${hub.maxim ? 'found' : '—'}</b></span><span>Vault <b>${hub.vault ? 'found' : '—'}</b></span>`;
+    const stars = (n === 4 ? 1 : 0) + (heartDone ? 1 : 0);
+    tallyEl.innerHTML = `<span>Freed <b>${n} / 4</b></span><span>Stars <b>${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</b> (one for all four freed, one for the Heart, one for the boss)</span><span>Lost Maxim <b>${hub.maxim ? 'found' : '—'}</b></span><span>Vault <b>${hub.vault ? 'found' : '—'}</b></span>`;
     actionsEl.innerHTML = '';
     const btn = (label, fn, cls) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; if (cls) b.className = cls; actionsEl.appendChild(b); return b; };
     const undoReset = (undo, reset) => { btn('Undo', undo); btn('Reset room', () => { reset(); say(''); renderChrome(); }); };
     if (view === 'hub') {
       btn('Turn outer ring', () => hubTurn(0));
       btn('Turn inner ring', () => hubTurn(1));
-      btn('Start over', () => { for (const el of HE.ORDER) { freed[el] = false; hub.cups[el] = false; } hub.maxim = false; hub.vault = false; hub.turns = [0, 0]; hub.ang = [0, 0]; earth.freedT = water.freedT = fire.freedT = air.freedT = -1; resetEarth(); resetWater(); resetFire(); resetAir(); save(); say(''); renderChrome(); });
-      noteEl.innerHTML = '<strong>The Circle.</strong> Every freed captive\'s blood runs from its door to its cup at the rim. Fill all four cups and the seal in the middle opens on the boss. The two rings turn; nothing tells you why.';
+      btn('Start over', () => { for (const el of HE.ORDER) { freed[el] = false; hub.cups[el] = false; } hub.maxim = false; hub.vault = false; heartDone = false; try { localStorage.removeItem('blood-rites-heart'); } catch (e) {} resetHeart(false); hub.turns = [0, 0]; hub.ang = [0, 0]; earth.freedT = water.freedT = fire.freedT = air.freedT = -1; resetEarth(); resetWater(); resetFire(); resetAir(); save(); say(''); renderChrome(); });
+      noteEl.innerHTML = '<strong>The Circle.</strong> Every freed captive\'s blood runs from its door to its cup at the rim. Fill all four cups and the seal in the middle opens on the Heart, where the boss waits below. The two rings turn; nothing tells you why.';
     } else if (view === 'earth') {
       btn('Pull in every tendril', () => { earth.S = { turns: earth.S.turns, lines: {} }; earth.active = null; say(''); });
       btn('Reset room', () => { resetEarth(); say(''); });
@@ -1909,6 +2773,10 @@
     } else if (view === 'fire') {
       undoReset(() => { if (!fire.hist.length || fire.freedT >= 0) return; fire.S = fire.hist.pop(); fire.db = fire.S.b.slice(); fire.dt = fire.S.t.slice(); say(''); }, resetFire);
       noteEl.innerHTML = `<strong>${ROOMS.fire.label}.</strong> ${ROOMS.fire.teaches} Swipe, tap beside Blood, or use the arrow keys.`;
+    } else if (view === 'heart') {
+      btn('Reset room', () => { resetHeart(false); say('The room is as it began.'); renderChrome(); });
+      btn('Play the capture again', () => { resetHeart(true); renderChrome(); });
+      noteEl.innerHTML = `<strong>${ROOMS.heart.label}.</strong> ${ROOMS.heart.teaches} In the game it opens once all four are freed. Tap one of them, then tap where it should go (or use the arrow keys).`;
     } else if (view === 'air') {
       undoReset(() => { if (!air.hist.length || air.freedT >= 0) return; air.anim = null; air.S = air.hist.pop(); air.db = air.S.b.slice(); say(''); }, resetAir);
       noteEl.innerHTML = `<strong>${ROOMS.air.label}.</strong> ${ROOMS.air.teaches} Swipe, tap beside Blood, or use the arrow keys.`;
@@ -1918,6 +2786,7 @@
   function resetWater() { water.S = WE.start(water.R); water.hist = []; water.frames = []; water.queue = []; water.flipT = 1; water.freedT = freed.Water ? 99 : -1; }
   function go(id) {
     view = id; say('');
+    if (id === 'heart' && !heart.seen) { heart.seen = true; resetHeart(true); }
     try { history.replaceState(null, '', '#' + id); } catch (e) {}
     layout(); renderChrome();
     if (id === 'hub') hubSay();
@@ -1927,6 +2796,7 @@
     else if (view === 'water') resize(water.R.W, water.R.H, 560);
     else if (view === 'fire') resize(fire.R.W, fire.R.H, 640);
     else if (view === 'air') resize(air.R.W, air.R.H, 560);
+    else if (view === 'heart') resize(heart.R.W, heart.R.H, 760);
     else { const w = Math.min(cv.parentElement.clientWidth, 600); resize(1, 1, w); U = w / 24; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
@@ -1938,6 +2808,7 @@
     if (view === 'earth') earthDown(e);
     else if (view === 'water') waterTap(e);
     else if (view === 'hub') hubTap(e);
+    else if (view === 'heart') heartTap(e);
   });
   cv.addEventListener('pointermove', (e) => { if (view === 'earth') earthMove(e); });
   cv.addEventListener('pointerup', (e) => {
@@ -1950,6 +2821,7 @@
     const d = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 }[e.key];
     if (view === 'fire' && d != null) { e.preventDefault(); fireMove(d); }
     if (view === 'air' && d != null) { e.preventDefault(); airPush(d); }
+    if (view === 'heart' && d != null) { e.preventDefault(); heartStep(d); }
     if (view !== 'water') return;
     if (d != null) { e.preventDefault(); water.queue = []; waterStep(d); }
     if (e.key === ' ' || e.key === 'f') { e.preventDefault(); waterFlip(); }
@@ -1957,15 +2829,23 @@
 
   let last = performance.now();
   function frame(now) {
-    const dt = Math.min(.05, (now - last) / 1000); last = now; time += dt;
+    const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now;
+    tick(dt);
+    requestAnimationFrame(frame);
+  }
+  // A test seam: step the page by hand (a hidden tab gets no frames).
+  window.__step = (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) tick(dt); };
+  window.__heart = () => heart;
+  function tick(dt) {
+    time += dt;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (view === 'earth') earthDraw(dt);
     else if (view === 'water') { waterTick(); waterDraw(dt); }
     else if (view === 'fire') fireDraw(dt);
     else if (view === 'air') airDraw(dt);
+    else if (view === 'heart') heartDraw(dt);
     else hubDraw(dt);
     drawParticles(dt);
-    requestAnimationFrame(frame);
   }
   const start = (location.hash || '').slice(1);
   go(VIEWS.some((v) => v.id === start) ? start : 'hub');

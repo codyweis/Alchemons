@@ -206,7 +206,8 @@ const Map<String, String> kDungeonRoomLabels = {
   'rite_fire': 'TWIN',
   'rite_air': 'WEIGHTLESS ROOM',
   'rite_vault': 'DROWNED VAULT',
-  'sanguorath_heart': 'HEART',
+  'rite_heart': 'HEART',
+  'sanguorath_heart': 'DEPTHS',
 };
 
 /// Test-only view of a room's centre on the expanded map, scaled onto

@@ -67,6 +67,21 @@ void main() {
     });
   });
 
+  group('Blood\'s RESET ROOM', () {
+    test('is the one labelled tool, and only in a captive room, in the '
+        'regroup icon\'s place', () {
+      // The author, 2026-10-06: "make the reset room bigger in this
+      // dungeon". The Blood Rites never say a room has jammed, so the way
+      // out has to be found without being pointed at: a big labelled
+      // button, standing where the regroup icon stands, only while a
+      // captive room is being played.
+      expect(source, contains('game.riteResetShown\n'));
+      expect(source, contains('? _resetRoomButton('));
+      expect(source, contains("'RESET\\nROOM'"));
+      expect(RegExp(r'_resetRoomButton\(').allMatches(source).length, 2);
+    });
+  });
+
   group('the survey', () {
     test('reads as a magnifier in both directions', () {
       // zoom_out_map/zoom_in_map are the four-arrows glyphs, which read as
@@ -118,11 +133,13 @@ void main() {
 
     test('the controls live in a tray the room never runs under', () {
       expect(source, contains('Widget _controlTray('));
+      // (The room's tap catcher may sit between them: the game is still the
+      // child of the box that stops at the tray.)
       expect(
-        source,
-        contains(
-          'bottom: _trayHeight(context),\n              child: GameWidget(game: game)',
-        ),
+        RegExp(
+          r'bottom: _trayHeight\(context\),[\s\S]{0,500}?child: GameWidget\(game: game\)',
+        ).hasMatch(source),
+        isTrue,
         reason: 'the game is laid out ABOVE the tray, not under it',
       );
     });

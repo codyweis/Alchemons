@@ -9,6 +9,7 @@ import 'package:alchemons/audio/sound_cue.dart';
 // doorway room transitions, hazard→death→respawn, and instant star banking.
 // Slice 3 layers the bespoke per-planet puzzles on top.
 
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
 
@@ -32,6 +33,7 @@ import 'package:alchemons/games/planet_dungeon/dungeon_glass.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
 import 'package:alchemons/games/planet_dungeon/guardian_grain_death.dart';
 import 'package:alchemons/games/planet_dungeon/blood_rite_fx.dart';
+import 'package:alchemons/games/planet_dungeon/blood_heart_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
@@ -45,6 +47,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_dark.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_light.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_blood.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_blood_rites.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_blood_heart.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
@@ -53,6 +56,9 @@ import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
+import 'package:alchemons/widgets/fx/element_orb.dart' show ElementOrb;
+import 'package:alchemons/widgets/fx/elemental_essence.dart' show EssenceElement, essenceRamp;
+import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 import 'package:flame/components.dart' show Anchor;
 import 'package:flame/game.dart';
 import 'package:flame/sprite.dart';
@@ -78,6 +84,8 @@ part 'planet_dungeon_game_spirit_art.dart';
 part 'planet_dungeon_game_dark_art.dart';
 part 'planet_dungeon_game_light_art.dart';
 part 'planet_dungeon_game_blood_art.dart';
+part 'planet_dungeon_game_blood_heart.dart';
+part 'planet_dungeon_game_blood_heart_art.dart';
 part 'planet_dungeon_game_water.dart';
 part 'planet_dungeon_game_earth.dart';
 part 'planet_dungeon_game_lightning.dart';
@@ -170,6 +178,11 @@ class DungeonCreature {
 
   SpriteAnimationTicker? ticker;
   double spriteScale = 1.0;
+
+  /// How big this creature's family stands against the old one-size box
+  /// (44 units): what is drawn round its body (glow, marker, shadow) grows
+  /// with it. See [kDungeonFamilyBox].
+  double sizeK = 1.0;
 
   /// Last position on solid ground (used to recover from a glide fall).
   Offset lastSafe = Offset.zero;
@@ -340,6 +353,11 @@ class _AlchemyParticle {
   double get t => maxLife <= 0 ? 1 : (1 - life / maxLife).clamp(0.0, 1.0);
 }
 
+/// A dungeon creature's box per unit of its family's size
+/// ([kCompanionSpeciesScale], shared with survival and space): a family of
+/// 2.0 (Kin, Wing) stands 63 units, about one 64-unit square.
+const double kDungeonFamilyBox = 31.5;
+
 class PlanetDungeonGame extends FlameGame {
   PlanetDungeonGame({
     required this.element,
@@ -359,6 +377,7 @@ class PlanetDungeonGame extends FlameGame {
     this.onRaidWiped,
     this.clearedGuardianCount = 0,
     this.riteCaptives = const [],
+    this.riteSpecies = const {},
     DungeonLayout? layoutOverride,
   }) : layout = layoutOverride ?? kPlanetDungeonLayouts[element]! {
     discoveredClouds.addAll(initialDiscoveredCloudIds);
@@ -416,6 +435,10 @@ class PlanetDungeonGame extends FlameGame {
   /// screen picks real species; a test may leave this empty (each captive
   /// then wears the Blood's own body).
   final List<CosmicPartyMember> riteCaptives;
+
+  /// Blood's Heart: real species of every element a fusion there can make,
+  /// by element (the screen's catalog; a test may leave it empty).
+  final Map<String, List<CosmicPartyMember>> riteSpecies;
   final int initialStarMask;
   final void Function(SoundCue cue)? onSound;
 
@@ -1273,11 +1296,9 @@ class PlanetDungeonGame extends FlameGame {
   /// puzzle — the lens, both ends of a portal, the seal — has to be in view
   /// at once). 1.0 everywhere else.
   double get _planetFitZoom {
-    if (_isRites && hasLayout) {
-      return _riteFitsRoom
-          ? _fitFrame(currentRoom.bounds).$2.clamp(kMinFitZoom, 1.0)
-          : 1.0;
-    }
+    // Blood's captive rooms are played close and pull back only to show
+    // something (planet_dungeon_game_blood.dart, THE CAMERA).
+    if (_isRites) return _riteViewZoom;
     if (!_isVault || !hasLayout) return 1.0;
     if (currentRoom.sun?.grid == null) return 1.0;
     return _fitFrame(currentRoom.bounds).$2.clamp(kMinFitZoom, 1.0);
@@ -1421,7 +1442,10 @@ class PlanetDungeonGame extends FlameGame {
   void _updateCamera(double dt) {
     // The raid death is the shot — hold on the guardian, not the player.
     final target =
-        _raidDeath?.position ?? active?.position ?? currentRoom.bounds.center;
+        _raidDeath?.position ??
+        _riteCamFocus ??
+        active?.position ??
+        currentRoom.bounds.center;
     // Room change → snap (the new room is a different coordinate space).
     if (_camFocusRoom != currentRoomId || _camFocus == null) {
       _camFocus = target;
@@ -2969,9 +2993,18 @@ class PlanetDungeonGame extends FlameGame {
       ),
     );
     c.ticker = anim.createTicker();
-    const desired = 44.0;
-    final s = desired / max(sheet.frameSize.x, sheet.frameSize.y);
-    c.spriteScale = s * (c.member.spriteVisuals?.scale ?? 1.0);
+    // THE FAMILIES' OWN SIZES (the author, 2026-10-06: "are we using correct
+    // alchemon scaling sizes that we use in survival and cosmic space?" —
+    // we weren't: every family stood in one 44-unit box). The same family
+    // table as survival and space, scaled so a Kin or a Wing stands about
+    // one 64-unit square: Pip ~35, Mane ~38, Mask ~47, Horn ~53, Kin/Wing 63.
+    final box =
+        kDungeonFamilyBox *
+        (kCompanionSpeciesScale[c.member.family.toLowerCase()] ?? 1.3);
+    final s = box / max(sheet.frameSize.x, sheet.frameSize.y);
+    c
+      ..spriteScale = s * (c.member.spriteVisuals?.scale ?? 1.0)
+      ..sizeK = box / 44;
   }
 
   CosmicSurvivalCompanion _createCombatCompanion(
@@ -3672,12 +3705,23 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _teachRoom(DungeonRoom room) {
+    final lines = <String>[];
     final line = room.teach;
-    if (line == null) return;
     final id = 'teach:${room.id}';
-    if (discoveredClouds.contains(id)) return;
-    _discoverCloud(id);
-    _inHintChannel(DungeonHintChannel.insight, () => _forceHint(line, 6.0));
+    if (line != null && !discoveredClouds.contains(id)) {
+      _discoverCloud(id);
+      lines.add(line);
+    }
+    // Blood: the first captive room also says where RESET ROOM is.
+    if (_isRites) {
+      final reset = _riteResetTeach(room);
+      if (reset != null) lines.add(reset);
+    }
+    if (lines.isEmpty) return;
+    _inHintChannel(
+      DungeonHintChannel.insight,
+      () => _forceHint(lines.join('. '), lines.length > 1 ? 8.0 : 6.0),
+    );
   }
 
   /// The planet's world rule, once ever, on the first descent. Called when
@@ -4276,9 +4320,9 @@ class PlanetDungeonGame extends FlameGame {
         // Dark's rite is the Heart: blood on the Great Seal latches A and B
         // from the module, and Noctryos wakes as it burns.
         !(_isVault && room.sun?.grid == 'sun_heart') &&
-        // Blood's rite is the Circle: all four cups full latch A and B from
-        // the module, and Sanguorath wakes below the seal.
-        !(_isRites && room.rite?.kind == RiteKind.circle)) {
+        // Blood's rite is the Heart: Blood freed there latches A and B from
+        // the module, and Sanguorath wakes below it.
+        !(_isRites && room.rite?.kind == RiteKind.heart)) {
       return;
     }
     // A debug rematch re-fights a guardian whose star is already banked; its
@@ -10517,6 +10561,16 @@ class PlanetDungeonGame extends FlameGame {
     return (world - cam) * viewZoom;
   }
 
+  /// A tap on the room itself (not the HUD), at [screen] in the game view.
+  /// True when something in the room answered it. Only the Blood Heart's
+  /// hanging elements do, for now: they show their names.
+  bool tapWorld(Offset screen) {
+    if (!hasLayout) return false;
+    final world = _cameraTopLeft(currentRoom, _cameraFocus) + screen / viewZoom;
+    if (_isRites) return _riteTap(world);
+    return false;
+  }
+
   /// DEBUG: keep the guardian spawnable after its star is banked.
   ///
   /// Set by [debugSpawnGuardian] and never cleared — once you are re-fighting
@@ -14012,8 +14066,10 @@ class PlanetDungeonGame extends FlameGame {
     final b = room.bounds;
     // A room framed whole sits in the clear part of the view, centred there
     // rather than in the middle of a screen the HUD half covers.
-    if (((_isVault && room.sun?.grid != null) || _riteFitsRoom) &&
-        hasLayout) {
+    if (_isRites && hasLayout && room.rite?.isStaged == true) {
+      return _riteCameraTopLeft(room, focus);
+    }
+    if (_isVault && room.sun?.grid != null && hasLayout) {
       final z = viewZoom;
       final (frame, _) = _fitFrame(b);
       if (b.width * z <= frame.width + 1 && b.height * z <= frame.height + 1) {
@@ -15701,6 +15757,8 @@ class PlanetDungeonGame extends FlameGame {
       final c = creatures[i];
       // Dark: a body in another room is not here.
       if (_isVault && !_sunHere(c)) continue;
+      // Blood's Heart draws a body itself while it comes apart or gathers.
+      if (_isRites && rites.heart.hidden.contains(c)) continue;
       final isActive = i == activeIndex && c.alive;
       final ec = elementColor(c.member.element);
 
@@ -15709,9 +15767,11 @@ class PlanetDungeonGame extends FlameGame {
       if (boost != 1.0) canvas.scale(boost);
 
       // Downed: a dim, grounded ghost of the creature — no aura, no ring.
+      // What is drawn round the body grows with its family's size.
+      final k = c.sizeK;
       if (!c.alive) {
         canvas.drawOval(
-          Rect.fromCenter(center: const Offset(0, 14), width: 34, height: 10),
+          Rect.fromCenter(center: Offset(0, 14 * k), width: 34 * k, height: 10 * k),
           Paint()..color = Colors.black.withValues(alpha: 0.30),
         );
         final ticker = c.ticker;
@@ -15727,7 +15787,7 @@ class PlanetDungeonGame extends FlameGame {
         } else {
           canvas.drawCircle(
             Offset.zero,
-            13,
+            13 * k,
             Paint()..color = ec.withValues(alpha: 0.25),
           );
         }
@@ -15742,13 +15802,13 @@ class PlanetDungeonGame extends FlameGame {
           canvas,
           _fx.glow!,
           Offset.zero,
-          isActive ? 26 : 24,
+          (isActive ? 26 : 24) * k,
           ec.withValues(alpha: isActive ? 0.38 : 0.28),
         );
       } else {
         canvas.drawCircle(
           Offset.zero,
-          22,
+          22 * k,
           Paint()..color = ec.withValues(alpha: isActive ? 0.18 : 0.12),
         );
       }
@@ -15792,9 +15852,9 @@ class PlanetDungeonGame extends FlameGame {
         // Underfoot selection marker (ground reticle, not a bubble).
         final markerPulse = 0.65 + 0.35 * sin(_time * 3.2);
         final marker = Rect.fromCenter(
-          center: const Offset(0, 17),
-          width: 36,
-          height: 11,
+          center: Offset(0, 17 * k),
+          width: 36 * k,
+          height: 11 * k,
         );
         canvas.drawOval(
           marker,
@@ -15817,7 +15877,7 @@ class PlanetDungeonGame extends FlameGame {
           for (var k = 0; k < 3; k++) {
             final ang = _time * 5 + k * (pi * 2 / 3);
             canvas.drawCircle(
-              Offset(cos(ang) * 28, sin(ang) * 28),
+              Offset(cos(ang) * 28 * k, sin(ang) * 28 * k),
               2.2,
               Paint()..color = const Color(0xFF5BC8E8).withValues(alpha: 0.8),
             );
@@ -15832,7 +15892,7 @@ class PlanetDungeonGame extends FlameGame {
       if (hitFlash > 0) {
         canvas.drawCircle(
           Offset.zero,
-          20,
+          20 * k,
           Paint()
             ..color = const Color(
               0xFFE0524D,
@@ -15868,7 +15928,7 @@ class PlanetDungeonGame extends FlameGame {
         if (progress >= 0) {
           canvas.drawCircle(
             Offset.zero,
-            26 - 12 * progress,
+            (26 - 12 * progress) * k,
             Paint()
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1.6
@@ -15914,7 +15974,7 @@ class PlanetDungeonGame extends FlameGame {
       } else {
         canvas.drawCircle(
           Offset.zero,
-          13,
+          13 * k,
           Paint()..color = ec.withValues(alpha: 0.9),
         );
       }

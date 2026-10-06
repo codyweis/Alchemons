@@ -117,3 +117,29 @@ const say = (s) => { out.push(s); console.log(s); };
   say(`  quintessence at (outer/inner): ${quint.join(' ')}`);
 }
 fs.writeFileSync(__dirname + '/proofs.txt', out.join('\n') + '\n');
+
+// ── The Heart (the fifth rite) ──
+{
+  const HR = require('./heart-engine.js');
+  const def = ROOMS.heart, R = HR.parseRoom(def);
+  // The page's recipe copy is the game's own table, main result only.
+  const table = JSON.parse(fs.readFileSync(__dirname + '/../../../assets/data/alchemons_element_recipes.json', 'utf8')).recipes;
+  const cap = (s) => s[0].toUpperCase() + s.slice(1);
+  let bad = 0, pairs = 0;
+  for (const [k, v] of Object.entries(table)) {
+    if (!k.includes('+')) continue;
+    pairs++;
+    const [a, b] = k.split('+').map(cap);
+    const main = cap(Object.entries(v).sort((p, q) => q[1] - p[1])[0][0]);
+    if (HR.recipe(a, b) !== main) { bad++; say(`  RECIPE MISMATCH ${a}+${b}: game ${main}, page ${HR.recipe(a, b)}`); }
+  }
+  say(`heart (${def.label}) recipes: ${pairs} pairs checked against the game's table, ${bad ? bad + ' WRONG' : 'all match'}`);
+  const r = HR.solve(R);
+  say(`  solvable=${r.solvable} fewest-moves=${r.steps} fusions=${r.fusions} splits=${r.splits} states-searched=${r.states}`);
+  say('  plan: ' + r.plan.join(' · '));
+  const noSplit = HR.solve(HR.parseRoom(Object.assign({}, def, { map: def.map.map((s) => s.replace('S', '.')) })));
+  say(`  without the split stage: ${noSplit.solvable ? 'solvable (bad)' : 'IMPOSSIBLE'}`);
+  const noIce = HR.solve(R, { ban: ['Steam'] });
+  say(`  without Steam (Lava melts the ice instead): ${noIce.solvable ? `solvable, ${noIce.fusions} fusions` : 'impossible'}`);
+  say(`  elements that can be made here: ${r.made.join(', ')}`);
+}

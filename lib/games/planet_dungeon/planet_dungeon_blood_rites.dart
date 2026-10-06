@@ -706,7 +706,9 @@ int flipDiveFrom(FlipState s) {
 // twin takes the mirrored one (north is north, east is west). Each is
 // stopped by its own side's walls, so walking into a wall moves only the
 // other one. A plate holds the gate of its number open (on either side) while
-// somebody stands on it; a gate won't close on anybody in it. A pit sends
+// somebody stands on it; a gate won't close on anybody in it. Once the
+// captive is freed every gate stands open ([twinStep]'s `freed`): the room
+// is done, and the way out is behind gate b. A pit sends
 // both back to the pool. Blood on the bellows and the twin on the lava sluice
 // after the same step: air meets lava at the captive's hearth.
 //
@@ -768,7 +770,10 @@ const Map<String, String> _gatePlate = {'a': '1', 'b': '2', 'c': '3'};
 
 TwinState twinStart(TwinRoom r) => TwinState(r.b0, r.t0);
 
-Set<String> twinPressed(TwinRoom r, TwinState s) => {
+/// The plates held down: by whoever stands on them, or all of them once
+/// the room is done ([freed]).
+Set<String> twinPressed(TwinRoom r, TwinState s, {bool freed = false}) => {
+  if (freed) ...const ['1', '2', '3'],
   for (final c in [s.b, s.t])
     if (RegExp(r'^[123]$').hasMatch(r.cells[c.y][c.x])) r.cells[c.y][c.x],
 };
@@ -782,8 +787,8 @@ bool twinOpen(TwinRoom r, int x, int y, Set<String> on) {
   return true;
 }
 
-TwinStepResult twinStep(TwinRoom r, TwinState s, int d) {
-  final on = twinPressed(r, s);
+TwinStepResult twinStep(TwinRoom r, TwinState s, int d, {bool freed = false}) {
+  final on = twinPressed(r, s, freed: freed);
   final nb = (x: s.b.x + kRiteDx[d], y: s.b.y + kRiteDy[d]);
   final md = kTwinMirror[d];
   final nt = (x: s.t.x + kRiteDx[md], y: s.t.y + kRiteDy[md]);

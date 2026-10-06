@@ -11,6 +11,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_blood_rites.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_blood.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
+import 'package:flame/game.dart' show Vector2;
 import 'package:flutter/painting.dart' show Offset;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -110,7 +111,7 @@ void walk(PlanetDungeonGame g, int dir) {
     if (where(g) != before) break;
   }
   g.joystickDirection = Offset.zero;
-  for (var i = 0; i < 90 && g.rites.waterFrames.isNotEmpty; i++) {
+  for (var i = 0; i < 600 && g.rites.waterFrames.isNotEmpty; i++) {
     g.update(1 / 60);
   }
   tick(g, 2);
@@ -124,8 +125,7 @@ void main() {
     expect(bloodLayout.riddle, hasLength(1));
   });
 
-  test('the four captive rooms open off the Circle at its compass points',
-      () {
+  test('the four captive rooms open off the Circle at its compass points', () {
     final circle = bloodLayout.rooms['rite_circle']!;
     for (final el in kRiteElements) {
       expect(
@@ -142,10 +142,16 @@ void main() {
       enter(g, 'rite_water');
       expect(g.rites.water.b, kRiteArrival['Water']);
       expect(g.riteUtilityLabel, 'FLIP');
-      for (final m in 'N N N N W W N W flip S S S W W flip W flip N'.split(' ')) {
+      for (final m in 'N N N N W W N W flip S S S W W flip W flip N'.split(
+        ' ',
+      )) {
         if (m == 'flip') {
           g.activateAbility();
-          for (var i = 0; i < 200 && (g.rites.waterFrames.isNotEmpty || g.rites.flipT < 1); i++) {
+          for (
+            var i = 0;
+            i < 600 && (g.rites.waterFrames.isNotEmpty || g.rites.flipT < 1);
+            i++
+          ) {
             g.update(1 / 60);
           }
         } else {
@@ -162,7 +168,11 @@ void main() {
       for (final m in 'flip flip N W'.split(' ')) {
         if (m == 'flip') {
           g.activateAbility();
-          for (var i = 0; i < 200 && (g.rites.waterFrames.isNotEmpty || g.rites.flipT < 1); i++) {
+          for (
+            var i = 0;
+            i < 600 && (g.rites.waterFrames.isNotEmpty || g.rites.flipT < 1);
+            i++
+          ) {
             g.update(1 / 60);
           }
         } else {
@@ -193,6 +203,16 @@ void main() {
       }
       expect(twinSolved(g.rites.fireRoom, g.rites.fire), isTrue);
       expect(g.riteFreed, contains('Fire'));
+      // Freed, every gate stands open: Blood walks back to the door (from
+      // the solved squares it never could, with gate b held by nobody).
+      for (final c in 'NNNNNWWW'.split('')) {
+        walk(g, dirOf(c));
+      }
+      expect(g.rites.fire.b, kRiteArrival['Fire']);
+      for (var i = 0; i < 4 && g.currentRoomId == 'rite_fire'; i++) {
+        walk(g, dirOf('W'));
+      }
+      expect(g.currentRoomId, 'rite_circle', reason: 'and out');
     });
 
     test('AIR: the proved plan, one flick per push', () {
@@ -309,8 +329,156 @@ void main() {
     });
   });
 
+  group('the polish (2026-10-06)', () {
+    void flip(PlanetDungeonGame g) {
+      g.activateAbility();
+      for (
+        var i = 0;
+        i < 600 && (g.rites.waterFrames.isNotEmpty || g.rites.flipT < 1);
+        i++
+      ) {
+        g.update(1 / 60);
+      }
+    }
+
+    test('a captive room is played close, and shows itself whole only to '
+        'show something', () {
+      final g = harness();
+      g.onGameResize(Vector2(916, 265)); // the Fold folded, landscape
+      enter(g, 'rite_water');
+      final b = g.currentRoom.bounds;
+      // On the way in: the whole room, for a moment.
+      expect(g.viewZoom, lessThan(.6));
+      expect(b.height * g.viewZoom, lessThanOrEqualTo(265));
+      tick(g, 150);
+      expect(g.viewZoom, closeTo(1.0, .02), reason: 'then close on Blood');
+      // A flip pulls back to the whole room while it turns and settles…
+      g.activateAbility();
+      tick(g, 40);
+      expect(g.viewZoom, lessThan(.7));
+      for (var i = 0; i < 600 && g.rites.waterFrames.isNotEmpty; i++) {
+        g.update(1 / 60);
+      }
+      // …and closes in again after.
+      tick(g, 150);
+      expect(g.viewZoom, closeTo(1.0, .02));
+    });
+
+    test('FIRE: the twin\'s room holds still, every floor square in view',
+        () {
+      final g = harness();
+      g.onGameResize(Vector2(916, 265)); // the Fold folded, landscape
+      enter(g, 'rite_fire');
+      tick(g, 150);
+      final z = g.viewZoom;
+      expect(z, lessThan(.7), reason: 'wider than the other rooms');
+      expect(z, greaterThan(.5), reason: 'closer than the whole room');
+      // Every floor square (rows 1–6) is on screen…
+      final b = g.currentRoom.bounds;
+      expect(g.worldToScreen(Offset(0, kRiteCell)).dy, greaterThanOrEqualTo(-1));
+      expect(
+        g.worldToScreen(Offset(0, b.height - kRiteCell)).dy,
+        lessThanOrEqualTo(266),
+      );
+      // …and the camera doesn't move as the two walk apart.
+      final cam = g.worldToScreen(Offset.zero);
+      for (final c in 'ESSSS'.split('')) {
+        walk(g, dirOf(c));
+      }
+      tick(g, 60);
+      expect(g.viewZoom, closeTo(z, .01));
+      expect((g.worldToScreen(Offset.zero) - cam).distance, lessThan(1));
+    });
+
+    test('the Water room turns before anything moves, and a fall takes its '
+        'time', () {
+      final g = harness();
+      enter(g, 'rite_water');
+      final before = g.rites.water.key;
+      g.activateAbility();
+      expect(g.rites.water.key, isNot(before)); // the rules settle at once
+      var frames = 0;
+      while (g.rites.waterFrames.isNotEmpty || g.rites.flipT < 1) {
+        g.update(1 / 60);
+        frames++;
+        if (frames == 40) {
+          // Still turning: nothing has slid yet.
+          expect(g.rites.flipT, lessThan(1));
+          expect(g.rites.waterFrom?.loose, isNotNull);
+        }
+        expect(frames, lessThan(600));
+      }
+      expect(frames / 60, greaterThan(2.0), reason: 'was 0.9s');
+    });
+
+    test('a jammed room never says so', () {
+      final g = harness();
+      enter(g, 'rite_water');
+      // The commonest mistake: flip without thinking, flip back.
+      flip(g);
+      flip(g);
+      for (var i = 0; i < 300; i++) {
+        g.update(1 / 60);
+        expect(g.hintText ?? '', isNot(contains('finished')));
+        expect(g.hintText ?? '', isNot(contains('can\'t')));
+      }
+    });
+
+    test('RESET ROOM: shown in a captive room, puts it back as it began; the '
+        'first captive room says where it is, once', () {
+      final g = harness();
+      expect(g.riteResetShown, isFalse, reason: 'not in the Circle');
+      enter(g, 'rite_water');
+      expect(g.riteResetShown, isTrue);
+      expect(g.discoveredClouds, contains('teach:rite_reset'));
+      expect(g.hintText, contains('RESET ROOM'));
+      expect(g.riteResetLit, isTrue);
+      final start = g.rites.water.key;
+      flip(g);
+      expect(g.rites.water.key, isNot(start));
+      g.resetRiteRoom();
+      expect(g.rites.water.key, start);
+      expect(g.riteResetLit, isFalse);
+      // The next captive room doesn't say it again.
+      enter(g, 'rite_circle');
+      enter(g, 'rite_fire');
+      expect(g.riteResetShown, isTrue);
+      expect(g.hintText ?? '', isNot(contains('RESET ROOM')));
+    });
+
+    test('EARTH: HINT says the two element tendrils fuse at the captive', () {
+      final g = harness();
+      enter(g, 'rite_earth');
+      g.askForRoomHint();
+      expect(
+        g.hintText,
+        contains('Both element tendrils must reach the captive'),
+      );
+    });
+
+    test('a wall stops Blood inside its own square, and shows itself', () {
+      final g = harness();
+      enter(g, 'rite_earth');
+      walk(g, 3); // (6,1): the north wall is above it
+      final at = g.rites.earthAt;
+      expect(at, (x: 6, y: 1));
+      g.joystickDirection = const Offset(0, -1);
+      tick(g, 60);
+      g.joystickDirection = Offset.zero;
+      expect(g.rites.earthAt, at);
+      final mid = riteCentreOf(at.x, at.y);
+      expect(
+        (g.active!.position - mid).distance,
+        lessThanOrEqualTo(kRiteLean + 1),
+      );
+      expect(g.rites.bumpFrom, at);
+      expect(g.rites.bumpDir, 0);
+    });
+  });
+
   group('the Circle', () {
-    test('all four freed: both stars, every cup, and Sanguorath wakes', () {
+    test('all four freed: the first star, every cup, and the seal opens on '
+        'the Heart (Sanguorath still sleeps)', () {
       final stars = <int>[];
       final g = harness(onStar: stars.add);
       for (final el in kRiteElements) {
@@ -329,11 +497,13 @@ void main() {
         }
         tick(g, 2);
       }
-      expect(stars, containsAll([0, 1]));
+      expect(stars, [0], reason: 'the Heart is the second');
       enter(g, 'rite_circle');
       tick(g, 3);
       expect(g.rites.cups, hasLength(4));
-      expect(g.guardianAwake, isTrue);
+      expect(g.guardianAwake, isFalse);
+      final seal = g.currentRoom.doors.firstWhere((d) => d.targetRoomId == 'rite_heart');
+      expect(g.isDoorHidden(g.currentRoom, seal), isFalse);
     });
 
     test('a ring turns from its band; two streams make a fusion; all four '
@@ -367,6 +537,8 @@ void main() {
       await g.debugLoadRiteAllies();
       tick(g, 2);
       g.guardianAwake = true;
+      g.discoveredClouds.add(kRiteHeartFreedId);
+      enter(g, 'rite_heart');
       enter(g, 'sanguorath_heart');
       // The four come down with Blood.
       expect(g.creatures, hasLength(5));

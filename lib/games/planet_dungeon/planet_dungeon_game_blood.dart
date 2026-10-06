@@ -27,8 +27,18 @@
 //     OPPOSITE ally walked into it gives itself. The wrong one is thrown
 //     back and the boss heals a little. The last fifth is Blood alone.
 //
-// RESTART: the regroup button, in a captive room, starts that room again
-// with Blood at its door — the honest undo, and the way out of a dead end.
+// RESET ROOM (a big labelled button in every captive room; the screen draws
+// it in place of the regroup icon) starts that room again with Blood at its
+// door — the honest undo. A room never says it has jammed (the author,
+// 2026-10-06: they should work out for themselves that it needs a reset);
+// the first captive room entered says once where the button is.
+//
+// THE CAMERA (2026-10-06, the author: "all the rooms are too zoomed out").
+// A captive room is played close, at the game's ordinary zoom, following
+// Blood. It pulls back to the whole room only to show something: for a
+// moment on the way in, and while the Water room turns over and settles.
+// The Fire room is the exception: the twin's room is read as one picture,
+// held still on every floor square (see [_riteCamera]).
 //
 // Nothing here is timed and nothing is chance; the shell's element is rolled
 // per fight, but bringing the right ally always works.
@@ -39,12 +49,30 @@ part of 'planet_dungeon_game.dart';
 /// units across, at this many pixels per unit.
 const double kRiteSnapBox = 96, kRiteSnapRatio = 3;
 
+/// Seconds between Hemavorn's heartbeats at rest: the portal's beat.
+const double kRiteBeatRest = .9;
+
 /// Captives are drawn this much larger than the party (they are the room's
 /// subject, and their release has to read).
 const double kRiteCaptiveScale = 1.35;
 
-/// Seconds one pass of a Water settle takes on screen.
-const double kRiteWaterPass = 0.075;
+/// THE WATER ROOM'S PACE (2026-10-06, the author: "happens so fast on flip
+/// I don't know what's going on"). The room takes [kRiteFlipTurn] seconds to
+/// turn over — its runnels slow, stop and run the other way, the slope's
+/// shadow swings across the floor, and what is about to fall leans — and
+/// only then does anything move. A fall gathers speed: its first square
+/// takes [kRiteFallFirst] seconds and each next one [kRiteFallGain] of the
+/// one before, down to [kRiteFallFastest]. A melt or a fire going out holds
+/// the picture for [kRiteReactHold] while it happens.
+const double kRiteFlipTurn = 0.85;
+const double kRiteFallFirst = 0.24, kRiteFallGain = 0.82;
+const double kRiteFallFastest = 0.11;
+const double kRiteReactHold = 0.7;
+
+/// How far into its own square Blood may lean toward one it can't enter
+/// (world units). Before, it walked up to the square's edge — half its body
+/// over the wall — and nothing said what had stopped it.
+const double kRiteLean = 12;
 
 /// Everything the Blood Rites track for one run, plus the clocks the render
 /// reads.
@@ -52,6 +80,11 @@ class BloodRun {
   BloodRun() {
     resetRooms();
   }
+
+  // ── The heart that beats under every room ──
+  /// Where the heart is in its beat (0..1), how long a beat is now, and
+  /// when the last one fell (game time).
+  double beatPhase = 0, beatPeriod = kRiteBeatRest, beatAt = -9;
 
   // ── The four rooms (the rules' rooms never change; their states do) ──
   final TendrilFloor earthFloor = TendrilFloor(kRiteEarthMap);
@@ -78,20 +111,56 @@ class BloodRun {
   double waterFrameT = 0;
   double flipT = 1; // 0..1 while the room turns over
 
+  /// The pass playing now: how long it takes, whether it has begun, and how
+  /// many falling passes came straight before it (a fall gathers speed).
+  double waterPassDur = kRiteFallFirst;
+  bool waterPassLive = false;
+  int waterChain = 0;
+
+  /// The settle playing came from a FLIP (the camera shows the whole room).
+  bool waterFromFlip = false;
+
   /// The frame a settle is leaving (the render slides from it to the next).
   FlipFrame? waterFrom;
 
   /// When something last happened on a square, keyed 'x,y' — a melt, a fire
-  /// put out, a basin square filling, a pit taking something. The render
-  /// plays each moment from it.
-  final Map<String, double> meltT = {}, douseT = {}, basinT = {}, pitT = {};
+  /// put out, a basin square filling, a pit taking something, a block of ice
+  /// landing. The render plays each moment from it.
+  final Map<String, double> meltT = {},
+      douseT = {},
+      basinT = {},
+      pitT = {},
+      landT = {};
 
-  /// The Water and Air rooms' finishable states (built on first entry).
-  Set<String>? waterLive, airLive;
-  bool deadSpoken = false;
+  /// How far the blood in the Water room's runnels has run (it runs
+  /// downhill, and turns round with the room).
+  double runnel = 0;
+
+  // ── The camera (see the header) ──
+  /// 0 = close on Blood at the ordinary zoom, 1 = the whole room. [camK] is
+  /// the zoom's share, [frameK] the framing's (the Fire room zooms out to
+  /// keep the twin in view without leaving Blood).
+  double camK = 0, frameK = 0;
+
+  /// Seconds left of the look at the whole room on the way in (moving ends
+  /// it), and after a flip has settled.
+  double entryHold = 0, flipHold = 0;
+
+  // ── A bump: Blood pressed into something it can't enter ──
+  RiteCell? bumpFrom;
+  int bumpDir = 0;
+  double bumpT = -9;
+  String? bumpKey;
+
+  /// Until when the RESET ROOM button is lit (the first captive room says
+  /// where it is).
+  double resetLitUntil = -9;
 
   // ── The moments (blood_rite_fx.dart) ──
   final RiteGrainField grains = RiteGrainField();
+
+  /// The Heart, the fifth rite (planet_dungeon_game_blood_heart.dart).
+  HeartRunState heart = HeartRunState();
   final RiteGrainBatch batch = RiteGrainBatch();
   RiteReleaseFx? release;
   String? releaseEl;
@@ -147,24 +216,33 @@ class BloodRun {
   final Map<String, double> refusedT = {};
 
   void resetRooms() {
-    waterFrom = null;
-    meltT.clear();
-    douseT.clear();
-    basinT.clear();
-    pitT.clear();
     grains.clear();
     earth = TendrilState.start(earthFloor);
-    water = flipStart(waterRoom);
     fire = twinStart(fireRoom);
     air = driftStart(airRoom);
     earthAt = kRiteArrival['Earth']!;
     leading = null;
-    waterFrames = [];
-    flipT = 1;
+    _resetWater();
     driftT = 1;
     driftPath = const [];
     icePath = const [];
-    deadSpoken = false;
+  }
+
+  void _resetWater() {
+    water = flipStart(waterRoom);
+    waterFrames = [];
+    waterFrom = null;
+    waterFrameT = 0;
+    waterPassLive = false;
+    waterChain = 0;
+    waterFromFlip = false;
+    flipT = 1;
+    flipHold = 0;
+    meltT.clear();
+    douseT.clear();
+    basinT.clear();
+    pitT.clear();
+    landT.clear();
   }
 
   void resetRoom(String element) {
@@ -174,9 +252,7 @@ class BloodRun {
         earthAt = kRiteArrival['Earth']!;
         leading = null;
       case 'Water':
-        water = flipStart(waterRoom);
-        waterFrames = [];
-        flipT = 1;
+        _resetWater();
       case 'Fire':
         fire = twinStart(fireRoom);
       case 'Air':
@@ -185,7 +261,6 @@ class BloodRun {
         driftPath = const [];
         icePath = const [];
     }
-    deadSpoken = false;
   }
 
   void resetFight() {
@@ -216,7 +291,9 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     for (final el in rites.cups) {
       rites.cupT[el] = -99;
     }
-    rites.sealT = rites.cups.length == 4 && guardianRiteUnlocked ? -99 : -1;
+    rites.sealT = rites.cups.length == 4 ? -99 : -1;
+    rites.heart = HeartRunState();
+    if (riteHeartFreed) rites.heart.freed = true;
   }
 
   /// The captives freed — this run or any before (a freed captive stays
@@ -276,7 +353,10 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     'Water' => rites.water.b,
     'Fire' => rites.fire.b,
     'Air' => rites.air.b,
-    _ => null,
+    // The Heart: whoever is being steered stands where it stands.
+    _ => _riteBay?.kind == RiteKind.heart && active != null
+        ? riteSquareAt(active!.position)
+        : null,
   };
 
   void _riteSnapBlood() {
@@ -303,7 +383,13 @@ extension BloodRitesDungeon on PlanetDungeonGame {
       _riteAlliesJoin();
       return false;
     }
-    if (_riteInArena) _riteAlliesLeave();
+    // Back up to the Circle: the allies wait below.
+    if (kind == RiteKind.circle) _riteAlliesLeave();
+    if (kind == RiteKind.heart) {
+      _heartArrive();
+      rites.camK = rites.frameK = 1;
+      return false;
+    }
     if (target.rite?.isGrid != true) return false;
     final el = target.rite!.element!;
     final arrive = kRiteArrival[el]!;
@@ -326,16 +412,16 @@ extension BloodRitesDungeon on PlanetDungeonGame {
         } else {
           rites.resetRoom('Water');
         }
-        rites.waterLive ??= flipLiveStates(rites.waterRoom).live;
       case 'Fire':
         // The twin's room only makes sense from a start: a fresh pair.
         rites.fire = twinStart(rites.fireRoom);
       case 'Air':
         // Drifting has no way back to a square: the room starts again.
         rites.resetRoom('Air');
-        rites.airLive ??= driftGraph(rites.airRoom).live;
     }
-    rites.deadSpoken = false;
+    // The way in shows the whole room for a moment, then closes in.
+    rites.camK = rites.frameK = 1;
+    rites.entryHold = 1.1;
     return false; // the engine finishes the transit
   }
 
@@ -348,10 +434,18 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     }
   }
 
-  /// The regroup button: in a captive room, start that room again with
-  /// Blood at its door. True when handled.
+  /// RESET ROOM (and the regroup button, in a captive room): start that room
+  /// again with Blood at its door. True when handled.
   bool _riteRegroup() {
     if (!_isRites) return false;
+    if (_riteBay?.kind == RiteKind.heart) {
+      if (!_heartReset()) return true;
+      rites.resetLitUntil = -9;
+      _cue(SoundCue.dungeonBlockMove);
+      _clearHints();
+      onChanged();
+      return true;
+    }
     final el = _riteRoomEl;
     if (el == null) return false;
     rites.resetRoom(el);
@@ -359,62 +453,252 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     if (el == 'Earth') rites.earthAt = arrive;
     _riteSnapBlood();
     rites.twinShown = riteCentreOf(rites.fire.t.x, rites.fire.t.y);
+    rites.bumpKey = null;
+    rites.resetLitUntil = -9;
+    // The room, whole and as it began, before closing in again.
+    rites.entryHold = max(rites.entryHold, .8);
+    _cue(SoundCue.dungeonBlockMove);
     _clearHints();
-    _setHint('The room starts again');
     onChanged();
     return true;
   }
 
-  /// Fit the whole room on screen: every captive room and the Circle are
-  /// read whole (the rings and all four cups have to be in view at once).
-  bool get _riteFitsRoom =>
-      _isRites && _riteBay != null && !_riteInArena && _riteBay!.kind != RiteKind.vault;
+  /// The captive rooms show a large RESET ROOM button (in place of the
+  /// regroup icon) while one is being played.
+  bool get riteResetShown =>
+      _isRites &&
+      rites.release == null &&
+      (_riteBay?.isGrid == true ||
+          (_riteBay?.kind == RiteKind.heart &&
+              rites.heart.taken &&
+              !rites.heart.freed &&
+              rites.heart.captureT < 0));
+
+  /// Lit while the first captive room is saying where it is.
+  bool get riteResetLit => riteResetShown && _time < rites.resetLitUntil;
+
+  /// The RESET ROOM button.
+  void resetRiteRoom() {
+    if (!riteResetShown) return;
+    _riteRegroup();
+  }
+
+  /// The first captive room entered says, once ever, where the way back to
+  /// its start is (alongside the room's own teach). Null once said.
+  String? _riteResetTeach(DungeonRoom room) {
+    if (room.rite?.isStaged != true) return null;
+    const id = 'teach:rite_reset';
+    if (discoveredClouds.contains(id)) return null;
+    _discoverCloud(id);
+    rites.resetLitUntil = _time + 9;
+    return 'Stuck? RESET ROOM puts the room back the way it started';
+  }
+
+  // ── The camera ───────────────────────────────────────────
+
+  /// The zoom that frames the whole of [room] in the clear part of the view.
+  double _riteWholeZoom(DungeonRoom room) =>
+      _fitFrame(room.bounds).$2.clamp(PlanetDungeonGame.kMinFitZoom, 1.0);
+
+  /// The zoom in force in a captive room: the ordinary one, pulled back
+  /// toward the whole room by [BloodRun.camK]. 1.0 everywhere else.
+  double get _riteViewZoom {
+    if (!hasLayout || currentRoom.rite?.isStaged != true) return 1.0;
+    if (currentRoom.rite?.kind == RiteKind.heart) return rites.heart.camZoom;
+    return 1 + (_riteWholeZoom(currentRoom) - 1) * rites.camK;
+  }
+
+  /// Where the camera stands in a captive room: following [focus] as any
+  /// room does, slid toward the whole-room framing by [BloodRun.frameK].
+  Offset _riteCameraTopLeft(DungeonRoom room, Offset focus) {
+    final z = viewZoom;
+    final vw = size.x / z, vh = size.y / z;
+    final b = room.bounds;
+    double follow(double lo, double len, double view, double f) => len <= view
+        ? lo + len / 2 - view / 2
+        : (f - view / 2).clamp(lo, lo + len - view);
+    final near = Offset(
+      follow(b.left, b.width, vw, focus.dx),
+      follow(b.top, b.height, vh, focus.dy),
+    );
+    if (room.rite?.kind == RiteKind.heart) {
+      // The tool column owns the right of the view (all of it, top to
+      // bottom, on the folded phone): the stage is framed in what is left.
+      final l = 8 / z, r = (size.x - 128) / z;
+      final x = b.width <= r - l
+          ? b.center.dx - (l + r) / 2
+          : (focus.dx - (l + r) / 2).clamp(b.left - l, b.right - r);
+      // And it may rise above the room: Blood is bound at its very top, and
+      // the open space goes on up there.
+      final top = b.top - kRiteCell * 1.5;
+      return Offset(x, follow(top, b.bottom - top, vh, focus.dy)) + surveyPan;
+    }
+    final (frame, _) = _fitFrame(b);
+    final whole = b.center - frame.center / z;
+    return Offset.lerp(near, whole, rites.frameK)! + surveyPan;
+  }
+
+  /// What the camera follows in a rite room (null: whoever is steered).
+  Offset? get _riteCamFocus =>
+      _isRites && _riteBay?.kind == RiteKind.heart ? rites.heart.camAt : null;
+
+  void _riteCamera(DungeonCreature a, RiteBay? bay, double dt) {
+    if (bay == null || !bay.isStaged) {
+      rites.camK = rites.frameK = 0;
+      rites.entryHold = rites.flipHold = 0;
+      return;
+    }
+    if (bay.kind == RiteKind.heart) {
+      rites.camK = rites.frameK = 0;
+      _heartCamera(a, dt);
+      return;
+    }
+    // Moving ends the look round on the way in.
+    if (joystickDirection.distance > .3) rites.entryHold = 0;
+    rites.entryHold = max(0, rites.entryHold - dt);
+    final settling =
+        bay.kind == RiteKind.water &&
+        (rites.flipT < 1 ||
+            (rites.waterFromFlip && rites.waterFrames.isNotEmpty));
+    rites.flipHold = settling ? .7 : max(0, rites.flipHold - dt);
+    final whole = rites.entryHold > 0 || rites.flipHold > 0 ? 1.0 : 0.0;
+    var zoom = whole, frame = whole;
+    if (bay.kind == RiteKind.fire && hasLayout) {
+      // THE TWIN ROOM IS ONE PICTURE (the author, 2026-10-06: "feels a
+      // little weird … zoom out a bit more"). Following the pair and
+      // zooming just far enough to keep both in view kept the camera
+      // breathing with every step, and the far bank's plates and gates
+      // were mostly off screen. It holds still instead, framed on the room,
+      // as close as it can come with every floor square in view.
+      final b = currentRoom.bounds;
+      final wz = _riteWholeZoom(currentRoom);
+      final floorZ = min(
+        1.0,
+        min(
+          size.x / (b.width - kRiteCell * 1.6),
+          size.y / (b.height - kRiteCell * 1.6),
+        ),
+      );
+      if (wz < .999) {
+        zoom = max(zoom, ((1 - max(wz, floorZ)) / (1 - wz)).clamp(0.0, 1.0));
+      }
+      frame = 1;
+    }
+    final k = 1 - exp(-dt / .3);
+    rites.camK += (zoom - rites.camK) * k;
+    rites.frameK += (frame - rites.frameK) * k;
+  }
 
   // ── Walking ──────────────────────────────────────────────
 
   static const String _riteBlockPrefix = 'rite:';
 
   /// Does Blood's next position leave what the rules allow?
+  ///
+  /// Inside its own square Blood may lean [kRiteLean] toward a square it
+  /// can't enter, and no further: it stops short with its body still on its
+  /// own square, and what stopped it shows (see [_riteBump]).
   bool _riteBlocksAt(Offset center, DungeonRoom room) {
     final bay = room.rite;
     if (bay == null) return false;
     if (bay.kind == RiteKind.circle) return _riteCircleBlocks(center);
-    if (!bay.isGrid) return false;
+    if (!bay.isStaged) return false;
     final a = active;
     if (a == null) return false;
     final here = _riteBloodAt!;
     final t = riteSquareAt(center);
     final dx = t.x - here.x, dy = t.y - here.y;
-    if (dx == 0 && dy == 0) return false;
+    if (dx == 0 && dy == 0) {
+      // Only a move OUTWARD is held: coming in off a step (or settling back
+      // to the middle) is always allowed.
+      final mid = riteCentreOf(here.x, here.y);
+      final off = center - mid, cur = a.position - mid;
+      if (off.dx.abs() > kRiteLean &&
+          off.dx.abs() > cur.dx.abs() &&
+          _riteStepBlocked(room, bay, here, off.dx > 0 ? 1 : 3)) {
+        return true;
+      }
+      if (off.dy.abs() > kRiteLean &&
+          off.dy.abs() > cur.dy.abs() &&
+          _riteStepBlocked(room, bay, here, off.dy > 0 ? 2 : 0)) {
+        return true;
+      }
+      return false;
+    }
     if (dx.abs() + dy.abs() != 1) return true;
-    final dir = dx == 1
-        ? 1
-        : dx == -1
-        ? 3
-        : dy == 1
-        ? 2
-        : 0;
+    return _riteStepBlocked(room, bay, here, _riteDirTo(here, t));
+  }
+
+  /// Can't Blood step from [here] in [dir]? A refusal the player made by
+  /// pressing (not one of the room still moving) shows as a bump.
+  bool _riteStepBlocked(DungeonRoom room, RiteBay bay, RiteCell here, int dir) {
+    if (bay.kind == RiteKind.heart) return _heartStepBlocked(room, here, dir);
+    final t = (x: here.x + kRiteDx[dir], y: here.y + kRiteDy[dir]);
     // A doorway square is the way out: let the engine take the door.
     if (_riteDoorSquare(room, t)) return false;
+    final bool blocked;
     switch (bay.element) {
       case 'Earth':
-        return _riteEarthBlocks(t);
+        final led = rites.leading;
+        blocked = _riteEarthBlocks(t);
+        // Walking into the partner joins the tendril: not a bump.
+        if (led != null && rites.leading == null) return true;
       case 'Water':
         if (rites.waterFrames.isNotEmpty || rites.flipT < 1) return true;
-        if (rites.water.cells[t.y][t.x] == 'p') return false; // the dive
-        return !flipWalkable(rites.water, t.x, t.y);
+        if (t.y >= 0 &&
+            t.y < rites.water.cells.length &&
+            rites.water.cells[t.y][t.x] == 'p') {
+          return false; // the dive
+        }
+        blocked = !flipWalkable(rites.water, t.x, t.y);
       case 'Fire':
-        return _riteFireBlocks(dir);
-      case 'Air':
+        final st = twinStep(rites.fireRoom, rites.fire, dir, freed: _riteFireDone);
+        blocked = _riteFireBlocks(dir);
+        // The twin stepped (or somebody fell): something happened.
+        if (blocked && st.ok) return true;
+      default:
         return true; // nobody walks on air
     }
-    return true;
+    if (blocked) _riteBump(here, dir);
+    return blocked;
+  }
+
+  /// Blood pressed into a square it can't enter: the blocker shows itself —
+  /// a pool of light on its near face and a little grit off it — and the
+  /// phone ticks, once per thing pressed against.
+  void _riteBump(RiteCell from, int dir) {
+    final key = '${from.x},${from.y}>$dir';
+    if (rites.bumpKey == key && _time - rites.bumpT < 1.2) return;
+    rites.bumpKey = key;
+    rites.bumpFrom = from;
+    rites.bumpDir = dir;
+    rites.bumpT = _time;
+    _haptic(DungeonHaptic.refuse);
+    final n = Offset(kRiteDx[dir].toDouble(), kRiteDy[dir].toDouble());
+    final edge = riteCentreOf(from.x, from.y) + n * (kRiteCell / 2 - 4);
+    final along = Offset(-n.dy, n.dx);
+    for (var i = 0; i < 7; i++) {
+      final s = (_combatRng.nextDouble() - .5) * 34;
+      rites.grains.add(
+        RiteGrain(
+          x: edge.dx + along.dx * s,
+          y: edge.dy + along.dy * s,
+          vx: -n.dx * (14 + _combatRng.nextDouble() * 16) + along.dx * s * .4,
+          vy: -n.dy * (14 + _combatRng.nextDouble() * 16) + along.dy * s * .4,
+          life: .45 + _combatRng.nextDouble() * .3,
+          color: i.isEven ? const Color(0xFF9A7E78) : const Color(0xFF5E4A48),
+          lift: -10,
+          wander: 3,
+          drag: 3,
+        ),
+      );
+    }
   }
 
   /// Is (x,y) the square of one of [room]'s wall doors?
   bool _riteDoorSquare(DungeonRoom room, RiteCell t) {
     for (final d in room.doors) {
-      if (d.chromeless) continue;
+      if (d.chromeless || _riteDoorHidden(room, d)) continue;
       if (riteSquareAt(d.rect.center) == t) return true;
     }
     return false;
@@ -464,8 +748,15 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     return g[t.y][t.x] != '.';
   }
 
+  /// The twin room is done: its captive is freed, and every gate in it
+  /// stands open so Blood can walk back out (the way out is behind gate b,
+  /// which only the twin could hold, and from where the room is solved it
+  /// never can again).
+  bool get _riteFireDone =>
+      riteFreed.contains('Fire') || rites.freedT.containsKey('Fire');
+
   bool _riteFireBlocks(int dir) {
-    final st = twinStep(rites.fireRoom, rites.fire, dir);
+    final st = twinStep(rites.fireRoom, rites.fire, dir, freed: _riteFireDone);
     if (!st.ok) return true;
     if (st.bMoved && st.pit == null) return false; // taken when Blood arrives
     // Blood can't go there, but the twin can (or someone falls): take the
@@ -479,12 +770,9 @@ extension BloodRitesDungeon on PlanetDungeonGame {
   void _riteFireCommit(TwinStepResult st) {
     rites.fire = st.state!;
     if (st.pit != null) {
+      // The fall and the two of you rising again at the pool say it; no
+      // words (the author: "visuals drive the puzzle").
       _cue(SoundCue.dungeonHazardTrigger);
-      speakConsequence(
-        st.pit == 'b'
-            ? 'Blood fell. You both rise again at the pool'
-            : 'The twin fell. You both rise again at the pool',
-      );
       _riteSnapBlood();
       rites.twinShown = riteCentreOf(rites.fire.t.x, rites.fire.t.y);
     } else {
@@ -608,9 +896,11 @@ extension BloodRitesDungeon on PlanetDungeonGame {
         from: root,
       );
       if (!r.ok) {
-        _setBlockedHint(r.why == 'Tendrils never cross.'
-            ? 'Another tendril lies where you stand'
-            : 'That tendril can\'t start here');
+        _setBlockedHint(
+          r.why == 'Tendrils never cross.'
+              ? 'Another tendril lies where you stand'
+              : 'That tendril can\'t start here',
+        );
         return true;
       }
       rites.earth = r.state!;
@@ -649,35 +939,133 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     final st = flipTurn(rites.waterRoom, rites.water, frames: true);
     rites.flipT = 0;
     _cue(SoundCue.dungeonWallBreak);
-    _riteWaterCommit(st, before);
+    _riteWaterCommit(st, before, flip: true);
   }
 
   /// A settle is taken now (the rules) and played back a pass at a time (the
   /// render slides each thing from square to square, and the moments — a
   /// melt, a fire put out, a basin filling — sound as the picture reaches
-  /// them, in [_riteWaterPass]).
-  void _riteWaterCommit(FlipStep st, FlipState before) {
+  /// them, in [_riteWaterPlay]).
+  void _riteWaterCommit(FlipStep st, FlipState before, {bool flip = false}) {
     rites.waterFrom = FlipFrame(before);
     rites.waterFrames = List.of(st.frames);
     rites.waterFrameT = 0;
+    rites.waterPassLive = false;
+    rites.waterChain = 0;
+    rites.waterFromFlip = flip;
     rites.water = st.state!;
-    if (flipSolved(rites.water)) {
-      _riteFree('Water');
-      return;
-    }
-    _riteSpeakIfDead(rites.waterLive, rites.water.key);
+    if (flipSolved(rites.water)) _riteFree('Water');
   }
 
-  void _riteSpeakIfDead(Set<String>? live, String key) {
-    if (live == null || riteFreed.contains(_riteRoomEl)) return;
-    if (live.contains(key)) {
-      rites.deadSpoken = false;
-      return;
+  /// Play a settle back a pass at a time. A falling pass slides everything
+  /// that moves one square, each a little quicker than the last; a pass in
+  /// which ice melted or a fire went out shows its change at once and holds
+  /// while it happens.
+  void _riteWaterPlay(double dt) {
+    var left = dt;
+    while (rites.waterFrames.isNotEmpty) {
+      final to = rites.waterFrames.first;
+      final react = to.moves.isEmpty && to.gone.isEmpty;
+      if (!rites.waterPassLive) {
+        rites.waterPassLive = true;
+        rites.waterFrameT = 0;
+        rites.waterPassDur = react
+            ? kRiteReactHold
+            : max(
+                kRiteFallFastest,
+                kRiteFallFirst * pow(kRiteFallGain, rites.waterChain),
+              );
+        if (react) {
+          _riteWaterPass(rites.waterFrom, to);
+          rites.waterFrom = to;
+        }
+      }
+      final need = rites.waterPassDur - rites.waterFrameT;
+      if (left < need) {
+        rites.waterFrameT += left;
+        return;
+      }
+      left -= need;
+      rites.waterFrames.removeAt(0);
+      rites.waterPassLive = false;
+      rites.waterFrameT = 0;
+      if (react) {
+        rites.waterChain = 0;
+      } else {
+        _riteWaterPass(rites.waterFrom, to);
+        _riteWaterLandings(to, rites.waterFrames.firstOrNull);
+        rites.waterFrom = to;
+        rites.waterChain++;
+      }
     }
-    if (rites.deadSpoken) return;
-    rites.deadSpoken = true;
-    speakConsequence('This room can\'t be finished from here. Regroup to '
-        'start it again');
+    rites.waterFrom = null;
+    rites.waterChain = 0;
+  }
+
+  /// Whatever slid in [to] and doesn't slide on in [next] has landed: ice
+  /// sets down with a knock and a little frost, water splashes.
+  void _riteWaterLandings(FlipFrame to, FlipFrame? next) {
+    final down = kRiteDy[rites.water.down].toDouble();
+    final still = next == null || (next.moves.isEmpty && next.gone.isEmpty);
+    var ice = false, water = false;
+    for (final e in to.moves.entries) {
+      final key = e.key;
+      if (!still && next.moves.containsValue(key)) continue;
+      if (!still && next.gone.containsKey(key)) continue;
+      final kind = to.loose[key];
+      final p = key.split(',').map(int.parse).toList();
+      final c = riteCentreOf(p[0], p[1]);
+      // Which way it was going when it stopped.
+      final o = e.value.split(',').map(int.parse).toList();
+      final dir = Offset((p[0] - o[0]).toDouble(), (p[1] - o[1]).toDouble());
+      final lead = c + dir * (kRiteCell / 2 - 6);
+      final side = Offset(-dir.dy, dir.dx);
+      if (kind == 'I') {
+        ice = true;
+        rites.landT[key] = _time;
+        for (var i = 0; i < 9; i++) {
+          final s = (_combatRng.nextDouble() - .5) * 2;
+          rites.grains.add(
+            RiteGrain(
+              x: lead.dx + side.dx * s * 22,
+              y: lead.dy + side.dy * s * 22,
+              vx: side.dx * s * 34 - dir.dx * 8,
+              vy: side.dy * s * 34 - dir.dy * 8,
+              life: .5 + _combatRng.nextDouble() * .35,
+              color: i % 3 == 0
+                  ? const Color(0xFFE4F6FC)
+                  : const Color(0xFF9FD0E2),
+              lift: 6,
+              wander: 4,
+              drag: 3.2,
+            ),
+          );
+        }
+      } else if (kind == '~') {
+        water = true;
+        rites.landT[key] = _time;
+        for (var i = 0; i < 12; i++) {
+          final s = (_combatRng.nextDouble() - .5) * 2;
+          rites.grains.add(
+            RiteGrain(
+              x: lead.dx + side.dx * s * 18,
+              y: lead.dy + side.dy * s * 18,
+              vx: side.dx * s * 46 - dir.dx * 14,
+              vy: side.dy * s * 46 - dir.dy * 14 - down * 6,
+              life: .4 + _combatRng.nextDouble() * .3,
+              color: i.isEven
+                  ? const Color(0xFF9CCDE6)
+                  : const Color(0xFF4E8FB4),
+              lift: -down * 40,
+              wander: 3,
+              drag: 2.4,
+            ),
+          );
+        }
+      }
+    }
+    if (ice) _cue(SoundCue.dungeonBlockMove);
+    if (water) _cue(SoundCue.dungeonStepWater);
   }
 
   // ── Air ──────────────────────────────────────────────────
@@ -697,14 +1085,17 @@ extension BloodRitesDungeon on PlanetDungeonGame {
       // Pushing off the door's own square, out through it: leave.
       final at = rites.air.b;
       final door = currentRoom.doors.where(
-        (dd) => !dd.chromeless && riteSquareAt(dd.rect.center) ==
-            (x: at.x + kRiteDx[d], y: at.y + kRiteDy[d]),
+        (dd) =>
+            !dd.chromeless &&
+            riteSquareAt(dd.rect.center) ==
+                (x: at.x + kRiteDx[d], y: at.y + kRiteDy[d]),
       );
       if (door.isNotEmpty) {
         passThroughDoor(door.first);
         return;
       }
       if (r.why != 'blocked') _setBlockedHint(r.why!);
+      _riteBump(at, d);
       return;
     }
     rites.air = r.state!;
@@ -713,11 +1104,11 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     rites.iceMelted = r.meltedAt;
     rites.iceIntoBell = r.intoBell;
     rites.driftT = 0;
-    _cue(r.icePath.isNotEmpty ? SoundCue.dungeonBlockMove : SoundCue.dungeonStepStone);
-    if (r.meltedAt != null && !r.intoBell) {
-      speakConsequence('The ice turned to air in the open, and the air is '
-          'gone');
-    }
+    _cue(
+      r.icePath.isNotEmpty
+          ? SoundCue.dungeonBlockMove
+          : SoundCue.dungeonStepStone,
+    );
   }
 
   // ── The Circle ───────────────────────────────────────────
@@ -769,7 +1160,9 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     // its own body comes apart into grains and runs home as blood.
     final body = RiteBody(elementColor(el));
     final ally = rites.allies.where((c) => c.member.element == el).firstOrNull;
-    final img = ally == null ? null : _riteSnapshot(ally, scale: kRiteCaptiveScale);
+    final img = ally == null
+        ? null
+        : _riteSnapshot(ally, scale: kRiteCaptiveScale);
     if (img != null) {
       body.read(img, kRiteSnapRatio);
     } else {
@@ -782,13 +1175,11 @@ extension BloodRitesDungeon on PlanetDungeonGame {
       body: body,
     );
     rites.releaseEl = el;
-    speakConsequence('$a and $b meet. $el is freed, and its blood runs to '
-        'the Circle');
+    // The ingredients running in, the bands letting go and the blood running
+    // home say it all: no words (the author: "visuals drive the puzzle").
     _riteSyncCups();
-    if (riteFreed.length == 4) {
-      if (!hasStar(0)) earnStar(0);
-      if (!hasStar(1)) earnStar(1);
-    }
+    // All four freed: the first star (the Heart is the second).
+    if (riteFreed.length == 4 && !hasStar(0)) earnStar(0);
     onChanged();
   }
 
@@ -838,17 +1229,79 @@ extension BloodRitesDungeon on PlanetDungeonGame {
 
   /// The pit's way down only exists while the pit is a pool.
   bool _riteDoorHidden(DungeonRoom room, DungeonDoor door) {
-    if (room.rite?.kind != RiteKind.water || !door.chromeless) return false;
+    final kind = room.rite?.kind;
+    // The Circle's seal is a way down only once all four cups are full.
+    if (kind == RiteKind.circle && door.chromeless) return rites.cups.length < 4;
+    // The Heart's stair up and its floor down exist once Blood is free.
+    if (kind == RiteKind.heart) return _heartDoorHidden(door);
+    if (kind != RiteKind.water || !door.chromeless) return false;
     return rites.water.cells[kRiteWaterPit.y][kRiteWaterPit.x] != 'p';
   }
+
+  // ── The heart ────────────────────────────────────────────
+
+  /// HEMAVORN'S HEART, FELT (the author, 2026-10-06: "haptic feedback for
+  /// the blood planet heart pulse throughout the dungeon"). One heart beats
+  /// under every Blood room, in the planet's own rhythm — the portal's
+  /// double thump, a LUB and a DUB 0.2s behind it — and the phone gives
+  /// each beat to the hand ([DungeonHaptic.heartbeat]; off with the rest of
+  /// the haptics in Settings). At rest it beats every 0.9s, the portal's
+  /// beat. In the Heart it is quicker; it races while Blood is taken, and
+  /// while Blood is made and poured back; once Blood is free it slows. In
+  /// Sanguorath's fight it runs, and it runs when the one you steer is
+  /// badly hurt. The tempo eases from one to the next, never jumps, and the
+  /// beat carries on across doors. The glows that beat with it read
+  /// [riteBeat].
+  void _riteHeartbeat(DungeonCreature a, double dt) {
+    final h = rites.heart;
+    var want = kRiteBeatRest;
+    switch (_riteBay?.kind) {
+      case RiteKind.heart:
+        if (h.captureT >= .8 || (h.finaleT >= 1.9 && h.finaleT < 5.6)) {
+          want = .5;
+        } else if (h.freed) {
+          want = 1.15;
+        } else {
+          want = .78;
+        }
+      case RiteKind.arena:
+        if (guardianAwake && !hasStar(2)) want = .66;
+      default:
+        break;
+    }
+    if (a.hp < a.maxHp * .3) want = min(want, .62);
+    rites.beatPeriod += (want - rites.beatPeriod) * (1 - exp(-dt / 1.2));
+    rites.beatPhase += dt / rites.beatPeriod;
+    if (rites.beatPhase >= 1) {
+      rites.beatPhase -= rites.beatPhase.floorToDouble();
+      rites.beatAt = _time;
+      _haptic(DungeonHaptic.heartbeat);
+    }
+  }
+
+  /// The heart's double thump now, 0 to about 1: a lub as the beat falls
+  /// and a smaller dub 0.2s behind it (the portal's shape).
+  double get riteBeat {
+    final p = _time - rites.beatAt;
+    if (p < 0 || p > 1.2) return 0;
+    final lub = exp(-p * 14);
+    final dub = p < .2 ? 0.0 : .6 * exp(-(p - .2) * 16);
+    return lub + dub;
+  }
+
+  /// A tap on the room at [world] (see [tapWorld]).
+  bool _riteTap(Offset world) =>
+      _riteBay?.kind == RiteKind.heart && _heartTap(world);
 
   // ── The per-frame rules ──────────────────────────────────
 
   void _updateRites(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isRites) return;
+    _riteHeartbeat(a, dt);
     rites.bumpCooldown = max(0, rites.bumpCooldown - dt);
     final bay = room.rite;
     _riteTickMoments(a, room, dt);
+    _riteCamera(a, bay, dt);
 
     // The rings ease to their turns (always forwards).
     double ease(double cur, int turn) {
@@ -883,16 +1336,23 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     // square-on.
     if (bay.kind == RiteKind.earth ||
         bay.kind == RiteKind.water ||
-        bay.kind == RiteKind.fire) {
+        bay.kind == RiteKind.fire ||
+        bay.kind == RiteKind.heart) {
       final j = joystickDirection;
       if (j.distance > 0.2) {
         final sq = riteSquareAt(a.position);
         final mid = riteCentreOf(sq.x, sq.y);
         final k = min(1.0, dt * 12);
         if (j.dx.abs() >= j.dy.abs()) {
-          a.position = Offset(a.position.dx, a.position.dy + (mid.dy - a.position.dy) * k);
+          a.position = Offset(
+            a.position.dx,
+            a.position.dy + (mid.dy - a.position.dy) * k,
+          );
         } else {
-          a.position = Offset(a.position.dx + (mid.dx - a.position.dx) * k, a.position.dy);
+          a.position = Offset(
+            a.position.dx + (mid.dx - a.position.dx) * k,
+            a.position.dy,
+          );
         }
       }
     }
@@ -936,21 +1396,14 @@ extension BloodRitesDungeon on PlanetDungeonGame {
           rites.earthAt = t;
         }
       case RiteKind.water:
-        rites.flipT = min(1, rites.flipT + dt * 2.2);
+        final wasTurning = rites.flipT < 1;
+        rites.flipT = min(1, rites.flipT + dt / kRiteFlipTurn);
+        // The runnels run downhill; while the room turns they slow, stop and
+        // run back the other way.
+        rites.runnel += dt * 38 * _riteWaterSlope;
         // Nothing slides until the room has finished turning over.
-        if (rites.flipT >= 1 && rites.waterFrames.isNotEmpty) {
-          rites.waterFrameT += dt;
-          while (rites.waterFrames.isNotEmpty &&
-              rites.waterFrameT >= kRiteWaterPass) {
-            rites.waterFrameT -= kRiteWaterPass;
-            final to = rites.waterFrames.removeAt(0);
-            _riteWaterPass(rites.waterFrom, to);
-            rites.waterFrom = to;
-          }
-          if (rites.waterFrames.isEmpty) {
-            rites.waterFrom = null;
-            rites.waterFrameT = 0;
-          }
+        if (rites.flipT >= 1 && (rites.waterFrames.isNotEmpty || wasTurning)) {
+          _riteWaterPlay(wasTurning ? 0 : dt);
         }
         final t = riteSquareAt(a.position);
         if (t != rites.water.b && flipWalkable(rites.water, t.x, t.y)) {
@@ -966,7 +1419,7 @@ extension BloodRitesDungeon on PlanetDungeonGame {
         if (t != rites.fire.b) {
           final d = _riteDirTo(rites.fire.b, t);
           if (d >= 0) {
-            final st = twinStep(rites.fireRoom, rites.fire, d);
+            final st = twinStep(rites.fireRoom, rites.fire, d, freed: _riteFireDone);
             if (st.ok && st.bMoved) _riteFireCommit(st);
           }
           if (rites.fire.b != t && !_riteDoorSquare(room, t)) {
@@ -974,19 +1427,21 @@ extension BloodRitesDungeon on PlanetDungeonGame {
           }
         }
         final want = riteCentreOf(rites.fire.t.x, rites.fire.t.y);
-        rites.twinShown =
-            Offset.lerp(rites.twinShown, want, min(1.0, dt * 14))!;
+        rites.twinShown = Offset.lerp(
+          rites.twinShown,
+          want,
+          min(1.0, dt * 14),
+        )!;
       case RiteKind.air:
         if (rites.driftT < 1) {
-          final n = max(1, max(rites.driftPath.length, rites.icePath.length) - 1);
+          final n = max(
+            1,
+            max(rites.driftPath.length, rites.icePath.length) - 1,
+          );
           rites.driftT = min(1, rites.driftT + dt * 10 / n);
           if (rites.driftT >= 1) {
             if (rites.iceMelted != null) _riteSublimate();
-            if (driftSolved(rites.airRoom, rites.air)) {
-              _riteFree('Air');
-            } else {
-              _riteSpeakIfDead(rites.airLive, rites.air.key);
-            }
+            if (driftSolved(rites.airRoom, rites.air)) _riteFree('Air');
           }
         } else {
           _riteAirInput();
@@ -998,7 +1453,17 @@ extension BloodRitesDungeon on PlanetDungeonGame {
         _riteArenaUpdate(a, room, dt);
       case RiteKind.vault:
         break;
+      case RiteKind.heart:
+        _heartTick(a, dt);
     }
+  }
+
+  /// The Water room's slope: +1 when downhill is south, −1 when north. While
+  /// the room turns over it swings from one to the other through level.
+  double get _riteWaterSlope {
+    final now = rites.water.down == 2 ? 1.0 : -1.0;
+    if (rites.flipT >= 1) return now;
+    return now * -cos(pi * _riteEase(rites.flipT));
   }
 
   int _riteDirTo(RiteCell from, RiteCell to) {
@@ -1045,14 +1510,9 @@ extension BloodRitesDungeon on PlanetDungeonGame {
       soundedSecrets.add(kBloodEggId);
       beginMaximRite(kBloodEggId, kRiteCircleCentre);
     }
-    // THE RITE: all four cups full wakes Sanguorath below the seal.
-    if (rites.cups.length == 4 &&
-        guardianRiteUnlocked &&
-        (conduitEnergy['A'] ?? 0) <= 0) {
-      conduitEnergy['A'] = double.infinity;
-      conduitEnergy['B'] = double.infinity;
-      if (rites.sealT == -1) rites.sealT = _time;
-    }
+    // All four cups full: the seal opens on the Heart. (Sanguorath wakes
+    // once Blood is free there — see the Heart.)
+    if (rites.cups.length == 4 && rites.sealT == -1) rites.sealT = _time;
   }
 
   // ═══ SANGUORATH ═══════════════════════════════════════════
@@ -1262,7 +1722,9 @@ extension BloodRitesDungeon on PlanetDungeonGame {
           for (var x = 0; x < r.cells[y].length; x++) {
             final ch = r.cells[y][x];
             if (ch == 'f') out.add(([riteCentreOf(x, y), at], fire));
-            if (ch == 'c') out.add(([riteCentreOf(x, y) + const Offset(0, 20), at], ice));
+            if (ch == 'c') {
+              out.add(([riteCentreOf(x, y) + const Offset(0, 20), at], ice));
+            }
           }
         }
       case 'Fire':
@@ -1305,25 +1767,31 @@ extension BloodRitesDungeon on PlanetDungeonGame {
           _cue(SoundCue.dungeonHazardTrigger);
           // Steam off the drowned fire: it lifts and wanders and goes.
           for (var i = 0; i < 22; i++) {
-            rites.grains.add(RiteGrain(
-              x: c.dx + (_combatRng.nextDouble() - .5) * 26,
-              y: c.dy - 6,
-              vx: (_combatRng.nextDouble() - .5) * 14,
-              vy: -18 - _combatRng.nextDouble() * 20,
-              life: 1.4 + _combatRng.nextDouble(),
-              color: i % 3 == 0 ? const Color(0xFFE8E4E0) : const Color(0xFFB8B0A8),
-              lift: 26,
-              wander: 22,
-              drag: 1.1,
-              seed: i * 1.7,
-            ));
+            rites.grains.add(
+              RiteGrain(
+                x: c.dx + (_combatRng.nextDouble() - .5) * 26,
+                y: c.dy - 6,
+                vx: (_combatRng.nextDouble() - .5) * 14,
+                vy: -18 - _combatRng.nextDouble() * 20,
+                life: 1.4 + _combatRng.nextDouble(),
+                color: i % 3 == 0
+                    ? const Color(0xFFE8E4E0)
+                    : const Color(0xFFB8B0A8),
+                lift: 26,
+                wander: 22,
+                drag: 1.1,
+                seed: i * 1.7,
+              ),
+            );
           }
         } else if (was == 'C' && now == 'c') {
           rites.basinT[k] = _time;
           _cue(SoundCue.dungeonStepWater);
         } else if (was == '_') {
           rites.pitT[k] = _time;
-          _cue(now == 'p' ? SoundCue.dungeonStepWater : SoundCue.dungeonBlockMove);
+          _cue(
+            now == 'p' ? SoundCue.dungeonStepWater : SoundCue.dungeonBlockMove,
+          );
         }
       }
     }
@@ -1335,16 +1803,20 @@ extension BloodRitesDungeon on PlanetDungeonGame {
         final c = riteCentreOf(p[0], p[1]);
         // Drips off the melting block, falling the way the room falls.
         for (var i = 0; i < 10; i++) {
-          rites.grains.add(RiteGrain(
-            x: c.dx + (_combatRng.nextDouble() - .5) * 40,
-            y: c.dy + (_combatRng.nextDouble() - .5) * 30,
-            vy: down * (10 + _combatRng.nextDouble() * 20),
-            life: .6 + _combatRng.nextDouble() * .5,
-            color: i.isEven ? const Color(0xFFBFE8F5) : const Color(0xFF7FC0E8),
-            lift: -down * 60,
-            wander: 4,
-            drag: .6,
-          ));
+          rites.grains.add(
+            RiteGrain(
+              x: c.dx + (_combatRng.nextDouble() - .5) * 40,
+              y: c.dy + (_combatRng.nextDouble() - .5) * 30,
+              vy: down * (10 + _combatRng.nextDouble() * 20),
+              life: .6 + _combatRng.nextDouble() * .5,
+              color: i.isEven
+                  ? const Color(0xFFBFE8F5)
+                  : const Color(0xFF7FC0E8),
+              lift: -down * 60,
+              wander: 4,
+              drag: .6,
+            ),
+          );
         }
       }
     }
@@ -1366,24 +1838,28 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     for (var i = 0; i < 46; i++) {
       final a = _combatRng.nextDouble() * pi * 2;
       final r = _combatRng.nextDouble() * 22;
-      rites.grains.add(RiteGrain(
-        x: c.dx + cos(a) * r,
-        y: c.dy + sin(a) * r,
-        vx: cos(a) * 10,
-        vy: sin(a) * 10 - 8,
-        life: bell != null ? 1.3 + _combatRng.nextDouble() * .5 : 1.6 + _combatRng.nextDouble(),
-        color: i % 3 == 0
-            ? const Color(0xFFFFE6A0)
-            : i.isEven
-            ? const Color(0xFFDCEBF2)
-            : const Color(0xFFBFE8F5),
-        lift: bell != null ? 0 : 22,
-        wander: bell != null ? 8 : 16,
-        to: bell,
-        pull: bell != null ? 5 : 0,
-        drag: bell != null ? 2.4 : 1.0,
-        seed: i * 0.9,
-      ));
+      rites.grains.add(
+        RiteGrain(
+          x: c.dx + cos(a) * r,
+          y: c.dy + sin(a) * r,
+          vx: cos(a) * 10,
+          vy: sin(a) * 10 - 8,
+          life: bell != null
+              ? 1.3 + _combatRng.nextDouble() * .5
+              : 1.6 + _combatRng.nextDouble(),
+          color: i % 3 == 0
+              ? const Color(0xFFFFE6A0)
+              : i.isEven
+              ? const Color(0xFFDCEBF2)
+              : const Color(0xFFBFE8F5),
+          lift: bell != null ? 0 : 22,
+          wander: bell != null ? 8 : 16,
+          to: bell,
+          pull: bell != null ? 5 : 0,
+          drag: bell != null ? 2.4 : 1.0,
+          seed: i * 0.9,
+        ),
+      );
     }
   }
 
@@ -1428,46 +1904,56 @@ extension BloodRitesDungeon on PlanetDungeonGame {
         final p = riteCentreOf(f.plates[i].cx, f.plates[i].cy);
         for (var k = 0; k < 2; k++) {
           final ang = _combatRng.nextDouble() * pi * 2;
-          rites.grains.add(RiteGrain(
-            x: p.dx + cos(ang) * kRiteCell * 1.5,
-            y: p.dy + sin(ang) * kRiteCell * 1.5,
-            vx: -sin(ang) * 14 * d.sign,
-            vy: cos(ang) * 14 * d.sign,
-            life: .7 + _combatRng.nextDouble() * .4,
-            color: k.isEven ? const Color(0xFF8A7A70) : const Color(0xFF5E504A),
-            lift: -14,
-            wander: 6,
-            drag: 2.5,
-          ));
+          rites.grains.add(
+            RiteGrain(
+              x: p.dx + cos(ang) * kRiteCell * 1.5,
+              y: p.dy + sin(ang) * kRiteCell * 1.5,
+              vx: -sin(ang) * 14 * d.sign,
+              vy: cos(ang) * 14 * d.sign,
+              life: .7 + _combatRng.nextDouble() * .4,
+              color: k.isEven
+                  ? const Color(0xFF8A7A70)
+                  : const Color(0xFF5E504A),
+              lift: -14,
+              wander: 6,
+              drag: 2.5,
+            ),
+          );
         }
       }
-    } else if (kind == RiteKind.air && rites.driftT < 1 && rites.driftPath.length > 1) {
+    } else if (kind == RiteKind.air &&
+        rites.driftT < 1 &&
+        rites.driftPath.length > 1) {
       // A drift leaves a wake.
       for (var k = 0; k < 2; k++) {
-        rites.grains.add(RiteGrain(
-          x: a.position.dx + (_combatRng.nextDouble() - .5) * 16,
-          y: a.position.dy + (_combatRng.nextDouble() - .5) * 16,
-          life: .5 + _combatRng.nextDouble() * .4,
-          color: k.isEven ? const Color(0xFFDCE6F0) : const Color(0xFFC8283C),
-          wander: 10,
-          drag: 3,
-        ));
+        rites.grains.add(
+          RiteGrain(
+            x: a.position.dx + (_combatRng.nextDouble() - .5) * 16,
+            y: a.position.dy + (_combatRng.nextDouble() - .5) * 16,
+            life: .5 + _combatRng.nextDouble() * .4,
+            color: k.isEven ? const Color(0xFFDCE6F0) : const Color(0xFFC8283C),
+            wander: 10,
+            drag: 3,
+          ),
+        );
       }
     } else if (kind == RiteKind.fire) {
       final r = rites.fireRoom;
-      final on = twinPressed(r, rites.fire);
+      final on = twinPressed(r, rites.fire, freed: _riteFireDone);
       // The gates slide rather than blink.
       for (var y = 0; y < r.h; y++) {
         for (var x = 0; x < r.w; x++) {
           final ch = r.cells[y][x];
           if (!'abc'.contains(ch)) continue;
           final plate = {'a': '1', 'b': '2', 'c': '3'}[ch]!;
-          final open = on.contains(plate) ||
+          final open =
+              on.contains(plate) ||
               rites.fire.b == (x: x, y: y) ||
               rites.fire.t == (x: x, y: y);
           final k = '$x,$y';
           final was = rites.gateShown[k] ?? (open ? 1.0 : 0.0);
-          rites.gateShown[k] = was + ((open ? 1.0 : 0.0) - was) * min(1.0, dt * 9);
+          rites.gateShown[k] =
+              was + ((open ? 1.0 : 0.0) - was) * min(1.0, dt * 9);
         }
       }
       // The bellows breathe when Blood stands on them.
@@ -1477,16 +1963,18 @@ extension BloodRitesDungeon on PlanetDungeonGame {
         final b = riteCentreOf(rites.fire.b.x, rites.fire.b.y);
         final h = _riteCaptiveAt('Fire');
         for (var k = 0; k < 4; k++) {
-          rites.grains.add(RiteGrain(
-            x: b.dx + 20,
-            y: b.dy + (_combatRng.nextDouble() - .5) * 10,
-            vx: (h.dx - b.dx) * .9,
-            vy: (h.dy - b.dy) * .9,
-            life: .7,
-            color: const Color(0xFFDCEBF2),
-            wander: 8,
-            drag: 1.4,
-          ));
+          rites.grains.add(
+            RiteGrain(
+              x: b.dx + 20,
+              y: b.dy + (_combatRng.nextDouble() - .5) * 10,
+              vx: (h.dx - b.dx) * .9,
+              vy: (h.dy - b.dy) * .9,
+              life: .7,
+              color: const Color(0xFFDCEBF2),
+              wander: 8,
+              drag: 1.4,
+            ),
+          );
         }
       }
     }
@@ -1550,10 +2038,21 @@ extension BloodRitesDungeon on PlanetDungeonGame {
           _setInsightHint('The seal is open');
         }
       case RiteKind.earth:
+        // The two element tendrils have no partner of their own colour, so
+        // they read as strays (the author, 2026-10-06: "seems random"). Say
+        // where they go, and that it is a fusion, before anything else.
+        final f = rites.earthFloor;
+        final s = rites.earth;
+        final jobs = f.jobs(f.grid(s.turns));
+        bool joined(String id) => jobs
+            .where((j) => j.id == id)
+            .every((j) => tendrilJoined(j, s.lines[id]));
         _setInsightHint(
-          tendrilSolved(rites.earthFloor, rites.earth)
+          tendrilSolved(f, s)
               ? 'Every tendril is joined'
-              : 'Some tendrils are not joined',
+              : !joined('d') || !joined('w')
+              ? 'Both element tendrils must reach the captive. They fuse there'
+              : 'Some tendrils are not joined to their partners',
         );
       case RiteKind.water:
         _setInsightHint(
@@ -1571,6 +2070,11 @@ extension BloodRitesDungeon on PlanetDungeonGame {
         }
       case RiteKind.vault:
         break;
+      case RiteKind.heart:
+        // What is wrong, and nothing more.
+        _setInsightHint(
+          rites.heart.freed ? 'Blood is free' : 'Your Blood is bound',
+        );
     }
   }
 

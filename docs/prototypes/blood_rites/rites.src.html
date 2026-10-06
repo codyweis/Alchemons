@@ -58,7 +58,7 @@
   <header>
     <p class="eyebrow">Hemavorn · Blood's descent · prototype</p>
     <h1>The Blood <em>Rites</em></h1>
-    <p class="thesis">One Blood Alchemon goes down alone. Four rooms each hold a captive of a classical element. Solve the room, its two ingredients meet, and the captive's blood runs home to the Circle. At the boss, all four fight beside you.</p>
+    <p class="thesis">One Blood Alchemon goes down alone. Four rooms each hold a captive of a classical element. Solve the room, its two ingredients meet, and the captive's blood runs home to the Circle. Then the Heart takes Blood, and the four it freed have to make Blood again. At the boss, all four fight beside you.</p>
     <p class="tally" id="tally"></p>
   </header>
 
@@ -75,7 +75,8 @@
       <p><strong>Water.</strong> Tap the floor to walk Blood there (or use the arrow keys). FLIP turns the room over, and the faint outlines show where everything will land. Ice that rests against fire melts, and water puts fire out.</p>
       <p><strong>Fire.</strong> Swipe or tap beside Blood to step. The twin takes the mirrored step. A plate holds its gate open, on either side, while someone stands on it.</p>
       <p><strong>Air.</strong> Swipe or tap beside Blood to push off. You drift until something stops you. Push again against ice to send the ice drifting.</p>
-      <p><strong>Proved.</strong> Every room was solved by a search before it was drawn. Earth works with exactly one setting of its plates. Water needs at least three flips. Fire is impossible without its plates. Air takes nineteen pushes.</p>
+      <p><strong>The Heart.</strong> Tap one of the four, then tap where it should go. Two on an altar's stones fuse, and what they make shoots its power down that altar's lane. Whatever it breaks lets go of the element inside, which joins you. The split stage takes a fused creature apart. Light and Dark make Blood.</p>
+      <p><strong>Proved.</strong> Every room was solved by a search before it was drawn. Earth works with exactly one setting of its plates. Water needs at least three flips. Fire is impossible without its plates. Air takes nineteen pushes. The Heart takes nine fusions and two splits, and can't be done without the split stage.</p>
     </div>
   </details>
 </div>
@@ -85,6 +86,7 @@
 <script>/*HUB*/</script>
 <script>/*FIRE*/</script>
 <script>/*AIR*/</script>
+<script>/*HEART*/</script>
 <script>/*ROOMS*/</script>
 <script>
 (() => {
@@ -936,6 +938,8 @@
   }
   function resetAir() { air.S = AE.start(air.R); air.hist = []; air.db = air.S.b.slice(); air.anim = null; air.freedT = freed.Air && air.freedT >= 0 ? air.freedT : -1; }
 
+/*HEARTVIEW*/
+
   // A swipe goes that way; a tap goes towards where you tapped.
   let swipe = null;
   function dirFrom(e, body) {
@@ -953,6 +957,7 @@
     { id: 'water', name: 'Water', sub: 'Fire + Ice', el: 'Water' },
     { id: 'fire', name: 'Fire', sub: 'Air + Lava', el: 'Fire' },
     { id: 'air', name: 'Air', sub: 'Ice + Light', el: 'Air' },
+    { id: 'heart', name: 'The Heart', sub: 'the fifth rite' },
   ];
   function renderChrome() {
     navEl.innerHTML = '';
@@ -964,16 +969,16 @@
       navEl.appendChild(b);
     }
     const n = HE.ORDER.filter((el) => freed[el]).length;
-    const stars = n === 4 ? 2 : 0;
-    tallyEl.innerHTML = `<span>Freed <b>${n} / 4</b></span><span>Stars <b>${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</b> (two for all four freed, one for the boss)</span><span>Lost Maxim <b>${hub.maxim ? 'found' : '—'}</b></span><span>Vault <b>${hub.vault ? 'found' : '—'}</b></span>`;
+    const stars = (n === 4 ? 1 : 0) + (heartDone ? 1 : 0);
+    tallyEl.innerHTML = `<span>Freed <b>${n} / 4</b></span><span>Stars <b>${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</b> (one for all four freed, one for the Heart, one for the boss)</span><span>Lost Maxim <b>${hub.maxim ? 'found' : '—'}</b></span><span>Vault <b>${hub.vault ? 'found' : '—'}</b></span>`;
     actionsEl.innerHTML = '';
     const btn = (label, fn, cls) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; if (cls) b.className = cls; actionsEl.appendChild(b); return b; };
     const undoReset = (undo, reset) => { btn('Undo', undo); btn('Reset room', () => { reset(); say(''); renderChrome(); }); };
     if (view === 'hub') {
       btn('Turn outer ring', () => hubTurn(0));
       btn('Turn inner ring', () => hubTurn(1));
-      btn('Start over', () => { for (const el of HE.ORDER) { freed[el] = false; hub.cups[el] = false; } hub.maxim = false; hub.vault = false; hub.turns = [0, 0]; hub.ang = [0, 0]; earth.freedT = water.freedT = fire.freedT = air.freedT = -1; resetEarth(); resetWater(); resetFire(); resetAir(); save(); say(''); renderChrome(); });
-      noteEl.innerHTML = '<strong>The Circle.</strong> Every freed captive\'s blood runs from its door to its cup at the rim. Fill all four cups and the seal in the middle opens on the boss. The two rings turn; nothing tells you why.';
+      btn('Start over', () => { for (const el of HE.ORDER) { freed[el] = false; hub.cups[el] = false; } hub.maxim = false; hub.vault = false; heartDone = false; try { localStorage.removeItem('blood-rites-heart'); } catch (e) {} resetHeart(false); hub.turns = [0, 0]; hub.ang = [0, 0]; earth.freedT = water.freedT = fire.freedT = air.freedT = -1; resetEarth(); resetWater(); resetFire(); resetAir(); save(); say(''); renderChrome(); });
+      noteEl.innerHTML = '<strong>The Circle.</strong> Every freed captive\'s blood runs from its door to its cup at the rim. Fill all four cups and the seal in the middle opens on the Heart, where the boss waits below. The two rings turn; nothing tells you why.';
     } else if (view === 'earth') {
       btn('Pull in every tendril', () => { earth.S = { turns: earth.S.turns, lines: {} }; earth.active = null; say(''); });
       btn('Reset room', () => { resetEarth(); say(''); });
@@ -988,6 +993,10 @@
     } else if (view === 'fire') {
       undoReset(() => { if (!fire.hist.length || fire.freedT >= 0) return; fire.S = fire.hist.pop(); fire.db = fire.S.b.slice(); fire.dt = fire.S.t.slice(); say(''); }, resetFire);
       noteEl.innerHTML = `<strong>${ROOMS.fire.label}.</strong> ${ROOMS.fire.teaches} Swipe, tap beside Blood, or use the arrow keys.`;
+    } else if (view === 'heart') {
+      btn('Reset room', () => { resetHeart(false); say('The room is as it began.'); renderChrome(); });
+      btn('Play the capture again', () => { resetHeart(true); renderChrome(); });
+      noteEl.innerHTML = `<strong>${ROOMS.heart.label}.</strong> ${ROOMS.heart.teaches} In the game it opens once all four are freed. Tap one of them, then tap where it should go (or use the arrow keys).`;
     } else if (view === 'air') {
       undoReset(() => { if (!air.hist.length || air.freedT >= 0) return; air.anim = null; air.S = air.hist.pop(); air.db = air.S.b.slice(); say(''); }, resetAir);
       noteEl.innerHTML = `<strong>${ROOMS.air.label}.</strong> ${ROOMS.air.teaches} Swipe, tap beside Blood, or use the arrow keys.`;
@@ -997,6 +1006,7 @@
   function resetWater() { water.S = WE.start(water.R); water.hist = []; water.frames = []; water.queue = []; water.flipT = 1; water.freedT = freed.Water ? 99 : -1; }
   function go(id) {
     view = id; say('');
+    if (id === 'heart' && !heart.seen) { heart.seen = true; resetHeart(true); }
     try { history.replaceState(null, '', '#' + id); } catch (e) {}
     layout(); renderChrome();
     if (id === 'hub') hubSay();
@@ -1006,6 +1016,7 @@
     else if (view === 'water') resize(water.R.W, water.R.H, 560);
     else if (view === 'fire') resize(fire.R.W, fire.R.H, 640);
     else if (view === 'air') resize(air.R.W, air.R.H, 560);
+    else if (view === 'heart') resize(heart.R.W, heart.R.H, 760);
     else { const w = Math.min(cv.parentElement.clientWidth, 600); resize(1, 1, w); U = w / 24; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
@@ -1017,6 +1028,7 @@
     if (view === 'earth') earthDown(e);
     else if (view === 'water') waterTap(e);
     else if (view === 'hub') hubTap(e);
+    else if (view === 'heart') heartTap(e);
   });
   cv.addEventListener('pointermove', (e) => { if (view === 'earth') earthMove(e); });
   cv.addEventListener('pointerup', (e) => {
@@ -1029,6 +1041,7 @@
     const d = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 }[e.key];
     if (view === 'fire' && d != null) { e.preventDefault(); fireMove(d); }
     if (view === 'air' && d != null) { e.preventDefault(); airPush(d); }
+    if (view === 'heart' && d != null) { e.preventDefault(); heartStep(d); }
     if (view !== 'water') return;
     if (d != null) { e.preventDefault(); water.queue = []; waterStep(d); }
     if (e.key === ' ' || e.key === 'f') { e.preventDefault(); waterFlip(); }
@@ -1036,15 +1049,23 @@
 
   let last = performance.now();
   function frame(now) {
-    const dt = Math.min(.05, (now - last) / 1000); last = now; time += dt;
+    const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now;
+    tick(dt);
+    requestAnimationFrame(frame);
+  }
+  // A test seam: step the page by hand (a hidden tab gets no frames).
+  window.__step = (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) tick(dt); };
+  window.__heart = () => heart;
+  function tick(dt) {
+    time += dt;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (view === 'earth') earthDraw(dt);
     else if (view === 'water') { waterTick(); waterDraw(dt); }
     else if (view === 'fire') fireDraw(dt);
     else if (view === 'air') airDraw(dt);
+    else if (view === 'heart') heartDraw(dt);
     else hubDraw(dt);
     drawParticles(dt);
-    requestAnimationFrame(frame);
   }
   const start = (location.hash || '').slice(1);
   go(VIEWS.some((v) => v.id === start) ? start : 'hub');

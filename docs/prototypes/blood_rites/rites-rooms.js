@@ -94,7 +94,38 @@
     ],
   };
 
-  const ROOMS = { earth: EARTH, water: WATER, fire: FIRE, air: AIR };
+  // THE HEART — the fifth rite (the author's design, 2026-10-06). Blood is
+  // taken and bound across the room; the four it freed stand on the stage.
+  // Two on an altar fuse, and what they make shoots its power down that
+  // altar's lane at the first thing in the way. Everything in the way holds an
+  // element, and breaking it frees that element to join you. The split stage
+  // takes a fused creature apart again. Light + Dark make Blood, and Blood
+  // made here frees the Blood that was taken.
+  const HEART = {
+    id: 'heart',
+    label: 'The Heart',
+    teaches: 'Stand two together on an altar and they fuse. What they make shoots its power down that altar\'s lane. Break what is in the way and what it holds joins you. The split stage takes a fused creature apart. Make Blood.',
+    map: [
+      '################',
+      '#Sa......I######',
+      '#.....##########',
+      '#f......._######',
+      '#.....########B#',
+      '#w.......K.K####',
+      '#.....##########',
+      '#e.......T######',
+      '################',
+    ],
+    altars: [
+      { back: [4, 1], front: [5, 1] },
+      { back: [4, 3], front: [5, 3] },
+      { back: [4, 5], front: [5, 5] },
+      { back: [4, 7], front: [5, 7] },
+    ],
+    holds: { '9,1': 'Lava', '9,3': 'Spirit', '9,5': 'Crystal', '11,5': 'Crystal', '9,7': 'Plant' },
+  };
+
+  const ROOMS = { earth: EARTH, water: WATER, fire: FIRE, air: AIR, heart: HEART };
   const api = { HUB, ROOMS };
   if (typeof module !== 'undefined') module.exports = api; else root.RitesRooms = api;
 })(this);

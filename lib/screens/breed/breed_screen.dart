@@ -192,25 +192,28 @@ class _BreedScreenState extends State<BreedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: withGameData(
-        context,
-        loadingBuilder: buildLoadingScreen,
-        builder:
-            (
-              context, {
-              required theme,
-              required catalog,
-              required entries,
-              required discovered,
-            }) {
-              final isCultivations = _mode == _BreedMode.cultivations;
-              return ParticleBackgroundScaffold(
-                whiteBackground: theme.brightness == Brightness.light,
-                body: Scaffold(
-                  backgroundColor: Colors.transparent,
-                  body: SafeArea(
+    return withGameData(
+      context,
+      loadingBuilder: buildLoadingScreen,
+      builder:
+          (
+            context, {
+            required theme,
+            required catalog,
+            required entries,
+            required discovered,
+          }) {
+            final isCultivations = _mode == _BreedMode.cultivations;
+            return ParticleBackgroundScaffold(
+              whiteBackground: theme.brightness == Brightness.light,
+              body: Scaffold(
+                backgroundColor: Colors.transparent,
+                // The dock's height is reserved here, inside the background,
+                // so the particle black runs down behind the dock like on
+                // the other tabs instead of the shell's navy showing.
+                body: SafeArea(
+                  top: false,
+                  child: SafeArea(
                     bottom: false,
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
@@ -267,9 +270,9 @@ class _BreedScreenState extends State<BreedScreen> {
                     ),
                   ),
                 ),
-              );
-            },
-      ),
+              ),
+            );
+          },
     );
   }
 }

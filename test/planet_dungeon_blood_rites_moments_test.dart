@@ -171,7 +171,19 @@ void main() {
       _place(g, kRiteArrival['Water']!);
       g.update(1 / 60);
       g.activateAbility(); // FLIP
-      final d = await _film(g, 'water_flip', [0, .12, .24, .36, .48, .6, .7, .8, .9, 1.0, 1.15, 1.3, 1.5, 1.8, 2.4], scale: .55, focus: const Offset(288, 256), radius: 300);
+      final d = await _film(g, 'water_flip', [0, .3, .55, .75, .9, 1.05, 1.2, 1.35, 1.5, 1.7, 1.95, 2.25, 2.6, 3.0, 3.6], scale: .55, focus: const Offset(288, 256), radius: 300);
+      expect(d, greaterThan(0));
+    });
+  });
+
+  testWidgets('the Water room turns over, close: a melt and a fire put out',
+      (tester) async {
+    await tester.runAsync(() async {
+      final g = await _game('rite_water');
+      _place(g, kRiteArrival['Water']!);
+      g.update(1 / 60);
+      g.activateAbility(); // FLIP
+      final d = await _film(g, 'water_flip_close', [0, .6, .8, 1.3, 1.6, 1.8, 1.95, 2.1, 2.3, 2.5, 2.7, 2.9, 3.1, 3.4, 3.8], scale: .8, focus: const Offset(390, 140), radius: 130);
       expect(d, greaterThan(0));
     });
   });
@@ -192,6 +204,10 @@ void main() {
       _place(g, (x: 7, y: 11));
       g.update(1 / 60);
       g.guardianAwake = true;
+      // Blood freed in the Heart before: down through it to Sanguorath.
+      g.discoveredClouds.add(kRiteHeartFreedId);
+      g.passThroughDoor(g.currentRoom.doors.firstWhere((d) => d.targetRoomId == 'rite_heart'));
+      g.update(1 / 60);
       g.passThroughDoor(g.currentRoom.doors.firstWhere((d) => d.targetRoomId == 'sanguorath_heart'));
       for (var i = 0; i < 400 && g.debugGuardianBody == null; i++) {
         g.update(1 / 60);

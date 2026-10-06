@@ -13,8 +13,11 @@
 //     element. Solve the room and its two ingredients meet at the captive
 //     (the game's own recipes); it dissolves into blood that runs home to
 //     the Circle and fills its cup.
-//   · All four freed: two stars at once, and the seal in the middle of the
-//     Circle opens on Sanguorath.
+//   · All four freed: the first star, and the seal in the middle of the
+//     Circle opens on THE HEART (2026-10-06): Blood is taken and bound there,
+//     and the four it freed fuse their way up the recipe table to Blood
+//     (Light + Dark) to free it — the second star. Its floor then opens on
+//     Sanguorath. Rules: planet_dungeon_blood_heart.dart.
 //   · Sanguorath fights in stages: the four come down with Blood, the player
 //     controls all five, and at each fifth of its health one of them gives
 //     itself. The last fifth is Blood alone.
@@ -82,7 +85,7 @@ Offset riteDoorDir(String element) {
 // PER-ROOM CONTENT
 // ─────────────────────────────────────────────────────────
 
-enum RiteKind { circle, earth, water, fire, air, vault, arena }
+enum RiteKind { circle, earth, water, fire, air, vault, heart, arena }
 
 /// What the Blood Rites put in one room. Carried on `DungeonRoom.rite`.
 class RiteBay {
@@ -109,13 +112,23 @@ class RiteBay {
 
   bool get isGrid => element != null;
 
-  /// Blood declares BOTH of its non-guardian stars on the Circle: freeing
-  /// the fourth captive banks the pair, wherever it was freed.
-  List<int> get starIndices =>
-      kind == RiteKind.circle ? const [0, 1] : const [];
+  /// A room played as one held picture with its own RESET ROOM: the four
+  /// captive rooms and the Heart.
+  bool get isStaged => isGrid || kind == RiteKind.heart;
 
-  /// The first of them, for the map's star marks.
-  int? get starIndex => kind == RiteKind.circle ? 0 : null;
+  /// The first star is declared on the Circle (freeing the fourth captive
+  /// banks it, wherever it was freed); the second is the Heart's.
+  List<int> get starIndices => switch (kind) {
+    RiteKind.circle => const [0],
+    RiteKind.heart => const [1],
+    _ => const [],
+  };
+
+  int? get starIndex => switch (kind) {
+    RiteKind.circle => 0,
+    RiteKind.heart => 1,
+    _ => null,
+  };
 
   /// The room's grid, as the rules read it.
   List<String>? get map => switch (kind) {
@@ -153,6 +166,18 @@ String riteFreedId(String element) => 'gate:rite_freed_$element';
 /// The Lost Maxim: the quintessence.
 const String kBloodEggId = 'egg:blood_quintessence';
 
+/// Discovery id: Blood freed in the Heart (persists across descents).
+const String kRiteHeartFreedId = 'gate:rite_heart_freed';
+
+/// The Heart is 14 × 9 squares: an open space above, the stage along the
+/// bottom. Blood comes down from the seal by the stair in the stage's west
+/// post and arrives beside it, here; once it is freed it stands again in
+/// the middle of the stage, under where it was bound, and the stage opens
+/// on Sanguorath at [kRiteHeartWayDown].
+const RiteCell kRiteHeartArrival = (x: 1, y: 6);
+const RiteCell kRiteHeartFreedAt = (x: 7, y: 7);
+const RiteCell kRiteHeartWayDown = (x: 7, y: 6);
+
 // ─────────────────────────────────────────────────────────
 // THE LAYOUT
 // ─────────────────────────────────────────────────────────
@@ -175,12 +200,11 @@ const DungeonLayout bloodLayout = DungeonLayout(
     ),
     DungeonStarSpec(name: 'Sanguine Star'),
   ],
-  finaleDoor: DungeonDoorRef('rite_circle', 'sanguorath_heart'),
-  riteAnnouncement:
-      'All four are freed. The seal in the middle of the Circle is open',
-  riteWakeLine: 'All four cups are full. Sanguorath wakes below the seal',
-  finaleSealedHint: 'The seal stays shut until all four captives are freed',
-  guardianSealedHint: 'Sanguorath won\'t wake until all four cups are full',
+  finaleDoor: DungeonDoorRef('rite_heart', 'sanguorath_heart'),
+  riteAnnouncement: 'Blood is free. The floor of the Heart opens',
+  riteWakeLine: 'Blood is free. Sanguorath wakes below the Heart',
+  finaleSealedHint: 'The way down stays shut until Blood is free',
+  guardianSealedHint: 'Sanguorath won\'t wake until Blood is free',
   mercyShrineRoomId: 'rite_circle',
   // One line per entry slot, and Blood has one.
   riddle: [
@@ -221,11 +245,12 @@ const DungeonLayout bloodLayout = DungeonLayout(
           targetRoomId: 'rite_water',
           targetSpawn: Offset(480, 416),
         ),
-        // The seal in the middle: a door in the floor, down to Sanguorath.
+        // The seal in the middle: a door in the floor, down to the Heart
+        // (it is there once all four cups are full).
         DungeonDoor(
           rect: Rect.fromLTWH(420, 420, 60, 60),
-          targetRoomId: 'sanguorath_heart',
-          targetSpawn: Offset(450, 120),
+          targetRoomId: 'rite_heart',
+          targetSpawn: Offset(96, 416),
           chromeless: true,
         ),
       ],
@@ -319,6 +344,32 @@ const DungeonLayout bloodLayout = DungeonLayout(
       rite: RiteBay(RiteKind.vault),
     ),
 
+    // ── THE HEART (Star 2) — the fifth rite ── 14×9 ───────
+    'rite_heart': DungeonRoom(
+      id: 'rite_heart',
+      bounds: Rect.fromLTWH(0, 0, 896, 576),
+      doors: [
+        // (0,7) west: the stair back up to the Circle (once Blood is free).
+        DungeonDoor(
+          rect: Rect.fromLTWH(0, 448, 24, 64),
+          targetRoomId: 'rite_circle',
+          targetSpawn: Offset(450, 540),
+        ),
+        // (7,6): the stage opens on Sanguorath once Blood is free.
+        DungeonDoor(
+          rect: Rect.fromLTWH(456, 392, 48, 48),
+          targetRoomId: 'sanguorath_heart',
+          targetSpawn: Offset(450, 120),
+          chromeless: true,
+        ),
+      ],
+      teach:
+          'Two on an altar fuse, and what they make rises to what hangs '
+          'above it. The split stage takes anything apart. Make Blood to '
+          'free your Blood',
+      rite: RiteBay(RiteKind.heart),
+    ),
+
     // ── SANGUORATH (Star 3) — the staged fight ────────────
     'sanguorath_heart': DungeonRoom(
       id: 'sanguorath_heart',
@@ -326,8 +377,8 @@ const DungeonLayout bloodLayout = DungeonLayout(
       doors: [
         DungeonDoor(
           rect: Rect.fromLTWH(395, 0, 110, 24),
-          targetRoomId: 'rite_circle',
-          targetSpawn: Offset(450, 560),
+          targetRoomId: 'rite_heart',
+          targetSpawn: Offset(480, 480),
         ),
       ],
       guardian: GuardianNode(

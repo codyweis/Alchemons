@@ -120,6 +120,26 @@ bool debugTrioIsExact(CreatureCatalog catalog, String element) {
   return true;
 }
 
+/// Blood's Heart: real species (animated, never a Mystic) of every element a
+/// fusion there can make or the room can free, by element. Each fused
+/// creature wears a random one of its element.
+Map<String, List<CosmicPartyMember>> riteSpeciesFrom(CreatureCatalog catalog) {
+  const elements = [
+    'Steam', 'Lava', 'Mud', 'Ice', 'Dust', 'Lightning', 'Crystal', 'Fire',
+    'Water', 'Earth', 'Air', 'Spirit', 'Light', 'Dark', 'Poison', 'Plant',
+    'Blood',
+  ];
+  return {
+    for (final el in elements)
+      el: [
+        for (final c in catalog.byType(el))
+          if (c.spriteData != null &&
+              (c.mutationFamily ?? '').toLowerCase() != 'mystic')
+            debugMemberFromCreature(c, statTier: 3),
+      ],
+  };
+}
+
 /// Blood's four captives: one real species of each classical element (Air,
 /// Fire, Earth, Water) — animated, never a Mystic — chosen the same way every
 /// time so a captive is a creature the player can come to know.

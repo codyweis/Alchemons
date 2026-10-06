@@ -3274,7 +3274,8 @@ Sanguine Orrery's code is gone (its layout, play, art and three tests);
     square leaves. On a grid, walking eases onto the middle of its row or
     column. REGROUP in a captive room starts that room again (the honest
     undo, and the way out of the 50–74% of states that are dead ends —
-    the room says so and names it). Freed captives persist as
+    the prototype said so; the game never does since 2026-10-06 — see the
+    polish below). Freed captives persist as
     `gate:rite_freed_<El>` discoveries; the fourth banks Stars 1 and 2;
     four full cups latch A+B and Sanguorath wakes below the seal.
   · SANGUORATH — the captives' bodies are built at load from real species
@@ -3328,6 +3329,303 @@ Sanguine Orrery's code is gone (its layout, play, art and three tests);
     all four rooms solved with the stick and pad, the vault dive, the
     stars, the rite, a ring turn into the quintessence, and all four
     shells including a refused wrong ally.
+
+**THE HEART — the fifth rite (the author's design, 2026-10-06; prototyped,
+then BUILT IN DART the same day as a theatre — see "THE HEART IN DART"
+below).** The author: one more puzzle before the boss. The stars
+change: **Star 1 for all four freed, Star 2 for the Heart, Star 3 the boss.**
+  · The four full cups open the seal in the Circle on THE HEART. Blood walks
+    in, comes apart into grains, and is drawn into a niche across the room
+    and bound (a cutscene). The four it freed pour in after it and stand on
+    the stage; the player switches between them.
+  · **The alchemy (the author's words: "Fire, Earth, Water and Air together
+    can make every element; lean into that").** Two standing together on an
+    altar fuse into what the game's recipe table makes (main result only; a
+    pair with no recipe doesn't fuse) — a creature of that element, a random
+    species. The two are gone. As it forms, its POWER shoots down the altar's
+    lane and hits the first thing in the way: each element has its own power
+    (Steam melts ice, Lava burns the blood-thorn or melts ice, Mud fills a
+    chasm, Lightning shatters crystal, …).
+  · **Every element shows itself, and nothing is said** (the author, same
+    day: no "it breaks against the crystal wall" — "if we form a crystal
+    fusion, crystals form on the other side or something visually cool, and
+    if it happens to solve it then something else happens"). As it forms,
+    the element runs out across three squares of open floor in its own way
+    — crystals grow, lava pours, steam rolls, frost creeps, a wave breaks,
+    a bolt arcs — up to the first thing in the way. If that thing gives way
+    to it, it goes and what it held steps out; if not, the show simply ends.
+    The only words are the fusion's name ("Fire and Water make Steam").
+  · **Everything in the way holds an element.** Break it and that element
+    steps out and joins you (the Lava frozen in the ice, the Spirit down the
+    chasm, a Crystal in each crystal wall, a Plant in the thorn). The four
+    alone can only ever fuse three times; this is where the rest comes from.
+  · **The split stage** (the author) takes a fused creature apart into the
+    two that made it. Nothing is used up for good, and fusing again fires a
+    power again.
+  · **Light + Dark make Blood, and that frees your Blood** (the author: "so
+    eventually they'll all fuse into a blood mon"). Light is Crystal +
+    Spirit, Dark is Poison + Spirit. Then the four re-form beside Blood (the
+    author's pick) and the floor opens on Sanguorath, whose fight is
+    unchanged.
+  Prototype: heart-engine.js (rules + solver), heart-view.js (the page),
+  room HEART in rites-rooms.js. `node solve.js` proves it: the room's recipe
+  copy matches all 41 pairs in the game's table; fewest 9 fusions and 2
+  splits (Steam melts the ice → Lava; split; Mud fills the chasm → Spirit;
+  Lava + Mud → Poison; + Spirit → Dark; Lightning shatters a crystal wall →
+  Crystal; split; Lightning again → second Crystal; Lightning + Crystal →
+  Spirit; + Crystal → Light; Light + Dark → Blood); impossible without the
+  split stage; Lava can melt the ice in Steam's place; 17 elements can be
+  made in the room. (The prototype keeps the first, lane layout; the Dart
+  build below is the theatre.)
+
+**THE HEART IN DART — a theatre (2026-10-06).** Before the Dart build went
+further the author changed the room's shape: "I don't think we should have
+a cave like feature. It should be stages on the bottom with the open space
+like area up top where a theatre of elements can occur. And we should be
+zoomed in more and cut scene to the elements."
+  · **The room** (14 × 9 squares, kHeartMap in planet_dungeon_blood_heart.dart):
+    a stage two squares deep along the bottom, its front face carved, a
+    porphyry post at each end; the stair up in the west post. Blood comes
+    down from the seal by that stair and arrives beside it (1,6), so the way
+    back is on the side you came in; freed, it stands in the middle of the
+    stage under where it was bound. Four altars
+    stand in the stage, each a back stone and a front stone, every front
+    stone notched UP. Above the stage the room is OPEN: dark, lit from the
+    stage's edge, each altar's column faintly lit up into it. What is in the
+    way HANGS there and drifts: a block of ice holding Lava over altar 1, two
+    crystal clusters one above the other over altar 2 (a Crystal in each), a
+    tear in the air holding a Spirit over altar 3, a knot of blood-thorn
+    holding a Plant over altar 4. Blood is bound at the top, over the middle
+    of the stage, in bands of its own blood; before it is taken the binding
+    hangs there empty and faint. The split stage is at the west end. Once
+    Blood is free the stage opens on Sanguorath in its middle.
+  · **Powers rise, in grains** (the author, same day: "all our alchemy
+    should come from the particle looking style and animation"). The
+    creature a fusion made forms, stands a beat (2.0s from the fusion's
+    start), and comes apart into its element the way the Elemental Essence
+    does: its own grains, each heated into the element's shade by its own
+    brightness (essenceRamp/essencePool from elemental_essence.dart). They
+    pour up the altar's column (HeartRiseFx, at least 2,400 grains: each of
+    the creature's grains goes up as several) in the element's own motion:
+    a pillar of licking flame, three streams of water twisting round each
+    other, rough clods heaving one above another, four gusts spiralling,
+    billows of steam, a lava column glowing through its crust with drips,
+    a bolt of grains that jumps every 75 ms with a crackle round it, a
+    lumpy slumping mud column, frost on a lattice with needles, a loose
+    dust cloud blown downwind, crystal prisms standing up the column,
+    three leafing stems climbing, filled blisters of poison lifting and
+    bursting, a pale spirit ribbon, two dark arms twisting round a black
+    core, uneven rays of light. At the head they billow round what hangs
+    there (a filled churning cloud, never a ring), hold 0.8s, then come
+    back down the column and gather into the creature, cooling to its own
+    colours, and its sprite fades back under them. What hangs there is
+    grains too (HeartMatter): a five-faced ice chunk lit on its upper-left
+    edges, a crystal cluster grown from one side (prisms, not a star), a
+    knotted tangle of blood-thorn, the torn edge of a tear in the air round
+    a dark void. When it gives way its own grains come apart and FALL (the
+    ice melts from the bottom and drips away as water, the prisms shatter
+    and fly, the thorn withers to drifting ash, the tear fills with mud
+    from the bottom, closes, and its clods fall), and what it held comes
+    down through the air to the stage beside its column, onto a square
+    nobody stands on. Blood's bands are blood running round in grains.
+    test/planet_dungeon_blood_heart_rise_preview_test.dart writes the plates
+    (HeartRise_all.png: all 16 elements through their beats;
+    HeartMatter_all.png: each thing whole and coming apart). A split puts
+    its second creature on the nearest free square that isn't a stone.
+    Broken squares become open space again. Re-proved on the theatre: 9
+    fusions and 2 splits, impossible without the split stage.
+  · **The camera plays close and cuts to the elements.** Zoom 1.0, and the
+    stage is held at the FOOT of the view with as much of the open space
+    above it as fits (it never rises and falls with a step); the room is
+    framed clear of the tool column, which on the folded phone covers the
+    view's right 128px top to bottom. When something happens up there the
+    camera goes to it, eased: close on a fusion as it forms; up the column
+    with the element to what it reaches, holding there; back down with
+    whatever comes out of it. In the capture it rises with Blood to the
+    binding and holds while it is bound (the four pour in at 3.7s, not 3.0,
+    to give that a beat), then comes down for them; in
+    the finale it is close on the Blood that Light and Dark made, rises with
+    it as it pours into the bound Blood, holds while the bands let go, and
+    comes down to the five on the stage. The camera may rise a square and a
+    half above the room so Blood at the top sits in the view, not on its
+    edge. Nobody walks while a power is up.
+  · Code: rules planet_dungeon_blood_heart.dart; play
+    planet_dungeon_game_blood_heart.dart (capture, fusing, splitting,
+    powers, finale, RESET ROOM, the camera); art
+    planet_dungeon_game_blood_heart_art.dart; the moments blood_heart_fx.dart
+    (RiteMorphFx, paintHeartManifest). Tests: planet_dungeon_blood_heart_test
+    (the proof, the recipe copy), planet_dungeon_blood_heart_game_test (the
+    whole room played square by square through the real game, RESET ROOM, a
+    pair with no recipe), planet_dungeon_blood_heart_moments_test (films
+    HeartMoments_<name>.png at 916×265, the folded phone's view, plus a
+    whole-room still).
+
+**SECOND PLAYTEST NOTES (2026-10-06).**
+  · **Visuals drive the puzzle; no narration.** The release no longer says
+    "Fire and Ice meet. Water is freed, and its blood runs to the Circle".
+    The ingredients running in, the bands letting go and the blood running
+    home say it. Also gone: the Air room's "The ice turned to air in the
+    open, and the air is gone", the twin room's "Blood fell. You both rise
+    again at the pool", and the Heart's "X and Y don't fuse". Sanguorath's
+    fight lines stay; that's the boss, not a puzzle.
+  · **The twin room trapped you after the rescue.** The way out is behind
+    gate b, which only the twin can hold open (on plate 2). From the solved
+    squares Blood could never get back to it: a search of every reachable
+    state found none with Blood in its start pocket. Once Fire is freed
+    every gate in the room stands open (`twinStep(freed:)`). The FIRE game
+    test now walks back out to the Circle.
+
+**THE HEART, REDONE ON THE RECIPE TABLE (2026-10-06).** The author, after
+playing: "why would we know lightning would break crystal? that's not in
+any of my recipes is it? also why two crystals? we can just fuse lightning,
+break crystal, fuse back then fuse lightning again". Both right. The power
+table (Steam melts ice, Lightning shatters crystal…) was made up, and the
+second crystal only repeated three moves. The room now has ONE RULE, and it
+is the recipe table:
+  · Two on an altar fuse into what the table makes. What they make RISES up
+    the altar's column. If it has a recipe with the first element hanging
+    there, the two fuse up there and what they make comes down to the altar
+    in its place; if not, it gathers back.
+  · The split stage takes anything apart into the two it was made of, so
+    splitting what fused up there brings the hanging element down too.
+  · Light + Dark → Blood frees your Blood.
+The obstacles that held creatures, the breaks and the power table are gone.
+The layout was found by a solver search over layouts (one solution, 6–9
+moves, every hanging element needed, the split stage required) and is
+proved in Dart (heartSolve): altar 1 has nothing over it, altar 2 a Spirit,
+altar 3 a Spirit with Lava above it, altar 4 Earth. One way, seven moves:
+  1. Air + Fire on altar 4: Lightning rises into the Earth → Crystal.
+  2. Split the Crystal: Lightning, and the Earth from up there (you need
+     two Earths and start with one).
+  3. Earth + Lightning on altar 3: Crystal rises into the Spirit → Light,
+     uncovering the Lava (sent up altar 2 instead, it would not be).
+  4. Earth + Water on altar 3: Mud rises into the Lava → Poison.
+  5. Split the Poison: Lava and Mud (Poison only rises if it is made).
+  6. Lava + Mud on altar 2: Poison rises into the Spirit → Dark.
+  7. Dark + Light → Blood.
+Visually, the risen element's grains billow round what hangs there. When
+they fuse, the hanging element's grains swirl in, the cloud turns to the
+new element's shades (`HeartRiseFx.into`), and what they made pours down
+onto the altar in those colours. The hanging elements are each element's
+Fusion Codex orb (`ElementOrb`: a ball of its grains in dark glass, its
+own tint and habit). The first version used loose grain shapes (a wisp, a
+glob, a clod), and the author found them unclear: "they look too particly".
+The orb is how the player already knows each element from the Codex, and
+puzzle things are glass. When something fuses with it, the orb's glass
+fades and its grains, as they stood (`grainsAt`), swirl into the cloud
+(`paintHeartMeet`).
+**Tap an orb to see its name** (the author: "tapping the orb should show
+the element in a cool particle fade away"). A tap on the room
+(`PlanetDungeonGame.tapWorld`, from a translucent GestureDetector round the
+GameWidget) that lands on a hanging orb, or on Blood's binding, shows the
+element's name below it in grains of its colours (`HeartWordFx`). The name
+is sampled from bold upper-case text (`heartWordOf`) and read in advance
+when the Heart is entered. The grains stream out of the orb into the
+letters, left to right; they shimmer for 1.3s, then come loose letter by
+letter and drift up and away as they fade. Tapping again restarts it. The teach line:
+"Two on an altar fuse, and what they make rises to what hangs above it.
+The split stage takes anything apart. Make Blood to free your Blood". The
+prototype (docs/prototypes/blood_rites) still has the old lane rules; the
+Dart rules are canonical.
+
+**FAMILY SIZES IN EVERY DUNGEON (2026-10-06).** The author asked whether
+dungeons used the same Alchemon sizes as survival and space. They didn't.
+Survival draws a 62.4-unit box times the family's size, and space a
+74.88-unit box times the same table (wings and horns ×1.5 again). Every
+dungeon drew every family in one flat 44-unit box, so a Pip and a Kin stood
+the same size. Now `_loadSprite` uses the same family table
+(`kCompanionSpeciesScale`) at `kDungeonFamilyBox` = 31.5 units per unit of
+size, so a Kin or a Wing (2.0) stands 63 units, about one 64-unit square:
+Let/Pip ~35, Mane ~38, Mask ~47, Horn ~53, Kin/Wing 63, Mystic ~76. The
+author picked these proportions over survival's exact scale, which would
+put Kins and Wings at 88 and over the neighbouring squares.
+`DungeonCreature.sizeK` (box / 44) grows what is drawn round the body with
+it: glow, selection marker, shadow, hit flash, cast ring and glide ring.
+Ability-range visuals stay true to their ranges. Preview:
+test/planet_dungeon_family_size_preview_test.dart (DungeonFamilySizes.png).
+
+**HEMAVORN'S HEART, FELT (2026-10-06).** The author: "haptic feedback for
+the blood planet heart pulse throughout the dungeon". One heart beats under
+every Blood room in the planet's own rhythm, the Blood portal's double
+thump (a lub, and a dub 0.2s behind it), and the phone gives each beat to
+the hand: `DungeonHaptic.heartbeat`, a heavy knock then a medium one 200ms
+later, off with the other haptics in Settings. The clock is
+`_riteHeartbeat` (planet_dungeon_game_blood.dart):
+  · at rest every 0.9s (`kRiteBeatRest`, the portal's beat);
+  · in the Heart 0.78s; 0.5s while Blood is taken and while it is made and
+    poured back; 1.15s once Blood is free;
+  · in Sanguorath's fight 0.66s, and never slower than 0.62s while the one
+    you steer is under 30% health;
+  · the tempo eases from one to the next (never jumps) and the beat
+    carries on through doors.
+What you see beats with it (`riteBeat`, the same shape): a pool of blood
+light swelling under the Circle's seal, and Blood's binding in the Heart
+(its glow, and its bands swelling). Test: 'the planet's heart is felt' in
+planet_dungeon_blood_heart_game_test.dart (ten beats 0.9s apart in the
+Circle, quicker once Blood is taken).
+
+**THE POLISH, FROM THE FIRST PLAYTEST (2026-10-06).** The author played it
+on the Fold and came back with six things; all six are in.
+  · **The Water room's flip was too fast to follow, and cheesy.** The room
+    used to squash flat edge-on and spring open in under half a second,
+    with gold chevrons on its walls, and then everything slid at 0.075s a
+    square. Now nothing pretends to spin; the room's SLOPE turns. A runnel
+    is cut down each side wall with blood running in it, always downhill,
+    pooling at the low end. On FLIP it slows, stops and runs back, the
+    floor's shadow swings toward the new low end, and what is about to
+    fall leans and trembles (0.85s). Only then does anything slide: a fall
+    gathers speed (0.24s for its first square, ×0.82 each after, never
+    under 0.11s), and a melt or a fire going out holds the picture for
+    0.7s while it happens. Ice lands with a squash and a spray of frost,
+    water with a splash. A flip that cascades now takes about 3s. The ice
+    is a chipped block with a face, the water a trembling body that runs
+    together between squares, the braziers sway in three tongues, and the
+    pits show their far wall.
+  · **"All the rooms are too zoomed out."** Every captive room used to be
+    framed whole, which on the folded phone (a 265px-tall view) meant 29px
+    squares. Now they are played at the ordinary zoom, following Blood.
+    The camera pulls back to the whole room only to show something: for
+    about a second on the way in (moving ends it), and while the Water room
+    turns and settles. The Circle is played close too. The FIRE room is
+    the exception (the author, same day, on the device: the twin room
+    "feels a little weird … zoom out a bit more"): it first followed the
+    pair and zoomed just far enough to keep both in view, so the camera
+    breathed with every step and the far bank was mostly off screen. It
+    now holds still on the room, as close as it can come with every floor
+    square in view (about 0.65 on the folded phone, about 1.0 unfolded).
+  · **No "can't be finished".** The rooms no longer say that a state is a
+    dead end, and the liveness graphs that told them are gone from the
+    play (the proofs keep them). The author's words: they should work out
+    for themselves that the room needs a reset.
+  · **RESET ROOM is big, and said once.** In a captive room a large,
+    labelled RESET ROOM button stands where the regroup icon stands. The
+    first captive room ever entered adds one line to its teach: "Stuck?
+    RESET ROOM puts the room back the way it started". The button glows
+    while that line is up. A reset shows the room whole again for a
+    moment.
+  · **"Can't tell something is blocking my path."** The wall tops had the
+    floor's own colour, so a lone wall square was a faint seam. Walls now
+    stand up out of a darker floor. Each has a lighter porphyry top, a lit
+    arris, a dark face and a shadow thrown on the floor in front, and a run
+    of wall reads as laid stone. The Earth plates' stones are boulders that
+    stay upright as the plate turns. The Fire gates are portcullises of
+    heavy bars between posts. The Circle is solid stone out to its four
+    ways in. Blood also stops short now: it can lean only 12 units into a
+    square it can't enter, where before it walked to the edge with half its
+    body over the wall. When it is pressed into something, the blocker's
+    near face lights, grit comes off it and the phone ticks, once for each
+    thing pressed against. This covers the Air room's pushes too.
+  · **The tendril floor "seems random".** The two element tendrils have no
+    partner of their own colour. HINT in the Earth room now says first:
+    "Both element tendrils must reach the captive. They fuse there". The
+    captive's hearth carries two glass sockets in the tendrils' colours,
+    and each lights when its tendril comes home. The element roots glow
+    in their own colour, and Dust's mark is a heap of grains (it wore
+    Earth's sign).
+  Tests: the game test's "the polish" group (the camera at 916×265, the
+  Fire room held still, the flip's pace, no jam line, RESET ROOM and its one teach, the Earth hint,
+  the bump); moments has a close film of a melt and a fire put out
+  (BloodMoments_water_flip_close.png).
 
 
 ### ◐ BLOOD — the pass, minus the device session (2026-09-20)

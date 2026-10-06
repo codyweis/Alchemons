@@ -7,6 +7,8 @@ const out = read('rites.src.html')
   .replace('/*HUB*/', () => read('hub-engine.js'))
   .replace('/*FIRE*/', () => read('fire-engine.js'))
   .replace('/*AIR*/', () => read('air-engine.js'))
+  .replace('/*HEART*/', () => read('heart-engine.js'))
+  .replace('/*HEARTVIEW*/', () => read('heart-view.js'))
   .replace('/*ROOMS*/', () => read('rites-rooms.js'));
 fs.writeFileSync(__dirname + '/rites.html', out);
 console.log('wrote rites.html', out.length, 'bytes');

@@ -8,6 +8,7 @@ import 'package:alchemons/audio/audio.dart';
 // death overlay and an instant star-banked toast. Dark / alchemical chrome.
 
 import 'dart:async';
+import 'dart:math' show min, sin;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -31,7 +32,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_debug_party.dart'
-    show riteCaptivesFrom;
+    show riteCaptivesFrom, riteSpeciesFrom;
 import 'package:alchemons/services/creature_repository.dart'
     show CreatureCatalog;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -248,6 +249,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     final captives = widget.element == 'Blood' && !_isRaid
         ? riteCaptivesFrom(context.read<CreatureCatalog>())
         : const <CosmicPartyMember>[];
+    // …and the species a fusion in the Heart can wear.
+    final species = widget.element == 'Blood' && !_isRaid
+        ? riteSpeciesFrom(context.read<CreatureCatalog>())
+        : const <String, List<CosmicPartyMember>>{};
     // Hydrate the persisted developer switch so `toolsVisible` reads true in a
     // RELEASE install on a real device — `kDebugMode` alone hid the dungeon's
     // debug affordances exactly where playtesting happens.
@@ -304,6 +309,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             onChanged: () => _tick.value++,
             clearedGuardianCount: cleared,
             riteCaptives: captives,
+            riteSpecies: species,
           );
 
     if (!mounted) return;
@@ -336,10 +342,12 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         case DungeonHaptic.big:
           HapticFeedback.heavyImpact();
         case DungeonHaptic.heartbeat:
-          // Lub-DUB: the heavy knock, then the softer echo close behind it.
+          // Lub-DUB: the heavy knock, then the softer echo 0.2s behind it
+          // (the Blood portal's double thump, and the glows that beat with
+          // it in the dungeon).
           HapticFeedback.heavyImpact();
           Future<void>.delayed(
-            const Duration(milliseconds: 150),
+            const Duration(milliseconds: 200),
             HapticFeedback.mediumImpact,
           );
       }
@@ -882,7 +890,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               top: 0,
               right: 0,
               bottom: _trayHeight(context),
-              child: GameWidget(game: game),
+              // A tap on the room itself goes to the game (the Heart's
+              // hanging elements show their names); the HUD over it keeps
+              // its own taps.
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTapUp: (d) => game.tapWorld(d.localPosition),
+                child: GameWidget(game: game),
+              ),
             ),
 
             // STOP FOLLOWING THE POUR. Big, centred and translucent, over
@@ -1049,18 +1064,30 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                       // the icon is a way back rather than a huddle — except
                       // on the Black Sun, where it GATHERS everyone who can
                       // walk there to the one you are steering.
+                      //
+                      // Blood's captive rooms put a large labelled RESET
+                      // ROOM here instead: the reset is how a jammed room is
+                      // got out of, and the room never says it has jammed.
                       ValueListenableBuilder<int>(
                         valueListenable: _tick,
-                        builder: (_, __, ___) => _iconButton(
-                          game.sunGathers
-                              ? Icons.groups_rounded
-                              : Icons.restore_rounded,
-                          _C.amber,
-                          () => game.regroup(),
-                          semantics: game.sunGathers
-                              ? 'Gather the party here'
-                              : 'Recall the party to the way in',
-                        ),
+                        builder: (_, __, ___) => game.riteResetShown
+                            ? _resetRoomButton(
+                                lit: game.riteResetLit,
+                                onTap: () {
+                                  HapticFeedback.mediumImpact();
+                                  game.resetRiteRoom();
+                                },
+                              )
+                            : _iconButton(
+                                game.sunGathers
+                                    ? Icons.groups_rounded
+                                    : Icons.restore_rounded,
+                                _C.amber,
+                                () => game.regroup(),
+                                semantics: game.sunGathers
+                                    ? 'Gather the party here'
+                                    : 'Recall the party to the way in',
+                              ),
                       ),
                       // Pull back and read the whole room, and drag to look
                       // around while pulled back. Any movement snaps it home
@@ -2203,13 +2230,41 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// It used to be a row of portrait cards that the tray had to shrink to
   /// under half size to fit between the stick and the pad.
   Widget _swapRail(PlanetDungeonGame game) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    final n = game.creatures.length;
+    // Three to a column. More than three (Blood's Heart can hold six or
+    // seven, Sanguorath's arena five) lay out in side-by-side columns of
+    // three rather than running out of the tray.
+    if (n <= 3) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < n; i++)
+            Padding(
+              padding: EdgeInsets.only(top: i == 0 ? 0 : _kPadGap),
+              child: _creatureChip(game, i),
+            ),
+        ],
+      );
+    }
+    final cols = (n / 3).ceil();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (var i = 0; i < game.creatures.length; i++)
-          Padding(
-            padding: EdgeInsets.only(top: i == 0 ? 0 : _kPadGap),
-            child: _creatureChip(game, i),
+        for (var c = 0; c < cols; c++)
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(left: c == 0 ? 0 : _kPadGap),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = c * 3; i < min(n, c * 3 + 3); i++)
+                    Padding(
+                      padding: EdgeInsets.only(top: i == c * 3 ? 0 : _kPadGap),
+                      child: _creatureChip(game, i),
+                    ),
+                ],
+              ),
+            ),
           ),
       ],
     );
@@ -2390,6 +2445,69 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               lit ? Icons.help_rounded : Icons.help_outline_rounded,
               color: color,
               size: 28,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// RESET ROOM, for Blood's captive rooms: as big as the hint and labelled,
+  /// because it is the way out of a room that has jammed. Lit (warm, with a
+  /// slow breath) while the first captive room is saying where it is.
+  Widget _resetRoomButton({required bool lit, required VoidCallback onTap}) {
+    final breath = lit
+        ? .5 + .5 * sin(DateTime.now().millisecondsSinceEpoch / 260)
+        : 0.0;
+    final color = lit ? _C.amberBright : _C.cyan;
+    return Semantics(
+      button: true,
+      label: 'Reset this room',
+      child: GestureDetector(
+        onTap: context.soundAction(onTap),
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: CustomPaint(
+            painter: BracketFramePainter(
+              color: color.withValues(alpha: 0.75 + .2 * breath),
+              bracketSize: 7,
+              strokeWidth: 1.3,
+            ),
+            child: Container(
+              height: 50,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: lit
+                    ? Color.lerp(
+                        const Color(0xFF14110C),
+                        const Color(0xFF2A2214),
+                        breath,
+                      )
+                    : _C.bg.withValues(alpha: 0.88),
+                border: Border.all(
+                  color: color.withValues(alpha: lit ? .55 + .3 * breath : .45),
+                  width: 1.3,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.restart_alt_rounded, color: color, size: 26),
+                  const SizedBox(width: 7),
+                  Text(
+                    'RESET\nROOM',
+                    style: TextStyle(
+                      color: color,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w900,
+                      fontSize: 11,
+                      letterSpacing: 1.2,
+                      height: 1.15,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
