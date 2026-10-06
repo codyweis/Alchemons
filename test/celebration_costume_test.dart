@@ -9,6 +9,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/utils/alchemy_effect_apply.dart';
+import 'package:alchemons/widgets/fx/alchemical_sunglasses.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/painting.dart';
@@ -31,7 +32,9 @@ void main() {
       'wing': 'WNG04',
       'wing2': 'WNG01',
       'pip': 'PIP01',
+      'horn': 'HOR03',
       'let': 'LET02',
+      'mane': 'MAN01',
     }.entries) {
       await db.creatureDao.insertInstance(
         instanceId: entry.key,
@@ -43,138 +46,204 @@ void main() {
     shop.dispose();
     await db.close();
   });
-  Future<bool> equip(
-    String id, [
-    String item = InvKeys.alchemyCelebration,
-    Color? color,
-  ]) => applyAlchemyEffect(db, instanceId: id, itemKey: item, color: color);
-  Future<String?> worn(String id) async =>
+  const hat = FamilyCostume.partyHat,
+      nose = FamilyCostume.nose,
+      glasses = FamilyCostume.sunglasses;
+  Future<bool> wear(String id, FamilyCostume costume, [Color? color]) =>
+      wearCostume(db, instanceId: id, costume: costume, color: color);
+  Future<bool> takeOff(String id, FamilyCostume costume) =>
+      takeOffCostume(db, instanceId: id, costume: costume);
+  Future<String?> costumes(String id) async =>
+      (await db.creatureDao.getInstance(id))?.costumes;
+  Future<String?> effect(String id) async =>
       (await db.creatureDao.getInstance(id))?.alchemyEffect;
-
   Future<int> owned(String item) => db.inventoryDao.getItemQty(item);
+  Future<void> buyAll() async {
+    for (final c in FamilyCostume.values) {
+      await shop.purchase(c.offerId);
+    }
+  }
 
   test('bought like any effect: one each, as many as are paid for', () async {
-    final hat = FamilyCostume.partyHat.offerId;
-    expect(await shop.purchase(hat), true);
-    expect(await shop.purchase(hat, qty: 2), true);
+    expect(await shop.purchase(hat.offerId), true);
+    expect(await shop.purchase(hat.offerId, qty: 2), true);
     expect(await owned(InvKeys.alchemyCelebration), 3);
     expect((await db.currencyDao.getAllCurrencies())['gold'], 70);
     await shop.reloadFromStorage();
-    expect(shop.getPurchaseStatus(hat), isNot('OWNED'));
-    expect(await shop.purchase(FamilyCostume.nose.offerId), true);
+    expect(shop.getPurchaseStatus(hat.offerId), isNot('OWNED'));
+    expect(await shop.purchase(nose.offerId), true);
     expect(await owned(InvKeys.alchemyNose), 1);
+    expect(await shop.purchase(glasses.offerId), true);
+    expect(await owned(InvKeys.alchemySunglasses), 1);
+  });
+
+  test('the shop keeps costumes apart from effects', () {
+    final effects = shop.getAlchemyEffectOffers().map((o) => o.id);
+    final offered = shop.getCostumeOffers().map((o) => o.id);
+    expect(offered, [for (final c in FamilyCostume.values) c.offerId]);
+    expect(effects.toSet().intersection(offered.toSet()), isEmpty);
+  });
+
+  test('all three at once, beside an effect', () async {
+    await buyAll();
+    await db.inventoryDao.addItemQty(InvKeys.alchemyGlow, 1);
+    expect(
+      await applyAlchemyEffect(
+        db,
+        instanceId: 'pip',
+        itemKey: InvKeys.alchemyGlow,
+      ),
+      true,
+    );
+    const teal = Color(0xFF1FB5B0);
+    expect(await wear('pip', hat), true);
+    expect(await wear('pip', nose, teal), true);
+    expect(await wear('pip', glasses), true);
+    expect(await effect('pip'), 'alchemy_glow');
+    expect(await costumes('pip'), 'PIP01:hat,nose#1FB5B0,sunglasses');
+    for (final c in FamilyCostume.values) {
+      expect(await owned(c.itemKey), 0);
+    }
+    final worn = WornCostumes.parse(await costumes('pip'))!;
+    expect(worn.species, 'PIP01');
+    expect(worn.colorOf(nose), teal);
+    expect(worn.colorOf(hat), hat.defaultColor);
+    // Swapping the effect leaves the costumes on.
+    await db.inventoryDao.addItemQty(InvKeys.alchemyVoidRift, 1);
+    await applyAlchemyEffect(
+      db,
+      instanceId: 'pip',
+      itemKey: InvKeys.alchemyVoidRift,
+    );
+    expect(await costumes('pip'), 'PIP01:hat,nose#1FB5B0,sunglasses');
+    expect(await owned(InvKeys.alchemyGlow), 1);
+    // Taking one off returns only that one.
+    expect(await takeOff('pip', nose), true);
+    expect(await costumes('pip'), 'PIP01:hat,sunglasses');
+    expect(await owned(InvKeys.alchemyNose), 1);
+    expect(await takeOff('pip', nose), false);
+    await takeOff('pip', hat);
+    await takeOff('pip', glasses);
+    expect(await costumes('pip'), null);
+    expect(await effect('pip'), 'void_rift');
   });
 
   test('one dresses one creature; more need more', () async {
-    await shop.purchase(FamilyCostume.partyHat.offerId);
-    expect(await equip('wing'), true);
-    expect(await worn('wing'), 'celebration.WNG04');
+    await shop.purchase(hat.offerId);
+    expect(await wear('wing', hat), true);
     expect(await owned(InvKeys.alchemyCelebration), 0);
     // None left for the second Wing until another is bought.
-    expect(await equip('wing2'), false);
-    expect(await worn('wing2'), null);
-    await shop.purchase(FamilyCostume.partyHat.offerId);
-    expect(await equip('wing2'), true);
-    expect(await worn('wing2'), 'celebration.WNG01');
+    expect(await wear('wing2', hat), false);
+    expect(await costumes('wing2'), null);
+    await shop.purchase(hat.offerId);
+    expect(await wear('wing2', hat), true);
     expect(await owned(InvKeys.alchemyCelebration), 0);
-    // Taken off, it goes back to the inventory, to be put on again.
-    await removeAlchemyEffect(db, instanceId: 'wing');
-    expect(await worn('wing'), null);
-    expect(await owned(InvKeys.alchemyCelebration), 1);
-    // Put on what it already wears, it keeps the item.
-    expect(await equip('wing2'), true);
-    expect(await owned(InvKeys.alchemyCelebration), 1);
   });
 
-  test('each only for its own family, and never on a missing one', () async {
-    await shop.purchase(FamilyCostume.partyHat.offerId);
-    await shop.purchase(FamilyCostume.nose.offerId);
-    expect(await equip('pip'), false);
-    expect(await equip('let'), false);
-    expect(await equip('missing'), false);
-    expect(await equip('wing', InvKeys.alchemyNose), false);
-    expect(await equip('let', InvKeys.alchemyNose), false);
-    expect(await worn('let'), null);
-    expect(await owned(InvKeys.alchemyCelebration), 1);
-    expect(await owned(InvKeys.alchemyNose), 1);
-    expect(await equip('pip', InvKeys.alchemyNose), true);
-    expect(await worn('pip'), 'celebration.PIP01');
-    expect(await owned(InvKeys.alchemyNose), 0);
-  });
-
-  test('swapping returns what was worn, whichever it was', () async {
-    await shop.purchase(FamilyCostume.partyHat.offerId);
-    await db.inventoryDao.addItemQty(InvKeys.alchemyGlow, 1);
-    expect(await equip('wing', InvKeys.alchemyGlow), true);
-    expect(await owned(InvKeys.alchemyGlow), 0);
-    expect(await equip('wing'), true);
-    expect(await owned(InvKeys.alchemyGlow), 1);
-    expect(await owned(InvKeys.alchemyCelebration), 0);
-    expect(await equip('wing', InvKeys.alchemyGlow), true);
-    expect(await owned(InvKeys.alchemyCelebration), 1);
-    await removeAlchemyEffect(db, instanceId: 'wing');
-    await removeAlchemyEffect(db, instanceId: 'wing');
-    expect(await owned(InvKeys.alchemyGlow), 1);
-    expect(await owned(InvKeys.alchemyCelebration), 1);
-  });
-
-  test('overlapping applies cannot spend one consumable twice', () async {
-    await db.inventoryDao.addItemQty(InvKeys.alchemyGlow, 1);
-    final results = await Future.wait([
-      equip('wing', InvKeys.alchemyGlow),
-      equip('pip', InvKeys.alchemyGlow),
-    ]);
-    expect(results.where((ok) => ok).length, 1);
-    expect(await db.inventoryDao.getItemQty(InvKeys.alchemyGlow), 0);
-  });
-  test('each is an inventory item like the others, and every fitted species '
-      'is fitted in every frame', () {
-    final registry = buildInventoryRegistry(db);
-    for (final costume in FamilyCostume.values) {
-      final definition = registry[costume.itemKey]!;
-      expect(definition.name, costume.title);
-      expect(definition.stackable, true);
-      expect(AlchemyEffectPaint.has(costume.previewKey), true);
-    }
-    expect(FamilyCostume.nose.title, 'Alchemical Nose');
-    expect(FamilyCostume.placements.length, 34);
-    for (final species in FamilyCostume.placements.keys) {
-      final costume = FamilyCostume.forSpecies(species)!;
-      expect(costume.family, species.substring(0, 3));
-      final effect = costume.effectOn(species)!;
-      // Part of the sprite, never an effect painted round it.
-      expect(AlchemyEffectPaint.has(effect), false);
-      expect(FamilyCostume.isEffect(effect), true);
-      for (var f = 0; f < 4; f++) {
-        expect(FamilyCostume.fitAt(species, f), isNotNull);
-      }
-      expect(InvKeys.alchemyItemFor(effect), costume.itemKey);
-    }
-    expect(FamilyCostume.isEffect('celebration.LET02'), false);
-    expect(FamilyCostume.fitAt('LET02', 0), isNull);
-  });
-
-  test('a tracked species moves its costume frame by frame, starting where '
-      'it was fitted', () {
-    for (final MapEntry(key: species, value: frames)
-        in FamilyCostume.frameFits.entries) {
-      final fit = FamilyCostume.placements[species]!;
-      expect(frames.first.$1, fit.$1, reason: species);
-      expect(frames.first.$2, fit.$2, reason: species);
-      for (var f = 0; f < frames.length * 2; f++) {
-        final at = FamilyCostume.fitAt(species, f)!;
-        final want = frames[f % frames.length];
-        expect((at.x, at.y, at.tilt), (want.$1, want.$2, want.$3));
-        expect(at.size, fit.$3);
+  test('a costume goes on a species it fits, and never as an effect', () async {
+    await buyAll();
+    // Every family fitted wears every costume.
+    for (final id in ['wing', 'pip', 'horn', 'let']) {
+      for (final c in FamilyCostume.values) {
+        await db.inventoryDao.addItemQty(c.itemKey, 1);
+        expect(await wear(id, c), true, reason: '$id ${c.tag}');
       }
     }
-    // Firewing's head rises over its wingbeat: the hat goes with it.
+    // Not yet one that has not been fitted.
+    expect(await wear('mane', hat), false);
+    expect(await wear('missing', hat), false);
+    // The effect slot will not take one.
     expect(
-      FamilyCostume.fitAt('WNG01', 3)!.y,
-      lessThan(FamilyCostume.fitAt('WNG01', 0)!.y),
+      await applyAlchemyEffect(
+        db,
+        instanceId: 'mane',
+        itemKey: InvKeys.alchemyCelebration,
+      ),
+      false,
     );
-    // Every Wing's hat and every Pip's nose is tracked through every frame
-    // of its sheet.
+    expect(await effect('mane'), null);
+    for (final c in FamilyCostume.values) {
+      expect(await owned(c.itemKey), 1);
+    }
+    expect(FamilyCostume.fittedFamiliesText, 'Wings, Pips, Horns and Lets');
+  });
+
+  test(
+    'a costume changes colour free, and back to its own saves plain',
+    () async {
+      const ruby = Color(0xFF8A2338), amber = Color(0xFF8C5A14);
+      await shop.purchase(glasses.offerId);
+      expect(await wear('horn', glasses, amber), true);
+      expect(await costumes('horn'), 'HOR03:sunglasses#8C5A14');
+      // Put on again in another colour: the same pair, no second one spent.
+      await shop.purchase(glasses.offerId);
+      expect(await wear('horn', glasses, ruby), true);
+      expect(await owned(InvKeys.alchemySunglasses), 1);
+      expect(
+        await recolorCostume(
+          db,
+          instanceId: 'horn',
+          costume: glasses,
+          color: glasses.defaultColor,
+        ),
+        true,
+      );
+      expect(await costumes('horn'), 'HOR03:sunglasses');
+      // Only something wearing it can be recoloured.
+      expect(
+        await recolorCostume(db, instanceId: 'horn', costume: hat, color: ruby),
+        false,
+      );
+      expect(
+        await recolorCostume(db, instanceId: 'let', costume: hat, color: ruby),
+        false,
+      );
+    },
+  );
+
+  test('a saved string reads back only what fits, in colours that read', () {
+    expect(WornCostumes.parse(null), isNull);
+    expect(WornCostumes.parse(''), isNull);
+    expect(WornCostumes.parse('nonsense'), isNull);
+    // A costume the species was not fitted for, or an unknown one, drops.
+    expect(WornCostumes.parse('MAN01:hat'), isNull);
+    final worn = WornCostumes.parse('LET02:cape,hat#zz,nose#FFFFFF')!;
+    expect(worn.colors.keys, [hat, nose]);
+    expect(worn.colorOf(hat), hat.defaultColor);
+    expect(worn.colorOf(nose), const Color(0xFFFFFFFF));
+    // Encoded in a fixed order, whatever order they went on in.
+    expect(
+      const WornCostumes('LET02', {}).wear(glasses).wear(hat).encode(),
+      'LET02:hat,sunglasses',
+    );
+    expect(WornCostumes.on('LET02', 'PIP01:hat').isEmpty, true);
+  });
+
+  test('legacy saves move their costume out of the effect slot', () async {
+    for (final (id, saved) in [
+      ('wing', 'celebration.WNG04#8A2338'),
+      ('pip', 'celebration.PIP01'),
+      ('horn', 'celebration.HOR03#16706C'),
+      ('let', 'alchemy_glow'),
+    ]) {
+      await db.creatureDao.updateAlchemyEffect(instanceId: id, effect: saved);
+    }
+    await db.moveCostumesOutOfEffects();
+    expect(await costumes('wing'), 'WNG04:hat#8A2338');
+    expect(await costumes('pip'), 'PIP01:nose');
+    expect(await costumes('horn'), 'HOR03:sunglasses#16706C');
+    expect(await costumes('let'), null);
+    expect(await effect('wing'), null);
+    expect(await effect('let'), 'alchemy_glow');
+    expect(
+      WornCostumes.parse(await costumes('wing'))!.colorOf(hat),
+      const Color(0xFF8A2338),
+    );
+  });
+
+  test('each is an inventory item with a card, and every fitted species is '
+      'fitted in every frame', () {
+    final registry = buildInventoryRegistry(db);
     final frameCounts = {
       for (final c
           in (jsonDecode(
@@ -186,115 +255,80 @@ void main() {
               as List)
         c['id'] as String: c['spriteData']?['totalFrames'] as int?,
     };
-    for (final species in FamilyCostume.placements.keys) {
-      expect(
-        FamilyCostume.frameFits[species]?.length,
-        frameCounts[species],
-        reason: species,
-      );
+    for (final costume in FamilyCostume.values) {
+      final definition = registry[costume.itemKey]!;
+      expect(definition.name, costume.title);
+      expect(definition.stackable, true);
+      expect(AlchemyEffectPaint.has(costume.previewKey), true);
+      expect(InvKeys.alchemyItemFor(costume.previewKey), isNull);
+      expect(costume.placements.length, 68, reason: costume.tag);
+      for (final family in ['WNG', 'PIP', 'HOR', 'LET']) {
+        expect(
+          costume.placements.keys.where((s) => s.startsWith(family)).length,
+          17,
+        );
+      }
+      for (final species in costume.tilts.keys) {
+        expect(costume.placements, contains(species));
+      }
+      for (final MapEntry(key: species, value: fit)
+          in costume.placements.entries) {
+        final frames = costume.frameFits[species]!;
+        expect(frames.length, frameCounts[species], reason: species);
+        // Starts where it was fitted.
+        expect(frames.first.$1, closeTo(fit.$1, 0.0005), reason: species);
+        expect(frames.first.$2, closeTo(fit.$2, 0.0005), reason: species);
+        for (var f = 0; f < frames.length * 2; f++) {
+          final at = costume.fitAt(species, f)!;
+          final want = frames[f % frames.length];
+          final tilt = (costume.tilts[species] ?? 0) + want.$3;
+          expect((at.x, at.y, at.tilt), (want.$1, want.$2, tilt));
+          expect(at.size, fit.$3);
+        }
+      }
+    }
+    expect(hat.fitAt('MAN01', 0), isNull);
+    // Firewing's head rises over its wingbeat: the hat goes with it.
+    expect(hat.fitAt('WNG01', 3)!.y, lessThan(hat.fitAt('WNG01', 0)!.y));
+  });
+
+  test('each costume moves with the head, all together', () {
+    for (final species in hat.placements.keys) {
+      final frames = hat.frameFits[species]!.length;
+      for (var f = 0; f < frames; f++) {
+        final moves = [
+          for (final c in FamilyCostume.values)
+            (
+              c.fitAt(species, f)!.x - c.fitAt(species, 0)!.x,
+              c.fitAt(species, f)!.y - c.fitAt(species, 0)!.y,
+            ),
+        ];
+        for (final m in moves) {
+          expect(m.$1, closeTo(moves.first.$1, 0.002), reason: '$species $f');
+          expect(m.$2, closeTo(moves.first.$2, 0.002), reason: '$species $f');
+        }
+      }
     }
   });
 
-  test('a hat carries its colour in its save; no colour, or a bad one, is '
-      'the violet', () {
-    const ruby = Color(0xFF8A2338);
-    final hat = FamilyCostume.partyHat;
-    expect(hat.effectOn('WNG01'), 'celebration.WNG01');
-    expect(
-      hat.effectOn('WNG01', color: FamilyCostume.partyHat.defaultColor),
-      'celebration.WNG01',
-    );
-    final red = hat.effectOn('WNG01', color: ruby)!;
-    expect(red, 'celebration.WNG01#8A2338');
-    expect(FamilyCostume.speciesFor(red), 'WNG01');
-    expect(FamilyCostume.ofEffect(red), hat);
-    expect(FamilyCostume.fitAt(FamilyCostume.speciesFor(red)!, 0), isNotNull);
-    expect(InvKeys.alchemyItemFor(red), InvKeys.alchemyCelebration);
-    expect(AlchemyEffectPaint.has(red), false);
-    expect(FamilyCostume.colorOf(red), ruby);
-    // Saves from before colours, and anything unreadable, are the violet.
-    expect(
-      FamilyCostume.colorOf('celebration.WNG01'),
-      FamilyCostume.partyHat.defaultColor,
-    );
-    expect(
-      FamilyCostume.colorOf('celebration.WNG01#zz'),
-      FamilyCostume.partyHat.defaultColor,
-    );
-    expect(FamilyCostume.isEffect('celebration.LET02#8A2338'), false);
-    // A nose carries its own, against its own default (ruby glass).
-    final nose = FamilyCostume.nose;
-    expect(
-      nose.effectOn('PIP01', color: nose.defaultColor),
-      'celebration.PIP01',
-    );
-    final teal = nose.effectOn('PIP01', color: const Color(0xFF1FB5B0))!;
-    expect(teal, 'celebration.PIP01#1FB5B0');
-    expect(FamilyCostume.ofEffect(teal), nose);
-    expect(FamilyCostume.colorOf(teal), const Color(0xFF1FB5B0));
-    expect(FamilyCostume.colorOf('celebration.PIP01'), nose.defaultColor);
-    // A costume's colour is read only off that costume.
-    expect(nose.colorIn(red), nose.defaultColor);
-    expect(hat.colorIn(teal), hat.defaultColor);
-    // Every preset is one of the costume's own, its default first.
+  test('sunglasses are seen as each family is drawn', () {
+    expect(GlassesView.of('HOR01'), GlassesView.threeQuarter);
+    expect(GlassesView.of('PIP01'), GlassesView.threeQuarter);
+    expect(GlassesView.of('WNG01'), GlassesView.profile);
+    expect(GlassesView.of('WNG03'), GlassesView.front);
+    expect(GlassesView.of('LET01'), GlassesView.front);
+  });
+
+  test('every preset is the costume\'s own, its default first; the ring is '
+      'one depth all round', () {
     for (final c in FamilyCostume.values) {
       expect(c.presets.first, c.defaultColor);
       expect(c.presets.length, 9);
+      for (var i = 0; i < 12; i++) {
+        final hsv = HSVColor.fromColor(c.colorForHue(i / 12));
+        expect(hsv.value, closeTo(c.ringValue, 0.01));
+        expect(hsv.saturation, closeTo(c.ringSaturation, 0.01));
+      }
     }
-    // Round the ring, the same depth of velvet in every hue.
-    for (var i = 0; i < 12; i++) {
-      final hsv = HSVColor.fromColor(
-        FamilyCostume.partyHat.colorForHue(i / 12),
-      );
-      expect(hsv.value, closeTo(0.53, 0.01));
-      expect(hsv.saturation, closeTo(0.62, 0.01));
-    }
-  });
-
-  test('a hat goes on in its colour, changes colour free, and comes off '
-      'whole', () async {
-    const ruby = Color(0xFF8A2338), teal = Color(0xFF1F6A6A);
-    await shop.purchase(FamilyCostume.partyHat.offerId);
-    expect(await equip('wing', InvKeys.alchemyCelebration, ruby), true);
-    expect(await worn('wing'), 'celebration.WNG04#8A2338');
-    expect(await owned(InvKeys.alchemyCelebration), 0);
-    // Put on again in another colour: the same hat, no second one spent.
-    expect(await equip('wing', InvKeys.alchemyCelebration, teal), true);
-    expect(await worn('wing'), 'celebration.WNG04#1F6A6A');
-    expect(await owned(InvKeys.alchemyCelebration), 0);
-    // Recoloured from the Effect slot, free.
-    expect(await recolorCostume(db, instanceId: 'wing', color: ruby), true);
-    expect(await worn('wing'), 'celebration.WNG04#8A2338');
-    expect(await owned(InvKeys.alchemyCelebration), 0);
-    // Only something wearing a costume can be recoloured.
-    expect(await recolorCostume(db, instanceId: 'pip', color: ruby), false);
-    expect(await recolorCostume(db, instanceId: 'let', color: ruby), false);
-    expect(await recolorCostume(db, instanceId: 'missing', color: ruby), false);
-    // Off, it goes back to the inventory as one hat.
-    await removeAlchemyEffect(db, instanceId: 'wing');
-    expect(await worn('wing'), null);
-    expect(await owned(InvKeys.alchemyCelebration), 1);
-  });
-
-  test('a nose goes on in its colour and recolours free, like a hat', () async {
-    const teal = Color(0xFF1FB5B0), gold = Color(0xFFE8B021);
-    await shop.purchase(FamilyCostume.nose.offerId);
-    expect(await equip('pip', InvKeys.alchemyNose, teal), true);
-    expect(await worn('pip'), 'celebration.PIP01#1FB5B0');
-    expect(await owned(InvKeys.alchemyNose), 0);
-    expect(await recolorCostume(db, instanceId: 'pip', color: gold), true);
-    expect(await worn('pip'), 'celebration.PIP01#E8B021');
-    // Back to its own ruby: saved plain, as before colours.
-    expect(
-      await recolorCostume(
-        db,
-        instanceId: 'pip',
-        color: FamilyCostume.nose.defaultColor,
-      ),
-      true,
-    );
-    expect(await worn('pip'), 'celebration.PIP01');
-    await removeAlchemyEffect(db, instanceId: 'pip');
-    expect(await owned(InvKeys.alchemyNose), 1);
   });
 }

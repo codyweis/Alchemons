@@ -1,6 +1,8 @@
 // A costume's colour step: shown on the creature, a preset or a turn of the
-// ring picks it, and backing out picks nothing — for a Wing's hat and a
-// Pip's nose.
+// ring picks it, and backing out picks nothing — for a Wing's hat, a Pip's
+// nose and a Horn's sunglasses.
+//
+// COSTUME_SHEET_OUT=file.png keeps a picture of the sunglasses' sheet.
 
 import 'dart:convert';
 import 'dart:io';
@@ -16,6 +18,7 @@ import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:drift/native.dart';
 import 'package:flame/flame.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -23,6 +26,7 @@ void main() {
   late CreatureCatalog catalog;
   late CreatureInstance wing;
   late CreatureInstance pip;
+  late CreatureInstance horn;
 
   testWidgets('a preset, the ring and backing out', (tester) async {
     final db = AlchemonsDatabase(NativeDatabase.memory());
@@ -38,13 +42,16 @@ void main() {
               as List;
       catalog = CreatureCatalog.fromList([
         for (final e in entries.cast<Map<String, dynamic>>())
-          if (e['id'] == 'WNG04' || e['id'] == 'PIP01') Creature.fromJson(e),
+          if (const {'WNG04', 'PIP01', 'HOR02'}.contains(e['id']))
+            Creature.fromJson(e),
       ]);
       await db.creatureDao.insertInstance(instanceId: 'w', baseId: 'WNG04');
       wing = (await db.creatureDao.getInstance('w'))!;
       await db.creatureDao.insertInstance(instanceId: 'p', baseId: 'PIP01');
       pip = (await db.creatureDao.getInstance('p'))!;
-      for (final id in ['WNG04', 'PIP01']) {
+      await db.creatureDao.insertInstance(instanceId: 'h', baseId: 'HOR02');
+      horn = (await db.creatureDao.getInstance('h'))!;
+      for (final id in ['WNG04', 'PIP01', 'HOR02']) {
         final sheet = catalog.getCreatureById(id)!.spriteData!.spriteSheetPath;
         final codec = await ui.instantiateImageCodec(
           File('assets/images/$sheet').readAsBytesSync(),
@@ -58,18 +65,22 @@ void main() {
     addTearDown(tester.view.reset);
 
     late BuildContext ctx;
+    final shot = GlobalKey();
     await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          Provider<FactionTheme>.value(value: FactionTheme.scorchForge()),
-          Provider<CreatureCatalog>.value(value: catalog),
-        ],
-        child: MaterialApp(
-          home: Builder(
-            builder: (c) {
-              ctx = c;
-              return const SizedBox();
-            },
+      RepaintBoundary(
+        key: shot,
+        child: MultiProvider(
+          providers: [
+            Provider<FactionTheme>.value(value: FactionTheme.scorchForge()),
+            Provider<CreatureCatalog>.value(value: catalog),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (c) {
+                ctx = c;
+                return const SizedBox();
+              },
+            ),
           ),
         ),
       ),
@@ -84,7 +95,11 @@ void main() {
       final noun = costume.noun.toUpperCase();
       pickCostumeColor(
         ctx,
-        instance: costume == FamilyCostume.nose ? pip : wing,
+        instance: switch (costume) {
+          FamilyCostume.partyHat => wing,
+          FamilyCostume.nose => pip,
+          FamilyCostume.sunglasses => horn,
+        },
         costume: costume,
         confirmLabel: 'WEAR $noun',
       ).then((c) {
@@ -167,5 +182,30 @@ void main() {
     final hsv = HSVColor.fromColor(picked!);
     expect(hsv.hue, closeTo(90, 6), reason: 'a quarter of the way round');
     expect(hsv.value, closeTo(FamilyCostume.nose.ringValue, 0.01));
+
+    // A Horn's sunglasses: their own tints, shown close on the face.
+    const amber = Color(0xFF8C5A14);
+    (done, picked) = await ask(costume: FamilyCostume.sunglasses, () async {
+      expect(
+        find.byKey(ValueKey(FamilyCostume.sunglasses.defaultColor)),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey(amber)));
+      await tester.pump(const Duration(milliseconds: 300));
+      final out = Platform.environment['COSTUME_SHEET_OUT'];
+      if (out != null) {
+        final boundary =
+            shot.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        await tester.runAsync(() async {
+          final image = await boundary.toImage();
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+          File(out).writeAsBytesSync(bytes!.buffer.asUint8List());
+          image.dispose();
+        });
+      }
+      await tester.tap(find.text('WEAR SUNGLASSES'));
+    });
+    expect(done, true);
+    expect(picked, amber);
   });
 }

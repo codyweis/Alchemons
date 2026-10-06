@@ -102,19 +102,26 @@ void main() {
   });
 
   test('a worn costume, drawn by the sprite, keeps the same budget', () {
-    for (final species in ['WNG01', 'WNG04', 'PIP01']) {
+    for (final species in ['WNG01', 'WNG04', 'PIP01', 'HOR01', 'LET01']) {
       for (var f = 0; f < 60; f++) {
         final c = _CensusCanvas();
         CostumePaint.paintWorn(
           c as Canvas,
-          FamilyCostume.effectFor(species),
+          // All three at once.
+          WornCostumes(species, {
+            for (final c in FamilyCostume.values) c: c.defaultColor,
+          }).encode(),
           const Rect.fromLTWH(0, 0, 200, 200),
           f % 4,
           f * 0.2,
         );
         expect(c.blurredDraws, 0, reason: species);
         expect(c.get('saveLayer'), 0, reason: species);
-        expect(c.draws, inInclusiveRange(1, 16), reason: '$species ${c.counts}');
+        expect(
+          c.draws,
+          inInclusiveRange(1, 40),
+          reason: '$species ${c.counts}',
+        );
       }
     }
   });
@@ -124,7 +131,7 @@ void main() {
       expect(AlchemyEffectPaint.has(key), isTrue);
     }
     // Worn, a costume is the sprite's, not an effect round it.
-    expect(AlchemyEffectPaint.has(FamilyCostume.effectFor('WNG04')), isFalse);
+    expect(AlchemyEffectPaint.has('WNG04:hat'), isFalse);
     expect(AlchemyEffectPaint.has('not_an_effect'), isFalse);
     expect(AlchemyEffectPaint.has(null), isFalse);
     final c = _CensusCanvas();

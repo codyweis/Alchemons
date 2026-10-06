@@ -522,10 +522,30 @@ extension BloodRitesArt on PlanetDungeonGame {
       paintLead(canvas, Path()..addOval(bowl), _kRiteWall, width: 2.4);
     }
     // The seal in the middle, the planet's heart beating under it.
-    final open = rites.cups.length == 4;
+    final open = _riteSealOpen;
     final beat = riteBeat;
     vfxSpill(canvas, c, 70 + 14 * beat, _kRiteBlood, .05 + .13 * beat);
     _riteSeal(canvas, c, open);
+    // The maxim found, the seal opens: the quintessence the four made is
+    // drawn down into it, the four streams' grains turning in on the middle
+    // as its leaves draw back.
+    final ss = rites.sealT >= 0 ? _time - rites.sealT : -1.0;
+    if (ss >= 0 && ss < 3.6) {
+      for (var e = 0; e < kRiteElements.length; e++) {
+        final col = elementColor(kRiteElements[e]);
+        for (var i = 0; i < 70; i++) {
+          final u = ((ss - i * .025) / 2.4).clamp(0.0, 1.0);
+          if (u <= 0 || u >= 1) continue;
+          final h = _riteHash(e * 97 + i);
+          final ang = e * pi / 2 + u * 5.2 + h * .6;
+          final rr = (1 - u * u) * (78 + 18 * h);
+          final p = c + Offset(cos(ang) * rr, sin(ang) * rr * .82);
+          final q = c + Offset(cos(ang - .08) * rr * 1.03, sin(ang - .08) * rr * 1.03 * .82);
+          rites.batch.add(q.dx, q.dy, p.dx, p.dy, col, alpha: (1 - u) * .95, width: i % 4 == 0 ? 2.6 : 2);
+        }
+      }
+      rites.batch.paint(canvas);
+    }
     // What pools in the middle.
     final mid = riteCentre(freed, rites.outerTurn, rites.innerTurn);
     final since = _time - rites.centreT;

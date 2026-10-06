@@ -72,7 +72,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 42;
+  int get schemaVersion => 43;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -322,8 +322,38 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
           await m.addColumn(creatureInstances, creatureInstances.mutation);
         }
       }
+      if (from < 43) {
+        // As above: only where the table is there and the column is not.
+        final columns = await customSelect(
+          "PRAGMA table_info('creature_instances')",
+        ).get();
+        if (columns.isNotEmpty) {
+          if (!columns.any((c) => c.read<String>('name') == 'costumes')) {
+            await m.addColumn(creatureInstances, creatureInstances.costumes);
+          }
+          await moveCostumesOutOfEffects();
+        }
+      }
     },
   );
+
+  /// Costumes were worn in the effect slot, as `celebration.<species>` with
+  /// an optional `#RRGGBB` — the family said which (a Wing's hat, a Pip's
+  /// nose, a Horn's sunglasses). They are worn beside it now: move each into
+  /// `costumes`, as `<species>:<tag>[#RRGGBB]`, and free the slot. Also run
+  /// on a cloud restore of a save from before.
+  Future<void> moveCostumesOutOfEffects() => customUpdate('''
+    UPDATE creature_instances SET
+      costumes = substr(alchemy_effect, 13, 5) || ':' ||
+        CASE substr(alchemy_effect, 13, 3)
+          WHEN 'WNG' THEN 'hat'
+          WHEN 'PIP' THEN 'nose'
+          ELSE 'sunglasses'
+        END || substr(alchemy_effect, 18),
+      alchemy_effect = NULL
+    WHERE alchemy_effect LIKE 'celebration.%'
+      AND substr(alchemy_effect, 13, 3) IN ('WNG', 'PIP', 'HOR')
+  ''', updates: {creatureInstances});
 
   /// Assigns Dominants to every instance that predates them, from its own two
   /// highest Potentials. Cheap enough to do row by row at these table sizes.

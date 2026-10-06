@@ -556,6 +556,7 @@ class InvKeys {
   static const harvesterGuaranteed = 'item.harvest_guaranteed';
   static const alchemyCelebration = 'alchemy.celebration';
   static const alchemyNose = 'alchemy.nose';
+  static const alchemySunglasses = 'alchemy.sunglasses';
   static const alchemyGlow = 'alchemy.glow';
   static const alchemyElementalAura = 'alchemy.elemental_aura';
   static const alchemyVolcanicAura = 'alchemy.volcanic_aura';
@@ -572,10 +573,13 @@ class InvKeys {
   static const alchemyDustRing = 'alchemy.dust_ring';
 
   /// The effect each alchemy item puts on a creature: the key it is saved
-  /// as (see AlchemyEffectPaint.keys). Null for anything else.
+  /// as (see AlchemyEffectPaint.keys). A costume's is the key it is drawn
+  /// on its own by, for its cards: it is worn beside an effect, not as one
+  /// (see `wearCostume`). Null for anything else.
   static String? alchemyEffectFor(String itemKey) => switch (itemKey) {
     alchemyCelebration => FamilyCostume.hatPreview,
     alchemyNose => FamilyCostume.nosePreview,
+    alchemySunglasses => FamilyCostume.sunglassesPreview,
     alchemyGlow => 'alchemy_glow',
     alchemyElementalAura => 'elemental_aura',
     alchemyVolcanicAura => 'volcanic_aura',
@@ -597,8 +601,6 @@ class InvKeys {
   /// [alchemyEffectFor]), so taking one off a creature can return it.
   static String? alchemyItemFor(String? effect) {
     if (effect == null) return null;
-    final costume = FamilyCostume.ofEffect(effect);
-    if (costume != null) return costume.itemKey;
     for (final key in const [
       alchemyGlow,
       alchemyElementalAura,
@@ -751,13 +753,19 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
     InvKeys.alchemyCelebration: InventoryItemDef(
       key: InvKeys.alchemyCelebration,
       name: FamilyCostume.partyHat.title,
-      description: 'Put a party hat on one of your Wings.',
+      description: 'A party hat. Fits ${FamilyCostume.fittedFamiliesText}.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyNose: InventoryItemDef(
       key: InvKeys.alchemyNose,
       name: FamilyCostume.nose.title,
-      description: 'Put a bubble nose on one of your Pips.',
+      description: 'A bubble nose. Fits ${FamilyCostume.fittedFamiliesText}.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemySunglasses: InventoryItemDef(
+      key: InvKeys.alchemySunglasses,
+      name: FamilyCostume.sunglasses.title,
+      description: 'Sunglasses. Fits ${FamilyCostume.fittedFamiliesText}.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyGlow: InventoryItemDef(

@@ -1073,6 +1073,7 @@ class _PrologueSprite extends StatelessWidget {
           isPrismatic: isPrismatic,
           tint: visuals.tint,
           alchemyEffect: visuals.alchemyEffect,
+          costumes: visuals.costumes,
           variantFaction: visuals.variantFaction,
           elementType: visuals.elementType,
           effectSlotSize: size,

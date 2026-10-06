@@ -794,6 +794,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           isPrismatic: visuals.isPrismatic,
           tint: visuals.tint,
           alchemyEffect: visuals.alchemyEffect,
+          costumes: visuals.costumes,
           variantFaction: visuals.variantFaction,
           elementType: visuals.elementType,
         ),

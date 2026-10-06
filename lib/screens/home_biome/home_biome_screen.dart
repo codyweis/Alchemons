@@ -134,11 +134,7 @@ void standHomePiece(
       onTap: () => game.callResidentTo(p.spawnId),
     );
   } else {
-    final art = KeepsakeArt.of(
-      p.kind,
-      copy: keepsakeCopyOf(p),
-      style: p.style,
-    );
+    final art = KeepsakeArt.of(p.kind, copy: keepsakeCopyOf(p), style: p.style);
     if (art == null) return;
     comp = KeepsakeComponent(
       kind: p.kind,
@@ -837,7 +833,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       HapticFeedback.heavyImpact();
       _play(SoundCue.uiDenied);
       setState(
-        () => _buyNote = decor.gold > 0 ? 'NOT ENOUGH GOLD' : 'NOT ENOUGH SILVER',
+        () =>
+            _buyNote = decor.gold > 0 ? 'NOT ENOUGH GOLD' : 'NOT ENOUGH SILVER',
       );
       Future<void>.delayed(const Duration(seconds: 2), () {
         if (mounted) setState(() => _buyNote = null);
@@ -1111,10 +1108,12 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     HapticFeedback.mediumImpact();
     _select(null);
     _commit(
-      _layout.withPlaced([
-        for (final o in _layout.placed)
-          if (o.id != p.id) o,
-      ]).freeBeside(p.spawnId),
+      _layout
+          .withPlaced([
+            for (final o in _layout.placed)
+              if (o.id != p.id) o,
+          ])
+          .freeBeside(p.spawnId),
     );
     game
       ..removeThing(p.spawnId)
@@ -1350,9 +1349,11 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       // Zoomed out, the field floats in the room the HUD leaves it.
       final pad = MediaQuery.paddingOf(context);
       game
-        ..overviewTop = pad.top + 8 + 54 + 8 + 32 + (_selected != null ? 40 : 0) + 14
+        ..overviewTop =
+            pad.top + 8 + 54 + 8 + 32 + (_selected != null ? 40 : 0) + 14
         ..overviewBottom =
-            pad.bottom + (_tray == _Tray.keepsakes || _tray == _Tray.decor
+            pad.bottom +
+            (_tray == _Tray.keepsakes || _tray == _Tray.decor
                 ? 168
                 : _tray == _Tray.sand
                 ? 148
@@ -1414,7 +1415,10 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
                   if (_arranging && _tray != _Tray.none)
                     _trayRow(context)
                   else if (_arranging && _selected == null)
-                    _note(context, 'Hold something to move it. Tap to choose it.')
+                    _note(
+                      context,
+                      'Hold something to move it. Tap to choose it.',
+                    )
                   else if (!_arranging && _ready && unseen.isNotEmpty)
                     _note(
                       context,
@@ -1473,7 +1477,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
           label: 'Exit',
           icon: AppIcons.exit_to_app_rounded,
           accent: const Color(0xFFC0392B),
-          onTap: () => VoidPortal.pop(context),
+          // Back up through the window it came down, as sand.
+          onTap: () => VoidPortal.leaveThroughSand<void>(context),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -1627,7 +1632,12 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     final p = _selectedPiece;
     String name;
     final chips = <Widget>[];
-    void chip(String label, IconData icon, VoidCallback onTap, {Color? accent}) {
+    void chip(
+      String label,
+      IconData icon,
+      VoidCallback onTap, {
+      Color? accent,
+    }) {
       chips
         ..add(const SizedBox(width: 6))
         ..add(
@@ -1669,7 +1679,11 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
           ? (_ledger.byId(p.kind)?.title ?? '')
           : (scenery?.label ?? '');
       if (p.isKeepsake || (scenery?.far ?? false)) {
-        chip(p.back ? 'TO FRONT' : 'TO BACK', AppIcons.layers_rounded, _swapRow);
+        chip(
+          p.back ? 'TO FRONT' : 'TO BACK',
+          AppIcons.layers_rounded,
+          _swapRow,
+        );
       }
       if (p.isKeepsake) {
         chip('TURN', AppIcons.swap_horiz_rounded, _turn);
@@ -1992,10 +2006,14 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _TrayLabel('${_layout.realm.title.toUpperCase()}  $count/$kHomeBiomeMaxScenery'),
+            _TrayLabel(
+              '${_layout.realm.title.toUpperCase()}  $count/$kHomeBiomeMaxScenery',
+            ),
             const SizedBox(width: 6),
             _Chip(
-              label: _armed == 'scenery' ? 'TAP AGAIN TO RESET' : 'RESET SCENERY',
+              label: _armed == 'scenery'
+                  ? 'TAP AGAIN TO RESET'
+                  : 'RESET SCENERY',
               icon: AppIcons.close_rounded,
               selected: _armed == 'scenery',
               accent: const Color(0xFFC0392B),
@@ -2097,7 +2115,10 @@ class _DecorTile extends StatelessWidget {
         child: Container(
           width: 96,
           // Solid: the field must not show through.
-          color: Color.alphaBlend(_palette.surfaceFill(), const Color(0xFF05060B)),
+          color: Color.alphaBlend(
+            _palette.surfaceFill(),
+            const Color(0xFF05060B),
+          ),
           padding: const EdgeInsets.fromLTRB(4, 4, 4, 5),
           child: Column(
             children: [
@@ -2207,7 +2228,10 @@ class _KeepsakeTileState extends State<_KeepsakeTile> {
         child: Container(
           width: 96,
           // Solid: the field must not show through.
-          color: Color.alphaBlend(_palette.surfaceFill(), const Color(0xFF05060B)),
+          color: Color.alphaBlend(
+            _palette.surfaceFill(),
+            const Color(0xFF05060B),
+          ),
           padding: const EdgeInsets.fromLTRB(4, 4, 4, 5),
           child: Column(
             children: [

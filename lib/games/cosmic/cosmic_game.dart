@@ -5662,7 +5662,7 @@ class CosmicGame extends FlameGame with PanDetector {
             sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
             _drawCostumeOnSprite(
               canvas,
-              g.visuals?.alchemyEffect,
+              g.visuals?.costumes,
               sprite,
               g.ticker!.currentIndex,
               _elapsed,
@@ -6219,7 +6219,7 @@ class CosmicGame extends FlameGame with PanDetector {
         sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
         _drawCostumeOnSprite(
           canvas,
-          companionVisuals?.alchemyEffect,
+          companionVisuals?.costumes,
           sprite,
           companionTicker.currentIndex,
           _elapsed,
@@ -6438,7 +6438,7 @@ class CosmicGame extends FlameGame with PanDetector {
         sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
         _drawCostumeOnSprite(
           canvas,
-          _duelOpponentVisuals?.alchemyEffect,
+          _duelOpponentVisuals?.costumes,
           sprite,
           _duelOpponentTicker!.currentIndex,
           _elapsed,

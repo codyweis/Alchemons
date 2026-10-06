@@ -37,7 +37,10 @@ Future<Color?> pickCostumeColor(
   final creature = context.read<CreatureCatalog>().getCreatureById(
     instance.baseId,
   );
-  final initial = costume.colorIn(instance.alchemyEffect);
+  final initial = WornCostumes.on(
+    instance.baseId,
+    instance.costumes,
+  ).colorOf(costume);
   // Nothing to show it on: it goes on as it was.
   if (creature == null) return Future.value(initial);
   final palette = BracketPalette.of(context);
@@ -99,8 +102,8 @@ class _CostumeColorSheetState extends State<CostumeColorSheet> {
   }
 
   /// The creature wearing it as picked: a whole Wing under its hat, and
-  /// for a nose (small on a whole Pip) the Pip's face, close, inside the
-  /// ring.
+  /// for a nose (small on a whole Pip) or sunglasses the face, close,
+  /// inside the ring.
   Widget _preview(CreatureInstance worn) {
     if (widget.costume == FamilyCostume.partyHat) {
       // Down a little: the hat rises above its head.
@@ -113,11 +116,14 @@ class _CostumeColorSheetState extends State<CostumeColorSheet> {
         ),
       );
     }
-    const size = 430.0;
-    final fit = FamilyCostume.fitAt(widget.instance.baseId, 0);
-    // The face just behind the nose, in the middle.
+    final glasses = widget.costume == FamilyCostume.sunglasses;
+    final size = glasses ? 400.0 : 430.0;
+    final fit = widget.costume.fitAt(widget.instance.baseId, 0);
+    // The face just behind the nose, or round the glasses, in the middle.
     final focus = fit == null
         ? const Offset(0.5, 0.5)
+        : glasses
+        ? Offset(fit.x + 0.03, fit.y + 0.02)
         : Offset(fit.x + 0.11, fit.y - 0.02);
     return ClipOval(
       child: SizedBox.square(
@@ -145,9 +151,13 @@ class _CostumeColorSheetState extends State<CostumeColorSheet> {
     final palette = BracketPalette.of(context);
     final accent = bracketReadableAccent(context.read<FactionTheme>());
     final costume = widget.costume;
+    // Wearing everything it wears now, and this in the colour picked.
     final worn = widget.instance.copyWith(
-      alchemyEffect: Value(
-        costume.effectOn(widget.instance.baseId, color: _color),
+      costumes: Value(
+        WornCostumes.on(
+          widget.instance.baseId,
+          widget.instance.costumes,
+        ).wear(costume, color: _color).encode(),
       ),
     );
     final hsv = HSVColor.fromColor(_color);
@@ -246,7 +256,8 @@ class _CostumeColorSheetState extends State<CostumeColorSheet> {
 }
 
 /// A hand-picked colour: a disc of the costume's own material in it — the
-/// hat's velvet, the nose's glass — the chosen one ringed in gold.
+/// hat's velvet, the nose's glass, the glasses' smoked lens — the chosen
+/// one ringed in gold.
 class _Swatch extends StatelessWidget {
   const _Swatch({
     super.key,
@@ -379,9 +390,11 @@ void _disc(
   Offset c,
   double r,
   Color color,
-) => costume == FamilyCostume.partyHat
-    ? _velvetDisc(canvas, c, r, color)
-    : _glassDisc(canvas, c, r, color);
+) => switch (costume) {
+  FamilyCostume.partyHat => _velvetDisc(canvas, c, r, color),
+  FamilyCostume.nose => _glassDisc(canvas, c, r, color),
+  FamilyCostume.sunglasses => _lensDisc(canvas, c, r, color),
+};
 
 /// A disc of [color] shaded as the hat's velvet: lit up on the left, deep
 /// on the right.
@@ -436,5 +449,38 @@ void _glassDisc(Canvas canvas, Offset c, double r, Color color) {
       height: r * 0.24,
     ),
     Paint()..color = const Color(0xD9FFE5DF),
+  );
+}
+
+/// A disc of [color] as the sunglasses' lens is tinted: dark at the brow,
+/// clearer below, with the sky caught in its top.
+void _lensDisc(Canvas canvas, Offset c, double r, Color color) {
+  Color shade(double k) => Color.from(
+    alpha: 1,
+    red: (color.r * k).clamp(0.0, 1.0),
+    green: (color.g * k).clamp(0.0, 1.0),
+    blue: (color.b * k).clamp(0.0, 1.0),
+  );
+  canvas.drawCircle(
+    c,
+    r,
+    Paint()
+      ..shader = ui.Gradient.linear(
+        c + Offset(0, -r),
+        c + Offset(0, r),
+        [shade(0.32), shade(0.7), shade(1.25)],
+        const [0.0, 0.55, 1.0],
+      ),
+  );
+  canvas.drawRRect(
+    RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: c + Offset(0, -r * 0.55),
+        width: r * 1.1,
+        height: r * 0.24,
+      ),
+      Radius.circular(r * 0.12),
+    ),
+    Paint()..color = const Color(0x38FFFFFF),
   );
 }

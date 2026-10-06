@@ -836,4 +836,15 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
           ..where((t) => t.instanceId.equals(instanceId)))
         .write(CreatureInstancesCompanion(alchemyEffect: Value(effect)));
   }
+
+  /// Saves what [instanceId] wears (a `WornCostumes`, encoded; null for
+  /// nothing).
+  Future<void> updateCostumes({
+    required String instanceId,
+    String? costumes,
+  }) async {
+    await (update(creatureInstances)
+          ..where((t) => t.instanceId.equals(instanceId)))
+        .write(CreatureInstancesCompanion(costumes: Value(costumes)));
+  }
 }

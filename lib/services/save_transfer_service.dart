@@ -250,6 +250,9 @@ class SaveTransferService {
             updates: {db.playerCreatures},
           );
         }
+        if (sourceSchemaVersion < 43) {
+          await db.moveCostumesOutOfEffects();
+        }
         await db.settingsDao.setSetting(
           SaveGenerationService.settingKey,
           '$generation',

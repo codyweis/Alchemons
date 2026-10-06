@@ -149,6 +149,10 @@ class Creature {
   final bool isPure;
 
   final String? alchemyEffect;
+
+  /// The costumes it wears (a `WornCostumes`, encoded), if it is one of
+  /// the player's.
+  final String? costumes;
   final String? variantFaction;
 
   /// The individual's wild-fusion mutation id ('alchemized', 'transmuted'),
@@ -180,6 +184,7 @@ class Creature {
     this.lineageData,
     this.isPure = false,
     this.alchemyEffect,
+    this.costumes,
     this.variantFaction,
     this.wildMutation,
   });
@@ -371,6 +376,7 @@ extension CreatureCopy on Creature {
     OffspringLineageData? lineageData, // NEW
     bool? isPure,
     String? alchemyEffect,
+    String? costumes,
     String? variantFaction,
     String? wildMutation,
   }) {
@@ -401,6 +407,7 @@ extension CreatureCopy on Creature {
       lineageData: lineageData ?? this.lineageData, // NEW
       isPure: isPure ?? this.isPure,
       alchemyEffect: alchemyEffect ?? this.alchemyEffect,
+      costumes: costumes ?? this.costumes,
       variantFaction: variantFaction ?? this.variantFaction,
       wildMutation: wildMutation ?? this.wildMutation,
     );

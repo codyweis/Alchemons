@@ -36,6 +36,9 @@ class SpriteVisuals {
   final Color? tint; // optional lineage-based tint
   final bool isAlbino; // computed flag for special rendering
   final String? alchemyEffect; // 'alchemy_glow', 'volcanic_aura', etc.
+
+  /// The costumes worn (a `WornCostumes`, encoded), drawn by the sprite.
+  final String? costumes;
   final String? variantFaction; // off-faction pigment ('Volcanic'…), if any
   final String? elementType; // the creature's own first type ('Fire'…)
   final double prismaticHueDeg; // Hue for prismatic visuals
@@ -57,6 +60,7 @@ class SpriteVisuals {
     this.tint,
     this.isAlbino = false,
     this.alchemyEffect,
+    this.costumes,
     this.variantFaction,
     this.elementType,
     this.prismaticHueDeg = 0.0, // Default value
@@ -99,6 +103,7 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
       alchemyEffect: inst?.alchemyEffect?.isNotEmpty == true
           ? inst!.alchemyEffect
           : creature?.alchemyEffect,
+      costumes: inst?.costumes ?? creature?.costumes,
       elementType: creature?.types.isNotEmpty == true
           ? creature!.types.first
           : null,
@@ -129,6 +134,7 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
     tint: tint,
     isAlbino: isAlbino,
     alchemyEffect: alchemyEffect,
+    costumes: inst?.costumes ?? creature?.costumes,
     variantFaction: variantFaction,
     elementType: creature?.types.isNotEmpty == true
         ? creature!.types.first

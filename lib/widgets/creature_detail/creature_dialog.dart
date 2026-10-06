@@ -473,16 +473,23 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     unawaited(_reloadBgOption());
   }
 
-  /// The dialog holds one copy of the specimen, so an effect applied from
-  /// here would not show until it was reopened. Follow the saved effect.
+  /// The dialog holds one copy of the specimen, so an effect or costume put
+  /// on from here would not show until it was reopened. Follow the saved
+  /// ones.
   void _watchAlchemyEffect(String instanceId) {
     final db = context.read<AlchemonsDatabase>();
     _effectSub = db.creatureDao.watchInstanceById(instanceId).listen((row) {
       final current = _instance;
       if (!mounted || row == null || current == null) return;
-      if (row.alchemyEffect == current.alchemyEffect) return;
+      if (row.alchemyEffect == current.alchemyEffect &&
+          row.costumes == current.costumes) {
+        return;
+      }
       setState(() {
-        _instance = current.copyWith(alchemyEffect: Value(row.alchemyEffect));
+        _instance = current.copyWith(
+          alchemyEffect: Value(row.alchemyEffect),
+          costumes: Value(row.costumes),
+        );
       });
     });
   }
@@ -1438,6 +1445,10 @@ class _OverviewTab extends StatelessWidget {
               instance: instance!,
               creatureName: creature.name,
             ),
+            if (FamilyCostume.values.any((c) => c.fits(instance!.baseId))) ...[
+              const SizedBox(height: 8),
+              _CostumeSlot(instance: instance!, creatureName: creature.name),
+            ],
           ],
           const SizedBox(height: 20),
 
@@ -2082,8 +2093,8 @@ class _AlchemyEffectSlot extends StatelessWidget {
           for (final item in snapshot.data ?? const <InventoryItem>[])
             if (item.qty > 0 &&
                 InvKeys.alchemyEffectFor(item.key) != null &&
-                // A costume only for the family it is made for.
-                (FamilyCostume.ofItem(item.key)?.fits(instance.baseId) ?? true))
+                // Costumes have their own slot.
+                FamilyCostume.ofItem(item.key) == null)
               item,
         ];
         final currentKey = instance.alchemyEffect;
@@ -2170,11 +2181,8 @@ class _AlchemyEffectSlot extends StatelessWidget {
     String? currentName,
   ) async {
     final c = _C.of(context);
-    // An item key to apply, or the empty string to take the current one off,
-    // or this to give the costume it wears another colour.
+    // An item key to apply, or the empty string to take the current one off.
     const removeEffect = '';
-    const recolor = '#recolor';
-    final wornCostume = FamilyCostume.ofEffect(instance.alchemyEffect);
     final picked = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: c.bg1,
@@ -2203,39 +2211,6 @@ class _AlchemyEffectSlot extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 10),
-              if (wornCostume != null)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: SizedBox.square(
-                    dimension: 44,
-                    child: Center(
-                      child: Container(
-                        width: 26,
-                        height: 26,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: FamilyCostume.colorOf(instance.alchemyEffect),
-                        ),
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    'Change ${wornCostume.noun} colour',
-                    style: TextStyle(
-                      color: c.textPrimary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                  trailing: Text(
-                    'Free',
-                    style: TextStyle(
-                      color: c.textMuted,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  onTap: () => Navigator.of(sheetCtx).pop(recolor),
-                ),
               for (final item in owned)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -2289,41 +2264,11 @@ class _AlchemyEffectSlot extends StatelessWidget {
     if (picked == removeEffect) {
       await removeAlchemyEffect(db, instanceId: instance.instanceId);
       message = 'Returned ${currentName ?? 'the effect'} to your inventory';
-    } else if (picked == recolor) {
-      final color = await pickCostumeColor(
-        context,
-        instance: instance,
-        costume: wornCostume!,
-        confirmLabel: 'SAVE COLOUR',
-      );
-      if (color == null) return;
-      if (!await recolorCostume(
-        db,
-        instanceId: instance.instanceId,
-        color: color,
-      )) {
-        return;
-      }
-      final noun = wornCostume.noun;
-      message = '${noun[0].toUpperCase()}${noun.substring(1)} colour saved';
     } else {
-      // A costume goes on in a colour picked on the creature.
-      Color? color;
-      final costume = FamilyCostume.ofItem(picked);
-      if (costume != null) {
-        color = await pickCostumeColor(
-          context,
-          instance: instance,
-          costume: costume,
-          confirmLabel: 'WEAR ${costume.noun.toUpperCase()}',
-        );
-        if (color == null) return;
-      }
       final applied = await applyAlchemyEffect(
         db,
         instanceId: instance.instanceId,
         itemKey: picked,
-        color: color,
       );
       if (!applied) return;
       message = 'Applied ${registry[picked]?.name ?? 'Effect'}!';
@@ -2348,6 +2293,245 @@ class _AlchemyEffectSlot extends StatelessWidget {
     );
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// COSTUME SLOT
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// The costumes this creature wears, beside its effect: any it fits, all at
+/// once if wanted. Each goes on in a colour picked on it, changes colour
+/// free, and taken off goes back to the inventory.
+class _CostumeSlot extends StatelessWidget {
+  final CreatureInstance instance;
+  final String creatureName;
+  const _CostumeSlot({required this.instance, required this.creatureName});
+
+  @override
+  Widget build(BuildContext context) {
+    final db = context.read<AlchemonsDatabase>();
+    return StreamBuilder<List<InventoryItem>>(
+      stream: db.inventoryDao.watchItemInventory(),
+      builder: (context, snapshot) {
+        final owned = <FamilyCostume, int>{
+          for (final item in snapshot.data ?? const <InventoryItem>[])
+            if (FamilyCostume.ofItem(item.key) case final costume?)
+              if (item.qty > 0 && costume.fits(instance.baseId))
+                costume: item.qty,
+        };
+        final worn = WornCostumes.on(instance.baseId, instance.costumes);
+        final wearing = [
+          for (final c in FamilyCostume.values)
+            if (worn.wears(c)) c.noun,
+        ];
+        final palette = _bp(context);
+        final theme = context.read<FactionTheme>();
+        final accent = _dialogAccent(context);
+        final canPick = owned.isNotEmpty || !worn.isEmpty;
+        final subtitle = wearing.isNotEmpty
+            ? wearing.join(', ')
+            : (owned.isEmpty ? 'None · none owned' : 'None');
+        return GestureDetector(
+          onTap: canPick
+              ? context.soundAction(() {
+                  HapticFeedback.mediumImpact();
+                  _pick(context, owned, worn);
+                })
+              : null,
+          child: CustomPaint(
+            painter: BracketFramePainter(
+              color: accent.withValues(alpha: canPick ? 0.88 : 0.4),
+              bracketSize: 6,
+              strokeWidth: 1.0,
+            ),
+            child: Container(
+              color: palette.accentWash(theme.accent, darkAlpha: 0.10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Costumes · $subtitle',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: bracketText(
+                        context,
+                        11.5,
+                        palette.ink,
+                        weight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                  if (owned.isNotEmpty)
+                    Text(
+                      '${owned.values.fold(0, (a, b) => a + b)} owned',
+                      style: bracketText(
+                        context,
+                        11,
+                        palette.muted,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                  if (canPick) ...[
+                    const SizedBox(width: 2),
+                    Icon(
+                      AppIcons.chevron_right_rounded,
+                      size: 15,
+                      color: palette.muted,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pick(
+    BuildContext context,
+    Map<FamilyCostume, int> owned,
+    WornCostumes worn,
+  ) async {
+    final c = _C.of(context);
+    final picked = await showModalBottomSheet<(_CostumeAction, FamilyCostume)>(
+      context: context,
+      backgroundColor: c.bg1,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+      ),
+      builder: (sheetCtx) {
+        Widget action(String label, _CostumeAction a, FamilyCostume costume) =>
+            TextButton(
+              onPressed: () => Navigator.of(sheetCtx).pop((a, costume)),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: c.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            );
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+            children: [
+              Text(
+                'COSTUMES FOR ${creatureName.toUpperCase()}',
+                style: _T(c).sectionTitle,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Worn beside its effect, all at once if you like.',
+                style: _T(c).body,
+              ),
+              const SizedBox(height: 10),
+              for (final costume in FamilyCostume.values)
+                if (costume.fits(instance.baseId))
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: InventoryItemArtwork(
+                      inventoryKey: costume.itemKey,
+                      size: 44,
+                    ),
+                    title: Text(
+                      costume.title,
+                      style: TextStyle(
+                        color: worn.wears(costume) || owned[costume] != null
+                            ? c.textPrimary
+                            : c.textMuted,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Text(
+                      worn.wears(costume)
+                          ? 'Wearing'
+                          : owned[costume] != null
+                          ? '×${owned[costume]} owned'
+                          : 'None owned',
+                      style: TextStyle(color: c.textMuted, fontSize: 12),
+                    ),
+                    trailing: worn.wears(costume)
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              action('Colour', _CostumeAction.recolor, costume),
+                              action('Take off', _CostumeAction.off, costume),
+                            ],
+                          )
+                        : owned[costume] != null
+                        ? action('Wear', _CostumeAction.wear, costume)
+                        : null,
+                  ),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked == null || !context.mounted) return;
+    final (act, costume) = picked;
+    final db = context.read<AlchemonsDatabase>();
+    final String message;
+    switch (act) {
+      case _CostumeAction.off:
+        if (!await takeOffCostume(
+          db,
+          instanceId: instance.instanceId,
+          costume: costume,
+        )) {
+          return;
+        }
+        message = 'Returned ${costume.title} to your inventory';
+      case _CostumeAction.wear || _CostumeAction.recolor:
+        final color = await pickCostumeColor(
+          context,
+          instance: instance,
+          costume: costume,
+          confirmLabel: act == _CostumeAction.wear
+              ? 'WEAR ${costume.noun.toUpperCase()}'
+              : 'SAVE COLOUR',
+        );
+        if (color == null || !context.mounted) return;
+        if (!await wearCostume(
+          db,
+          instanceId: instance.instanceId,
+          costume: costume,
+          color: color,
+        )) {
+          return;
+        }
+        final noun = costume.noun;
+        message = act == _CostumeAction.wear
+            ? 'Wearing ${costume.title}'
+            : '${noun[0].toUpperCase()}${noun.substring(1)} colour saved';
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: c.textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        backgroundColor: c.bg1,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+}
+
+enum _CostumeAction { wear, recolor, off }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // STAT BAR ROW

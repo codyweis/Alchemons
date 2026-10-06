@@ -15,7 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
-    'saved celebration costumes render at detail and HUD sizes, mirrored and scaled',
+    'worn costumes render at detail and HUD sizes, mirrored and scaled, beside an effect',
     (tester) async {
       final db = AlchemonsDatabase(NativeDatabase.memory());
       addTearDown(db.close);
@@ -36,10 +36,19 @@ void main() {
           );
           creatures.add(creature);
           await db.creatureDao.insertInstance(instanceId: id, baseId: id);
-          await db.creatureDao.updateAlchemyEffect(
+          // All three costumes, and on the Wing an effect beside them.
+          await db.creatureDao.updateCostumes(
             instanceId: id,
-            effect: FamilyCostume.effectFor(id),
+            costumes: WornCostumes(id, {
+              for (final c in FamilyCostume.values) c: c.defaultColor,
+            }).encode(),
           );
+          if (id == 'WNG04') {
+            await db.creatureDao.updateAlchemyEffect(
+              instanceId: id,
+              effect: 'alchemy_glow',
+            );
+          }
           instances.add((await db.creatureDao.getInstance(id))!);
           final sheet = creature.spriteData!.spriteSheetPath;
           final codec = await ui.instantiateImageCodec(
@@ -93,9 +102,10 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 300));
-      // Drawn by the sprite over its frame, not wrapped round it.
+      // Drawn by the sprite over its frame, not wrapped round it; the
+      // Wing's effect round it as well.
       expect(find.byType(WornCostume), findsNWidgets(4));
-      expect(find.byType(AlchemyEffectView), findsNothing);
+      expect(find.byType(AlchemyEffectView), findsNWidgets(2));
       expect(tester.takeException(), isNull);
       final out = Platform.environment['CELEBRATION_WIDGET_OUT'];
       if (out != null) {

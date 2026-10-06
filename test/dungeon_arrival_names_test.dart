@@ -66,9 +66,15 @@ PlanetDungeonGame _game(String element) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('every door in every dungeon arrives somewhere that names itself', () {
+  test('every door in every dungeon arrives somewhere that names itself '
+      '(Blood names its rooms on the map only)', () {
     final silent = <String>[];
     for (final element in kPlanetDungeonLayouts.keys) {
+      // Blood's rooms arrive in silence by the author's word (2026-10-06:
+      // "stop saying popups like the heart etc for when we go into the
+      // rooms"). Each still names itself on the minimap caption (the label
+      // test below), so a doorway there is not a secret.
+      if (element == 'Blood') continue;
       final g = _game(element);
       for (final room in kPlanetDungeonLayouts[element]!.rooms.values) {
         for (final door in room.doors) {

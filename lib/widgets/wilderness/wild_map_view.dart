@@ -28,6 +28,7 @@ class WildMapView extends StatefulWidget {
     this.ink = false,
     this.labelFor,
     this.field,
+    this.landing,
   });
 
   /// A realm (or 'arcane') was tapped: its scene id.
@@ -74,6 +75,9 @@ class WildMapView extends StatefulWidget {
   /// A field to draw instead of a new one (tests).
   final WildMapField? field;
 
+  /// Lets a wild field being left find its realm's circle here.
+  final WildMapLanding? landing;
+
   @override
   State<WildMapView> createState() => _WildMapViewState();
 }
@@ -83,6 +87,9 @@ class _WildMapViewState extends State<WildMapView>
   late final WildMapField _field = widget.field ?? WildMapField();
   late final Ticker _ticker = createTicker(_tick);
   final _frame = _Frame();
+
+  /// The field's own layer, pictured when a realm's circle goes as sand.
+  final GlobalKey _picture = GlobalKey();
   Duration _last = Duration.zero;
   Duration? _lastMove;
 
@@ -90,6 +97,7 @@ class _WildMapViewState extends State<WildMapView>
   void initState() {
     super.initState();
     _apply();
+    widget.landing?._view = this;
     // Every realm opens as dust; those with something waiting gather.
     _field.settle(gather: true);
     _ticker.start();
@@ -99,6 +107,10 @@ class _WildMapViewState extends State<WildMapView>
   void didUpdateWidget(covariant WildMapView old) {
     super.didUpdateWidget(old);
     _apply();
+    if (old.landing != widget.landing) {
+      if (old.landing?._view == this) old.landing!._view = null;
+      widget.landing?._view = this;
+    }
   }
 
   void _apply() {
@@ -118,6 +130,7 @@ class _WildMapViewState extends State<WildMapView>
 
   @override
   void dispose() {
+    if (widget.landing?._view == this) widget.landing!._view = null;
     _ticker.dispose();
     _frame.dispose();
     _field.dispose();
@@ -129,6 +142,15 @@ class _WildMapViewState extends State<WildMapView>
     _last = elapsed;
     _field.step(dt);
     _frame.tick();
+  }
+
+  /// Realm [sceneId]'s circle (or the rift's), on the map, or null.
+  Rect? _circleIn(String sceneId) {
+    if (sceneId == 'arcane') return widget.arcane ? _field.riftRect : null;
+    for (final r in WildRealm.values) {
+      if (r.sceneId == sceneId && _field.shows(r)) return _field.circleOf(r);
+    }
+    return null;
   }
 
   void _onPanUpdate(DragUpdateDetails d) {
@@ -172,6 +194,7 @@ class _WildMapViewState extends State<WildMapView>
                 onTapUp: _onTapUp,
                 onLongPressStart: _onLongPress,
                 child: RepaintBoundary(
+                  key: _picture,
                   child: CustomPaint(
                     isComplex: true,
                     willChange: true,
@@ -203,6 +226,43 @@ class _WildMapViewState extends State<WildMapView>
     width: 160,
     child: IgnorePointer(child: Center(child: child)),
   );
+}
+
+/// Lets a wild field that is being left find its realm's circle on the map
+/// and stir it as the sand comes home (VoidPortal.leaveThroughSand).
+class WildMapLanding {
+  _WildMapViewState? _view;
+
+  /// Realm [sceneId]'s circle in global coordinates, or null when it is not
+  /// on the map (or the map is not up).
+  Rect? circleOf(String sceneId) {
+    final view = _view;
+    if (view == null || !view.mounted) return null;
+    final circle = view._circleIn(sceneId);
+    final box = view.context.findRenderObject();
+    if (circle == null || box is! RenderBox || !box.hasSize) return null;
+    return box.localToGlobal(circle.topLeft) & circle.size;
+  }
+
+  /// The RepaintBoundary the map's grains are drawn in (null while the map
+  /// is not up): what a realm's circle is pictured from as it goes as sand.
+  GlobalKey? get picture {
+    final view = _view;
+    return view == null || !view.mounted ? null : view._picture;
+  }
+
+  /// The sand reaching [sceneId]'s circle: a soft swell through it.
+  void settle(String sceneId) {
+    final view = _view;
+    if (view == null || !view.mounted) return;
+    final circle = view._circleIn(sceneId);
+    if (circle == null) return;
+    view._field.ripple(
+      circle.center,
+      strength: 150,
+      reach: circle.width * 0.55,
+    );
+  }
 }
 
 class _Frame extends ChangeNotifier {

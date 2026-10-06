@@ -87,6 +87,10 @@ class CreatureSprite extends StatefulWidget {
   // New: Alchemy effect
   final String? alchemyEffect;
 
+  /// The costumes it wears (a `WornCostumes`, encoded), drawn by the sprite
+  /// over its frame.
+  final String? costumes;
+
   // New: Variant faction
   final String? variantFaction;
 
@@ -116,6 +120,7 @@ class CreatureSprite extends StatefulWidget {
     this.isPrismatic = false,
     this.tint,
     this.alchemyEffect,
+    this.costumes,
     this.variantFaction,
     this.elementType,
     this.effectSlotSize,
@@ -267,12 +272,12 @@ class _CreatureSpriteState extends State<CreatureSprite>
       );
     }
 
-    // A worn costume is part of the sprite: over its frame, at that frame's
+    // Worn costumes are part of the sprite: over its frame, at that frame's
     // fit, and clear of its colouring.
-    final costume = widget.alchemyEffect;
-    if (FamilyCostume.isEffect(costume)) {
+    final costumes = widget.costumes;
+    if (WornCostumes.parse(costumes) != null) {
       sprite = WornCostume(
-        effect: costume!,
+        costumes: costumes!,
         frameSize: Size(widget.frameSize.x, widget.frameSize.y),
         frameIndex: () => _spriteTicker?.currentIndex ?? 0,
         child: sprite,
@@ -457,10 +462,8 @@ class InstanceSprite extends StatelessWidget {
         isPrismatic: visuals.isPrismatic,
         tint: visuals.tint,
         mutation: visuals.mutation,
-        // A costume is drawn by the sprite itself; an effect, round it below.
-        alchemyEffect: FamilyCostume.isEffect(instance.alchemyEffect)
-            ? instance.alchemyEffect
-            : null,
+        // Costumes are drawn by the sprite itself; an effect, round it below.
+        costumes: instance.costumes,
       ),
     );
 

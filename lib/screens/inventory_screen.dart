@@ -114,7 +114,12 @@ class InventoryScreen extends StatefulWidget {
 
 class _InventoryScreenState extends State<InventoryScreen>
     with SingleTickerProviderStateMixin {
-  static const List<String> _tabLabels = ['Vials', 'Items', 'Special'];
+  static const List<String> _tabLabels = [
+    'Vials',
+    'Items',
+    'Costumes',
+    'Special',
+  ];
   static const Set<String> _spaceOnlyInventoryKeys = {
     'wallet_astral_shards',
     'item.astral_shard',
@@ -184,6 +189,7 @@ class _InventoryScreenState extends State<InventoryScreen>
               children: [
                 _buildVialsTab(theme),
                 _buildItemsTab(theme),
+                _buildItemsTab(theme, costumes: true),
                 _buildKeyItemsTab(theme),
               ],
             ),
@@ -335,7 +341,8 @@ class _InventoryScreenState extends State<InventoryScreen>
     );
   }
 
-  Widget _buildItemsTab(FactionTheme theme) {
+  /// The items, or with [costumes] only the costumes (kept apart from them).
+  Widget _buildItemsTab(FactionTheme theme, {bool costumes = false}) {
     final db = context.read<AlchemonsDatabase>();
     final registry = buildInventoryRegistry(db);
 
@@ -347,6 +354,9 @@ class _InventoryScreenState extends State<InventoryScreen>
           if (_isSpaceOnlyInventoryItem(item.key)) return false;
           if (shouldHideInventoryItem(item.key)) return false;
           if (item.key.startsWith('vial.')) return false;
+          if ((FamilyCostume.ofItem(item.key) != null) != costumes) {
+            return false;
+          }
           final def = registry[item.key];
           if (def == null) return false;
           return !def.isKeyItem;
@@ -355,13 +365,15 @@ class _InventoryScreenState extends State<InventoryScreen>
         if (items.isEmpty) {
           return _buildEmptyState(
             theme,
-            message: 'No items in inventory',
-            subtitle: 'Purchase items from the shop',
+            message: costumes ? 'No costumes yet' : 'No items in inventory',
+            subtitle: costumes
+                ? 'Buy costumes in the shop'
+                : 'Purchase items from the shop',
           );
         }
 
         return _buildInventoryGrid(
-          storageKey: 'inventory-items',
+          storageKey: costumes ? 'inventory-costumes' : 'inventory-items',
           padding: const EdgeInsets.all(12),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
@@ -1059,25 +1071,34 @@ class _InventoryScreenState extends State<InventoryScreen>
 
     if (selectedInstance == null || !mounted) return;
 
-    // Whatever effect it replaces goes back into the inventory.
-    // A costume goes on in a colour picked on the creature.
-    Color? color;
+    // A costume goes on in a colour picked on the creature, beside its
+    // effect and any other costumes.
     final costume = FamilyCostume.ofItem(item.key);
     if (costume != null) {
-      color = await pickCostumeColor(
+      final color = await pickCostumeColor(
         context,
         instance: selectedInstance,
         costume: costume,
         confirmLabel: 'WEAR ${costume.noun.toUpperCase()}',
       );
       if (color == null || !mounted) return;
+      if (!await wearCostume(
+        db,
+        instanceId: selectedInstance.instanceId,
+        costume: costume,
+        color: color,
+      )) {
+        return;
+      }
+      _showToast('Wearing ${def.name}!', color: Colors.green);
+      return;
     }
 
+    // Whatever effect it replaces goes back into the inventory.
     final applied = await applyAlchemyEffect(
       db,
       instanceId: selectedInstance.instanceId,
       itemKey: item.key,
-      color: color,
     );
     if (!applied) return;
 
@@ -1099,7 +1120,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         final costume = FamilyCostume.ofItem(effectItemKey);
         if (costume == null || costume.fits(instance.baseId)) return true;
         _showToast(
-          '${costume.title} is for ${costume.familyName}.',
+          '${costume.title} fits ${FamilyCostume.fittedFamiliesText}.',
           color: Colors.orange,
         );
         return false;

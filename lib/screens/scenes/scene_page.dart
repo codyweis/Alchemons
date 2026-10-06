@@ -855,10 +855,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           await settings.setSetting('cosmic_ship_scene', 'valley');
           await settings.setSetting('cosmic_ship_arrival_pending', '1');
         } else {
-          await settings.setSetting(
-            OpeningWildernessService.shipArmedKey,
-            '1',
-          );
+          await settings.setSetting(OpeningWildernessService.shipArmedKey, '1');
         }
       }
     } catch (e) {
@@ -1591,8 +1588,15 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                         }
 
                         if (!context.mounted) return;
+                        // Let the confirmation finish closing: the field is
+                        // pictured without it, and its dim would vanish.
+                        await Future<void>.delayed(
+                          const Duration(milliseconds: 160),
+                        );
+                        if (!context.mounted) return;
 
-                        VoidPortal.pop(context);
+                        // Back into the realm's circle on the map, as sand.
+                        await VoidPortal.leaveThroughSand<void>(context);
                       },
                     ),
                   ),

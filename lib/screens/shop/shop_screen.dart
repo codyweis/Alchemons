@@ -802,8 +802,8 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     );
   }
 
-  /// Things that only change how something looks. Alchemy effects for now;
-  /// home planet customisations join them here.
+  /// Things that only change how something looks: alchemy effects,
+  /// costumes, and the home biome's decor.
   Widget _buildCosmeticsTab(
     FactionTheme theme,
     Map<String, int> allCurrencies,
@@ -817,6 +817,13 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
         children: [
           _buildSectionHeader('ALCHEMY EFFECTS'),
           _buildAlchemyEffectsGrid(theme, allCurrencies, inventoryByKey),
+          _buildSectionHeader('COSTUMES'),
+          _buildAlchemyEffectsGrid(
+            theme,
+            allCurrencies,
+            inventoryByKey,
+            costumes: true,
+          ),
           // The home biome's decor, simple to grand (models/home_decor.dart).
           for (final tier in DecorTier.values) ...[
             _buildSectionHeader('HOME · ${tier.label}'),
@@ -891,14 +898,19 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     );
   }
 
+  /// The alchemy effects, or with [costumes] the costumes: a card each,
+  /// how many owned.
   Widget _buildAlchemyEffectsGrid(
     FactionTheme theme,
     Map<String, int> allCurrencies,
-    Map<String, int> inventory,
-  ) {
+    Map<String, int> inventory, {
+    bool costumes = false,
+  }) {
     return Consumer<ShopService>(
       builder: (context, shopService, _) {
-        final effectOffers = shopService.getAlchemyEffectOffers();
+        final effectOffers = costumes
+            ? shopService.getCostumeOffers()
+            : shopService.getAlchemyEffectOffers();
 
         if (effectOffers.isEmpty) {
           return const Padding(

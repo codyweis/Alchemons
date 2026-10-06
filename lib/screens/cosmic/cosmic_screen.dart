@@ -3118,6 +3118,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         variantFaction: base.variantFaction,
         elementType: base.elementType,
         prismaticHueDeg: base.prismaticHueDeg,
+        costumes: base.costumes,
       ),
       CosmicContestVisualTheme.thermal => SpriteVisuals(
         scale: base.scale,
@@ -3131,6 +3132,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         variantFaction: base.variantFaction ?? 'Pyro',
         elementType: base.elementType,
         prismaticHueDeg: base.prismaticHueDeg,
+        costumes: base.costumes,
       ),
       CosmicContestVisualTheme.cryogenic => SpriteVisuals(
         scale: base.scale,
@@ -3144,6 +3146,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         variantFaction: base.variantFaction ?? 'Aqua',
         elementType: base.elementType,
         prismaticHueDeg: base.prismaticHueDeg,
+        costumes: base.costumes,
       ),
       CosmicContestVisualTheme.prismatic => SpriteVisuals(
         scale: base.scale,
@@ -3157,6 +3160,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         variantFaction: base.variantFaction,
         elementType: base.elementType,
         prismaticHueDeg: base.prismaticHueDeg,
+        costumes: base.costumes,
       ),
     };
   }

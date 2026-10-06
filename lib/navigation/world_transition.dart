@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_portal.dart';
+import 'package:alchemons/widgets/fx/sand_passage.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/scheduler.dart' show SchedulerBinding, Ticker;
 import 'package:flutter/services.dart';
 
@@ -97,6 +101,36 @@ class RevealWhenReady {
   }
 }
 
+/// Where a field's sand goes when it is left through
+/// [VoidPortal.leaveThroughSand]: the element its light takes, and the
+/// circle on the screen behind that takes the sand back.
+class SandLanding {
+  const SandLanding({this.element = '', this.circle, this.onLanded});
+
+  /// The element whose light rides in the sand ('' for spirit's).
+  final String element;
+
+  /// The circle the sand pours into, in global coordinates, asked once the
+  /// screen behind has been laid out again. Null, or returning null: the
+  /// sand thins out where it is.
+  final Rect? Function()? circle;
+
+  /// The first of the sand has reached [circle].
+  final VoidCallback? onLanded;
+}
+
+/// Where a passage's sand rises from ([VoidPortal.pushThroughSand]): a
+/// circle on the screen, and the RepaintBoundary that shows it.
+class SandSource {
+  const SandSource({required this.picture, required this.circle});
+
+  /// A RepaintBoundary whose picture holds [circle].
+  final GlobalKey picture;
+
+  /// The circle, in global coordinates.
+  final Rect circle;
+}
+
 /// Main portal utility class
 class VoidPortal {
   VoidPortal._();
@@ -156,6 +190,9 @@ class VoidPortal {
   /// whatever it does on its first frame happens once, at its real size,
   /// while the system is still turning.
   ///
+  /// [back] is where the page's sand pours if it is left through
+  /// [leaveThroughSand].
+  ///
   /// Unlike [push], the returned future completes with the route's result
   /// when the page is popped.
   static Future<T?> pushThroughGlyphs<T>(
@@ -169,9 +206,11 @@ class VoidPortal {
     Color? tint,
     List<DeviceOrientation>? orientation,
     List<DeviceOrientation>? returnOrientation,
+    SandLanding? back,
   }) {
     final navigator = Navigator.of(context);
     final routeResult = Completer<T?>();
+    final picture = GlobalKey();
     final counterTurns = switch (orientation?.first) {
       DeviceOrientation.landscapeLeft => 3,
       DeviceOrientation.landscapeRight => 1,
@@ -202,9 +241,13 @@ class VoidPortal {
                   PageRouteBuilder(
                     transitionDuration: Duration.zero,
                     reverseTransitionDuration: Duration.zero,
-                    pageBuilder: (_, __, ___) => counterTurns == 0
-                        ? page
-                        : _PreTurned(turned: turned, child: page),
+                    pageBuilder: (_, __, ___) => _passagePage(
+                      page: page,
+                      picture: picture,
+                      turned: counterTurns == 0 ? null : turned,
+                      returnOrientation: returnOrientation,
+                      back: back,
+                    ),
                   ),
                 )
                 .then((result) async {
@@ -365,6 +408,289 @@ class VoidPortal {
     await handle.future;
   }
 
+  /// The density screens are pictured at: the screen's own, so the first
+  /// frame of a picture IS the screen and nothing shows as it swaps in.
+  static double _pictureRatio(BuildContext context) =>
+      math.min(MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0, 3.0);
+
+  /// Pictures what [key]'s RepaintBoundary shows, straight after a frame
+  /// has painted -- a live field marks itself dirty every frame, and a
+  /// layer waiting to paint cannot be pictured. Null when it cannot be.
+  static Future<(ui.Image, RenderRepaintBoundary)?> _picture(
+    GlobalKey key,
+    double ratio,
+  ) async {
+    await SchedulerBinding.instance.endOfFrame;
+    final boundary = key.currentContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary || !boundary.attached) return null;
+    final Future<ui.Image> pending;
+    try {
+      pending = boundary.toImage(pixelRatio: ratio);
+    } catch (_) {
+      return null;
+    }
+    final ui.Image image;
+    try {
+      image = await pending.timeout(const Duration(milliseconds: 400));
+    } on TimeoutException {
+      unawaited(pending.then<void>((i) => i.dispose(), onError: (_) {}));
+      return null;
+    } catch (_) {
+      return null;
+    }
+    if (!boundary.attached) {
+      image.dispose();
+      return null;
+    }
+    return (image, boundary);
+  }
+
+  /// The middle of the window, in global coordinates, as it is now.
+  static Offset _screenCentre() {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    return (view.physicalSize / view.devicePixelRatio).center(Offset.zero);
+  }
+
+  /// Whether the window is wider than it is tall right now.
+  static bool _windowWide() {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    return view.physicalSize.width > view.physicalSize.height;
+  }
+
+  /// Until the window is [wide] (or not), or plainly will not be.
+  static Future<void> _awaitWindow({required bool wide}) async {
+    final began = DateTime.now();
+    while (_windowWide() != wide &&
+        DateTime.now().difference(began) < const Duration(seconds: 1)) {
+      await SchedulerBinding.instance.endOfFrame;
+    }
+  }
+
+  /// Leave the current page as sand: it comes apart into grains of its own
+  /// colour that gather into a turning ball, the page is popped (with
+  /// [result]) behind it, and the ball pours into [landing]'s circle on the
+  /// screen behind.
+  ///
+  /// A page entered through [pushThroughSand] or [pushThroughGlyphs] needs
+  /// neither [boundaryKey] (what is pictured) nor [landing]: it pours back
+  /// into the `back` it was pushed with. One entered turned to landscape is
+  /// turned back while only the ball shows -- it is round, so the turn
+  /// hides in it -- and is held at its wide size meanwhile, so the turn
+  /// costs it no re-layout; the screen behind is laid out once, at its own
+  /// orientation, before the sand pours. Falls back to [pop] when the page
+  /// cannot be pictured. Completes once the last grain has gone.
+  static Future<void> leaveThroughSand<T>(
+    BuildContext context, {
+    GlobalKey? boundaryKey,
+    SandLanding? landing,
+    T? result,
+  }) async {
+    final navigator = Navigator.of(context);
+    final overlay = navigator.overlay;
+    final scope = _PassageScope.maybeOf(context);
+    final key = boundaryKey ?? scope?.picture;
+    final to = landing ?? scope?.back ?? const SandLanding();
+    final wide = MediaQuery.sizeOf(context).aspectRatio > 1;
+    final ratio = _pictureRatio(context);
+    final shot = key == null || overlay == null
+        ? null
+        : await _picture(key, ratio);
+    if (shot == null || !overlay!.mounted || !context.mounted) {
+      shot?.$1.dispose();
+      if (context.mounted) await pop<T>(context, result: result);
+      return;
+    }
+    final (image, boundary) = shot;
+    final sand = SandPicture(
+      image: image,
+      pixelRatio: ratio,
+      size: boundary.size,
+      way: SandWay.gather,
+      origin: boundary.localToGlobal(Offset.zero),
+      screenCentre: _screenCentre(),
+      element: to.element,
+      seed: DateTime.now().millisecondsSinceEpoch,
+    );
+    final turned = scope?.turned;
+    final returnTo = scope?.returnOrientation;
+    final turnBack =
+        wide && turned != null && returnTo != null && returnTo.isNotEmpty;
+
+    // Everything that costs a hitch happens here, behind the ball.
+    Future<void> swap() async {
+      if (turnBack) {
+        // Keep the page laid out wide while the window turns under it: it
+        // is about to go, and re-laying it out tall would only hitch.
+        turned.value = false;
+        await _setSeamlessRotation(true);
+        await SystemChrome.setPreferredOrientations([returnTo.first]);
+        await _awaitWindow(wide: false);
+      }
+      if (navigator.mounted) navigator.pop<T>(result);
+      // A few frames for the screen behind to lay itself out.
+      for (var i = 0; i < 3; i++) {
+        await SchedulerBinding.instance.endOfFrame;
+      }
+      if (turnBack) {
+        if (returnTo.length > 1) {
+          unawaited(SystemChrome.setPreferredOrientations(returnTo));
+        }
+        unawaited(_setSeamlessRotation(false));
+      }
+    }
+
+    final done = Completer<void>();
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _SandExitOverlay(
+        sand: sand,
+        landing: to,
+        turns: turnBack,
+        swap: swap,
+        onComplete: () {
+          entry.remove();
+          if (!done.isCompleted) done.complete();
+        },
+      ),
+    );
+    overlay.insert(entry);
+    return done.future;
+  }
+
+  /// Push [page] through sand: [from]'s circle comes apart into a turning
+  /// ball in the middle of the screen as the screen goes dark, the phone is
+  /// turned to [orientation] and [page] pushed behind the ball, and once
+  /// [ready] (or a safety timeout) the ball comes undone into [page], its
+  /// pieces flying out from the middle and growing back into the picture.
+  ///
+  /// [element] colours the light in the sand; [back] is where the page's
+  /// sand pours when it is left through [leaveThroughSand]. Falls back to
+  /// [pushThroughGlyphs] (spelling [title]) when [from] cannot be pictured.
+  /// Completes with the route's result when the page is popped.
+  static Future<T?> pushThroughSand<T>(
+    BuildContext context, {
+    required Widget page,
+    required SandSource from,
+    required String title,
+    String element = '',
+    ValueListenable<bool>? ready,
+    List<DeviceOrientation>? orientation,
+    List<DeviceOrientation>? returnOrientation,
+    SandLanding? back,
+  }) async {
+    final navigator = Navigator.of(context);
+    final overlay = navigator.overlay;
+    final ratio = _pictureRatio(context);
+    final shot = overlay == null ? null : await _picture(from.picture, ratio);
+    if (shot == null || !overlay!.mounted || !context.mounted) {
+      shot?.$1.dispose();
+      if (!context.mounted) return null;
+      return pushThroughGlyphs<T>(
+        context,
+        page: page,
+        title: title,
+        element: element,
+        ready: ready,
+        orientation: orientation,
+        returnOrientation: returnOrientation,
+        back: back,
+      );
+    }
+    final (image, boundary) = shot;
+    final seed = DateTime.now().millisecondsSinceEpoch;
+    final source = SandPicture(
+      image: image,
+      pixelRatio: ratio,
+      size: boundary.size,
+      way: SandWay.gather,
+      origin: boundary.localToGlobal(Offset.zero),
+      screenCentre: _screenCentre(),
+      circle: from.circle,
+      element: element,
+      seed: seed,
+    );
+    final turnTo = orientation == null || orientation.isEmpty
+        ? null
+        : orientation.first;
+    final wideTo =
+        turnTo == DeviceOrientation.landscapeLeft ||
+        turnTo == DeviceOrientation.landscapeRight;
+    final needsTurn = turnTo != null && wideTo != _windowWide();
+    final turned = ValueNotifier<bool>(!needsTurn);
+    final picture = GlobalKey();
+    final routeResult = Completer<T?>();
+
+    // Everything that costs a hitch happens here, behind the ball.
+    Future<void> swap() async {
+      if (turnTo != null) {
+        await _setSeamlessRotation(true);
+        await SystemChrome.setPreferredOrientations([turnTo]);
+      }
+      navigator
+          .push<T>(
+            PageRouteBuilder(
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) => _passagePage(
+                page: page,
+                picture: picture,
+                turned: needsTurn ? turned : null,
+                returnOrientation: returnOrientation,
+                back: back,
+              ),
+            ),
+          )
+          .then((result) async {
+            if (returnOrientation != null) {
+              await SystemChrome.setPreferredOrientations(returnOrientation);
+            }
+            routeResult.complete(result);
+          }, onError: routeResult.completeError);
+      if (needsTurn) await _awaitWindow(wide: wideTo);
+      turned.value = true;
+      for (var i = 0; i < 3; i++) {
+        await SchedulerBinding.instance.endOfFrame;
+      }
+    }
+
+    // The page as built, to come out of the ball.
+    Future<SandPicture?> capture() async {
+      final shot = await _picture(picture, ratio);
+      if (shot == null) return null;
+      final (image, boundary) = shot;
+      return SandPicture(
+        image: image,
+        pixelRatio: ratio,
+        size: boundary.size,
+        way: SandWay.assemble,
+        origin: boundary.localToGlobal(Offset.zero),
+        screenCentre: _screenCentre(),
+        element: element,
+        seed: seed + 1,
+      );
+    }
+
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _SandEnterOverlay(
+        from: source,
+        turns: needsTurn,
+        swap: swap,
+        capture: capture,
+        ready: ready,
+        onComplete: () {
+          entry.remove();
+          if (orientation != null && orientation.length > 1) {
+            unawaited(SystemChrome.setPreferredOrientations(orientation));
+          }
+          if (turnTo != null) unawaited(_setSeamlessRotation(false));
+        },
+      ),
+    );
+    overlay.insert(entry);
+    return routeResult.future;
+  }
+
   /// Push a page and force Landscape orientation seamlessly
   static Future<T?> pushLandscape<T>(
     BuildContext context, {
@@ -466,6 +792,8 @@ class VoidPortal {
 class _PreTurned extends StatelessWidget {
   const _PreTurned({required this.turned, required this.child});
 
+  /// Also flipped back to false by [VoidPortal.leaveThroughSand], so the
+  /// page stays wide while the phone turns back under the sand.
   final ValueListenable<bool> turned;
   final Widget child;
 
@@ -495,6 +823,50 @@ class _PreTurned extends StatelessWidget {
       },
     );
   }
+}
+
+/// A page pushed through a portal or sand: pictured by [picture], laid out
+/// wide while the phone turns ([turned], null for no turn), and told its
+/// way back.
+Widget _passagePage({
+  required Widget page,
+  required GlobalKey picture,
+  required ValueNotifier<bool>? turned,
+  required List<DeviceOrientation>? returnOrientation,
+  required SandLanding? back,
+}) {
+  final body = RepaintBoundary(key: picture, child: page);
+  return _PassageScope(
+    picture: picture,
+    turned: turned,
+    returnOrientation: returnOrientation,
+    back: back,
+    child: turned == null ? body : _PreTurned(turned: turned, child: body),
+  );
+}
+
+/// What a page entered through a passage knows about its way back: what
+/// pictures it, the switch that holds it wide (if it was turned), the
+/// orientation the screen behind wants, and where its sand pours.
+class _PassageScope extends InheritedWidget {
+  const _PassageScope({
+    required this.picture,
+    required this.turned,
+    required this.returnOrientation,
+    required this.back,
+    required super.child,
+  });
+
+  final GlobalKey picture;
+  final ValueNotifier<bool>? turned;
+  final List<DeviceOrientation>? returnOrientation;
+  final SandLanding? back;
+
+  static _PassageScope? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_PassageScope>();
+
+  @override
+  bool updateShouldNotify(_PassageScope old) => false;
 }
 
 class _GlyphPortalOverlay extends StatefulWidget {
@@ -763,6 +1135,430 @@ class _GlyphPortalOverlayState extends State<_GlyphPortalOverlay>
       ),
     );
   }
+}
+
+// ============================================================================
+// Sand exit overlay
+// ============================================================================
+
+class _SandExitOverlay extends StatefulWidget {
+  const _SandExitOverlay({
+    required this.sand,
+    required this.landing,
+    required this.turns,
+    required this.swap,
+    required this.onComplete,
+  });
+
+  final SandPicture sand;
+  final SandLanding landing;
+
+  /// The phone turns in the swap: the sand goes out for it.
+  final bool turns;
+
+  /// Turns the phone back and pops the page, behind the ball.
+  final Future<void> Function() swap;
+  final VoidCallback onComplete;
+
+  @override
+  State<_SandExitOverlay> createState() => _SandExitOverlayState();
+}
+
+class _SandExitOverlayState extends State<_SandExitOverlay>
+    with SingleTickerProviderStateMixin {
+  /// After the last piece lets go, this long before the swap (or, with a
+  /// turn, before the sand starts to go out for it): it is most of the way
+  /// into the ball.
+  static const double _swapAfterRelease = 0.45;
+  static const double _dimAfterRelease = 0.3;
+
+  /// The ball turns a moment on its own before it pours.
+  static const double _hold = 0.15;
+
+  /// The sand meets the circle about this long after it sets off.
+  static const double _meet = 0.45;
+
+  late final Ticker _ticker;
+  final _clock = _SandClock();
+  bool _swapStarted = false, _swapped = false, _landed = false, _done = false;
+  double? _pourAt;
+  Rect? _home;
+  final _veil = _SandVeil();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.turns) {
+      _veil.dimAt = widget.sand.goneBy + _dimAfterRelease;
+    }
+    _ticker = createTicker(_onTick)..start();
+  }
+
+  void _onTick(Duration elapsed) {
+    if (_done) return;
+    final t = _clock.advance(elapsed);
+    final sand = widget.sand;
+    final swapAt = widget.turns ? _veil.outBy : sand.goneBy + _swapAfterRelease;
+    if (!_swapStarted && t >= swapAt) {
+      _swapStarted = true;
+      unawaited(
+        widget.swap().catchError((Object _) {}).whenComplete(() {
+          _swapped = true;
+          // A couple of frames more on the dark for the stretched ones.
+          if (widget.turns) _veil.lightAt = _clock.t + 0.06;
+        }),
+      );
+    }
+    final pourAt = _pourAt;
+    if (pourAt == null) {
+      if (_swapped &&
+          t >= sand.doneBy + _hold &&
+          (!widget.turns || t >= _veil.litBy)) {
+        _pourAt = t;
+        _home = _homeHere();
+        // The screen behind is live again under the sand.
+        if (mounted) setState(() {});
+      }
+    } else {
+      if (!_landed && t >= pourAt + _meet) {
+        _landed = true;
+        if (_home != null) widget.landing.onLanded?.call();
+      }
+      if (t >= pourAt + SandPicture.pourTime) {
+        _done = true;
+        _ticker.stop();
+        widget.onComplete();
+        return;
+      }
+    }
+    _clock.tick(t);
+  }
+
+  /// The landing circle in this overlay's own coordinates.
+  Rect? _homeHere() {
+    final Rect? global;
+    try {
+      global = widget.landing.circle?.call();
+    } catch (_) {
+      return null;
+    }
+    if (global == null) return null;
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached) return global;
+    return box.globalToLocal(global.topLeft) & global.size;
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _clock.dispose();
+    widget.sand.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final paint = RepaintBoundary(
+      child: CustomPaint(size: Size.infinite, painter: _SandExitPainter(this)),
+    );
+    // The page under the sand is still live: nothing reaches it. The screen
+    // behind is free to touch once the sand pours.
+    return _pourAt == null
+        ? AbsorbPointer(child: paint)
+        : IgnorePointer(child: paint);
+  }
+}
+
+/// The ball going out like an ember while the phone turns, and lighting
+/// again after.
+///
+/// For a few frames after the window turns, Android shows the app's last
+/// frame stretched to the new shape -- the round ball squashed into an oval
+/// and shoved aside -- until the app has drawn at the new size. Black
+/// stretched is still black, so the turn happens with the sand out: it
+/// draws in on itself and dims to nothing, the window turns, and it swells
+/// and brightens back the new way up. The push or pop behind it (a whole
+/// screen's first frame) lands on the dark too.
+class _SandVeil {
+  static const double dimTime = 0.3, lightTime = 0.35;
+
+  /// When the sand starts to go out, and to light again (null: not yet).
+  double? dimAt, lightAt;
+
+  /// From then on the sand is fully out: the turn may begin.
+  double get outBy => (dimAt ?? double.infinity) + dimTime;
+
+  /// From then on the sand is fully lit again.
+  double get litBy => (lightAt ?? double.infinity) + lightTime;
+
+  /// How lit the sand is [t] seconds in: 1 lit, 0 out.
+  double lit(double t) {
+    final dim = dimAt;
+    if (dim == null) return 1;
+    final light = lightAt;
+    if (light == null || t < light) return 1 - _sandSmooth(dim, outBy, t);
+    return _sandSmooth(light, litBy, t);
+  }
+
+  /// Draws [canvas] drawn in toward the middle of [size] as the sand goes
+  /// out. Restore it after.
+  static void drawIn(Canvas canvas, Size size, double lit) {
+    final c = size.center(Offset.zero);
+    final k = 0.55 + 0.45 * lit;
+    canvas
+      ..save()
+      ..translate(c.dx, c.dy)
+      ..scale(k, k)
+      ..translate(-c.dx, -c.dy);
+  }
+}
+
+class _SandClock extends ChangeNotifier {
+  double t = 0;
+  Duration _last = Duration.zero;
+
+  /// The passage's own time at [elapsed]: a long frame (the push or pop
+  /// behind the ball laying out a whole screen) counts as one short step,
+  /// so the sand pauses for it instead of jumping.
+  double advance(Duration elapsed) {
+    final dt = (elapsed - _last).inMicroseconds / 1e6;
+    _last = elapsed;
+    return t + dt.clamp(0.0, 1 / 30);
+  }
+
+  void tick(double now) {
+    t = now;
+    notifyListeners();
+  }
+}
+
+/// The black every sand passage happens on.
+const Color _sandGround = Color(0xFF050507);
+final Paint _sandGroundPaint = Paint();
+
+void _paintSandGround(Canvas canvas, Size size, double alpha) {
+  if (alpha <= 0.002) return;
+  _sandGroundPaint.color = _sandGround.withValues(alpha: alpha);
+  canvas.drawRect(Offset.zero & size, _sandGroundPaint);
+}
+
+double _sandSmooth(double a, double b, double x) {
+  final t = ((x - a) / (b - a)).clamp(0.0, 1.0);
+  return t * t * (3 - 2 * t);
+}
+
+class _SandExitPainter extends CustomPainter {
+  _SandExitPainter(this.state) : super(repaint: state._clock);
+
+  final _SandExitOverlayState state;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = state._clock.t;
+    final pourAt = state._pourAt;
+    // The black the page leaves behind, lifting off the screen behind as
+    // the sand pours.
+    _paintSandGround(
+      canvas,
+      size,
+      pourAt == null ? 1 : 1 - _sandSmooth(0, 0.55, t - pourAt),
+    );
+    final lit = state._veil.lit(t);
+    if (lit <= 0.002) return;
+    if (lit < 1) _SandVeil.drawIn(canvas, size, lit);
+    state.widget.sand.paintGather(
+      canvas,
+      size,
+      t,
+      pourAt: pourAt,
+      home: state._home,
+      fade: lit,
+    );
+    if (lit < 1) canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_SandExitPainter old) => old.state != state;
+}
+
+class _SandEnterOverlay extends StatefulWidget {
+  const _SandEnterOverlay({
+    required this.from,
+    required this.turns,
+    required this.swap,
+    required this.capture,
+    required this.ready,
+    required this.onComplete,
+  });
+
+  /// The circle coming apart into the ball.
+  final SandPicture from;
+
+  /// The phone turns in the swap: the sand goes out for it.
+  final bool turns;
+
+  /// Turns the phone and pushes the page, behind the ball.
+  final Future<void> Function() swap;
+
+  /// The page as built, once it is ready.
+  final Future<SandPicture?> Function() capture;
+  final ValueListenable<bool>? ready;
+  final VoidCallback onComplete;
+
+  @override
+  State<_SandEnterOverlay> createState() => _SandEnterOverlayState();
+}
+
+class _SandEnterOverlayState extends State<_SandEnterOverlay>
+    with SingleTickerProviderStateMixin {
+  /// The screen behind darkens over this long as its circle comes apart.
+  static const double _darken = 0.6;
+
+  /// Once the ball is whole, this long before the push: anything still
+  /// flying would stall in the push's first frame, the slow turn barely.
+  static const double _swapAfterGather = 0.1;
+
+  /// Show the page regardless after this long behind the ball (wall time),
+  /// so one that never says it is ready cannot trap the player.
+  static const double _timeout = 8.0;
+
+  /// The finished picture fades off the live page in this long.
+  static const double _fade = 0.3;
+
+  late final Ticker _ticker;
+  final _clock = _SandClock();
+  bool _swapStarted = false, _swapped = false, _capturing = false;
+  bool _done = false;
+  double _swappedAt = 0;
+  double? _assembleAt, _fadeAt;
+  SandPicture? _to;
+  final _veil = _SandVeil();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.turns) {
+      _veil.dimAt = widget.from.doneBy + _swapAfterGather;
+    }
+    _ticker = createTicker(_onTick)..start();
+  }
+
+  void _onTick(Duration elapsed) {
+    if (_done) return;
+    final t = _clock.advance(elapsed);
+    final swapAt = widget.turns
+        ? _veil.outBy
+        : widget.from.doneBy + _swapAfterGather;
+    if (!_swapStarted && t >= swapAt) {
+      _swapStarted = true;
+      unawaited(
+        widget.swap().catchError((Object _) {}).whenComplete(() {
+          _swapped = true;
+          _swappedAt = _clock.t;
+          // A couple of frames more on the dark for the stretched ones.
+          if (widget.turns) _veil.lightAt = _clock.t + 0.06;
+        }),
+      );
+    }
+    if (_swapped &&
+        !_capturing &&
+        ((widget.ready?.value ?? true) || t - _swappedAt >= _timeout)) {
+      _capturing = true;
+      widget.capture().then(
+        (picture) {
+          if (!mounted || _done) {
+            picture?.dispose();
+            return;
+          }
+          _to = picture;
+          // Not before the ball has lit again after the turn.
+          _assembleAt = widget.turns
+              ? math.max(_clock.t, _veil.litBy)
+              : _clock.t;
+          if (picture == null) _fadeAt = _assembleAt;
+        },
+        onError: (Object _) {
+          if (mounted) _fadeAt = _clock.t;
+        },
+      );
+    }
+    final to = _to, assembleAt = _assembleAt;
+    if (to != null &&
+        assembleAt != null &&
+        _fadeAt == null &&
+        t - assembleAt >= to.doneBy + 0.05) {
+      _fadeAt = t;
+    }
+    final fadeAt = _fadeAt;
+    if (fadeAt != null && t >= fadeAt + _fade) {
+      _done = true;
+      _ticker.stop();
+      widget.onComplete();
+      return;
+    }
+    _clock.tick(t);
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _clock.dispose();
+    widget.from.dispose();
+    _to?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Nothing reaches the screen behind, nor the page until it is shown.
+    return AbsorbPointer(
+      child: RepaintBoundary(
+        child: CustomPaint(
+          size: Size.infinite,
+          painter: _SandEnterPainter(this),
+        ),
+      ),
+    );
+  }
+}
+
+class _SandEnterPainter extends CustomPainter {
+  _SandEnterPainter(this.state) : super(repaint: state._clock);
+
+  final _SandEnterOverlayState state;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = state._clock.t;
+    final fadeAt = state._fadeAt;
+    final gone = fadeAt == null ? 0.0 : _sandSmooth(0, 1, (t - fadeAt) / 0.3);
+    _paintSandGround(
+      canvas,
+      size,
+      _sandSmooth(0, _SandEnterOverlayState._darken, t) * (1 - gone),
+    );
+    final from = state.widget.from;
+    if (!state._swapStarted) from.paintHole(canvas, size, _sandGround);
+    final assembleAt = state._assembleAt;
+    final since = assembleAt == null || t < assembleAt ? null : t - assembleAt;
+    final to = state._to;
+    // The circle's grains go out of the ball as the page's come into it,
+    // and out altogether while the phone turns.
+    final lit = state._veil.lit(t);
+    final fade =
+        (since == null ? 1 - gone : 1 - _sandSmooth(0, 0.45, since)) * lit;
+    if (fade > 0.002) {
+      if (lit < 1) _SandVeil.drawIn(canvas, size, lit);
+      from.paintGather(canvas, size, t, fade: fade);
+      if (lit < 1) canvas.restore();
+    }
+    if (to != null && since != null) {
+      to.paintAssemble(canvas, size, t, since, opacity: 1 - gone);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SandEnterPainter old) => old.state != state;
 }
 
 // ============================================================================

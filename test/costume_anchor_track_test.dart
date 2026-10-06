@@ -2,15 +2,16 @@
 library;
 
 // Follows a costume's fitted place through every frame of a species' sheet,
-// and prints the per-frame table for `FamilyCostume.frameFits`:
+// and prints the per-frame table for its `frameFits` (costume_fits.dart):
 //
-//   COSTUME_TRACK=WNG01,PIP01 flutter test test/costume_anchor_track_test.dart
+//   COSTUME=hat COSTUME_TRACK=WNG01,PIP01 flutter test test/costume_anchor_track_test.dart
 //
-// Only frame 0 is fitted by hand (`FamilyCostume.placements`). The rest are
+// COSTUME is a costume's tag (hat, nose, sunglasses). Only frame 0 is
+// fitted by hand (its `placements`). The rest are
 // found by matching a patch of the creature next to that place — the face
-// under a hat, the snout round a nose — in each later frame, so the costume
-// rides on what it sits on and not on what sways near it (a Firewing's
-// flames, a wing). A patch that a species animates can be moved with
+// under a hat, the snout round a nose, the eyes behind sunglasses — in each
+// later frame, so the costume rides on what it sits on and not on what
+// sways near it (a Firewing's flames, a wing). A patch that a species animates can be moved with
 // `_patchOverrides`.
 
 import 'dart:convert';
@@ -24,10 +25,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// Frames are matched at this fraction of the sheet's resolution.
 const _down = 3;
 
-/// The matched patch for a species, if its default would catch something
-/// that moves on its own: (centre dx, dy from the fitted place, half width,
-/// half height), all as fractions of the frame.
-const _patchOverrides = <String, (double, double, double, double)>{
+/// The matched patch for a species' hat, if its default would catch
+/// something that moves on its own: (centre dx, dy from the fitted place,
+/// half width, half height), all as fractions of the frame.
+const _hatPatchOverrides = <String, (double, double, double, double)>{
   // Earthwing's rocks repeat: the brows and eyes don't.
   'WNG03': (-0.045, 0.12, 0.07, 0.04),
   // Mudwing's and Dustwing's wings spread in behind the head in frame 3.
@@ -39,6 +40,7 @@ void main() {
   test('track costume anchors', () async {
     final only = Platform.environment['COSTUME_TRACK'];
     if (only == null) return;
+    final costume = FamilyCostume.ofTag(Platform.environment['COSTUME'])!;
     final data =
         jsonDecode(
               File('assets/data/alchemons_creatures.json').readAsStringSync(),
@@ -47,8 +49,7 @@ void main() {
     final entries = (data['creatures'] as List).cast<Map<String, dynamic>>();
     final out = StringBuffer();
     for (final id in only.split(',')) {
-      final fit = FamilyCostume.placements[id]!;
-      final hat = FamilyCostume.forSpecies(id) == FamilyCostume.partyHat;
+      final fit = costume.placements[id]!;
       final e = entries.singleWhere((x) => x['id'] == id);
       final sd = e['spriteData'] as Map<String, dynamic>;
       final frames = await _frames(
@@ -59,12 +60,19 @@ void main() {
         (sd['rows'] as num?)?.toInt() ?? 1,
       );
       // The face under a hat, as big as the head the hat was sized to; the
-      // snout round a nose.
+      // snout round a nose; the eyes and brows behind sunglasses.
       final patch =
-          _patchOverrides[id] ??
-          (hat
-              ? (fit.$3 * 0.09, fit.$3 * 0.4, fit.$3 * 0.48, fit.$3 * 0.33)
-              : (0.06, 0.0, 0.08, 0.06));
+          (costume == FamilyCostume.partyHat ? _hatPatchOverrides[id] : null) ??
+          switch (costume) {
+            FamilyCostume.partyHat => (
+              fit.$3 * 0.09,
+              fit.$3 * 0.4,
+              fit.$3 * 0.48,
+              fit.$3 * 0.33,
+            ),
+            FamilyCostume.nose => (0.06, 0.0, 0.08, 0.06),
+            FamilyCostume.sunglasses => (0.0, 0.0, fit.$3 * 0.95, fit.$3 * 0.5),
+          };
       final row = <String>[];
       for (final f in frames) {
         // The fitted place, carried with the patch. Moves only: the frames

@@ -39,6 +39,7 @@ final _volcanicAuraOffer = _offerFor(InvKeys.alchemyVolcanicAura);
 const _allEffectKeys = <String>[
   InvKeys.alchemyCelebration,
   InvKeys.alchemyNose,
+  InvKeys.alchemySunglasses,
   InvKeys.alchemyGlow,
   InvKeys.alchemyElementalAura,
   InvKeys.alchemyVolcanicAura,

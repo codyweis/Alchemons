@@ -127,7 +127,7 @@ void main() {
                       guide = false;
                     });
                   },
-                  onEnter: () => enters++,
+                  onEnter: (_, __) => enters++,
                   onStir: (_, _, _) => stirs++,
                   onSwirl: (_, _, _, _) => swirls++,
                   child: Center(
@@ -194,7 +194,7 @@ void main() {
                   spriteKey: GlobalKey(),
                   tone: const Color(0xFFD6A35C),
                   onToggle: (v) => setState(() => open = v),
-                  onEnter: () {},
+                  onEnter: (_, __) {},
                   window: (context, onReady) {
                     builds++;
                     ready = onReady;
@@ -253,7 +253,7 @@ void main() {
               spriteKey: GlobalKey(),
               tone: const Color(0xFF86CF9C),
               onToggle: (_) {},
-              onEnter: () {},
+              onEnter: (_, __) {},
               child: const SizedBox(key: ValueKey('hero')),
             ),
           ),

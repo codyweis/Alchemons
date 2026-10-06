@@ -48,11 +48,11 @@ void _drawAlchemyEffectCanvas({
   );
 }
 
-/// A worn family costume over [sprite], just drawn centred on the origin
-/// in the same transform (its turn and scale), at frame [index]'s fit.
+/// Worn [costumes] over [sprite], just drawn centred on the origin in the
+/// same transform (its turn and scale), at frame [index]'s fit.
 void _drawCostumeOnSprite(
   Canvas canvas,
-  String? effect,
+  String? costumes,
   Sprite sprite,
   int index,
   double elapsed,
@@ -60,7 +60,7 @@ void _drawCostumeOnSprite(
 ) {
   CostumePaint.paintWorn(
     canvas,
-    effect,
+    costumes,
     Rect.fromCenter(
       center: Offset.zero,
       width: sprite.srcSize.x,

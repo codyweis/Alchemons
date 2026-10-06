@@ -388,7 +388,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
         final costume = FamilyCostume.ofItem(item.key);
         if (costume == null || costume.fits(instance.baseId)) return true;
         _showToast(
-          '${costume.title} is for ${costume.familyName}.',
+          '${costume.title} fits ${FamilyCostume.fittedFamiliesText}.',
           icon: AppIcons.auto_awesome_rounded,
           color: Colors.orange,
         );
@@ -398,24 +398,37 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
 
     if (selectedInstance == null || !mounted) return;
 
-    // A costume goes on in a colour picked on the creature.
-    Color? color;
+    // A costume goes on in a colour picked on the creature, beside its
+    // effect and any other costumes.
     final costume = FamilyCostume.ofItem(item.key);
     if (costume != null) {
-      color = await pickCostumeColor(
+      final color = await pickCostumeColor(
         context,
         instance: selectedInstance,
         costume: costume,
         confirmLabel: 'WEAR ${costume.noun.toUpperCase()}',
       );
       if (color == null || !mounted) return;
+      if (!await wearCostume(
+        db,
+        instanceId: selectedInstance.instanceId,
+        costume: costume,
+        color: color,
+      )) {
+        return;
+      }
+      _showToast(
+        'Wearing ${def.name}!',
+        icon: AppIcons.check_circle_rounded,
+        color: Colors.green,
+      );
+      return;
     }
 
     final applied = await applyAlchemyEffect(
       db,
       instanceId: selectedInstance.instanceId,
       itemKey: item.key,
-      color: color,
     );
     if (!applied) return;
 

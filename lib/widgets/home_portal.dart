@@ -123,8 +123,9 @@ class HomePortalHero extends StatefulWidget {
   /// The player opened (true) or closed (false) it with a circle.
   final ValueChanged<bool> onToggle;
 
-  /// A tap on the open window.
-  final VoidCallback onEnter;
+  /// A tap on the open window: the boundary that pictures it, and the
+  /// hole, in global coordinates.
+  final void Function(GlobalKey picture, Rect hole) onEnter;
 
   /// What the hole looks onto, filling a square the window's size. It is
   /// handed a callback to say when it is ready to be seen; until then dark
@@ -144,6 +145,19 @@ class HomePortalHero extends StatefulWidget {
   /// rim speed (px/s, positive clockwise), and pull (negative lets go).
   final void Function(Offset global, double reach, double spin, double pull)?
   onSwirl;
+
+  /// The hole of the portal [key] belongs to, in global coordinates (null
+  /// when it is not on screen).
+  static Rect? holeOf(GlobalKey key) {
+    final state = key.currentState;
+    if (state is! _HomePortalHeroState || !state.mounted) return null;
+    final box = state.context.findRenderObject();
+    if (box is! RenderBox || !box.attached) return null;
+    return Rect.fromCircle(
+      center: state._global(state._center),
+      radius: state._radius,
+    );
+  }
 
   @override
   State<HomePortalHero> createState() => _HomePortalHeroState();
@@ -173,6 +187,9 @@ class _HomePortalHeroState extends State<HomePortalHero>
 
   /// Bumped each time the window is dropped, so the next one is built fresh.
   int _windowTurn = 0;
+
+  /// The portal as drawn, pictured when the player goes through it.
+  final GlobalKey _picture = GlobalKey();
 
   Duration _last = Duration.zero;
 
@@ -445,7 +462,10 @@ class _HomePortalHeroState extends State<HomePortalHero>
     final inWindow = (_downAt - _center).distance <= _radius * 1.08;
     if (_open && _openingAt == null && inWindow) {
       HapticFeedback.selectionClick();
-      widget.onEnter();
+      widget.onEnter(
+        _picture,
+        Rect.fromCircle(center: _global(_center), radius: _radius),
+      );
     } else {
       widget.onTapSand?.call(e.position);
     }
@@ -467,56 +487,63 @@ class _HomePortalHeroState extends State<HomePortalHero>
       onPointerMove: _move,
       onPointerUp: _up,
       onPointerCancel: _cancel,
-      child: Stack(
-        fit: StackFit.expand,
-        clipBehavior: Clip.none,
-        children: [
-          // The seat in the sand and the dark grains turning in the hole.
-          IgnorePointer(
-            child: RepaintBoundary(
-              child: CustomPaint(
-                painter: _WindowPainter(this, repaint: _repaint),
+      child: RepaintBoundary(
+        key: _picture,
+        child: Stack(
+          fit: StackFit.expand,
+          clipBehavior: Clip.none,
+          children: [
+            // The seat in the sand and the dark grains turning in the hole.
+            IgnorePointer(
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _WindowPainter(this, repaint: _repaint),
+                ),
               ),
             ),
-          ),
-          // What it looks onto, cut to the hole as it opens and shuts.
-          if (_showWindow && window != null)
-            LayoutBuilder(
-              builder: (context, box) {
-                final size = box.biggest;
-                final r = math.min(size.height * 0.42, size.width * 0.38);
-                return ClipPath(
-                  clipper: _HoleClipper(this, repaint: _repaint),
-                  child: Center(
-                    child: SizedBox.square(
-                      dimension: r * 2,
-                      child: ValueListenableBuilder<double>(
-                        valueListenable: _live,
-                        builder: (context, live, child) => Opacity(
-                          opacity: Curves.easeInOut.transform(live),
-                          child: child,
-                        ),
-                        child: KeyedSubtree(
-                          key: ValueKey(_windowTurn),
-                          child: window(context, _windowIsReady),
+            // What it looks onto, cut to the hole as it opens and shuts.
+            if (_showWindow && window != null)
+              LayoutBuilder(
+                builder: (context, box) {
+                  final size = box.biggest;
+                  final r = math.min(size.height * 0.42, size.width * 0.38);
+                  return ClipPath(
+                    clipper: _HoleClipper(this, repaint: _repaint),
+                    child: Center(
+                      child: SizedBox.square(
+                        dimension: r * 2,
+                        child: ValueListenableBuilder<double>(
+                          valueListenable: _live,
+                          builder: (context, live, child) => Opacity(
+                            opacity: Curves.easeInOut.transform(live),
+                            child: child,
+                          ),
+                          child: KeyedSubtree(
+                            key: ValueKey(_windowTurn),
+                            child: window(context, _windowIsReady),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
+            // Depth at the edge, and the lip of turning sand.
+            IgnorePointer(
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _LipPainter(this, repaint: _repaint),
+                ),
+              ),
             ),
-          // Depth at the edge, and the lip of turning sand.
-          IgnorePointer(
-            child: RepaintBoundary(
-              child: CustomPaint(painter: _LipPainter(this, repaint: _repaint)),
+            if (showChild) widget.child,
+            IgnorePointer(
+              child: CustomPaint(
+                painter: _OverPainter(this, repaint: _repaint),
+              ),
             ),
-          ),
-          if (showChild) widget.child,
-          IgnorePointer(
-            child: CustomPaint(painter: _OverPainter(this, repaint: _repaint)),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

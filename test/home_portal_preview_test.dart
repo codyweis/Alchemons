@@ -122,7 +122,7 @@ void main() {
                         open = v;
                         guide = false;
                       }),
-                      onEnter: () {},
+                      onEnter: (_, __) {},
                       onSwirl: (g, reach, spin, pull) {
                         final box =
                             shot.currentContext!.findRenderObject()!

@@ -62,6 +62,7 @@ abstract final class AlchemyEffectPaint {
   static const Set<String> keys = {
     FamilyCostume.hatPreview,
     FamilyCostume.nosePreview,
+    FamilyCostume.sunglassesPreview,
     alchemyGlow,
     elementalAura,
     volcanicAura,

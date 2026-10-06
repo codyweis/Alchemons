@@ -28,34 +28,57 @@ abstract final class HomePortalKeys {
   static const drawn = 'home_portal_drawn';
 }
 
-/// Descends to the home biome through the glyph portal (landscape there,
-/// portrait back) and resolves when the player comes back up.
+/// Descends to the home biome (landscape there, portrait back) and
+/// resolves when the player comes back up.
 ///
-/// [fromSpace] marks the descent that unlocks the home screen's portal.
+/// [from] is the home screen's window onto it: that circle lifts off as
+/// sand and comes undone into the biome. Without it (from space) the glyph
+/// portal is the way down. [back] is where the biome's sand pours when it
+/// is left. [fromSpace] marks the descent that unlocks the home screen's
+/// portal.
 Future<void> descendToHomeBiome(
   BuildContext context, {
   bool fromSpace = false,
+  SandSource? from,
+  SandLanding Function(String element)? back,
 }) async {
   final settings = context.read<AlchemonsDatabase>().settingsDao;
   final layout = await HomeBiomeLayout.loadOpen(settings);
   if (!context.mounted) return;
   final ready = ValueNotifier<bool>(false);
-  await VoidPortal.pushThroughGlyphs<void>(
-    context,
-    page: HomeBiomeScreen(revealReady: ready),
-    title: 'Home',
-    label: 'DESCENDING',
-    // The realm it is now borrows the portal of the wild one.
-    element: layout.realm.portalElement,
-    ready: ready,
-    orientation: const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ],
-    returnOrientation: const [
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ],
-  );
+  // The realm it is now borrows the light (and portal) of the wild one.
+  final element = layout.realm.portalElement;
+  const wide = [
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ];
+  const tall = [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown];
+  final page = HomeBiomeScreen(revealReady: ready);
+  final way = back?.call(element) ?? SandLanding(element: element);
+  if (from != null) {
+    await VoidPortal.pushThroughSand<void>(
+      context,
+      page: page,
+      from: from,
+      title: 'Home',
+      element: element,
+      ready: ready,
+      orientation: wide,
+      returnOrientation: tall,
+      back: way,
+    );
+  } else {
+    await VoidPortal.pushThroughGlyphs<void>(
+      context,
+      page: page,
+      title: 'Home',
+      label: 'DESCENDING',
+      element: element,
+      ready: ready,
+      orientation: wide,
+      returnOrientation: tall,
+      back: way,
+    );
+  }
   if (fromSpace) await settings.setSetting(HomePortalKeys.unlocked, '1');
 }

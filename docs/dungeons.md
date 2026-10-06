@@ -3528,6 +3528,31 @@ The split stage takes anything apart. Make Blood to free your Blood". The
 prototype (docs/prototypes/blood_rites) still has the old lane rules; the
 Dart rules are canonical.
 
+**THE MAXIM OPENS THE WAY DOWN; THE CAPTIVES ARE LETS; ROOMS ARRIVE
+SILENT (2026-10-06).**
+  · **The seal needs the maxim.** The author: "before going to star 2, we
+    should require the maxim to be found to open the door". The Circle's
+    seal used to open once all four cups were full. Now it needs all four
+    cups AND the maxim (`_riteSealOpen`). Free all four (Star 1) and the
+    cups fill. Then turn the two rings until all four streams meet in the
+    middle: the quintessence, and the Lost Maxim (kBloodEggId) plays. Once
+    it is found, the quintessence is drawn down into the seal: the four
+    elements' grains spiral in on the middle as the six stone leaves draw
+    back onto the way down (BloodMoments_seal_opens.png). The HINT says
+    "The seal stays shut" until then. A run already down in the Heart (Blood
+    taken, or freed) keeps the seal open, so no old save is shut out.
+  · **The four captives are the Lets.** Airlet, Firelet, Earthlet and
+    Waterlet (LET04, LET01, LET03, LET02) are held in the four rooms, freed,
+    poured into the Heart, and fight beside Blood (`riteCaptivesFrom`
+    prefers the element's Let).
+  · **No popups on entering a room.** The author: "stop saying popups like
+    the heart etc for when we go into the rooms". Blood's rooms no longer
+    announce themselves ("The Circle", "The Heart", "This captive is
+    freed") as you walk in. The minimap caption still names each one, and a
+    room's one-time teach still says a rule the room can't show. Every other
+    planet keeps its arrival line (test/dungeon_arrival_names_test.dart
+    exempts Blood).
+
 **FAMILY SIZES IN EVERY DUNGEON (2026-10-06).** The author asked whether
 dungeons used the same Alchemon sizes as survival and space. They didn't.
 Survival draws a 62.4-unit box times the family's size, and space a

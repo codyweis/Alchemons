@@ -783,6 +783,10 @@ class _HomeScreenState extends State<HomeScreen>
   /// Round the featured sprite alone, read into grains as it falls in.
   final GlobalKey _heroSpriteKey = GlobalKey();
 
+  /// The home portal round the featured Alchemon: where the way down to
+  /// the home biome starts, and where the sand comes back to.
+  final GlobalKey _homePortalKey = GlobalKey();
+
   bool _homePortalUnlocked = false;
   bool _homePortalOpen = false;
 
@@ -1283,6 +1287,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (!_homePortalUnlocked) return hero;
     return SizedBox.expand(
       child: HomePortalHero(
+        key: _homePortalKey,
         open: _homePortalOpen,
         spriteKey: _heroSpriteKey,
         tone: theme.primary,
@@ -2530,14 +2535,27 @@ class _HomeScreenState extends State<HomeScreen>
     async.unawaited(settings.setSetting(HomePortalKeys.drawn, '1'));
   }
 
-  Future<void> _enterHomePortal() async {
+  Future<void> _enterHomePortal(GlobalKey picture, Rect hole) async {
     if (_homePortalDescending) return;
     setState(() => _homePortalDescending = true);
     try {
       async.unawaited(
         context.read<AudioController>().playSound(SoundCue.cosmicPortalOpen),
       );
-      await descendToHomeBiome(context);
+      // Down through the window as sand, and back up into it the same way.
+      await descendToHomeBiome(
+        context,
+        from: SandSource(picture: picture, circle: hole),
+        back: (element) => SandLanding(
+          element: element,
+          circle: () => HomePortalHero.holeOf(_homePortalKey),
+          onLanded: () {
+            final hole = HomePortalHero.holeOf(_homePortalKey);
+            final at = hole == null ? null : _realmLocal(hole.center);
+            if (at != null) _realmField?.ripple(at);
+          },
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {

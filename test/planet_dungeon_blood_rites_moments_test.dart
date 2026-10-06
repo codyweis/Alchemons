@@ -197,6 +197,25 @@ void main() {
     });
   });
 
+  testWidgets('the Circle: the maxim found, the seal opens', (tester) async {
+    await tester.runAsync(() async {
+      final g = await _game('rite_circle', stars: 3, freed: kRiteElements.toSet(), view: const Size(960, 960));
+      g.creatures.first.position = kRiteCircleCentre + const Offset(0, 262);
+      g.update(1 / 60);
+      g.activateAbility();
+      g.creatures.first.position = kRiteCircleCentre + const Offset(0, 160);
+      g.update(1 / 60);
+      g.activateAbility();
+      g.creatures.first.position = kRiteCircleCentre + const Offset(0, 330);
+      expect(
+        await _film(g, 'seal_opens', [0, .6, 1.2, 1.8, 2.4, 3.0, 3.6, 4.2, 4.8, 5.4, 6.0, 6.6, 7.2, 8.0, 9.0],
+            focus: kRiteCircleCentre, radius: 200),
+        greaterThan(0),
+      );
+      expect(g.discoveredClouds, contains(kBloodEggId));
+    });
+  });
+
   testWidgets('the sacrifice', (tester) async {
     await tester.runAsync(() async {
       final g = await _game('rite_circle', stars: 3, view: const Size(960, 700));

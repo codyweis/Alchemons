@@ -112,6 +112,9 @@ class CreatureInstances extends Table {
 
   TextColumn get alchemyEffect => text().nullable()();
 
+  /// The costumes it wears, beside its effect: a `WornCostumes`, saved.
+  TextColumn get costumes => text().nullable()();
+
   /// A wild-fusion mutation ('alchemized', 'transmuted'), or null. Belongs to
   /// this individual alone: breeding never passes it on.
   TextColumn get mutation => text().nullable()();

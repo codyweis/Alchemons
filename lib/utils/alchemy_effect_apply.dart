@@ -5,32 +5,20 @@ import 'package:flutter/painting.dart' show Color;
 
 /// Puts the alchemy effect bought as [itemKey] on a creature, using up one.
 /// Whatever effect it replaces goes back into the inventory instead of being
-/// lost, so swapping is free. A family costume goes on only its own family,
-/// fitted to the species, in [color]. Returns false when [itemKey] is
-/// not an effect item for this creature, or none is owned.
+/// lost, so swapping is free. Returns false when [itemKey] is not an effect
+/// item (a costume is worn with [wearCostume]), or none is owned.
 Future<bool> applyAlchemyEffect(
   AlchemonsDatabase db, {
   required String instanceId,
   required String itemKey,
-  Color? color,
 }) => db.transaction(() async {
   final instance = await db.creatureDao.getInstance(instanceId);
   if (instance == null) return false;
-  final costume = FamilyCostume.ofItem(itemKey);
-  final effect = costume != null
-      ? costume.effectOn(instance.baseId, color: color)
-      : InvKeys.alchemyEffectFor(itemKey);
+  if (FamilyCostume.ofItem(itemKey) != null) return false;
+  final effect = InvKeys.alchemyEffectFor(itemKey);
   if (effect == null) return false;
   final current = instance.alchemyEffect;
   if (current == effect) return true; // already wearing it; keep the item
-  // The same costume in another colour: only the colour changes.
-  if (costume != null && costume == FamilyCostume.ofEffect(current)) {
-    await db.creatureDao.updateAlchemyEffect(
-      instanceId: instanceId,
-      effect: effect,
-    );
-    return true;
-  }
   if (await db.inventoryDao.getItemQty(itemKey) < 1) return false;
   await db.creatureDao.updateAlchemyEffect(
     instanceId: instanceId,
@@ -57,19 +45,64 @@ Future<void> removeAlchemyEffect(
   if (item != null) await db.inventoryDao.addItemQty(item, 1);
 });
 
-/// Gives the costume a creature is wearing a new [color], free. False if
+/// Puts [costume] on a creature in [color] (its own if null), using up
+/// one; it is worn beside its effect and any other costumes. If it already
+/// wears one, only the colour changes, free. False if it does not fit the
+/// species, or none is owned.
+Future<bool> wearCostume(
+  AlchemonsDatabase db, {
+  required String instanceId,
+  required FamilyCostume costume,
+  Color? color,
+}) => db.transaction(() async {
+  final instance = await db.creatureDao.getInstance(instanceId);
+  if (instance == null || !costume.fits(instance.baseId)) return false;
+  final worn = WornCostumes.on(instance.baseId, instance.costumes);
+  if (!worn.wears(costume)) {
+    if (await db.inventoryDao.getItemQty(costume.itemKey) < 1) return false;
+    await db.inventoryDao.decrementItem(costume.itemKey, by: 1);
+  }
+  await db.creatureDao.updateCostumes(
+    instanceId: instanceId,
+    costumes: worn.wear(costume, color: color).encode(),
+  );
+  return true;
+});
+
+/// Takes [costume] off a creature and returns it to the inventory. False
+/// if it was not wearing one.
+Future<bool> takeOffCostume(
+  AlchemonsDatabase db, {
+  required String instanceId,
+  required FamilyCostume costume,
+}) => db.transaction(() async {
+  final instance = await db.creatureDao.getInstance(instanceId);
+  if (instance == null) return false;
+  final worn = WornCostumes.on(instance.baseId, instance.costumes);
+  if (!worn.wears(costume)) return false;
+  await db.creatureDao.updateCostumes(
+    instanceId: instanceId,
+    costumes: worn.without(costume).encode(),
+  );
+  await db.inventoryDao.addItemQty(costume.itemKey, 1);
+  return true;
+});
+
+/// Gives the [costume] a creature is wearing a new [color], free. False if
 /// it is not wearing one.
 Future<bool> recolorCostume(
   AlchemonsDatabase db, {
   required String instanceId,
+  required FamilyCostume costume,
   required Color color,
 }) => db.transaction(() async {
   final instance = await db.creatureDao.getInstance(instanceId);
-  final costume = FamilyCostume.ofEffect(instance?.alchemyEffect);
-  if (costume == null) return false;
-  await db.creatureDao.updateAlchemyEffect(
+  if (instance == null) return false;
+  final worn = WornCostumes.on(instance.baseId, instance.costumes);
+  if (!worn.wears(costume)) return false;
+  await db.creatureDao.updateCostumes(
     instanceId: instanceId,
-    effect: costume.effectOn(instance!.baseId, color: color),
+    costumes: worn.wear(costume, color: color).encode(),
   );
   return true;
 });

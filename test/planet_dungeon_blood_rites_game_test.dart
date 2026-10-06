@@ -477,8 +477,8 @@ void main() {
   });
 
   group('the Circle', () {
-    test('all four freed: the first star, every cup, and the seal opens on '
-        'the Heart (Sanguorath still sleeps)', () {
+    test('all four freed: the first star and every cup; the seal stays shut '
+        'until the maxim is found, then opens on the Heart', () {
       final stars = <int>[];
       final g = harness(onStar: stars.add);
       for (final el in kRiteElements) {
@@ -503,6 +503,20 @@ void main() {
       expect(g.rites.cups, hasLength(4));
       expect(g.guardianAwake, isFalse);
       final seal = g.currentRoom.doors.firstWhere((d) => d.targetRoomId == 'rite_heart');
+      expect(g.isDoorHidden(g.currentRoom, seal), isTrue, reason: 'the maxim first');
+      // Turn the rings until the four meet: the quintessence, the maxim, and
+      // the seal opens.
+      g.active!.position = kRiteCircleCentre + const Offset(0, 262);
+      tick(g);
+      g.activateAbility();
+      g.active!.position = kRiteCircleCentre + const Offset(0, 160);
+      tick(g);
+      g.activateAbility();
+      for (var i = 0; i < 900 && !g.discoveredClouds.contains(kBloodEggId); i++) {
+        g.update(1 / 60);
+      }
+      expect(g.discoveredClouds, contains(kBloodEggId));
+      tick(g, 2);
       expect(g.isDoorHidden(g.currentRoom, seal), isFalse);
     });
 

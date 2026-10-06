@@ -10136,7 +10136,13 @@ class PlanetDungeonGame extends FlameGame {
     // Crystal's nine cells, every manifold and causeway and stair — have
     // nothing to want and used to arrive in silence. They say where you are.
     final transit = _transitLine;
-    if (transit != null) {
+    if (_isRites) {
+      // Blood's rooms don't name themselves as you walk in (the author,
+      // 2026-10-06: "stop saying popups like the heart etc for when we go
+      // into the rooms"). The room is the picture; its one-time teach below
+      // still says a rule you couldn't see.
+      _transitLine = null;
+    } else if (transit != null) {
       _transitLine = null;
       _announceRoomEntry(transit, _transitTtl);
     } else {

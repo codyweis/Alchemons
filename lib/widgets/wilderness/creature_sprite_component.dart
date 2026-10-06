@@ -244,9 +244,10 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
         );
       }
     }
-    // A worn costume is part of the sprite: drawn after each frame, in it.
-    if (FamilyCostume.isEffect(alchemyEffect)) {
-      _anim.add(_costume = _CostumeLayer(alchemyEffect!, _anim));
+    // Worn costumes are part of the sprite: drawn after each frame, in it.
+    final costumes = visuals.costumes;
+    if (WornCostumes.parse(costumes) != null) {
+      _anim.add(_costume = _CostumeLayer(costumes!, _anim));
     }
   }
 
@@ -492,13 +493,13 @@ List<double> albinoMatrix(double brightness) {
   ];
 }
 
-/// A worn family costume, a child of the sprite: drawn in the frame's own
-/// space after it, at the fit of the frame that is up, so it moves with
-/// whatever the sprite does.
+/// Worn costumes, a child of the sprite: drawn in the frame's own space
+/// after it, at the fit of the frame that is up, so they move with whatever
+/// the sprite does.
 class _CostumeLayer extends Component {
-  _CostumeLayer(this.effect, this.sprite);
+  _CostumeLayer(this.costumes, this.sprite);
 
-  final String effect;
+  final String costumes;
   final SpriteAnimationComponent sprite;
 
   /// Two creatures in the same costume are not in step.
@@ -514,7 +515,7 @@ class _CostumeLayer extends Component {
   /// Draws it at [alpha] of itself, in the sprite's local units.
   void paintOn(Canvas canvas, double alpha) => CostumePaint.paintWorn(
     canvas,
-    effect,
+    costumes,
     Offset.zero & sprite.size.toSize(),
     sprite.animationTicker?.currentIndex ?? 0,
     _t,

@@ -154,7 +154,11 @@ List<CosmicPartyMember> riteCaptivesFrom(CreatureCatalog catalog) {
             .toList()
           ..sort((a, b) => a.id.compareTo(b.id));
     if (ofElement.isEmpty) continue;
-    out.add(debugMemberFromCreature(ofElement.first, statTier: 3));
+    // The four captives are the Lets (the author, 2026-10-06): Airlet,
+    // Firelet, Earthlet, Waterlet. Another of the element only if its Let
+    // is missing.
+    final let = ofElement.where((c) => (c.mutationFamily ?? '').toLowerCase() == 'let');
+    out.add(debugMemberFromCreature(let.isEmpty ? ofElement.first : let.first, statTier: 3));
   }
   return out;
 }

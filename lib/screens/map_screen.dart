@@ -191,6 +191,9 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
+  /// Lets a field being left find its realm's circle on the map.
+  final WildMapLanding _mapLanding = WildMapLanding();
+
   static const Map<String, String> _biomeDisplayNames = {
     'valley': 'Verdant Valley',
     'sky': 'Skyward Reach',
@@ -350,6 +353,7 @@ class _MapScreenState extends State<MapScreen>
                       slots: _wildSlots,
                       tide: _tide,
                       shipWaitsInValley: _shipWaitsInValley,
+                      landing: _mapLanding,
                       onSelectRegion: (biomeId, scene) {
                         _handleRegionTap(context, biomeId, scene);
                       },
@@ -680,28 +684,56 @@ class _MapScreenState extends State<MapScreen>
     // landscape while covered and holds until the scene is built. Each
     // region borrows the palette and twist of the element it feels like.
     final ready = ValueNotifier<bool>(false);
-    await VoidPortal.pushThroughGlyphs<bool>(
-      context,
-      page: ScenePage(
-        scene: scene,
-        sceneId: biomeId,
-        party: selectedParty,
-        isTutorial: widget.isTutorial,
-        onNavigateSection: widget.onNavigateSection,
-        revealReady: ready,
-      ),
-      title: _biomeDisplayNames[biomeId] ?? biomeId,
-      element: _biomePortalElements[biomeId] ?? '',
-      ready: ready,
-      orientation: const [
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ],
-      returnOrientation: const [
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-      ],
+    final page = ScenePage(
+      scene: scene,
+      sceneId: biomeId,
+      party: selectedParty,
+      isTutorial: widget.isTutorial,
+      onNavigateSection: widget.onNavigateSection,
+      revealReady: ready,
     );
+    final title = _biomeDisplayNames[biomeId] ?? biomeId;
+    final element = _biomePortalElements[biomeId] ?? '';
+    const wide = [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ];
+    const tall = [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown];
+    // Leaving, the field's sand pours back into its circle here.
+    final back = SandLanding(
+      element: element,
+      circle: () => _mapLanding.circleOf(biomeId),
+      onLanded: () => _mapLanding.settle(biomeId),
+    );
+    // Going in, the realm's circle lifts off the map as sand and comes
+    // undone into the field once it is built -- the ball is the loading
+    // screen. The glyph portal is for a circle that cannot be found.
+    final circle = _mapLanding.circleOf(biomeId);
+    final picture = _mapLanding.picture;
+    if (circle != null && picture != null) {
+      await VoidPortal.pushThroughSand<bool>(
+        context,
+        page: page,
+        from: SandSource(picture: picture, circle: circle),
+        title: title,
+        element: element,
+        ready: ready,
+        orientation: wide,
+        returnOrientation: tall,
+        back: back,
+      );
+    } else {
+      await VoidPortal.pushThroughGlyphs<bool>(
+        context,
+        page: page,
+        title: title,
+        element: element,
+        ready: ready,
+        orientation: wide,
+        returnOrientation: tall,
+        back: back,
+      );
+    }
     // The ship may have come down (or been claimed) while we were away.
     await _refreshShipWaitsInValley();
   }
@@ -1059,6 +1091,7 @@ class _WildMap extends StatelessWidget {
     this.slots = kCoreRealms,
     this.shipWaitsInValley = false,
     this.tide = 0.5,
+    this.landing,
   });
 
   final FactionTheme theme;
@@ -1072,6 +1105,9 @@ class _WildMap extends StatelessWidget {
   /// The tide on the Tidal Shelf as the map opened (0 low, 1 high).
   final double tide;
   final bool shipWaitsInValley;
+
+  /// Where a field being left finds its realm's circle.
+  final WildMapLanding? landing;
 
   static final Map<String, SceneDefinition> _scenes = {
     'valley': valleySceneCorrected,
@@ -1131,6 +1167,7 @@ class _WildMap extends StatelessWidget {
           context.soundTap(() => onSelectRegion(id, scene))();
         },
         onPeek: onPeekRegion,
+        landing: landing,
       ),
     );
   }

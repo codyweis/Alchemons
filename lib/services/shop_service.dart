@@ -258,9 +258,16 @@ class ShopService extends ChangeNotifier {
   List<ShopOffer> getAlchemyEffectOffers() {
     return allOffers
         .where((o) => o.id.startsWith('effects.'))
+        .where((o) => FamilyCostume.ofOffer(o.id) == null)
         .where((o) => _isContestEffectOfferUnlocked(o.id))
         .toList();
   }
+
+  /// The costumes, one card each.
+  List<ShopOffer> getCostumeOffers() => [
+    for (final costume in FamilyCostume.values)
+      allOffers.firstWhere((o) => o.id == costume.offerId),
+  ];
 
   Future<String?> unlockContestEffectOffer(
     String offerId, {
@@ -917,11 +924,11 @@ class ShopService extends ChangeNotifier {
       inventoryKey: InvKeys.alchemyDustRing,
     ),
 
-    // Family costumes: each goes on one of its own family.
+    // Costumes: worn beside an effect, all at once if wanted.
     ShopOffer(
       id: FamilyCostume.partyHat.offerId,
       name: FamilyCostume.partyHat.title,
-      description: 'Puts a party hat on one of your Wings.',
+      description: 'A party hat. Fits ${FamilyCostume.fittedFamiliesText}.',
       icon: AppIcons.auto_awesome_rounded,
       iconColor: const Color(0xFFAE82FF),
       cost: const {'gold': 10},
@@ -933,7 +940,7 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: FamilyCostume.nose.offerId,
       name: FamilyCostume.nose.title,
-      description: 'Puts a bubble nose on one of your Pips.',
+      description: 'A bubble nose. Fits ${FamilyCostume.fittedFamiliesText}.',
       icon: AppIcons.auto_awesome_rounded,
       iconColor: const Color(0xFFFF4F7B),
       cost: const {'gold': 10},
@@ -941,6 +948,18 @@ class ShopService extends ChangeNotifier {
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
       inventoryKey: InvKeys.alchemyNose,
+    ),
+    ShopOffer(
+      id: FamilyCostume.sunglasses.offerId,
+      name: FamilyCostume.sunglasses.title,
+      description: 'Sunglasses. Fits ${FamilyCostume.fittedFamiliesText}.',
+      icon: AppIcons.auto_awesome_rounded,
+      iconColor: const Color(0xFFFFD58B),
+      cost: const {'gold': 10},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemySunglasses,
     ),
 
     // ── Portal Keys ──────────────────────────────────────────────────────────

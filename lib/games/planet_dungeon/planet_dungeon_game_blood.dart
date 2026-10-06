@@ -291,9 +291,9 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     for (final el in rites.cups) {
       rites.cupT[el] = -99;
     }
-    rites.sealT = rites.cups.length == 4 ? -99 : -1;
     rites.heart = HeartRunState();
     if (riteHeartFreed) rites.heart.freed = true;
+    rites.sealT = _riteSealOpen ? -99 : -1;
   }
 
   /// The captives freed — this run or any before (a freed captive stays
@@ -1231,7 +1231,9 @@ extension BloodRitesDungeon on PlanetDungeonGame {
   bool _riteDoorHidden(DungeonRoom room, DungeonDoor door) {
     final kind = room.rite?.kind;
     // The Circle's seal is a way down only once all four cups are full.
-    if (kind == RiteKind.circle && door.chromeless) return rites.cups.length < 4;
+    // The Circle's seal is a way down only once it has opened: all four
+    // cups full AND the maxim found.
+    if (kind == RiteKind.circle && door.chromeless) return !_riteSealOpen;
     // The Heart's stair up and its floor down exist once Blood is free.
     if (kind == RiteKind.heart) return _heartDoorHidden(door);
     if (kind != RiteKind.water || !door.chromeless) return false;
@@ -1510,10 +1512,22 @@ extension BloodRitesDungeon on PlanetDungeonGame {
       soundedSecrets.add(kBloodEggId);
       beginMaximRite(kBloodEggId, kRiteCircleCentre);
     }
-    // All four cups full: the seal opens on the Heart. (Sanguorath wakes
-    // once Blood is free there — see the Heart.)
-    if (rites.cups.length == 4 && rites.sealT == -1) rites.sealT = _time;
+    // The seal opens on the Heart once all four cups are full AND the maxim
+    // is found (the author, 2026-10-06: "before going to star 2, we should
+    // require the maxim to be found to open the door"): the quintessence
+    // the four make in the middle is drawn down into the seal, and its
+    // leaves draw back. (Sanguorath wakes once Blood is free in the Heart.)
+    if (_riteSealOpen && rites.sealT == -1) rites.sealT = _time;
   }
+
+  /// The Circle's seal stands open: all four cups full and the maxim found.
+  /// A run that has already been down (Blood taken, or freed) keeps it
+  /// open, so nobody is shut out of the Heart or the way to Sanguorath.
+  bool get _riteSealOpen =>
+      rites.cups.length == 4 &&
+      (discoveredClouds.contains(kBloodEggId) ||
+          riteHeartFreed ||
+          rites.heart.taken);
 
   // ═══ SANGUORATH ═══════════════════════════════════════════
 
@@ -2034,6 +2048,8 @@ extension BloodRitesDungeon on PlanetDungeonGame {
           );
         } else if (rites.cups.length < 4) {
           _setInsightHint('Not every cup is full');
+        } else if (!_riteSealOpen) {
+          _setInsightHint('The seal stays shut');
         } else {
           _setInsightHint('The seal is open');
         }

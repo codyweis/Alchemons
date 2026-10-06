@@ -178,6 +178,7 @@ class _PartySlot extends StatelessWidget {
               // The base creature already has the correct nature definition
               isPrismaticSkin: inst.isPrismaticSkin,
               alchemyEffect: inst.alchemyEffect,
+              costumes: inst.costumes,
               variantFaction: inst.variantFaction,
               wildMutation: inst.mutation,
             ) ??
