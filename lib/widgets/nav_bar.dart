@@ -370,17 +370,17 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     );
   }
 
-  /// A chamber is waiting. Drawn overflowing the icon's corner rather than
-  /// inside it, so it does not shrink with the icon when the tab is inactive.
-  Widget _withDot(bool show, Widget icon) {
+  /// A chamber is waiting. Not scaled with the icon, but placed by its size so
+  /// it rides the emblem's upper-right shoulder instead of the box's corner.
+  Widget _withDot(bool show, double size, Widget icon) {
     if (!show) return icon;
     return Stack(
       clipBehavior: Clip.none,
       children: [
         icon,
         Positioned(
-          right: -1,
-          top: -1,
+          right: size * 0.20 - 5.5,
+          top: size * 0.20 - 5.5,
           child: Container(
             width: 11,
             height: 11,
@@ -467,6 +467,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                     children: [
                       _withDot(
                         showDot,
+                        iconSize,
                         NavEmblem(
                           key: iconKey,
                           kind: icon,

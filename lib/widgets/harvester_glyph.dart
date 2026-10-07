@@ -2,22 +2,26 @@ import 'dart:math' as math;
 
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/models/inventory.dart';
-import 'package:alchemons/widgets/fx/glyph_clock.dart';
+import 'package:alchemons/widgets/fx/grain_glass.dart';
+import 'package:alchemons/widgets/fx/harvest_particles.dart';
+import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// A harvester drawn as the device it is: a pulser.
+/// A harvester drawn as the device it is in the wild.
 ///
-/// Deliberately not the element's own particle field — a harvester and the
-/// resource it yields sit side by side in the shop and the inventory, and if
-/// both were loose motes of the same colour they would read as the same item.
-/// So this is hardware: a hard-edged core that beats on a fixed rhythm, throws
-/// a shockwave out to the rim, and hauls the element back in along it. The
-/// element only shows in what gets captured and how it comes home.
+/// This is the harvest itself ([HarvestParticleField]) at the size of an
+/// icon, not a picture of it: the device's shell pours in round a specimen
+/// (a ball of its grains), closes the way that device closes, holds while it
+/// is pushed against, then takes it — the specimen folds into a sphere of
+/// its own grains, the shell closes round it as its skin, and it seals warm
+/// and fades. Kept apart from the element's own resource glyph by the shell:
+/// loose motes are the resource, a shell round something is the device that
+/// takes it.
 ///
 /// [biomeId] takes the five elements plus [universalHarvester], the stabilized
-/// unit that pulls every element at once.
-class HarvesterGlyph extends StatefulWidget {
+/// unit that takes every element — a different one each time round.
+class HarvesterGlyph extends StatelessWidget {
   const HarvesterGlyph({
     super.key,
     required this.biomeId,
@@ -33,286 +37,142 @@ class HarvesterGlyph extends StatefulWidget {
   /// Overrides the element's own colour — used to carry a can-afford state.
   final Color? color;
 
-  /// Off for a still frame; a shop card scrolling past does not need to beat.
+  /// Off for a still frame; a shop card scrolling past does not need to run.
   final bool animate;
 
   @override
-  State<HarvesterGlyph> createState() => _HarvesterGlyphState();
+  Widget build(BuildContext context) => GrainGlyph(
+    size: size,
+    animate: animate,
+    painter: (clock) =>
+        _HarvesterPainter(biomeId.isEmpty ? 'arcane' : biomeId, color, clock),
+  );
 }
 
 /// The stabilized harvester, which is not tied to one element.
 const String universalHarvester = 'universal';
 
-class _HarvesterGlyphState extends State<HarvesterGlyph> with GlyphClockLease {
-  @override
-  bool get wantsClock => widget.animate;
-
-  @override
-  void initState() {
-    super.initState();
-    syncGlyphClock();
-  }
-
-  @override
-  void didUpdateWidget(covariant HarvesterGlyph oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    syncGlyphClock();
-  }
-
-  @override
-  void dispose() {
-    releaseGlyphClock();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tint =
-        widget.color ??
-        ElementResources.byBiomeId[widget.biomeId]?.color ??
-        const Color(0xFFCBD5E1);
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: CustomPaint(
-        willChange: widget.animate,
-        isComplex: false,
-        painter: _PulserPainter(
-          biomeId: widget.biomeId,
-          color: tint,
-          clock: glyphClock,
-        ),
-      ),
-    );
-  }
-}
-
-class _PulserPainter extends CustomPainter {
-  _PulserPainter({
-    required this.biomeId,
-    required this.color,
-    required this.clock,
-  }) : super(repaint: clock);
+class _HarvesterPainter extends CustomPainter {
+  _HarvesterPainter(this.biomeId, this.tint, this.clock)
+    : super(repaint: clock);
 
   final String biomeId;
-  final Color color;
+  final Color? tint;
   final ValueListenable<double>? clock;
 
-  /// Reused across every frame and every pulser on screen. No MaskFilter
-  /// anywhere in here — blur in a per-frame paint is this app's main source of
-  /// jank, and these appear six to a shelf.
-  static final Paint _p = Paint();
+  /// One harvest: the shell pours in and closes, holds, takes.
+  static const double _period = 5.4;
 
-  /// One beat, shared by the shockwave, the intake and the core's charge, so
-  /// the whole device reads as a single machine rather than three loops.
-  static const double _period = 1.6;
+  /// A still glyph shows the shell shut on its specimen.
+  static const double _still = 0.46 * _period;
 
-  double get _t => clock?.value ?? 0;
+  /// Where the take starts; it then runs the field's own take length.
+  static const double _takeFrom =
+      1 - HarvestParticleField.takeSeconds / _period;
 
-  /// 0..1 through the current beat.
-  double get _beat => (_t % _period) / _period;
-
-  /// Stable per-mote spread, so a glyph looks the same every time it is built
-  /// rather than reshuffling on scroll.
-  static double _seed(int i, int salt) => ((i * 41 + salt * 23) % 100) / 100.0;
-
-  static const List<String> _allElements = [
+  /// The stabilized unit takes a different element each harvest.
+  static const List<String> _anyElement = [
     'volcanic',
     'oceanic',
-    'earthen',
     'verdant',
+    'earthen',
     'arcane',
   ];
+
+  /// One field per device, size and colour: the shell is seeded once.
+  static final Map<(String, int, int, int), HarvestParticleField> _fields = {};
+
+  HarvestParticleField _field(double s, Color specimen) {
+    final small = s < 30;
+    return _fields.putIfAbsent(
+      (biomeId, s.round(), tint?.toARGB32() ?? 0, specimen.toARGB32()),
+      () {
+        var profile = HarvesterProfile.forBiome(biomeId);
+        if (tint != null) {
+          profile = profile.copyWith(accent: tint, prismatic: false);
+        }
+        // The sigil is lines; at a button's size it is only noise.
+        if (small) profile = profile.copyWith(sigil: false);
+        return HarvestParticleField(
+          profile: profile,
+          cage: s * (small ? 0.34 : 0.3),
+          specimenColor: specimen,
+          shellCount: small ? 220 : (s * 7).round().clamp(300, 900),
+          grain: (s * (small ? 0.05 : 0.0105) * (1 + 0.16 * profile.strokeBase))
+              .clamp(small ? 1.25 : 1.0, 3.0),
+          rise: 0.15,
+          sigilStrength: 0.4,
+        );
+      },
+    );
+  }
+
+  static double _clamp01(double x) => x < 0 ? 0 : (x > 1 ? 1 : x);
 
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.shortestSide;
     if (s <= 0) return;
-    final c = Offset(size.width / 2, size.height / 2);
-    final beat = _beat;
+    final t = (clock?.value ?? 0) + _still;
+    final cycle = (t / _period).floor();
+    final p = (t % _period) / _period;
+    final o = Offset(size.width / 2, size.height / 2);
 
-    _shockwave(canvas, c, s, beat);
-    _intake(canvas, c, s, beat);
-    _core(canvas, c, s, beat);
-  }
+    final specimen =
+        tint ??
+        (biomeId == universalHarvester
+            ? ElementResources.byBiomeId[_anyElement[cycle % 5]]!.color
+            : HarvesterProfile.forBiome(biomeId).accent);
+    final field = _field(s, specimen);
 
-  /// The pulse going out. Two rings a half-beat apart so the device never
-  /// looks idle between beats.
-  void _shockwave(Canvas canvas, Offset c, double s, double beat) {
-    for (var ring = 0; ring < 2; ring++) {
-      final phase = (beat + ring * 0.5) % 1.0;
-      // Snaps out and eases to a stop, the way a discharge does.
-      final e = Curves.easeOutCubic.transform(phase);
-      final r = s * (0.16 + 0.30 * e);
-      final fade = (1 - phase) * 0.55;
-      if (fade <= 0.01) continue;
-      canvas.drawCircle(
-        c,
-        r,
-        _p
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = s * 0.035 * (1 - e * 0.7)
-          ..color = color.withValues(alpha: fade),
+    // The beat the hosts would drive: in, bite, lean, take.
+    final closing = _clamp01(p / 0.3);
+    final lock = _clamp01((p - 0.27) / 0.1);
+    final push =
+        0.75 *
+        GrainGlass.smooth((p - 0.32) / 0.08) *
+        (1 - GrainGlass.smooth((p - _takeFrom + 0.04) / 0.04)) *
+        (0.5 - 0.5 * math.cos(t * math.pi * 2.2));
+    final take = _clamp01((p - _takeFrom) / (1 - _takeFrom));
+
+    void pass(bool back) => field.paint(
+      canvas,
+      o,
+      closing: closing,
+      lock: lock,
+      push: push,
+      strain: t * 0.35,
+      time: t,
+      take: take,
+      back: back,
+    );
+
+    pass(true);
+    // The specimen it closes on: a ball of its grains, until the take turns
+    // it into the field's own.
+    final standing = 1 - GrainGlass.smooth(take / 0.2);
+    if (standing > 0.01) {
+      GrainGlass.sphere(
+        canvas,
+        o,
+        field.cage * 0.42,
+        t,
+        a: specimen,
+        b: Color.lerp(specimen, Colors.white, 0.3),
+        spin: 0.7,
+        glass: 0,
+        gather: GrainGlass.smooth(p / 0.24),
+        fade: standing,
+        glow: 0.7,
+        salt: 7,
       );
     }
-    _p.style = PaintingStyle.fill;
-  }
-
-  /// What the pulse drags home. Each element comes in the way that element
-  /// moves — the capture is where the identity lives, not the hardware.
-  void _intake(Canvas canvas, Offset c, double s, double beat) {
-    final elements = biomeId == universalHarvester
-        ? _allElements
-        : [biomeId.isEmpty ? 'arcane' : biomeId];
-    // The stabilized unit hauls one mote of each element; a tuned one hauls a
-    // fuller stream of its own.
-    final perElement = biomeId == universalHarvester ? 2 : 7;
-
-    for (var e = 0; e < elements.length; e++) {
-      final element = elements[e];
-      final moteColor = biomeId == universalHarvester
-          ? (ElementResources.byBiomeId[element]?.color ?? color)
-          : color;
-      final bright = Color.lerp(moteColor, Colors.white, 0.45)!;
-
-      for (var i = 0; i < perElement; i++) {
-        final idx = e * 7 + i;
-        // Staggered so motes stream continuously rather than arriving as a
-        // block on the beat.
-        final phase = (beat + _seed(idx, 1)) % 1.0;
-        // Distance runs rim → aperture; eased in so they accelerate as the
-        // pulse takes hold.
-        final pull = Curves.easeInCubic.transform(phase);
-        final dist = s * (0.46 - 0.34 * pull);
-        final baseAngle = _seed(idx, 2) * math.pi * 2;
-        final angle = baseAngle + _swirl(element, phase, idx);
-        final wobble = _wobble(element, phase, idx, s);
-
-        final pos =
-            c + Offset(math.cos(angle) * dist, math.sin(angle) * dist + wobble);
-        // Fades in off the rim and is swallowed at the aperture.
-        final fade =
-            (phase < 0.14 ? phase / 0.14 : 1.0) *
-            (phase > 0.86 ? (1 - phase) / 0.14 : 1.0);
-        if (fade <= 0.02) continue;
-
-        final r = s * (0.030 + 0.022 * (1 - pull));
-        canvas.drawCircle(
-          pos,
-          r,
-          _p..color = bright.withValues(alpha: 0.85 * fade),
-        );
-      }
-    }
-  }
-
-  /// How the intake path curves, per element.
-  double _swirl(String element, double phase, int idx) {
-    switch (element) {
-      // Fire is dragged in fighting, curling as it goes.
-      case 'volcanic':
-        return math.sin(phase * math.pi * 2 + idx) * 0.55;
-      // Water arcs in smoothly, always the same way round.
-      case 'oceanic':
-        return phase * 1.1;
-      // Earth comes straight in. It does not wander.
-      case 'earthen':
-        return 0;
-      // Spores drift, taking their time about the last stretch.
-      case 'verdant':
-        return math.sin(phase * math.pi * 3 + idx * 0.7) * 0.35;
-      // Arcane spirals hard, more than a full turn on the way in.
-      case 'arcane':
-        return phase * 3.4;
-      default:
-        return phase * 1.2;
-    }
-  }
-
-  /// Vertical bias, per element: embers climb, water falls, stone sinks.
-  double _wobble(String element, double phase, int idx, double s) {
-    switch (element) {
-      case 'volcanic':
-        return -s * 0.06 * (1 - phase);
-      case 'oceanic':
-        return s * 0.05 * phase;
-      case 'earthen':
-        // Hauled in in steps rather than a glide.
-        return s * 0.02 * (((phase * 4).floor() % 2 == 0) ? 1 : -1);
-      case 'verdant':
-        return math.sin(phase * math.pi * 2 + idx) * s * 0.045;
-      default:
-        return 0;
-    }
-  }
-
-  /// The device. A hard hexagonal shell that stays put while everything else
-  /// moves, and an aperture that swallows what arrives and flares on the beat.
-  void _core(Canvas canvas, Offset c, double s, double beat) {
-    final shell = s * 0.155;
-
-    // Charge builds through the beat and discharges at the top of it.
-    final charge = beat < 0.82
-        ? Curves.easeInQuad.transform(beat / 0.82)
-        : 1 - (beat - 0.82) / 0.18;
-
-    // Aperture glow, brightest at discharge. Flat discs, no blur.
-    for (var i = 3; i >= 1; i--) {
-      canvas.drawCircle(
-        c,
-        shell * (0.55 + 0.42 * i) * (1 + 0.12 * charge),
-        _p..color = color.withValues(alpha: (0.16 * charge) / i),
-      );
-    }
-
-    // Hexagonal shell — the one hard-edged thing in the glyph, so it reads as
-    // built rather than grown.
-    final path = Path();
-    for (var i = 0; i < 6; i++) {
-      final a = (i / 6) * math.pi * 2 - math.pi / 2;
-      final p = c + Offset(math.cos(a) * shell, math.sin(a) * shell);
-      if (i == 0) {
-        path.moveTo(p.dx, p.dy);
-      } else {
-        path.lineTo(p.dx, p.dy);
-      }
-    }
-    path.close();
-
-    canvas.drawPath(
-      path,
-      _p
-        ..style = PaintingStyle.fill
-        ..color = Color.lerp(
-          const Color(0xFF11151C),
-          color,
-          0.18 + 0.22 * charge,
-        )!,
-    );
-    canvas.drawPath(
-      path,
-      _p
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = s * 0.028
-        ..color = Color.lerp(
-          color,
-          Colors.white,
-          0.25 + 0.45 * charge,
-        )!.withValues(alpha: 0.9),
-    );
-    _p.style = PaintingStyle.fill;
-
-    // The aperture itself: a bright pip that swells as the chamber fills.
-    canvas.drawCircle(
-      c,
-      shell * (0.26 + 0.24 * charge),
-      _p..color = Color.lerp(color, Colors.white, 0.6 + 0.4 * charge)!,
-    );
+    pass(false);
   }
 
   @override
-  bool shouldRepaint(covariant _PulserPainter old) =>
-      old.biomeId != biomeId || old.color != color || old.clock != clock;
+  bool shouldRepaint(covariant _HarvesterPainter old) =>
+      old.biomeId != biomeId || old.tint != tint || old.clock != clock;
 }
 
 /// The element a harvester is tuned to, or [universalHarvester] for the

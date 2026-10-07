@@ -63,14 +63,26 @@ void main() {
           child: RawImage(image: png),
         ),
         targetColor: const Color(0xFFFF6B3D),
-        deviceLabel: device,
         profile: HarvesterProfile.forBiome(device),
         task: () async => held,
       );
       var finished = false;
       done.then((_) => finished = true);
       var elapsed = 0;
-      for (final at in [300, 700, 1200, 1700, 1850, 2000, 2200, 2450, 2700, 2950, 3200]) {
+      for (final at in [
+        300,
+        700,
+        1200,
+        1700,
+        1900,
+        2150,
+        2400,
+        2700,
+        3000,
+        3300,
+        3600,
+        3900,
+      ]) {
         await tester.pump(Duration(milliseconds: at - elapsed));
         elapsed = at;
         // Let the take's read land.
@@ -85,8 +97,10 @@ void main() {
         );
         frames.add(('$label +${at}ms', img!));
         // ignore: avoid_print
-        print('$label $at finished=$finished '
-            'routes=${find.byType(CustomPaint).evaluate().length}');
+        print(
+          '$label $at finished=$finished '
+          'routes=${find.byType(CustomPaint).evaluate().length}',
+        );
       }
       for (var i = 0; i < 60 && !finished; i++) {
         await tester.pump(const Duration(milliseconds: 100));

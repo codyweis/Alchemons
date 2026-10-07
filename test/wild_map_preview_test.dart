@@ -721,8 +721,8 @@ void main() {
     await settle(30);
     await shoot(tag('page'));
     Navigator.of(emblem.currentContext!).pop();
-    for (var i = 0; i < 8; i++) {
-      await settle(4);
+    for (var i = 0; i < 14; i++) {
+      await settle(3);
       await shoot(tag('back'));
     }
     await tester.pumpWidget(const SizedBox());

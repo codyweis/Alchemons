@@ -273,7 +273,7 @@ int rarityStarCount(String rarity) => switch (rarity.toLowerCase()) {
 
 const int kMaxRarityStars = 5;
 
-/// Lit stars for the rarity, dim ones for the rest of the five.
+/// One lit star per rank of the rarity, and no dim ones after them.
 class RarityStars extends StatelessWidget {
   const RarityStars({super.key, required this.rarity, this.size = 13});
 
@@ -282,7 +282,6 @@ class RarityStars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = BracketPalette.of(context);
     final lit = ForgeTokens(context.read<FactionTheme>()).amberBright;
     final count = rarityStarCount(rarity);
     return Semantics(
@@ -290,14 +289,10 @@ class RarityStars extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (var i = 0; i < kMaxRarityStars; i++)
+          for (var i = 0; i < count; i++)
             Padding(
-              padding: EdgeInsets.only(right: i == kMaxRarityStars - 1 ? 0 : 2),
-              child: Icon(
-                AppIcons.star_filled,
-                size: size,
-                color: i < count ? lit : palette.lineSoft,
-              ),
+              padding: EdgeInsets.only(right: i == count - 1 ? 0 : 2),
+              child: Icon(AppIcons.star_filled, size: size, color: lit),
             ),
         ],
       ),

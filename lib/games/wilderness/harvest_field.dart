@@ -16,10 +16,10 @@
 // running underneath.
 //
 // The apparatus is particles ([HarvestParticleField], shared with the Flutter
-// overlay): streams of motes on tipped orbits, the far side behind the
-// creature and the near side in front. On a take the creature is read into
-// grains of itself, cut away behind a crest, and drawn down into the
-// harvester. No MaskFilter, per the house rule.
+// overlay): a shell of the device's grains round the creature, the far side
+// behind it and the near side in front. On a take the creature is read into
+// grains of itself, cut away behind a crest, folded into a sphere of its own
+// inside the shell, and lifted away. No MaskFilter, per the house rule.
 
 import 'dart:async';
 import 'dart:math' as math;

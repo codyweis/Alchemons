@@ -69,8 +69,9 @@ class EmblemStage {
   /// Going back: the scene gathers home without its way-in flourishes.
   final bool closing;
 
-  /// [open], eased.
-  double get grow => _ease(open);
+  /// [open], eased: firmly on the way in, gently going back (a hard
+  /// ease-in-out shrinking home reads as a spring).
+  double get grow => closing ? _smooth(0, 1, open) : _ease(open);
 
   /// How much of the screen is the passage's own ground.
   double get ground => _smooth(0.0, 0.7, open);
@@ -865,18 +866,23 @@ class _RiteScene {
       c = Offset(c.dx, _lerp(c.dy, poolC.dy - _bulb * k, fall * fall));
       stretch = 1 + 0.22 * fall * (1 - impact);
     } else {
-      // Going back it does not fall upward. The pool draws in on itself
-      // (1 to 0.45) and stands up out of its middle as the drop (by 0.4);
-      // the drop then glides home, shrinking into its box (0.5 to 0) as
-      // home comes back round it — down first, then in from the left, so
-      // it passes under the column rather than over the RELICS ring.
-      spread = _ease((o - 0.45) / 0.55);
-      impact = _smooth(0.4, 0.68, o);
-      final travel = 1 - _ease(o / 0.5);
+      // Going back it does not fall upward, and nothing springs. One
+      // unbroken movement in overlapping parts, [p] 0..1 of the way home:
+      // the pool draws in on itself (to 0.5); its middle stands up as the
+      // drop (0.25 to 0.55), no larger than it needs to be; and the drop,
+      // already moving as it forms, glides home (0.4 to 1) — down first,
+      // then in from the left, under the column rather than over the
+      // RELICS ring — shrinking steadily into its box. No squash, no
+      // stretch.
+      final p = 1 - o;
+      spread = 1 - _smooth(0.0, 0.5, p);
+      impact = 1 - _smooth(0.25, 0.55, p);
+      final travel = _smooth(0.4, 1.0, p);
       lift = 1 - travel;
+      final formK = math.min(w, h) * 0.11;
       final iconC = s.box.center + Offset(0, iconK * (_apex - _bulb) / 2);
-      final risen = Offset(poolC.dx, poolC.dy - _bulb * hangK);
-      k = _lerp(hangK, iconK, travel);
+      final risen = Offset(poolC.dx, poolC.dy - _bulb * formK);
+      k = _lerp(formK, iconK, travel);
       final bend = Offset(risen.dx, iconC.dy);
       final u = 1 - travel;
       c = risen * (u * u) + bend * (2 * u * travel) + iconC * (travel * travel);

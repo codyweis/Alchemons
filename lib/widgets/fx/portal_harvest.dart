@@ -63,7 +63,6 @@ class PortalHarvest {
       context: context,
       targetSprite: null,
       targetColor: accent,
-      deviceLabel: profile.biomeId.toUpperCase(),
       profile: profile,
       liveTarget: HarvestTarget(
         read: () async {

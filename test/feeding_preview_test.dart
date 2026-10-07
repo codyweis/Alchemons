@@ -4,16 +4,23 @@ library;
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/navigation/emblem_passage.dart';
+import 'package:alchemons/screens/feeding/feeding_screen.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/dock_emblems.dart';
+import 'package:alchemons/widgets/dock_passages.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dock_passage_stage.dart';
 import 'enhance_harness.dart';
 
 // The Enhance screen on a phone: the picker, the stage, two kin chosen and
-// poured in, the orb tray and the soul tray.
+// poured in, the orb tray and the soul tray; and the dock's way in, frame by
+// frame (passage_*.png).
 //
 //   FEED_OUT=/tmp/feed flutter test test/feeding_preview_test.dart \
 //     --tags preview
@@ -39,6 +46,72 @@ void main() {
       '${Platform.environment['HOME']}/.pub-cache/hosted/pub.dev/'
           'phosphoricons_flutter-1.0.0/lib/fonts/Phosphor-Bold.ttf',
     );
+  });
+
+  // The dock's creature of grains standing up, coming apart into a band of
+  // light and opening on the picker; and back.
+  testWidgets('enhance passage', (tester) async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    final emblem = GlobalKey();
+    final lifted = ValueNotifier(false);
+    final h = await EnhanceHarness.pump(
+      tester,
+      home: (_) => DockStandIn(
+        kind: DockEmblemKind.enhance,
+        emblemKey: emblem,
+        lifted: lifted,
+        top: 520,
+      ),
+    );
+    Future<void> shoot(String name) async {
+      await tester.runAsync(() async {
+        final boundary =
+            EnhanceHarness.shotKey.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        File(
+          '$out/passage_$name.png',
+        ).writeAsBytesSync(bytes!.buffer.asUint8List());
+        image.dispose();
+      });
+    }
+
+    final creature = ValueNotifier<SpecimenGrains?>(null);
+    await tester.runAsync(
+      () async => creature.value = await DockEmblem.creatureGrains(fine: true),
+    );
+    final ready = ValueNotifier(false);
+    final revealed = ValueNotifier(false);
+    EmblemPassage.pushScene<void>(
+      emblem.currentContext!,
+      scene: EnhancePassage(creature: creature),
+      from: emblem,
+      page: FeedingScreen(revealReady: ready, revealed: revealed),
+      ready: ready,
+      revealed: revealed,
+      lifted: lifted,
+    );
+    var n = 0;
+    String tag(String s) => '${(n++).toString().padLeft(2, '0')}_$s';
+    await shoot(tag('home'));
+    for (var i = 0; i < 6; i++) {
+      await h.settle(5);
+      await shoot(tag('in'));
+    }
+    for (var i = 0; i < 10; i++) {
+      await h.settle(4);
+      await shoot(tag(ready.value ? 'land' : 'hold'));
+    }
+    await h.settle(30);
+    await shoot(tag('page'));
+    Navigator.of(emblem.currentContext!).pop();
+    for (var i = 0; i < 8; i++) {
+      await h.settle(4);
+      await shoot(tag('back'));
+    }
+    await h.dispose();
   });
 
   testWidgets('enhance preview', (tester) async {

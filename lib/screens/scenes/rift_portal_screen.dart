@@ -426,7 +426,6 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                   context: context,
                   targetSprite: null,
                   targetColor: accent,
-                  deviceLabel: profile.biomeId.toUpperCase(),
                   profile: profile,
                   // And on a take, the void creature itself goes as grains.
                   liveTarget: HarvestTarget(

@@ -1139,7 +1139,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           context: ctx,
           targetSprite: _buildWildSprite(wildCreature),
           targetColor: targetColor,
-          deviceLabel: selectedDevice.label,
           profile: harvester,
           minDuration: const Duration(milliseconds: 1600),
           task: roll,

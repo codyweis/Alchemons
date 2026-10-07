@@ -632,10 +632,16 @@ Widget _buildOfferPreview(
     );
   }
 
-  // Wild Fusion draws its own conjunction rather than the generic merge icon.
+  // Wild Fusion draws the fusion it makes rather than the generic merge icon.
   if (offer.inventoryKey == InvKeys.wildFusion) {
+    final live = WildFusionGlyph(size: size, animate: animate);
+    if (animate) return Center(child: live);
     return Center(
-      child: WildFusionGlyph(size: size, animate: animate),
+      child: StaticEffectSnapshot(
+        cacheKey: 'shop.wild_fusion',
+        boxSize: size,
+        child: live,
+      ),
     );
   }
 
@@ -720,7 +726,7 @@ Widget _buildOfferPreview(
     }
   }
 
-  // 1a. Harvesters are devices, so they draw as the pulser rather than a
+  // 1a. Harvesters are devices, so they draw as their own cage rather than a
   // painting of one.
   {
     final harvester = harvesterBiomeForKey(offer.inventoryKey);

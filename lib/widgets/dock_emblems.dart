@@ -76,14 +76,23 @@ class DockEmblem extends StatefulWidget {
   static const String enhanceCreature =
       'assets/images/creatures/rare/HOR16_lighthorn.png';
 
-  static Future<SpecimenGrains>? _creature;
+  static Future<SpecimenGrains>? _creature, _fineCreature;
 
-  /// The Enhance creature read into grains, once.
-  static Future<SpecimenGrains> creatureGrains() => _creature ??= () async {
+  /// The Enhance creature read into grains, once. [fine] reads it closely
+  /// enough to stand over the whole screen, for its way in
+  /// (widgets/dock_passages.dart).
+  static Future<SpecimenGrains> creatureGrains({bool fine = false}) => fine
+      ? _fineCreature ??= _readCreature(width: 260, grains: 2600)
+      : _creature ??= _readCreature(width: 96, grains: 520);
+
+  static Future<SpecimenGrains> _readCreature({
+    required int width,
+    required int grains,
+  }) async {
     final data = await rootBundle.load(enhanceCreature);
     final codec = await ui.instantiateImageCodec(
       data.buffer.asUint8List(),
-      targetWidth: 96,
+      targetWidth: width,
     );
     final image = (await codec.getNextFrame()).image;
     try {
@@ -95,13 +104,13 @@ class DockEmblem extends StatefulWidget {
         image.width,
         image.height,
         pixelRatio: 1,
-        maxGrains: 520,
+        maxGrains: grains,
         tones: 8,
       );
     } finally {
       image.dispose();
     }
-  }();
+  }
 
   @override
   State<DockEmblem> createState() => _DockEmblemState();
@@ -122,6 +131,8 @@ class _DockEmblemState extends State<DockEmblem> with GlyphClockLease {
       DockEmblem.creatureGrains().then((g) {
         if (mounted) setState(() => _creature = g);
       }, onError: (_) {});
+      // Read ahead for its way in, so the passage never waits on it.
+      DockEmblem.creatureGrains(fine: true).ignore();
     }
   }
 
@@ -355,45 +366,18 @@ class DockEmblemPainter extends CustomPainter {
   void _enhance(Canvas canvas, Offset c, double r, double t) {
     final g = creature;
     final accent = kind.accent;
-    // Its light pooled at its feet — flat, so it reads as light on the
-    // ground and not as a disc behind it.
-    final floor = c + Offset(0, r * 0.62);
-    canvas.save();
-    canvas.translate(floor.dx, floor.dy);
-    canvas.scale(1, 0.3);
-    canvas.drawCircle(
-      Offset.zero,
-      r * 0.75,
-      _p
-        ..shader = ui.Gradient.radial(Offset.zero, r * 0.75, [
-          accent.withValues(alpha: 0.55),
-          accent.withValues(alpha: 0),
-        ]),
-    );
-    _p.shader = null;
-    canvas.restore();
+    paintEnhanceFloor(canvas, c, r);
     if (g == null) return;
     final b = _b..clear();
-    var minY = double.infinity, maxY = double.negativeInfinity;
-    var reach = 1.0;
+    final fit = EnhanceFit(g);
+    final scale = fit.scale(r);
+    final body = fit.centre(c, r);
     for (var i = 0; i < g.length; i++) {
-      minY = math.min(minY, g.hy[i]);
-      maxY = math.max(maxY, g.hy[i]);
-      reach = math.max(reach, g.hx[i].abs());
-    }
-    final span = math.max(1.0, maxY - minY);
-    final scale = math.min(r * 1.6 / span, r * 1.05 / reach);
-    final midY = (minY + maxY) / 2;
-    // The wave climbs it every 3.2 s.
-    final wave = (t % 3.2) / 3.2;
-    for (var i = 0; i < g.length; i++) {
-      final rise = (maxY - g.hy[i]) / span;
-      final x0 = (wave * 1.4 - rise) / 0.35;
-      final pulse = x0 <= 0 || x0 >= 1 ? 0.0 : math.sin(math.pi * x0);
+      final pulse = fit.pulse(i, t);
       final ph = _h(i, 40);
       final lift = pulse * r * (0.04 + (ph > 0.85 ? 0.16 : 0.04));
-      final x = c.dx + g.hx[i] * scale;
-      final y = c.dy + r * 0.08 + (g.hy[i] - midY) * scale - lift;
+      final x = body.dx + g.hx[i] * scale;
+      final y = body.dy + (g.hy[i] - fit.midY) * scale - lift;
       if (pulse > 0.3) {
         b.add(8 + math.min(3, (pulse * 4).floor()), x, y);
       } else {
@@ -410,11 +394,7 @@ class DockEmblemPainter extends CustomPainter {
         k,
         d,
         dark
-            ? Color.lerp(
-                const Color(0xFF2A1F44),
-                const Color(0xFFB7A2E6),
-                (lum * 1.4).clamp(0.0, 1.0),
-              )!
+            ? enhanceInk(g.tones[k])
             : Color.lerp(
                 const Color(0xFF000000),
                 const Color(0xFF3A3540),
@@ -445,6 +425,79 @@ class DockEmblemPainter extends CustomPainter {
       old.dark != dark ||
       old.orb != orb;
 }
+
+/// How the Enhance creature stands in a scene of radius r round c: the
+/// emblem's own fit, shared with its way in so the passage lifts off
+/// exactly where the icon stood.
+class EnhanceFit {
+  EnhanceFit(this.grains) {
+    var lo = double.infinity, hi = double.negativeInfinity, wide = 1.0;
+    for (var i = 0; i < grains.length; i++) {
+      lo = math.min(lo, grains.hy[i]);
+      hi = math.max(hi, grains.hy[i]);
+      wide = math.max(wide, grains.hx[i].abs());
+    }
+    minY = lo;
+    maxY = hi;
+    reach = wide;
+  }
+
+  final SpecimenGrains grains;
+
+  /// Its grains' extent, in grain units.
+  late final double minY, maxY, reach;
+
+  double get span => math.max(1.0, maxY - minY);
+  double get midY => (minY + maxY) / 2;
+
+  /// Grain units to pixels in a scene of radius [r].
+  double scale(double r) => math.min(r * 1.6 / span, r * 1.05 / reach);
+
+  /// The middle of its body: grain i stands at
+  /// centre + (hx, hy - midY) × scale.
+  Offset centre(Offset c, double r) => c + Offset(0, r * 0.08);
+
+  /// Where its light pools: just under its feet.
+  static Offset floor(Offset c, double r) => c + Offset(0, r * 0.62);
+
+  /// 0 at its feet .. 1 at its crown.
+  double rise(int i) => (maxY - grains.hy[i]) / span;
+
+  /// How lit grain i is by the wave that climbs it every 3.2 s (0..1).
+  double pulse(int i, double t) {
+    final x0 = ((t % 3.2) / 3.2 * 1.4 - rise(i)) / 0.35;
+    return x0 <= 0 || x0 >= 1 ? 0.0 : math.sin(math.pi * x0);
+  }
+}
+
+/// The Enhance creature's light pooled at its feet — flat, so it reads as
+/// light on the ground and not as a disc behind it.
+void paintEnhanceFloor(Canvas canvas, Offset c, double r, {double alpha = 1}) {
+  if (alpha <= 0) return;
+  final accent = DockEmblemKind.enhance.accent;
+  final floor = EnhanceFit.floor(c, r);
+  canvas.save();
+  canvas.translate(floor.dx, floor.dy);
+  canvas.scale(1, 0.3);
+  canvas.drawCircle(
+    Offset.zero,
+    r * 0.75,
+    Paint()
+      ..shader = ui.Gradient.radial(Offset.zero, r * 0.75, [
+        accent.withValues(alpha: 0.55 * alpha),
+        accent.withValues(alpha: 0),
+      ]),
+  );
+  canvas.restore();
+}
+
+/// One of the Enhance creature's own tones, in a ghost of the infusion's
+/// violet so the light running through it carries.
+Color enhanceInk(Color tone) => Color.lerp(
+  const Color(0xFF2A1F44),
+  const Color(0xFFB7A2E6),
+  (tone.computeLuminance() * 1.4).clamp(0.0, 1.0),
+)!;
 
 /// Where the Harvest emblem's flask stands in [box]: its bulb's centre and
 /// radius, the neck and the essence falling into it above.

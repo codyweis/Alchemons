@@ -43,6 +43,7 @@ class EnhanceHarness {
     String? open,
     bool items = true,
     AudioController? audio,
+    WidgetBuilder? home,
   }) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3;
@@ -145,7 +146,9 @@ class EnhanceHarness {
         theme: ThemeData.dark(),
         builder: (context, child) =>
             RepaintBoundary(key: shotKey, child: child!),
-        home: FeedingScreen(initialInstanceId: open),
+        home: home != null
+            ? Builder(builder: home)
+            : FeedingScreen(initialInstanceId: open),
       ),
     );
 

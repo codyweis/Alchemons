@@ -48,6 +48,7 @@ import 'package:alchemons/widgets/fx/kin_pour.dart';
 import 'package:alchemons/widgets/fx/power_orb.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
@@ -85,10 +86,24 @@ class _InfusionPayload {
 }
 
 class FeedingScreen extends StatefulWidget {
-  const FeedingScreen({super.key, this.initialInstanceId});
+  const FeedingScreen({
+    super.key,
+    this.initialInstanceId,
+    this.revealReady,
+    this.revealed,
+  });
 
   /// Opens straight onto this Alchemon; back then leaves the screen.
   final String? initialInstanceId;
+
+  /// Coming in through the dock's passage (widgets/dock_passages.dart):
+  /// set once the picker has its Alchemons, so the passage opens on them
+  /// rather than on an empty grid.
+  final ValueNotifier<bool>? revealReady;
+
+  /// Turns true once the passage is half open; the first-visit basics wait
+  /// for it rather than showing over the passage.
+  final ValueListenable<bool>? revealed;
 
   @override
   State<FeedingScreen> createState() => _FeedingScreenState();
@@ -185,11 +200,32 @@ class _FeedingScreenState extends State<FeedingScreen>
       duration: const Duration(milliseconds: 620),
     );
     unawaited(_refreshDiscovery());
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowBasics());
+    final revealed = widget.revealed;
+    if (revealed == null || revealed.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowBasics());
+    } else {
+      revealed.addListener(_onRevealed);
+    }
+  }
+
+  /// The passage is half open: the basics once it has finished.
+  void _onRevealed() {
+    if (!(widget.revealed?.value ?? true)) return;
+    widget.revealed?.removeListener(_onRevealed);
+    Future<void>.delayed(const Duration(milliseconds: 900), _maybeShowBasics);
+  }
+
+  /// The picker has its Alchemons: the passage may open on them, once
+  /// they have been laid out.
+  void _signalReady() {
+    final ready = widget.revealReady;
+    if (ready == null || ready.value) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => ready.value = true);
   }
 
   @override
   void dispose() {
+    widget.revealed?.removeListener(_onRevealed);
     _orbController.dispose();
     _flashController.dispose();
     _pourController.dispose();
@@ -329,6 +365,7 @@ class _FeedingScreenState extends State<FeedingScreen>
             stream: db.creatureDao.watchAllInstances(),
             builder: (context, snap) {
               final all = snap.data;
+              if (all != null) _signalReady();
               if (all != null && all.isEmpty) {
                 return const _QuietNote('No Alchemons yet.');
               }

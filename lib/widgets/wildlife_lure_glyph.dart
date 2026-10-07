@@ -1,18 +1,19 @@
 import 'dart:math' as math;
 
-import 'package:alchemons/widgets/fx/glyph_clock.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
+import 'package:alchemons/widgets/fx/grain_glass.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// The Wildlife Lure: a bait bloom that calls, and things that answer it.
+/// The Wildlife Lure: bait that gives off a scent, and something wild that
+/// follows it in.
 ///
-/// Deliberately not the harvester's pulser, which also beats and also draws
-/// something in. That is hardware clamping down on one specimen; this is bait
-/// left in a clearing. So the core is grown rather than built, the call goes
-/// out as a soft ring instead of a shockwave, and what arrives swims — the
-/// motes wander in on their own line and circle once they are there, because
-/// nothing has caught them.
-class WildlifeLureGlyph extends StatefulWidget {
+/// The bait is a small warm sphere of glass. Its scent leaves it as a drift
+/// of grains, wandering out to the edge; a wild Alchemon — loose grains, the
+/// same as the wild one in [WildFusionGlyph] — comes in from the far end
+/// along that same drift, slowing as it nears, and circles the bait once it
+/// is there. Nothing catches it: that is the harvester's job, not this one.
+class WildlifeLureGlyph extends StatelessWidget {
   const WildlifeLureGlyph({super.key, required this.size, this.animate = true});
 
   final double size;
@@ -21,180 +22,132 @@ class WildlifeLureGlyph extends StatefulWidget {
   final bool animate;
 
   @override
-  State<WildlifeLureGlyph> createState() => _WildlifeLureGlyphState();
-}
-
-class _WildlifeLureGlyphState extends State<WildlifeLureGlyph>
-    with GlyphClockLease {
-  @override
-  bool get wantsClock => widget.animate;
-
-  @override
-  void initState() {
-    super.initState();
-    syncGlyphClock();
-  }
-
-  @override
-  void didUpdateWidget(covariant WildlifeLureGlyph oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    syncGlyphClock();
-  }
-
-  @override
-  void dispose() {
-    releaseGlyphClock();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: CustomPaint(
-        willChange: widget.animate,
-        isComplex: false,
-        painter: _WildlifeLurePainter(clock: glyphClock),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => GrainGlyph(
+    size: size,
+    animate: animate,
+    painter: (clock) => _WildlifeLurePainter(clock),
+  );
 }
 
 class _WildlifeLurePainter extends CustomPainter {
-  _WildlifeLurePainter({required this.clock}) : super(repaint: clock);
+  _WildlifeLurePainter(this.clock) : super(repaint: clock);
 
   final ValueListenable<double>? clock;
 
-  /// Reused across every frame and every glyph on screen.
-  static final Paint _p = Paint();
+  /// One arrival: in along the scent, round the bait, gone.
+  static const double _period = 6.4;
 
-  /// One call and one answer.
-  static const double _period = 3.2;
+  /// A still glyph shows it come in and circling.
+  static const double _still = 0.62 * _period;
 
-  /// Where the loop starts, so the frame the shop grid bakes has the callers
-  /// mid-approach rather than an empty clearing.
-  static const double _stillPhase = 0.55;
+  static const Color _bait = Color(0xFFF5C863);
+  static const Color _bloom = Color(0xFF6BCF7F);
+  static const Color _wild = Color(0xFF4FD1C5);
 
-  static const int _callers = 6;
-
-  static const _bloom = Color(0xFF6BCF7F);
-  static const _bloomDeep = Color(0xFF1F6B3C);
-  static const _bait = Color(0xFFF5C863);
-
-  double get _t => clock?.value ?? 0;
-
-  /// Golden-ratio spread, so no two callers share a line.
-  static double _h(int i, int salt) => (i * 0.6180339887 + salt * 0.2749) % 1.0;
+  static const int _scent = 64;
+  static final GrainBatch _b = GrainBatch(4);
 
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.shortestSide;
     if (s <= 0) return;
-    final c = Offset(size.width / 2, size.height / 2);
-    final beat = ((_t / _period) + _stillPhase) % 1.0;
+    final t = (clock?.value ?? 0) + _still;
+    final cycle = (t / _period).floor();
+    final p = (t % _period) / _period;
+    final bait = Offset(size.width / 2 - s * 0.09, size.height / 2 + s * 0.08);
+    final baitR = s * 0.17;
 
-    _call(canvas, c, s, beat);
-    _answer(canvas, c, s);
-    _core(canvas, c, s, beat);
-  }
+    // The drift, from the bait out to the edge: upper right, wandering, and
+    // not quite the same way twice.
+    final phi = -0.62 + 0.28 * math.sin(cycle * 2.1);
+    final along = Offset(math.cos(phi), math.sin(phi));
+    final across = Offset(-along.dy, along.dx);
+    final reach = s * 0.52;
+    Offset drift(double u) =>
+        bait +
+        along * (reach * u) +
+        across * (math.sin(u * math.pi * 2.1 + 0.4) * s * 0.075 * u);
 
-  /// The scent going out. Soft and open, not a shockwave.
-  void _call(Canvas canvas, Offset c, double s, double beat) {
-    _p
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 2; i++) {
-      final phase = (beat + i * 0.5) % 1.0;
-      final e = Curves.easeOutCubic.transform(phase);
-      final fade = (1 - phase) * 0.34;
-      if (fade <= 0.01) continue;
-      final r = s * (0.14 + 0.30 * e);
-      // Broken into arcs rather than a closed ring: a scent carries in
-      // patches, and a hard circle reads as a machine.
-      for (var k = 0; k < 5; k++) {
-        final start = k * math.pi * 2 / 5 + phase * 0.7;
-        canvas.drawArc(
-          Rect.fromCircle(center: c, radius: r),
-          start,
-          0.52,
-          false,
-          _p
-            ..strokeWidth = s * 0.022 * (1 - e * 0.55)
-            ..color = _bloom.withValues(alpha: fade),
-        );
-      }
+    // ── the scent ──
+    final come = GrainGlass.smooth((p - 0.06) / 0.5);
+    final circling = GrainGlass.smooth((p - 0.52) / 0.1);
+    final leave = GrainGlass.smooth((p - 0.86) / 0.14);
+    final scent = 0.5 + 0.5 * (1 - circling) + 0.5 * leave;
+    final b = _b..clear();
+    final d = (s * 0.017).clamp(1.0, 2.4);
+    for (var i = 0; i < _scent; i++) {
+      final q = (t * 0.13 + GrainGlass.h(i, 31)) % 1.0;
+      final u = 0.12 + 0.88 * q;
+      final sway =
+          (GrainGlass.h(i, 32) - 0.5) * s * (0.03 + 0.07 * u) +
+          math.sin(t * 0.9 + i * 1.3) * s * 0.012 * u;
+      final pos = drift(u) + across * sway;
+      // Thick near the bait, thinning out to nothing at the edge.
+      final band = q < 0.15 ? 0 : (q < 0.55 ? 1 : (q < 0.85 ? 2 : 3));
+      b.add(band, pos.dx, pos.dy);
     }
-    _p
-      ..style = PaintingStyle.fill
-      ..strokeCap = StrokeCap.butt;
-  }
-
-  /// What comes. Each on its own wandering line, and circling once it is in.
-  void _answer(Canvas canvas, Offset c, double s) {
-    for (var i = 0; i < _callers; i++) {
-      final phase = (_t * 0.22 + _h(i, 1)) % 1.0;
-      // Slows as it nears the bait rather than accelerating into it: it is
-      // approaching something, not being pulled.
-      final approach = Curves.easeOutCubic.transform(phase);
-      final dist = s * (0.48 - 0.30 * approach);
-      final lane = _h(i, 2) * math.pi * 2;
-      // The wander is what makes it read as swimming.
-      final wander = math.sin(phase * math.pi * 4 + i * 1.7) * 0.26;
-      final a = lane + wander + approach * 0.9;
-      final fade =
-          (phase < 0.12 ? phase / 0.12 : 1.0) *
-          (phase > 0.86 ? (1 - phase) / 0.14 : 1.0);
-      if (fade <= 0.02) continue;
-
-      final pos = c + Offset(math.cos(a) * dist, math.sin(a) * dist);
-      final r = s * (0.021 + 0.008 * (1 - approach));
-
-      // A tapered body: a head, and a shorter mark behind it on its own line.
-      canvas.drawCircle(
-        pos,
-        r,
-        _p
-          ..color = Color.lerp(
-            _bloom,
-            Colors.white,
-            0.45,
-          )!.withValues(alpha: 0.9 * fade),
-      );
-      final tail =
-          c +
-          Offset(
-            math.cos(a - 0.16) * (dist + s * 0.03),
-            math.sin(a - 0.16) * (dist + s * 0.03),
-          );
-      canvas.drawCircle(
-        tail,
-        r * 0.55,
-        _p..color = _bloom.withValues(alpha: 0.4 * fade),
+    final warm = Color.lerp(_bait, _bloom, 0.45)!;
+    const fades = [0.36, 0.56, 0.34, 0.14];
+    for (var k = 0; k < 4; k++) {
+      b.draw(
+        canvas,
+        k,
+        d * (1.15 - k * 0.15),
+        Color.lerp(
+          warm,
+          Colors.white,
+          0.25,
+        )!.withValues(alpha: (fades[k] * scent).clamp(0.0, 1.0)),
       );
     }
-  }
 
-  /// The bait itself — grown, not built. Five lobes around a warm centre.
-  void _core(Canvas canvas, Offset c, double s, double beat) {
-    final breathe = 0.5 + 0.5 * math.sin(beat * math.pi * 2);
-    final lobe = s * (0.052 + 0.008 * breathe);
-    final spread = s * 0.062;
+    // ── what comes ──
+    // In along the drift, slowing as it nears; then round the bait.
+    final inU = 1.08 - 0.8 * Curves.easeOutCubic.transform(come);
+    final arrivedAt = drift(0.28);
+    final start = arrivedAt - bait;
+    final startA = math.atan2(start.dy / 0.8, start.dx);
+    final orbitA = startA - 1.5 * math.max(0.0, p - 0.56) / 0.44 * math.pi;
+    final orbitR = start.distance + (s * 0.27 - start.distance) * circling;
+    final round =
+        bait + Offset(math.cos(orbitA), math.sin(orbitA) * 0.8) * orbitR;
+    final at = Offset.lerp(drift(inU), round, circling)!;
+    final behind = circling > 0.5 && math.sin(orbitA) < -0.15;
+    final enter = GrainGlass.smooth((p - 0.04) / 0.14);
 
-    for (var i = 0; i < 5; i++) {
-      final a = i * math.pi * 2 / 5 - math.pi / 2;
-      canvas.drawCircle(
-        c + Offset(math.cos(a) * spread, math.sin(a) * spread),
-        lobe,
-        _p..color = Color.lerp(_bloom, _bloomDeep, 0.35)!,
-      );
-    }
-    canvas.drawCircle(c, s * (0.055 + 0.010 * breathe), _p..color = _bait);
-    canvas.drawCircle(
-      c,
-      s * 0.024,
-      _p..color = Color.lerp(_bait, Colors.white, 0.65)!,
+    void wild() => GrainGlass.sphere(
+      canvas,
+      at,
+      s * 0.125,
+      t,
+      a: _wild,
+      b: Color.lerp(_wild, Colors.white, 0.35),
+      spin: 1.1,
+      glass: 0,
+      gather: 0.78 * enter * (1 - 0.7 * leave),
+      fade: enter * (1 - leave),
+      glow: 0.8,
+      salt: 21,
     );
+
+    if (behind) wild();
+
+    // ── the bait ──
+    final breathe = 0.5 + 0.5 * math.sin(t * 1.6);
+    GrainGlass.sphere(
+      canvas,
+      bait,
+      baitR,
+      t,
+      a: _bait,
+      b: Color.lerp(_bait, _bloom, 0.4),
+      spin: 0.45,
+      heat: 0.2 + 0.25 * breathe,
+      heatColor: _bait,
+      salt: 22,
+    );
+
+    if (!behind) wild();
   }
 
   @override

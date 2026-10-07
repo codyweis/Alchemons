@@ -242,6 +242,9 @@ class EssenceRimField {
     return _depth[math.min(i, _depth.length - 1)];
   }
 
+  // How thick the bank lies overall; 1.0 was the first cut, halved 2026-10-06.
+  static const double _bankScale = 0.5;
+
   void _measureBank() {
     final w = _w, h = _h, p = _p;
     final m = (p / 2).ceil() + 1;
@@ -282,7 +285,7 @@ class EssenceRimField {
           2.0 * pool(s, w, 20);
       final drift = 0.62 + 0.76 * _noise(s, 110, 1);
       final fine = 0.82 + 0.36 * _noise(s, 26, 2);
-      _depth[i] = math.min(base * drift * fine, 20.0) * _k;
+      _depth[i] = math.min(base * drift * fine, 20.0) * _k * _bankScale;
     }
   }
 

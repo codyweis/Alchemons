@@ -242,24 +242,12 @@ void main() {
       HomeEmblemKind.altar: Rect.fromLTWH(298, 354, 80, 80),
       HomeEmblemKind.rite: Rect.fromLTWH(304, 456, 68, 68),
     };
-    const split = 0.42;
-    const values = [
-      1.0,
-      0.8,
-      0.6,
-      0.45,
-      0.38,
-      0.32,
-      0.26,
-      0.2,
-      0.14,
-      0.09,
-      0.05,
-      0.0,
-    ];
+    final split = const HomeEmblemScene(HomeEmblemKind.rite).backSplit;
+    // Evenly in time, as the route plays it.
+    final values = [for (var i = 0; i < 18; i++) 1 - i / 17];
     for (final kind in HomeEmblemKind.values) {
       final dest = await page(kind.name);
-      const cols = 6;
+      const cols = 9;
       final rows = (values.length / cols).ceil();
       final rec = ui.PictureRecorder();
       final canvas = Canvas(rec);

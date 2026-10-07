@@ -450,7 +450,7 @@ class _DeviceThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The device draws as the pulser here too, so the thing you pick looks
+    // The device draws as its cage here too, so the thing you pick looks
     // like the thing on the Harvest button that opened this and like the
     // thing you bought in the shop.
     final biome = harvesterBiomeForKey(device.inventoryKey);

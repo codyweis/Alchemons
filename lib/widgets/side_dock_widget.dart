@@ -29,11 +29,14 @@ class SideDockFloating extends StatelessWidget {
   final VoidCallback onBattle;
   final VoidCallback? onMysticAltar;
 
-  /// Where the Field, Harvest and Survival emblems stand (their passages
-  /// lift off from there), and whether each is away carrying the player in
-  /// — its place is left empty meanwhile.
-  final GlobalKey? fieldKey, harvestKey, survivalKey;
-  final ValueListenable<bool>? fieldLifted, harvestLifted, survivalLifted;
+  /// Where the Field, Harvest, Survival and Enhance emblems stand (their
+  /// passages lift off from there), and whether each is away carrying the
+  /// player in — its place is left empty meanwhile.
+  final GlobalKey? fieldKey, harvestKey, survivalKey, enhanceKey;
+  final ValueListenable<bool>? fieldLifted,
+      harvestLifted,
+      survivalLifted,
+      enhanceLifted;
 
   const SideDockFloating({
     super.key,
@@ -57,6 +60,8 @@ class SideDockFloating extends StatelessWidget {
     this.fieldLifted,
     this.harvestLifted,
     this.survivalLifted,
+    this.enhanceKey,
+    this.enhanceLifted,
   });
 
   /// The survival orb the player has equipped (the plain one where there is
@@ -146,10 +151,14 @@ class SideDockFloating extends StatelessWidget {
                 size: 70,
                 theme: theme,
                 label: 'Enhance',
-                iconBuilder: (size) => DockEmblem(
-                  kind: DockEmblemKind.enhance,
-                  size: size,
-                  dark: theme.isDark,
+                iconBuilder: (size) => _emblem(
+                  enhanceKey,
+                  enhanceLifted,
+                  DockEmblem(
+                    kind: DockEmblemKind.enhance,
+                    size: size,
+                    dark: theme.isDark,
+                  ),
                 ),
                 onTap: context.soundTap(onEnhance),
                 highlight: highlightEnhance,
@@ -274,9 +283,11 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
                 ),
           ),
           if (widget.showDot)
+            // On the flask's shoulder, just off its bulb, not out at the
+            // corner of the icon's box.
             Positioned(
-              right: -2,
-              top: -2,
+              left: widget.size * 0.80 - 5.5,
+              top: widget.size * 0.30 - 5.5,
               child: HomeNoticeDot(
                 color: homeNoticeAccent(
                   NotificationBannerType.harvestReady,

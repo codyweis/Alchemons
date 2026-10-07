@@ -15,7 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 // The harvest in particles, per harvester: the field closing, biting and
 // held against, then a take and a break — with a real sprite standing in it.
 //
-//   HARVEST_OUT=/tmp/harvest.png flutter test \
+//   HARVEST_OUT=/tmp/harvest.png [HARVEST_SCALE=1] flutter test \
 //     test/harvest_particles_preview_test.dart --tags preview
 void main() {
   final out = Platform.environment['HARVEST_OUT'];
@@ -135,22 +135,27 @@ void main() {
       rows.add((
         biome,
         [
-          shoot(f, t: 0.25),
-          shoot(f, t: 0.7),
+          shoot(f, t: 0.2),
+          shoot(f, t: 0.45),
+          shoot(f, t: 0.75),
           shoot(f, t: 1.4),
-          shoot(f, t: 1.8, take: 0.15),
-          shoot(f, t: 1.8, take: 0.35),
-          shoot(f, t: 1.8, take: 0.55),
-          shoot(f, t: 1.8, take: 0.75),
-          shoot(f, t: 1.8, take: 0.9),
-          shoot(f, t: 1.8, shatter: 0.2),
-          shoot(f, t: 1.8, shatter: 0.5),
+          shoot(f, t: 1.8, take: 0.12),
+          shoot(f, t: 1.8, take: 0.24),
+          shoot(f, t: 1.8, take: 0.36),
+          shoot(f, t: 1.8, take: 0.5),
+          shoot(f, t: 1.8, take: 0.64),
+          shoot(f, t: 1.8, take: 0.8),
+          shoot(f, t: 1.8, take: 0.92),
+          shoot(f, t: 1.8, shatter: 0.15),
+          shoot(f, t: 1.8, shatter: 0.35),
+          shoot(f, t: 1.8, shatter: 0.65),
         ],
       ));
     }
 
     await tester.runAsync(() async {
-      const s = 0.5;
+      final s =
+          double.tryParse(Platform.environment['HARVEST_SCALE'] ?? '') ?? 0.5;
       final w = stage.width * s, h = stage.height * s;
       final cols = rows.first.$2.length;
       final rec = ui.PictureRecorder();

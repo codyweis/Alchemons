@@ -116,10 +116,19 @@ abstract class PassageScene {
   /// once it is laid out, say), so it is repainted when that changes.
   Listenable? get listenable => null;
 
+  /// Going back, the share of [outward] the scene has to gather home in,
+  /// after the page has sunk away. Most of it: a gather crammed into the
+  /// last moment reads as a spring.
+  double get backSplit => 0.65;
+
   /// How much of the page shows at [land] (0..1 of giving way): a scene
   /// with something to settle into place first holds the page back until
   /// it has, so the page's own copy does not show beside it.
   double pageShown(double land) => land;
+
+  /// The part of the screen the page shows through at [s], for a scene that
+  /// opens onto the page rather than only fading it in; null for all of it.
+  Rect? pageWindow(EmblemStage s) => null;
 }
 
 /// One of home's right-side emblems as a passage.
@@ -138,9 +147,13 @@ class HomeEmblemScene extends PassageScene {
 
   @override
   Duration get outward => switch (kind) {
-    HomeEmblemKind.rite => const Duration(milliseconds: 1000),
-    _ => const Duration(milliseconds: 850),
+    HomeEmblemKind.rite => const Duration(milliseconds: 1250),
+    _ => const Duration(milliseconds: 1000),
   };
+
+  /// The rite's page clears quickly; the pool and the drop have the rest.
+  @override
+  double get backSplit => kind == HomeEmblemKind.rite ? 0.74 : 0.65;
 
   /// Giving way to the page. The sky disc hands over to a sky, so it can
   /// be quick: the chart's own entrance follows it.
@@ -224,9 +237,6 @@ class EmblemPassageRoute<T> extends PageRoute<T> implements SelfLeavingRoute {
     super.dispose();
   }
 }
-
-/// Where, going back, the page has sunk and the scene starts to gather.
-const double _kBackSplit = 0.42;
 
 /// A page that never says it is ready cannot keep the player waiting.
 const Duration _kReadyTimeout = Duration(seconds: 6);
@@ -370,7 +380,8 @@ class _PassageVeilState extends State<_PassageVeil>
   /// How far the scene has grown over the screen.
   double get _open {
     final v = widget.animation.value;
-    return _closing ? _clamp01(v / _kBackSplit) : v;
+    final split = widget.route.scene.backSplit;
+    return _closing ? _clamp01(v / split) : v;
   }
 
   /// How far it has given way to the page.
@@ -379,7 +390,9 @@ class _PassageVeilState extends State<_PassageVeil>
     final v = widget.animation.value;
     return math.min(
       _land.value,
-      _clamp01((v - _kBackSplit) / (1 - _kBackSplit)),
+      _clamp01(
+        (v - widget.route.scene.backSplit) / (1 - widget.route.scene.backSplit),
+      ),
     );
   }
 
@@ -407,11 +420,16 @@ class _PassageVeilState extends State<_PassageVeil>
         fit: StackFit.expand,
         children: [
           RepaintBoundary(child: CustomPaint(painter: painter(true))),
-          AnimatedBuilder(
-            animation: _fade,
-            builder: (_, child) =>
-                Opacity(opacity: scene.pageShown(_given), child: child),
-            child: _built ? widget.child : const SizedBox.expand(),
+          ClipRect(
+            // Always in the tree, so settling never rebuilds the page.
+            clipper: _WindowClipper(scene, stage, reclip: _fade),
+            clipBehavior: settled ? Clip.none : Clip.hardEdge,
+            child: AnimatedBuilder(
+              animation: _fade,
+              builder: (_, child) =>
+                  Opacity(opacity: scene.pageShown(_given), child: child),
+              child: _built ? widget.child : const SizedBox.expand(),
+            ),
           ),
           IgnorePointer(
             child: RepaintBoundary(child: CustomPaint(painter: painter(false))),
@@ -420,6 +438,23 @@ class _PassageVeilState extends State<_PassageVeil>
       ),
     );
   }
+}
+
+/// The page's share of the screen, at the passage's moment.
+class _WindowClipper extends CustomClipper<Rect> {
+  _WindowClipper(this.scene, this.stage, {required Listenable reclip})
+    : super(reclip: reclip);
+
+  final PassageScene scene;
+  final EmblemStage Function(Size size) stage;
+
+  @override
+  Rect getClip(Size size) =>
+      scene.pageWindow(stage(size)) ?? Offset.zero & size;
+
+  @override
+  bool shouldReclip(covariant _WindowClipper old) =>
+      old.scene != scene || old.stage != stage;
 }
 
 /// One of a scene's two layers, at the passage's moment.

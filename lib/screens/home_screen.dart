@@ -53,6 +53,8 @@ import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/widgets/dock_passages.dart';
+import 'package:alchemons/widgets/dock_emblems.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 import 'package:alchemons/widgets/side_dock_widget.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flame/flame.dart' show Flame;
@@ -836,14 +838,17 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey _relicEmblem = GlobalKey();
   final ValueNotifier<bool> _relicLifted = ValueNotifier(false);
 
-  /// The dock's Field, Harvest and Survival emblems, which carry the player
-  /// to their screens the same way, and whether each is away doing so.
+  /// The dock's Field, Harvest, Survival and Enhance emblems, which carry
+  /// the player to their screens the same way, and whether each is away
+  /// doing so.
   final GlobalKey _fieldEmblem = GlobalKey();
   final GlobalKey _harvestEmblem = GlobalKey();
   final GlobalKey _survivalEmblem = GlobalKey();
+  final GlobalKey _enhanceEmblem = GlobalKey();
   final ValueNotifier<bool> _fieldLifted = ValueNotifier(false);
   final ValueNotifier<bool> _harvestLifted = ValueNotifier(false);
   final ValueNotifier<bool> _survivalLifted = ValueNotifier(false);
+  final ValueNotifier<bool> _enhanceLifted = ValueNotifier(false);
 
   void _updateAnimationState() {
     // home tab active AND this route is the top-most one
@@ -957,6 +962,7 @@ class _HomeScreenState extends State<HomeScreen>
     _fieldLifted.dispose();
     _harvestLifted.dispose();
     _survivalLifted.dispose();
+    _enhanceLifted.dispose();
     _slotsSubscription?.cancel();
     _rosterSubscription?.cancel();
     _biomesSubscription?.cancel();
@@ -1221,6 +1227,26 @@ class _HomeScreenState extends State<HomeScreen>
       page: ExtractionHubScreen(revealReady: ready, passageTarget: place),
       ready: ready,
       lifted: _harvestLifted,
+    );
+  }
+
+  /// Enhance, through its creature of grains: it comes apart into a band
+  /// of light that opens on the picker.
+  void _openEnhance() {
+    final ready = ValueNotifier<bool>(false);
+    final revealed = ValueNotifier<bool>(false);
+    final creature = ValueNotifier<SpecimenGrains?>(null);
+    DockEmblem.creatureGrains(
+      fine: true,
+    ).then((g) => creature.value = g, onError: (_) {});
+    EmblemPassage.pushScene<void>(
+      context,
+      scene: EnhancePassage(creature: creature),
+      from: _enhanceEmblem,
+      page: FeedingScreen(revealReady: ready, revealed: revealed),
+      ready: ready,
+      revealed: revealed,
+      lifted: _enhanceLifted,
     );
   }
 
@@ -2256,13 +2282,23 @@ class _HomeScreenState extends State<HomeScreen>
                               children: [
                                 child!,
                                 if (hasSpawns)
+                                  // Field's icon is centred in the dock column
+                                  // and 70 wide: the dot rides its upper-right
+                                  // rim rather than the column's corner.
                                   Positioned(
-                                    top: 0,
-                                    right: 10,
-                                    child: HomeNoticeDot(
-                                      color: homeNoticeAccent(
-                                        NotificationBannerType.wildernessSpawn,
-                                        dark: theme.isDark,
+                                    top: 8,
+                                    left: 0,
+                                    right: 0,
+                                    child: Center(
+                                      child: Transform.translate(
+                                        offset: const Offset(21, 0),
+                                        child: HomeNoticeDot(
+                                          color: homeNoticeAccent(
+                                            NotificationBannerType
+                                                .wildernessSpawn,
+                                            dark: theme.isDark,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -2301,13 +2337,7 @@ class _HomeScreenState extends State<HomeScreen>
                                         () => _enhanceHighlightActive = false,
                                       );
                                     }
-                                    Navigator.push(
-                                      context,
-                                      CupertinoPageRoute(
-                                        builder: (_) => const FeedingScreen(),
-                                        fullscreenDialog: true,
-                                      ),
-                                    );
+                                    _openEnhance();
                                   },
                             onHarvest: _isFieldTutorialActive
                                 ? () {}
@@ -2339,6 +2369,8 @@ class _HomeScreenState extends State<HomeScreen>
                             fieldLifted: _fieldLifted,
                             harvestLifted: _harvestLifted,
                             survivalLifted: _survivalLifted,
+                            enhanceKey: _enhanceEmblem,
+                            enhanceLifted: _enhanceLifted,
                           ),
                         ),
                       ),

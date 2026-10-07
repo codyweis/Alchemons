@@ -116,13 +116,15 @@ class SurvivalUpgradeService extends ChangeNotifier {
   Future<void> equipOrbSkin(OrbBaseSkin skin) async {
     if (!_state.ownedSkins.contains(skin)) return;
     _state.equippedSkin = skin;
+    // Listeners first: the home dock shows this orb, and the saves below can
+    // outlast the trip back to it.
+    notifyListeners();
     await _db.settingsDao.setSetting(_kEquippedSkin, skin.name);
     // Owning a base is a purchase; carrying one into a run is the thing the
     // achievement is for, so it marks on equip and only for a real choice.
     if (skin != OrbBaseSkin.defaultOrb) {
       await CampaignJournalService.mark(_db.settingsDao, 'orbSkin');
     }
-    notifyListeners();
   }
 
   // ── Upgrade Guardian Stat ──────────────────────────────────────────────────

@@ -392,7 +392,6 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
       context: context,
       targetSprite: null,
       targetColor: accent,
-      deviceLabel: profile.biomeId.toUpperCase(),
       profile: profile,
       focus: _stage().wild,
       // The field closes to fit the specimen, not a fixed size.

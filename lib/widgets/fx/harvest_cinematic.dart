@@ -15,8 +15,12 @@
 // specimen is gone.
 //
 // The apparatus is particles ([HarvestParticleField]), the same as the Flame
-// field in the scenes: streams of motes on tipped orbits, and on a take the
-// specimen turned to grains of itself and drawn down into the harvester.
+// field in the scenes: a shell of the device's grains round the specimen; on
+// a take the specimen turns to grains of itself, folds into a sphere of its
+// own inside the shell, and lifts away; on a break the shell tears open.
+//
+// No caption. It used to spell the beats out in monospace ("THE FIELD
+// HOLDS", "CONTAINMENT BROKEN"); the picture says it.
 //
 // No MaskFilter anywhere: light is radial-gradient pools.
 
@@ -61,7 +65,6 @@ Future<bool> showHarvestCinematic({
   required BuildContext context,
   Widget? targetSprite,
   required Color targetColor,
-  required String deviceLabel,
   HarvesterProfile? profile,
   Duration minDuration = const Duration(milliseconds: 1600),
   Offset? focus,
@@ -77,7 +80,6 @@ Future<bool> showHarvestCinematic({
           pageBuilder: (_, __, ___) => _HarvestCinematicPage(
             targetSprite: targetSprite,
             targetColor: targetColor,
-            deviceLabel: deviceLabel,
             profile: profile ?? HarvesterProfile.forBiome(null),
             minDuration: minDuration,
             focus: focus,
@@ -100,7 +102,6 @@ class _HarvestCinematicPage extends StatefulWidget {
   const _HarvestCinematicPage({
     required this.targetSprite,
     required this.targetColor,
-    required this.deviceLabel,
     required this.profile,
     required this.minDuration,
     required this.task,
@@ -124,7 +125,6 @@ class _HarvestCinematicPage extends StatefulWidget {
   /// Null when the specimen is already on screen behind this overlay.
   final Widget? targetSprite;
   final Color targetColor;
-  final String deviceLabel;
 
   /// The apparatus doing the taking.
   final HarvesterProfile profile;
@@ -222,10 +222,11 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
       try {
         await _readSpecimen().timeout(const Duration(milliseconds: 400));
       } catch (_) {}
-      _resolve.duration = Duration(
-        milliseconds: (HarvestParticleField.takeSeconds * 1000).round(),
-      );
     }
+    final seconds = (_success ?? false)
+        ? HarvestParticleField.takeSeconds
+        : HarvestParticleField.breakSeconds;
+    _resolve.duration = Duration(milliseconds: (seconds * 1000).round());
     HarvestParticleField.announce(
       (_success ?? false) ? HarvestBeat.take : HarvestBeat.shatter,
     );
@@ -350,12 +351,6 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
                     child: stage,
                   ),
                 ),
-              Positioned(
-                bottom: 46,
-                left: 24,
-                right: 24,
-                child: _Caption(beat: beat, device: widget.deviceLabel),
-              ),
             ],
           );
         },
@@ -510,44 +505,6 @@ class _FieldPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FieldPainter old) => true;
-}
-
-class _Caption extends StatelessWidget {
-  const _Caption({required this.beat, required this.device});
-
-  final _HarvestBeat beat;
-  final String device;
-
-  @override
-  Widget build(BuildContext context) {
-    final String text;
-    Color color = const Color(0xFFE8DFC8);
-    if (!beat.resolving) {
-      text = beat.pressure > 0.05
-          ? 'THE FIELD HOLDS'
-          : '${device.toUpperCase()} ENGAGED';
-    } else if (beat.success) {
-      text = 'SPECIMEN SECURED';
-      color = const Color(0xFFE4C16A);
-    } else {
-      text = 'CONTAINMENT BROKEN';
-      color = const Color(0xFFD07A4A);
-    }
-    return Opacity(
-      opacity: _interval(beat.seize, 0.06, 0.24),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: color,
-          fontFamily: 'monospace',
-          fontWeight: FontWeight.w900,
-          fontSize: 13,
-          letterSpacing: 2.0,
-        ),
-      ),
-    );
-  }
 }
 
 /// 0 before [start], 1 after [end], clamped in between.

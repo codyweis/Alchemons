@@ -13,6 +13,10 @@
 //             loose and drift down into the map's realm circles as the dust
 //             each realm opens as
 //   Survival  the equipped orb grows onto the survival hub's orb
+//   Enhance   the creature of grains stands up in the middle of the screen,
+//             the infusion's light climbing it, then comes apart into a band
+//             of light that opens — one edge rising, one falling — on the
+//             page
 //
 // Going back plays each the other way. Points in batches, gradients for
 // light; no blur, no stroked outlines.
@@ -88,13 +92,13 @@ class HarvestPassage extends PassageScene {
   final ValueListenable<HarvestFlaskTarget?> target;
 
   @override
-  Duration get inward => const Duration(milliseconds: 900);
+  Duration get inward => const Duration(milliseconds: 600);
 
   @override
-  Duration get outward => const Duration(milliseconds: 850);
+  Duration get outward => const Duration(milliseconds: 650);
 
   @override
-  Duration get landing => const Duration(milliseconds: 950);
+  Duration get landing => const Duration(milliseconds: 650);
 
   @override
   Listenable? get listenable => target;
@@ -202,13 +206,13 @@ class FieldPassage extends PassageScene {
   final ValueListenable<List<FieldCircle>?> target;
 
   @override
-  Duration get inward => const Duration(milliseconds: 950);
+  Duration get inward => const Duration(milliseconds: 650);
 
   @override
-  Duration get outward => const Duration(milliseconds: 950);
+  Duration get outward => const Duration(milliseconds: 800);
 
   @override
-  Duration get landing => const Duration(milliseconds: 1250);
+  Duration get landing => const Duration(milliseconds: 800);
 
   @override
   Listenable? get listenable => target;
@@ -216,6 +220,10 @@ class FieldPassage extends PassageScene {
   /// The map comes up under its dust once most of it has come down.
   @override
   double pageShown(double land) => _smooth(0.45, 1, land);
+
+  /// Going back the map clears quickly; the dust has the rest.
+  @override
+  double get backSplit => 0.78;
 
   static const int _count = 2600;
 
@@ -261,13 +269,29 @@ class FieldPassage extends PassageScene {
     if (!front) return;
     final w = s.screen.width, h = s.screen.height;
     final t = s.time;
-    final o = s.grow;
+    final land = s.land;
+    final closing = s.closing;
+    // Going back, [p] is 0..1 of the way home once the map has sunk away:
+    // the dust drifts back up into the hills while they are still large
+    // (to 0.8), and only then do the hills ease down into the icon (0.5 to
+    // 1) — overlapping, unhurried, so nothing springs.
+    // It starts as the map finishes clearing (land under 0.45), so the
+    // dust is never left sitting still in the circles.
+    final p = !closing
+        ? 0.0
+        : land > 0
+        ? 0.1 * _clamp01((0.45 - land) / 0.45)
+        : 0.1 + 0.9 * (1 - s.open);
     // The window the hills are seen through: the icon's box, then most of
     // the screen.
-    final c = Offset.lerp(s.box.center, Offset(w / 2, h * 0.46), o)!;
-    final r = _lerp(s.box.shortestSide / 2, math.min(w, h) * 0.44, o);
-    // The icon itself hands over to its grains in the first moments.
-    final iconAlpha = 1 - _smooth(0.0, 0.3, s.open);
+    final win = closing ? 1 - _smooth(0.5, 1.0, p) : s.grow;
+    final c = Offset.lerp(s.box.center, Offset(w / 2, h * 0.46), win)!;
+    final r = _lerp(s.box.shortestSide / 2, math.min(w, h) * 0.44, win);
+    // The icon itself hands over to its grains in the first moments (and
+    // takes them back at the last).
+    final iconAlpha = closing
+        ? _smooth(0.8, 1.0, p)
+        : 1 - _smooth(0.0, 0.3, s.open);
     if (iconAlpha > 0) {
       DockEmblemPainter.paintField(
         canvas,
@@ -276,16 +300,20 @@ class FieldPassage extends PassageScene {
         alpha: iconAlpha,
       );
     }
-    final grains = _smooth(0.04, 0.32, s.open);
+    final grains = closing
+        ? 1 - _smooth(0.86, 1.0, p)
+        : _smooth(0.04, 0.32, s.open);
     if (grains <= 0) return;
     final circles = target.value ?? const <FieldCircle>[];
-    final land = s.land;
     final scene = 1 - _smooth(0.62, 1, land);
     if (scene <= 0) return;
+    // How much of the hills' night is showing: their dawn, stars and
+    // fireflies go as the dust comes down, and come back as it returns.
+    final night = closing ? _smooth(0.3, 0.8, p) : 1 - _smooth(0.0, 0.5, land);
 
-    // The dawn behind the hills, thinning as they come loose.
+    // The dawn behind the hills.
     final sun = c + Offset(r * 0.2, r * 0.02);
-    final dawn = grains * (1 - _smooth(0.0, 0.5, land));
+    final dawn = grains * night;
     if (dawn > 0) {
       canvas.drawCircle(
         sun,
@@ -332,7 +360,7 @@ class FieldPassage extends PassageScene {
           ? (toSun > 0.55 ? _litB + k : _crestB + k)
           : _bodyB + k;
 
-      if (circles.isNotEmpty && land > 0) {
+      if (circles.isNotEmpty && (land > 0 || closing)) {
         // Its circle, and a place in it.
         var pick = _h(i, 4) * area;
         var j = 0;
@@ -347,9 +375,12 @@ class FieldPassage extends PassageScene {
         final rr = math.sqrt(_h(i, 6)) * to.radius * 0.9;
         final end = to.centre + Offset(math.cos(ang) * rr, math.sin(ang) * rr);
         // Loosening a little after its neighbours, drifting down in a lazy
-        // curve rather than a line.
+        // curve rather than a line; going back, drifting up again the same
+        // way, gently.
         final delay = _h(i, 7) * 0.3;
-        final f = _ease((land * 1.35 - delay) / 0.8);
+        final f = !closing
+            ? _ease((land * 1.35 - delay) / 0.8)
+            : 1 - _smooth(0, 1, (p - delay) / 0.5);
         if (f > 0) {
           final from = Offset(x, y);
           final dir = end - from;
@@ -363,7 +394,7 @@ class FieldPassage extends PassageScene {
       b.add(bucket, x, y);
     }
     // Stars still out over the hills, and fireflies.
-    if (land < 0.5) {
+    if (night > 0) {
       for (var i = 0; i < 10; i++) {
         if ((t * 0.5 + _h(i, 35) * 4) % 1.0 > 0.8) continue;
         b.add(
@@ -382,7 +413,7 @@ class FieldPassage extends PassageScene {
       }
     }
     final a = grains * scene;
-    final dot = _lerp(1.2, 1.7, o);
+    final dot = _lerp(1.2, 1.7, win);
     Color fade(Color color, double k) =>
         color.withValues(alpha: (color.a * k * a).clamp(0.0, 1.0));
     for (var k = 0; k < 3; k++) {
@@ -390,7 +421,6 @@ class FieldPassage extends PassageScene {
       b.draw(canvas, _crestB + k, dot * 1.1, fade(_crest[k], 1));
       b.draw(canvas, _litB + k, dot * 1.15, fade(_lit[k], 1));
     }
-    final night = 1 - _smooth(0.0, 0.5, land);
     b.draw(canvas, _starB, dot * 0.8, fade(const Color(0xCCE8F4FF), night));
     b.draw(canvas, _flyB, dot * 1.3, fade(const Color(0xFFFFF0B0), night));
     for (var j = 0; j < circles.length && j < 8; j++) {
@@ -417,7 +447,7 @@ class SurvivalPassage extends PassageScene {
   Duration get inward => const Duration(milliseconds: 950);
 
   @override
-  Duration get outward => const Duration(milliseconds: 850);
+  Duration get outward => const Duration(milliseconds: 1000);
 
   @override
   Duration get landing => const Duration(milliseconds: 800);
@@ -450,5 +480,277 @@ class SurvivalPassage extends PassageScene {
     }
     paintDockOrb(canvas, c, r, skin, s.time, light: 1 - 0.6 * grow);
     if (fading) canvas.restore();
+  }
+}
+
+// ── Enhance ─────────────────────────────────────────────────────────────────
+
+/// The Enhance creature — the dock's Light Horn of grains — lifts off and
+/// stands in the middle of the screen, the infusion's light still climbing
+/// it, while Enhance is got ready. Then it comes apart from the crown down:
+/// its grains pour sideways into a band of light across the screen, and the
+/// band opens, one edge rising and one falling, with the page between them,
+/// until both have passed off the screen and thinned to nothing.
+class EnhancePassage extends PassageScene {
+  EnhancePassage({required this.creature});
+
+  /// The creature read finely enough to stand over the screen
+  /// (`DockEmblem.creatureGrains(fine: true)`); only its floor light shows
+  /// until it is.
+  final ValueListenable<SpecimenGrains?> creature;
+
+  @override
+  Duration get inward => const Duration(milliseconds: 650);
+
+  @override
+  Duration get outward => const Duration(milliseconds: 800);
+
+  @override
+  Duration get landing => const Duration(milliseconds: 850);
+
+  @override
+  Listenable? get listenable => creature;
+
+  /// Going back the edges close in the first half; the creature gathers and
+  /// goes home in the rest.
+  @override
+  double get backSplit => 0.5;
+
+  @override
+  double pageShown(double land) => _smooth(0.1, 0.45, land);
+
+  @override
+  Rect? pageWindow(EmblemStage s) {
+    final e = _edges(s);
+    return Rect.fromLTRB(0, e.top, s.screen.width, e.bottom);
+  }
+
+  /// Where it stands while Enhance is got ready.
+  static ({Offset c, double r}) _hold(Size screen) => (
+    c: Offset(screen.width / 2, screen.height * 0.45),
+    r: math.min(screen.width * 0.34, screen.height * 0.2),
+  );
+
+  /// How far the band has opened at [land]: it gathers first.
+  static double _opening(double land) => _ease((land - 0.24) / 0.76);
+
+  /// Fully open, the edges stand this far past the screen, so nothing of
+  /// them is left to see.
+  static const double _past = 90;
+
+  /// The two edges: from the creature's own middle out past the screen.
+  static ({double top, double bottom}) _edges(EmblemStage s) {
+    final hold = _hold(s.screen);
+    final seam = hold.c.dy + hold.r * 0.08;
+    final o = _opening(s.land);
+    return (
+      top: seam - o * (seam + _past),
+      bottom: seam + o * (s.screen.height - seam + _past),
+    );
+  }
+
+  /// Buckets: 0–7 the creature's own tones, 8–11 the wave of light, 12–14
+  /// on an edge (right at it → thrown off it).
+  static final GrainBatch _b = GrainBatch(15);
+  static final Paint _p = Paint();
+
+  // Each grain's part, read once per creature.
+  SpecimenGrains? _seeded;
+  late EnhanceFit _fit;
+  late Float32List _keep, _along, _off, _delay, _out, _bend, _lift;
+  late Uint8List _rises;
+
+  void _seed(SpecimenGrains g) {
+    if (identical(g, _seeded)) return;
+    _seeded = g;
+    final fit = _fit = EnhanceFit(g);
+    final n = g.length;
+    _keep = Float32List(n);
+    _along = Float32List(n);
+    _off = Float32List(n);
+    _delay = Float32List(n);
+    _out = Float32List(n);
+    _bend = Float32List(n);
+    _lift = Float32List(n);
+    _rises = Uint8List(n);
+    for (var i = 0; i < n; i++) {
+      final rise = fit.rise(i);
+      _keep[i] = _h(i, 50);
+      // The upper body rides the rising edge, the lower the falling one.
+      _rises[i] = rise > 0.5 + (_h(i, 51) - 0.5) * 0.4 ? 1 : 0;
+      // Its place along the edge: a little of where it stood across the
+      // body, mostly anywhere, so the edges fill evenly.
+      final across = g.hx[i] / (2 * fit.reach) + 0.5;
+      _along[i] = _lerp(across, _h(i, 52), 0.72) * 1.12 - 0.06;
+      // Mostly right on its edge; a few thrown out ahead of it.
+      _off[i] = math.pow(_h(i, 53), 2.2) * 30 - 5;
+      // The crown loosens first, as the infusion lifts off it.
+      _delay[i] = 0.02 + 0.16 * (1 - rise) + 0.06 * _h(i, 54);
+      // How far open the band is when it goes out.
+      _out[i] = 0.5 + 0.45 * _h(i, 55);
+      _bend[i] = (_h(i, 56) - 0.5) * 0.45;
+      // As the icon: one in seven is thrown high by the wave.
+      _lift[i] = _h(i, 40) > 0.85 ? 0.16 : 0.04;
+    }
+  }
+
+  @override
+  void paint(
+    Canvas canvas,
+    EmblemStage s, {
+    required bool back,
+    required bool front,
+  }) {
+    if (back) _paintGround(canvas, s);
+    if (!front) return;
+    final w = s.screen.width;
+    final t = s.time;
+    final land = s.land;
+    final hold = _hold(s.screen);
+    final grow = s.grow;
+    // From the icon's own fit in its box (half its side round its centre)
+    // to the middle of the screen.
+    final c = Offset.lerp(s.box.center, hold.c, grow)!;
+    final r = _lerp(s.box.shortestSide / 2, hold.r, grow);
+    final o = _opening(land);
+    final edges = _edges(s);
+    final accent = DockEmblemKind.enhance.accent;
+
+    // Its light at its feet goes as it comes loose.
+    paintEnhanceFloor(canvas, c, r, alpha: 1 - _smooth(0.0, 0.3, land));
+    if (land > 0) _paintEdges(canvas, s, edges, o, accent);
+
+    final g = creature.value;
+    if (g == null || g.length == 0) return;
+    _seed(g);
+    final fit = _fit;
+    final n = g.length;
+    // As many grains as the icon has at its size, filling in as it grows,
+    // so it is the same creature the moment it lifts off.
+    final dens = _lerp(math.min(1.0, 520 / n), 1, grow);
+    final scale = fit.scale(r);
+    final body = fit.centre(c, r);
+    final b = _b..clear();
+    for (var i = 0; i < n; i++) {
+      if (_keep[i] > dens) continue;
+      final pulse = fit.pulse(i, t);
+      var x = body.dx + g.hx[i] * scale;
+      var y =
+          body.dy +
+          (g.hy[i] - fit.midY) * scale -
+          pulse * r * (0.04 + _lift[i]);
+      final f = land <= 0 ? 0.0 : _ease((land - _delay[i]) / 0.42);
+      if (f <= 0) {
+        b.add(
+          pulse > 0.3
+              ? 8 + math.min(3, (pulse * 4).floor())
+              : math.min(7, g.tone[i]),
+          x,
+          y,
+        );
+        continue;
+      }
+      if (o > _out[i]) continue;
+      // Out to its edge in a lazy curve, riding it once there.
+      final rises = _rises[i] == 1;
+      final ex = _along[i] * w;
+      final sway = math.sin(ex * 0.019 + t * 1.2 + (rises ? 0 : 2.1)) * 5 * f;
+      final ey = (rises ? edges.top - _off[i] : edges.bottom + _off[i]) + sway;
+      final dx = ex - x, dy = ey - y;
+      final bend = math.sin(math.pi * f) * _bend[i];
+      x += dx * f - dy * bend;
+      y += dy * f + dx * bend;
+      // Its own shade as it lifts away, lighting up on the way out to its
+      // edge rather than all at once.
+      b.add(
+        f < 0.12
+            ? math.min(7, g.tone[i])
+            : f < 0.5
+            ? 8 + math.min(3, ((f - 0.12) * 10).floor())
+            : (_off[i] < 4 ? 12 : (_off[i] < 14 ? 13 : 14)),
+        x,
+        y,
+      );
+    }
+    final d = math.max(1.1, g.step * scale * 1.15 / math.sqrt(dens));
+    for (var k = 0; k < math.min(8, g.tones.length); k++) {
+      b.draw(canvas, k, d, enhanceInk(g.tones[k]));
+    }
+    for (var k = 0; k < 4; k++) {
+      b.draw(
+        canvas,
+        8 + k,
+        d * 1.05,
+        Color.lerp(accent, Colors.white, 0.15 * k)!,
+      );
+    }
+    // The edges' grains thin to nothing as they pass off the screen.
+    final gone = 1 - _smooth(0.78, 1.0, o);
+    if (gone > 0) {
+      final e = math.min(d, 1.8);
+      b.draw(
+        canvas,
+        12,
+        e * 1.1,
+        Color.lerp(accent, Colors.white, 0.4)!.withValues(alpha: gone),
+      );
+      b.draw(canvas, 13, e, accent.withValues(alpha: 0.85 * gone));
+      b.draw(
+        canvas,
+        14,
+        e * 0.9,
+        const Color(0xFF7A5CC0).withValues(alpha: 0.6 * gone),
+      );
+    }
+  }
+
+  /// Under the edges' grains: their light, and the dark the page eases out
+  /// of just inside each, so it never meets the ground at a hard line.
+  void _paintEdges(
+    Canvas canvas,
+    EmblemStage s,
+    ({double top, double bottom}) edges,
+    double o,
+    Color accent,
+  ) {
+    final w = s.screen.width;
+    const feather = 46.0;
+    // The band's light swells as the creature pours into it and thins as
+    // it opens; brightest in the middle, off to one side, so it reads as
+    // light and not as a bar.
+    final glow = _smooth(0.1, 0.4, s.land) * (1 - _smooth(0.5, 1.0, o));
+    for (final rising in const [true, false]) {
+      final y = rising ? edges.top : edges.bottom;
+      if (o > 0) {
+        final inner = rising ? y + feather : y - feather;
+        _p.shader = ui.Gradient.linear(Offset(0, y), Offset(0, inner), [
+          _kGround,
+          _kGround.withValues(alpha: 0),
+        ]);
+        canvas.drawRect(
+          Rect.fromLTRB(0, math.min(y, inner), w, math.max(y, inner)),
+          _p,
+        );
+      }
+      if (glow > 0) {
+        final cx = w * (rising ? 0.56 : 0.46);
+        canvas.save();
+        canvas.translate(cx, y);
+        canvas.scale(1, 0.06);
+        _p.shader = ui.Gradient.radial(
+          Offset.zero,
+          w * 0.62,
+          [
+            accent.withValues(alpha: 0.34 * glow),
+            accent.withValues(alpha: 0.12 * glow),
+            accent.withValues(alpha: 0),
+          ],
+          const [0.0, 0.45, 1.0],
+        );
+        canvas.drawCircle(Offset.zero, w * 0.62, _p);
+        canvas.restore();
+      }
+    }
+    _p.shader = null;
   }
 }

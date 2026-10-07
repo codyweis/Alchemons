@@ -13,9 +13,10 @@ import 'package:flutter/animation.dart';
 /// choreography lives here as data plus a few pure functions, and both
 /// renderers read it. Change a harvester's character once, it changes in both.
 ///
-/// The device is the same pulser drawn in [HarvesterGlyph]: it beats, it
-/// clamps, it hauls the element home. What differs per element is how it
-/// closes, how it answers being pushed against, and what comes off it.
+/// [HarvesterGlyph] draws the same cage in miniature from this data, so the
+/// icon in the shop is the device that turns up in the wild. What differs per
+/// element is how it closes, how it answers being pushed against, and what
+/// comes off it.
 class HarvesterProfile {
   const HarvesterProfile({
     required this.biomeId,
@@ -31,20 +32,23 @@ class HarvesterProfile {
     required this.mote,
     required this.moteCount,
     required this.shatterSpread,
+    this.twist = 0,
     this.sigil = false,
     this.prismatic = false,
   });
 
   final String biomeId;
 
-  /// Ring colour. The specimen's own colour still lights the stage; this is
+  /// Shell colour. The specimen's own colour still lights the stage; this is
   /// the apparatus, and the apparatus belongs to the harvester.
   final Color accent;
 
+  /// Bands of latitude in the shell, top to bottom, turning against each
+  /// other.
   final int ringCount;
 
-  /// Segments on the innermost ring, and how many more each ring out gets.
-  /// Few and fat reads as jaws; many and thin reads as a continuous sheet.
+  /// Segments in the shell's top band, and how many more each band below
+  /// gets. Few and fat reads as jaws; many and thin reads as a sheet.
   final int segsBase;
   final int segsPerRing;
 
@@ -60,14 +64,41 @@ class HarvesterProfile {
   final HarvesterMote mote;
   final int moteCount;
 
-  /// How far the ring shards fly when the specimen breaks out.
+  /// How far the shell's grains fly when the specimen breaks out.
   final double shatterSpread;
 
-  /// Draws a bound octagram inside the rings.
+  /// How far each segment winds round the shell from its bottom to its top,
+  /// in radians per radian of latitude: 0 stands them upright as plates, a
+  /// lot winds them into tendrils.
+  final double twist;
+
+  /// Writes a bound octagram behind the specimen.
   final bool sigil;
 
-  /// Each ring takes a different element's colour.
+  /// Each band takes a different element's colour.
   final bool prismatic;
+
+  /// This device in another light — one colour, say, for a greyed-out
+  /// button — or without its sigil where it would be too small to read.
+  HarvesterProfile copyWith({Color? accent, bool? prismatic, bool? sigil}) =>
+      HarvesterProfile(
+        biomeId: biomeId,
+        accent: accent ?? this.accent,
+        ringCount: ringCount,
+        segsBase: segsBase,
+        segsPerRing: segsPerRing,
+        spinRate: spinRate,
+        strokeBase: strokeBase,
+        closing: closing,
+        flex: flex,
+        flexAmount: flexAmount,
+        mote: mote,
+        moteCount: moteCount,
+        shatterSpread: shatterSpread,
+        twist: twist,
+        sigil: sigil ?? this.sigil,
+        prismatic: prismatic ?? this.prismatic,
+      );
 
   /// The apparatus for [biomeId], defaulting to the stabilized unit.
   static HarvesterProfile forBiome(String? biomeId) =>
@@ -86,8 +117,8 @@ class HarvesterProfile {
         _ => null,
       });
 
-  /// Ring colour for ring [i] — the accent, unless the unit is prismatic, in
-  /// which case each ring carries a different element.
+  /// Colour of band [i] — the accent, unless the unit is prismatic, in which
+  /// case each band carries a different element.
   Color ringColor(int i) {
     if (!prismatic) return accent;
     const order = ['volcanic', 'oceanic', 'verdant', 'earthen', 'arcane'];
@@ -166,6 +197,7 @@ class HarvesterProfile {
       mote: HarvesterMote.ember,
       moteCount: 14,
       shatterSpread: 1.7,
+      twist: 0.5,
     ),
 
     // PRESSURE DROWN — many thin segments read as a continuous sheet of
@@ -184,6 +216,7 @@ class HarvesterProfile {
       mote: HarvesterMote.droplet,
       moteCount: 12,
       shatterSpread: 1.2,
+      twist: 0.9,
     ),
 
     // CRUSHER — two heavy jaws arriving in stages. Barely turns, does not
@@ -219,6 +252,7 @@ class HarvesterProfile {
       mote: HarvesterMote.spore,
       moteCount: 16,
       shatterSpread: 1.5,
+      twist: 2.6,
     ),
 
     // SIGIL BIND — counter-spinning rings and a bound octagram. The specimen
