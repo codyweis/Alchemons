@@ -833,34 +833,55 @@ class _RiteScene {
     final w = screen.width, h = screen.height;
     final r0 = s.box.shortestSide / 2;
 
-    // In its box the drop hangs, breathing. Carried in, it lifts out over
-    // the screen (to 0.4), falls (to 0.62), and floods out into the rite's
-    // own pool (to 1) — the one its screen opens on, at the same place, so
-    // it hands over without a seam.
-    final lift = _ease(o / 0.4);
-    final fall = _clamp01((o - 0.4) / 0.22);
-    final impact = _smooth(0.58, 0.72, o);
-    final spread = _ease((o - 0.6) / 0.4);
-
     final pool = ritePoolFor(screen, s.pad);
     final poolC = pool.centre;
     final iconK = r0 * 0.58;
-    final bob = math.sin(t * 1.05) * r0 * 0.03 * (1 - lift);
-    final iconC = s.box.center + Offset(0, iconK * (_apex - _bulb) / 2 + bob);
     final hangK = math.min(w, h) * 0.15;
-    final hangC = Offset(
-      w / 2,
-      math.max(s.pad.top + hangK * _apex + 12, poolC.dy - h * 0.25),
-    );
-    final k = _lerp(iconK, hangK, lift);
-    // It swings out to the left as it rises, clear of the column above it.
-    final swing = math.sin(math.pi * lift);
-    var c =
-        Offset.lerp(iconC, hangC, lift)! +
-        Offset(-swing * w * 0.14, -swing * h * 0.03);
-    // Falling, it quickens, and draws long; its bottom meets the pool.
-    c = Offset(c.dx, _lerp(c.dy, poolC.dy - _bulb * k, fall * fall));
-    final stretch = 1 + 0.22 * fall * (1 - impact);
+
+    final double lift, impact, spread, stretch, k;
+    Offset c;
+    if (!s.closing) {
+      // In its box the drop hangs, breathing. Carried in, it lifts out over
+      // the screen (to 0.4), falls (to 0.62), and floods out into the rite's
+      // own pool (to 1) — the one its screen opens on, at the same place, so
+      // it hands over without a seam.
+      lift = _ease(o / 0.4);
+      final fall = _clamp01((o - 0.4) / 0.22);
+      impact = _smooth(0.58, 0.72, o);
+      spread = _ease((o - 0.6) / 0.4);
+      final bob = math.sin(t * 1.05) * r0 * 0.03 * (1 - lift);
+      final iconC = s.box.center + Offset(0, iconK * (_apex - _bulb) / 2 + bob);
+      final hangC = Offset(
+        w / 2,
+        math.max(s.pad.top + hangK * _apex + 12, poolC.dy - h * 0.25),
+      );
+      k = _lerp(iconK, hangK, lift);
+      // It swings out to the left as it rises, clear of the column above it.
+      final swing = math.sin(math.pi * lift);
+      c =
+          Offset.lerp(iconC, hangC, lift)! +
+          Offset(-swing * w * 0.14, -swing * h * 0.03);
+      // Falling, it quickens, and draws long; its bottom meets the pool.
+      c = Offset(c.dx, _lerp(c.dy, poolC.dy - _bulb * k, fall * fall));
+      stretch = 1 + 0.22 * fall * (1 - impact);
+    } else {
+      // Going back it does not fall upward. The pool draws in on itself
+      // (1 to 0.45) and stands up out of its middle as the drop (by 0.4);
+      // the drop then glides home, shrinking into its box (0.5 to 0) as
+      // home comes back round it — down first, then in from the left, so
+      // it passes under the column rather than over the RELICS ring.
+      spread = _ease((o - 0.45) / 0.55);
+      impact = _smooth(0.4, 0.68, o);
+      final travel = 1 - _ease(o / 0.5);
+      lift = 1 - travel;
+      final iconC = s.box.center + Offset(0, iconK * (_apex - _bulb) / 2);
+      final risen = Offset(poolC.dx, poolC.dy - _bulb * hangK);
+      k = _lerp(hangK, iconK, travel);
+      final bend = Offset(risen.dx, iconC.dy);
+      final u = 1 - travel;
+      c = risen * (u * u) + bend * (2 * u * travel) + iconC * (travel * travel);
+      stretch = 1;
+    }
     final pr = _lerp(k * 0.8, pool.radius, math.pow(spread, 0.85).toDouble());
     final dot = _lerp(math.max(0.9, r0 * 0.028), 1.6, lift);
 

@@ -6,6 +6,7 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
+import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:alchemons/widgets/half_cultivation_chip.dart';
 import 'package:alchemons/widgets/nursery/cultivation_stage.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +26,9 @@ class SlotInfoDialog extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback onInstantHatch;
 
+  /// The chamber's sphere, flown up onto the stage.
+  final CultivationFlight? arrival;
+
   const SlotInfoDialog({
     super.key,
     required this.slot,
@@ -35,6 +39,7 @@ class SlotInfoDialog extends StatefulWidget {
     required this.onReturn,
     required this.onClose,
     required this.onInstantHatch,
+    this.arrival,
   });
 
   @override
@@ -200,6 +205,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                   theme: theme,
                   parentTypes: parentTypes,
                   payload: payload,
+                  arrival: widget.arrival,
                   progress: _brewProgress(slot),
                   chamberLabel: 'CHAMBER ${slot.id + 1}',
                   particleCount: 62,

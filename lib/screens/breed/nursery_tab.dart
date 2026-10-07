@@ -12,6 +12,7 @@ import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:alchemons/widgets/nursery/brewing_card_widget.dart';
 import 'package:alchemons/widgets/nursery/batch_extraction_ceremony.dart';
 import 'package:alchemons/widgets/nursery/egg_extraction_dialog.dart';
@@ -589,13 +590,14 @@ class _NurseryTabState extends State<NurseryTab> {
         quality: _cinematicQuality,
         useSimpleFusion: false,
         theme: theme,
-        onTap: () => _showSlotInfoModal(
+        onTap: (sphere) => _showSlotInfoModal(
           slot,
           ready,
           primaryColor,
           remaining,
           progress,
           isUndiscovered,
+          sphere: sphere,
         ),
       );
     }
@@ -663,16 +665,26 @@ class _NurseryTabState extends State<NurseryTab> {
     Color primaryColor,
     Duration remaining,
     double? progress,
-    bool isUndiscovered,
-  ) {
+    bool isUndiscovered, {
+    CultivationFlight? sphere,
+  }) {
     if (ready) {
-      unawaited(_showExtractionDialog(slot, primaryColor, isUndiscovered));
+      unawaited(
+        _showExtractionDialog(
+          slot,
+          primaryColor,
+          isUndiscovered,
+          sphere: sphere,
+        ),
+      );
     } else {
       unawaited(
         _showDialogWithPausedBackground<void>(
           barrierColor: Colors.black87,
+          sphere: sphere,
           builder: (context) => _SlotInfoDialogWrapper(
             slot: slot,
+            sphere: sphere,
             primaryColor: primaryColor,
             isUndiscovered: isUndiscovered,
             maxSeenNowUtc: widget.maxSeenNowUtc,
@@ -715,16 +727,19 @@ class _NurseryTabState extends State<NurseryTab> {
   Future<void> _showExtractionDialog(
     IncubatorSlot slot,
     Color primaryColor,
-    bool isUndiscovered,
-  ) async {
+    bool isUndiscovered, {
+    CultivationFlight? sphere,
+  }) async {
     final db = context.read<AlchemonsDatabase>();
     final extractionDone = await db.settingsDao
         .hasCompletedExtractionTutorial();
     if (!mounted) return;
     await _showDialogWithPausedBackground<void>(
       barrierColor: Colors.black87,
+      sphere: sphere,
       builder: (context) => ExtractionDialog(
         slot: slot,
+        arrival: sphere,
         primaryColor: primaryColor,
         isUndiscovered: isUndiscovered,
         isTutorial: !extractionDone,
@@ -1136,17 +1151,22 @@ class _NurseryTabState extends State<NurseryTab> {
     required WidgetBuilder builder,
     bool barrierDismissible = true,
     Color? barrierColor,
+    CultivationFlight? sphere,
   }) async {
     if (!mounted) return null;
     _acquireBackgroundAnimationPause();
     try {
-      return await showDialog<T>(
+      final shown = showDialog<T>(
         context: context,
         barrierDismissible: barrierDismissible,
         barrierColor: barrierColor,
         builder: (dialogContext) =>
             TickerMode(enabled: true, child: Builder(builder: builder)),
       );
+      // A chamber's sphere flies up onto the dialog's stage: lifted once the
+      // dialog is pushed, so it travels over it.
+      sphere?.lift(context);
+      return await shown;
     } finally {
       _releaseBackgroundAnimationPause();
     }
@@ -1166,6 +1186,7 @@ class _SlotInfoDialogWrapper extends StatefulWidget {
   final VoidCallback onReturn;
   final VoidCallback onClose;
   final VoidCallback onInstantHatch;
+  final CultivationFlight? sphere;
 
   const _SlotInfoDialogWrapper({
     required this.slot,
@@ -1176,6 +1197,7 @@ class _SlotInfoDialogWrapper extends StatefulWidget {
     required this.onReturn,
     required this.onClose,
     required this.onInstantHatch,
+    this.sphere,
   });
 
   @override
@@ -1250,6 +1272,7 @@ class _SlotInfoDialogWrapperState extends State<_SlotInfoDialogWrapper> {
           onInstantHatch: widget.onInstantHatch,
           onReturn: widget.onReturn,
           onClose: widget.onClose,
+          arrival: widget.sphere,
         );
       },
     );

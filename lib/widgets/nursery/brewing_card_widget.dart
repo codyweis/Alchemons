@@ -18,7 +18,10 @@ const bool kCultivationSphere = true;
 
 class NurseryBrewingCard extends StatefulWidget {
   final Egg egg;
-  final VoidCallback onTap;
+
+  /// Opens the chamber, handed its sphere to fly up into what it opens
+  /// (null when it is not showing one).
+  final void Function(CultivationFlight? sphere) onTap;
   final bool isReady;
   final Color statusColor;
   final bool useSimpleFusion;
@@ -46,6 +49,7 @@ class NurseryBrewingCard extends StatefulWidget {
 class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
   List<String>? _parentTypes;
   String? _pureElementTypeId;
+  final GlobalKey _sphereKey = GlobalKey();
 
   @override
   void initState() {
@@ -168,7 +172,9 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
 
     return RepaintBoundary(
       child: GestureDetector(
-        onTap: context.soundAction(widget.onTap),
+        onTap: context.soundAction(
+          () => widget.onTap(CultivationFlight.from(_sphereKey)),
+        ),
         // A chamber is a vessel, so it is round — and nothing square around
         // it. The corner brackets read as leftover scaffolding once the fill
         // stopped being a box.
@@ -191,6 +197,7 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
                   Positioned.fill(
                     child: ViewportTickerGate(
                       child: CultivationSphere(
+                        key: _sphereKey,
                         payload: payload,
                         types: _parentTypes ?? const [],
                         progress: widget.progress,

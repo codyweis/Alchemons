@@ -4,20 +4,27 @@ library;
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/games/cosmic_survival/components/survival_lobby_stage.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
+import 'package:alchemons/models/survival_upgrades.dart';
+import 'package:alchemons/navigation/emblem_passage.dart';
+import 'package:alchemons/widgets/dock_emblems.dart';
+import 'package:alchemons/widgets/dock_passages.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dock_passage_stage.dart';
 import 'survival_lobby_harness.dart';
 
 // The survival lobby (CosmicSurvivalScreen before a run) on the phone, with
 // real fonts, a mid-game save and BoxShadows switched back on:
 //
-//   1_first_seen.png      the screen as it opens, 475 x 751
-//   2_command_hub.png     scrolled to the bottom, the Command Hub in view
+//   1_team_chosen.png     the screen as it opens with a team saved, 475 x 751
+//   2_scrolled.png        on a shorter phone (475 x 600), scrolled to the bottom
 //   3_full_length.png     the whole scroll length in one tall viewport
-//   4_card_expanded.png   the first roster card tapped open
-//   5_fresh_save.png      a brand-new save: no path, no upgrades, default orb
+//   4_empty_team.png      the mid-game save with no team chosen yet
+//   5_fresh_save.png      a brand-new save: no team, no upgrades, default orb
 //
 //   LOBBY_OUT=/tmp/lobby flutter test \
 //     test/survival_lobby_preview_test.dart --tags preview
@@ -39,76 +46,131 @@ void main() {
 
   Future<void> open(WidgetTester tester, LobbySave save, GlobalKey key) async {
     await tester.pumpWidget(save.app(shot: key));
-    for (var i = 0; i < 40 && !lobbyShown(); i++) {
-      await settleLobby(tester, 1);
-    }
+    await settleLobby(tester, 8);
     await precacheLobbyImages(tester);
     await settleLobby(tester, 6);
     expect(lobbyShown(), isTrue);
     expect(tester.takeException(), isNull);
   }
 
-  testWidgets('survival lobby on the phone', (tester) async {
-    if (out == null) return;
-    Directory(out).createSync(recursive: true);
+  Future<void> growToFit(WidgetTester tester) async {
+    final extent = lobbyScroll(tester).position.maxScrollExtent;
+    tester.view.physicalSize = Size(
+      kLobbyPhysical.width,
+      kLobbyPhysical.height + (extent + 2) * kLobbyDpr,
+    );
+    await settleLobby(tester, 4);
+    expect(lobbyScroll(tester).position.maxScrollExtent, 0);
+  }
+
+  void phone(WidgetTester tester) {
     tester.view.physicalSize = kLobbyPhysical;
     tester.view.devicePixelRatio = kLobbyDpr;
     addTearDown(tester.view.reset);
+  }
 
-    final save = await LobbySave.create(tester);
+  // The dock's orb carrying the player onto the hub's own, frame by frame
+  // over the real hub, and back.
+  testWidgets('survival passage', (tester) async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    phone(tester);
+    tester.view.padding = const FakeViewPadding(top: 28 * kLobbyDpr);
+    final save = await LobbySave.create(tester, team: kLobbyTeam);
+    final skin = save.upgrades.state.equippedSkin;
+    final key = GlobalKey();
+    final emblem = GlobalKey();
+    final lifted = ValueNotifier(false);
+    await tester.pumpWidget(
+      save.app(
+        shot: key,
+        home: DockStandIn(
+          kind: DockEmblemKind.survival,
+          emblemKey: emblem,
+          lifted: lifted,
+          size: 80,
+          top: 240,
+          orb: skin,
+        ),
+      ),
+    );
+    await settleLobby(tester, 4);
+    final ready = ValueNotifier(false);
+    EmblemPassage.pushScene<void>(
+      emblem.currentContext!,
+      scene: SurvivalPassage(skin: skin, target: survivalLobbyOrbFor),
+      from: emblem,
+      page: CosmicSurvivalScreen(revealReady: ready),
+      ready: ready,
+      lifted: lifted,
+    );
+    var n = 0;
+    String tag(String s) => 'passage_${(n++).toString().padLeft(2, '0')}_$s';
+    await shoot(tester, key, tag('home'));
+    for (var i = 0; i < 6; i++) {
+      await settleLobby(tester, 5);
+      await shoot(tester, key, tag('in'));
+    }
+    for (var i = 0; i < 6; i++) {
+      await settleLobby(tester, 5);
+      await shoot(tester, key, tag(ready.value ? 'land' : 'hold'));
+    }
+    await settleLobby(tester, 30);
+    await shoot(tester, key, tag('page'));
+    Navigator.of(emblem.currentContext!).pop();
+    for (var i = 0; i < 7; i++) {
+      await settleLobby(tester, 4);
+      await shoot(tester, key, tag('back'));
+    }
+    expect(OrbBaseSkin.values, contains(skin));
+    await save.dispose(tester);
+  });
+
+  testWidgets('survival lobby with a team chosen', (tester) async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    phone(tester);
+
+    final save = await LobbySave.create(tester, team: kLobbyTeam);
     final key = GlobalKey();
     // Tests turn BoxShadows off; the phone draws them. Back on for the
     // pictures, and off again before the test ends (the binding checks).
     debugDisableShadows = false;
     try {
       await open(tester, save, key);
-      await shoot(tester, key, '1_first_seen');
+      await shoot(tester, key, '1_team_chosen');
 
+      tester.view.physicalSize = Size(kLobbyPhysical.width, 600 * kLobbyDpr);
+      await settleLobby(tester, 4);
       final scroll = lobbyScroll(tester);
+      expect(scroll.position.maxScrollExtent, greaterThan(0));
       scroll.position.jumpTo(scroll.position.maxScrollExtent);
       await settleLobby(tester, 4);
-      await shoot(tester, key, '2_command_hub');
+      await shoot(tester, key, '2_scrolled');
       scroll.position.jumpTo(0);
-      await settleLobby(tester, 2);
-
-      await tester.tap(find.byKey(const ValueKey('species-card-Let')));
-      await settleLobby(tester, 8);
-      // The card's text expands at once while its height animates up over
-      // 160 ms, so the first frames of an expand overflow the card (clipped on
-      // the phone, striped in debug). Reported, not failed.
-      final overflow = tester.takeException();
-      if (overflow != null) {
-        // ignore: avoid_print
-        print(
-          'expanding a roster card overflowed mid-animation: '
-          '${overflow.toString().split('\n').first}',
-        );
-      }
-      await shoot(tester, key, '4_card_expanded');
-      await tester.tap(find.byKey(const ValueKey('species-card-Let')));
-      await settleLobby(tester, 8);
-
-      // The whole scroll length: grow the viewport until nothing scrolls.
-      final extent = lobbyScroll(tester).position.maxScrollExtent;
-      tester.view.physicalSize = Size(
-        kLobbyPhysical.width,
-        kLobbyPhysical.height + (extent + 2) * kLobbyDpr,
-      );
+      tester.view.physicalSize = kLobbyPhysical;
       await settleLobby(tester, 4);
-      expect(lobbyScroll(tester).position.maxScrollExtent, 0);
+
+      await growToFit(tester);
       await shoot(tester, key, '3_full_length');
+    } finally {
+      debugDisableShadows = true;
+    }
 
-      // And again with the first card open, the longest the lobby gets.
-      await tester.tap(find.byKey(const ValueKey('species-card-Let')));
-      await settleLobby(tester, 8);
-      tester.takeException();
-      final more = lobbyScroll(tester).position.maxScrollExtent;
-      tester.view.physicalSize = Size(
-        kLobbyPhysical.width,
-        tester.view.physicalSize.height + (more + 2) * kLobbyDpr,
-      );
-      await settleLobby(tester, 4);
-      await shoot(tester, key, '6_full_length_expanded');
+    await save.dispose(tester);
+  });
+
+  testWidgets('survival lobby with no team yet', (tester) async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    phone(tester);
+
+    final save = await LobbySave.create(tester);
+    final key = GlobalKey();
+    debugDisableShadows = false;
+    try {
+      await open(tester, save, key);
+      await shoot(tester, key, '4_empty_team');
     } finally {
       debugDisableShadows = true;
     }
@@ -119,21 +181,14 @@ void main() {
   testWidgets('survival lobby on a fresh save', (tester) async {
     if (out == null) return;
     Directory(out).createSync(recursive: true);
-    tester.view.physicalSize = kLobbyPhysical;
-    tester.view.devicePixelRatio = kLobbyDpr;
-    addTearDown(tester.view.reset);
+    phone(tester);
 
     final save = await LobbySave.create(tester, fresh: true);
     final key = GlobalKey();
     debugDisableShadows = false;
     try {
       await open(tester, save, key);
-      final extent = lobbyScroll(tester).position.maxScrollExtent;
-      tester.view.physicalSize = Size(
-        kLobbyPhysical.width,
-        kLobbyPhysical.height + (extent + 2) * kLobbyDpr,
-      );
-      await settleLobby(tester, 4);
+      await growToFit(tester);
       await shoot(tester, key, '5_fresh_save');
     } finally {
       debugDisableShadows = true;

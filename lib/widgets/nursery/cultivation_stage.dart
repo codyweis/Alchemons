@@ -127,10 +127,14 @@ class CultivationVialStage extends StatelessWidget {
     this.payload,
     this.progress,
     this.sphereKey,
+    this.arrival,
   });
 
   /// On the sphere, so it can be handed on (see [CultivationHandoff]).
   final GlobalKey? sphereKey;
+
+  /// The chamber's own sphere, flown up onto this stage as it opens.
+  final CultivationFlight? arrival;
 
   /// The cultivation's saved data. With it, the stage shows the cultivation
   /// as its chamber does — its parents' grains in one turning sphere, which
@@ -225,6 +229,7 @@ class CultivationVialStage extends StatelessWidget {
                                 grains: 1100,
                                 radiusFactor: 0.36,
                                 pureElement: pureElementTypeId,
+                                arrival: arrival,
                               ),
                             )
                           else if (showParticles)

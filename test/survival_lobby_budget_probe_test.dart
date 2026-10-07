@@ -1,12 +1,13 @@
-// The survival lobby at rest: what one idle frame, one roster swipe frame and
-// one scroll frame ask of the UI thread and of the GPU, on a mid-game save at
-// the phone's size.
+// The survival lobby at rest: what one idle frame and one scroll frame ask of
+// the UI thread and of the GPU, on a mid-game save with a team chosen, at the
+// phone's size.
 //
 // A probe, not a gate: the expectations are loose ceilings on what it measured
-// on 2026-10-02, so a regression shows, and it prints everything it counts.
-// Since the lobby's rebuild the same day its stage (the orb, the ship on its
-// orbit) is live, so the lobby never goes fully idle: an idle frame repaints
-// the stage and nothing else.
+// (2026-10-02; the species roster went 2026-10-06 and the team took its
+// place), so a regression shows, and it prints everything it counts. The
+// lobby's stage (the orb, the ship on its orbit) is live, so the lobby never
+// goes fully idle: an idle frame repaints the stage and nothing else — the
+// team's cases are still art and never repaint.
 // Widget tests never rasterise, so the GPU side is counted rather than timed
 // (the method is test/fusion_screen_budget_test.dart's): the whole tree is
 // painted once more into a canvas that tallies what it is asked to draw,
@@ -168,41 +169,27 @@ void main() {
   // the test font's square glyphs overflow the header row.
   setUpAll(loadLobbyFonts);
 
-  testWidgets('the survival lobby at rest, swiped and scrolled', (
-    tester,
-  ) async {
+  testWidgets('the survival lobby at rest and scrolled', (tester) async {
     tester.view.physicalSize = kLobbyPhysical;
     tester.view.devicePixelRatio = kLobbyDpr;
     addTearDown(tester.view.reset);
 
-    final save = await LobbySave.create(tester);
+    final save = await LobbySave.create(tester, team: kLobbyTeam);
 
     // ── Opening: the frame the lobby first appears in ──────────────────
-    // The screen opens on a spinner (_Phase.intro) until the intro check's
-    // database reads come back, then shows the lobby; the high score, the
-    // balances, the ship skin and the quality setting each land later with
-    // a setState of their own.
-    await tester.pumpWidget(save.app());
-    _Work? firstLobbyFrame;
-    var firstFrameMicros = 0;
-    var spinnerFrames = 0;
-    for (var i = 0; i < 60 && !lobbyShown(); i++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 20)),
-      );
-      final sw = Stopwatch()..start();
-      final w = await _countFrame(
-        tester,
-        () => tester.pump(const Duration(milliseconds: 16)),
-      );
-      sw.stop();
-      if (lobbyShown()) {
-        firstLobbyFrame = w;
-        firstFrameMicros = sw.elapsedMicroseconds;
-      } else {
-        spinnerFrames++;
-      }
-    }
+    // The lobby is built on the first frame (no spinner in front of it);
+    // the team, the high score, the balances, the ship skin and the quality
+    // setting each land later with a setState of their own.
+    final revealReady = ValueNotifier<bool>(false);
+    final sw = Stopwatch()..start();
+    final firstLobbyFrame = await _countFrame(
+      tester,
+      () => tester.pumpWidget(save.app(revealReady: revealReady)),
+    );
+    sw.stop();
+    final firstFrameMicros = sw.elapsedMicroseconds;
+    final shownOnFirstFrame = lobbyShown();
+    final revealedAfterFirstFrame = revealReady.value;
     expect(lobbyShown(), isTrue);
     // What happens after the lobby is up: whole-screen rebuilds as the
     // late loads land.
@@ -245,42 +232,12 @@ void main() {
     final idleCensus = _census(tester);
     final byPainter = _drawsByPainter(tester);
 
-    // ── One frame mid-swipe on the roster ───────────────────────────────
-    final pager = find.byType(PageView);
-    final gesture = await tester.startGesture(tester.getCenter(pager));
-    await gesture.moveBy(const Offset(-30, 0));
-    await tester.pump(const Duration(milliseconds: 16));
-    await gesture.moveBy(const Offset(-30, 0));
-    await tester.pump(const Duration(milliseconds: 16));
-    final swipe = await _countFrame(tester, () async {
-      await gesture.moveBy(const Offset(-30, 0));
-      await tester.pump(const Duration(milliseconds: 16));
-    });
-    await gesture.up();
-    await settleLobby(tester, 12);
-    // Back to the first card.
-    await tester.fling(pager, const Offset(400, 0), 1500);
-    await settleLobby(tester, 12);
-
-    // ── Tapping a roster card open ──────────────────────────────────────
-    // The tap rebuilds the roster only; the card is laid out at its full
-    // height while the frame round it grows over 160 ms.
-    await tester.tap(find.byKey(const ValueKey('species-card-Let')));
-    final expandTap = await _countFrame(
-      tester,
-      () => tester.pump(const Duration(milliseconds: 16)),
-    );
-    final expandMid = await _countFrame(
-      tester,
-      () => tester.pump(const Duration(milliseconds: 48)),
-    );
-    await settleLobby(tester, 12);
-    // The card is laid out at its full height and revealed: no overflow.
-    final expandOverflow = tester.takeException();
-
-    // ── One frame mid-scroll, with the card open so the lobby scrolls ────
-    // Within the scroll's range: past either end, Android stretches the
-    // whole page, which repaints everything and measures the stretch.
+    // ── One frame mid-scroll ─────────────────────────────────────────────
+    // On a shorter phone, so the lobby has somewhere to scroll. Within the
+    // scroll's range: past either end, Android stretches the whole page,
+    // which repaints everything and measures the stretch.
+    tester.view.physicalSize = Size(kLobbyPhysical.width, 560 * kLobbyDpr);
+    await settleLobby(tester, 6);
     final scroll = lobbyScroll(tester);
     final extent = scroll.position.maxScrollExtent;
     // ignore: avoid_print
@@ -293,19 +250,18 @@ void main() {
     });
     scroll.position.jumpTo(0);
     await settleLobby(tester, 12);
-
-    await tester.tap(find.byKey(const ValueKey('species-card-Let')));
-    await settleLobby(tester, 12);
-    tester.takeException();
+    tester.view.physicalSize = kLobbyPhysical;
+    await settleLobby(tester, 6);
 
     // ignore: avoid_print
     print(
       '\nSURVIVAL LOBBY PROBE (475x751 @3x)\n'
-      'portraits built: $portraits, decoded for the census: $imagesResolved\n'
-      'spinner frames before the lobby: $spinnerFrames\n'
+      'team cases built: $portraits, decoded for the census: $imagesResolved\n'
+      'lobby on the first frame: $shownOnFirstFrame, '
+      'revealReady after it: $revealedAfterFirstFrame\n'
       'first lobby frame: ${firstFrameMicros / 1000} ms in a debug widget '
-      'test (not raster), ${firstLobbyFrame?.rebuilt} widgets built, '
-      '${firstLobbyFrame?.painted} render objects painted\n'
+      'test (not raster), ${firstLobbyFrame.rebuilt} widgets built, '
+      '${firstLobbyFrame.painted} render objects painted\n'
       'next 15 frames: $lateScreenRebuilds whole-screen rebuilds, '
       '$lateWidgets widgets rebuilt in all\n'
       'idle: frame scheduled after settle = $scheduledWhenIdle, '
@@ -316,23 +272,20 @@ void main() {
       'saveLayer ${idleCensus.census.counts['saveLayer'] ?? 0}\n'
       '  ${idleCensus.census.counts}\n  ${idleCensus.layers}\n'
       'draws by CustomPainter: $byPainter\n'
-      'swipe frame: $swipe\n'
-      'scroll frame: $scrolled\n'
-      'expand tap frame: $expandTap\n'
-      'expand mid-animation frame: $expandMid\n'
-      'expand overflowed mid-animation: ${expandOverflow != null}\n',
+      'scroll frame: $scrolled\n',
     );
 
+    // The lobby is there from the first frame, and says so.
+    expect(shownOnFirstFrame, isTrue);
+    expect(revealedAfterFirstFrame, isTrue);
+    expect(portraits, 5);
     // Only the stage ticks; an idle frame repaints it and nothing else.
     expect(tickers, 1);
     expect(idle.rebuilt, 0);
     expect(idle.painted, lessThanOrEqualTo(3));
     // Scrolling moves the page's layer instead of re-recording it.
+    expect(extent, greaterThan(0));
     expect(scrolled.painted, lessThanOrEqualTo(6));
-    // Opening a card rebuilds the roster, not the screen, and never
-    // overflows on the way.
-    expect(expandTap.rebuilt, lessThan(180));
-    expect(expandOverflow, isNull);
     // Loose ceilings on what was measured, so a regression shows.
     expect(idleCensus.census.draws, lessThan(260));
     expect(idleCensus.census.blurred, 0);

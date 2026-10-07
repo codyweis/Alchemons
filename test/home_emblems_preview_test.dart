@@ -230,6 +230,102 @@ void main() {
     }
   });
 
+  // Going back, as the route plays it: the page sinks (route value 1 down
+  // to the split), then the scene gathers home.
+  test('backs', () async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    const screen = Size(390, 844);
+    const pad = EdgeInsets.only(top: 44, bottom: 30);
+    const boxes = {
+      HomeEmblemKind.constellation: Rect.fromLTWH(298, 248, 80, 80),
+      HomeEmblemKind.altar: Rect.fromLTWH(298, 354, 80, 80),
+      HomeEmblemKind.rite: Rect.fromLTWH(304, 456, 68, 68),
+    };
+    const split = 0.42;
+    const values = [
+      1.0,
+      0.8,
+      0.6,
+      0.45,
+      0.38,
+      0.32,
+      0.26,
+      0.2,
+      0.14,
+      0.09,
+      0.05,
+      0.0,
+    ];
+    for (final kind in HomeEmblemKind.values) {
+      final dest = await page(kind.name);
+      const cols = 6;
+      final rows = (values.length / cols).ceil();
+      final rec = ui.PictureRecorder();
+      final canvas = Canvas(rec);
+      for (final (i, v) in values.indexed) {
+        final open = (v / split).clamp(0.0, 1.0);
+        final land = ((v - split) / (1 - split)).clamp(0.0, 1.0);
+        canvas.save();
+        canvas.translate(
+          (i % cols) * screen.width,
+          (i ~/ cols) * screen.height,
+        );
+        canvas.clipRect(Offset.zero & screen);
+        canvas.drawRect(
+          Offset.zero & screen,
+          Paint()
+            ..shader = ui.Gradient.radial(const Offset(195, 420), 460, const [
+              Color(0xFF2A2430),
+              Color(0xFF0C0C0F),
+            ]),
+        );
+        for (final other in HomeEmblemKind.values) {
+          if (other == kind) continue;
+          paintEmblem(
+            canvas,
+            other,
+            EmblemStage(box: boxes[other]!, screen: screen, time: 4),
+          );
+        }
+        final stage = EmblemStage(
+          box: boxes[kind]!,
+          screen: screen,
+          pad: pad,
+          time: 4 + i * 0.07,
+          open: open,
+          land: land,
+          closing: true,
+        );
+        paintEmblem(canvas, kind, stage, layer: EmblemLayer.back);
+        if (land > 0 && dest != null) {
+          canvas.drawImageRect(
+            dest,
+            Offset.zero & Size(dest.width.toDouble(), dest.height.toDouble()),
+            Offset.zero & screen,
+            Paint()..color = Color.fromRGBO(255, 255, 255, land),
+          );
+        }
+        paintEmblem(canvas, kind, stage, layer: EmblemLayer.front);
+        final tp = TextPainter(
+          text: TextSpan(
+            text: 'back v ${v.toStringAsFixed(2)}',
+            style: const TextStyle(color: Color(0xFFFF66CC), fontSize: 14),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, const Offset(8, 8));
+        canvas.restore();
+      }
+      await save(
+        rec.endRecording(),
+        (screen.width * cols).round(),
+        (screen.height * rows).round(),
+        'back_${kind.name}',
+      );
+    }
+  });
+
   // The real route over a stand-in home, frame by frame: the page laid
   // between the scene's ground and its grains, held until ready.
   testWidgets('route frames', (tester) async {

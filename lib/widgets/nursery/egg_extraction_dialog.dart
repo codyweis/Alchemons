@@ -20,6 +20,9 @@ class ExtractionDialog extends StatefulWidget {
   final VoidCallback onCancel;
   final bool isTutorial;
 
+  /// The chamber's sphere, flown up onto the stage.
+  final CultivationFlight? arrival;
+
   const ExtractionDialog({
     super.key,
     required this.slot,
@@ -29,6 +32,7 @@ class ExtractionDialog extends StatefulWidget {
     required this.onDiscard,
     required this.onCancel,
     this.isTutorial = false,
+    this.arrival,
   });
 
   @override
@@ -172,6 +176,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
                 payload: _payload(),
                 progress: 1,
                 sphereKey: _sphereKey,
+                arrival: widget.arrival,
                 // A pure line's sigil is its element's, as in the reveal.
                 pureElementTypeId: pureElementFromPayload(_payload()),
                 chamberLabel: 'CHAMBER ${widget.slot.id + 1}',

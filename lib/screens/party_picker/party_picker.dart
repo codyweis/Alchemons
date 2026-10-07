@@ -5,6 +5,7 @@ import 'package:alchemons/audio/audio.dart';
 //                original AllCreatureInstances filter/sort/card view.
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/wilderness.dart' show PartyMember;
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -85,6 +86,8 @@ class PartyPickerScreen extends StatefulWidget {
     this.enforceUniqueFamily = false,
     this.maxSelections,
     this.teamStorageKey = 'saved_teams_party_picker',
+    this.initialSelection,
+    this.confirmLabel,
   });
 
   /// When false the "Deploy Team?" confirmation dialog is skipped.
@@ -104,6 +107,15 @@ class PartyPickerScreen extends StatefulWidget {
 
   /// Settings key used to persist saved teams for this picker context.
   final String teamStorageKey;
+
+  /// Instance ids to open with already selected, in slot order (the team a
+  /// screen already has). Null opens with nothing selected, on the shared
+  /// selection as before; given, the picker keeps a selection of its own.
+  final List<String>? initialSelection;
+
+  /// The confirm button's words in place of "Deploy Team", for a screen that
+  /// only sets a team rather than sending it out.
+  final String? confirmLabel;
 
   @override
   State<PartyPickerScreen> createState() => _PartyPickerScreenState();
@@ -170,10 +182,20 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
       ),
     );
 
-    // When maxSelections overrides the default, provide a scoped notifier
-    if (widget.maxSelections != null) {
+    // When maxSelections overrides the default, or the picker opens on a
+    // team of its own, provide a scoped notifier.
+    if (widget.maxSelections != null || widget.initialSelection != null) {
       body = ChangeNotifierProvider<SelectedPartyNotifier>(
-        create: (_) => SelectedPartyNotifier(maxSize: widget.maxSelections),
+        create: (_) {
+          final party = SelectedPartyNotifier(maxSize: widget.maxSelections);
+          final initial = widget.initialSelection;
+          if (initial != null && initial.isNotEmpty) {
+            party.setMembers([
+              for (final id in initial) PartyMember(instanceId: id),
+            ]);
+          }
+          return party;
+        },
         child: body,
       );
     }
@@ -552,7 +574,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     final count = party.members.length;
     final canDeploy = count > 0;
     final label = canDeploy
-        ? 'Deploy Team  ·  $count Selected'
+        ? '${widget.confirmLabel ?? 'Deploy Team'}  ·  $count Selected'
         : 'Select Creatures to Continue';
 
     return Container(

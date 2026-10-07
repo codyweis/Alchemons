@@ -572,9 +572,13 @@ class CultivationHandoff {
     required this.spin,
     required this.time,
     required this.ready,
+    this.rate = CultivationSphere.readySpin,
   });
 
   final CultivationSphereField field;
+
+  /// How fast it was turning, in radians a second.
+  final double rate;
 
   /// Where it stood, in global coordinates, and how big.
   final Offset centre;
@@ -633,6 +637,178 @@ class CultivationHandoff {
   );
 }
 
+/// A chamber's sphere carried up into the chamber's details as they open
+/// over it — as an extraction carries it into the hatch. The same grains,
+/// turning on from where they were, travel from the chamber to the stage,
+/// rather than the stage fading in on a second sphere.
+///
+/// It is drawn over everything while it travels, since the dialog it is
+/// going to is still fading in. Once there, the stage's own sphere (the same
+/// field, on the same clock) takes over beneath it and it fades off.
+class CultivationFlight {
+  CultivationFlight._(this.handoff);
+
+  /// The sphere shown by the widget under [key], ready to fly — null if it
+  /// is not showing one.
+  static CultivationFlight? from(GlobalKey key) {
+    final h = CultivationSphere.handoffFrom(key);
+    return h == null ? null : CultivationFlight._(h);
+  }
+
+  final CultivationHandoff handoff;
+
+  /// Seconds on the way, then seconds handing over to the stage.
+  static const double travel = 0.7, settle = 0.2;
+
+  _CultivationSphereState? _to;
+  OverlayEntry? _entry;
+
+  /// The stage has it: its clock, and its own sphere showing.
+  bool _landed = false;
+  bool _over = false;
+
+  /// Redraws it — to nothing, once it is over.
+  VoidCallback? _repaint;
+
+  /// Lifts it over whatever was just opened above its chamber. Call it once
+  /// that is pushed, so it goes on top.
+  void lift(BuildContext context) {
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null || _over || _entry != null) {
+      _end();
+      return;
+    }
+    overlay.insert(_entry = OverlayEntry(builder: (_) => _Flight(this)));
+  }
+
+  void _land() {
+    final to = _to;
+    if (to == null || _landed) return;
+    _landed = true;
+    to
+      .._spin = handoff.spin
+      .._time = handoff.time
+      .._ready = handoff.ready
+      .._away = false;
+  }
+
+  void _end() {
+    if (_over) return;
+    _over = true;
+    _land();
+    final e = _entry;
+    _entry = null;
+    e?.remove();
+    // Its entry goes on the next frame; this one must not draw it.
+    _repaint?.call();
+  }
+}
+
+class _Flight extends StatefulWidget {
+  const _Flight(this.flight);
+
+  final CultivationFlight flight;
+
+  @override
+  State<_Flight> createState() => _FlightState();
+}
+
+class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
+  late final Ticker _ticker;
+  final ValueNotifier<int> _frame = ValueNotifier(0);
+  Duration _last = Duration.zero;
+  double _t = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = createTicker(_tick)..start();
+    widget.flight._repaint = () => _frame.value++;
+  }
+
+  void _tick(Duration elapsed) {
+    final dt = _last == Duration.zero
+        ? 1 / 60
+        : ((elapsed - _last).inMicroseconds / 1e6).clamp(0.0, 1 / 20);
+    _last = elapsed;
+    _t += dt;
+    final f = widget.flight;
+    if (!f._landed) f.handoff.advance(dt, f.handoff.rate);
+    if (_t >= CultivationFlight.travel) f._land();
+    // Done — or nothing came up to take it.
+    if (_t >= CultivationFlight.travel + CultivationFlight.settle ||
+        (f._to == null && _t > 0.3)) {
+      f._end();
+      return;
+    }
+    _frame.value++;
+  }
+
+  @override
+  void dispose() {
+    widget.flight._repaint = null;
+    _ticker.dispose();
+    _frame.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: CustomPaint(
+      size: Size.infinite,
+      painter: _FlightPainter(this, repaint: _frame),
+    ),
+  );
+}
+
+class _FlightPainter extends CustomPainter {
+  _FlightPainter(this.state, {super.repaint});
+
+  final _FlightState state;
+
+  static double _smooth(double x) {
+    final t = x.clamp(0.0, 1.0);
+    return t * t * (3 - 2 * t);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final f = state.widget.flight;
+    if (f._over) return;
+    final h = f.handoff;
+    final to = f._to;
+    final there = to?._globalCircle();
+    final move = _smooth(state._t / CultivationFlight.travel);
+    var at = h.centre, radius = h.radius;
+    if (there != null) {
+      at = Offset.lerp(h.centre, there.$1, move)!;
+      radius = h.radius + (there.$2 - h.radius) * move;
+    }
+    final box = state.context.findRenderObject();
+    if (box is RenderBox && box.attached) at = box.globalToLocal(at);
+    // Once landed it is the stage's sphere it is drawn over, so it keeps the
+    // stage's time and fades off it.
+    final landed = f._landed && to != null;
+    h.field.paint(
+      canvas,
+      at,
+      radius,
+      spin: landed ? to._spin : h.spin,
+      time: landed ? to._time : h.time,
+      ready: landed ? to._ready : h.ready,
+      colors: h.colors,
+      opacity:
+          1 -
+          _smooth(
+            (state._t - CultivationFlight.travel) / CultivationFlight.settle,
+          ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_FlightPainter old) => old.state != state;
+}
+
 /// A cultivation as a turning sphere of its parents' grains.
 ///
 /// [progress] (0..1 to extraction) sets how fast it turns; [isReady] settles
@@ -652,6 +828,7 @@ class CultivationSphere extends StatefulWidget {
     this.twinkle = 1,
     this.radiusFactor = 0.36,
     this.pureElement,
+    this.arrival,
   });
 
   final Map<String, dynamic> payload;
@@ -677,6 +854,10 @@ class CultivationSphere extends StatefulWidget {
   /// An elementally pure cultivation's element: its sigil is that element's.
   final String? pureElement;
 
+  /// The sphere it was before it came here (a chamber's, flown up into its
+  /// details): it takes up those grains, and shows once they have arrived.
+  final CultivationFlight? arrival;
+
   /// How fast it turns, in radians a second, at [progress].
   static double spinRate(double? progress) {
     final p = (progress ?? 0).clamp(0.0, 1.0);
@@ -694,20 +875,17 @@ class CultivationSphere extends StatefulWidget {
     final state = key.currentState;
     if (state is! _CultivationSphereState) return null;
     final field = state._field;
-    final box = key.currentContext?.findRenderObject();
-    if (field == null || box is! RenderBox || !box.attached) return null;
-    final origin = box.localToGlobal(Offset.zero);
-    final scale =
-        (box.localToGlobal(Offset(box.size.width, 0)) - origin).dx /
-        math.max(1.0, box.size.width);
+    final at = state._globalCircle();
+    if (field == null || at == null) return null;
     return CultivationHandoff._(
       field: field,
-      centre: box.localToGlobal(box.size.center(Offset.zero)),
-      radius: state._radius * scale,
+      centre: at.$1,
+      radius: at.$2,
       colors: state._colors,
       spin: state._spin,
       time: state._time,
       ready: state._ready,
+      rate: state._rate,
     );
   }
 
@@ -724,12 +902,37 @@ class _CultivationSphereState extends State<CultivationSphere>
   double _spin = 0, _time = 0, _ready = 0, _radius = 60, _rate = 0;
   List<Color> _colors = const [Color(0xFFE4C16A), Color(0xFFE4C16A)];
 
+  /// Still on its way here (see [CultivationSphere.arrival]): not drawn.
+  bool _away = false;
+
   @override
   void initState() {
     super.initState();
     _rate = _targetRate;
     _ticker = createTicker(_tick)..start();
-    _load();
+    final arrival = widget.arrival;
+    if (arrival != null && !arrival._over) {
+      final h = arrival.handoff;
+      _field = h.field;
+      _spin = h.spin;
+      _time = h.time;
+      _ready = h.ready;
+      _away = true;
+      arrival._to = this;
+    } else {
+      _load();
+    }
+  }
+
+  /// Where it stands on screen, and how big, in global coordinates.
+  (Offset, double)? _globalCircle() {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+    final origin = box.localToGlobal(Offset.zero);
+    final scale =
+        (box.localToGlobal(Offset(box.size.width, 0)) - origin).dx /
+        math.max(1.0, box.size.width);
+    return (box.localToGlobal(box.size.center(Offset.zero)), _radius * scale);
   }
 
   double get _targetRate =>
@@ -782,8 +985,25 @@ class _CultivationSphereState extends State<CultivationSphere>
     _frame.value++;
   }
 
+  /// Gone from the stage it was flying to — closed before it got there —
+  /// so the flight ends with it.
+  void _leave() {
+    final arrival = widget.arrival;
+    if (arrival != null && arrival._to == this) {
+      arrival._to = null;
+      arrival._end();
+    }
+  }
+
+  @override
+  void deactivate() {
+    _leave();
+    super.deactivate();
+  }
+
   @override
   void dispose() {
+    _leave();
     _ticker.dispose();
     _frame.dispose();
     super.dispose();
@@ -813,7 +1033,7 @@ class _CultivationSphereState extends State<CultivationSphere>
               ? null
               : _SpherePainter(
                   field,
-                  () => (_spin, _time, _ready, _radius),
+                  () => (_spin, _time, _ready, _radius, _away),
                   colors,
                   widget.darkBackdrop,
                   widget.twinkle,
@@ -849,14 +1069,15 @@ class _SpherePainter extends CustomPainter {
   });
 
   final CultivationSphereField field;
-  final (double, double, double, double) Function() state;
+  final (double, double, double, double, bool) Function() state;
   final List<Color> colors;
   final bool dark;
   final double twinkle;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final (spin, time, ready, radius) = state();
+    final (spin, time, ready, radius, away) = state();
+    if (away) return;
     field.paint(
       canvas,
       Offset(size.width / 2, size.height / 2),

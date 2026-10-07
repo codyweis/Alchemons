@@ -10,11 +10,16 @@
 //   enhance   a creature made of grains, a wave of light rising through it
 //             and lifting off its crown — the infusion; black grains on the
 //             light theme
-//   harvest   an alchemist's flask, its glowing liquid a swirl of grains,
-//             motes falling into it
-//   survival  the Solaris Sentinel — the Light boss in its Armillary form,
-//             brass bands turning round a sun — drawn by the same painter
-//             that draws it in a run
+//   harvest   the harvest chamber's own flask of dark glass, its liquid a
+//             swirl of grains, essence falling into its neck — drawn by the
+//             chamber's painter (paintFlaskEmblem), so its way in can land
+//             on the chamber's flask
+//   survival  the player's own orb — the core they have equipped, drawn by
+//             the painter that draws it in the survival hub and in a run
+//
+// Field, Harvest and Survival are also their own ways in
+// (widgets/dock_passages.dart): the scene the player touched is what
+// carries them to its screen.
 //
 // (A glass-lens frame round these was tried and taken off — "just the
 // animation".)
@@ -25,7 +30,9 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:alchemons/games/cosmic/enemy_body_art.dart';
+import 'package:alchemons/games/cosmic_survival/orb_art.dart';
+import 'package:alchemons/models/survival_upgrades.dart';
+import 'package:alchemons/widgets/fx/extraction_vessel.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
 import 'package:flutter/foundation.dart';
@@ -51,11 +58,15 @@ class DockEmblem extends StatefulWidget {
     required this.size,
     this.animate = true,
     this.dark = true,
+    this.orb = OrbBaseSkin.defaultOrb,
   });
 
   final DockEmblemKind kind;
   final double size;
   final bool animate;
+
+  /// The survival orb the player has equipped (the Survival emblem).
+  final OrbBaseSkin orb;
 
   /// The theme it sits on. On the light one, Enhance's creature is drawn in
   /// black grains.
@@ -147,6 +158,7 @@ class _DockEmblemState extends State<DockEmblem> with GlyphClockLease {
           clock: glyphClock,
           creature: _creature,
           dark: widget.dark,
+          orb: widget.orb,
         ),
       ),
     );
@@ -160,10 +172,14 @@ class DockEmblemPainter extends CustomPainter {
     this.time,
     this.creature,
     this.dark = true,
+    this.orb = OrbBaseSkin.defaultOrb,
   }) : super(repaint: clock);
 
   /// The theme it sits on (see [DockEmblem.dark]).
   final bool dark;
+
+  /// The equipped survival orb.
+  final OrbBaseSkin orb;
 
   final DockEmblemKind kind;
   final ValueListenable<double>? clock;
@@ -175,9 +191,6 @@ class DockEmblemPainter extends CustomPainter {
   final SpecimenGrains? creature;
 
   static final GrainBatch _b = GrainBatch(16);
-
-  /// The Solaris Sentinel's light.
-  static final EnemyPalette _solaris = enemyPalette('Light');
   static final Paint _p = Paint();
 
   static double _h(int i, int salt) {
@@ -195,40 +208,58 @@ class DockEmblemPainter extends CustomPainter {
     // the painted icons beside it fill theirs.
     switch (kind) {
       case DockEmblemKind.field:
-        // No frame: the scene dissolves into the screen at its edges.
-        final box = Offset.zero & size;
-        canvas.saveLayer(box, Paint());
-        _field(canvas, c, s * 0.5, t);
-        canvas.drawRect(
-          box,
-          Paint()
-            ..blendMode = BlendMode.dstIn
-            ..shader = ui.Gradient.radial(
-              c,
-              s * 0.5,
-              const [Color(0xFF000000), Color(0xFF000000), Color(0x00000000)],
-              const [0.0, 0.55, 1.0],
-            ),
-        );
-        canvas.restore();
+        paintField(canvas, Offset.zero & size, t);
       case DockEmblemKind.enhance:
         _enhance(canvas, c, s * 0.5, t);
       case DockEmblemKind.harvest:
-        _harvest(canvas, c + Offset(0, s * 0.04), s * 0.62, t);
+        final f = dockFlaskIn(Offset.zero & size);
+        paintFlaskEmblem(
+          canvas,
+          f.centre,
+          f.radius,
+          t,
+          ink: DockEmblemKind.harvest.accent,
+          level: dockFlaskLevel(t),
+        );
       case DockEmblemKind.survival:
-        // Its reach is 1.8 radii; sized so the bands just fill the box.
-        final r = s * 0.5 / bossFormReach(BossForm.armillary) * 1.05;
-        canvas.save();
-        canvas.translate(c.dx, c.dy);
-        canvas.scale(r);
-        paintBossForm(canvas, _solaris, BossForm.armillary, time: t, seed: 0.4);
-        canvas.restore();
+        final o = dockOrbIn(Offset.zero & size);
+        paintDockOrb(canvas, o.centre, o.radius, orb, t);
     }
+  }
+
+  /// The field scene in [box], fading softly into the screen at its edges
+  /// (nothing frames it); [alpha] fades the whole.
+  static void paintField(
+    Canvas canvas,
+    Rect box,
+    double t, {
+    double alpha = 1,
+  }) {
+    if (alpha <= 0.004) return;
+    final c = box.center;
+    final s = box.shortestSide;
+    canvas.saveLayer(
+      box,
+      Paint()..color = Color.fromRGBO(0, 0, 0, alpha.clamp(0.0, 1.0)),
+    );
+    _field(canvas, c, s * 0.5, t);
+    canvas.drawRect(
+      box,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = ui.Gradient.radial(
+          c,
+          s * 0.5,
+          const [Color(0xFF000000), Color(0xFF000000), Color(0x00000000)],
+          const [0.0, 0.55, 1.0],
+        ),
+    );
+    canvas.restore();
   }
 
   // ── field: the wilds at dawn ─────────────────────────────────────────
 
-  void _field(Canvas canvas, Offset c, double r, double t) {
+  static void _field(Canvas canvas, Offset c, double r, double t) {
     // Dawn behind the hills, and a few stars still out above.
     final sun = c + Offset(r * 0.2, r * 0.02);
     canvas.drawCircle(
@@ -405,88 +436,73 @@ class DockEmblemPainter extends CustomPainter {
     }
   }
 
-  // ── harvest: an alchemist's flask, filling ───────────────────────────
-
-  void _harvest(Canvas canvas, Offset c, double r, double t) {
-    final accent = kind.accent;
-    final bulb = c + Offset(0, r * 0.22);
-    final br = r * 0.46;
-    final neckW = r * 0.16, neckTop = c.dy - r * 0.58;
-    // The glass: a round-bottomed flask, dark, lit at its edge.
-    final flask = Path()
-      ..addOval(Rect.fromCircle(center: bulb, radius: br))
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTRB(
-            c.dx - neckW,
-            neckTop,
-            c.dx + neckW,
-            bulb.dy - br * 0.6,
-          ),
-          Radius.circular(neckW * 0.4),
-        ),
-      );
-    canvas.drawPath(
-      flask,
-      _p
-        ..shader = ui.Gradient.radial(
-          bulb + Offset(-br * 0.3, -br * 0.4),
-          br * 1.5,
-          [
-            Color.lerp(accent, const Color(0xFF0B0911), 0.7)!,
-            const Color(0xFF120E0A),
-          ],
-        ),
-    );
-    _p.shader = null;
-    // Its liquid: grains, swirling, filling the bulb's lower part.
-    final b = _b..clear();
-    final level = bulb.dy - br * (0.05 + 0.15 * math.sin(t * 0.4));
-    for (var i = 0; i < 150; i++) {
-      final a = _h(i, 50) * math.pi * 2 + t * (0.6 + 0.6 * _h(i, 51));
-      final rr = br * 0.88 * math.sqrt(_h(i, 52));
-      final x = bulb.dx + math.cos(a) * rr;
-      var y = bulb.dy + math.sin(a) * rr * 0.55 + br * 0.25;
-      if (y < level) y = level + (level - y) * 0.2;
-      final hot = (t * 0.35 + _h(i, 53) * 5) % 1.0 < 0.05;
-      b.add(hot ? 3 : (rr / br * 2.99).floor(), x, y);
-    }
-    // Motes falling into its neck.
-    for (var i = 0; i < 8; i++) {
-      final ph = (t * 0.5 + i / 8) % 1.0;
-      final x = c.dx + math.sin(t * 2 + i * 1.7) * neckW * 0.4;
-      final y = neckTop - r * 0.32 + ph * (level - neckTop + r * 0.32);
-      b.add(4, x, y);
-    }
-    final d = math.max(1.0, r * 0.06);
-    b.draw(canvas, 2, d, Color.lerp(accent, const Color(0xFF3A1E08), 0.45)!);
-    b.draw(canvas, 1, d, accent);
-    b.draw(canvas, 0, d * 1.05, Color.lerp(accent, Colors.white, 0.35)!);
-    b.draw(canvas, 3, d * 1.3, const Color(0xFFFFF4D6));
-    b.draw(canvas, 4, d * 1.1, Color.lerp(accent, Colors.white, 0.5)!);
-    // The glass's edge, catching the light — filled, as glass is.
-    canvas.drawPath(
-      flask,
-      _p
-        ..shader = ui.Gradient.linear(
-          c + Offset(-br, -br),
-          c + Offset(br, br),
-          [
-            Colors.white.withValues(alpha: 0.18),
-            Colors.white.withValues(alpha: 0.02),
-            accent.withValues(alpha: 0.12),
-          ],
-          const [0.0, 0.5, 1.0],
-        ),
-    );
-    _p.shader = null;
-  }
-
   @override
   bool shouldRepaint(covariant DockEmblemPainter old) =>
       old.kind != kind ||
       old.clock != clock ||
       old.time != time ||
       old.creature != creature ||
-      old.dark != dark;
+      old.dark != dark ||
+      old.orb != orb;
+}
+
+/// Where the Harvest emblem's flask stands in [box]: its bulb's centre and
+/// radius, the neck and the essence falling into it above.
+({Offset centre, double radius}) dockFlaskIn(Rect box) {
+  final s = box.shortestSide;
+  final r = s * 0.34;
+  return (
+    centre: Offset(box.center.dx, box.top + s * 0.5 + r * 0.35),
+    radius: r,
+  );
+}
+
+/// How full the Harvest emblem's flask stands at [t]: it breathes.
+double dockFlaskLevel(double t) => 0.64 + 0.05 * math.sin(t * 0.4);
+
+/// Where the Survival emblem's orb sits in [box]: its core's centre and
+/// radius.
+({Offset centre, double radius}) dockOrbIn(Rect box) =>
+    (centre: box.center, radius: box.shortestSide * 0.3);
+
+/// The equipped orb's core at [centre], [radius] across, in a low pool of
+/// its own light — as the survival hub shows it, without its reach.
+void paintDockOrb(
+  Canvas canvas,
+  Offset centre,
+  double radius,
+  OrbBaseSkin skin,
+  double t, {
+  double light = 1,
+}) {
+  final look = orbLook(skin);
+  if (light > 0) {
+    canvas.drawCircle(
+      centre,
+      radius * 1.65,
+      DockEmblemPainter._p
+        ..shader = ui.Gradient.radial(
+          centre,
+          radius * 1.65,
+          [
+            look.essence.withValues(alpha: 0.22 * light),
+            look.essence.withValues(alpha: 0.06 * light),
+            look.essence.withValues(alpha: 0),
+          ],
+          const [0.0, 0.5, 1.0],
+        ),
+    );
+    DockEmblemPainter._p.shader = null;
+  }
+  canvas.save();
+  canvas.translate(centre.dx, centre.dy);
+  paintOrbCore(
+    canvas,
+    skin,
+    t,
+    radius: radius,
+    beat: (t / 8) - (t / 8).floorToDouble(),
+    reach: false,
+  );
+  canvas.restore();
 }

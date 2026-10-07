@@ -1,7 +1,11 @@
 import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
+import 'package:alchemons/models/survival_upgrades.dart';
+import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/dock_emblems.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart';
@@ -25,6 +29,12 @@ class SideDockFloating extends StatelessWidget {
   final VoidCallback onBattle;
   final VoidCallback? onMysticAltar;
 
+  /// Where the Field, Harvest and Survival emblems stand (their passages
+  /// lift off from there), and whether each is away carrying the player in
+  /// — its place is left empty meanwhile.
+  final GlobalKey? fieldKey, harvestKey, survivalKey;
+  final ValueListenable<bool>? fieldLifted, harvestLifted, survivalLifted;
+
   const SideDockFloating({
     super.key,
     required this.theme,
@@ -41,10 +51,44 @@ class SideDockFloating extends StatelessWidget {
     this.highlightEnhance = false,
     required this.onBattle,
     this.onMysticAltar,
+    this.fieldKey,
+    this.harvestKey,
+    this.survivalKey,
+    this.fieldLifted,
+    this.harvestLifted,
+    this.survivalLifted,
   });
+
+  /// The survival orb the player has equipped (the plain one where there is
+  /// no survival service, as in some tests).
+  static OrbBaseSkin _orbOf(BuildContext context) {
+    try {
+      return context.select<SurvivalUpgradeService, OrbBaseSkin>(
+        (s) => s.state.equippedSkin,
+      );
+    } on ProviderNotFoundException {
+      return OrbBaseSkin.defaultOrb;
+    }
+  }
+
+  /// [child] under [key], hidden while [lifted].
+  static Widget _emblem(
+    GlobalKey? key,
+    ValueListenable<bool>? lifted,
+    Widget child,
+  ) {
+    final keyed = KeyedSubtree(key: key, child: child);
+    if (lifted == null) return keyed;
+    return ValueListenableBuilder<bool>(
+      valueListenable: lifted,
+      builder: (_, away, c) => Opacity(opacity: away ? 0 : 1, child: c),
+      child: keyed,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final orb = hideSurvival ? OrbBaseSkin.defaultOrb : _orbOf(context);
     Widget lockWrap({required bool locked, required Widget child}) {
       if (!locked) return child;
       return Opacity(
@@ -61,8 +105,11 @@ class SideDockFloating extends StatelessWidget {
         _FloatingSideButton(
           theme: theme,
           label: 'Field',
-          iconBuilder: (size) =>
-              DockEmblem(kind: DockEmblemKind.field, size: size),
+          iconBuilder: (size) => _emblem(
+            fieldKey,
+            fieldLifted,
+            DockEmblem(kind: DockEmblemKind.field, size: size),
+          ),
           onTap: context.soundTap(onField),
           size: 70,
           highlight: highlightField,
@@ -78,8 +125,11 @@ class SideDockFloating extends StatelessWidget {
               theme: theme,
               size: 80,
               label: 'Survival',
-              iconBuilder: (size) =>
-                  DockEmblem(kind: DockEmblemKind.survival, size: size),
+              iconBuilder: (size) => _emblem(
+                survivalKey,
+                survivalLifted,
+                DockEmblem(kind: DockEmblemKind.survival, size: size, orb: orb),
+              ),
               onTap: context.soundTap(onBattle),
             ),
           ),
@@ -115,8 +165,11 @@ class SideDockFloating extends StatelessWidget {
             theme: theme,
             size: 70,
             label: 'Harvest',
-            iconBuilder: (size) =>
-                DockEmblem(kind: DockEmblemKind.harvest, size: size),
+            iconBuilder: (size) => _emblem(
+              harvestKey,
+              harvestLifted,
+              DockEmblem(kind: DockEmblemKind.harvest, size: size),
+            ),
             onTap: context.soundTap(onHarvest),
             showDot: showHarvestDot,
           ),

@@ -116,7 +116,6 @@ class PurebloodChallenge {
         'Beauty Potential — ${(minBeautyPotentialExclusive! + 1).round()}+',
       );
     }
-    lines.add('+$goldReward Gold Awarded');
     return lines;
   }
 }

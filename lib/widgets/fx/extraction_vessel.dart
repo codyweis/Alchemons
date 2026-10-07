@@ -76,6 +76,18 @@ class VesselGeometry {
     );
   }
 
+  /// The flask alone, its bulb at [center], [radius] across — for the
+  /// dock's harvest emblem and the passage that carries it onto the bench.
+  factory VesselGeometry.flask(Offset center, double radius) =>
+      VesselGeometry._(
+        Size.zero,
+        center.dy + radius * 0.985,
+        center,
+        radius,
+        center,
+        0,
+      );
+
   VesselGeometry._(
     this.size,
     this.floorY,
@@ -122,8 +134,7 @@ class VesselGeometry {
 
   /// The liquid's volume [depth] deep from the bottom (a spherical cap,
   /// without the π/3).
-  double capVolume(double depth) =>
-      depth * depth * (3 * liquidRadius - depth);
+  double capVolume(double depth) => depth * depth * (3 * liquidRadius - depth);
 
   /// The liquid's cross-section [depth] deep: the area its grains fill.
   double segmentArea(double depth) {
@@ -816,10 +827,7 @@ class ExtractionVesselField {
             0.0,
             1.0,
           );
-      final count = (poolGrains * frac).round().clamp(
-        28,
-        poolGrains,
-      );
+      final count = (poolGrains * frac).round().clamp(28, poolGrains);
       _rows(g, base);
       for (var i = 0; i < count; i++) {
         // Each grain rolls round a disc; the disc is then stretched over the
@@ -1092,6 +1100,18 @@ class ExtractionVessel extends StatefulWidget {
   /// Shown faintly in the glass of a locked chamber.
   final IconData? lockedIcon;
 
+  /// The flask's bulb in global coordinates (its centre and radius), for a
+  /// passage landing on it. [occupied]: an Alchemon stands beside it.
+  static ({Offset centre, double radius})? bulbOf(
+    GlobalKey key, {
+    required bool occupied,
+  }) {
+    final box = key.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return null;
+    final g = VesselGeometry(box.size, slide: occupied ? 1 : 0);
+    return (centre: box.localToGlobal(g.center), radius: g.radius);
+  }
+
   /// The neck's mouth in global coordinates, for whatever leaves through it.
   static Rect? mouthOf(GlobalKey key) {
     final box = key.currentContext?.findRenderObject();
@@ -1344,4 +1364,164 @@ class _Wobble extends StatelessWidget {
       },
     );
   }
+}
+
+// ── the flask alone ─────────────────────────────────────────────────────────
+
+final GrainBatch _emblemBatch = GrainBatch(8);
+final Paint _emblemPaint = Paint();
+
+/// The chamber's flask on its own at any size, in the chamber's own glass:
+/// the dock's harvest emblem, and the passage that carries it onto the
+/// bench. Its liquid is a swirl of [ink] grains filled to [level] (0..1 of
+/// full); [motes] (0..1) is the essence falling into its neck; [alpha]
+/// fades all of it.
+void paintFlaskEmblem(
+  Canvas canvas,
+  Offset center,
+  double radius,
+  double time, {
+  required Color ink,
+  double level = 0.5,
+  double motes = 1,
+  double alpha = 1,
+}) {
+  if (alpha <= 0.004 || radius <= 0) return;
+  final g = VesselGeometry.flask(center, radius);
+  final c = center, r = radius;
+  final p = _emblemPaint;
+  Color a(Color color, double k) =>
+      color.withValues(alpha: (color.a * k * alpha).clamp(0.0, 1.0));
+
+  // The glass body: dark smoke, faintly the liquid's colour.
+  p.shader = ui.Gradient.radial(c + Offset(-r * 0.25, -r * 0.35), r * 1.45, [
+    a(Color.lerp(ink, const Color(0xFF0A090D), 0.8)!, 0.75),
+    a(const Color(0xFF07060A), 0.92),
+  ]);
+  canvas.drawPath(g.glass, p);
+
+  // The liquid: grains turning slowly in the bottom of the bulb, below a
+  // surface that breathes.
+  final full = g.fullLevel, bottom = g.bottom;
+  final lv = level.clamp(0.0, 1.0);
+  final surface =
+      bottom - (bottom - full) * lv + math.sin(time * 0.9) * r * 0.012;
+  // The liquid's light up the back wall.
+  canvas.save();
+  canvas.clipPath(g.glass);
+  p.shader = ui.Gradient.radial(
+    Offset(c.dx, surface),
+    r * 1.05,
+    [a(ink, 0.22 * (0.4 + lv)), a(ink, 0.05), Colors.transparent],
+    const [0.0, 0.45, 1.0],
+  );
+  canvas.drawRect(Rect.fromCircle(center: c, radius: r * 1.1), p);
+  canvas.restore();
+  p.shader = null;
+
+  final b = _emblemBatch..clear();
+  final n = (200 + (r - 22).clamp(0.0, 200.0) * 9).round();
+  if (lv > 0.005) {
+    final depth = bottom - surface;
+    for (var i = 0; i < n; i++) {
+      // Each grain swirls on its own flat loop inside the liquid: across the
+      // bulb at its depth and a little up and down, so the whole turns
+      // without a grain ever leaving it.
+      final u = math.pow(_h(i, 52), 0.8).toDouble();
+      final y0 = surface + depth * (0.06 + 0.9 * u);
+      final ph = _h(i, 50) * math.pi * 2 + time * (0.25 + 0.35 * _h(i, 51));
+      final y = (y0 + math.cos(ph) * depth * 0.05).clamp(surface, bottom);
+      final x = c.dx + g.chord(y) * 0.94 * math.sin(ph);
+      final hot = (time * 0.35 + _h(i, 53) * 5) % 1.0 < 0.05;
+      final tone = hot
+          ? 4
+          : (y - surface < r * 0.07 ? 3 : (u > 0.9 ? 0 : (u > 0.55 ? 1 : 2)));
+      b.add(tone, x, y);
+    }
+  }
+  // Essence falling into the neck.
+  if (motes > 0) {
+    final top = g.mouthY - r * 0.42;
+    for (var i = 0; i < 8; i++) {
+      final ph = (time * 0.5 + i / 8) % 1.0;
+      final x = c.dx + math.sin(time * 2 + i * 1.7) * g.neckHalf * 0.45;
+      final y = top + ph * (surface - top);
+      b.add(5, x, y);
+    }
+  }
+  // Small, the grains are coarse and bright enough to read as liquid at a
+  // glance; large, as fine as the chamber's own.
+  final small = 1 - ((r - 20) / 80).clamp(0.0, 1.0);
+  final dot = 1.6 + 1.5 * small;
+  final deep = Color.lerp(ink, const Color(0xFF0A0710), 0.58)!;
+  final hot = Color.lerp(ink, Colors.white, 0.24)!;
+  final white = Color.lerp(ink, Colors.white, 0.78)!;
+  b.draw(canvas, 2, dot * 2.4, a(ink, 0.08 + 0.1 * small));
+  b.draw(canvas, 0, dot, a(deep, 0.95));
+  b.draw(canvas, 1, dot, a(Color.lerp(ink, deep, 0.45)!, 1));
+  b.draw(canvas, 2, dot, a(ink, 0.95));
+  b.draw(canvas, 3, dot * 1.1, a(hot, 0.95));
+  b.draw(canvas, 4, dot * 1.3, a(white, 1));
+  b.draw(
+    canvas,
+    5,
+    dot * (1.1 + 0.25 * small),
+    a(Color.lerp(ink, Colors.white, 0.5)!, motes),
+  );
+
+  // The glass's face: its thickness at the edge, the far side's shade, the
+  // light come round through it, the catchlight, the neck and its lip —
+  // filled, as glass is, never a stroke.
+  p.shader = ui.Gradient.radial(
+    c,
+    r,
+    [
+      Colors.transparent,
+      Colors.transparent,
+      a(Colors.white, 0.03),
+      a(Colors.white, 0.09),
+    ],
+    const [0.0, 0.84, 0.96, 1.0],
+  );
+  canvas.drawPath(g.bulb, p);
+  p.shader = ui.Gradient.radial(
+    c,
+    r,
+    [Colors.transparent, Colors.transparent, a(Colors.black, 0.42)],
+    const [0.0, 0.62, 1.0],
+    TileMode.clamp,
+    null,
+    c + Offset(-r * 0.32, -r * 0.38),
+  );
+  canvas.drawPath(g.bulb, p);
+  p.shader = ui.Gradient.linear(
+    c + Offset(r * 0.75, r * 0.75),
+    c + Offset(r * 0.1, r * 0.1),
+    [a(Colors.white, 0.13), Colors.transparent],
+  );
+  canvas.drawPath(g.rimlight, p);
+  p.shader = ui.Gradient.linear(
+    c + Offset(-r * 0.7, -r * 0.7),
+    c + Offset(-r * 0.05, r * 0.2),
+    [a(Colors.white, 0.16), Colors.transparent],
+  );
+  canvas.drawPath(g.catchlight, p);
+  final nh = g.neckHalf;
+  p.shader = ui.Gradient.linear(
+    Offset(c.dx - nh, 0),
+    Offset(c.dx + nh, 0),
+    [a(Colors.white, 0.1), a(Colors.white, 0.012), a(Colors.white, 0.055)],
+    const [0.0, 0.55, 1.0],
+  );
+  canvas.drawRect(
+    Rect.fromLTRB(c.dx - nh, g.mouthY + r * 0.06, c.dx + nh, c.dy - r * 0.9),
+    p,
+  );
+  final lip = g.lip();
+  p.shader = ui.Gradient.linear(Offset(0, lip.top), Offset(0, lip.bottom), [
+    a(Colors.white, 0.16),
+    a(Colors.white, 0.03),
+  ]);
+  canvas.drawRRect(lip, p);
+  p.shader = null;
 }

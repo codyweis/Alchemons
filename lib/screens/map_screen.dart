@@ -39,6 +39,7 @@ import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
+import 'package:alchemons/widgets/dock_passages.dart';
 import 'package:alchemons/widgets/wilderness/wild_map.dart';
 import 'package:alchemons/widgets/wilderness/wild_map_view.dart';
 
@@ -108,7 +109,19 @@ class MapScreen extends StatefulWidget {
   final void Function(NavSection section, {int? breedInitialTab})?
   onNavigateSection;
 
-  const MapScreen({super.key, this.isTutorial = false, this.onNavigateSection});
+  const MapScreen({
+    super.key,
+    this.isTutorial = false,
+    this.onNavigateSection,
+    this.revealReady,
+    this.passageTarget,
+  });
+
+  /// Arriving through the dock's Field passage: set true once the map is
+  /// laid out for today, after [passageTarget] says where its realm circles
+  /// are. The map then shows at once instead of fading in.
+  final ValueNotifier<bool>? revealReady;
+  final ValueNotifier<List<FieldCircle>?>? passageTarget;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -149,6 +162,8 @@ class _MapScreenState extends State<MapScreen>
     _mapOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _mapController, curve: Curves.easeOutQuad),
     );
+    // Through the passage it is already there when the passage gives way.
+    if (widget.revealReady != null) _mapController.value = 1;
 
     // Start the animation after the first frame so it feels like
     // the map is animating in instead of just appearing.
@@ -164,9 +179,31 @@ class _MapScreenState extends State<MapScreen>
         setState(() => _wildSlots = slots);
       }
       await _refreshShipWaitsInValley();
+      if (widget.revealReady != null) {
+        await _reportCircles();
+        return;
+      }
       await Future.delayed(const Duration(milliseconds: 150));
       if (mounted) _mapController.forward();
     });
+  }
+
+  /// Once the map is laid out for today: its realm circles, for the passage
+  /// to come down into, and then that it is ready.
+  Future<void> _reportCircles() async {
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    final circles = <FieldCircle>[
+      for (final id in [..._wildSlots, if (_arcaneUnlocked) 'arcane'])
+        if (_mapLanding.circleOf(id) case final rect?)
+          FieldCircle(
+            centre: rect.center,
+            radius: rect.shortestSide / 2,
+            tint: kRealmDust[id] ?? const Color(0xFFCFC4AE),
+          ),
+    ];
+    widget.passageTarget?.value = circles;
+    widget.revealReady?.value = true;
   }
 
   /// Whether the ship is down in the Valley and unclaimed, read fresh.

@@ -1061,6 +1061,9 @@ final List<(int, double, double, double)> _lanes = () {
   ];
 }();
 
+/// The run's spacing between the field's lanes, in world units.
+const double kOrbFieldLaneGap = 92;
+
 /// The field the ship orbits in, centred on the origin: four lanes of dust
 /// turning slowly, the innermost on the ship's own orbit and brightest.
 void paintOrbField(
@@ -1068,7 +1071,7 @@ void paintOrbField(
   OrbBaseSkin skin,
   double time, {
   double orbit = 270,
-  double laneGap = 92,
+  double laneGap = kOrbFieldLaneGap,
 }) {
   final l = orbLook(skin);
   _reset();

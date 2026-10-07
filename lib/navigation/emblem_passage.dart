@@ -1,7 +1,8 @@
 // lib/navigation/emblem_passage.dart
 //
-// The way in through one of home's right-side emblems
-// (widgets/home_emblems.dart). The icon the player touched lifts off home
+// The way in through one of home's living icons — the right-side emblems
+// (widgets/home_emblems.dart) and the dock's (widgets/dock_passages.dart).
+// The icon the player touched lifts off home
 // and grows over the screen while home sinks into the scene's own ground;
 // it holds there, alive, while the page is built behind it — the passage is
 // the page's loading screen, as the glyph portal is — and then gives way to
@@ -37,6 +38,25 @@ class EmblemPassage {
     ValueListenable<bool>? ready,
     ValueNotifier<bool>? lifted,
     ValueNotifier<bool>? revealed,
+  }) => pushScene<T>(
+    context,
+    scene: HomeEmblemScene(kind),
+    from: from,
+    page: page,
+    ready: ready,
+    lifted: lifted,
+    revealed: revealed,
+  );
+
+  /// [push], for any [PassageScene] (the dock's, say).
+  static Future<T?> pushScene<T>(
+    BuildContext context, {
+    required PassageScene scene,
+    required GlobalKey from,
+    required Widget page,
+    ValueListenable<bool>? ready,
+    ValueNotifier<bool>? lifted,
+    ValueNotifier<bool>? revealed,
   }) {
     final navigator = Navigator.of(context);
     final rect = _rectOf(from, navigator);
@@ -47,7 +67,7 @@ class EmblemPassage {
     lifted?.value = true;
     return navigator.push<T>(
       EmblemPassageRoute<T>(
-        kind: kind,
+        scene: scene,
         from: rect,
         page: page,
         ready: ready,
@@ -71,30 +91,84 @@ class EmblemPassage {
   }
 }
 
-extension on HomeEmblemKind {
+/// What a passage draws: an icon's scene at any moment of its way in and
+/// back ([EmblemStage]), in two layers the page is laid between.
+abstract class PassageScene {
+  const PassageScene();
+
+  /// Growing over the screen.
+  Duration get inward;
+
+  /// Going back, the whole way home.
+  Duration get outward;
+
+  /// Giving way to the page once it is ready.
+  Duration get landing;
+
+  void paint(
+    Canvas canvas,
+    EmblemStage s, {
+    required bool back,
+    required bool front,
+  });
+
+  /// Anything else the scene reads while it plays (a place the page reports
+  /// once it is laid out, say), so it is repainted when that changes.
+  Listenable? get listenable => null;
+
+  /// How much of the page shows at [land] (0..1 of giving way): a scene
+  /// with something to settle into place first holds the page back until
+  /// it has, so the page's own copy does not show beside it.
+  double pageShown(double land) => land;
+}
+
+/// One of home's right-side emblems as a passage.
+class HomeEmblemScene extends PassageScene {
+  const HomeEmblemScene(this.kind);
+
+  final HomeEmblemKind kind;
+
   /// The way in: the rite's drop has a fall and a pool to play.
-  Duration get inward => switch (this) {
+  @override
+  Duration get inward => switch (kind) {
     HomeEmblemKind.constellation => const Duration(milliseconds: 1050),
     HomeEmblemKind.altar => const Duration(milliseconds: 950),
     HomeEmblemKind.rite => const Duration(milliseconds: 1300),
   };
 
-  Duration get outward => switch (this) {
+  @override
+  Duration get outward => switch (kind) {
     HomeEmblemKind.rite => const Duration(milliseconds: 1000),
     _ => const Duration(milliseconds: 850),
   };
 
   /// Giving way to the page. The sky disc hands over to a sky, so it can
   /// be quick: the chart's own entrance follows it.
-  Duration get landing => switch (this) {
+  @override
+  Duration get landing => switch (kind) {
     HomeEmblemKind.constellation => const Duration(milliseconds: 650),
     _ => const Duration(milliseconds: 900),
   };
+
+  @override
+  void paint(
+    Canvas canvas,
+    EmblemStage s, {
+    required bool back,
+    required bool front,
+  }) => paintEmblem(
+    canvas,
+    kind,
+    s,
+    layer: back && front
+        ? EmblemLayer.all
+        : (back ? EmblemLayer.back : EmblemLayer.front),
+  );
 }
 
 class EmblemPassageRoute<T> extends PageRoute<T> implements SelfLeavingRoute {
   EmblemPassageRoute({
-    required this.kind,
+    required this.scene,
     required this.from,
     required this.page,
     this.ready,
@@ -102,7 +176,7 @@ class EmblemPassageRoute<T> extends PageRoute<T> implements SelfLeavingRoute {
     this.revealed,
   });
 
-  final HomeEmblemKind kind;
+  final PassageScene scene;
 
   /// The icon's box in the navigator's overlay.
   final Rect from;
@@ -124,10 +198,10 @@ class EmblemPassageRoute<T> extends PageRoute<T> implements SelfLeavingRoute {
   bool get opaque => true;
 
   @override
-  Duration get transitionDuration => kind.inward;
+  Duration get transitionDuration => scene.inward;
 
   @override
-  Duration get reverseTransitionDuration => kind.outward;
+  Duration get reverseTransitionDuration => scene.outward;
 
   @override
   Widget buildPage(
@@ -176,7 +250,7 @@ class _PassageVeilState extends State<_PassageVeil>
     with SingleTickerProviderStateMixin, GlyphClockLease {
   late final AnimationController _land = AnimationController(
     vsync: this,
-    duration: widget.route.kind.landing,
+    duration: widget.route.scene.landing,
   );
 
   /// The page is in the tree (only once the screen is covered).
@@ -189,6 +263,7 @@ class _PassageVeilState extends State<_PassageVeil>
     widget.animation,
     _land,
     GlyphClock.instance.seconds,
+    ?widget.route.scene.listenable,
   ]);
   late final Listenable _fade = Listenable.merge([widget.animation, _land]);
 
@@ -312,7 +387,7 @@ class _PassageVeilState extends State<_PassageVeil>
   Widget build(BuildContext context) {
     final settled = _settled;
     final pad = MediaQuery.paddingOf(context);
-    final kind = widget.route.kind;
+    final scene = widget.route.scene;
     EmblemStage stage(Size size) => EmblemStage(
       box: widget.route.from,
       screen: size,
@@ -322,35 +397,51 @@ class _PassageVeilState extends State<_PassageVeil>
       land: _given,
       closing: _closing,
     );
-    HomeEmblemPainter? painter(EmblemLayer layer) => settled
+    _ScenePainter? painter(bool back) => settled
         ? null
-        : HomeEmblemPainter(
-            kind,
-            layer: layer,
-            stage: stage,
-            repaint: _repaint,
-          );
+        : _ScenePainter(scene, back: back, stage: stage, repaint: _repaint);
     return AbsorbPointer(
       // Nothing answers mid-passage: not the page, nor home under it.
       absorbing: !settled,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          RepaintBoundary(
-            child: CustomPaint(painter: painter(EmblemLayer.back)),
-          ),
+          RepaintBoundary(child: CustomPaint(painter: painter(true))),
           AnimatedBuilder(
             animation: _fade,
-            builder: (_, child) => Opacity(opacity: _given, child: child),
+            builder: (_, child) =>
+                Opacity(opacity: scene.pageShown(_given), child: child),
             child: _built ? widget.child : const SizedBox.expand(),
           ),
           IgnorePointer(
-            child: RepaintBoundary(
-              child: CustomPaint(painter: painter(EmblemLayer.front)),
-            ),
+            child: RepaintBoundary(child: CustomPaint(painter: painter(false))),
           ),
         ],
       ),
     );
   }
+}
+
+/// One of a scene's two layers, at the passage's moment.
+class _ScenePainter extends CustomPainter {
+  _ScenePainter(
+    this.scene, {
+    required this.back,
+    required this.stage,
+    required Listenable repaint,
+  }) : super(repaint: repaint);
+
+  final PassageScene scene;
+  final bool back;
+  final EmblemStage Function(Size size) stage;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    scene.paint(canvas, stage(size), back: back, front: !back);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScenePainter old) =>
+      old.scene != scene || old.back != back || old.stage != stage;
 }

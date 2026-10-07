@@ -5,11 +5,13 @@ import 'package:alchemons/services/campaign_journal_service.dart';
 // lib/games/cosmic_survival/cosmic_survival_screen.dart
 //
 // COSMIC SURVIVAL SCREEN
-// Flutter wrapper around CosmicSurvivalGame. Handles intro dialog,
-// team selection (5 slots), HUD overlay, power-up selection, game over.
+// Flutter wrapper around CosmicSurvivalGame. The lobby (the live core, the
+// team the run takes, BASE COMMAND | START), the entrance that carries the
+// core into the run (components/survival_orb_entrance.dart), the HUD,
+// power-up selection and game over.
 
 import 'dart:async';
-import 'package:alchemons/navigation/world_transition.dart';
+import 'dart:convert';
 import 'dart:math';
 
 import 'components/cosmic_survival_game_over_panel.dart';
@@ -17,10 +19,8 @@ import 'components/survival_party_slot.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic_survival/components/family_mastery_panel.dart';
 import 'package:alchemons/games/cosmic_survival/components/mystic_graphx_overlay.dart';
 import 'package:alchemons/models/elemental_group.dart';
-import 'package:alchemons/models/family_combat_copy.dart';
 import 'package:alchemons/games/cosmic_survival/components/powerup_selection_overlay.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
@@ -47,6 +47,8 @@ import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/services/shop_service.dart';
+import 'package:alchemons/utils/faction_util.dart'
+    show ForgeTokens, factionThemeFor;
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
@@ -55,12 +57,15 @@ import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/games/cosmic_survival/orb_art.dart';
 import 'package:alchemons/games/cosmic_survival/components/survival_lobby_stage.dart';
+import 'package:alchemons/games/cosmic_survival/components/survival_lobby_team.dart';
+import 'package:alchemons/games/cosmic_survival/components/survival_orb_entrance.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
     show PanelReadout, PanelRow, PanelSectionHeader, panelLabel, panelPalette;
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
     show MarkDiamond, elementLight;
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -142,6 +147,9 @@ class _EtchedDivider extends StatelessWidget {
   }
 }
 
+/// The kit's pale brass, for what the lobby lights.
+final ForgeTokens _brass = ForgeTokens(factionThemeFor(null));
+
 /// A pane of the run's ink. Plain unless it has an [accent]: then it is the
 /// thing on screen to read, and is lit from below in that colour.
 class _SurvivalPlate extends StatelessWidget {
@@ -210,7 +218,9 @@ class _SurvivalDialog extends StatelessWidget {
 // SCREEN STATE
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum _Phase { intro, teamPicker, playing, gameOver }
+/// The lobby (with, while an entrance runs, the held run under it), the
+/// run, and the run's results over its stilled arena.
+enum _Phase { lobby, playing, gameOver }
 
 class _SurvivalTestSlotSpec {
   final String family;
@@ -245,39 +255,49 @@ class _SurvivalTestTeamPreset {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class CosmicSurvivalScreen extends StatefulWidget {
-  const CosmicSurvivalScreen({super.key});
+  const CosmicSurvivalScreen({super.key, this.revealReady});
+
+  /// Set true once the lobby's first frame — stage and core included — has
+  /// been laid out and painted, for a passage into this screen to hand over
+  /// to (see [survivalLobbyOrbFor] for where the core is).
+  final ValueNotifier<bool>? revealReady;
 
   @override
   State<CosmicSurvivalScreen> createState() => _CosmicSurvivalScreenState();
 }
 
-class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
-  _Phase _phase = _Phase.intro;
+class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
+    with SingleTickerProviderStateMixin {
+  _Phase _phase = _Phase.lobby;
   CosmicSurvivalGame? _game;
+
+  /// The party of the run being played (a debug test squad included).
   List<CosmicPartyMember>? _party;
+
+  /// The team the lobby shows and START takes in; saved under [_teamKey].
+  List<CosmicPartyMember> _team = const [];
+
+  /// False until the saved team has been read.
+  bool _teamLoaded = false;
+  static const String _teamKey = 'survival.team_v1';
+
   Timer? _hudTimer;
   final ValueNotifier<int> _liveUiTick = ValueNotifier<int>(0);
   final MysticGraphxOverlayController _mysticOverlayController =
       MysticGraphxOverlayController();
-  late final PageController _familyPageController;
 
-  static const double _familyViewportFraction = 0.82;
+  /// The lobby's clock, in seconds: the stage turns on it and the entrance
+  /// runs on it. Its ticker runs only while the lobby is up.
+  final ValueNotifier<double> _lobbyClock = ValueNotifier<double>(0);
+  late final Ticker _clockTicker = createTicker(_onClockTick);
+  double _clockBase = 0;
 
-  /// The lobby's scroll view pads 16 either side of the roster.
-  static const double _rosterHorizontalPadding = 32;
+  /// The lobby's picture, shared by the stage and the entrance so the ship's
+  /// wake carries on unbroken between them.
+  final SurvivalLobbyScene _scene = SurvivalLobbyScene();
 
-  /// The roster card in view. Only changes when a swipe settles past the
-  /// halfway point; the per-frame swipe itself never rebuilds the lobby.
-  final ValueNotifier<int> _familyIndex = ValueNotifier<int>(0);
-
-  /// The roster cards opened to show everything. A notifier, so opening one
-  /// rebuilds the roster and not the whole lobby.
-  final ValueNotifier<Set<String>> _expandedFamilyCards =
-      ValueNotifier<Set<String>>(const {});
-
-  /// Every roster portrait decoded once, up front, so swiping to a family
-  /// never waits on its picture.
-  bool _portraitsCached = false;
+  /// START → the run: the core carried into the arena.
+  final SurvivalEntranceState _entrance = SurvivalEntranceState();
   SurvivalHighScoreData? _highScore;
   int _silver = 0;
   int _gold = 0;
@@ -373,23 +393,42 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   void initState() {
     super.initState();
     _soundController = context.audio;
-    _familyPageController = PageController(
-      viewportFraction: _familyViewportFraction,
-    );
-    _familyPageController.addListener(() {
-      final page = _familyPageController.page ?? 0;
-      _familyIndex.value = page.round().clamp(0, _cosmicFamilyInfos.length - 1);
-    });
+    _clockTicker.start();
     unawaited(_loadControlPreferences());
     unawaited(_loadShipSkin());
+    unawaited(_loadTeam());
     CinematicQualityService.qualityNotifier.addListener(_handleQualityChanged);
     DebugSettingsService.enabledNotifier.addListener(_handleDebugToolsChanged);
     unawaited(_loadDebugTools());
+    // The lobby is built from the first frame — there is no loading phase in
+    // front of it — so once that frame is down a passage into this screen
+    // can hand over. The one-time story, if it is due, comes up over the
+    // lobby a moment later.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.revealReady?.value = true;
       unawaited(_loadVisualQuality());
       unawaited(_loadHighScore());
-      unawaited(_showIntro());
+      Future<void>.delayed(const Duration(milliseconds: 650), () {
+        if (mounted) unawaited(_showIntro());
+      });
     });
+  }
+
+  void _onClockTick(Duration elapsed) {
+    _lobbyClock.value = _clockBase + elapsed.inMicroseconds / 1e6;
+    if (_entrance.active) _advanceEntrance();
+  }
+
+  /// The lobby's clock runs while the lobby is up, and stops under a run.
+  void _runLobbyClock(bool on) {
+    if (on == _clockTicker.isActive) return;
+    if (on) {
+      _clockTicker.start();
+    } else {
+      _clockBase = _lobbyClock.value;
+      _clockTicker.stop();
+    }
   }
 
   @override
@@ -406,9 +445,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     );
     _mysticOverlayController.dispose();
     _liveUiTick.dispose();
-    _familyPageController.dispose();
-    _familyIndex.dispose();
-    _expandedFamilyCards.dispose();
+    _clockTicker.dispose();
+    _lobbyClock.dispose();
+    _entrance.dispose();
     super.dispose();
   }
 
@@ -468,7 +507,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     });
   }
 
+  /// The one-time story, over the lobby.
   Future<void> _showIntro() async {
+    if (_phase != _Phase.lobby || _entrance.active) return;
     final db = context.read<AlchemonsDatabase>();
     final seenSharedStory = await db.settingsDao
         .hasSeenSurvivalMenuStoryIntro();
@@ -487,8 +528,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       await db.settingsDao.setSurvivalMenuStoryIntroSeen();
       await db.settingsDao.setCosmicSurvivalIntroSeen();
     }
-
-    if (mounted) setState(() => _phase = _Phase.teamPicker);
   }
 
   Future<void> _loadHighScore() async {
@@ -631,34 +670,66 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     );
   }
 
-  // ── Team Picker ─────────────────────────────────────────
+  // ── Team ────────────────────────────────────────────────
 
+  /// The team last taken, read back on open. Alchemons that have gone since
+  /// (released, fused away) are dropped, and the shorter team saved.
+  Future<void> _loadTeam() async {
+    final db = context.read<AlchemonsDatabase>();
+    final raw = await db.settingsDao.getSetting(_teamKey);
+    var ids = const <String>[];
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        ids = [
+          for (final id in jsonDecode(raw) as List)
+            if (id is String) id,
+        ];
+      } catch (_) {
+        ids = const [];
+      }
+    }
+    if (!mounted) return;
+    final team = ids.isEmpty
+        ? const <CosmicPartyMember>[]
+        : await _buildParty(ids) ?? const <CosmicPartyMember>[];
+    if (!mounted) return;
+    final kept = [for (final m in team) m.instanceId];
+    if (kept.length != ids.length) await _saveTeam(kept);
+    if (!mounted) return;
+    setState(() {
+      _team = team;
+      _teamLoaded = true;
+    });
+  }
+
+  Future<void> _saveTeam(List<String> instanceIds) async {
+    final db = context.read<AlchemonsDatabase>();
+    await db.settingsDao.setSetting(_teamKey, jsonEncode(instanceIds));
+  }
+
+  /// Choose the team, starting from the one already chosen. Picking only
+  /// sets the team; START takes it in.
   Future<void> _pickTeam() async {
+    if (_entrance.active || _phase != _Phase.lobby) return;
+    final current = [for (final m in _team) m.instanceId];
     final result = await Navigator.of(context).push<List<PartyMember>>(
       MaterialPageRoute(
-        builder: (_) => const PartyPickerScreen(
+        builder: (_) => PartyPickerScreen(
           showDeployConfirm: false,
           enforceUniqueSpecies: false,
           maxSelections: _defaultPartySize,
+          initialSelection: current.isEmpty ? null : current,
+          confirmLabel: 'Choose Team',
         ),
       ),
     );
     if (result == null || result.isEmpty || !mounted) return;
 
-    final instanceIds = result.map((m) => m.instanceId).toList();
-    final party = await _buildParty(instanceIds);
-    if (party == null || party.isEmpty) return;
-
-    // Keep regular survival formation at the default size.
-    final trimmed = party.length > _defaultPartySize
-        ? party.sublist(0, _defaultPartySize)
-        : party;
-
-    setState(() {
-      _party = trimmed;
-    });
-
-    _enterGameThroughPortal(trimmed);
+    final ids = [for (final m in result.take(_defaultPartySize)) m.instanceId];
+    final team = await _buildParty(ids);
+    if (team == null || team.isEmpty || !mounted) return;
+    setState(() => _team = team);
+    await _saveTeam([for (final m in team) m.instanceId]);
   }
 
   Future<List<CosmicPartyMember>?> _buildParty(List<String> instanceIds) async {
@@ -667,7 +738,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     final combatBonuses = context.read<ConstellationEffectsService>();
     final members = <CosmicPartyMember>[];
 
-    for (var i = 0; i < instanceIds.length && i < _defaultPartySize; i++) {
+    for (
+      var i = 0;
+      i < instanceIds.length && members.length < _defaultPartySize;
+      i++
+    ) {
       final inst = await db.creatureDao.getInstance(instanceIds[i]);
       if (inst == null) continue;
       final base = catalog.getCreatureById(inst.baseId);
@@ -708,7 +783,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           statIntelligencePotential: inst.statIntelligencePotential,
           statStrengthPotential: inst.statStrengthPotential,
           statBeautyPotential: inst.statBeautyPotential,
-          slotIndex: i,
+          // Slots stay contiguous when a saved Alchemon has gone.
+          slotIndex: members.length,
           staminaBars: inst.staminaMax, // full stamina for survival
           staminaMax: inst.staminaMax,
           spriteSheet: sheet,
@@ -816,47 +892,80 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       return;
     }
 
-    setState(() {
-      _party = party;
-    });
-    _enterGameThroughPortal(party);
+    _enterRun(party);
   }
 
   // ── Start Game ──────────────────────────────────────────
 
-  /// Enter a run through the glyph portal. The game is built and mounted
-  /// while the portal covers the lobby, but held with its engine paused so
-  /// no wave starts where the player cannot see it, and released — engine,
-  /// wave announcement, music — the moment the portal begins to fade.
-  void _enterGameThroughPortal(List<CosmicPartyMember> party) {
-    final ready = ValueNotifier<bool>(false);
-    RevealWhenReady? reporter;
-    unawaited(
-      VoidPortal.coverWithGlyphs(
-        context,
-        title: 'Survival Mode',
-        element: 'dark',
-        ready: ready,
-        onCovered: () async {
-          if (!mounted) {
-            ready.value = true;
-            return;
-          }
-          _startGame(party, heldForPortal: true);
-          reporter = RevealWhenReady(
-            ready,
-            () => mounted && (_game?.isAttached ?? false),
-          );
-        },
-        onReveal: () {
-          reporter?.dispose();
-          if (mounted) _releaseHeldRun();
-        },
-      ),
-    );
+  /// START: the chosen team, or — with none chosen yet — the picker.
+  void _start() {
+    if (_team.isEmpty) {
+      unawaited(_pickTeam());
+      return;
+    }
+    _enterRun(List<CosmicPartyMember>.of(_team));
   }
 
-  /// The portal has started to fade: let the held run go.
+  /// Into a run, carried by the core (survival_orb_entrance.dart). The run is
+  /// built and mounted at once under the lobby, held with its engine paused
+  /// and its camera on the core, while the lobby's chrome eases away and the
+  /// core moves to where the run will draw it. Once the core has landed and
+  /// the run is attached, the arena fades in round it with the engine
+  /// running; then the run takes the core over and is released — camera,
+  /// wave announcement, music.
+  void _enterRun(List<CosmicPartyMember> party) {
+    if (_entrance.active || _phase != _Phase.lobby || party.isEmpty) return;
+    _runLobbyClock(true);
+    setState(() {
+      _party = party;
+      _entrance.begin(_lobbyClock.value);
+    });
+    _startGame(party, carried: true);
+    final game = _game;
+    if (game != null) _entrance.attach(game);
+  }
+
+  /// One frame of the entrance, on the lobby's clock.
+  void _advanceEntrance() {
+    final game = _game;
+    if (game == null) {
+      _entrance.finish();
+      return;
+    }
+    _entrance.advance(_lobbyClock.value);
+    if (_entrance.arenaFrom == null &&
+        _entrance.landed &&
+        mounted &&
+        game.isAttached &&
+        game.isLoaded) {
+      // The core has landed and the run is ready: the run picks up the
+      // core's turning where the lobby has it, and plays on under the arena
+      // as it fades in, its camera still held on the core.
+      final clock = _lobbyClock.value;
+      game.alignCorePresentation(
+        time: clock,
+        beat: SurvivalLobbyScene.beatAt(clock),
+      );
+      game.resumeEngine();
+      _entrance.beginArena();
+    } else if (_entrance.arenaIn) {
+      _finishEntrance(game);
+    }
+  }
+
+  /// The arena is in: the run draws its own core from this frame — the run
+  /// repaints every frame now, so it does so in the same frame the overlay
+  /// goes — and the run is let go.
+  void _finishEntrance(CosmicSurvivalGame game) {
+    game.entranceCoreHidden = false;
+    _entrance.finish();
+    _runLobbyClock(false);
+    setState(() => _phase = _Phase.playing);
+    _releaseHeldRun();
+    game.releaseCameraToShip();
+  }
+
+  /// The run is in view: let the held run go.
   void _releaseHeldRun() {
     final game = _game;
     if (game == null) return;
@@ -870,9 +979,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     unawaited(context.read<AudioController>().playSurvivalMusic());
   }
 
-  /// [heldForPortal]: the game mounts with its engine paused and the run's
-  /// opening beats wait for [_releaseHeldRun].
-  void _startGame(List<CosmicPartyMember> party, {bool heldForPortal = false}) {
+  /// [carried]: the run mounts under the lobby with its engine paused, its
+  /// camera held on the core and its own core left undrawn, for the
+  /// entrance; its opening beats wait for [_releaseHeldRun].
+  void _startGame(List<CosmicPartyMember> party, {bool carried = false}) {
     final upgradeSvc = context.read<SurvivalUpgradeService>();
     _mysticOverlayController.clear();
 
@@ -906,13 +1016,16 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       shipSkin: _shipSkin,
     );
     // Flame starts its loop on attach unless already paused.
-    if (heldForPortal) game.pauseEngine();
+    if (carried) {
+      game.pauseEngine();
+      game.entranceCoreHidden = true;
+    }
 
     _bossAnnouncementTimer?.cancel();
     _waveAnnouncementTimer?.cancel();
     setState(() {
       _game = game;
-      _phase = _Phase.playing;
+      if (!carried) _phase = _Phase.playing;
       _gameOverRewardEntries = [];
       _powerUpChoices = [];
       _bossAnnouncement = null;
@@ -928,10 +1041,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     });
 
     game.startGame();
+    if (carried) game.holdCameraOnCore();
     // Set even when held, so the HUD timer below doesn't announce wave 1
-    // behind the portal.
+    // during the entrance.
     _lastAnnouncedWave = game.spawner.currentWave;
-    if (!heldForPortal) _showWaveAnnouncementForWave(game.spawner.currentWave);
+    if (!carried) _showWaveAnnouncementForWave(game.spawner.currentWave);
 
     // Start HUD refresh timer (10fps)
     _hudTimer?.cancel();
@@ -948,7 +1062,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       _liveUiTick.value++;
     });
 
-    if (!heldForPortal) {
+    if (!carried) {
       unawaited(context.read<AudioController>().playSurvivalMusic());
     }
   }
@@ -1322,6 +1436,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     }
   }
 
+  /// Back to the lobby, the team still chosen, and on into the picker.
   void _newTeam() {
     _game = null;
     _party = null;
@@ -1329,8 +1444,12 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     _hudTimer?.cancel();
     _bossAnnouncementTimer?.cancel();
     _waveAnnouncementTimer?.cancel();
+    _runLobbyClock(true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_pickTeam());
+    });
     setState(() {
-      _phase = _Phase.teamPicker;
+      _phase = _Phase.lobby;
       _powerUpChoices = [];
       _showPauseMenu = false;
       _bossAnnouncement = null;
@@ -1471,6 +1590,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   }
 
   Future<void> _handleBackPressed() async {
+    // The run is already on its way in.
+    if (_entrance.active) return;
     if (_phase != _Phase.playing) {
       _exit();
       return;
@@ -1821,6 +1942,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final game = _game;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -1835,12 +1957,25 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       },
       child: Scaffold(
         backgroundColor: _C.bg,
-        body: switch (_phase) {
-          _Phase.intro => _buildLoading(),
-          _Phase.teamPicker => _buildTeamPicker(),
-          // The results come up over the run's own stilled arena.
-          _Phase.playing || _Phase.gameOver => _buildGameScreen(),
-        },
+        // The run and the lobby are siblings, keyed, so neither is rebuilt
+        // from scratch when the other comes or goes: during an entrance the
+        // held run sits under the lobby while the core carries it in. The
+        // results come up over the run's own stilled arena.
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (game != null)
+              KeyedSubtree(
+                key: const ValueKey('survival.run'),
+                child: _buildGameScreen(),
+              ),
+            if (_phase == _Phase.lobby)
+              KeyedSubtree(
+                key: const ValueKey('survival.lobby'),
+                child: _buildLobby(),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1849,83 +1984,119 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     return const Center(child: CircularProgressIndicator(color: _C.accent));
   }
 
-  // ── Team Picker Phase ──────────────────────────────────
+  // ── Lobby ──────────────────────────────────────────────
 
-  Widget _buildTeamPicker() {
-    return _buildFormationPrompt();
-  }
-
-  Widget _buildFormationPrompt() {
-    if (!_portraitsCached) {
-      _portraitsCached = true;
-      for (final info in _cosmicFamilyInfos) {
-        unawaited(
-          precacheImage(
-            ResizeImage(AssetImage(info.assetPath), width: 256),
-            context,
-          ),
-        );
-      }
-    }
-    return Scaffold(
-      backgroundColor: _C.bg0,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildMenuHeader(),
-            _buildLobbyStage(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                // Its own layer, so scrolling moves the page rather than
-                // re-recording every rule and readout on it each frame.
-                child: RepaintBoundary(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildSpeciesRoster(),
-                      const SizedBox(height: 18),
-                      _buildCommandHub(),
-                      if (_debugToolsEnabled) ...[
-                        const SizedBox(height: 18),
-                        const PanelSectionHeader('TEST TEAMS'),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+  /// The lobby: header, the live stage, then the team and what rides with
+  /// it, and BASE COMMAND | START at the foot. Laid out from the constants in
+  /// survival_lobby_stage.dart, which [survivalLobbyOrbFor] reads too.
+  ///
+  /// During an entrance the same tree stays, fading, and the entrance
+  /// overlay draws the stage over it.
+  Widget _buildLobby() {
+    final entering = _entrance.active;
+    // Read, not watched: the stage below watches the orb for itself, and
+    // the entrance overlay only exists once START has fixed it.
+    final orb = context.read<SurvivalUpgradeService>().state.equippedSkin;
+    final stage = survivalLobbyStageRect(
+      MediaQuery.sizeOf(context),
+      MediaQuery.paddingOf(context),
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        IgnorePointer(
+          ignoring: entering,
+          child: ListenableBuilder(
+            listenable: _entrance,
+            builder: (context, child) =>
+                Opacity(opacity: _entrance.chrome, child: child),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: kSurvivalLobbyHeaderHeight,
+                    child: _buildMenuHeader(),
+                  ),
+                  SizedBox(
+                    height: kSurvivalLobbyStageHeight,
+                    child: _buildLobbyStage(hidden: entering),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+                      // Its own layer, so scrolling moves the page rather
+                      // than re-recording every rule and readout on it each
+                      // frame.
+                      child: RepaintBoundary(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            for (final preset in _testTeamPresets)
-                              _TestTeamChip(
-                                preset: preset,
-                                onTap: () => _startTestTeam(
-                                  _buildFullElementTestTeam(preset.family),
-                                  preset.key,
-                                ),
+                            SurvivalLobbyTeam(
+                              members: _team,
+                              slots: _defaultPartySize,
+                              loaded: _teamLoaded,
+                              accent: _brass.amber,
+                              onChoose: () => unawaited(_pickTeam()),
+                            ),
+                            const SizedBox(height: 22),
+                            _buildCommandHub(),
+                            if (_debugToolsEnabled) ...[
+                              const SizedBox(height: 22),
+                              const PanelSectionHeader('TEST TEAMS'),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final preset in _testTeamPresets)
+                                    _TestTeamChip(
+                                      preset: preset,
+                                      onTap: () => _startTestTeam(
+                                        _buildFullElementTestTeam(
+                                          preset.family,
+                                        ),
+                                        preset.key,
+                                      ),
+                                    ),
+                                ],
                               ),
+                            ],
                           ],
                         ),
-                      ],
-                    ],
+                      ),
+                    ),
                   ),
+                  _buildLobbyDock(),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (entering)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: SurvivalOrbEntrancePainter(
+                  scene: _scene,
+                  clock: _lobbyClock,
+                  state: _entrance,
+                  stage: stage,
+                  orb: orb,
+                  shipSkin: _shipSkin,
                 ),
               ),
             ),
-            _buildLobbyDock(),
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 
   /// What there is to do, always in reach at the foot of the lobby: into
-  /// Base Command, or on to choosing the team.
+  /// Base Command, or into the run. START is lit once there is a team to
+  /// take; before that it opens the picker.
   Widget _buildLobbyDock() {
+    final ready = _team.isNotEmpty;
     return Container(
-      decoration: BoxDecoration(
-        color: _C.bg1,
-        border: Border(
-          top: BorderSide(color: _C.amber.withValues(alpha: 0.4), width: 1.2),
-        ),
-      ),
+      color: _C.bg1,
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: Row(
         children: [
@@ -1937,7 +2108,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
               primary: false,
               height: 48,
               palette: panelPalette,
-              accent: _C.amber,
+              accent: _brass.amber,
               onTap: () => _openBaseCommand(),
             ),
           ),
@@ -1945,12 +2116,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           Expanded(
             flex: 3,
             child: BracketButton(
-              key: const ValueKey('survival.assignTeam'),
-              label: 'ASSIGN TEAM',
+              key: const ValueKey('survival.start'),
+              label: 'START',
+              primary: ready,
               height: 48,
               palette: panelPalette,
-              accent: _C.amberBright,
-              onTap: _pickTeam,
+              accent: _brass.amberBright,
+              onTap: _start,
             ),
           ),
         ],
@@ -1960,7 +2132,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   Widget _buildMenuHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 16, 6),
+      padding: const EdgeInsets.fromLTRB(12, 0, 16, 0),
       child: Row(
         children: [
           BracketIconButton(
@@ -2000,236 +2172,90 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   }
 
   /// The core about to be defended, live, with the ship orbiting it; what it
-  /// does, and the best run so far.
-  Widget _buildLobbyStage() {
+  /// does, and the best run so far. [hidden]: the entrance is drawing it.
+  Widget _buildLobbyStage({bool hidden = false}) {
     return Consumer<SurvivalUpgradeService>(
       builder: (context, svc, _) {
         final orb = getOrbBaseDef(svc.state.equippedSkin);
         final best = _highScore;
-        return SizedBox(
-          height: 196,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: SurvivalLobbyStage(orb: orb.skin, shipSkin: _shipSkin),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 8,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      orb.name.toUpperCase(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: panelLabel(
-                        11.5,
-                        orbLook(orb.skin).rim,
-                        spacing: 1.6,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      orb.ability,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: _display(context, 12, _C.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              if (best != null && best.bestWave > 0)
-                Positioned(
-                  right: 12,
-                  top: 6,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: context.soundAction(_showHighScoreDetails),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'BEST W${best.bestWave}',
-                            style: panelLabel(10.5, _C.amberBright),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _formatHighScoreNumber(best.bestScore),
-                            style: panelLabel(10.5, panelPalette.muted),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSpeciesRoster() {
-    // A swipe never rebuilds the lobby: the scroll position is read only by
-    // the transforms that need it, each card is its own repaint boundary,
-    // and the fade is a dark wash drawn on top instead of an offscreen
-    // layer. Opening a card rebuilds only the roster (a notifier, not
-    // setState), and the card is laid out at its full height while the
-    // frame round it grows, so it reveals rather than overflowing.
-    return Consumer<FamilyMasteryService>(
-      builder: (context, mastery, _) {
-        Set<String> ownedFor(CreatureFamily? family) =>
-            family == null || !mastery.isLoaded
-            ? const {}
-            : mastery.purchasedNodes(family);
-        String? pathFor(CreatureFamily? family) =>
-            family == null || !mastery.isLoaded
-            ? null
-            : mastery.selectedPathForFamily(family);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        return Stack(
           children: [
-            const PanelSectionHeader('SPECIES ROSTER'),
-            ValueListenableBuilder<Set<String>>(
-              valueListenable: _expandedFamilyCards,
-              builder: (context, opened, _) => ValueListenableBuilder<int>(
-                valueListenable: _familyIndex,
-                builder: (context, currentIndex, _) {
-                  final active = _cosmicFamilyInfos[currentIndex];
-                  final activeFamily = creatureFamilyFromStorage(active.id);
-                  final rosterWidth =
-                      MediaQuery.sizeOf(context).width -
-                      _rosterHorizontalPadding;
-                  final height = _SpeciesCard.heightFor(
-                    context,
-                    info: active,
-                    family: activeFamily,
-                    owned: ownedFor(activeFamily),
-                    selectedPathId: pathFor(activeFamily),
-                    cardWidth: rosterWidth * _familyViewportFraction,
-                    expanded: opened.contains(active.id),
-                  );
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    curve: Curves.easeOut,
-                    height: height,
-                    child: ClipRect(
-                      child: OverflowBox(
-                        alignment: Alignment.topCenter,
-                        minHeight: height,
-                        maxHeight: height,
-                        child: _rosterPages(opened, ownedFor, pathFor),
-                      ),
-                    ),
-                  );
-                },
+            Positioned.fill(
+              child: SurvivalLobbyStage(
+                orb: orb.skin,
+                shipSkin: _shipSkin,
+                clock: _lobbyClock,
+                scene: _scene,
+                hidden: hidden,
               ),
             ),
-            const SizedBox(height: 10),
-            // Settles with the page, so a swipe does not rebuild it.
-            ValueListenableBuilder<int>(
-              valueListenable: _familyIndex,
-              builder: (context, index, _) => Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 8,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (var i = 0; i < _cosmicFamilyInfos.length; i++)
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      height: 4,
-                      width: i == index ? 18 : 6,
-                      color: i == index
-                          ? _cosmicFamilyInfos[i].color
-                          : panelPalette.lineSoft,
+                  Text(
+                    orb.name.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: panelLabel(
+                      11.5,
+                      orbLook(orb.skin).rim,
+                      spacing: 1.6,
                     ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    orb.ability,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _display(context, 12, _C.textSecondary),
+                  ),
                 ],
               ),
             ),
+            if (best != null && best.bestWave > 0)
+              Positioned(
+                right: 12,
+                top: 6,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: context.soundAction(_showHighScoreDetails),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'BEST W${best.bestWave}',
+                          style: panelLabel(10.5, _brass.amberBright),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _formatHighScoreNumber(best.bestScore),
+                          style: panelLabel(10.5, panelPalette.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         );
       },
     );
   }
 
-  Widget _rosterPages(
-    Set<String> opened,
-    Set<String> Function(CreatureFamily?) ownedFor,
-    String? Function(CreatureFamily?) pathFor,
-  ) {
-    return PageView.builder(
-      controller: _familyPageController,
-      itemCount: _cosmicFamilyInfos.length,
-      itemBuilder: (context, index) {
-        final info = _cosmicFamilyInfos[index];
-        final family = creatureFamilyFromStorage(info.id);
-        final expanded = opened.contains(info.id);
-        final card = RepaintBoundary(
-          child: _SpeciesCard(
-            info: info,
-            family: family,
-            owned: ownedFor(family),
-            selectedPathId: pathFor(family),
-            expanded: expanded,
-            onTap: context.soundAction(() {
-              final next = {..._expandedFamilyCards.value};
-              if (!next.remove(info.id)) next.add(info.id);
-              _expandedFamilyCards.value = next;
-            }),
-            onOpenTree: context.soundAction(
-              () => _openBaseCommand(family: family),
-            ),
-          ),
-        );
-        return AnimatedBuilder(
-          animation: _familyPageController,
-          child: card,
-          builder: (context, child) {
-            final distance = (index - _familyPageValue()).abs().clamp(0.0, 1.0);
-            return Transform.scale(
-              scale: 1.0 - (0.06 * distance),
-              child: Stack(
-                children: [
-                  child!,
-                  if (distance > 0.01)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 5),
-                          color: _C.bg0.withValues(alpha: 0.6 * distance),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  /// The carousel's scroll position in pages, safe before it has laid out.
-  double _familyPageValue() {
-    final controller = _familyPageController;
-    if (controller.hasClients && controller.position.haveDimensions) {
-      return controller.page ?? 0;
-    }
-    return _familyIndex.value.toDouble();
-  }
-
   /// Base Command, from anywhere in the lobby. Opens on Mastery, showing
-  /// [family]'s tree — or, when none is given, the tree of whichever family
-  /// the roster is showing.
+  /// [family]'s tree — or, when none is given, the tree of the team's first
+  /// Alchemon.
   Future<void> _openBaseCommand({CreatureFamily? family}) async {
     final shown =
         family ??
-        creatureFamilyFromStorage(_cosmicFamilyInfos[_familyIndex.value].id);
+        (_team.isEmpty ? null : creatureFamilyFromStorage(_team.first.family));
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CosmicSurvivalBaseCommandScreen(
@@ -2313,16 +2339,29 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     // Once the core gives out the controls go, the arena stills under its
     // fall, and the results come up over it.
     final over = game.isGameOver;
+    // While the core carries the player in, the run is held under the lobby:
+    // its arena fades in round the core, and nothing of the HUD shows or
+    // takes a touch until it is released.
+    final entering = _entrance.active;
+    final hideHud = over || entering;
     return ValueListenableBuilder<bool>(
       valueListenable: game.autopilotState,
       builder: (_, cameraMode, __) => Stack(
         fit: StackFit.expand,
         children: [
           // Flame game
-          GameWidget(
-            key: ObjectKey(game),
-            game: game,
-            backgroundBuilder: (_) => Container(color: Colors.transparent),
+          IgnorePointer(
+            ignoring: entering,
+            child: ListenableBuilder(
+              listenable: _entrance,
+              builder: (context, child) =>
+                  Opacity(opacity: _entrance.arena, child: child),
+              child: GameWidget(
+                key: ObjectKey(game),
+                game: game,
+                backgroundBuilder: (_) => Container(color: Colors.transparent),
+              ),
+            ),
           ),
 
           // Autopilot camera: while the ship flies itself, a drag pans, a
@@ -2363,9 +2402,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           ),
 
           IgnorePointer(
-            ignoring: over,
+            ignoring: hideHud,
             child: AnimatedOpacity(
-              opacity: over ? 0 : 1,
+              opacity: hideHud ? 0 : 1,
               duration: const Duration(milliseconds: 500),
               curve: Curves.easeOut,
               child: _buildLivePlayOverlay(game),
@@ -2383,15 +2422,25 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   game.isGameOver) {
                 return const SizedBox.shrink();
               }
+              // Held through the entrance, then easing in with the HUD.
+              final held = _entrance.active;
               return Positioned(
                 bottom: 20,
                 left: 12,
-                child: SafeArea(
-                  child: VirtualJoystick(
-                    sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
-                    onDirectionChanged: (dir) {
-                      game.setJoystickInput(dir ?? Offset.zero);
-                    },
+                child: IgnorePointer(
+                  ignoring: held,
+                  child: AnimatedOpacity(
+                    opacity: held ? 0 : 1,
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeOut,
+                    child: SafeArea(
+                      child: VirtualJoystick(
+                        sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
+                        onDirectionChanged: (dir) {
+                          game.setJoystickInput(dir ?? Offset.zero);
+                        },
+                      ),
+                    ),
                   ),
                 ),
               );
@@ -3505,468 +3554,12 @@ class _TestTeamChip extends StatelessWidget {
   }
 }
 
-class _FamilyInfo {
-  final String id;
-  final String name;
-  final String assetPath;
-  final Color color;
-
-  const _FamilyInfo({
-    required this.id,
-    required this.name,
-    required this.assetPath,
-    required this.color,
-  });
-
-  FamilyCombatCopy get copy => FamilyCombatCopy.forName(id)!;
-  String get role => copy.role;
-  String get special => copy.special;
-}
-
-/// One family on the lobby's species roster: who they are, how they attack,
-/// what their specials do, and the mastery path every one of them will
-/// deploy with.
-class _SpeciesCard extends StatelessWidget {
-  const _SpeciesCard({
-    required this.info,
-    required this.family,
-    required this.owned,
-    required this.selectedPathId,
-    required this.expanded,
-    required this.onTap,
-    required this.onOpenTree,
-  });
-
-  final _FamilyInfo info;
-  final CreatureFamily? family;
-  final Set<String> owned;
-  final String? selectedPathId;
-  final bool expanded;
-  final VoidCallback? onTap;
-
-  /// Opens this family's tree in Base Command.
-  final VoidCallback? onOpenTree;
-
-  static const double _portraitWidth = 112;
-
-  // Everything in the card that never wraps. The name row is not among them:
-  // it has no maxLines, so a long family name takes two lines and the row it
-  // sits in grows with it — assuming a fixed 26 for it was most of the
-  // shortfall that clipped these cards.
-  static const double _columnPadding = 24; // 12 above, 12 below
-  static const double _factsToRuleGap = 10 - _SpeciesFact.gap;
-  static const double _ruleHeight = 1;
-  static const double _ruleToSummaryGap = 10;
-
-  /// The expand chevron beside the name.
-  static const double _chevronSize = 16;
-
-  static TextStyle _nameStyle(BuildContext context) =>
-      panelLabel(17, _C.textPrimary, spacing: 3);
-
-  /// The name row: the family name wrapped in whatever width is left beside
-  /// the chevron, and never shorter than the chevron itself.
-  static double _nameRowHeight(
-    BuildContext context,
-    String name,
-    double width,
-  ) {
-    final style = DefaultTextStyle.of(context).style.merge(_nameStyle(context));
-    final painter = TextPainter(
-      text: TextSpan(text: name.toUpperCase(), style: style),
-      textDirection: TextDirection.ltr,
-      textScaler: MediaQuery.textScalerOf(context),
-    )..layout(maxWidth: max(20.0, width - _chevronSize));
-    final height = painter.height;
-    painter.dispose();
-    return max(_chevronSize, height.ceilToDouble());
-  }
-
-  /// The card's height at [cardWidth]. Everything that wraps — the facts and
-  /// the mastery summary — is measured in the style it is drawn in, so a card
-  /// is never a guess away from clipping its own text.
-  static double heightFor(
-    BuildContext context, {
-    required _FamilyInfo info,
-    required CreatureFamily? family,
-    required Set<String> owned,
-    required String? selectedPathId,
-    required double cardWidth,
-    required bool expanded,
-  }) {
-    final width = textWidth(cardWidth);
-    final copy = info.copy;
-    final facts = <String>[
-      copy.attack,
-      copy.special,
-      if (expanded) ...[copy.targets, copy.position],
-    ];
-    var height =
-        _columnPadding +
-        _nameRowHeight(context, info.name, width) +
-        _factsToRuleGap +
-        _ruleHeight +
-        _ruleToSummaryGap;
-    // Each fact is preceded by a gap — the one after the name row, then one
-    // between each pair.
-    for (final text in facts) {
-      height +=
-          _SpeciesFact.gap +
-          _SpeciesFact.measure(
-            context,
-            text,
-            width,
-            maxLines: expanded ? null : 2,
-          );
-    }
-    if (family != null) {
-      height += FamilyMasteryRosterSummary.heightFor(
-        context,
-        family: family,
-        owned: owned,
-        selectedPathId: selectedPathId,
-        expanded: expanded,
-        width: width,
-      );
-    }
-    return height;
-  }
-
-  /// The width the text column gets inside a card [cardWidth] wide: the card
-  /// margin, the portrait, and the column's own padding come off.
-  static double textWidth(double cardWidth) =>
-      max(80.0, cardWidth - 10 - _portraitWidth - 24);
-
-  @override
-  Widget build(BuildContext context) {
-    final fam = family;
-    final chassis = fam == null
-        ? null
-        : FamilyMasteryCatalog.treeFor(fam).chassis;
-    final hasPath = selectedPathId != null;
-    final frame = expanded
-        ? info.color.withValues(alpha: 0.85)
-        : hasPath
-        ? info.color.withValues(alpha: 0.5)
-        : panelPalette.line.withValues(alpha: 0.6);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 5),
-      child: GestureDetector(
-        key: ValueKey('species-card-${info.id}'),
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: CustomPaint(
-          foregroundPainter: BracketFramePainter(
-            color: frame,
-            bracketSize: 10,
-            strokeWidth: expanded ? 1.3 : 1.05,
-          ),
-          child: Container(
-            color: Color.lerp(_C.bg1, info.color, 0.04),
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: _portraitWidth,
-                  child: _SpeciesPortrait(info: info),
-                ),
-                Positioned(
-                  left: _portraitWidth,
-                  top: 12,
-                  bottom: 12,
-                  child: Container(width: 1, color: panelPalette.lineSoft),
-                ),
-                Positioned(
-                  left: _portraitWidth + 12,
-                  right: 12,
-                  top: 12,
-                  bottom: 12,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              info.name.toUpperCase(),
-                              style: _nameStyle(context),
-                            ),
-                          ),
-                          Icon(
-                            expanded
-                                ? AppIcons.expand_less_rounded
-                                : AppIcons.expand_more_rounded,
-                            color: _C.textSecondary,
-                            size: 16,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: _SpeciesFact.gap),
-                      if (chassis != null)
-                        _SpeciesFact(
-                          label: 'ATTACK',
-                          text: chassis,
-                          color: info.color,
-                          maxLines: expanded ? null : 2,
-                        ),
-                      const SizedBox(height: _SpeciesFact.gap),
-                      _SpeciesFact(
-                        label: 'SPECIAL',
-                        text: info.special,
-                        color: info.color,
-                        maxLines: expanded ? null : 2,
-                      ),
-                      if (expanded) ...[
-                        const SizedBox(height: _SpeciesFact.gap),
-                        _SpeciesFact(
-                          label: 'TARGETS',
-                          text: info.copy.targets,
-                          color: info.color,
-                          maxLines: null,
-                        ),
-                        const SizedBox(height: _SpeciesFact.gap),
-                        _SpeciesFact(
-                          label: 'POSITION',
-                          text: info.copy.position,
-                          color: info.color,
-                          maxLines: null,
-                        ),
-                      ],
-                      const SizedBox(height: 10 - _SpeciesFact.gap),
-                      Container(
-                        height: 1,
-                        color: info.color.withValues(alpha: 0.22),
-                      ),
-                      const SizedBox(height: 10),
-                      if (fam != null)
-                        FamilyMasteryRosterSummary(
-                          family: fam,
-                          owned: owned,
-                          selectedPathId: selectedPathId,
-                          expanded: expanded,
-                          onOpenTree: onOpenTree,
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SpeciesPortrait extends StatelessWidget {
-  const _SpeciesPortrait({required this.info});
-
-  final _FamilyInfo info;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              colors: [info.color.withValues(alpha: 0.22), Colors.transparent],
-              radius: 0.75,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(14),
-          // The creature itself, not a silhouette of it.
-          child: Image.asset(
-            info.assetPath,
-            fit: BoxFit.contain,
-            cacheWidth: 256,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SpeciesFact extends StatelessWidget {
-  const _SpeciesFact({
-    required this.label,
-    required this.text,
-    required this.color,
-    this.maxLines = 2,
-  });
-
-  final String label;
-  final String text;
-  final Color color;
-
-  /// Null lets the text wrap as far as it needs, which the card's height
-  /// accounts for through [measure].
-  final int? maxLines;
-
-  static const double gap = 6;
-  static const double _labelHeight = 11;
-  static const double _labelGap = 2;
-
-  static TextStyle _textStyle(BuildContext context) =>
-      _display(context, 12, _C.textSecondary, weight: FontWeight.w500);
-
-  /// The height of a fact showing [text] in a column [width] wide.
-  static double measure(
-    BuildContext context,
-    String text,
-    double width, {
-    int? maxLines,
-  }) {
-    final painter = TextPainter(
-      text: TextSpan(text: text, style: _textStyle(context)),
-      textDirection: TextDirection.ltr,
-      textScaler: MediaQuery.textScalerOf(context),
-      maxLines: maxLines,
-    )..layout(maxWidth: width);
-    final height = painter.height;
-    painter.dispose();
-    // A few pixels of slack so a rounding difference never clips a line.
-    return _labelHeight + _labelGap + height + 4;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          height: _labelHeight,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: color,
-              fontSize: 9.5,
-              height: 1.15,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.4,
-            ),
-          ),
-        ),
-        const SizedBox(height: _labelGap),
-        Text(
-          text,
-          maxLines: maxLines,
-          overflow: maxLines == null ? null : TextOverflow.ellipsis,
-          style: _textStyle(context),
-        ),
-      ],
-    );
-  }
-}
-
-/// The roster card on its own, for the preview test that renders it.
-@visibleForTesting
-class SurvivalSpeciesCardPreview extends StatelessWidget {
-  const SurvivalSpeciesCardPreview({
-    super.key,
-    required this.familyId,
-    required this.owned,
-    required this.selectedPathId,
-    this.expanded = false,
-  });
-
-  final String familyId;
-  final Set<String> owned;
-  final String? selectedPathId;
-  final bool expanded;
-
-  @override
-  Widget build(BuildContext context) {
-    final info = _cosmicFamilyInfos.firstWhere((i) => i.id == familyId);
-    final family = creatureFamilyFromStorage(familyId);
-    return LayoutBuilder(
-      builder: (context, constraints) => SizedBox(
-        height: _SpeciesCard.heightFor(
-          context,
-          info: info,
-          family: family,
-          owned: owned,
-          selectedPathId: selectedPathId,
-          cardWidth: constraints.maxWidth,
-          expanded: expanded,
-        ),
-        child: _SpeciesCard(
-          info: info,
-          family: family,
-          owned: owned,
-          selectedPathId: selectedPathId,
-          expanded: expanded,
-          onTap: () {},
-          onOpenTree: () {},
-        ),
-      ),
-    );
-  }
-}
-
 class _WaveAnnouncementData {
   final String title;
   final String? subtitle;
 
   const _WaveAnnouncementData({required this.title, this.subtitle});
 }
-
-const List<_FamilyInfo> _cosmicFamilyInfos = [
-  _FamilyInfo(
-    id: 'Let',
-    name: 'Let',
-    assetPath: 'assets/images/creatures/common/LET02_waterlet.png',
-    color: Color(0xFF3B82F6),
-  ),
-  _FamilyInfo(
-    id: 'Pip',
-    name: 'Pip',
-    assetPath: 'assets/images/creatures/uncommon/PIP06_lavapip.png',
-    color: Color(0xFFEF4444),
-  ),
-  _FamilyInfo(
-    id: 'Mane',
-    name: 'Mane',
-    assetPath: 'assets/images/creatures/uncommon/MAN03_earthmane.png',
-    color: Color(0xFFF59E0B),
-  ),
-  _FamilyInfo(
-    id: 'Horn',
-    name: 'Horn',
-    assetPath: 'assets/images/creatures/rare/HOR13_poisonhorn.png',
-    color: Color(0xFF10B981),
-  ),
-  _FamilyInfo(
-    id: 'Mask',
-    name: 'Mask',
-    assetPath: 'assets/images/creatures/rare/MSK01_firemask.png',
-    color: Color(0xFF8B5CF6),
-  ),
-  _FamilyInfo(
-    id: 'Wing',
-    name: 'Wing',
-    assetPath: 'assets/images/creatures/legendary/WNG03_earthwing.png',
-    color: Color(0xFF06B6D4),
-  ),
-  _FamilyInfo(
-    id: 'Kin',
-    name: 'Kin',
-    assetPath: 'assets/images/creatures/legendary/KIN16_lightkin.png',
-    color: Color(0xFF14B8A6),
-  ),
-  _FamilyInfo(
-    id: 'Mystic',
-    name: 'Mystic',
-    assetPath: 'assets/images/creatures/mystic/MYS14_spiritmystic.png',
-    color: Color(0xFFA855F7),
-  ),
-];
 
 class _PauseActionButton extends StatelessWidget {
   final String label;

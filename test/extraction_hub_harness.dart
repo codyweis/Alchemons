@@ -65,6 +65,7 @@ class HubHarness {
   static Future<HubHarness> pump(
     WidgetTester tester, {
     bool tutorialSeen = true,
+    Widget Function(HarvestService svc)? home,
   }) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3;
@@ -162,7 +163,7 @@ class HubHarness {
           theme: ThemeData.dark(),
           builder: (context, child) =>
               RepaintBoundary(key: h.shotKey, child: child!),
-          home: ExtractionHubScreen(service: svc),
+          home: home?.call(svc) ?? ExtractionHubScreen(service: svc),
         ),
       ),
     );

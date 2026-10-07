@@ -17,6 +17,7 @@ import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/navigation/home_descent.dart';
 import 'package:alchemons/navigation/emblem_passage.dart';
 import 'package:alchemons/navigation/world_transition.dart';
+import 'package:alchemons/games/cosmic_survival/components/survival_lobby_stage.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/screens/competition_hub_screen.dart';
 import 'package:alchemons/screens/cosmic/cosmic_screen.dart';
@@ -50,6 +51,8 @@ import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/daily_reliquary.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart';
+import 'package:alchemons/services/survival_upgrade_service.dart';
+import 'package:alchemons/widgets/dock_passages.dart';
 import 'package:alchemons/widgets/side_dock_widget.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flame/flame.dart' show Flame;
@@ -833,6 +836,15 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey _relicEmblem = GlobalKey();
   final ValueNotifier<bool> _relicLifted = ValueNotifier(false);
 
+  /// The dock's Field, Harvest and Survival emblems, which carry the player
+  /// to their screens the same way, and whether each is away doing so.
+  final GlobalKey _fieldEmblem = GlobalKey();
+  final GlobalKey _harvestEmblem = GlobalKey();
+  final GlobalKey _survivalEmblem = GlobalKey();
+  final ValueNotifier<bool> _fieldLifted = ValueNotifier(false);
+  final ValueNotifier<bool> _harvestLifted = ValueNotifier(false);
+  final ValueNotifier<bool> _survivalLifted = ValueNotifier(false);
+
   void _updateAnimationState() {
     // home tab active AND this route is the top-most one
     final modalRoute = ModalRoute.of(context);
@@ -942,6 +954,9 @@ class _HomeScreenState extends State<HomeScreen>
     _realmField?.dispose();
     _enhanceRevealController.dispose();
     _relicLifted.dispose();
+    _fieldLifted.dispose();
+    _harvestLifted.dispose();
+    _survivalLifted.dispose();
     _slotsSubscription?.cancel();
     _rosterSubscription?.cancel();
     _biomesSubscription?.cancel();
@@ -1175,22 +1190,47 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  /// The map, through the Field emblem: its hills come loose and drift down
+  /// into the realm circles.
+  Future<bool?> _openField({bool tutorial = false}) {
+    final ready = ValueNotifier<bool>(false);
+    final circles = ValueNotifier<List<FieldCircle>?>(null);
+    return EmblemPassage.pushScene<bool>(
+      context,
+      scene: FieldPassage(target: circles),
+      from: _fieldEmblem,
+      page: MapScreen(
+        isTutorial: tutorial,
+        onNavigateSection: tutorial ? widget.onNavigateSection : null,
+        revealReady: ready,
+        passageTarget: circles,
+      ),
+      ready: ready,
+      lifted: _fieldLifted,
+    );
+  }
+
+  /// The harvest, through its flask: it settles onto the chamber's own.
+  void _openHarvest() {
+    final ready = ValueNotifier<bool>(false);
+    final place = ValueNotifier<HarvestFlaskTarget?>(null);
+    EmblemPassage.pushScene<void>(
+      context,
+      scene: HarvestPassage(target: place),
+      from: _harvestEmblem,
+      page: ExtractionHubScreen(revealReady: ready, passageTarget: place),
+      ready: ready,
+      lifted: _harvestLifted,
+    );
+  }
+
   Future<void> _handleFieldTutorialTap() async {
     if (!_isFieldTutorialActive) return;
 
     HapticFeedback.mediumImpact();
 
     // We don't care about the bool now, Scene/Map writes to DB
-    await Navigator.push<bool>(
-      context,
-      CupertinoPageRoute(
-        builder: (_) => MapScreen(
-          isTutorial: true,
-          onNavigateSection: widget.onNavigateSection,
-        ),
-        fullscreenDialog: true,
-      ),
-    );
+    await _openField(tutorial: true);
 
     if (!mounted) return;
 
@@ -2248,13 +2288,7 @@ class _HomeScreenState extends State<HomeScreen>
                               if (_isFieldTutorialActive) {
                                 _handleFieldTutorialTap();
                               } else {
-                                Navigator.push(
-                                  context,
-                                  CupertinoPageRoute(
-                                    builder: (_) => const MapScreen(),
-                                    fullscreenDialog: true,
-                                  ),
-                                );
+                                _openField();
                               }
                             },
                             onEnhance:
@@ -2279,14 +2313,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 ? () {}
                                 : () {
                                     HapticFeedback.mediumImpact();
-                                    Navigator.push(
-                                      context,
-                                      CupertinoPageRoute(
-                                        builder: (_) =>
-                                            const ExtractionHubScreen(),
-                                        fullscreenDialog: true,
-                                      ),
-                                    );
+                                    _openHarvest();
                                   },
                             onCompetitions: _isFieldTutorialActive
                                 ? () {}
@@ -2306,6 +2333,12 @@ class _HomeScreenState extends State<HomeScreen>
                                 ? () {}
                                 : () => async.unawaited(_openCosmicSurvival()),
                             onMysticAltar: null,
+                            fieldKey: _fieldEmblem,
+                            harvestKey: _harvestEmblem,
+                            survivalKey: _survivalEmblem,
+                            fieldLifted: _fieldLifted,
+                            harvestLifted: _harvestLifted,
+                            survivalLifted: _survivalLifted,
                           ),
                         ),
                       ),
@@ -2775,12 +2808,18 @@ class _HomeScreenState extends State<HomeScreen>
       );
       return;
     }
-    Navigator.push(
+    // The equipped orb grows out of the dock onto the hub's own.
+    final ready = ValueNotifier<bool>(false);
+    EmblemPassage.pushScene<void>(
       context,
-      CupertinoPageRoute(
-        builder: (_) => const CosmicSurvivalScreen(),
-        fullscreenDialog: true,
+      scene: SurvivalPassage(
+        skin: context.read<SurvivalUpgradeService>().state.equippedSkin,
+        target: survivalLobbyOrbFor,
       ),
+      from: _survivalEmblem,
+      page: CosmicSurvivalScreen(revealReady: ready),
+      ready: ready,
+      lifted: _survivalLifted,
     );
   }
 

@@ -5,6 +5,9 @@
 // Not a test itself (no `_test` suffix); imported by
 //   test/survival_lobby_preview_test.dart
 //   test/survival_lobby_budget_probe_test.dart
+//   test/survival_lobby_team_test.dart
+//   test/survival_entrance_preview_test.dart
+//   test/survival_run_preview_test.dart
 
 import 'dart:convert';
 import 'dart:io';
@@ -14,13 +17,16 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/survival_family_mastery.dart';
+import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:alchemons/services/shop_service.dart';
+import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -81,8 +87,15 @@ class LobbySave {
   /// A save some way in: a few Alchemons, a best run, silver and gold, a
   /// mastery path on the first two families, three guardian axes bought and a
   /// non-default orb equipped. [fresh] skips all of that except the intro
-  /// flags, so the lobby opens straight onto the roster.
-  static Future<LobbySave> create(WidgetTester tester, {bool fresh = false}) {
+  /// flags, so the lobby opens with nothing chosen. [team] is saved as the
+  /// lobby's last team (instance ids, as the lobby saves them); [orb] is
+  /// the orb equipped on a save that is not [fresh].
+  static Future<LobbySave> create(
+    WidgetTester tester, {
+    bool fresh = false,
+    List<String>? team,
+    String orb = 'celestialOrb',
+  }) {
     SharedPreferences.setMockInitialValues({});
     late LobbySave save;
     return tester
@@ -102,6 +115,9 @@ class LobbySave {
           // No first-visit story dialog: straight to the lobby.
           await db.settingsDao.setSurvivalMenuStoryIntroSeen();
           await db.settingsDao.setCosmicSurvivalIntroSeen();
+          if (team != null) {
+            await db.settingsDao.setSetting(kLobbyTeamKey, jsonEncode(team));
+          }
 
           if (!fresh) {
             for (final (id, base, level) in const [
@@ -125,12 +141,12 @@ class LobbySave {
               score: 48210,
               timeMs: 14 * 60 * 1000 + 32 * 1000,
             );
-            for (final (key, value) in const [
+            for (final (key, value) in [
               ('survival.guardian.attack', '3'),
               ('survival.guardian.defense', '2'),
               ('survival.guardian.cooldown', '1'),
               ('survival.owned_skins', 'celestialOrb'),
-              ('survival.equipped_skin', 'celestialOrb'),
+              ('survival.equipped_skin', orb),
             ]) {
               await db.settingsDao.setSetting(key, value);
             }
@@ -182,7 +198,11 @@ class LobbySave {
   /// The screen inside the providers it reads. [shot] wraps the whole app so
   /// a PNG of it can be taken. No AudioController: the screen reads it as
   /// nullable and the lobby never plays anything.
-  Widget app({GlobalKey? shot}) => MultiProvider(
+  Widget app({
+    GlobalKey? shot,
+    ValueNotifier<bool>? revealReady,
+    Widget? home,
+  }) => MultiProvider(
     providers: [
       Provider<AlchemonsDatabase>.value(value: db),
       Provider<CreatureCatalog>.value(value: catalog),
@@ -192,6 +212,9 @@ class LobbySave {
       ChangeNotifierProvider<FamilyMasteryService>.value(value: mastery),
       ChangeNotifierProvider<SurvivalUpgradeService>.value(value: upgrades),
       ChangeNotifierProvider<ShopService>.value(value: shop),
+      // What the party picker reads, for the tests that open it.
+      Provider<FactionTheme>.value(value: factionThemeFor(null)),
+      Provider<StaminaService>(create: (_) => StaminaService(db)),
     ],
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -199,7 +222,7 @@ class LobbySave {
       builder: shot == null
           ? null
           : (context, child) => RepaintBoundary(key: shot, child: child!),
-      home: const CosmicSurvivalScreen(),
+      home: home ?? CosmicSurvivalScreen(revealReady: revealReady),
     ),
   );
 
@@ -218,6 +241,20 @@ class LobbySave {
     await tester.runAsync(db.close);
   }
 }
+
+/// The settings key the lobby saves its team under.
+const String kLobbyTeamKey = 'survival.team_v1';
+
+/// The mid-game save's five Alchemons, as a saved team.
+const List<String> kLobbyTeam = ['own-1', 'own-2', 'own-3', 'own-4', 'own-5'];
+
+/// Reads the lobby's saved team back.
+Future<List<String>?> savedLobbyTeam(WidgetTester tester, LobbySave save) =>
+    tester.runAsync<List<String>?>(() async {
+      final raw = await save.db.settingsDao.getSetting(kLobbyTeamKey);
+      if (raw == null) return null;
+      return [for (final id in jsonDecode(raw) as List) id as String];
+    });
 
 /// Lets the database's futures and the portraits' decodes run on the real
 /// clock between fake frames.
@@ -240,8 +277,7 @@ Future<void> precacheLobbyImages(WidgetTester tester) async {
   });
 }
 
-/// The lobby's vertical scroll view (the roster's PageView is horizontal).
-/// The lobby's own vertical scroll — not the roster carousel inside it.
+/// The lobby's own vertical scroll.
 ScrollableState lobbyScroll(WidgetTester tester) => tester
     .stateList<ScrollableState>(
       find.descendant(
@@ -252,6 +288,29 @@ ScrollableState lobbyScroll(WidgetTester tester) => tester
     )
     .firstWhere((s) => s.position.axis == Axis.vertical);
 
-/// True once the lobby (not the loading spinner) is on screen.
+/// True while the lobby is on screen.
 bool lobbyShown() =>
-    find.byKey(const ValueKey('survival.assignTeam')).evaluate().isNotEmpty;
+    find.byKey(const ValueKey('survival.start')).evaluate().isNotEmpty;
+
+/// The screen starts the run's music; under test there is nothing to play it
+/// on, and the real controller opens audio players as it is built.
+class SilentAudio extends ChangeNotifier implements AudioController {
+  @override
+  Future<void> playSurvivalMusic() async {}
+
+  @override
+  Future<void> playHomeMusic() async {}
+
+  @override
+  int soundEventSerial = 0;
+
+  @override
+  Future<void> playSound(
+    SoundCue cue, {
+    Object? owner,
+    double speed = 1,
+  }) async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}

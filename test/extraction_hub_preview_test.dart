@@ -9,6 +9,12 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:alchemons/navigation/emblem_passage.dart';
+import 'package:alchemons/screens/extraction_hub_screen.dart';
+import 'package:alchemons/widgets/dock_emblems.dart';
+import 'package:alchemons/widgets/dock_passages.dart';
+
+import 'dock_passage_stage.dart';
 import 'extraction_hub_harness.dart';
 
 // The harvest screen on a phone: the tutorial, a full chamber, one filling
@@ -35,6 +41,72 @@ void main() {
     await loadFont('Roboto', '/System/Library/Fonts/Supplemental/Arial.ttf');
   });
   setUp(muteNotifications);
+
+  // The dock's Harvest flask carrying the player onto the bench, frame by
+  // frame over the real screen, and back.
+  testWidgets('harvest passage', (tester) async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    final emblem = GlobalKey();
+    final lifted = ValueNotifier(false);
+    final h = await HubHarness.pump(
+      tester,
+      home: (_) => DockStandIn(
+        kind: DockEmblemKind.harvest,
+        emblemKey: emblem,
+        lifted: lifted,
+        top: 470,
+      ),
+    );
+    Future<void> shoot(String name) async {
+      await tester.runAsync(() async {
+        final boundary =
+            h.shotKey.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        File(
+          '$out/passage_$name.png',
+        ).writeAsBytesSync(bytes!.buffer.asUint8List());
+        image.dispose();
+      });
+    }
+
+    final ready = ValueNotifier(false);
+    final place = ValueNotifier<HarvestFlaskTarget?>(null);
+    EmblemPassage.pushScene<void>(
+      emblem.currentContext!,
+      scene: HarvestPassage(target: place),
+      from: emblem,
+      page: ExtractionHubScreen(
+        service: h.svc,
+        revealReady: ready,
+        passageTarget: place,
+      ),
+      ready: ready,
+      lifted: lifted,
+    );
+    var n = 0;
+    String tag(String s) => '${(n++).toString().padLeft(2, '0')}_$s';
+    await shoot(tag('home'));
+    for (var i = 0; i < 6; i++) {
+      await h.settle(5);
+      await shoot(tag('in'));
+    }
+    for (var i = 0; i < 7; i++) {
+      await h.settle(5);
+      await shoot(tag(ready.value ? 'land' : 'hold'));
+    }
+    await h.settle(30);
+    await shoot(tag('page'));
+    Navigator.of(emblem.currentContext!).pop();
+    for (var i = 0; i < 7; i++) {
+      await h.settle(4);
+      await shoot(tag('back'));
+    }
+    await h.dispose();
+    unmuteNotifications();
+  });
 
   testWidgets('extraction hub preview', (tester) async {
     if (out == null) return;

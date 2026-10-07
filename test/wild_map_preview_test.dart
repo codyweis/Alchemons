@@ -16,11 +16,14 @@ import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
+import 'package:alchemons/navigation/emblem_passage.dart';
 import 'package:alchemons/screens/map_screen.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/dock_emblems.dart';
+import 'package:alchemons/widgets/dock_passages.dart';
 import 'package:alchemons/widgets/wilderness/wild_map.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
@@ -30,6 +33,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+
+import 'dock_passage_stage.dart';
 
 // The wild map: the field on its own (at rest, a finger through it, each
 // weather, realms with something waiting, Arcane open, the Glass Dunes
@@ -604,6 +609,128 @@ void main() {
           );
     }
   }
+
+  // The dock's Field hills carrying the player down into the map's circles,
+  // frame by frame over the real map, and back.
+  testWidgets('field passage', (tester) async {
+    if (out == null) return;
+    quietNotifications();
+    Directory(out).createSync(recursive: true);
+    tester.view.physicalSize = const Size(390, 844) * 3;
+    tester.view.devicePixelRatio = 3;
+    tester.view.padding = const FakeViewPadding(top: 44 * 3, bottom: 30 * 3);
+    addTearDown(tester.view.reset);
+    final db = AlchemonsDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    late WildernessSpawnService spawns;
+    late ConstellationEffectsService constellations;
+    await tester.runAsync(() async {
+      spawns = WildernessSpawnService(db);
+      await spawns.initializeActiveSpawns(
+        scenes: {
+          'valley': (
+            scene: valleySceneCorrected,
+            sceneWide: valleyEncounterPools(valleySceneCorrected).sceneWide,
+            perSpawn: valleyEncounterPools(valleySceneCorrected).perSpawn,
+          ),
+          'volcano': (
+            scene: volcanoScene,
+            sceneWide: volcanoEncounterPools(volcanoScene).sceneWide,
+            perSpawn: volcanoEncounterPools(volcanoScene).perSpawn,
+          ),
+        },
+        suppressSummaryNotifications: true,
+      );
+      constellations = ConstellationEffectsService(db);
+      await db.settingsDao.setSetting('arcane_portal_unlocked', '1');
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    });
+    addTearDown(spawns.dispose);
+    final shot = GlobalKey();
+    final emblem = GlobalKey();
+    final lifted = ValueNotifier(false);
+    Future<void> shoot(String name) => tester.runAsync(() async {
+      final boundary =
+          shot.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 1);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      File(
+        '$out/passage_$name.png',
+      ).writeAsBytesSync(bytes!.buffer.asUint8List());
+      image.dispose();
+    });
+    Future<void> settle(int frames) async {
+      for (var i = 0; i < frames; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+        await tester.pump(const Duration(milliseconds: 33));
+      }
+    }
+
+    final theme = FactionTheme.scorchForge();
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<AlchemonsDatabase>.value(value: db),
+          Provider<FactionTheme>.value(value: theme),
+          ChangeNotifierProvider<WildernessSpawnService>.value(value: spawns),
+          ChangeNotifierProvider<ConstellationEffectsService>.value(
+            value: constellations,
+          ),
+          ChangeNotifierProvider<FactionService>(
+            create: (_) => FactionService(db),
+          ),
+        ],
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData.dark(),
+          builder: (context, child) =>
+              RepaintBoundary(key: shot, child: child!),
+          home: DockStandIn(
+            kind: DockEmblemKind.field,
+            emblemKey: emblem,
+            lifted: lifted,
+            top: 190,
+          ),
+        ),
+      ),
+    );
+    await settle(4);
+    final ready = ValueNotifier(false);
+    final circles = ValueNotifier<List<FieldCircle>?>(null);
+    EmblemPassage.pushScene<bool>(
+      emblem.currentContext!,
+      scene: FieldPassage(target: circles),
+      from: emblem,
+      page: MapScreen(revealReady: ready, passageTarget: circles),
+      ready: ready,
+      lifted: lifted,
+    );
+    var n = 0;
+    String tag(String s) => '${(n++).toString().padLeft(2, '0')}_$s';
+    await shoot(tag('home'));
+    for (var i = 0; i < 6; i++) {
+      await settle(5);
+      await shoot(tag('in'));
+    }
+    for (var i = 0; i < 9; i++) {
+      await settle(5);
+      await shoot(tag(ready.value ? 'land' : 'hold'));
+    }
+    await settle(30);
+    await shoot(tag('page'));
+    Navigator.of(emblem.currentContext!).pop();
+    for (var i = 0; i < 8; i++) {
+      await settle(4);
+      await shoot(tag('back'));
+    }
+    await tester.pumpWidget(const SizedBox());
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    debugDefaultTargetPlatformOverride = null;
+  });
 
   for (final (name, theme, dunes, screen) in [
     ('dark', FactionTheme.scorchForge(), false, const Size(390, 844)),

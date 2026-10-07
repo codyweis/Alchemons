@@ -29,6 +29,7 @@ import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/element_resource_glyph.dart';
 import 'package:alchemons/widgets/element_resource_totals_bar.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
+import 'package:alchemons/widgets/dock_passages.dart';
 import 'package:alchemons/widgets/fx/extraction_vessel.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:flutter/material.dart';
@@ -51,9 +52,19 @@ import 'package:alchemons/widgets/app_icons.dart';
 const BracketPalette _kPalette = BracketPalette.dark;
 
 class ExtractionHubScreen extends StatefulWidget {
-  const ExtractionHubScreen({super.key, this.service});
+  const ExtractionHubScreen({
+    super.key,
+    this.service,
+    this.revealReady,
+    this.passageTarget,
+  });
 
   final HarvestService? service;
+
+  /// Arriving through the dock's Harvest passage: set true once the chamber
+  /// is laid out, after [passageTarget] says where its flask stands.
+  final ValueNotifier<bool>? revealReady;
+  final ValueNotifier<HarvestFlaskTarget?>? passageTarget;
 
   @override
   State<ExtractionHubScreen> createState() => _ExtractionHubScreenState();
@@ -120,7 +131,32 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
     // Arriving earns the task; collecting it happens in the journal.
     OnboardingTaskService.recordArrival(context, 'harvest');
     _svc = widget.service ?? context.read<HarvestService>();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTutorial());
+    final ready = widget.revealReady;
+    if (ready == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTutorial());
+    } else {
+      // Not over the passage: once it has given way to the chamber.
+      void shown() {
+        if (!ready.value) return;
+        ready.removeListener(shown);
+        Future<void>.delayed(
+          const Duration(milliseconds: 1200),
+          _maybeShowTutorial,
+        );
+      }
+
+      ready.addListener(shown);
+      shown();
+    }
+  }
+
+  /// The chamber in view has laid out: where its flask stands, for the
+  /// passage to land on. Only the first time.
+  void _onChamberPlaced(HarvestFlaskTarget place) {
+    final ready = widget.revealReady;
+    if (ready == null || ready.value) return;
+    widget.passageTarget?.value = place;
+    ready.value = true;
   }
 
   Future<void> _maybeShowTutorial() async {
@@ -403,6 +439,9 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                       discoveredCreatures: discovered,
                                       defaultDuration: const Duration(hours: 4),
                                       onUnlock: _promptUnlock,
+                                      onPlaced: widget.revealReady == null
+                                          ? null
+                                          : _onChamberPlaced,
                                     ),
                                   ),
                                 ],
@@ -448,6 +487,7 @@ class _ExtractionBay extends StatelessWidget {
     required this.defaultDuration,
     required this.onUnlock,
     required this.totalKeys,
+    this.onPlaced,
   });
 
   final List<BiomeFarmState> farms;
@@ -463,6 +503,9 @@ class _ExtractionBay extends StatelessWidget {
   /// One key per biome, anchoring its running total in the header strip — the
   /// number a collect flies to.
   final Map<String, GlobalKey> totalKeys;
+
+  /// Where the flask in view stands once it is laid out.
+  final ValueChanged<HarvestFlaskTarget>? onPlaced;
 
   BiomeFarmState _selectedFarm() {
     if (farms.isEmpty) {
@@ -492,6 +535,7 @@ class _ExtractionBay extends StatelessWidget {
             defaultDuration: defaultDuration,
             onUnlock: () => onUnlock(selected),
             collectTargetKey: totalKeys[selected.biome.id],
+            onPlaced: onPlaced,
           ),
         );
       },
@@ -567,6 +611,7 @@ class _EmbeddedChamber extends StatefulWidget {
     required this.defaultDuration,
     required this.onUnlock,
     this.collectTargetKey,
+    this.onPlaced,
   });
 
   final BiomeFarmState farm;
@@ -578,6 +623,10 @@ class _EmbeddedChamber extends StatefulWidget {
 
   /// The chip label the collected resources fly to.
   final GlobalKey? collectTargetKey;
+
+  /// Where its flask stands once laid out (with the Alchemon in it, if it
+  /// has one, read) — for a passage landing on it.
+  final ValueChanged<HarvestFlaskTarget>? onPlaced;
 
   @override
   State<_EmbeddedChamber> createState() => _EmbeddedChamberState();
@@ -611,6 +660,11 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 
   ({Creature base, CreatureInstance inst})? _creature;
   String? _cachedInstanceId;
+
+  /// The Alchemon in it has been looked up (or there is none): the flask
+  /// has stopped moving aside for it.
+  bool _creatureRead = false;
+  bool _placed = false;
 
   /// Set when an Alchemon has just been put in, so it gathers into the glass.
   EssenceReveal? _reveal;
@@ -674,6 +728,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     final job = widget.service.biome(widget.farm.biome).activeJob;
     if (job == null) {
       _cachedInstanceId = null;
+      _creatureRead = true;
       if (mounted) setState(() => _creature = null);
       return;
     }
@@ -687,12 +742,43 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     final base = inst == null
         ? null
         : context.read<CreatureCatalog>().getCreatureById(inst.baseId);
-    setState(
-      () =>
-          _creature = (inst == null || base == null || base.spriteData == null)
+    setState(() {
+      _creatureRead = true;
+      _creature = (inst == null || base == null || base.spriteData == null)
           ? null
-          : (base: base, inst: inst),
-    );
+          : (base: base, inst: inst);
+    });
+  }
+
+  /// Once, after it is laid out: where the flask stands and what is in it.
+  void _reportPlace(VesselMode mode, Color accent) {
+    if (_placed || widget.onPlaced == null || !_creatureRead) return;
+    _placed = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final bulb = ExtractionVessel.bulbOf(
+        _vesselKey,
+        occupied: _creature != null,
+      );
+      if (bulb == null) return;
+      const cold = Color(0xFF6E6A73);
+      widget.onPlaced!(
+        HarvestFlaskTarget(
+          centre: bulb.centre,
+          radius: bulb.radius,
+          ink: switch (mode) {
+            VesselMode.locked => cold,
+            VesselMode.empty => Color.lerp(accent, cold, 0.45)!,
+            _ => accent,
+          },
+          level: switch (mode) {
+            VesselMode.ready => 1,
+            VesselMode.running => _level.value,
+            _ => 0,
+          },
+        ),
+      );
+    });
   }
 
   // ── Progress sync ─────────────────────────────────────────────────────────
@@ -1013,6 +1099,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
             ? VesselMode.running
             : VesselMode.empty;
         final creature = _creature;
+        _reportPlace(mode, accent);
         return Column(
           children: [
             _ChamberTitle(farm: farm, mode: mode, accent: accent),

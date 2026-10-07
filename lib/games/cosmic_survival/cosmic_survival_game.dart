@@ -1714,6 +1714,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   /// Jump the camera to [zoom] with no animation.
   void setCameraZoom(double zoom) {
+    _cameraGlideZooms = false;
     _currentZoom = zoom;
     _zoomAnimFrom = zoom;
     _zoomAnimTo = zoom;
@@ -1800,10 +1801,130 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _autopilotState.value = on;
   }
 
-  double get camX =>
-      ship.position.dx + cameraPanOffset.dx - size.x / (2 * _currentZoom);
-  double get camY =>
-      ship.position.dy + cameraPanOffset.dy - size.y / (2 * _currentZoom);
+  double get camX => _cameraCentreX - size.x / (2 * _currentZoom);
+  double get camY => _cameraCentreY - size.y / (2 * _currentZoom);
+
+  /// The point the camera looks at: the ship (plus any pan), or — while the
+  /// entrance holds it — the core, gliding from one to the other.
+  double get _cameraCentreX {
+    final follow = ship.position.dx + cameraPanOffset.dx;
+    if (_cameraGlide >= 1) return follow;
+    return orb.position.dx + (follow - orb.position.dx) * _cameraGlide;
+  }
+
+  double get _cameraCentreY {
+    final follow = ship.position.dy + cameraPanOffset.dy;
+    if (_cameraGlide >= 1) return follow;
+    return orb.position.dy + (follow - orb.position.dy) * _cameraGlide;
+  }
+
+  // == The entrance ==========================================================
+  //
+  // The lobby carries its core into the run (survival_orb_entrance.dart). The
+  // run is built held, the camera on the core at [entranceZoom]; while the
+  // arena fades in, the lobby's overlay draws the core through
+  // [paintCorePresentation] and the run leaves its own out
+  // ([entranceCoreHidden]). Then the overlay steps aside in the same frame
+  // the run draws the core again — same place, size and phase
+  // ([alignCorePresentation]) — and the camera glides out to the ship.
+
+  /// The zoom a run opens at, and the zoom the entrance holds the core at.
+  static const double entranceZoom = _introZoomStart;
+
+  /// The core's radius, in world units.
+  static const double coreRadius = _orbCoreRadius;
+
+  /// The radius of the field's innermost lane: the ship's orbit.
+  static const double coreFieldOrbit = _orbShipOrbitRadius;
+
+  /// While true the run draws no core, field or readings: the entrance
+  /// overlay is drawing them in the same place.
+  bool entranceCoreHidden = false;
+
+  /// Added to the run's clock wherever the core is drawn, so the run picks
+  /// up the lobby core's turning where it left off.
+  double _coreClockOffset = 0;
+
+  bool _cameraHeldOnCore = false;
+
+  /// 0: the camera on the core; 1: following the ship.
+  double _cameraGlide = 1;
+  double _cameraGlideT = 0;
+  double _cameraGlideZoomTo = _zoomBase;
+  bool _cameraGlideZooms = false;
+  static const double _cameraGlideSeconds = 1.6;
+
+  /// The clock the core is drawn at.
+  double get corePresentationTime => stats.timeElapsed + _coreClockOffset;
+
+  /// How far a Celestial core is through the wait for its next heal.
+  double get _coreBeat => orb.skin == OrbBaseSkin.celestialOrb
+      ? (_celestialHealTimer / 8.0).clamp(0.0, 1.0)
+      : 1;
+
+  /// Holds the camera on the core at [entranceZoom] until
+  /// [releaseCameraToShip]. Call after [startGame].
+  void holdCameraOnCore() {
+    setCameraZoom(entranceZoom);
+    _cameraHeldOnCore = true;
+    _cameraGlide = 0;
+    _cameraGlideZooms = false;
+  }
+
+  /// The core is to carry on from [time] (and, for a Celestial core, from
+  /// [beat] through its heal wait), as the lobby was last drawing it.
+  void alignCorePresentation({required double time, required double beat}) {
+    _coreClockOffset = time - stats.timeElapsed;
+    if (orb.skin == OrbBaseSkin.celestialOrb) {
+      _celestialHealTimer = beat.clamp(0.0, 1.0) * 8.0;
+    }
+  }
+
+  /// Lets the camera go: it glides from the core to the ship, and from
+  /// [entranceZoom] out to the run's zoom, easing in and out.
+  void releaseCameraToShip() {
+    if (!_cameraHeldOnCore) return;
+    _cameraHeldOnCore = false;
+    _cameraGlideT = 0;
+    _cameraGlideZoomTo = _zoomPresets[_zoomLevelIndex];
+    _cameraGlideZooms = true;
+  }
+
+  void _updateCameraGlide(double dt) {
+    if (_cameraGlide >= 1 || _cameraHeldOnCore) return;
+    _cameraGlideT += dt;
+    final x = (_cameraGlideT / _cameraGlideSeconds).clamp(0.0, 1.0);
+    final e = x * x * x * (x * (x * 6 - 15) + 10);
+    _cameraGlide = e;
+    if (_cameraGlideZooms) {
+      _currentZoom = entranceZoom + (_cameraGlideZoomTo - entranceZoom) * e;
+      _zoomAnimFrom = _currentZoom;
+      _zoomAnimTo = _currentZoom;
+    }
+    if (x >= 1) {
+      _cameraGlide = 1;
+      if (_cameraGlideZooms) setCameraZoom(_cameraGlideZoomTo);
+      _cameraGlideZooms = false;
+    }
+  }
+
+  /// The core as the run draws it — its field, the core, and its readings
+  /// at [readings] strength — centred on the canvas origin in world units.
+  void paintCorePresentation(Canvas canvas, {double readings = 1}) {
+    _paintCoreField(canvas);
+    _paintCoreBody(canvas);
+    if (readings <= 0) return;
+    if (readings >= 1) {
+      _paintCoreReadings(canvas);
+      return;
+    }
+    canvas.saveLayer(
+      Rect.fromCircle(center: Offset.zero, radius: _orbShieldRadius + 40),
+      Paint()..color = Color.fromRGBO(0, 0, 0, readings),
+    );
+    _paintCoreReadings(canvas);
+    canvas.restore();
+  }
 
   final Random _rng;
 
@@ -1966,6 +2087,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _startZoomAnimation(double targetZoom) {
+    // A zoom asked for mid-glide takes over from the glide's.
+    _cameraGlideZooms = false;
     _zoomAnimFrom = _currentZoom;
     _zoomAnimTo = targetZoom;
     _zoomAnimTimer = 0;
@@ -2013,6 +2136,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _currentZoom = _zoomAnimFrom + (_zoomAnimTo - _zoomAnimFrom) * ease;
       if (t >= 1.0) _zoomAnimComplete = true;
     }
+    _updateCameraGlide(dt);
 
     _updateShip(dt);
     _updateCompanion(dt);
@@ -19682,7 +19806,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       canvas,
       orb.skin,
       t,
-      stats.timeElapsed,
+      corePresentationTime,
       radius: _orbCoreRadius,
     );
     canvas.restore();
@@ -19692,36 +19816,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// alchemy meter are rings of cells; a held shield is a glass bubble.
   void _renderOrb(Canvas canvas) {
     // Once it has given out, the fall draws it, over the dimmed arena.
-    if (isGameOver) return;
+    if (isGameOver || entranceCoreHidden) return;
     final center = orb.position;
-    final elapsed = stats.timeElapsed;
     canvas.save();
     canvas.translate(center.dx, center.dy);
-    paintOrbCore(
-      canvas,
-      orb.skin,
-      elapsed,
-      radius: _orbCoreRadius,
-      beat: orb.skin == OrbBaseSkin.celestialOrb
-          ? (_celestialHealTimer / 8.0).clamp(0.0, 1.0)
-          : 1,
-    );
-    paintOrbReadings(
-      canvas,
-      orb.skin,
-      hpFrac: orb.hpPercent,
-      meterFrac: _alchemicalMeterDisplayFrac,
-      shield: orb.shieldHp > 0
-          ? (orb.shieldHp / max(orb.maxHp, 1) * 2).clamp(0.25, 1.0)
-          : 0,
-      shieldRadius: _orbShieldRadius,
-      time: elapsed,
-    );
+    _paintCoreBody(canvas);
+    _paintCoreReadings(canvas);
     canvas.restore();
 
     if (_isAnyKinDarkCloakActive()) {
       // The veil: the orb reads as hidden, a dark ring closing over it.
-      final pulse = 0.5 + 0.5 * sin(elapsed * 3.1);
+      final pulse = 0.5 + 0.5 * sin(stats.timeElapsed * 3.1);
       canvas.drawCircle(
         center,
         _orbShieldRadius + 8,
@@ -19740,18 +19845,50 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  /// The core itself, at the canvas origin.
+  void _paintCoreBody(Canvas canvas) {
+    paintOrbCore(
+      canvas,
+      orb.skin,
+      corePresentationTime,
+      radius: _orbCoreRadius,
+      beat: _coreBeat,
+    );
+  }
+
+  /// The core's readings, at the canvas origin.
+  void _paintCoreReadings(Canvas canvas) {
+    paintOrbReadings(
+      canvas,
+      orb.skin,
+      hpFrac: orb.hpPercent,
+      meterFrac: _alchemicalMeterDisplayFrac,
+      shield: orb.shieldHp > 0
+          ? (orb.shieldHp / max(orb.maxHp, 1) * 2).clamp(0.25, 1.0)
+          : 0,
+      shieldRadius: _orbShieldRadius,
+      time: corePresentationTime,
+    );
+  }
+
   /// The field the ship orbits in: lanes of drifting dust (orb_art.dart),
   /// the innermost on the ship's orbit.
   void _renderOrbGravityField(Canvas canvas) {
+    if (entranceCoreHidden) return;
     canvas.save();
     canvas.translate(orb.position.dx, orb.position.dy);
+    _paintCoreField(canvas);
+    canvas.restore();
+  }
+
+  /// The field, at the canvas origin.
+  void _paintCoreField(Canvas canvas) {
     paintOrbField(
       canvas,
       orb.skin,
-      stats.timeElapsed,
+      corePresentationTime,
       orbit: _orbShipOrbitRadius,
     );
-    canvas.restore();
   }
 
   /// Enemy rendering: EXACT SAME visuals as cosmic game per tier.
